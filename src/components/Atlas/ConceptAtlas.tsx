@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { GitBranch, Maximize2, Minimize2, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -32,6 +32,9 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
   const [branchTarget, setBranchTarget] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newConcept, setNewConcept] = useState({ name: '', description: '' });
+  const [draftPositions, setDraftPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [draggingName, setDraggingName] = useState<string | null>(null);
+  const mapRef = useRef<HTMLDivElement | null>(null);
 
   const terms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts), [concepts, media, insights, vault, drafts]);
   const nodes = useMemo(() => {
@@ -45,11 +48,11 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
         name,
         concept,
         count,
-        x: concept?.x ?? 50 + Math.cos(angle) * radius,
-        y: concept?.y ?? 50 + Math.sin(angle) * radius,
+        x: draftPositions[conceptKey(name)]?.x ?? concept?.x ?? 50 + Math.cos(angle) * radius,
+        y: draftPositions[conceptKey(name)]?.y ?? concept?.y ?? 50 + Math.sin(angle) * radius,
       };
     });
-  }, [concepts, drafts, insights, media, search, terms, vault]);
+  }, [concepts, drafts, draftPositions, insights, media, search, terms, vault]);
 
   const selected = nodes.find((node) => conceptKey(node.name) === conceptKey(selectedName || '')) || nodes[0];
   const selectedConcept = selected?.concept;
@@ -86,9 +89,67 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
     setBranchTarget('');
   };
 
+  const moveNode = (name: string, clientX: number, clientY: number) => {
+    const rect = mapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = Math.min(94, Math.max(6, ((clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(92, Math.max(8, ((clientY - rect.top) / rect.height) * 100));
+    setDraftPositions((prev) => ({ ...prev, [conceptKey(name)]: { x, y } }));
+  };
+
+  const persistNode = (name: string) => {
+    const concept = concepts.find((item) => conceptKey(item.name) === conceptKey(name));
+    const position = draftPositions[conceptKey(name)];
+    if (concept && position) onUpdateConcept({ ...concept, ...position, dateUpdated: new Date().toISOString() });
+    setDraggingName(null);
+  };
+
+  const edgePoints = (from: typeof nodes[number], to: typeof nodes[number]) => {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    const horizontalRadius = 7.2;
+    const verticalRadius = 4.2;
+    const fromRadius = Math.min(Math.abs(horizontalRadius / (ux || 0.001)), Math.abs(verticalRadius / (uy || 0.001)));
+    const toRadius = fromRadius;
+    return {
+      x1: from.x + ux * Math.min(fromRadius, len / 2),
+      y1: from.y + uy * Math.min(fromRadius, len / 2),
+      x2: to.x - ux * Math.min(toRadius, len / 2),
+      y2: to.y - uy * Math.min(toRadius, len / 2),
+    };
+  };
+
+  const atlasCards = [
+    { label: 'Map Nodes', value: nodes.length, sub: 'Visible concepts in this search.' },
+    { label: 'Branches', value: edges.filter((edge) => edge.type === 'manual').length, sub: 'Manual concept links.' },
+    { label: 'Shared Lines', value: edges.filter((edge) => edge.type === 'shared').length, sub: 'Auto links from shared evidence.' },
+    { label: 'Selected', value: selected?.name || 'None', sub: 'Click or drag a node.' },
+  ];
+
   return (
-    <div className="relative w-full h-full bg-[#F0EFED] flex overflow-hidden">
-      <div className="absolute top-6 left-6 right-6 flex justify-between items-start pointer-events-none z-10">
+    <div className="relative w-full h-full bg-[#F0EFED] flex flex-col overflow-hidden">
+      <div className="px-6 pt-6 pb-4">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
+          {atlasCards.map((card) => (
+            <Card key={card.label} className="p-4 bg-white/85 border-border/60">
+              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{card.label}</div>
+              <div className="mt-2 font-headline text-2xl font-bold italic truncate">{card.value}</div>
+              <p className="mt-1 text-xs text-muted-foreground">{card.sub}</p>
+            </Card>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge>Atlas is the map</Badge>
+          <Badge variant="outline">Drag nodes to arrange</Badge>
+          <Badge variant="outline">Click stays in Atlas</Badge>
+          <Badge variant="outline">Branching lives here</Badge>
+        </div>
+      </div>
+
+      <div className="px-6 pb-4 flex justify-between items-start z-10">
         <div className="relative pointer-events-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="w-64 pl-9 bg-white/80 backdrop-blur border-border/50 font-body italic" />
@@ -103,12 +164,14 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
         </div>
       </div>
 
+      <div className="flex-1 overflow-hidden flex">
       <div className="flex-1 overflow-hidden">
         <div
+          ref={mapRef}
           className="w-full h-full relative transition-transform duration-200"
           style={{
             transform: `scale(${zoom})`,
-            backgroundImage: 'radial-gradient(hsl(var(--muted-foreground) / 0.12) 1px, transparent 0)',
+            backgroundImage: 'radial-gradient(circle at 20% 10%, hsl(var(--accent) / .08), transparent 25%), radial-gradient(circle at 82% 18%, hsl(var(--primary) / .08), transparent 24%), radial-gradient(hsl(var(--muted-foreground) / 0.12) 1px, transparent 0)',
             backgroundSize: '32px 32px',
           }}
         >
@@ -117,16 +180,18 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
               const from = nodes.find((node) => conceptKey(node.name) === conceptKey(edge.from));
               const to = nodes.find((node) => conceptKey(node.name) === conceptKey(edge.to));
               if (!from || !to) return null;
+              const points = edgePoints(from, to);
               return (
                 <line
                   key={`${edge.from}-${edge.to}-${index}`}
-                  x1={`${from.x}%`}
-                  y1={`${from.y}%`}
-                  x2={`${to.x}%`}
-                  y2={`${to.y}%`}
+                  x1={`${points.x1}%`}
+                  y1={`${points.y1}%`}
+                  x2={`${points.x2}%`}
+                  y2={`${points.y2}%`}
                   stroke={edge.type === 'manual' ? 'hsl(var(--accent))' : 'hsl(var(--muted-foreground) / .35)'}
-                  strokeWidth={edge.type === 'manual' ? 2.5 : 1.5}
+                  strokeWidth={edge.type === 'manual' ? 3 : 2}
                   strokeDasharray={edge.type === 'manual' ? '0' : '6 6'}
+                  strokeLinecap="round"
                 />
               );
             })}
@@ -135,11 +200,20 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
           {nodes.map((node) => (
             <button
               key={node.name}
-              className="absolute min-w-[140px] -translate-x-1/2 -translate-y-1/2 text-center"
+              className="absolute min-w-[140px] -translate-x-1/2 -translate-y-1/2 text-center cursor-grab active:cursor-grabbing"
               style={{ left: `${node.x}%`, top: `${node.y}%` }}
-              onClick={() => setSelectedName(node.name)}
+              onPointerDown={(event) => {
+                setSelectedName(node.name);
+                setDraggingName(node.name);
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                if (draggingName === node.name) moveNode(node.name, event.clientX, event.clientY);
+              }}
+              onPointerUp={() => persistNode(node.name)}
+              onPointerCancel={() => setDraggingName(null)}
             >
-              <Card className={cn('p-3 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all border-accent/20 bg-white/95', selected?.name === node.name && 'ring-2 ring-accent border-accent')}>
+              <Card className={cn('p-3 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all border-accent/20 bg-white/95', selected?.name === node.name && 'ring-2 ring-accent border-accent shadow-2xl')}>
                 <h3 className="font-headline font-semibold text-primary">{node.name}</h3>
                 <div className="mt-1 font-code text-[9px] uppercase text-muted-foreground">{node.count} linked</div>
               </Card>
@@ -200,6 +274,7 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
           </div>
         </aside>
       )}
+      </div>
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent>

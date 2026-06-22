@@ -62,9 +62,10 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
             <Progress value={totalProgress} className="h-1 bg-white/10 mb-3" />
             <div className="space-y-1.5">
               {goalRows.length ? goalRows.map((row) => (
-                <div key={row.type} className="grid grid-cols-[1fr_auto] gap-2 font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/45">
+                <div key={row.type} className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-1 font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/45">
                   <span>{MEDIA_LABELS[row.type]}</span>
                   <span className="text-white/70">{row.done} / {row.target}</span>
+                  <Progress value={(row.done / Math.max(1, row.target)) * 100} className="col-span-2 h-0.5 bg-white/10" />
                 </div>
               )) : (
                 <div className="font-code text-[9px] uppercase text-sidebar-foreground/45">No media goals selected</div>

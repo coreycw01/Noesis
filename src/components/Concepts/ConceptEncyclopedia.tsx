@@ -79,11 +79,18 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <Stat value={terms.length} label="Concepts" />
-        <Stat value={media.length} label="Sources" />
-        <Stat value={insights.length + vault.length} label="Ideas + Beliefs" />
-        <Stat value={allAnnotations(media).length} label="Annotations" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <Stat value={terms.length} label="Concepts" sub="Encyclopedia entries" />
+        <Stat value={media.length} label="Sources" sub="Inputs feeding concepts" />
+        <Stat value={allAnnotations(media).length} label="Annotations" sub="Tagged notes and questions" />
+        <Stat value={insights.length + vault.length + drafts.length} label="Outputs" sub="Ideas, beliefs, writing" />
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-8">
+        <Badge>Concepts are the encyclopedia</Badge>
+        <Badge variant="outline">Cards open detail popups</Badge>
+        <Badge variant="outline">Chips show linked items</Badge>
+        <Badge variant="outline">Atlas remains the map</Badge>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -172,11 +179,12 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   );
 }
 
-function Stat({ value, label }: { value: number; label: string }) {
+function Stat({ value, label, sub }: { value: number; label: string; sub: string }) {
   return (
-    <Card className="p-4 text-center">
-      <div className="text-2xl font-headline font-bold text-accent">{value}</div>
-      <div className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
+    <Card className="p-4 min-h-28">
+      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="mt-2 text-3xl font-headline font-bold text-accent">{value}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
     </Card>
   );
 }

@@ -37,6 +37,10 @@ export function Atelier({ drafts, media, vault, questions, concepts, onAddDraft,
   const active = drafts.find((draft) => draft.id === activeId) || null;
   const questionList = allQuestions(media, questions);
   const visibleDrafts = drafts.filter((draft) => filter === 'all' || draft.type === filter || draft.status === filter);
+  const linkedSourceCount = active?.sourceIds?.length || 0;
+  const linkedQuestionCount = active?.questionIds?.length || 0;
+  const linkedBeliefCount = active?.beliefIds?.length || 0;
+  const conceptCount = active?.conceptTags?.length || 0;
 
   useEffect(() => {
     if (!activeId && drafts[0]) setActiveId(drafts[0].id);
@@ -55,7 +59,28 @@ export function Atelier({ drafts, media, vault, questions, concepts, onAddDraft,
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="p-6 border-b border-border/50 bg-[#F0EFED]">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between mb-4">
+          <div>
+            <h1 className="text-4xl font-headline font-bold italic">Writing Studio</h1>
+            <p className="mt-1 text-muted-foreground font-body">Draft essays, scripts, and field notes while keeping evidence and concept links beside the editor.</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => { setNewDraft({ title: '', type: 'field_note' }); setIsAddOpen(true); }}>+ Field Note</Button>
+            <Button variant="outline" onClick={() => { setNewDraft({ title: '', type: 'script' }); setIsAddOpen(true); }}>+ Script</Button>
+            <Button onClick={() => { setNewDraft({ title: '', type: 'essay' }); setIsAddOpen(true); }}>+ Essay</Button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          <StudioStat label="Drafts" value={drafts.length} sub="All writing outputs" />
+          <StudioStat label="Concept Tags" value={conceptCount} sub="Grouping this draft" />
+          <StudioStat label="Evidence Links" value={linkedSourceCount + linkedQuestionCount + linkedBeliefCount} sub="Sources, questions, beliefs" />
+          <StudioStat label="Status" value={active?.status || 'None'} sub={active ? DRAFT_LABELS[active.type] : 'Create a draft'} />
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
       <div className="w-72 border-r border-border/50 flex flex-col bg-white/30">
         <div className="p-6 border-b border-border/50 flex justify-between items-center">
           <h2 className="font-headline font-bold text-xl italic">Writing</h2>
@@ -117,7 +142,18 @@ export function Atelier({ drafts, media, vault, questions, concepts, onAddDraft,
           <DialogFooter><Button onClick={createDraft}>Create Draft</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
+  );
+}
+
+function StudioStat({ label, value, sub }: { label: string; value: string | number; sub: string }) {
+  return (
+    <Card className="p-4 bg-white/85 border-border/60 min-h-28">
+      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="mt-2 font-headline text-2xl font-bold italic truncate">{value}</div>
+      <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
+    </Card>
   );
 }
 
