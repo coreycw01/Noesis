@@ -1,0 +1,29 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "meditations",
+      "description": "Antique book cover of Meditations",
+      "imageUrl": "https://picsum.photos/seed/meditations/400/600",
+      "imageHint": "antique book"
+    },
+    {
+      "id": "denial-death",
+      "description": "Modern philosophy book cover",
+      "imageUrl": "https://picsum.photos/seed/death/400/600",
+      "imageHint": "philosophy book"
+    },
+    {
+      "id": "man-search",
+      "description": "Psychology book cover",
+      "imageUrl": "https://picsum.photos/seed/meaning/400/600",
+      "imageHint": "psychology book"
+    },
+    {
+      "id": "carse-finite",
+      "description": "Abstract philosophical art",
+      "imageUrl": "https://picsum.photos/seed/games/400/600",
+      "imageHint": "abstract philosophy"
+    }
+  ]
+}
