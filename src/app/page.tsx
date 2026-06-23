@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -19,7 +20,7 @@ import { QuestionsWorkspace } from '@/components/Questions/QuestionsWorkspace';
 import { EvolutionTimeline } from '@/components/Evolution/EvolutionTimeline';
 import { PracticesWorkspace } from '@/components/Practices/PracticesWorkspace';
 import { Toaster } from '@/components/ui/toaster';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,8 +30,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MEDIA_LABELS, MEDIA_TYPES, conceptKey, ensureConceptTerms, normalizeConceptTags, today } from '@/lib/readex';
 import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
-import type { Concept, Draft, GoalSettings, Insight, Media, MediaType, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
-import { addDoc, deleteDoc, doc, getDoc, setDoc, updateDoc, writeBatch, type DocumentData, type DocumentReference } from 'firebase/firestore';
+import type { Concept, Draft, GoalSettings, Insight, Media, MediaType, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext } from '@/lib/types';
+import { doc, getDoc, setDoc, updateDoc, writeBatch, type DocumentData, type DocumentReference } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 function ReadexApp() {
   const { user } = useUser();
@@ -74,47 +77,80 @@ function ReadexApp() {
     });
   }, [effectiveUid, refs.settingsAtlasNodes, refs.settingsAtlasView, refs.settingsGoal, refs.settingsSchema, refs.user]);
 
-  const createTimelineEvent = (event: Partial<TimelineEvent>) => addDoc(refs.timeline, {
-    entityId: event.entityId || '',
-    entityType: event.entityType || 'unknown',
-    entityTitle: event.entityTitle || 'Untitled',
-    eventType: event.eventType || 'created',
-    reason: event.reason || '',
-    influencedBy: event.influencedBy || [],
-    date: event.date || today(),
-  });
-
-  const ensureConcepts = async (tags: string[]) => {
-    const missing = ensureConceptTerms(concepts, tags);
-    await Promise.all(missing.map((name) => addDoc(refs.concepts, {
-      name,
-      description: '',
-      links: [],
-      sourceIds: [],
-      x: Math.random() * 80 + 10,
-      y: Math.random() * 80 + 10,
-      createdFrom: name === 'Unsorted Ideas' ? 'fallback' : 'tag',
-      dateCreated: today(),
-    })));
+  const emitError = (path: string, operation: SecurityRuleContext['operation'], data?: any) => {
+    errorEmitter.emit('permission-error', new FirestorePermissionError({
+      path,
+      operation,
+      requestResourceData: data,
+    }));
   };
 
-  const addConcept = (data: Partial<Concept>) => addDoc(refs.concepts, {
-    name: conceptKey(data.name),
-    description: data.description || '',
-    links: data.links || [],
-    sourceIds: data.sourceIds || [],
-    x: data.x ?? Math.random() * 80 + 10,
-    y: data.y ?? Math.random() * 80 + 10,
-    createdFrom: data.createdFrom || 'manual',
-    dateCreated: today(),
-  });
-  const updateConcept = (concept: Concept) => updateDoc(doc(refs.concepts, concept.id), { ...concept, dateUpdated: today() });
-  const deleteConcept = (id: string) => deleteDoc(doc(refs.concepts, id));
+  const createTimelineEvent = (event: Partial<TimelineEvent>) => {
+    const eventRef = doc(refs.timeline);
+    const data = {
+      id: eventRef.id,
+      entityId: event.entityId || '',
+      entityType: event.entityType || 'unknown',
+      entityTitle: event.entityTitle || 'Untitled',
+      eventType: event.eventType || 'created',
+      reason: event.reason || '',
+      influencedBy: event.influencedBy || [],
+      date: event.date || today(),
+    };
+    setDoc(eventRef, data).catch(() => emitError(eventRef.path, 'create', data));
+  };
 
-  const addMedia = async (data: Partial<Media>) => {
+  const ensureConcepts = (tags: string[]) => {
+    const missing = ensureConceptTerms(concepts, tags);
+    missing.forEach((name) => {
+      const conceptRef = doc(refs.concepts);
+      const data = {
+        id: conceptRef.id,
+        name,
+        description: '',
+        links: [],
+        sourceIds: [],
+        x: Math.random() * 80 + 10,
+        y: Math.random() * 80 + 10,
+        createdFrom: name === 'Unsorted Ideas' ? 'fallback' : 'tag',
+        dateCreated: today(),
+      };
+      setDoc(conceptRef, data).catch(() => emitError(conceptRef.path, 'create', data));
+    });
+  };
+
+  const addConcept = (data: Partial<Concept>) => {
+    const conceptRef = doc(refs.concepts);
+    const payload = {
+      id: conceptRef.id,
+      name: conceptKey(data.name),
+      description: data.description || '',
+      links: data.links || [],
+      sourceIds: data.sourceIds || [],
+      x: data.x ?? Math.random() * 80 + 10,
+      y: data.y ?? Math.random() * 80 + 10,
+      createdFrom: data.createdFrom || 'manual',
+      dateCreated: today(),
+    };
+    setDoc(conceptRef, payload).catch(() => emitError(conceptRef.path, 'create', payload));
+  };
+
+  const updateConcept = (concept: Concept) => {
+    const conceptRef = doc(refs.concepts, concept.id);
+    updateDoc(conceptRef, { ...concept, dateUpdated: today() }).catch(() => emitError(conceptRef.path, 'update', concept));
+  };
+
+  const deleteConcept = (id: string) => {
+    const conceptRef = doc(refs.concepts, id);
+    deleteDoc(conceptRef).catch(() => emitError(conceptRef.path, 'delete'));
+  };
+
+  const addMedia = (data: Partial<Media>) => {
     const tags = normalizeConceptTags(data.tags);
-    await ensureConcepts(tags);
-    const created = await addDoc(refs.media, {
+    ensureConcepts(tags);
+    const mediaRef = doc(refs.media);
+    const payload = {
+      id: mediaRef.id,
       title: data.title || 'Untitled Source',
       creator: data.creator || '',
       type: data.type || 'book',
@@ -129,19 +165,28 @@ function ReadexApp() {
       capture: data.capture || { sessions: [] },
       dateAdded: today(),
       dateUpdated: today(),
-    });
-    await createTimelineEvent({ entityId: created.id, entityType: 'media', entityTitle: data.title, eventType: 'created', reason: 'Source added to Noesis' });
+    };
+    setDoc(mediaRef, payload).catch(() => emitError(mediaRef.path, 'create', payload));
+    createTimelineEvent({ entityId: mediaRef.id, entityType: 'media', entityTitle: payload.title, eventType: 'created', reason: 'Source added to Noesis' });
   };
-  const updateMedia = async (item: Media) => {
-    await ensureConcepts(item.tags || []);
-    await updateDoc(doc(refs.media, item.id), item as any);
-  };
-  const deleteMedia = (id: string) => deleteDoc(doc(refs.media, id));
 
-  const addVaultEntry = async (data: Partial<VaultEntry>) => {
+  const updateMedia = (item: Media) => {
+    ensureConcepts(item.tags || []);
+    const mediaRef = doc(refs.media, item.id);
+    updateDoc(mediaRef, { ...item, dateUpdated: today() } as any).catch(() => emitError(mediaRef.path, 'update', item));
+  };
+
+  const deleteMedia = (id: string) => {
+    const mediaRef = doc(refs.media, id);
+    deleteDoc(mediaRef).catch(() => emitError(mediaRef.path, 'delete'));
+  };
+
+  const addVaultEntry = (data: Partial<VaultEntry>) => {
     const tags = normalizeConceptTags(data.tags);
-    await ensureConcepts(tags);
-    const created = await addDoc(refs.vault, {
+    ensureConcepts(tags);
+    const vaultRef = doc(refs.vault);
+    const payload = {
+      id: vaultRef.id,
       title: data.title || 'Untitled Position',
       type: data.type || 'belief',
       statement: data.statement || data.description || '',
@@ -156,23 +201,31 @@ function ReadexApp() {
       createdFrom: data.createdFrom || 'manual',
       dateCreated: today(),
       dateUpdated: today(),
-    });
-    await createTimelineEvent({ entityId: created.id, entityType: 'vault', entityTitle: data.title, eventType: 'created', reason: 'Position formed', influencedBy: data.sourceIds });
+    };
+    setDoc(vaultRef, payload).catch(() => emitError(vaultRef.path, 'create', payload));
+    createTimelineEvent({ entityId: vaultRef.id, entityType: 'vault', entityTitle: payload.title, eventType: 'created', reason: 'Position formed', influencedBy: data.sourceIds });
   };
-  const updateVaultEntry = async (entry: VaultEntry) => {
-    await ensureConcepts(entry.tags || []);
-    await updateDoc(doc(refs.vault, entry.id), entry as any);
-    await createTimelineEvent({ entityId: entry.id, entityType: 'vault', entityTitle: entry.title, eventType: 'refined', reason: 'Position refined', influencedBy: entry.sourceIds });
-  };
-  const deleteVaultEntry = (id: string) => deleteDoc(doc(refs.vault, id));
 
-  const createIdea = async (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => {
+  const updateVaultEntry = (entry: VaultEntry) => {
+    ensureConcepts(entry.tags || []);
+    const vaultRef = doc(refs.vault, entry.id);
+    updateDoc(vaultRef, { ...entry, dateUpdated: today() } as any).catch(() => emitError(vaultRef.path, 'update', entry));
+    createTimelineEvent({ entityId: entry.id, entityType: 'vault', entityTitle: entry.title, eventType: 'refined', reason: 'Position refined', influencedBy: entry.sourceIds });
+  };
+
+  const deleteVaultEntry = (id: string) => {
+    const vaultRef = doc(refs.vault, id);
+    deleteDoc(vaultRef).catch(() => emitError(vaultRef.path, 'delete'));
+  };
+
+  const createIdea = (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => {
     const tags = normalizeConceptTags(data.tags);
-    await ensureConcepts(tags);
+    ensureConcepts(tags);
     const insightRef = doc(refs.insights);
     const beliefRef = doc(refs.vault);
     const batch = writeBatch(db);
     batch.set(insightRef, {
+      id: insightRef.id,
       title: data.title,
       body: data.body,
       sourceIds: data.sourceIds || [],
@@ -184,6 +237,7 @@ function ReadexApp() {
       dateUpdated: today(),
     });
     batch.set(beliefRef, {
+      id: beliefRef.id,
       title: data.title,
       type: 'belief',
       statement: data.title,
@@ -201,30 +255,41 @@ function ReadexApp() {
       dateUpdated: today(),
     });
     const eventRef = doc(refs.timeline);
-    batch.set(eventRef, { entityId: beliefRef.id, entityType: 'vault', entityTitle: data.title, eventType: 'created', reason: 'Idea formed as position', influencedBy: data.sourceIds || [], date: today() });
-    await batch.commit();
+    batch.set(eventRef, { id: eventRef.id, entityId: beliefRef.id, entityType: 'vault', entityTitle: data.title, eventType: 'created', reason: 'Idea formed as position', influencedBy: data.sourceIds || [], date: today() });
+    batch.commit().catch(() => emitError('batch', 'write', data));
     setView('vault');
   };
 
-  const addQuestion = (data: Partial<Question>) => addDoc(refs.questions, {
-    text: data.text || '',
-    status: data.status || 'open',
-    answer: data.answer || '',
-    evidenceIds: data.evidenceIds || [],
-    conceptIds: data.conceptIds || [],
-    sourceIds: data.sourceIds || [],
-    beliefIds: data.beliefIds || [],
-    draftIds: data.draftIds || [],
-    type: data.type || 'manual',
-    dateCreated: today(),
-    dateUpdated: today(),
-  });
-  const updateQuestion = (question: Question) => updateDoc(doc(refs.questions, question.id), { ...question, dateUpdated: today() } as any);
+  const addQuestion = (data: Partial<Question>) => {
+    const questionRef = doc(refs.questions);
+    const payload = {
+      id: questionRef.id,
+      text: data.text || '',
+      status: data.status || 'open',
+      answer: data.answer || '',
+      evidenceIds: data.evidenceIds || [],
+      conceptIds: data.conceptIds || [],
+      sourceIds: data.sourceIds || [],
+      beliefIds: data.beliefIds || [],
+      draftIds: data.draftIds || [],
+      type: data.type || 'manual',
+      dateCreated: today(),
+      dateUpdated: today(),
+    };
+    setDoc(questionRef, payload).catch(() => emitError(questionRef.path, 'create', payload));
+  };
 
-  const addDraft = async (data: Partial<Draft>) => {
+  const updateQuestion = (question: Question) => {
+    const questionRef = doc(refs.questions, question.id);
+    updateDoc(questionRef, { ...question, dateUpdated: today() } as any).catch(() => emitError(questionRef.path, 'update', question));
+  };
+
+  const addDraft = (data: Partial<Draft>) => {
     const conceptTags = normalizeConceptTags(data.conceptTags);
-    await ensureConcepts(conceptTags);
-    const created = await addDoc(refs.drafts, {
+    ensureConcepts(conceptTags);
+    const draftRef = doc(refs.drafts);
+    const payload = {
+      id: draftRef.id,
       title: data.title || 'Untitled Draft',
       body: data.body || '',
       type: data.type || 'essay',
@@ -235,19 +300,28 @@ function ReadexApp() {
       beliefIds: data.beliefIds || [],
       dateCreated: today(),
       dateUpdated: today(),
-    });
-    await createTimelineEvent({ entityId: created.id, entityType: 'draft', entityTitle: data.title, eventType: 'created', reason: 'Work draft created' });
+    };
+    setDoc(draftRef, payload).catch(() => emitError(draftRef.path, 'create', payload));
+    createTimelineEvent({ entityId: draftRef.id, entityType: 'draft', entityTitle: payload.title, eventType: 'created', reason: 'Work draft created' });
   };
-  const updateDraft = async (draft: Draft) => {
-    await ensureConcepts(draft.conceptTags || []);
-    await updateDoc(doc(refs.drafts, draft.id), draft as any);
-  };
-  const deleteDraft = (id: string) => deleteDoc(doc(refs.drafts, id));
 
-  const addPractice = async (data: Partial<Practice>) => {
+  const updateDraft = (draft: Draft) => {
+    ensureConcepts(draft.conceptTags || []);
+    const draftRef = doc(refs.drafts, draft.id);
+    updateDoc(draftRef, { ...draft, dateUpdated: today() } as any).catch(() => emitError(draftRef.path, 'update', draft));
+  };
+
+  const deleteDraft = (id: string) => {
+    const draftRef = doc(refs.drafts, id);
+    deleteDoc(draftRef).catch(() => emitError(draftRef.path, 'delete'));
+  };
+
+  const addPractice = (data: Partial<Practice>) => {
     const conceptTags = normalizeConceptTags(data.conceptTags);
-    await ensureConcepts(conceptTags);
-    const created = await addDoc(refs.practices, {
+    ensureConcepts(conceptTags);
+    const practiceRef = doc(refs.practices);
+    const payload = {
+      id: practiceRef.id,
       title: data.title || 'Untitled Practice',
       description: data.description || '',
       type: data.type || 'experiment',
@@ -263,17 +337,22 @@ function ReadexApp() {
       notes: data.notes || '',
       dateCreated: today(),
       dateUpdated: today(),
-    });
-    await createTimelineEvent({ entityId: created.id, entityType: 'practice', entityTitle: data.title, eventType: 'created', reason: 'Practice created', influencedBy: [...(data.sourceIds || []), ...(data.positionIds || []), ...(data.draftIds || [])] });
+    };
+    setDoc(practiceRef, payload).catch(() => emitError(practiceRef.path, 'create', payload));
+    createTimelineEvent({ entityId: practiceRef.id, entityType: 'practice', entityTitle: payload.title, eventType: 'created', reason: 'Practice created', influencedBy: [...(data.sourceIds || []), ...(data.positionIds || []), ...(data.draftIds || [])] });
   };
 
-  const updatePractice = async (practice: Practice) => {
-    await ensureConcepts(practice.conceptTags || []);
-    await updateDoc(doc(refs.practices, practice.id), { ...practice, dateUpdated: today() } as any);
-    await createTimelineEvent({ entityId: practice.id, entityType: 'practice', entityTitle: practice.title, eventType: practice.status === 'completed' ? 'revised' : 'refined', reason: 'Practice updated', influencedBy: [...(practice.sourceIds || []), ...(practice.positionIds || []), ...(practice.draftIds || [])] });
+  const updatePractice = (practice: Practice) => {
+    ensureConcepts(practice.conceptTags || []);
+    const practiceRef = doc(refs.practices, practice.id);
+    updateDoc(practiceRef, { ...practice, dateUpdated: today() } as any).catch(() => emitError(practiceRef.path, 'update', practice));
+    createTimelineEvent({ entityId: practice.id, entityType: 'practice', entityTitle: practice.title, eventType: practice.status === 'completed' ? 'revised' : 'refined', reason: 'Practice updated', influencedBy: [...(practice.sourceIds || []), ...(practice.positionIds || []), ...(practice.draftIds || [])] });
   };
 
-  const deletePractice = (id: string) => deleteDoc(doc(refs.practices, id));
+  const deletePractice = (id: string) => {
+    const practiceRef = doc(refs.practices, id);
+    deleteDoc(practiceRef).catch(() => emitError(practiceRef.path, 'delete'));
+  };
 
   const saveGoal = async () => {
     await setDoc(refs.settingsGoal, goalDraft, { merge: true });
