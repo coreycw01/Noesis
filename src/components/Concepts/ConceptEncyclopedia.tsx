@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
+import { SourceLinker } from '@/components/SourceLinker';
 import type { Concept, Draft, Insight, Media, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
 import { cn } from '@/lib/utils';
@@ -94,6 +95,14 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     setIdeaOpen(false);
   };
 
+  const toggleIdeaSource = (id: string) => {
+    setIdeaDraft(prev => {
+      const current = prev.sourceIds;
+      const next = current.includes(id) ? current.filter(s => s !== id) : [...current, id];
+      return { ...prev, sourceIds: next };
+    });
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-7 max-w-7xl mx-auto w-full font-body">
       <header className="flex flex-col gap-4 mb-7 md:flex-row md:items-end md:justify-between">
@@ -146,7 +155,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           const isUnsorted = conceptKey(name) === conceptKey(UNSORTED_CONCEPT);
           
           return (
-            <Card key={name} className="rounded-lg p-4 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all border-border/50 group" onClick={() => setSelectedName(name)}>
+            <Card key={name} className="rounded-lg p-4 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all border-border/50 group bg-white" onClick={() => setSelectedName(name)}>
               <div className="flex items-start gap-3">
                 <div className={cn(
                   "size-9 rounded-md flex items-center justify-center transition-colors",
@@ -237,14 +246,30 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       </Dialog>
 
       <Dialog open={ideaOpen} onOpenChange={setIdeaOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle className="font-headline text-2xl italic">New Idea</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2"><Label>Title</Label><Input value={ideaDraft.title} onChange={(event) => setIdeaDraft((prev) => ({ ...prev, title: event.target.value }))} /></div>
-            <div className="space-y-2"><Label>Body</Label><Textarea value={ideaDraft.body} onChange={(event) => setIdeaDraft((prev) => ({ ...prev, body: event.target.value }))} /></div>
-            <ConceptTagPicker concepts={concepts} value={ideaDraft.tags} onChange={(tags) => setIdeaDraft((prev) => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
+          <div className="space-y-6 pt-2">
+            <div className="space-y-2">
+              <Label>Idea Statement</Label>
+              <Input value={ideaDraft.title} onChange={(event) => setIdeaDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Brief title or central statement..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Description / Reasoning</Label>
+              <Textarea value={ideaDraft.body} onChange={(event) => setIdeaDraft((prev) => ({ ...prev, body: event.target.value }))} className="min-h-[120px]" placeholder="Elaborate on the insight..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Concepts</Label>
+              <ConceptTagPicker concepts={concepts} value={ideaDraft.tags} onChange={(tags) => setIdeaDraft((prev) => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
+            </div>
+            
+            <SourceLinker 
+              media={media} 
+              selectedIds={ideaDraft.sourceIds} 
+              onToggle={toggleIdeaSource} 
+              label="Influencing Sources"
+            />
           </div>
-          <DialogFooter><Button onClick={saveIdea}>Save Claim</Button></DialogFooter>
+          <DialogFooter className="pt-4"><Button onClick={saveIdea}>Archive Idea</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -253,7 +278,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
 function Stat({ value, label, sub }: { value: number; label: string; sub: string }) {
   return (
-    <Card className="readex-header-card min-h-24">
+    <Card className="readex-header-card min-h-24 bg-white">
       <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className="mt-2 text-2xl font-headline font-bold text-accent">{value}</div>
       <div className="mt-1 text-[10px] text-muted-foreground">{sub}</div>

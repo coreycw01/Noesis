@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
+import { SourceLinker } from '@/components/SourceLinker';
 import type { Concept, Draft, Media, VaultEntry, VaultType } from '@/lib/types';
 import { normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
@@ -83,7 +84,7 @@ export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUp
     <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full">
       <header className="flex justify-between items-end mb-10">
         <div>
-          <h1 className="text-4xl font-headline font-bold mb-2">Claims</h1>
+          <h1 className="text-4xl font-headline font-bold mb-2 italic">Claims</h1>
           <p className="text-muted-foreground italic font-body text-lg">Ideas become explicit claims, principles, mental models, and worldview statements here.</p>
         </div>
         <div className="flex gap-2">
@@ -146,19 +147,51 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
   onAddConcept: (data: Partial<Concept>) => void;
   onSave: () => void;
 }) {
+  const toggleSource = (id: string) => {
+    setDraft(prev => {
+      const current = prev.sourceIds || [];
+      const next = current.includes(id) ? current.filter(s => s !== id) : [...current, id];
+      return { ...prev, sourceIds: next };
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
         <DialogHeader><DialogTitle className="font-headline text-2xl italic">{draft.id ? 'Edit Claim' : 'Form Claim'}</DialogTitle></DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>Title</Label><Input value={draft.title || ''} onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))} /></div>
-            <div className="space-y-2"><Label>Type</Label><Select value={draft.type || 'belief'} onValueChange={(value) => setDraft((prev) => ({ ...prev, type: value as VaultType }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{vaultTypes.map((type) => <SelectItem key={type} value={type}>{type.replace('_', ' ')}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={draft.title || ''} onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={draft.type || 'belief'} onValueChange={(value) => setDraft((prev) => ({ ...prev, type: value as VaultType }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{vaultTypes.map((type) => <SelectItem key={type} value={type}>{type.replace('_', ' ')}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-2"><Label>Statement</Label><Textarea value={draft.statement || ''} onChange={(event) => setDraft((prev) => ({ ...prev, statement: event.target.value, description: prev.description || event.target.value }))} /></div>
-          <div className="space-y-2"><Label>Description</Label><Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} /></div>
-          <div className="space-y-2"><Label>Concept Tags</Label><ConceptTagPicker concepts={concepts} value={draft.tags || []} onChange={(tags) => setDraft((prev) => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></div>
-          <div className="space-y-2"><Label>Linked Sources</Label><div className="grid grid-cols-1 gap-2">{media.map((item) => <label key={item.id} className="flex gap-2 text-sm"><input type="checkbox" checked={(draft.sourceIds || []).includes(item.id)} onChange={(event) => setDraft((prev) => ({ ...prev, sourceIds: event.target.checked ? [...(prev.sourceIds || []), item.id] : (prev.sourceIds || []).filter((id) => id !== item.id) }))} />{item.title}</label>)}</div></div>
+          <div className="space-y-2">
+            <Label>Statement</Label>
+            <Textarea value={draft.statement || ''} onChange={(event) => setDraft((prev) => ({ ...prev, statement: event.target.value, description: prev.description || event.target.value }))} placeholder="The core claim in one clear sentence..." />
+          </div>
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} placeholder="Elaborate on the reasoning, assumptions, or evidence..." />
+          </div>
+          <div className="space-y-2">
+            <Label>Concept Tags</Label>
+            <ConceptTagPicker concepts={concepts} value={draft.tags || []} onChange={(tags) => setDraft((prev) => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
+          </div>
+          
+          <SourceLinker 
+            media={media} 
+            selectedIds={draft.sourceIds || []} 
+            onToggle={toggleSource} 
+            label="Supporting Sources"
+          />
         </div>
         <DialogFooter><Button onClick={onSave}>Save Claim</Button></DialogFooter>
       </DialogContent>
