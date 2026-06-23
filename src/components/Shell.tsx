@@ -1,11 +1,21 @@
-
 "use client";
 
 import React from 'react';
-import { BookOpen, HelpCircle, History, Library, Map as MapIcon, PenTool, Settings, ShieldCheck } from 'lucide-react';
+import { 
+  BookOpen, 
+  HelpCircle, 
+  History, 
+  Library, 
+  Map as MapIcon, 
+  PenTool, 
+  Settings, 
+  ShieldCheck,
+  Edit2
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
 import type { GoalSettings, MediaType } from '@/lib/types';
 import { MEDIA_LABELS } from '@/lib/readex';
 
@@ -55,24 +65,39 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
           </div>
           <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/30 font-medium">Turn thought into understanding.</p>
 
-          <div className="mt-4 w-full rounded border border-white/10 bg-white/[0.05] p-3 text-left transition-colors hover:border-white/20 hover:bg-white/[0.075] cursor-pointer" onClick={onEditGoal}>
-            <div className="flex justify-between items-end mb-2">
-              <span className="font-code text-[10px] uppercase tracking-wider text-sidebar-foreground/60">Source Goals</span>
-              <span className="font-code text-[10px] text-white/70">By Type</span>
+          <div 
+            className="mt-6 w-full rounded border border-white/10 bg-white/[0.05] p-3 transition-all hover:border-white/20 hover:bg-white/[0.075] group/goals relative cursor-default"
+          >
+            <div className="flex justify-between items-center mb-3">
+              <span className="font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/60 font-bold">Source Goals</span>
+              <button 
+                onClick={(e) => { e.stopPropagation(); onEditGoal(); }}
+                className="opacity-0 group-hover/goals:opacity-100 transition-opacity p-1 hover:bg-white/10 rounded"
+              >
+                <Edit2 className="size-3 text-sidebar-foreground/60 hover:text-white" />
+              </button>
             </div>
-            <p className="font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/45 mb-2">{goal.label}</p>
-            <Progress value={totalProgress} className="h-1 bg-white/10 mb-3" />
             
-            <ScrollArea className={cn("pr-2", goalRows.length > 4 ? "h-[120px]" : "h-auto")}>
-              <div className="space-y-2">
+            <div className="space-y-2.5">
+              <div className="flex justify-between items-end">
+                <span className="font-code text-[8px] uppercase tracking-widest text-sidebar-foreground/40 font-bold">Overall Progress</span>
+                <span className="font-code text-[9px] text-white/70 font-bold">{doneTotal}/{targetTotal}</span>
+              </div>
+              <Progress value={totalProgress} className="h-1 bg-white/10" />
+            </div>
+
+            <ScrollArea className={cn("mt-4 pr-3", goalRows.length > 4 ? "h-[120px]" : "h-auto")}>
+              <div className="space-y-4">
                 {goalRows.length ? goalRows.map((row) => (
-                  <div key={row.type} className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-1 font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/45">
-                    <span>{MEDIA_LABELS[row.type]}</span>
-                    <span className="text-white/70">{row.done} / {row.target}</span>
-                    <Progress value={(row.done / Math.max(1, row.target)) * 100} className="col-span-2 h-0.5 bg-white/10" />
+                  <div key={row.type} className="space-y-1.5">
+                    <div className="flex justify-between font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/45">
+                      <span>{MEDIA_LABELS[row.type]}</span>
+                      <span className={cn(row.done >= row.target ? "text-accent" : "text-white/70")}>{row.done} / {row.target}</span>
+                    </div>
+                    <Progress value={(row.done / Math.max(1, row.target)) * 100} className="h-0.5 bg-white/10" />
                   </div>
                 )) : (
-                  <div className="font-code text-[9px] uppercase text-sidebar-foreground/45">No media goals selected</div>
+                  <div className="font-code text-[9px] uppercase text-sidebar-foreground/45 py-2">No media goals selected</div>
                 )}
               </div>
             </ScrollArea>
