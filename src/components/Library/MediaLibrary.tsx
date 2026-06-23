@@ -291,140 +291,142 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl p-0 overflow-hidden border-none rounded-2xl shadow-2xl bg-white font-body">
-        <div className="p-8">
-          <DialogHeader className="mb-8">
-            <DialogTitle className="text-4xl font-headline italic mb-2">Add to Library</DialogTitle>
-            <p className="text-muted-foreground text-[15px] font-body">Books and videos: search or paste URL. Other types: enter manually.</p>
-          </DialogHeader>
-
-          <div className="space-y-8">
-            <section>
-              <Label className="readex-kicker block mb-4">TYPE</Label>
-              <div className="flex flex-wrap gap-2">
-                {MEDIA_TYPES.map((type) => {
-                  const Icon = MEDIA_ICONS_COMP[type];
-                  const isActive = draft.type === type;
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => setDraft(prev => ({ ...prev, type }))}
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all font-code text-[10px] font-bold uppercase tracking-widest",
-                        isActive 
-                          ? "bg-accent text-white border-accent shadow-md" 
-                          : "bg-white text-muted-foreground border-border hover:border-accent hover:text-accent"
-                      )}
-                    >
-                      <Icon className="size-3.5" />
-                      {MEDIA_LABELS[type]}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section>
-              <Label className="readex-kicker block mb-4 uppercase">SEARCH {MEDIA_LABELS[draft.type || 'book']?.toUpperCase()}S</Label>
-              <div className="flex gap-2">
-                <Input placeholder="Title or author..." className="h-12 flex-1 text-base font-body border-border/60 bg-white shadow-sm" />
-                <Button className="h-12 px-8 bg-accent font-code text-xs font-bold uppercase tracking-[0.14em]">SEARCH</Button>
-              </div>
-            </section>
-
-            <div className="relative flex items-center py-4">
-              <div className="flex-grow border-t border-border/40"></div>
-              <span className="flex-shrink mx-4 font-code text-[10px] uppercase tracking-[0.2em] text-muted-foreground/40">DETAILS</span>
-              <div className="flex-grow border-t border-border/40"></div>
-            </div>
+      <DialogContent className="max-w-xl p-0 overflow-hidden border-none rounded-2xl shadow-2xl bg-white font-body">
+        <ScrollArea className="max-h-[85vh]">
+          <div className="p-6">
+            <DialogHeader className="mb-6">
+              <DialogTitle className="text-3xl font-headline italic mb-1">Add to Library</DialogTitle>
+              <p className="text-muted-foreground text-xs font-body">Books and videos: search or paste URL. Other types: enter manually.</p>
+            </DialogHeader>
 
             <div className="space-y-6">
-              <div className="space-y-2">
-                <Label className="readex-kicker uppercase opacity-50">TITLE</Label>
-                <Input 
-                  value={draft.title || ''} 
-                  onChange={(e) => setDraft(prev => ({ ...prev, title: e.target.value }))}
-                  className="h-12 text-base font-body border-border/60"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="readex-kicker uppercase opacity-50">AUTHOR</Label>
-                <Input 
-                  value={draft.creator || ''} 
-                  onChange={(e) => setDraft(prev => ({ ...prev, creator: e.target.value }))}
-                  className="h-12 text-base font-body border-border/60"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label className="readex-kicker uppercase opacity-50">YEAR</Label>
-                  <Input 
-                    value={draft.year || ''} 
-                    onChange={(e) => setDraft(prev => ({ ...prev, year: e.target.value }))}
-                    className="h-12 text-base font-body border-border/60"
-                  />
+              <section>
+                <Label className="readex-kicker block mb-3">TYPE</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {MEDIA_TYPES.map((type) => {
+                    const Icon = MEDIA_ICONS_COMP[type];
+                    const isActive = draft.type === type;
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => setDraft(prev => ({ ...prev, type }))}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-all font-code text-[9px] font-bold uppercase tracking-widest",
+                          isActive 
+                            ? "bg-accent text-white border-accent shadow-sm" 
+                            : "bg-white text-muted-foreground border-border hover:border-accent hover:text-accent"
+                        )}
+                      >
+                        <Icon className="size-3" />
+                        {MEDIA_LABELS[type]}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="space-y-2">
-                  <Label className="readex-kicker uppercase opacity-50">GENRE / TOPIC</Label>
-                  <Input 
-                    value={draft.genre || ''} 
-                    onChange={(e) => setDraft(prev => ({ ...prev, genre: e.target.value }))}
-                    className="h-12 text-base font-body border-border/60"
-                  />
+              </section>
+
+              <section>
+                <Label className="readex-kicker block mb-3 uppercase">SEARCH {MEDIA_LABELS[draft.type || 'book']?.toUpperCase()}S</Label>
+                <div className="flex gap-2">
+                  <Input placeholder="Title or author..." className="h-10 flex-1 text-sm font-body border-border/60 bg-white shadow-sm" />
+                  <Button className="h-10 px-6 bg-accent font-code text-xs font-bold uppercase tracking-[0.14em]">SEARCH</Button>
                 </div>
+              </section>
+
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-border/40"></div>
+                <span className="flex-shrink mx-4 font-code text-[9px] uppercase tracking-[0.2em] text-muted-foreground/40">DETAILS</span>
+                <div className="flex-grow border-t border-border/40"></div>
               </div>
 
               <div className="space-y-4">
-                <Label className="readex-kicker uppercase opacity-50">CONCEPT TAGS</Label>
-                <div className="flex flex-wrap gap-2">
-                  {(draft.tags || []).map(tag => (
-                    <Badge key={tag} variant="secondary" className="px-3 py-1 font-code text-[10px] uppercase tracking-wider rounded-md border-border bg-muted/30">
-                      {tag}
-                      <button onClick={() => removeTag(tag)} className="ml-2 hover:text-destructive"><X className="size-3" /></button>
-                    </Badge>
-                  ))}
-                </div>
-                <div className="flex gap-2">
+                <div className="space-y-1.5">
+                  <Label className="readex-kicker uppercase opacity-50">TITLE</Label>
                   <Input 
-                    placeholder="New concept tag..." 
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addTag()}
-                    className="h-12 flex-1 text-base font-body border-border/60"
+                    value={draft.title || ''} 
+                    onChange={(e) => setDraft(prev => ({ ...prev, title: e.target.value }))}
+                    className="h-10 text-sm font-body border-border/60"
                   />
-                  <Button variant="outline" onClick={addTag} className="h-12 font-code text-xs font-bold uppercase tracking-widest">ADD</Button>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label className="readex-kicker uppercase opacity-50">NOTES</Label>
-                <Textarea 
-                  placeholder="Quick notes about why you added this..."
-                  value={draft.description || ''}
-                  onChange={(e) => setDraft(prev => ({ ...prev, description: e.target.value }))}
-                  className="min-h-[120px] text-base font-body border-border/60 resize-none p-4"
-                />
-              </div>
+                <div className="space-y-1.5">
+                  <Label className="readex-kicker uppercase opacity-50">AUTHOR</Label>
+                  <Input 
+                    value={draft.creator || ''} 
+                    onChange={(e) => setDraft(prev => ({ ...prev, creator: e.target.value }))}
+                    className="h-10 text-sm font-body border-border/60"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label className="readex-kicker uppercase opacity-50">STATUS</Label>
-                <select 
-                  value={draft.status || 'Want to Read'}
-                  onChange={(e) => setDraft(prev => ({ ...prev, status: e.target.value as MediaStatus }))}
-                  className="w-full h-14 rounded-md border border-border/60 bg-white px-4 text-base font-body appearance-none focus:outline-none focus:ring-2 focus:ring-accent"
-                >
-                  {statuses.map(status => <option key={status} value={status}>{status}</option>)}
-                </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="readex-kicker uppercase opacity-50">YEAR</Label>
+                    <Input 
+                      value={draft.year || ''} 
+                      onChange={(e) => setDraft(prev => ({ ...prev, year: e.target.value }))}
+                      className="h-10 text-sm font-body border-border/60"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="readex-kicker uppercase opacity-50">GENRE / TOPIC</Label>
+                    <Input 
+                      value={draft.genre || ''} 
+                      onChange={(e) => setDraft(prev => ({ ...prev, genre: e.target.value }))}
+                      className="h-10 text-sm font-body border-border/60"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="readex-kicker uppercase opacity-50">CONCEPT TAGS</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(draft.tags || []).map(tag => (
+                      <Badge key={tag} variant="secondary" className="px-2 py-0.5 font-code text-[9px] uppercase tracking-wider rounded border-border bg-muted/30">
+                        {tag}
+                        <button onClick={() => removeTag(tag)} className="ml-1.5 hover:text-destructive"><X className="size-2.5" /></button>
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="New concept tag..." 
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addTag()}
+                      className="h-10 flex-1 text-sm font-body border-border/60"
+                    />
+                    <Button variant="outline" onClick={addTag} className="h-10 font-code text-[9px] font-bold uppercase tracking-widest">ADD</Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="readex-kicker uppercase opacity-50">NOTES</Label>
+                  <Textarea 
+                    placeholder="Quick notes about why you added this..."
+                    value={draft.description || ''}
+                    onChange={(e) => setDraft(prev => ({ ...prev, description: e.target.value }))}
+                    className="min-h-[100px] text-sm font-body border-border/60 resize-none p-3"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="readex-kicker uppercase opacity-50">STATUS</Label>
+                  <select 
+                    value={draft.status || 'Want to Read'}
+                    onChange={(e) => setDraft(prev => ({ ...prev, status: e.target.value as MediaStatus }))}
+                    className="w-full h-10 rounded-md border border-border/60 bg-white px-3 text-sm font-body appearance-none focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    {statuses.map(status => <option key={status} value={status}>{status}</option>)}
+                  </select>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </ScrollArea>
 
-        <div className="p-8 pt-4 bg-muted/10 border-t flex justify-end gap-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-12 px-8 font-code text-xs font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent">CANCEL</Button>
-          <Button onClick={onSave} className="h-12 px-10 bg-accent font-code text-xs font-bold uppercase tracking-widest shadow-lg shadow-accent/20">ADD TO LIBRARY</Button>
+        <div className="p-6 pt-3 bg-muted/10 border-t flex justify-end gap-3">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-10 px-6 font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent">CANCEL</Button>
+          <Button onClick={onSave} className="h-10 px-8 bg-accent font-code text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20">ADD TO LIBRARY</Button>
         </div>
       </DialogContent>
     </Dialog>
