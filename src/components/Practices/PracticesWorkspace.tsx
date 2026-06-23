@@ -223,7 +223,7 @@ function PracticeEditor({ open, onOpenChange, draft, setDraft, concepts, media, 
         </div>
         <div className="p-8 pt-4 bg-muted/10 border-t flex justify-end gap-3">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 px-8 rounded-full font-bold text-muted-foreground hover:bg-transparent">CANCEL</Button>
-          <Button onClick={savePractice} className="h-11 px-10 bg-accent shadow-xl shadow-accent/20 rounded-full font-bold uppercase tracking-widest text-[11px]">Initiate Practice</Button>
+          <Button onClick={onSave} className="h-11 px-10 bg-accent shadow-xl shadow-accent/20 rounded-full font-bold uppercase tracking-widest text-[11px]">Initiate Practice</Button>
         </div>
       </DialogContent>
     </Dialog>
