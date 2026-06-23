@@ -50,6 +50,7 @@
         "name": { "type": "string" },
         "description": { "type": "string" },
         "links": { "type": "array", "items": { "type": "string" } },
+        "sourceIds": { "type": "array", "items": { "type": "string" } },
         "x": { "type": "number" },
         "y": { "type": "number" },
         "dateCreated": { "type": "string", "format": "date-time" }

@@ -1,3 +1,4 @@
+
 export type MediaStatus = 'Want to Read' | 'Consuming' | 'Finished' | 'Paused' | 'Abandoned';
 export type MediaType = 'book' | 'audiobook' | 'podcast' | 'video' | 'movie' | 'article' | 'course' | 'lecture' | 'documentary' | 'interview' | 'conversation' | 'paper' | 'other';
 export type AnnotationType = 'highlight' | 'thought' | 'question' | 'connection';
@@ -103,6 +104,7 @@ export interface Concept {
   name: string;
   description: string;
   links: string[];
+  sourceIds: string[];
   dateCreated: string;
   dateUpdated?: string;
   x: number;

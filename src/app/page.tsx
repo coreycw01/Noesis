@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -84,6 +85,7 @@ function ReadexApp() {
       name,
       description: '',
       links: [],
+      sourceIds: [],
       x: Math.random() * 80 + 10,
       y: Math.random() * 80 + 10,
       createdFrom: name === 'Unsorted Ideas' ? 'fallback' : 'tag',
@@ -95,6 +97,7 @@ function ReadexApp() {
     name: conceptKey(data.name),
     description: data.description || '',
     links: data.links || [],
+    sourceIds: data.sourceIds || [],
     x: data.x ?? Math.random() * 80 + 10,
     y: data.y ?? Math.random() * 80 + 10,
     createdFrom: data.createdFrom || 'manual',

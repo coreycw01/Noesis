@@ -1,7 +1,8 @@
+
 "use client";
 
 import React, { useMemo, useRef, useState, useEffect } from 'react';
-import { GitBranch, Maximize2, Minimize2, Plus, Search, X, Maximize, Minimize } from 'lucide-react';
+import { GitBranch, Plus, Search, X, Maximize, Minimize } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,11 +10,11 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { SourceLinker } from '@/components/SourceLinker';
 import type { Concept, Draft, Insight, Media, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import { conceptKey, conceptRelated, conceptTerms, taggedItemsForConcept } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useFirebase } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
 
 interface ConceptAtlasProps {
   concepts: Concept[];
@@ -29,7 +30,6 @@ interface ConceptAtlasProps {
 }
 
 export function ConceptAtlas({ concepts, media, insights, vault, drafts, questions, timeline, onAddConcept, onUpdateConcept, uid }: ConceptAtlasProps) {
-  const { db } = useFirebase();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
@@ -37,7 +37,7 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
   const [branchTarget, setBranchTarget] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [newConcept, setNewConcept] = useState({ name: '', description: '' });
+  const [newConcept, setNewConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
   const [draftPositions, setDraftPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [draggingName, setDraggingName] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -81,10 +81,18 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
   }, [concepts, drafts, insights, media, nodes, terms, vault]);
 
   const addConcept = () => {
-    if (!newConcept.name.trim()) return;
+    if (!newConcept.name?.trim()) return;
     onAddConcept({ ...newConcept, name: conceptKey(newConcept.name), createdFrom: 'manual' });
-    setNewConcept({ name: '', description: '' });
+    setNewConcept({ name: '', description: '', sourceIds: [] });
     setIsAddOpen(false);
+  };
+
+  const toggleNewConceptSource = (id: string) => {
+    setNewConcept(prev => {
+      const current = prev.sourceIds || [];
+      const next = current.includes(id) ? current.filter(s => s !== id) : [...current, id];
+      return { ...prev, sourceIds: next };
+    });
   };
 
   const connectBranch = () => {
@@ -151,23 +159,14 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
   const selectedConcept = selectedNode?.concept;
   const related = selectedName ? conceptRelated(selectedName, { media, insights, vault, drafts, questions, timeline }) : null;
 
-  const atlasStats = [
-    { label: 'Nodes', value: nodes.length },
-    { label: 'Manual', value: edges.filter((edge) => edge.type === 'manual').length },
-    { label: 'Auto', value: edges.filter((edge) => edge.type === 'shared').length },
-    { label: 'Active', value: selectedName || 'None' },
-  ];
-
   return (
     <div className="relative w-full h-full bg-background flex flex-col overflow-hidden">
       <div className="px-6 pt-4 pb-2">
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-          {atlasStats.map((stat) => (
-            <div key={stat.label} className="flex items-center gap-3 bg-white border border-border rounded-md px-3 py-1.5 shadow-sm whitespace-nowrap">
-              <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
-              <div className="font-headline text-lg font-bold italic text-primary">{stat.value}</div>
-            </div>
-          ))}
+          <Stat value={nodes.length} label="Nodes" />
+          <Stat value={edges.filter((e) => e.type === 'manual').length} label="Manual" />
+          <Stat value={edges.filter((e) => e.type === 'shared').length} label="Auto" />
+          <Stat value={selectedName || 'None'} label="Active" />
         </div>
       </div>
 
@@ -255,16 +254,6 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
               </button>
             ))}
           </div>
-
-          {nodes.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center text-center">
-              <div className="max-w-sm">
-                <h2 className="text-xl font-headline italic mb-2">Empty Atlas</h2>
-                <p className="text-muted-foreground text-sm">Create a concept or tag a source, claim, idea, or draft to begin mapping your understanding.</p>
-                <Button variant="outline" className="mt-4" onClick={() => setIsAddOpen(true)}>Create Concept</Button>
-              </div>
-            </div>
-          )}
         </div>
 
         {!isFullScreen && (
@@ -326,21 +315,36 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
       </div>
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle className="font-headline text-2xl italic">Plot New Concept</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-6 pt-2">
             <div className="space-y-2">
               <Label>Concept Name</Label>
               <Input value={newConcept.name} onChange={(event) => setNewConcept((prev) => ({ ...prev, name: event.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
-              <Textarea value={newConcept.description} onChange={(event) => setNewConcept((prev) => ({ ...prev, description: event.target.value }))} />
+              <Textarea value={newConcept.description} onChange={(event) => setNewConcept((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[100px]" />
             </div>
+            <SourceLinker 
+              media={media} 
+              selectedIds={newConcept.sourceIds || []} 
+              onToggle={toggleNewConceptSource} 
+              label="Root Evidence (Sources)"
+            />
           </div>
-          <DialogFooter><Button onClick={addConcept}>Anchor Node</Button></DialogFooter>
+          <DialogFooter className="pt-4"><Button onClick={addConcept}>Anchor Node</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-center gap-3 bg-white border border-border rounded-md px-3 py-1.5 shadow-sm whitespace-nowrap">
+      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">{label}</div>
+      <div className="font-headline text-lg font-bold italic text-primary truncate max-w-[120px]">{value}</div>
     </div>
   );
 }

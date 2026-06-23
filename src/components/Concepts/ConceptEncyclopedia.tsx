@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -36,7 +37,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [editing, setEditing] = useState<Concept | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [draftConcept, setDraftConcept] = useState({ name: '', description: '' });
+  const [draftConcept, setDraftConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
   
   const [ideaOpen, setIdeaOpen] = useState(false);
   const [ideaDraft, setIdeaDraft] = useState({ title: '', body: '', tags: [UNSORTED_CONCEPT], sourceIds: [] as string[] });
@@ -49,11 +50,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       
       if (mode === 'concepts') {
         if (isUnsorted) return false;
-        // Formal concepts must have a recorded document
         const conceptDoc = concepts.find(c => conceptKey(c.name) === conceptKey(name));
         if (!conceptDoc) return false;
       } else {
-        // Ideas mode: show Unsorted Ideas or anything with linked ideas/beliefs
         if (isUnsorted) return true;
         const related = conceptRelated(name, { media, insights, vault, drafts, questions, timeline });
         if (related.beliefs.length === 0 && related.ideas.length === 0) return false;
@@ -65,15 +64,18 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   }, [allTerms, mode, search, concepts, media, insights, vault, drafts, questions, timeline]);
 
   const selectedRelated = selectedName ? conceptRelated(selectedName, { media, insights, vault, drafts, questions, timeline }) : null;
-  const selectedConcept = selectedName ? concepts.find((concept) => conceptKey(concept.name) === conceptKey(selectedName)) : null;
 
   const openEditor = (concept?: Concept) => {
     if (concept) {
       setEditing(concept);
-      setDraftConcept({ name: concept.name, description: concept.description || '' });
+      setDraftConcept({ 
+        name: concept.name, 
+        description: concept.description || '', 
+        sourceIds: concept.sourceIds || [] 
+      });
     } else {
       setEditing(null);
-      setDraftConcept({ name: '', description: '' });
+      setDraftConcept({ name: '', description: '', sourceIds: [] });
     }
     setEditorOpen(true);
   };
@@ -81,11 +83,33 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const saveConcept = () => {
     const name = conceptKey(draftConcept.name);
     if (!name) return;
-    if (editing) onUpdateConcept({ ...editing, name, description: draftConcept.description, dateUpdated: new Date().toISOString() });
-    else onAddConcept({ name, description: draftConcept.description, createdFrom: 'manual' });
+    if (editing) {
+      onUpdateConcept({ 
+        ...editing, 
+        name, 
+        description: draftConcept.description || '', 
+        sourceIds: draftConcept.sourceIds || [],
+        dateUpdated: new Date().toISOString() 
+      });
+    } else {
+      onAddConcept({ 
+        name, 
+        description: draftConcept.description || '', 
+        sourceIds: draftConcept.sourceIds || [],
+        createdFrom: 'manual' 
+      });
+    }
     setEditing(null);
     setEditorOpen(false);
-    setDraftConcept({ name: '', description: '' });
+    setDraftConcept({ name: '', description: '', sourceIds: [] });
+  };
+
+  const toggleConceptSource = (id: string) => {
+    setDraftConcept(prev => {
+      const current = prev.sourceIds || [];
+      const next = current.includes(id) ? current.filter(s => s !== id) : [...current, id];
+      return { ...prev, sourceIds: next };
+    });
   };
 
   const saveIdea = () => {
@@ -217,30 +241,36 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         setEditorOpen(open);
         if (!open) {
           setEditing(null);
-          setDraftConcept({ name: '', description: '' });
+          setDraftConcept({ name: '', description: '', sourceIds: [] });
         }
       }}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-6 pt-2">
             <div className="space-y-2">
               <Label>Concept Name</Label>
               <Input value={draftConcept.name} onChange={(event) => setDraftConcept((prev) => ({ ...prev, name: event.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
-              <Textarea value={draftConcept.description} onChange={(event) => setDraftConcept((prev) => ({ ...prev, description: event.target.value }))} />
+              <Textarea value={draftConcept.description} onChange={(event) => setDraftConcept((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[100px]" />
             </div>
+            <SourceLinker 
+              media={media} 
+              selectedIds={draftConcept.sourceIds || []} 
+              onToggle={toggleConceptSource} 
+              label="Root Evidence (Sources)"
+            />
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 pt-4">
             {editing && (
-              <Button variant="destructive" onClick={() => { onDeleteConcept(editing.id); setEditing(null); setEditorOpen(false); setDraftConcept({ name: '', description: '' }); }}>
+              <Button variant="destructive" onClick={() => { onDeleteConcept(editing.id); setEditing(null); setEditorOpen(false); }}>
                 <Trash2 className="size-4 mr-2" /> Delete
               </Button>
             )}
-            <Button onClick={saveConcept}>Save Concept</Button>
+            <Button onClick={saveConcept}>Anchor Concept</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
