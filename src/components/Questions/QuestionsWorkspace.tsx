@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -132,31 +132,37 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           const draftLinks = drafts.filter(d => (d.questionIds || []).includes(question.id)).length;
           
           return (
-            <Card key={question.id} className="cursor-pointer hover:shadow-xl transition-all border-border/40 group bg-white rounded-xl shadow-sm p-2" onClick={() => setSelectedId(question.id)}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-3 mb-3">
-                  <Badge variant="secondary" className="font-code text-[9px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-3 py-1">
+            <Card 
+              key={question.id} 
+              className="cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/10 bg-white/95 p-6 rounded-xl shadow-md group" 
+              onClick={() => setSelectedId(question.id)}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5">
                     {question.type || 'manual'}
                   </Badge>
-                  <span className="font-code text-[10px] text-accent/60 font-bold uppercase tracking-widest">
+                  <span className={cn(
+                    "font-code text-[8px] font-bold uppercase tracking-widest",
+                    question.answer ? "text-emerald-600/60" : "text-accent/60"
+                  )}>
                     {question.answer ? 'RESOLVED' : 'IN PROGRESS'}
                   </span>
                 </div>
-                <CardTitle className="text-2xl font-headline font-bold italic group-hover:text-accent transition-colors leading-relaxed text-primary">
-                  {question.text}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="font-body text-sm text-muted-foreground italic flex items-center gap-3 mt-4 opacity-60">
-                  {sources.length > 0 && (
-                    <>
-                      <span className="truncate max-w-[200px]">From {sources.map(s => s.title).join(', ')}</span>
-                      <span className="size-1 rounded-full bg-border" />
-                    </>
-                  )}
-                  <span className="font-bold font-code text-[9px] uppercase tracking-tighter">{draftLinks} connected works</span>
-                </div>
-              </CardContent>
+                <div className="font-code text-[8px] uppercase text-muted-foreground/40 font-bold">{draftLinks} WORKS LINKED</div>
+              </div>
+              
+              <h3 className="text-2xl font-headline font-bold italic group-hover:text-accent transition-colors leading-relaxed text-primary mb-4">
+                {question.text}
+              </h3>
+              
+              <div className="font-body text-xs text-muted-foreground italic flex items-center gap-2 opacity-60 border-t border-border/20 pt-4">
+                {sources.length > 0 ? (
+                  <span className="truncate">From {sources.map(s => s.title).join(', ')}</span>
+                ) : (
+                  <span>Synthesized from various internal connections</span>
+                )}
+              </div>
             </Card>
           );
         })}
@@ -211,7 +217,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-6xl mx-auto w-full font-body">
       <Button variant="ghost" onClick={onBack} className="mb-8 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50"><ArrowLeft className="size-4 mr-2" /> Back to Inquiries</Button>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-10">
-        <Card className="p-10 bg-white border-border/40 shadow-sm rounded-2xl">
+        <Card className="p-10 bg-white border border-accent/10 shadow-md rounded-2xl">
           <Badge variant="outline" className="mb-6 font-code text-[10px] uppercase tracking-widest bg-muted/20 border-border/30 rounded-full px-4 py-1 font-bold">{question.type || 'manual'}</Badge>
           <h1 className="font-headline text-4xl italic mb-10 text-primary leading-tight font-bold">{question.text}</h1>
           <div className="relative">
@@ -238,7 +244,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <Card className="bg-white border-border/40 shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl">
+    <Card className="bg-white border border-accent/10 shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl">
       <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</div>
       <div className="mt-1 text-2xl font-headline font-bold text-accent leading-none">{value}</div>
     </Card>
@@ -247,7 +253,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 
 function ContextPanel({ title, items }: { title: string; items: string[] }) {
   return (
-    <Card className="p-6 bg-white border-border/40 shadow-sm rounded-xl">
+    <Card className="p-6 bg-white border border-accent/10 shadow-sm rounded-xl">
       <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground/40 mb-5 font-bold">{title}</h3>
       <div className="space-y-3">
         {items.length ? items.map((item, index) => (
