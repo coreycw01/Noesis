@@ -59,12 +59,12 @@ export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUp
     const linkedSources = media.filter((item) => (selected.sourceIds || []).includes(item.id));
     const linkedDrafts = drafts.filter((draft) => (draft.beliefIds || []).includes(selected.id));
     return (
-      <div className="flex-1 overflow-y-auto p-8 max-w-5xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-5xl mx-auto w-full font-body">
         <div className="flex items-center justify-between mb-8">
-          <Button variant="ghost" onClick={() => setSelectedId(null)}><ArrowLeft className="size-4 mr-2" /> Claims</Button>
+          <Button variant="ghost" onClick={() => setSelectedId(null)} className="h-8 font-code text-[10px] uppercase tracking-widest"><ArrowLeft className="size-4 mr-2" /> Claims</Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => openEditor(selected)}><Edit className="size-4 mr-2" /> Edit</Button>
-            <Button variant="destructive" onClick={() => { onDeleteEntry(selected.id); setSelectedId(null); }}><Trash2 className="size-4 mr-2" /> Delete</Button>
+            <Button variant="outline" onClick={() => openEditor(selected)} className="h-8"><Edit className="size-4 mr-2" /> Edit</Button>
+            <Button variant="destructive" onClick={() => { onDeleteEntry(selected.id); setSelectedId(null); }} className="h-8"><Trash2 className="size-4 mr-2" /> Delete</Button>
           </div>
         </div>
 
@@ -88,11 +88,11 @@ export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUp
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full">
+    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
       <header className="flex justify-between items-center mb-10">
         <div>
-          <h1 className="text-4xl font-headline font-bold mb-2 italic">Claims</h1>
-          <p className="text-muted-foreground italic font-body text-lg">Explicit claims, principles, and worldview statements.</p>
+          <h1 className="text-[28px] font-headline font-bold italic text-foreground/80">Claims</h1>
+          <p className="text-muted-foreground italic font-body text-[15px] mt-1">Explicit claims, principles, and worldview statements.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -107,23 +107,23 @@ export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUp
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredEntries.map((entry) => (
-          <Card key={entry.id} className="group cursor-pointer hover:shadow-xl transition-all border-border/50" onClick={() => setSelectedId(entry.id)}>
+          <Card key={entry.id} className="group cursor-pointer hover:shadow-xl transition-all border-border/50 bg-white" onClick={() => setSelectedId(entry.id)}>
             <CardHeader>
-              <Badge variant="secondary" className="w-fit font-code text-[10px] uppercase">{entry.type.replace('_', ' ')}</Badge>
-              <CardTitle className="font-headline text-xl group-hover:text-accent">{entry.title}</CardTitle>
+              <Badge variant="secondary" className="w-fit font-code text-[10px] uppercase tracking-wider">{entry.type.replace('_', ' ')}</Badge>
+              <CardTitle className="font-headline text-xl group-hover:text-accent transition-colors mt-2">{entry.title}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground font-body italic line-clamp-3 mb-5">"{entry.statement || entry.description}"</p>
               <div className="flex items-center justify-between">
                 <div className="flex gap-1">{[1,2,3,4,5].map((n) => <div key={n} className={cn('size-2 rounded-full', n <= entry.confidence ? 'bg-accent' : 'bg-muted')} />)}</div>
-                <Badge variant="outline" className="font-code text-[9px] uppercase">{entry.status}</Badge>
+                <Badge variant="outline" className="font-code text-[9px] uppercase tracking-tighter bg-muted/20 border-transparent">{entry.status}</Badge>
               </div>
             </CardContent>
           </Card>
         ))}
         {filteredEntries.length === 0 && (
           <div className="col-span-full py-20 flex flex-col items-center justify-center text-center opacity-40">
-            <ShieldCheck className="size-24 mb-6 text-muted-foreground" />
+            <ShieldCheck className="size-20 mb-6 text-muted-foreground" />
             <h2 className="text-2xl font-headline italic mb-2">No claims found</h2>
             <p className="max-w-md font-body">Refine your search or turn an idea into something you are willing to examine.</p>
           </div>
@@ -141,7 +141,7 @@ function EvidencePanel({ title, items, onAdd }: { title: string; items: string[]
     <Card className="p-5">
       <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3">{title}</h3>
       <div className="space-y-2 mb-3">{items.map((item, index) => <div key={`${item}-${index}`} className="rounded bg-muted/30 p-3 text-sm">{item}</div>)}</div>
-      <div className="flex gap-2"><Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Add evidence..." /><Button onClick={() => { if (text.trim()) { onAdd(text.trim()); setText(''); } }}>Add</Button></div>
+      <div className="flex gap-2"><Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Add evidence..." className="h-9" /><Button onClick={() => { if (text.trim()) { onAdd(text.trim()); setText(''); } }} size="sm">Add</Button></div>
     </Card>
   );
 }

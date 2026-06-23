@@ -169,7 +169,31 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
 
   return (
     <div className="relative w-full h-full bg-background flex flex-col overflow-hidden">
-      <div className="px-6 pt-4 pb-2">
+      <header className="flex justify-between items-center mb-10 px-8 pt-8 z-20">
+        <div>
+          <h1 className="text-[28px] font-headline font-semibold italic">Atlas</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="w-64 pl-9 bg-white/80 backdrop-blur border-border/50 font-body italic h-9" />
+          </div>
+          <div className="flex bg-white/80 backdrop-blur rounded-md border border-border/50 p-1 shadow-sm h-9">
+            <Button variant="ghost" size="icon" onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))} className="font-bold h-7 w-7">-</Button>
+            <div className="w-10 flex items-center justify-center font-code text-[10px] font-bold text-primary/60">{Math.round(zoom * 100)}%</div>
+            <Button variant="ghost" size="icon" onClick={() => setZoom((z) => Math.min(2.0, z + 0.1))} className="font-bold h-7 w-7">+</Button>
+            <div className="w-px bg-border mx-1 my-1" />
+            <Button variant="ghost" size="icon" onClick={() => setIsFullScreen(!isFullScreen)} className="h-7 w-7">
+              {isFullScreen ? <Maximize className="size-3.5" /> : <Minimize className="size-3.5" />}
+            </Button>
+          </div>
+          <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90">
+            <Plus className="size-4 mr-1.5" /> NEW CONCEPT
+          </Button>
+        </div>
+      </header>
+
+      <div className="px-8 pb-4 z-10">
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
           <Stat value={nodes.length} label="Nodes" />
           <Stat value={edges.filter((e) => e.type === 'manual').length} label="Manual" />
@@ -178,26 +202,7 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
         </div>
       </div>
 
-      <div className="px-6 pb-4 flex justify-end items-start gap-4 z-10">
-        <div className="relative pointer-events-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="w-64 pl-9 bg-white/80 backdrop-blur border-border/50 font-body italic" />
-        </div>
-        <div className="flex flex-col gap-2 pointer-events-auto items-end">
-          <div className="flex bg-white/80 backdrop-blur rounded-md border border-border/50 p-1 shadow-sm">
-            <Button variant="ghost" size="icon" onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))} className="font-bold text-lg">-</Button>
-            <div className="w-12 flex items-center justify-center font-code text-[11px] font-bold text-primary/60">{Math.round(zoom * 100)}%</div>
-            <Button variant="ghost" size="icon" onClick={() => setZoom((z) => Math.min(2.0, z + 0.1))} className="font-bold text-lg">+</Button>
-            <div className="w-px bg-border mx-1 my-1" />
-            <Button variant="ghost" size="icon" onClick={() => setIsFullScreen(!isFullScreen)}>
-              {isFullScreen ? <Maximize className="size-4" /> : <Minimize className="size-4" />}
-            </Button>
-          </div>
-          <Button onClick={() => setIsAddOpen(true)} className="shadow-lg"><Plus className="size-4 mr-2" /> Concept</Button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-hidden flex px-6 pb-6 gap-4">
+      <div className="flex-1 overflow-hidden flex px-8 pb-8 gap-4">
         <div 
           ref={mapRef}
           className="flex-1 overflow-hidden relative rounded-lg border border-border bg-muted/5 cursor-grab active:cursor-grabbing"
@@ -294,7 +299,7 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
                     <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Connect New Branch</h4>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="w-full justify-start font-body text-xs italic text-muted-foreground">
+                        <Button variant="outline" size="sm" className="w-full justify-start font-body text-xs italic text-muted-foreground h-8">
                           <Plus className="size-3 mr-2" /> Select concept...
                         </Button>
                       </PopoverTrigger>

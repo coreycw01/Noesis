@@ -22,13 +22,17 @@ export function EvolutionTimeline({ events }: EvolutionTimelineProps) {
   const sortedEvents = [...events].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 max-w-3xl mx-auto w-full">
-      <header className="mb-12 text-center">
-        <div className="size-16 bg-accent/10 text-accent rounded-full flex items-center justify-center mx-auto mb-6">
-          <History className="size-8" />
+    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-4xl mx-auto w-full font-body">
+      <header className="flex justify-between items-center mb-10">
+        <div>
+          <h1 className="text-[28px] font-headline font-bold italic text-foreground/80">Evolution</h1>
+          <p className="text-muted-foreground italic font-body text-[15px] mt-1">A chronicle of shifts and intellectual growth.</p>
         </div>
-        <h1 className="text-4xl font-headline font-bold mb-2">Cognitive Evolution</h1>
-        <p className="text-muted-foreground italic font-body text-lg">A chronicle of claim shifts, refined concepts, and intellectual growth.</p>
+        <div className="flex items-center gap-3">
+          <div className="size-10 bg-accent/10 text-accent rounded-full flex items-center justify-center">
+            <History className="size-5" />
+          </div>
+        </div>
       </header>
 
       <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
@@ -43,7 +47,7 @@ export function EvolutionTimeline({ events }: EvolutionTimelineProps) {
               </div>
 
               {/* Card */}
-              <Card className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-5 shadow-sm hover:shadow-md transition-all border-border/50">
+              <Card className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-5 shadow-sm hover:shadow-md transition-all border-border/50 bg-white">
                 <div className="flex items-center justify-between mb-2">
                   <time className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
                     {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

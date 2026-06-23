@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -73,7 +74,7 @@ export function MediaLibrary({ media, concepts, vault, onAddMedia, onUpdateMedia
   if (selected) {
     const linkedBeliefs = vault.filter((entry) => (entry.sourceIds || []).includes(selected.id));
     return (
-      <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full font-body">
+      <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-6xl mx-auto w-full font-body">
         <div className="flex items-center justify-between mb-8">
           <Button variant="ghost" onClick={() => setSelectedId(null)} className="h-8 font-code text-[10px] uppercase tracking-widest"><ArrowLeft className="size-4 mr-2" /> Library</Button>
           <div className="flex gap-2">
@@ -164,8 +165,8 @@ export function MediaLibrary({ media, concepts, vault, onAddMedia, onUpdateMedia
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full font-body">
-      <header className="flex flex-col gap-4 mb-10 md:flex-row md:items-center md:justify-between">
+    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+      <header className="flex justify-between items-center mb-10">
         <div>
           <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Library</h1>
         </div>

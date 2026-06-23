@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -82,9 +83,11 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
   const linkedDraftCount = drafts.filter(d => (d.questionIds || []).length > 0).length;
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full font-body">
+    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
       <header className="flex justify-between items-center mb-10">
-        <h1 className="text-3xl font-headline font-semibold italic text-foreground/80">Questions</h1>
+        <div>
+          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Questions</h1>
+        </div>
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -201,7 +204,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
 }) {
   const [answer, setAnswer] = useState(question.answer || '');
   return (
-    <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full font-body">
+    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-6xl mx-auto w-full font-body">
       <Button variant="ghost" onClick={onBack} className="mb-6 h-8 text-xs font-code uppercase tracking-widest"><ArrowLeft className="size-4 mr-2" /> Back to Inquiries</Button>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8">
         <Card className="p-8 bg-white border-border/40 shadow-sm">
