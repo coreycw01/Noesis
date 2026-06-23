@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { SourceLinker } from '@/components/SourceLinker';
 import type { Concept, Draft, Insight, Media, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import { conceptKey, conceptRelated, conceptTerms, taggedItemsForConcept } from '@/lib/readex';
@@ -34,7 +36,7 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
   const [selectedName, setSelectedName] = useState<string | null>(null);
-  const [branchTarget, setBranchTarget] = useState('');
+  const [branchSearch, setBranchSearch] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [newConcept, setNewConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
@@ -95,11 +97,17 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
     });
   };
 
-  const connectBranch = () => {
-    if (!selectedConcept || !branchTarget) return;
-    const links = Array.from(new Set([...(selectedConcept.links || []), branchTarget].map(conceptKey)));
+  const connectBranch = (targetName: string) => {
+    if (!selectedConcept) return;
+    const links = Array.from(new Set([...(selectedConcept.links || []), targetName].map(conceptKey)));
     onUpdateConcept({ ...selectedConcept, links, dateUpdated: new Date().toISOString() });
-    setBranchTarget('');
+    setBranchSearch('');
+  };
+
+  const removeBranch = (targetName: string) => {
+    if (!selectedConcept) return;
+    const links = (selectedConcept.links || []).filter(l => conceptKey(l) !== conceptKey(targetName));
+    onUpdateConcept({ ...selectedConcept, links, dateUpdated: new Date().toISOString() });
   };
 
   const startPanning = (event: React.MouseEvent | React.PointerEvent) => {
@@ -270,22 +278,54 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
                 </div>
                 <div className="flex-1 p-5 space-y-6 overflow-y-auto">
                   <section>
-                    <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3">Branch This Concept</h4>
-                    <div className="flex gap-2">
-                      <select 
-                        className="h-9 flex-1 rounded-md border bg-background px-2 text-sm focus:ring-1 focus:ring-accent" 
-                        value={branchTarget} 
-                        onChange={(event) => setBranchTarget(event.target.value)}
-                      >
-                        <option value="">Select concept...</option>
-                        {concepts
-                          .filter((concept) => conceptKey(concept.name) !== conceptKey(selectedName))
-                          .map((concept) => (
-                            <option key={concept.id} value={concept.name}>{concept.name}</option>
-                          ))}
-                      </select>
-                      <Button size="sm" onClick={connectBranch}><GitBranch className="size-3 mr-1" /> Connect</Button>
+                    <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3">Manual Branches</h4>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {(selectedConcept?.links || []).map((link) => (
+                        <Badge key={link} variant="secondary" className="flex items-center gap-1 font-code text-[9px] uppercase tracking-widest bg-accent/10 text-accent border-accent/20 pr-1">
+                          {link}
+                          <button onClick={() => removeBranch(link)} className="hover:text-destructive transition-colors ml-1">
+                            <X className="size-2.5" />
+                          </button>
+                        </Badge>
+                      ))}
+                      {!(selectedConcept?.links?.length) && <p className="text-[10px] text-muted-foreground italic">No manual branches established.</p>}
                     </div>
+                    
+                    <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Connect New Branch</h4>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="w-full justify-start font-body text-xs italic text-muted-foreground">
+                          <Plus className="size-3 mr-2" /> Select concept...
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-0" align="start">
+                        <div className="p-2 border-b">
+                          <Input 
+                            placeholder="Search concepts..." 
+                            className="h-8 text-[11px]" 
+                            value={branchSearch} 
+                            onChange={(e) => setBranchSearch(e.target.value)} 
+                          />
+                        </div>
+                        <ScrollArea className="h-64">
+                          <div className="p-1">
+                            {concepts
+                              .filter(c => conceptKey(c.name) !== conceptKey(selectedName))
+                              .filter(c => !branchSearch || c.name.toLowerCase().includes(branchSearch.toLowerCase()))
+                              .map(c => (
+                                <button 
+                                  key={c.id} 
+                                  className="w-full text-left p-2 hover:bg-muted rounded-sm font-code text-[10px] uppercase tracking-wider"
+                                  onClick={() => connectBranch(c.name)}
+                                >
+                                  {c.name}
+                                </button>
+                              ))
+                            }
+                          </div>
+                        </ScrollArea>
+                      </PopoverContent>
+                    </Popover>
                   </section>
 
                   <section>
