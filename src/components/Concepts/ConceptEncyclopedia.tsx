@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -33,7 +34,7 @@ interface ConceptEncyclopediaProps {
 }
 
 export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
-  const { concepts, media, insights, vault, drafts, practices, questions, timeline, onAddConcept, onUpdateConcept, onDeleteConcept, onCreateIdea } = props;
+  const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept, onDeleteConcept, onCreateIdea } = props;
   const [search, setSearch] = useState('');
   const [mode, setMode] = useState<'concepts' | 'ideas'>('concepts');
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -164,10 +165,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search..." className="w-64 pl-9 h-9" />
           </div>
-          <Button variant="outline" onClick={() => setIdeaOpen(true)} size="sm" className="bg-white border-border/60 shadow-sm">
+          <Button variant="outline" onClick={() => setIdeaOpen(true)} size="sm" className="bg-white border-border/60 shadow-sm rounded-full">
             <Plus className="size-4 mr-1.5" /> NEW IDEA
           </Button>
-          <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 shadow-md shadow-accent/20">
+          <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 rounded-full">
             <Plus className="size-4 mr-1.5" /> NEW CONCEPT
           </Button>
         </div>
@@ -305,11 +306,11 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           </div>
           <DialogFooter className="gap-2 pt-4">
             {editing && (
-              <Button variant="destructive" onClick={() => { onDeleteConcept(editing.id); setEditing(null); setEditorOpen(false); }}>
+              <Button variant="destructive" onClick={() => { onDeleteConcept(editing.id); setEditing(null); setEditorOpen(false); }} className="rounded-full">
                 <Trash2 className="size-4 mr-2" /> Delete
               </Button>
             )}
-            <Button onClick={saveConcept} className="bg-accent shadow-md shadow-accent/20">Anchor Concept</Button>
+            <Button onClick={saveConcept} className="bg-accent shadow-md shadow-accent/20 rounded-full">Anchor Concept</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -338,7 +339,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               label="Influencing Sources"
             />
           </div>
-          <DialogFooter className="pt-4"><Button onClick={saveIdea} className="bg-accent shadow-md shadow-accent/20">Archive Idea</Button></DialogFooter>
+          <DialogFooter className="pt-4"><Button onClick={saveIdea} className="bg-accent shadow-md shadow-accent/20 rounded-full">Archive Idea</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

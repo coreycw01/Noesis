@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -14,7 +15,7 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import type { Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent } from '@/lib/types';
+import type { Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, today, uid, conceptKey, conceptRelated } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -26,6 +27,7 @@ interface MediaLibraryProps {
   concepts: Concept[];
   vault: VaultEntry[];
   drafts: Draft[];
+  practices: Practice[];
   questions: Question[];
   timeline: TimelineEvent[];
   onAddMedia: (data: Partial<Media>) => void;
@@ -43,6 +45,7 @@ export function MediaLibrary({
   concepts, 
   vault, 
   drafts,
+  practices,
   questions,
   timeline,
   onAddMedia, 
@@ -177,11 +180,11 @@ export function MediaLibrary({
           </div>
           <div className="flex items-center gap-3">
             <Select value={selected.status} onValueChange={(value) => updateSelected({ status: value as MediaStatus })}>
-              <SelectTrigger className="w-40 font-code text-[10px] uppercase h-9 bg-white shadow-sm border-border/60"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-40 font-code text-[10px] uppercase h-9 bg-white shadow-sm border-border/60 rounded-full"><SelectValue /></SelectTrigger>
               <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{status}</SelectItem>)}</SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={() => openEditor(selected)} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-white">EDIT</Button>
-            <Button variant="outline" size="sm" onClick={() => { onDeleteMedia(selected.id); setSelectedId(null); }} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-white">DELETE</Button>
+            <Button variant="outline" size="sm" onClick={() => openEditor(selected)} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-white rounded-full">EDIT</Button>
+            <Button variant="outline" size="sm" onClick={() => { onDeleteMedia(selected.id); setSelectedId(null); }} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-white rounded-full">DELETE</Button>
           </div>
         </header>
 
@@ -250,7 +253,7 @@ export function MediaLibrary({
                 <h3 className="readex-kicker flex items-center gap-2 opacity-40">
                   <Plus className="size-2" /> SESSIONS
                 </h3>
-                <Button variant="outline" size="sm" className="h-7 px-3 font-code text-[9px] tracking-widest uppercase border-border/60 shadow-sm bg-white">+ ADD SESSION</Button>
+                <Button variant="outline" size="sm" className="h-7 px-3 font-code text-[9px] tracking-widest uppercase border-border/60 shadow-sm bg-white rounded-full">+ ADD SESSION</Button>
               </div>
               <div className="bg-white border border-border/30 rounded-lg p-6 shadow-sm">
                 <p className="font-body text-sm text-muted-foreground italic">Log each reading or listening session.</p>
@@ -272,8 +275,8 @@ export function MediaLibrary({
             </section>
 
             <div className="flex gap-4 pt-8 border-t border-border/30">
-              <Button className="bg-accent px-8 h-10 font-code text-[10px] tracking-widest uppercase shadow-md shadow-accent/20">SAVE CAPTURE</Button>
-              <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="h-10 px-8 font-code text-[10px] tracking-widest uppercase text-accent border-accent/20 shadow-sm bg-white">
+              <Button className="bg-accent px-8 h-10 font-code text-[10px] tracking-widest uppercase shadow-md shadow-accent/20 rounded-full">SAVE CAPTURE</Button>
+              <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="h-10 px-8 font-code text-[10px] tracking-widest uppercase text-accent border-accent/20 shadow-sm bg-white rounded-full">
                 {isDistilling ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Sparkles className="size-4 mr-2" />}
                 DISTILL → INSIGHT
               </Button>
@@ -285,7 +288,7 @@ export function MediaLibrary({
               <div className="space-y-6">
                 <div className="flex gap-2">
                   <Select value={annotationDraft.type} onValueChange={(value) => setAnnotationDraft((prev) => ({ ...prev, type: value as Annotation['type'] }))}>
-                    <SelectTrigger className="w-40 font-code text-[10px] uppercase h-10 border-border/60 bg-white shadow-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-40 font-code text-[10px] uppercase h-10 border-border/60 bg-white shadow-sm rounded-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="highlight" className="font-code text-[10px] uppercase">Highlight</SelectItem>
                       <SelectItem value="thought" className="font-code text-[10px] uppercase">Thought</SelectItem>
@@ -294,7 +297,7 @@ export function MediaLibrary({
                     </SelectContent>
                   </Select>
                   <Input value={annotationDraft.text} onChange={(event) => setAnnotationDraft((prev) => ({ ...prev, text: event.target.value }))} placeholder="Extract highlight, thought, or connection..." className="font-body italic text-sm" />
-                  <Button onClick={addAnnotation} size="sm" className="h-10 px-6">ADD</Button>
+                  <Button onClick={addAnnotation} size="sm" className="h-10 px-6 rounded-full">ADD</Button>
                 </div>
                 <div className="space-y-4">
                   {(selected.annotations || []).map((annotation) => (
@@ -311,7 +314,7 @@ export function MediaLibrary({
                 </div>
               </div>
               <aside className="space-y-6">
-                <Button variant="outline" onClick={handleGenerateQuestions} disabled={isGeneratingQuestions} className="w-full h-10 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-white shadow-sm">
+                <Button variant="outline" onClick={handleGenerateQuestions} disabled={isGeneratingQuestions} className="w-full h-10 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-white shadow-sm rounded-full">
                   {isGeneratingQuestions ? <Loader2 className="size-4 mr-2 animate-spin" /> : <HelpCircle className="size-4 mr-2" />}
                   GENERATE REFLECTIONS
                 </Button>
@@ -322,7 +325,7 @@ export function MediaLibrary({
           <TabsContent value="insights" className="space-y-8">
             <div className="flex justify-between items-center">
               <h3 className="readex-kicker opacity-50 uppercase">{linkedInsights.length} INSIGHTS FROM THIS SOURCE</h3>
-              <Button onClick={() => setInsightOpen(true)} size="sm" className="bg-accent h-8 px-4 font-code text-[10px] tracking-widest uppercase shadow-md shadow-accent/20">+ NEW INSIGHT</Button>
+              <Button onClick={() => setInsightOpen(true)} size="sm" className="bg-accent h-8 px-4 font-code text-[10px] tracking-widest uppercase shadow-md shadow-accent/20 rounded-full">+ NEW INSIGHT</Button>
             </div>
 
             <div className="space-y-4">
@@ -424,6 +427,7 @@ export function MediaLibrary({
           media={media}
           vault={vault}
           drafts={drafts}
+          practices={practices}
           questions={questions}
           timeline={timeline}
         />
@@ -443,7 +447,7 @@ export function MediaLibrary({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search title, author, tags..." className="w-72 pl-9 h-9" />
           </div>
-          <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 h-9 shadow-md shadow-accent/20">
+          <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 h-9 shadow-md shadow-accent/20 rounded-full">
             <Plus className="size-4 mr-1.5" /> ADD MEDIA
           </Button>
         </div>
@@ -526,6 +530,7 @@ export function MediaLibrary({
         media={media}
         vault={vault}
         drafts={drafts}
+        practices={practices}
         questions={questions}
         timeline={timeline}
       />
@@ -612,7 +617,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                 <Label className="readex-kicker block mb-3 uppercase">SEARCH {MEDIA_LABELS[draft.type || 'book']?.toUpperCase()}S</Label>
                 <div className="flex gap-2">
                   <Input placeholder="Title or author..." className="h-10 flex-1" />
-                  <Button className="h-10 px-6 bg-accent font-code text-xs font-bold uppercase tracking-[0.14em] shadow-md shadow-accent/20">SEARCH</Button>
+                  <Button className="h-10 px-6 bg-accent font-code text-xs font-bold uppercase tracking-[0.14em] shadow-md shadow-accent/20 rounded-full">SEARCH</Button>
                 </div>
               </section>
 
@@ -673,7 +678,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && addTag()}
                     />
-                    <Button variant="outline" onClick={addTag} className="h-10 font-code text-[9px] font-bold uppercase tracking-widest bg-white shadow-sm border-border/60">ADD</Button>
+                    <Button variant="outline" onClick={addTag} className="h-10 font-code text-[9px] font-bold uppercase tracking-widest bg-white shadow-sm border-border/60 rounded-full">ADD</Button>
                   </div>
                 </div>
 
@@ -704,14 +709,14 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
 
         <div className="p-6 pt-3 bg-muted/10 border-t flex justify-end gap-3">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-10 px-6 font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent">CANCEL</Button>
-          <Button onClick={onSave} className="h-10 px-8 bg-accent font-code text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20">ADD TO LIBRARY</Button>
+          <Button onClick={onSave} className="h-10 px-8 bg-accent font-code text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20 rounded-full">ADD TO LIBRARY</Button>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function ConceptDetailDialog({ name, onClose, concepts, media, vault, drafts, questions, timeline }: {
+function ConceptDetailDialog({ name, onClose, concepts, media, vault, drafts, questions, timeline, practices }: {
   name: string | null;
   onClose: () => void;
   concepts: Concept[];
@@ -720,9 +725,10 @@ function ConceptDetailDialog({ name, onClose, concepts, media, vault, drafts, qu
   drafts: Draft[];
   questions: Question[];
   timeline: TimelineEvent[];
+  practices: Practice[];
 }) {
   const [activeTab, setActiveTab] = useState('sources');
-  const related = useMemo(() => name ? conceptRelated(name, { media, insights: [], vault, drafts, questions, timeline }) : null, [name, media, vault, drafts, questions, timeline]);
+  const related = useMemo(() => name ? conceptRelated(name, { media, insights: [], vault, drafts, questions, timeline, practices }) : null, [name, media, vault, drafts, questions, timeline, practices]);
 
   if (!name || !related) return null;
 
@@ -880,7 +886,7 @@ function ConceptDetailDialog({ name, onClose, concepts, media, vault, drafts, qu
         </div>
 
         <div className="p-8 pt-4 bg-muted/5 border-t border-border/20 flex justify-end">
-          <Button variant="outline" onClick={onClose} className="h-10 px-8 font-code text-[10px] font-bold uppercase tracking-widest bg-white border-border/60 shadow-sm">CLOSE</Button>
+          <Button variant="outline" onClick={onClose} className="h-10 px-8 font-code text-[10px] font-bold uppercase tracking-widest bg-white border-border/60 shadow-sm rounded-full">CLOSE</Button>
         </div>
       </DialogContent>
     </Dialog>
