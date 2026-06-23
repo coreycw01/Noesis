@@ -294,7 +294,7 @@ function ReadexApp() {
       case 'writing':
         return <Atelier drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} onAddDraft={addDraft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={commonOnAddConcept} />;
       case 'evolution':
-        return <EvolutionTimeline events={timeline} />;
+        return <EvolutionTimeline events={timeline} media={media} />;
       default:
         return null;
     }

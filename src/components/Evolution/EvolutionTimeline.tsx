@@ -1,89 +1,146 @@
-
 "use client";
 
-import React from 'react';
-import { History, ArrowRight, BookOpen, ShieldCheck, PenTool, Plus } from 'lucide-react';
-import { Card } from '@/components/ui/card';
+import React, { useMemo, useState } from 'react';
+import { History, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { TimelineEvent } from '@/lib/types';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import type { TimelineEvent, Media, EventType } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 interface EvolutionTimelineProps {
   events: TimelineEvent[];
+  media: Media[];
 }
 
-const entityIcons: Record<string, any> = {
-  vault: ShieldCheck,
-  media: BookOpen,
-  draft: PenTool,
-  concept: Plus
-};
+const EVENT_TYPES: EventType[] = ['created', 'refined', 'challenged', 'revised', 'expanded', 'abandoned'];
 
-export function EvolutionTimeline({ events }: EvolutionTimelineProps) {
-  const sortedEvents = [...events].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+export function EvolutionTimeline({ events, media }: EvolutionTimelineProps) {
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<'all' | EventType>('all');
+
+  const filteredEvents = useMemo(() => {
+    return [...events]
+      .filter((event) => {
+        const typeOk = filter === 'all' || event.eventType === filter;
+        const queryOk = !search || 
+          event.entityTitle.toLowerCase().includes(search.toLowerCase()) || 
+          event.reason.toLowerCase().includes(search.toLowerCase());
+        return typeOk && queryOk;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [events, filter, search]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-4xl mx-auto w-full font-body">
+    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
       <header className="flex justify-between items-center mb-10">
         <div>
-          <h1 className="text-[28px] font-headline font-bold italic text-foreground/80">Evolution</h1>
+          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Evolution</h1>
         </div>
         <div className="flex items-center gap-3">
-          <div className="size-10 bg-accent/10 text-accent rounded-full flex items-center justify-center">
-            <History className="size-5" />
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+              placeholder="Search events..." 
+              className="w-64 pl-9 bg-muted/40 font-code text-[11px] h-9" 
+            />
           </div>
         </div>
       </header>
 
-      <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
-        {sortedEvents.map((event, idx) => {
-          const Icon = entityIcons[event.entityType] || History;
-          
-          return (
-            <div key={event.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group animate-fade-in-up" style={{ animationDelay: `${idx * 0.1}s` }}>
-              {/* Dot */}
-              <div className="flex items-center justify-center w-10 h-10 rounded-full border border-border bg-background shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 transition-all group-hover:border-accent group-hover:scale-110">
-                <Icon className="size-4 text-muted-foreground group-hover:text-accent" />
-              </div>
+      <div className="mb-10">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setFilter('all')}
+            className={cn(
+              "px-3 py-1.5 rounded text-[10px] font-code font-bold uppercase tracking-[0.14em] transition-all",
+              filter === 'all' 
+                ? "bg-accent text-white shadow-sm" 
+                : "bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+          >
+            ALL EVENTS
+          </button>
+          {EVENT_TYPES.map((type) => (
+            <button
+              key={type}
+              onClick={() => setFilter(type)}
+              className={cn(
+                "px-3 py-1.5 rounded text-[10px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap",
+                filter === type 
+                  ? "bg-accent text-white shadow-sm" 
+                  : "bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
+            >
+              {type.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
 
-              {/* Card */}
-              <Card className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-5 shadow-sm hover:shadow-md transition-all border-border/50 bg-white">
-                <div className="flex items-center justify-between mb-2">
-                  <time className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
-                    {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </time>
-                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter px-1.5 py-0">
+      <div className="relative pl-8 space-y-12 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[1px] before:bg-border/60">
+        {filteredEvents.map((event, idx) => {
+          const influencedSources = media.filter(m => (event.influencedBy || []).includes(m.id));
+
+          return (
+            <div key={event.id || idx} className="relative animate-fade-in-up" style={{ animationDelay: `${idx * 0.05}s` }}>
+              {/* Timeline Indicator */}
+              <div className="absolute -left-[32px] top-1.5 size-2 rounded-full bg-accent ring-4 ring-background z-10" />
+              
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-code text-[10px] font-bold uppercase tracking-widest text-accent">
                     {event.eventType}
-                  </Badge>
+                  </span>
                 </div>
-                
-                <h3 className="font-headline font-bold text-lg mb-1 group-hover:text-accent transition-colors">
+
+                <h3 className="font-headline font-bold text-2xl text-primary leading-tight">
                   {event.entityTitle}
                 </h3>
-                
-                <p className="text-sm font-body italic text-muted-foreground/80 leading-relaxed mb-4">
-                  "{event.reason}"
+
+                <p className="font-body italic text-[16px] text-muted-foreground leading-relaxed max-w-3xl">
+                  {event.reason}
                 </p>
 
-                <div className="flex items-center gap-2 pt-3 border-t border-border/20">
-                   <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60">Reference:</span>
-                   <div className="flex items-center gap-1.5 text-[10px] font-medium text-accent hover:underline cursor-pointer">
-                      <span>View Refinement</span>
-                      <ArrowRight className="size-3" />
-                   </div>
+                {influencedSources.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {influencedSources.map(s => (
+                      <Badge key={s.id} variant="secondary" className="bg-muted/30 text-[9px] font-code uppercase tracking-tighter py-0.5 px-2 border-transparent hover:bg-muted/50 transition-colors flex items-center gap-1.5">
+                        <BookIcon className="size-2.5 opacity-40" />
+                        {s.title}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <div className="pt-2">
+                  <time className="font-code text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
+                    {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </time>
                 </div>
-              </Card>
+              </div>
             </div>
           );
         })}
 
-        {sortedEvents.length === 0 && (
-          <div className="py-20 text-center opacity-40">
-            <History className="size-20 mx-auto mb-6 text-muted-foreground" />
-            <h2 className="text-2xl font-headline italic mb-2">Static Mindset</h2>
-            <p className="max-w-xs mx-auto font-body">Changes to your claims, sources, and concepts will populate this timeline of growth.</p>
+        {filteredEvents.length === 0 && (
+          <div className="py-20 text-center opacity-30">
+            <History className="size-16 mx-auto mb-6 text-muted-foreground" />
+            <h2 className="text-2xl font-headline italic mb-2">No events recorded</h2>
+            <p className="max-w-xs mx-auto font-body">As you refine claims and complete sources, your cognitive evolution will appear here.</p>
           </div>
         )}
       </div>
     </div>
   );
 }
+
+const BookIcon = ({ className }: { className?: string }) => (
+  <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+    <path d="M6.5 2H20v20H6.5" />
+    <path d="M6.5 18H20" />
+  </svg>
+);
