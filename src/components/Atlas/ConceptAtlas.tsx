@@ -224,7 +224,7 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
             <div className="absolute inset-0 flex items-center justify-center text-center">
               <div className="max-w-sm">
                 <h2 className="text-xl font-headline italic mb-2">Empty Atlas</h2>
-                <p className="text-muted-foreground text-sm">Create a concept or tag a source, belief, idea, or draft to begin mapping your system.</p>
+                <p className="text-muted-foreground text-sm">Create a concept or tag a source, claim, idea, or draft to begin mapping your understanding.</p>
                 <Button variant="outline" className="mt-4" onClick={() => setIsAddOpen(true)}>Create Concept</Button>
               </div>
             </div>
@@ -266,7 +266,7 @@ export function ConceptAtlas({ concepts, media, insights, vault, drafts, questio
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">{related.sources.length} sources</Badge>
                 <Badge variant="outline">{related.ideas.length} ideas</Badge>
-                <Badge variant="outline">{related.beliefs.length} beliefs</Badge>
+                <Badge variant="outline">{related.beliefs.length} claims</Badge>
                 <Badge variant="outline">{related.drafts.length} drafts</Badge>
                 <Badge variant="outline">{related.questions.length} questions</Badge>
               </div>

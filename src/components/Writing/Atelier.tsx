@@ -64,7 +64,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, onAddDraft,
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between mb-4">
           <div>
             <h1 className="text-[28px] font-headline font-semibold italic">Writing Studio</h1>
-            <p className="mt-1 text-muted-foreground font-body text-[15px]">Draft essays, scripts, and field notes while keeping evidence and concept links beside the editor.</p>
+            <p className="mt-1 text-muted-foreground font-body text-[15px]">Write from the evidence beside you, shaping essays, scripts, and field notes from sources, inquiries, and claims.</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => { setNewDraft({ title: '', type: 'field_note' }); setIsAddOpen(true); }}>+ Field Note</Button>
@@ -75,7 +75,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, onAddDraft,
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
           <StudioStat label="Drafts" value={drafts.length} sub="All writing outputs" />
           <StudioStat label="Concept Tags" value={conceptCount} sub="Grouping this draft" />
-          <StudioStat label="Evidence Links" value={linkedSourceCount + linkedQuestionCount + linkedBeliefCount} sub="Sources, questions, beliefs" />
+          <StudioStat label="Evidence Links" value={linkedSourceCount + linkedQuestionCount + linkedBeliefCount} sub="Sources, inquiries, claims" />
           <StudioStat label="Status" value={active?.status || 'None'} sub={active ? DRAFT_LABELS[active.type] : 'Create a draft'} />
         </div>
       </div>
@@ -126,8 +126,8 @@ export function Atelier({ drafts, media, vault, questions, concepts, onAddDraft,
           <>
             <Card className="p-4"><h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3">Concepts</h3><ConceptTagPicker concepts={concepts} value={active.conceptTags || []} onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} compact /></Card>
             <LinkPanel title="Sources" items={media.map((m) => ({ id: m.id, label: m.title }))} selected={active.sourceIds || []} onChange={(sourceIds) => updateActive({ sourceIds })} />
-            <LinkPanel title="Questions" items={questionList.map((q) => ({ id: q.id, label: q.text }))} selected={active.questionIds || []} onChange={(questionIds) => updateActive({ questionIds })} />
-            <LinkPanel title="Beliefs" items={vault.map((v) => ({ id: v.id, label: v.title }))} selected={active.beliefIds || []} onChange={(beliefIds) => updateActive({ beliefIds })} />
+            <LinkPanel title="Inquiries" items={questionList.map((q) => ({ id: q.id, label: q.text }))} selected={active.questionIds || []} onChange={(questionIds) => updateActive({ questionIds })} />
+            <LinkPanel title="Claims" items={vault.map((v) => ({ id: v.id, label: v.title }))} selected={active.beliefIds || []} onChange={(beliefIds) => updateActive({ beliefIds })} />
           </>
         )}
       </div>

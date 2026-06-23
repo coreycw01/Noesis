@@ -1,6 +1,6 @@
-# Readex Firebase App Spec
+# Noesis Firebase App Spec
 
-Readex is a personal philosophy operating system. Its product center is not reading progress or a bookshelf. The center is the user's evolving map of concepts, questions, beliefs, and writing. Media sources are inputs. Annotations and captured thoughts are evidence. Beliefs, drafts, answers, and timeline changes are outputs.
+Noesis is a personal philosophy workspace for turning thought into understanding. Its product center is not reading progress or a bookshelf. The center is the user's evolving map of concepts, inquiries, claims, and writing. Media sources are inputs. Annotations and captured thoughts are evidence. Claims, drafts, answers, and timeline changes are outputs.
 
 The Firebase Studio app is the production/mobile-ready version of the richer local prototype. It should keep the Next.js, Firebase, Radix, and Tailwind architecture while preserving the prototype's mental model and workflows.
 
@@ -11,7 +11,7 @@ The Firebase Studio app is the production/mobile-ready version of the richer loc
 - Cross-links should provide context without constantly navigating the user away from the current workspace.
 - Concepts are shared tags and encyclopedia entries, not just visual graph nodes.
 - `Unsorted Ideas` is a fallback concept used only when no real concept has been selected.
-- Beliefs are explicit philosophy claims and are the home for ideas the user creates.
+- Claims are explicit philosophy statements and are the home for ideas the user creates.
 - Writing is a real studio for essays, scripts, and field notes, not a prompt gallery.
 - Atlas is the only primary place where the map, branches, and connection explanation are the focus.
 
@@ -21,9 +21,9 @@ The primary sidebar should show:
 
 1. Atlas
 2. Concepts
-3. Questions
-4. Library
-5. Beliefs
+3. Inquiries
+4. Sources
+5. Claims
 6. Writing
 7. Evolution
 
@@ -84,7 +84,7 @@ Inputs:
 
 - Sources
 - Annotations
-- Questions
+- Inquiries
 
 Outputs:
 
@@ -104,11 +104,11 @@ Firestore:
 - `/users/{uid}/concepts/{conceptId}`
 - Concept names are also inferred from tags on media, beliefs, insights, drafts, and questions.
 
-## Questions
+## Inquiries
 
 Purpose: answer workspace.
 
-Questions should help the user answer hard problems, not just store a list of prompts.
+Inquiries should help the user answer hard problems, not just store a list of prompts.
 
 Core features:
 
@@ -140,11 +140,11 @@ Firestore:
 - Source capture questions live inside `/users/{uid}/media/{mediaId}.capture.before`
 - Annotation questions live inside `/users/{uid}/media/{mediaId}.annotations`
 
-## Library
+## Sources
 
 Purpose: source/input capture.
 
-Library is for books, audiobooks, podcasts, videos, movies, articles, courses, lectures, documentaries, interviews, conversations, papers, and other source types. The app should not group different media types into one vague goal count.
+Sources is for books, audiobooks, podcasts, videos, movies, articles, courses, lectures, documentaries, interviews, conversations, papers, and other source types. The app should not group different media types into one vague goal count.
 
 Core features:
 
@@ -186,13 +186,13 @@ Firestore:
 
 - `/users/{uid}/media/{mediaId}`
 
-## Beliefs
+## Claims
 
 Purpose: explicit philosophy claims and the home for created ideas.
 
-The Beliefs tab is where user-created ideas should go. A `+ Idea` action creates a belief entry and may also create a mirrored insight record for Atlas and concept linking.
+The Claims tab is where user-created ideas should go. A `+ Idea` action creates a claim entry and may also create a mirrored insight record for Atlas and concept linking.
 
-Belief types:
+Claim types:
 
 - belief
 - principle
@@ -209,7 +209,7 @@ Core features:
 - Store evidence for and evidence against.
 - Track version history when a belief changes.
 
-Belief detail sections:
+Claim detail sections:
 
 - Statement
 - Description
@@ -342,7 +342,7 @@ Settings documents:
 
 ## Relationships
 
-Readex mostly uses linked IDs and concept tags.
+Noesis mostly uses linked IDs and concept tags.
 
 Media can link to:
 
@@ -355,27 +355,27 @@ Concepts can link to:
 
 - Sources through source tags
 - Annotations through annotation tags
-- Questions through question concept IDs
-- Beliefs through belief tags
+- Inquiries through question concept IDs
+- Claims through claim tags
 - Drafts through draft tags
 - Evolution events through entity IDs and influenced-by IDs
 
-Beliefs can link to:
+Claims can link to:
 
 - Sources through `sourceIds`
 - Concepts through `tags`
 - Drafts through draft `beliefIds`
-- Questions through question/belief relationships
+- Inquiries through question/claim relationships
 - Timeline events by entity ID
 
 Drafts can link to:
 
 - Concepts through `conceptTags`
 - Sources through `sourceIds`
-- Questions through `questionIds`
-- Beliefs through `beliefIds`
+- Inquiries through `questionIds`
+- Claims through `beliefIds`
 
-Questions can link to:
+Inquiries can link to:
 
 - Concepts through `conceptIds`
 - Sources through `sourceIds`
@@ -393,7 +393,7 @@ Stored:
 
 - Media/source records
 - Concept records
-- Beliefs/vault entries
+- Claims/vault entries
 - Manual questions
 - Drafts
 - Timeline events
@@ -404,8 +404,8 @@ Derived:
 
 - Concept counts
 - Shared-evidence map edges
-- Questions derived from source capture fields
-- Questions derived from question annotations
+- Inquiries derived from source capture fields
+- Inquiries derived from question annotations
 - Concept lists inferred from tags
 - Goal progress counts from media records
 
@@ -421,9 +421,9 @@ The app should centralize common writes where practical:
 - `createConcept`
 - `updateConcept`
 - `deleteConcept`
-- `createBelief`
-- `updateBelief`
-- `deleteBelief`
+- `createClaim`
+- `updateClaim`
+- `deleteClaim`
 - `createDraft`
 - `updateDraft`
 - `deleteDraft`
@@ -445,7 +445,7 @@ Linked operations should use batched writes. The most important batch is idea cr
 
 Add a source:
 
-1. User opens Library.
+1. User opens Sources.
 2. User clicks add source.
 3. User enters media type, title, creator, status, and concept tags.
 4. If no concept is selected, `Unsorted Ideas` is applied.
@@ -453,14 +453,14 @@ Add a source:
 
 Annotate a source:
 
-1. User opens a Library source detail page.
+1. User opens a Sources detail page.
 2. User adds a highlight, thought, question, or connection.
 3. User tags the annotation with concepts.
 4. Tagged concepts appear in concept popups and Atlas relationships.
 
 Create an idea:
 
-1. User opens Beliefs.
+1. User opens Claims.
 2. User clicks `+ Idea`.
 3. User writes the statement, confidence, evidence, and concept tags.
 4. Firestore creates a belief entry.
@@ -469,7 +469,7 @@ Create an idea:
 
 Answer a question:
 
-1. User opens Questions.
+1. User opens Inquiries.
 2. User selects a question.
 3. User writes a working answer.
 4. User reviews related concepts, sources, beliefs, and drafts.
@@ -508,16 +508,16 @@ Migration rules:
 
 ## Verification Checklist
 
-- Sidebar renders Atlas, Concepts, Questions, Library, Beliefs, Writing, Evolution.
+- Sidebar renders Atlas, Concepts, Inquiries, Sources, Claims, Writing, Evolution.
 - Atlas renders as its own page and does not mirror the last tab.
 - Atlas node clicks stay in Atlas.
 - Branch dropdown starts blank.
 - Concepts page exists and cards open concept detail dialogs.
 - Concept popup shows linked inputs and outputs.
-- Library source detail supports capture, annotations, concept tags, edit, and delete.
-- Beliefs page is the home for created ideas.
+- Sources detail supports capture, annotations, concept tags, edit, and delete.
+- Claims page is the home for created ideas.
 - Creating an idea creates a belief entry.
-- Questions page opens an answer workspace and saves answers.
+- Inquiries page opens an answer workspace and saves answers.
 - Writing page supports draft create, edit, save, reopen, delete, and filters.
 - Goals render separately by media type.
 - Firestore paths stay under `/users/{uid}`.

@@ -73,7 +73,7 @@ export function MediaLibrary({ media, concepts, vault, onAddMedia, onUpdateMedia
     return (
       <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full">
         <div className="flex items-center justify-between mb-8">
-          <Button variant="ghost" onClick={() => setSelectedId(null)}><ArrowLeft className="size-4 mr-2" /> Library</Button>
+          <Button variant="ghost" onClick={() => setSelectedId(null)}><ArrowLeft className="size-4 mr-2" /> Sources</Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => openEditor(selected)}><Edit className="size-4 mr-2" /> Edit</Button>
             <Button variant="destructive" onClick={() => { onDeleteMedia(selected.id); setSelectedId(null); }}><Trash2 className="size-4 mr-2" /> Delete</Button>
@@ -107,7 +107,7 @@ export function MediaLibrary({ media, concepts, vault, onAddMedia, onUpdateMedia
                 <CaptureField label="Open Question" value={selected.capture?.before?.openQuestion} onChange={(value) => updateSelected({ capture: { ...selected.capture, before: { ...selected.capture?.before, openQuestion: value }, sessions: selected.capture?.sessions || [] } })} />
                 <CaptureField label="Working Answer" value={selected.capture?.before?.openAnswer} onChange={(value) => updateSelected({ capture: { ...selected.capture, before: { ...selected.capture?.before, openAnswer: value }, sessions: selected.capture?.sessions || [] } })} />
                 <CaptureField label="Core Argument" value={selected.capture?.after?.coreArgument} onChange={(value) => updateSelected({ capture: { ...selected.capture, after: { ...selected.capture?.after, coreArgument: value }, sessions: selected.capture?.sessions || [] } })} />
-                <CaptureField label="Belief Change" value={selected.capture?.after?.beliefChange} onChange={(value) => updateSelected({ capture: { ...selected.capture, after: { ...selected.capture?.after, beliefChange: value }, sessions: selected.capture?.sessions || [] } })} />
+                <CaptureField label="Claim Change" value={selected.capture?.after?.beliefChange} onChange={(value) => updateSelected({ capture: { ...selected.capture, after: { ...selected.capture?.after, beliefChange: value }, sessions: selected.capture?.sessions || [] } })} />
               </div>
             </Card>
 
@@ -137,8 +137,8 @@ export function MediaLibrary({ media, concepts, vault, onAddMedia, onUpdateMedia
             </Card>
 
             <Card className="p-5">
-              <h3 className="font-headline text-xl font-bold mb-3">Linked Beliefs</h3>
-              {linkedBeliefs.length ? linkedBeliefs.map((entry) => <div key={entry.id} className="rounded bg-muted/30 p-3 mb-2">{entry.title}</div>) : <p className="text-sm text-muted-foreground italic">No beliefs linked yet.</p>}
+              <h3 className="font-headline text-xl font-bold mb-3">Linked Claims</h3>
+              {linkedBeliefs.length ? linkedBeliefs.map((entry) => <div key={entry.id} className="rounded bg-muted/30 p-3 mb-2">{entry.title}</div>) : <p className="text-sm text-muted-foreground italic">No claims linked yet.</p>}
             </Card>
           </div>
         </div>
@@ -151,8 +151,8 @@ export function MediaLibrary({ media, concepts, vault, onAddMedia, onUpdateMedia
     <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full">
       <header className="flex flex-col gap-4 mb-8 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-4xl font-headline font-bold mb-2 italic">Library</h1>
-          <p className="text-muted-foreground font-body text-lg">Sources are inputs: books, videos, movies, articles, lectures, conversations, and notes.</p>
+          <h1 className="text-4xl font-headline font-bold mb-2 italic">Sources</h1>
+          <p className="text-muted-foreground font-body text-lg">Sources are inputs: books, videos, movies, articles, lectures, conversations, and notes that shape understanding.</p>
         </div>
         <Button onClick={() => openEditor()}><Plus className="size-4 mr-2" /> Add Source</Button>
       </header>

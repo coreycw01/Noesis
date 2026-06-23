@@ -64,7 +64,7 @@ function ReadexApp() {
     };
 
     scaffoldFirestore().catch((error) => {
-      console.warn('Unable to scaffold Readex Firestore settings', error);
+      console.warn('Unable to scaffold Noesis Firestore settings', error);
     });
   }, [effectiveUid, refs.settingsAtlasNodes, refs.settingsAtlasView, refs.settingsGoal, refs.settingsSchema, refs.user]);
 
@@ -122,7 +122,7 @@ function ReadexApp() {
       dateAdded: today(),
       dateUpdated: today(),
     });
-    await createTimelineEvent({ entityId: created.id, entityType: 'media', entityTitle: data.title, eventType: 'created', reason: 'Source added to Library' });
+    await createTimelineEvent({ entityId: created.id, entityType: 'media', entityTitle: data.title, eventType: 'created', reason: 'Source added to Noesis' });
   };
   const updateMedia = async (item: Media) => {
     await ensureConcepts(item.tags || []);
@@ -134,7 +134,7 @@ function ReadexApp() {
     const tags = normalizeConceptTags(data.tags);
     await ensureConcepts(tags);
     const created = await addDoc(refs.vault, {
-      title: data.title || 'Untitled Belief',
+      title: data.title || 'Untitled Claim',
       type: data.type || 'belief',
       statement: data.statement || data.description || '',
       description: data.description || data.statement || '',
@@ -149,12 +149,12 @@ function ReadexApp() {
       dateCreated: today(),
       dateUpdated: today(),
     });
-    await createTimelineEvent({ entityId: created.id, entityType: 'vault', entityTitle: data.title, eventType: 'created', reason: 'Belief added to Vault', influencedBy: data.sourceIds });
+    await createTimelineEvent({ entityId: created.id, entityType: 'vault', entityTitle: data.title, eventType: 'created', reason: 'Claim formed', influencedBy: data.sourceIds });
   };
   const updateVaultEntry = async (entry: VaultEntry) => {
     await ensureConcepts(entry.tags || []);
     await updateDoc(doc(refs.vault, entry.id), entry as any);
-    await createTimelineEvent({ entityId: entry.id, entityType: 'vault', entityTitle: entry.title, eventType: 'refined', reason: 'Belief updated', influencedBy: entry.sourceIds });
+    await createTimelineEvent({ entityId: entry.id, entityType: 'vault', entityTitle: entry.title, eventType: 'refined', reason: 'Claim refined', influencedBy: entry.sourceIds });
   };
   const deleteVaultEntry = (id: string) => deleteDoc(doc(refs.vault, id));
 
@@ -193,7 +193,7 @@ function ReadexApp() {
       dateUpdated: today(),
     });
     const eventRef = doc(refs.timeline);
-    batch.set(eventRef, { entityId: beliefRef.id, entityType: 'vault', entityTitle: data.title, eventType: 'created', reason: 'Idea saved to Beliefs', influencedBy: data.sourceIds || [], date: today() });
+    batch.set(eventRef, { entityId: beliefRef.id, entityType: 'vault', entityTitle: data.title, eventType: 'created', reason: 'Idea formed as claim', influencedBy: data.sourceIds || [], date: today() });
     await batch.commit();
     setView('vault');
   };
@@ -279,7 +279,7 @@ function ReadexApp() {
       {renderContent()}
       <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="font-headline text-2xl italic">Edit Goals</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-headline text-2xl italic">Edit Source Goals</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Goal Label</Label><Input value={goalDraft.label} onChange={(event) => setGoalDraft((prev) => ({ ...prev, label: event.target.value }))} /></div>
             <div className="space-y-2">
@@ -299,7 +299,7 @@ function ReadexApp() {
               </div>
             </div>
           </div>
-          <DialogFooter><Button onClick={saveGoal}>Save Goals</Button></DialogFooter>
+          <DialogFooter><Button onClick={saveGoal}>Save Source Goals</Button></DialogFooter>
         </DialogContent>
       </Dialog>
       <Toaster />

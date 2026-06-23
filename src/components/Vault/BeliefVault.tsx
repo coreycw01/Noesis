@@ -63,7 +63,7 @@ export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUp
     return (
       <div className="flex-1 overflow-y-auto p-8 max-w-5xl mx-auto w-full">
         <div className="flex items-center justify-between mb-8">
-          <Button variant="ghost" onClick={() => setSelectedId(null)}><ArrowLeft className="size-4 mr-2" /> Beliefs</Button>
+          <Button variant="ghost" onClick={() => setSelectedId(null)}><ArrowLeft className="size-4 mr-2" /> Claims</Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => openEditor(selected)}><Edit className="size-4 mr-2" /> Edit</Button>
             <Button variant="destructive" onClick={() => { onDeleteEntry(selected.id); setSelectedId(null); }}><Trash2 className="size-4 mr-2" /> Delete</Button>
@@ -93,12 +93,12 @@ export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUp
     <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full">
       <header className="flex justify-between items-end mb-10">
         <div>
-          <h1 className="text-4xl font-headline font-bold mb-2">Beliefs</h1>
+          <h1 className="text-4xl font-headline font-bold mb-2">Claims</h1>
           <p className="text-muted-foreground italic font-body text-lg">Ideas become explicit claims, principles, mental models, and worldview statements here.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setIdeaOpen(true)}><Plus className="size-4 mr-2" /> Idea</Button>
-          <Button onClick={() => openEditor()}><Plus className="size-4 mr-2" /> Belief</Button>
+          <Button onClick={() => openEditor()}><Plus className="size-4 mr-2" /> Form Claim</Button>
         </div>
       </header>
 
@@ -121,8 +121,8 @@ export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUp
         {entries.length === 0 && (
           <div className="col-span-full py-20 flex flex-col items-center justify-center text-center opacity-40">
             <ShieldCheck className="size-24 mb-6 text-muted-foreground" />
-            <h2 className="text-2xl font-headline italic mb-2">The Vault is Silent</h2>
-            <p className="max-w-md font-body">Save an idea or belief to begin making your philosophy explicit.</p>
+            <h2 className="text-2xl font-headline italic mb-2">No claims formed yet</h2>
+            <p className="max-w-md font-body">Turn an idea into something you are willing to examine.</p>
           </div>
         )}
       </div>
@@ -136,7 +136,7 @@ export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUp
             <div className="space-y-2"><Label>Body</Label><Textarea value={ideaDraft.body} onChange={(event) => setIdeaDraft((prev) => ({ ...prev, body: event.target.value }))} /></div>
             <ConceptTagPicker concepts={concepts} value={ideaDraft.tags} onChange={(tags) => setIdeaDraft((prev) => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
           </div>
-          <DialogFooter><Button onClick={saveIdea}>Save To Beliefs</Button></DialogFooter>
+          <DialogFooter><Button onClick={saveIdea}>Save Claim</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -171,7 +171,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
-        <DialogHeader><DialogTitle className="font-headline text-2xl italic">{draft.id ? 'Edit Belief' : 'New Belief'}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="font-headline text-2xl italic">{draft.id ? 'Edit Claim' : 'Form Claim'}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>Title</Label><Input value={draft.title || ''} onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))} /></div>
@@ -182,7 +182,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
           <div className="space-y-2"><Label>Concept Tags</Label><ConceptTagPicker concepts={concepts} value={draft.tags || []} onChange={(tags) => setDraft((prev) => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></div>
           <div className="space-y-2"><Label>Linked Sources</Label><div className="grid grid-cols-1 gap-2">{media.map((item) => <label key={item.id} className="flex gap-2 text-sm"><input type="checkbox" checked={(draft.sourceIds || []).includes(item.id)} onChange={(event) => setDraft((prev) => ({ ...prev, sourceIds: event.target.checked ? [...(prev.sourceIds || []), item.id] : (prev.sourceIds || []).filter((id) => id !== item.id) }))} />{item.title}</label>)}</div></div>
         </div>
-        <DialogFooter><Button onClick={onSave}>Save Belief</Button></DialogFooter>
+        <DialogFooter><Button onClick={onSave}>Save Claim</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

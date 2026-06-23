@@ -28,7 +28,7 @@ export function EvolutionTimeline({ events }: EvolutionTimelineProps) {
           <History className="size-8" />
         </div>
         <h1 className="text-4xl font-headline font-bold mb-2">Cognitive Evolution</h1>
-        <p className="text-muted-foreground italic font-body text-lg">A chronicle of belief shifts, refined concepts, and intellectual growth.</p>
+        <p className="text-muted-foreground italic font-body text-lg">A chronicle of claim shifts, refined concepts, and intellectual growth.</p>
       </header>
 
       <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
@@ -77,7 +77,7 @@ export function EvolutionTimeline({ events }: EvolutionTimelineProps) {
           <div className="py-20 text-center opacity-40">
             <History className="size-20 mx-auto mb-6 text-muted-foreground" />
             <h2 className="text-2xl font-headline italic mb-2">Static Mindset</h2>
-            <p className="max-w-xs mx-auto font-body">Changes to your beliefs, media consumption, and concepts will populate this timeline of growth.</p>
+            <p className="max-w-xs mx-auto font-body">Changes to your claims, sources, and concepts will populate this timeline of growth.</p>
           </div>
         )}
       </div>

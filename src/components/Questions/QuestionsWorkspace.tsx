@@ -67,14 +67,14 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
     <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full">
       <header className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-4xl font-headline font-bold mb-2 italic">Questions</h1>
-          <p className="text-muted-foreground font-body text-lg">Answer workspace for the problems currently alive in your system.</p>
+          <h1 className="text-4xl font-headline font-bold mb-2 italic">Inquiries</h1>
+          <p className="text-muted-foreground font-body text-lg">Answer workspace for the questions currently alive in your system.</p>
         </div>
-        <Button onClick={() => setIsAddOpen(true)}><Plus className="size-4 mr-2" /> New Question</Button>
+        <Button onClick={() => setIsAddOpen(true)}><Plus className="size-4 mr-2" /> New Inquiry</Button>
       </header>
 
       <div className="grid grid-cols-3 gap-4 mb-8">
-        <Stat label="Questions" value={all.length} />
+        <Stat label="Inquiries" value={all.length} />
         <Stat label="Answered" value={answered} />
         <Stat label="Open" value={all.length - answered} />
       </div>
@@ -82,7 +82,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
       <div className="flex gap-3 mb-8">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search questions..." className="pl-9 bg-white/70" />
+          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search inquiries..." className="pl-9 bg-white/70" />
         </div>
         {(['all','open','answered'] as const).map((value) => <Button key={value} variant={filter === value ? 'default' : 'outline'} onClick={() => setFilter(value)}>{value}</Button>)}
       </div>
@@ -103,8 +103,8 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="font-headline text-2xl italic">Formulate Question</DialogTitle></DialogHeader>
-          <div className="space-y-2"><Label>Question</Label><Textarea value={newQuestion.text} onChange={(event) => setNewQuestion({ text: event.target.value })} /></div>
+          <DialogHeader><DialogTitle className="font-headline text-2xl italic">Formulate Inquiry</DialogTitle></DialogHeader>
+          <div className="space-y-2"><Label>Inquiry</Label><Textarea value={newQuestion.text} onChange={(event) => setNewQuestion({ text: event.target.value })} placeholder="Ask the question that keeps returning." /></div>
           <DialogFooter><Button onClick={createQuestion}>Open Investigation</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -124,7 +124,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   const [answer, setAnswer] = useState(question.answer || '');
   return (
     <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full">
-      <Button variant="ghost" onClick={onBack} className="mb-6"><ArrowLeft className="size-4 mr-2" /> Questions</Button>
+      <Button variant="ghost" onClick={onBack} className="mb-6"><ArrowLeft className="size-4 mr-2" /> Inquiries</Button>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8">
         <Card className="p-6">
           <Badge variant="outline" className="mb-3">{question.type || 'manual'}</Badge>
@@ -135,7 +135,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
         <aside className="space-y-4">
           <ContextPanel title="Evidence Sources" items={sources.map((item) => item.title)} />
           <ContextPanel title="Concepts" items={Array.from(new Set(concepts))} />
-          <ContextPanel title="Related Beliefs" items={beliefs.map((entry) => entry.title)} />
+          <ContextPanel title="Related Claims" items={beliefs.map((entry) => entry.title)} />
           <ContextPanel title="Linked Drafts" items={drafts.map((draft) => draft.title)} />
         </aside>
       </div>

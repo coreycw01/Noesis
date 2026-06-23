@@ -1,10 +1,9 @@
-
-import type {Metadata} from 'next';
+import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Readex — Personal Philosophy OS',
-  description: 'Intelligent scholarly workspace for capturing ideas and evolving beliefs.',
+  title: 'Noesis - Turn thought into understanding',
+  description: 'A personal philosophy workspace for mapping concepts, examining claims, and writing from evidence.',
 };
 
 export default function RootLayout({

@@ -1,6 +1,6 @@
-# Readex Firestore Collections
+# Noesis Firestore Collections
 
-Readex stores all user-owned data under:
+Noesis stores all user-owned data under:
 
 ```txt
 /users/{uid}
@@ -41,7 +41,7 @@ Prototype mode uses:
 
 `questions` stores manual answer-workspace questions. Source capture questions and annotation questions can also be derived from `media`.
 
-`vault` stores beliefs, principles, mental models, life rules, worldview claims, and ideas created from the Beliefs page.
+`vault` stores claims, principles, mental models, life rules, worldview statements, and ideas created from the Claims page.
 
 `drafts` stores writing outputs: essays, scripts, and field notes.
 
@@ -55,7 +55,7 @@ Prototype mode uses:
 
 `settings/atlasNodes` stores map-level node position metadata when positions are not stored directly on concept records.
 
-`settings/schema` stores the current Readex collection map for Firebase Studio visibility and migration checks.
+`settings/schema` stores the current Noesis collection map for Firebase Studio visibility and migration checks.
 
 ## Runtime Scaffolding
 

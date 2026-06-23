@@ -28,9 +28,9 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
   const navItems = [
     { id: 'atlas', label: 'Atlas', icon: MapIcon, section: 'Mind' },
     { id: 'concepts', label: 'Concepts', icon: BookOpen, section: 'Mind', count: counts.concepts },
-    { id: 'questions', label: 'Questions', icon: HelpCircle, section: 'Mind', count: counts.questions },
-    { id: 'library', label: 'Library', icon: Library, section: 'Inputs', count: counts.media },
-    { id: 'vault', label: 'Beliefs', icon: ShieldCheck, section: 'Outputs', count: counts.vault },
+    { id: 'questions', label: 'Inquiries', icon: HelpCircle, section: 'Mind', count: counts.questions },
+    { id: 'library', label: 'Sources', icon: Library, section: 'Inputs', count: counts.media },
+    { id: 'vault', label: 'Claims', icon: ShieldCheck, section: 'Outputs', count: counts.vault },
     { id: 'writing', label: 'Writing', icon: PenTool, section: 'Outputs', count: counts.drafts },
     { id: 'evolution', label: 'Evolution', icon: History, section: 'Outputs', count: counts.timeline },
   ];
@@ -49,13 +49,13 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
       <aside className="w-[252px] bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border shadow-2xl z-20">
         <div className="p-5 border-b border-sidebar-border">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[22px] font-headline font-bold text-white tracking-tight">Readex<span className="text-accent">.</span></span>
+            <span className="text-[22px] font-headline font-bold text-white tracking-tight">Noesis<span className="text-accent">.</span></span>
           </div>
-          <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/30 font-medium">Personal Philosophy OS</p>
+          <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/30 font-medium">Turn thought into understanding.</p>
 
           <button onClick={onEditGoal} className="mt-4 w-full rounded border border-white/10 bg-white/[0.05] p-3 text-left transition-colors hover:border-white/20 hover:bg-white/[0.075]">
             <div className="flex justify-between items-end mb-2">
-              <span className="font-code text-[10px] uppercase tracking-wider text-sidebar-foreground/60">Goal</span>
+              <span className="font-code text-[10px] uppercase tracking-wider text-sidebar-foreground/60">Source Goals</span>
               <span className="font-code text-[10px] text-white/70">By Type</span>
             </div>
             <p className="font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/45 mb-2">{goal.label}</p>

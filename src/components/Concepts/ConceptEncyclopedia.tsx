@@ -68,7 +68,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       <header className="flex flex-col gap-4 mb-7 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-[28px] font-headline font-semibold mb-2 italic">Concepts</h1>
-          <p className="text-muted-foreground font-body text-[15px]">The encyclopedia of recurring ideas, with inputs and outputs gathered in one place.</p>
+          <p className="text-muted-foreground font-body text-[15px]">The encyclopedia of recurring ideas, with sources, inquiries, claims, writing, and evolution gathered in one place.</p>
         </div>
         <div className="flex gap-2">
           <div className="relative">
@@ -83,7 +83,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         <Stat value={terms.length} label="Concepts" sub="Encyclopedia entries" />
         <Stat value={media.length} label="Sources" sub="Inputs feeding concepts" />
         <Stat value={allAnnotations(media).length} label="Annotations" sub="Tagged notes and questions" />
-        <Stat value={insights.length + vault.length + drafts.length} label="Outputs" sub="Ideas, beliefs, writing" />
+        <Stat value={insights.length + vault.length + drafts.length} label="Outputs" sub="Ideas, claims, writing" />
       </div>
 
       <div className="flex flex-wrap gap-2 mb-8">
@@ -112,13 +112,13 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                       </Button>
                     )}
                   </div>
-                  <p className="text-[13px] leading-6 text-muted-foreground font-body mt-1 line-clamp-2">{concept?.description || 'No description yet. Open this concept to inspect linked sources, beliefs, writing, questions, and evolution.'}</p>
+                  <p className="text-[13px] leading-6 text-muted-foreground font-body mt-1 line-clamp-2">{concept?.description || 'No description yet. Open this concept to inspect linked sources, claims, writing, inquiries, and evolution.'}</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 mt-4">
                 <Badge variant="outline">{related.sources.length} sources</Badge>
                 <Badge variant="outline">{related.annotations.length} notes</Badge>
-                <Badge variant="outline">{related.beliefs.length} beliefs</Badge>
+                <Badge variant="outline">{related.beliefs.length} claims</Badge>
                 <Badge variant="outline">{related.drafts.length} drafts</Badge>
               </div>
             </Card>
@@ -135,8 +135,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <RelatedSection title="Inputs: Sources" items={selectedRelated.sources.map((item) => `${item.title} - ${item.creator || item.type}`)} />
               <RelatedSection title="Inputs: Annotations" items={selectedRelated.annotations.map((item) => `${item.type}: ${item.text}`)} />
-              <RelatedSection title="Inputs: Questions" items={selectedRelated.questions.map((item) => item.text)} />
-              <RelatedSection title="Outputs: Beliefs" items={selectedRelated.beliefs.map((item) => item.title)} />
+              <RelatedSection title="Inputs: Inquiries" items={selectedRelated.questions.map((item) => item.text)} />
+              <RelatedSection title="Outputs: Claims" items={selectedRelated.beliefs.map((item) => item.title)} />
               <RelatedSection title="Outputs: Writing" items={selectedRelated.drafts.map((item) => `${item.title} (${item.type})`)} />
               <RelatedSection title="Outputs: Evolution" items={selectedRelated.events.map((item) => `${item.eventType}: ${item.entityTitle}`)} />
             </div>
