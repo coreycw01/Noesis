@@ -22,6 +22,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MEDIA_LABELS, MEDIA_TYPES, conceptKey, ensureConceptTerms, normalizeConceptTags, today } from '@/lib/readex';
 import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
 import type { Concept, Draft, GoalSettings, Insight, Media, MediaType, Question, TimelineEvent, VaultEntry } from '@/lib/types';
@@ -296,6 +300,12 @@ function ReadexApp() {
     }
   };
 
+  const activeGoalRows = goal.types.map((type) => ({
+    type,
+    done: goalProgress[type] || 0,
+    target: goal.targets[type] || 12
+  }));
+
   return (
     <Shell
       activeView={view}
@@ -307,28 +317,73 @@ function ReadexApp() {
     >
       {renderContent()}
       <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle className="font-headline text-2xl italic">Edit Source Goals</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2"><Label>Goal Label</Label><Input value={goalDraft.label} onChange={(event) => setGoalDraft((prev) => ({ ...prev, label: event.target.value }))} /></div>
-            <div className="space-y-2">
-              <Label>Separate Targets By Media Type</Label>
-              <div className="space-y-2">
-                {MEDIA_TYPES.map((type) => (
-                  <label key={type} className="grid grid-cols-[auto_1fr_90px] gap-2 items-center text-sm">
-                    <input
-                      type="checkbox"
-                      checked={goalDraft.types.includes(type)}
-                      onChange={(event) => setGoalDraft((prev) => ({ ...prev, types: event.target.checked ? [...prev.types, type] : prev.types.filter((t) => t !== type) }))}
-                    />
-                    <span>{MEDIA_LABELS[type]}</span>
-                    <Input type="number" min={1} value={goalDraft.targets[type] || 12} onChange={(event) => setGoalDraft((prev) => ({ ...prev, targets: { ...prev.targets, [type]: Math.max(1, Number(event.target.value) || 1) } }))} />
-                  </label>
-                ))}
+        <DialogContent className="max-w-xl p-0 overflow-hidden border-none rounded-2xl shadow-2xl bg-white font-body">
+          <Tabs defaultValue="progress" className="w-full">
+            <div className="p-8 pb-4">
+              <DialogHeader className="mb-6">
+                <DialogTitle className="text-4xl font-headline italic mb-2">Source Goals</DialogTitle>
+                <TabsList className="bg-muted/50 w-full justify-start h-9 p-1">
+                  <TabsTrigger value="progress" className="text-[10px] font-code uppercase tracking-widest px-6 h-7">Detailed Progress</TabsTrigger>
+                  <TabsTrigger value="settings" className="text-[10px] font-code uppercase tracking-widest px-6 h-7">Edit Targets</TabsTrigger>
+                </TabsList>
+              </DialogHeader>
+
+              <div className="min-h-[400px]">
+                <TabsContent value="progress" className="m-0 focus-visible:ring-0">
+                  <ScrollArea className="h-[400px] pr-4">
+                    <div className="space-y-6">
+                      {activeGoalRows.map((row) => (
+                        <div key={row.type} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-code text-[11px] font-bold uppercase tracking-widest text-primary/80">{MEDIA_LABELS[row.type]}</span>
+                            <span className="font-code text-[12px] font-bold text-accent">{row.done} / {row.target}</span>
+                          </div>
+                          <Progress value={(row.done / Math.max(1, row.target)) * 100} className="h-2 bg-muted/40" />
+                          <p className="text-[10px] text-muted-foreground uppercase font-code tracking-tighter">
+                            {row.target - row.done > 0 ? `${row.target - row.done} remaining for ${goalDraft.label}` : 'Goal achieved!'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="settings" className="m-0 focus-visible:ring-0">
+                  <div className="space-y-6 pt-2">
+                    <div className="space-y-2">
+                      <Label className="readex-kicker uppercase">GOAL LABEL</Label>
+                      <Input value={goalDraft.label} onChange={(event) => setGoalDraft((prev) => ({ ...prev, label: event.target.value }))} className="h-12 border-border/60 bg-white shadow-sm font-body text-base" />
+                    </div>
+                    <Separator className="bg-border/40" />
+                    <div className="space-y-4">
+                      <Label className="readex-kicker uppercase">TARGETS BY TYPE</Label>
+                      <ScrollArea className="h-[240px] pr-4">
+                        <div className="space-y-3">
+                          {MEDIA_TYPES.map((type) => (
+                            <div key={type} className="grid grid-cols-[auto_1fr_90px] gap-4 items-center p-3 rounded-lg border border-border/30 bg-muted/5 transition-colors hover:bg-muted/10">
+                              <input
+                                type="checkbox"
+                                checked={goalDraft.types.includes(type)}
+                                onChange={(event) => setGoalDraft((prev) => ({ ...prev, types: event.target.checked ? [...prev.types, type] : prev.types.filter((t) => t !== type) }))}
+                                className="accent-accent size-4"
+                              />
+                              <span className="font-code text-[10px] font-bold uppercase tracking-wider text-primary/70">{MEDIA_LABELS[type]}</span>
+                              <Input type="number" min={1} value={goalDraft.targets[type] || 12} onChange={(event) => setGoalDraft((prev) => ({ ...prev, targets: { ...prev.targets, [type]: Math.max(1, Number(event.target.value) || 1) } }))} className="h-8 text-xs font-code text-right" />
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  </div>
+                </TabsContent>
               </div>
             </div>
-          </div>
-          <DialogFooter><Button onClick={saveGoal}>Save Source Goals</Button></DialogFooter>
+
+            <div className="p-8 pt-4 bg-muted/10 border-t flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setGoalOpen(false)} className="h-12 px-8 font-code text-xs font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent">CLOSE</Button>
+              <Button onClick={saveGoal} className="h-12 px-10 bg-accent font-code text-xs font-bold uppercase tracking-widest shadow-lg shadow-accent/20">SAVE CHANGES</Button>
+            </div>
+          </Tabs>
         </DialogContent>
       </Dialog>
       <Toaster />
