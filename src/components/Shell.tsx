@@ -13,7 +13,9 @@ import {
   Settings, 
   ShieldCheck,
   Edit2,
-  ChevronRight
+  ChevronRight,
+  Table as TableIcon,
+  Highlighter
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
@@ -34,6 +36,7 @@ interface ShellProps {
     drafts: number;
     practices: number;
     timeline: number;
+    annotations: number;
   };
   goal: GoalSettings;
   goalProgress: Partial<Record<MediaType, number>>;
@@ -46,6 +49,8 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
     { id: 'concepts', label: 'Concepts', icon: BookOpen, section: 'Mind', count: counts.concepts },
     { id: 'questions', label: 'Inquiries', icon: HelpCircle, section: 'Mind', count: counts.questions },
     { id: 'library', label: 'Library', icon: Library, section: 'Inputs', count: counts.media },
+    { id: 'source-index', label: 'Source Index', icon: TableIcon, section: 'Inputs' },
+    { id: 'annotations', label: 'Annotations', icon: Highlighter, section: 'Inputs', count: counts.annotations },
     { id: 'vault', label: 'Positions', icon: ShieldCheck, section: 'Outputs', count: counts.vault },
     { id: 'writing', label: 'Works', icon: PenTool, section: 'Outputs', count: counts.drafts },
     { id: 'practices', label: 'Practices', icon: Repeat, section: 'Outputs', count: counts.practices },

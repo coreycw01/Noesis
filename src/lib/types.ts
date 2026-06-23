@@ -60,6 +60,10 @@ export interface Media {
   description?: string;
   url?: string;
   thumbnailUrl?: string;
+  publisher?: string;
+  isbn?: string;
+  doi?: string;
+  platform?: string;
   tags: string[];
   annotations: Annotation[];
   capture: MediaCapture;

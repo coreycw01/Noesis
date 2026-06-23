@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -625,20 +626,6 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                 </div>
               </section>
 
-              <section>
-                <Label className="readex-kicker block mb-4 uppercase font-bold text-[10px]">SEARCH {MEDIA_LABELS[draft.type || 'book']?.toUpperCase()}S</Label>
-                <div className="flex gap-3">
-                  <Input placeholder="Title or author..." className="h-11 flex-1 text-base italic" />
-                  <Button className="h-11 px-8 bg-accent font-code text-[11px] font-bold uppercase tracking-[0.16em] shadow-lg shadow-accent/20 rounded-full">SEARCH</Button>
-                </div>
-              </section>
-
-              <div className="relative flex items-center py-4">
-                <div className="flex-grow border-t border-border/40"></div>
-                <span className="flex-shrink mx-6 font-code text-[10px] uppercase tracking-[0.3em] text-muted-foreground/40 font-bold">MANUAL DETAILS</span>
-                <div className="flex-grow border-t border-border/40"></div>
-              </div>
-
               <div className="space-y-6">
                 <div className="space-y-2">
                   <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">SOURCE TITLE</Label>
@@ -672,6 +659,34 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                     <Input 
                       value={draft.genre || ''} 
                       onChange={(e) => setDraft(prev => ({ ...prev, genre: e.target.value }))}
+                      className="h-11 text-base"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">PUBLISHER / PLATFORM</Label>
+                  <Input 
+                    value={draft.publisher || ''} 
+                    onChange={(e) => setDraft(prev => ({ ...prev, publisher: e.target.value }))}
+                    className="h-11 text-base"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">ISBN / ISSN</Label>
+                    <Input 
+                      value={draft.isbn || ''} 
+                      onChange={(e) => setDraft(prev => ({ ...prev, isbn: e.target.value }))}
+                      className="h-11 text-base"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">DOI / URL</Label>
+                    <Input 
+                      value={draft.doi || draft.url || ''} 
+                      onChange={(e) => setDraft(prev => ({ ...prev, doi: e.target.value, url: e.target.value }))}
                       className="h-11 text-base"
                     />
                   </div>

@@ -14,6 +14,8 @@ import { Shell } from '@/components/Shell';
 import { ConceptAtlas } from '@/components/Atlas/ConceptAtlas';
 import { ConceptEncyclopedia } from '@/components/Concepts/ConceptEncyclopedia';
 import { MediaLibrary } from '@/components/Library/MediaLibrary';
+import { SourceIndex } from '@/components/Library/SourceIndex';
+import { AnnotationsIndex } from '@/components/Library/AnnotationsIndex';
 import { BeliefVault } from '@/components/Vault/BeliefVault';
 import { Atelier } from '@/components/Writing/Atelier';
 import { QuestionsWorkspace } from '@/components/Questions/QuestionsWorkspace';
@@ -28,7 +30,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MEDIA_LABELS, MEDIA_TYPES, conceptKey, ensureConceptTerms, normalizeConceptTags, today } from '@/lib/readex';
+import { MEDIA_LABELS, MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today } from '@/lib/readex';
 import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
 import type { AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext } from '@/lib/types';
 import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
@@ -161,6 +163,10 @@ function ReadexApp() {
       description: data.description || '',
       url: data.url || '',
       thumbnailUrl: data.thumbnailUrl || '',
+      publisher: data.publisher || '',
+      isbn: data.isbn || '',
+      doi: data.doi || '',
+      platform: data.platform || '',
       tags,
       annotations: data.annotations || [],
       capture: data.capture || { sessions: [] },
@@ -396,6 +402,8 @@ function ReadexApp() {
     return acc;
   }, {} as Record<MediaType, number>);
 
+  const allFilteredAnnotations = useMemo(() => allAnnotations(media).filter(a => a.type !== 'question'), [media]);
+
   const renderContent = () => {
     switch (view) {
       case 'atlas':
@@ -435,6 +443,10 @@ function ReadexApp() {
             onDeleteVaultEntry={deleteVaultEntry}
           />
         );
+      case 'source-index':
+        return <SourceIndex media={media} />;
+      case 'annotations':
+        return <AnnotationsIndex media={media} />;
       case 'vault':
         return (
           <BeliefVault 
@@ -471,7 +483,16 @@ function ReadexApp() {
     <Shell
       activeView={view}
       onViewChange={setView}
-      counts={{ concepts: concepts.length, questions: questions.length, media: media.length, vault: vault.length, drafts: drafts.length, timeline: timeline.length, practices: practices.length }}
+      counts={{ 
+        concepts: concepts.length, 
+        questions: questions.length, 
+        media: media.length, 
+        vault: vault.length, 
+        drafts: drafts.length, 
+        timeline: timeline.length, 
+        practices: practices.length,
+        annotations: allFilteredAnnotations.length
+      }}
       goal={goal}
       goalProgress={goalProgress}
       onEditGoal={() => setGoalOpen(true)}
@@ -541,8 +562,8 @@ function ReadexApp() {
             </div>
 
             <div className="p-8 pt-4 bg-muted/10 border-t flex justify-end gap-3">
-              <Button variant="ghost" onClick={() => setGoalOpen(false)} className="h-12 px-8 font-code text-xs font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent">CLOSE</Button>
-              <Button onClick={saveGoal} className="h-12 px-10 bg-accent font-code text-xs font-bold uppercase tracking-widest shadow-lg shadow-accent/20">SAVE CHANGES</Button>
+              <Button variant="ghost" onClick={() => setGoalOpen(false)} className="h-12 px-8 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent">CLOSE</Button>
+              <Button onClick={saveGoal} className="h-12 px-10 bg-accent font-code text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20">SAVE CHANGES</Button>
             </div>
           </Tabs>
         </DialogContent>
