@@ -70,8 +70,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, onAddDraft,
       <div className="p-8 pt-8 border-b border-border/50 bg-background">
         <header className="flex justify-between items-center mb-10">
           <div>
-            <h1 className="text-[28px] font-headline font-semibold italic">Writing Studio</h1>
-            <p className="mt-1 text-muted-foreground font-body text-[15px]">Shape essays, scripts, and field notes from evidence.</p>
+            <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Writing Studio</h1>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">

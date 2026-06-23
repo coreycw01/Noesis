@@ -26,7 +26,6 @@ export function EvolutionTimeline({ events }: EvolutionTimelineProps) {
       <header className="flex justify-between items-center mb-10">
         <div>
           <h1 className="text-[28px] font-headline font-bold italic text-foreground/80">Evolution</h1>
-          <p className="text-muted-foreground italic font-body text-[15px] mt-1">A chronicle of shifts and intellectual growth.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="size-10 bg-accent/10 text-accent rounded-full flex items-center justify-center">

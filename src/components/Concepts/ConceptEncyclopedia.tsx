@@ -131,8 +131,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
       <header className="flex justify-between items-center mb-10">
         <div>
-          <h1 className="text-[28px] font-headline font-semibold italic">Encyclopedia</h1>
-          <p className="text-muted-foreground font-body text-[15px] mt-1">The index of recurring mental nodes, claims, and inquiries.</p>
+          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Encyclopedia</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
