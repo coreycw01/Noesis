@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { SourceLinker } from '@/components/SourceLinker';
 import type { Concept, Draft, Media, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, conceptKey, today } from '@/lib/readex';
+import { cn } from '@/lib/utils';
 
 interface QuestionsWorkspaceProps {
   questions: Question[];
@@ -23,17 +24,23 @@ interface QuestionsWorkspaceProps {
   onUpdateQuestion: (question: Question) => void;
 }
 
+type FilterType = 'all' | 'open' | 'annotations' | 'answered';
+
 export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'open' | 'answered'>('all');
+  const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newQuestion, setNewQuestion] = useState({ text: '', sourceIds: [] as string[] });
   
   const all = useMemo(() => allQuestions(media, questions), [media, questions]);
   const filtered = all.filter((question) => {
-    const statusOk = filter === 'all' || (filter === 'answered' ? !!question.answer : !question.answer);
-    return statusOk && (!search || question.text.toLowerCase().includes(search.toLowerCase()) || (question.answer || '').toLowerCase().includes(search.toLowerCase()));
+    let typeOk = true;
+    if (filter === 'open') typeOk = !question.answer;
+    if (filter === 'answered') typeOk = !!question.answer;
+    if (filter === 'annotations') typeOk = question.type === 'annotation';
+    
+    return typeOk && (!search || question.text.toLowerCase().includes(search.toLowerCase()) || (question.answer || '').toLowerCase().includes(search.toLowerCase()));
   });
   const selected = all.find((question) => question.id === selectedId) || null;
 
@@ -71,48 +78,86 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
     return <QuestionDetail question={selected} sources={relatedSources} concepts={conceptNames} beliefs={relatedBeliefs} drafts={relatedDrafts} onBack={() => setSelectedId(null)} onSave={saveAnswer} />;
   }
 
-  const answered = all.filter((question) => !!question.answer).length;
+  const answered = all.filter((q) => !!q.answer).length;
+  const linkedDraftCount = drafts.filter(d => (d.questionIds || []).length > 0).length;
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full">
-      <header className="flex justify-between items-end mb-8">
-        <div>
-          <h1 className="text-4xl font-headline font-bold mb-2 italic text-primary">Inquiries</h1>
-          <p className="text-muted-foreground font-body text-lg">Answer workspace for the questions currently alive in your system.</p>
+    <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full font-body">
+      <header className="flex justify-between items-center mb-10">
+        <h1 className="text-3xl font-headline font-semibold italic text-foreground/80">Questions</h1>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search questions..." className="w-64 pl-9 bg-muted/40 font-code text-[11px] h-9" />
+          </div>
+          <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90">
+            <Plus className="size-4 mr-1.5" /> ADD INQUIRY
+          </Button>
         </div>
-        <Button onClick={() => setIsAddOpen(true)}><Plus className="size-4 mr-2" /> New Inquiry</Button>
       </header>
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <Stat label="Inquiries" value={all.length} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+        <Stat label="Questions" value={all.length} />
         <Stat label="Answered" value={answered} />
         <Stat label="Open" value={all.length - answered} />
+        <Stat label="Linked Drafts" value={linkedDraftCount} />
       </div>
 
-      <div className="flex gap-3 mb-8">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search inquiries..." className="pl-9 bg-white/70" />
+      <div className="mb-8">
+        <h2 className="text-xl font-headline font-semibold italic text-foreground/70 mb-5">Answer workspace</h2>
+        <div className="flex flex-wrap gap-2">
+          {(['all', 'open', 'annotations', 'answered'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setFilter(v)}
+              className={cn(
+                "px-3 py-1.5 rounded text-[10px] font-code font-bold uppercase tracking-[0.14em] transition-all",
+                filter === v 
+                  ? "bg-accent text-white shadow-sm" 
+                  : "bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
+            >
+              {v === 'annotations' ? 'Annotations' : v}
+            </button>
+          ))}
         </div>
-        {(['all','open','answered'] as const).map((value) => <Button key={value} variant={filter === value ? 'default' : 'outline'} onClick={() => setFilter(value)} className="capitalize">{value}</Button>)}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filtered.map((question) => (
-          <Card key={question.id} className="cursor-pointer hover:shadow-xl transition-all group border-border/50" onClick={() => setSelectedId(question.id)}>
-            <CardHeader className="pb-3">
-              <Badge variant="outline" className="w-fit mb-2">{question.answer ? 'answered' : 'open'}</Badge>
-              <CardTitle className="text-2xl font-headline italic group-hover:text-accent transition-colors">{question.text}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {question.answer ? <p className="text-sm font-body italic text-primary/80 line-clamp-3">"{question.answer}"</p> : <p className="font-code text-[11px] uppercase tracking-widest text-muted-foreground/50">Answer pending synthesis...</p>}
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {filtered.map((question) => {
+          const sources = media.filter(m => (question.sourceIds || []).includes(m.id));
+          const draftLinks = drafts.filter(d => (d.questionIds || []).includes(question.id)).length;
+          
+          return (
+            <Card key={question.id} className="cursor-pointer hover:shadow-lg transition-all border-border/40 group bg-white" onClick={() => setSelectedId(question.id)}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="readex-kicker">{question.type || 'manual'}</span>
+                  <span className="readex-kicker text-muted-foreground/30">•</span>
+                  <span className="readex-kicker">{question.answer ? 'answered' : 'unanswered'}</span>
+                </div>
+                <CardTitle className="text-xl font-headline font-bold italic group-hover:text-accent transition-colors leading-relaxed">
+                  {question.text}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="font-body text-xs text-muted-foreground italic flex items-center gap-2">
+                  {sources.length > 0 && (
+                    <>
+                      <span>From {sources.map(s => s.title).join(', ')}</span>
+                      <span>•</span>
+                    </>
+                  )}
+                  <span>{draftLinks} linked drafts</span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
         {filtered.length === 0 && (
           <div className="col-span-full py-20 text-center opacity-30">
-            <h3 className="font-headline text-2xl italic">No matches found</h3>
-            <p className="font-body">Broaden your inquiry or search parameters.</p>
+            <h3 className="font-headline text-2xl italic">No matches discovered</h3>
+            <p className="font-body text-sm mt-2">Refine your search or expand your inquiry filter.</p>
           </div>
         )}
       </div>
@@ -122,12 +167,12 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           <DialogHeader><DialogTitle className="font-headline text-2xl italic">Formulate Inquiry</DialogTitle></DialogHeader>
           <div className="space-y-6 pt-2">
             <div className="space-y-2">
-              <Label>The Question</Label>
+              <Label className="readex-kicker">The Question</Label>
               <Textarea 
                 value={newQuestion.text} 
                 onChange={(event) => setNewQuestion(prev => ({ ...prev, text: event.target.value }))} 
-                placeholder="What is the core problem or mystery you are exploring?" 
-                className="min-h-[120px] font-body text-lg italic"
+                placeholder="What core problem or mystery are you exploring?" 
+                className="min-h-[120px] font-body text-lg italic bg-muted/20"
               />
             </div>
             
@@ -138,7 +183,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
               label="Influenced by Source(s)"
             />
           </div>
-          <DialogFooter className="pt-4"><Button onClick={createQuestion}>Open Investigation</Button></DialogFooter>
+          <DialogFooter className="pt-4"><Button onClick={createQuestion} className="w-full">Open Investigation</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -156,25 +201,28 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
 }) {
   const [answer, setAnswer] = useState(question.answer || '');
   return (
-    <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full">
-      <Button variant="ghost" onClick={onBack} className="mb-6"><ArrowLeft className="size-4 mr-2" /> Inquiries</Button>
+    <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full font-body">
+      <Button variant="ghost" onClick={onBack} className="mb-6 h-8 text-xs font-code uppercase tracking-widest"><ArrowLeft className="size-4 mr-2" /> Back to Inquiries</Button>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8">
-        <Card className="p-6">
-          <Badge variant="outline" className="mb-3 font-code text-[10px] uppercase tracking-widest">{question.type || 'manual'}</Badge>
-          <h1 className="font-headline text-3xl italic mb-6 text-primary leading-tight">{question.text}</h1>
-          <Textarea 
-            value={answer} 
-            onChange={(event) => setAnswer(event.target.value)} 
-            className="min-h-[340px] text-[17px] leading-8 font-body focus-visible:ring-0 border-none shadow-none bg-muted/5 italic" 
-            placeholder="Work toward an answer. Name assumptions, evidence, contradictions, and what would change your mind..." 
-          />
-          <div className="flex justify-end mt-4"><Button onClick={() => onSave(answer)}>Archive Synthesis</Button></div>
+        <Card className="p-8 bg-white border-border/40 shadow-sm">
+          <Badge variant="outline" className="mb-4 font-code text-[10px] uppercase tracking-widest bg-muted/30">{question.type || 'manual'}</Badge>
+          <h1 className="font-headline text-3xl italic mb-8 text-primary leading-tight">{question.text}</h1>
+          <div className="relative">
+            <div className="absolute left-0 top-0 h-full w-px bg-accent/20" />
+            <Textarea 
+              value={answer} 
+              onChange={(event) => setAnswer(event.target.value)} 
+              className="min-h-[400px] pl-6 text-[17px] leading-8 font-body border-none shadow-none bg-transparent focus-visible:ring-0 italic" 
+              placeholder="Begin your synthesis. Examine evidence, resolve contradictions, and work toward a formal claim..." 
+            />
+          </div>
+          <div className="flex justify-end mt-8"><Button onClick={() => onSave(answer)} className="px-8">Archive Synthesis</Button></div>
         </Card>
         <aside className="space-y-4">
           <ContextPanel title="Evidence Sources" items={sources.map((item) => item.title)} />
           <ContextPanel title="Concepts" items={Array.from(new Set(concepts))} />
           <ContextPanel title="Related Claims" items={beliefs.map((entry) => entry.title)} />
-          <ContextPanel title="Linked Drafts" items={drafts.map((draft) => draft.title)} />
+          <ContextPanel title="Linked Writing" items={drafts.map((draft) => draft.title)} />
         </aside>
       </div>
     </div>
@@ -182,9 +230,27 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
-  return <Card className="p-4 text-center bg-white border-border/50"><div className="text-2xl font-headline font-bold text-accent">{value}</div><div className="font-code text-[10px] uppercase tracking-widest text-muted-foreground/60">{label}</div></Card>;
+  return (
+    <Card className="p-6 text-center bg-white border-border/30 shadow-sm flex flex-col items-center justify-center">
+      <div className="text-3xl font-headline font-bold text-accent mb-1">{value}</div>
+      <div className="font-code text-[9px] uppercase tracking-[0.2em] text-muted-foreground/60">{label}</div>
+    </Card>
+  );
 }
 
 function ContextPanel({ title, items }: { title: string; items: string[] }) {
-  return <Card className="p-4 bg-white border-border/50"><h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground/40 mb-3">{title}</h3>{items.length ? items.map((item) => <div key={item} className="rounded bg-muted/30 p-2 text-[13px] italic mb-2 border border-border/20 line-clamp-1">{item}</div>) : <p className="text-xs text-muted-foreground italic px-2">No items discovered.</p>}</Card>;
+  return (
+    <Card className="p-5 bg-white border-border/40 shadow-sm">
+      <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground/50 mb-4">{title}</h3>
+      <div className="space-y-2">
+        {items.length ? items.map((item, index) => (
+          <div key={`${item}-${index}`} className="rounded bg-muted/20 p-3 text-[13px] italic border border-border/10 line-clamp-2">
+            {item}
+          </div>
+        )) : (
+          <p className="text-[11px] text-muted-foreground italic px-2">No linked evidence discovered.</p>
+        )}
+      </div>
+    </Card>
+  );
 }
