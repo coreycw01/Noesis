@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Cloud, ExternalLink, Link2, Plus, RefreshCw, Save, Search, Trash2, Unlink } from 'lucide-react';
+import { Cloud, ExternalLink, Link2, Plus, RefreshCw, Save, Search, Trash2, Unlink, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -73,11 +73,20 @@ export function Atelier({ drafts, media, vault, questions, concepts, onAddDraft,
       if (filter === 'all') return true;
       return draft.type === filter || draft.status === filter;
     })
-    .filter(draft => !search || draft.title.toLowerCase().includes(search.toLowerCase()));
+    .filter(draft => !search || draft.title.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => new Date(b.dateUpdated).getTime() - new Date(a.dateUpdated).getTime());
 
   const createDraft = () => {
     if (!newDraft.title.trim()) return;
-    onAddDraft(newDraft);
+    onAddDraft({
+      ...newDraft,
+      body: '',
+      status: 'seed',
+      conceptTags: [],
+      sourceIds: [],
+      questionIds: [],
+      beliefIds: []
+    });
     setIsAddOpen(false);
     setNewDraft({ title: '', type: 'essay' });
   };
@@ -182,210 +191,267 @@ export function Atelier({ drafts, media, vault, questions, concepts, onAddDraft,
     return () => window.clearInterval(interval);
   }, [active?.id, active?.externalDoc?.autoSync]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-background">
-      <div className="p-8 pt-8 w-full max-w-7xl mx-auto">
-        <header className="flex justify-between items-center mb-10">
-          <div>
-            <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Works</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Develop essays, scripts, field notes, and longer pieces from the ideas gathered across Noesis.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input 
-                value={search} 
-                onChange={(event) => setSearch(event.target.value)} 
-                placeholder="Search drafts..." 
-                className="w-64 pl-9 bg-muted/40 font-code text-[11px] h-9" 
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => openNewDraft('field_note')} size="sm" className="h-9 px-5 font-code text-[10px] tracking-widest rounded-full uppercase font-bold">+ FIELD NOTE</Button>
-              <Button variant="outline" onClick={() => openNewDraft('script')} size="sm" className="h-9 px-5 font-code text-[10px] tracking-widest rounded-full uppercase font-bold">+ SCRIPT</Button>
-              <Button onClick={() => openNewDraft('essay')} size="sm" className="bg-accent hover:bg-accent/90 h-9 px-7 font-code text-[10px] tracking-widest shadow-lg shadow-accent/20 text-white border-accent rounded-full uppercase font-bold">+ ESSAY</Button>
+  // Detail View (The Full Page Editor)
+  if (active) {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden bg-background font-body">
+        <header className="px-8 pt-8 pb-6 border-b border-border/30 bg-background/80 backdrop-blur z-30">
+          <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <button 
+              onClick={() => setActiveId(null)}
+              className="font-code text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors"
+            >
+              <ChevronLeft className="size-4" /> BACK TO MANUSCRIPTS
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 mr-4">
+                <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">STATUS</span>
+                <Select value={active.status} onValueChange={(value) => updateActive({ status: value as DraftStatus })}>
+                  <SelectTrigger className="h-8 border-border/40 bg-white shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-32 px-3 font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statuses.map((s) => (
+                      <SelectItem key={s} value={s} className="font-code text-[9px] uppercase">{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" size="sm" onClick={openDocDialog} className="h-9 px-5 rounded-full font-bold shadow-sm bg-white border-border/60">
+                <Link2 className="size-4 mr-2" /> {active.externalDoc ? 'Doc' : 'Connect Doc'}
+              </Button>
+              <Button onClick={() => onUpdateDraft(active)} size="sm" className="bg-accent h-9 px-6 rounded-full font-bold shadow-lg shadow-accent/20">
+                <Save className="size-4 mr-2" /> SAVE
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => { onDeleteDraft(active.id); setActiveId(null); }} className="h-9 w-9 rounded-full shadow-sm">
+                <Trash2 className="size-4" />
+              </Button>
             </div>
           </div>
         </header>
 
-        <div className="mb-8">
-          <p className="text-xl font-headline italic text-foreground/60 mb-5">Essays, scripts, field notes, and longer works</p>
-          <div className="flex flex-wrap gap-2">
-            {(['all', 'essay', 'script', 'field_note', 'drafting', 'final'] as const).map((val) => (
-              <button
-                key={val}
-                onClick={() => setFilter(val)}
-                className={cn(
-                  "px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.14em] transition-all shadow-sm",
-                  filter === val 
-                    ? "bg-accent text-white shadow-md" 
-                    : "bg-white text-muted-foreground border border-border/60 hover:text-foreground hover:bg-muted/5"
-                )}
-              >
-                {val === 'field_note' ? 'FIELD NOTES' : val === 'essay' ? 'ESSAYS' : val === 'script' ? 'SCRIPTS' : val.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex overflow-hidden px-8 pb-8 gap-12 max-w-7xl mx-auto w-full">
-        {/* Left Side: Draft List */}
-        <div className="w-1/3 flex flex-col overflow-hidden">
-          {visibleDrafts.length > 0 ? (
-            <ScrollArea className="flex-1 pr-4">
-              <div className="space-y-4">
-                {visibleDrafts.map((draft) => (
-                  <Card 
-                    key={draft.id} 
-                    onClick={() => setActiveId(draft.id)}
-                    className={cn(
-                      "cursor-pointer p-6 transition-all border border-accent/20 bg-white/95 rounded-xl shadow-md group hover:shadow-xl hover:-translate-y-1",
-                      activeId === draft.id && "border-accent ring-2 ring-accent"
-                    )}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">{DRAFT_LABELS[draft.type]}</span>
-                      <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter bg-white shadow-sm border-border/60 rounded-full font-bold">{draft.status}</Badge>
-                    </div>
-                    <h3 className={cn(
-                      "font-headline text-xl font-bold italic leading-tight group-hover:text-accent transition-colors",
-                      activeId === draft.id ? "text-accent" : "text-primary"
-                    )}>
-                      {draft.title || "Untitled Draft"}
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground line-clamp-1 font-body italic mt-3 opacity-60">
-                      {draft.conceptTags?.length ? draft.conceptTags.join(', ') : 'No concepts linked'}
-                    </p>
-                    {draft.externalDoc && (
-                      <Badge variant="secondary" className="mt-3 rounded-full bg-accent/10 text-accent border-accent/20 font-code text-[8px] uppercase tracking-widest">
-                        <Cloud className="mr-1 size-3" /> {providerLabels[draft.externalDoc.provider]}
-                      </Badge>
-                    )}
-                  </Card>
-                ))}
-              </div>
-            </ScrollArea>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-12 opacity-30">
-              <p className="font-headline text-lg italic leading-relaxed">
-                No drafts yet. Start with an essay, script, or field note.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Right Side: Editor or Context */}
-        <div className="flex-1 flex flex-col overflow-hidden border-l border-border/30 pl-12">
-          {active ? (
-            <div className="flex-1 flex flex-col space-y-6">
-              <div className="flex items-center justify-between pb-6 border-b border-border/20">
-                <div className="flex-1">
-                  <Input 
-                    className="bg-transparent border-none text-4xl font-headline font-bold focus-visible:ring-0 italic p-0 h-auto rounded-none shadow-none text-primary" 
-                    value={active.title} 
-                    onChange={(event) => updateActive({ title: event.target.value })} 
-                  />
-                  <div className="flex gap-6 mt-4">
-                    <div className="flex items-center gap-3">
-                      <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">TYPE</span>
-                      <Select value={active.type} onValueChange={(value) => updateActive({ type: value as DraftType })}>
-                        <SelectTrigger className="h-8 border-border/40 bg-white shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-32 px-3 font-bold"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="essay" className="font-code text-[9px] uppercase">Essay</SelectItem>
-                          <SelectItem value="script" className="font-code text-[9px] uppercase">Script</SelectItem>
-                          <SelectItem value="field_note" className="font-code text-[9px] uppercase">Field Note</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">STATUS</span>
-                      <Select value={active.status} onValueChange={(value) => updateActive({ status: value as DraftStatus })}>
-                        <SelectTrigger className="h-8 border-border/40 bg-white shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-32 px-3 font-bold"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {statuses.map((s) => (
-                            <SelectItem key={s} value={s} className="font-code text-[9px] uppercase">{s}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+        <ScrollArea className="flex-1">
+          <div className="max-w-3xl mx-auto px-8 py-16">
+            {active.externalDoc && (
+              <div className="mb-12 rounded-xl border border-accent/20 bg-accent/5 p-6 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="font-code text-[9px] uppercase tracking-widest text-accent font-bold mb-1">External Writing Source</div>
+                  <p className="font-body text-base italic text-primary/80 truncate">
+                    {providerLabels[active.externalDoc.provider]} · {active.externalDoc.title || active.title}
+                  </p>
+                  <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground mt-2">
+                    {active.externalDoc.lastSyncedAt ? `Last synced ${new Date(active.externalDoc.lastSyncedAt).toLocaleString()}` : 'Not synced yet'}
+                    {active.externalDoc.syncError ? ` · ${active.externalDoc.syncError}` : ''}
+                  </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={openDocDialog} className="h-9 px-5 rounded-full font-bold shadow-sm bg-white">
-                    <Link2 className="size-4 mr-2" /> {active.externalDoc ? 'Doc' : 'Connect Doc'}
+                  <Button variant="outline" size="sm" onClick={() => syncExternalDoc(active)} disabled={syncingId === active.id} className="rounded-full bg-white border-border/60">
+                    <RefreshCw className={cn('mr-2 size-4', syncingId === active.id && 'animate-spin')} /> Sync
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => onUpdateDraft(active)} className="h-9 px-6 rounded-full font-bold shadow-sm bg-white"><Save className="size-4 mr-2" /> Save</Button>
-                  <Button variant="destructive" size="sm" onClick={() => { onDeleteDraft(active.id); setActiveId(null); }} className="h-9 w-9 rounded-full shadow-sm"><Trash2 className="size-4" /></Button>
+                  <Button variant="outline" size="sm" asChild className="rounded-full bg-white border-border/60">
+                    <a href={active.externalDoc.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 size-4" /> Open</a>
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={detachExternalDoc} className="rounded-full text-destructive hover:text-destructive">
+                    <Unlink className="mr-2 size-4" /> Detach
+                  </Button>
                 </div>
               </div>
+            )}
 
-              {active.externalDoc && (
-                <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="font-code text-[9px] uppercase tracking-widest text-accent font-bold">External Writing Source</div>
-                    <p className="font-body text-sm italic text-primary/80">
-                      {providerLabels[active.externalDoc.provider]} · {active.externalDoc.title || active.title}
-                    </p>
-                    <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground mt-1">
-                      {active.externalDoc.lastSyncedAt ? `Last synced ${new Date(active.externalDoc.lastSyncedAt).toLocaleString()}` : 'Not synced yet'}
-                      {active.externalDoc.syncError ? ` · ${active.externalDoc.syncError}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => syncExternalDoc(active)} disabled={syncingId === active.id} className="rounded-full bg-white">
-                      <RefreshCw className={cn('mr-2 size-4', syncingId === active.id && 'animate-spin')} /> Sync Now
-                    </Button>
-                    <Button variant="outline" size="sm" asChild className="rounded-full bg-white">
-                      <a href={active.externalDoc.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 size-4" /> Open</a>
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={detachExternalDoc} className="rounded-full text-destructive hover:text-destructive">
-                      <Unlink className="mr-2 size-4" /> Detach
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex-1 overflow-y-auto pr-4 pt-6">
-                <Textarea 
-                  className="w-full h-full min-h-[50vh] border-none shadow-none text-[19px] leading-[2.2] font-body focus-visible:ring-0 resize-none bg-transparent p-0 italic text-primary/90" 
-                  placeholder={active.externalDoc ? "Sync your external document to update this text..." : "Begin your synthesis..."} 
-                  value={active.body} 
-                  onChange={(event) => updateActive({ body: event.target.value })} 
-                  readOnly={!!active.externalDoc}
+            <div className="space-y-12">
+              <div className="space-y-4">
+                <div className="font-code text-[10px] uppercase tracking-[0.25em] text-muted-foreground/40 font-bold">{DRAFT_LABELS[active.type]}</div>
+                <Input 
+                  className="bg-transparent border-none text-5xl font-headline font-bold focus-visible:ring-0 italic p-0 h-auto rounded-none shadow-none text-primary placeholder:text-muted-foreground/20" 
+                  value={active.title} 
+                  onChange={(event) => updateActive({ title: event.target.value })}
+                  placeholder="Manuscript Title..."
                 />
               </div>
 
-              {/* Secondary Controls */}
-              <div className="pt-8 border-t border-border/20 grid grid-cols-2 gap-12">
-                <div>
-                  <h4 className="font-code text-[10px] uppercase tracking-widest opacity-40 mb-4 font-bold">Linked Concepts</h4>
-                  <ConceptTagPicker 
-                    concepts={concepts} 
-                    value={active.conceptTags || []} 
-                    onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })} 
-                    onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} 
-                    compact 
-                  />
-                </div>
-                <div className="flex flex-col justify-end items-end gap-2">
-                   <p className="font-code text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-bold">
-                     {active.body.split(/\s+/).filter(Boolean).length} WORDS
-                   </p>
-                   <p className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/30 font-bold">
-                     LAST SAVED {new Date(active.dateUpdated).toLocaleDateString()}
-                   </p>
+              <Textarea 
+                className="w-full min-h-[600px] border-none shadow-none text-[21px] leading-[2.2] font-body focus-visible:ring-0 resize-none bg-transparent p-0 italic text-primary/90 placeholder:text-muted-foreground/10" 
+                placeholder={active.externalDoc ? "Sync your external document to update this text..." : "Begin your synthesis..."} 
+                value={active.body} 
+                onChange={(event) => updateActive({ body: event.target.value })} 
+                readOnly={!!active.externalDoc}
+              />
+
+              <div className="pt-16 border-t border-border/20">
+                <div className="flex flex-col gap-8">
+                  <section>
+                    <h4 className="font-code text-[10px] uppercase tracking-widest opacity-40 mb-6 font-bold">Linked Concepts</h4>
+                    <ConceptTagPicker 
+                      concepts={concepts} 
+                      value={active.conceptTags || []} 
+                      onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })} 
+                      onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} 
+                    />
+                  </section>
+                  
+                  <div className="flex justify-between items-center py-8 opacity-40">
+                    <div className="font-code text-[10px] uppercase tracking-[0.2em] font-bold">
+                      {active.body.split(/\s+/).filter(Boolean).length} WORDS
+                    </div>
+                    <div className="font-code text-[9px] uppercase tracking-widest font-bold">
+                      UPDATED {new Date(active.dateUpdated).toLocaleDateString()}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30">
-              <p className="font-headline text-lg italic leading-relaxed">
-                Select a manuscript or initiate a new work.
-              </p>
+          </div>
+        </ScrollArea>
+
+        <Dialog open={isDocOpen} onOpenChange={setIsDocOpen}>
+          <DialogContent className="max-w-xl border-none shadow-2xl rounded-2xl bg-white">
+            <DialogHeader>
+              <DialogTitle className="font-headline text-3xl italic">Connect External Document</DialogTitle>
+              <p className="text-sm text-muted-foreground mt-2">Write in your preferred platform and let Noesis keep a synced copy.</p>
+            </DialogHeader>
+            <div className="space-y-6 pt-6">
+              <div className="space-y-2">
+                <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">Platform</Label>
+                <Select value={docDraft.provider} onValueChange={(value) => setDocDraft((prev) => ({ ...prev, provider: value as ExternalDocProvider }))}>
+                  <SelectTrigger className="h-11 rounded-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(providerLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">Document Name</Label>
+                <Input value={docDraft.title} onChange={(event) => setDocDraft((prev) => ({ ...prev, title: event.target.value }))} className="h-11" />
+              </div>
+              <div className="space-y-2">
+                <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">Document URL</Label>
+                <Input
+                  value={docDraft.url}
+                  onChange={(event) => {
+                    const url = event.target.value;
+                    setDocDraft((prev) => ({ ...prev, url, provider: detectProvider(url) }));
+                  }}
+                  placeholder="Paste a Google Doc, Notion, or Markdown link..."
+                  className="h-11"
+                />
+              </div>
+              <label className="flex items-center gap-3 rounded-lg border border-border/40 bg-muted/5 p-4 cursor-pointer">
+                <input type="checkbox" checked={docDraft.autoSync} onChange={(event) => setDocDraft((prev) => ({ ...prev, autoSync: event.target.checked }))} className="size-4 accent-accent" />
+                <span className="text-sm font-body italic">Auto-sync while this draft is open</span>
+              </label>
             </div>
-          )}
+            <DialogFooter className="pt-8 gap-3">
+              <Button variant="ghost" onClick={() => setIsDocOpen(false)} className="rounded-full">Cancel</Button>
+              <Button onClick={connectExternalDoc} disabled={!docDraft.url.trim()} className="rounded-full bg-accent px-8 shadow-lg shadow-accent/20">Connect Document</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  // Index View (The Card Grid)
+  return (
+    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+      <header className="flex justify-between items-start mb-12">
+        <div>
+          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Works</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Develop essays, scripts, field notes, and longer pieces from the ideas gathered across Noesis.</p>
         </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input 
+              value={search} 
+              onChange={(event) => setSearch(event.target.value)} 
+              placeholder="Search manuscripts..." 
+              className="w-72 pl-9 h-9" 
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => openNewDraft('field_note')} size="sm" className="h-9 px-5 font-code text-[10px] tracking-widest rounded-full uppercase font-bold border-border/60 bg-white">+ FIELD NOTE</Button>
+            <Button variant="outline" onClick={() => openNewDraft('script')} size="sm" className="h-9 px-5 font-code text-[10px] tracking-widest rounded-full uppercase font-bold border-border/60 bg-white">+ SCRIPT</Button>
+            <Button onClick={() => openNewDraft('essay')} size="sm" className="bg-accent hover:bg-accent/90 h-9 px-7 font-code text-[10px] tracking-widest shadow-lg shadow-accent/20 text-white border-accent rounded-full uppercase font-bold">+ ESSAY</Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="mb-12">
+        <div className="flex flex-wrap gap-2.5">
+          {(['all', 'essay', 'script', 'field_note', 'drafting', 'final'] as const).map((val) => (
+            <button
+              key={val}
+              onClick={() => setFilter(val)}
+              className={cn(
+                "px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.16em] transition-all shadow-sm",
+                filter === val 
+                  ? "bg-accent text-white border-accent" 
+                  : "bg-white text-muted-foreground border border-border/60 hover:text-foreground hover:bg-muted/5"
+              )}
+            >
+              {val === 'field_note' ? 'FIELD NOTES' : val === 'essay' ? 'ESSAYS' : val === 'script' ? 'SCRIPTS' : val.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {visibleDrafts.map((draft) => (
+          <Card 
+            key={draft.id} 
+            onClick={() => setActiveId(draft.id)}
+            className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-6 rounded-xl shadow-md"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">
+                {DRAFT_LABELS[draft.type]}
+              </span>
+              <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter bg-white shadow-sm border-border/60 rounded-full font-bold px-2 py-0.5">
+                {draft.status}
+              </Badge>
+            </div>
+            
+            <h3 className="font-headline text-2xl font-bold italic leading-tight group-hover:text-accent transition-colors text-primary mb-6">
+              {draft.title || "Untitled Draft"}
+            </h3>
+            
+            <div className="flex flex-wrap gap-1.5 mb-6">
+              {(draft.conceptTags || []).slice(0, 3).map((tag) => (
+                <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
+                  {tag}
+                </Badge>
+              ))}
+              {!draft.conceptTags?.length && <span className="text-[10px] italic text-muted-foreground/40 font-body">No concepts linked</span>}
+            </div>
+
+            <div className="flex items-center justify-between pt-6 border-t border-border/20">
+              <div className="flex items-center gap-2">
+                {draft.externalDoc ? (
+                  <Badge variant="secondary" className="rounded-full bg-accent/5 text-accent/60 border-accent/10 font-code text-[7px] uppercase tracking-widest px-2">
+                    <Cloud className="mr-1 size-2.5" /> {providerLabels[draft.externalDoc.provider]}
+                  </Badge>
+                ) : (
+                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 font-bold">
+                    {draft.body.split(/\s+/).filter(Boolean).length} WORDS
+                  </div>
+                )}
+              </div>
+              <time className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/20 font-bold">
+                {new Date(draft.dateUpdated).toLocaleDateString()}
+              </time>
+            </div>
+          </Card>
+        ))}
+
+        <Card 
+          className="aspect-video rounded-xl border-2 border-dashed border-border/50 bg-white/50 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-white transition-all group shadow-sm hover:shadow-xl hover:-translate-y-1"
+          onClick={() => openNewDraft('essay')}
+        >
+          <div className="size-12 rounded-full bg-white flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-md border border-border/30">
+            <Plus className="size-6 text-muted-foreground" />
+          </div>
+          <div className="readex-kicker text-muted-foreground font-bold text-[10px]">INITIATE WORK</div>
+        </Card>
       </div>
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -405,51 +471,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, onAddDraft,
           <DialogFooter className="pt-8 gap-3">
             <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="h-11 px-8 font-code text-[10px] tracking-widest uppercase font-bold text-muted-foreground hover:bg-transparent rounded-full">CANCEL</Button>
             <Button onClick={createDraft} className="h-11 px-10 bg-accent font-code text-[10px] tracking-widest uppercase shadow-xl shadow-accent/20 rounded-full font-bold">ANCHOR WORK</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isDocOpen} onOpenChange={setIsDocOpen}>
-        <DialogContent className="max-w-xl border-none shadow-2xl rounded-2xl bg-white">
-          <DialogHeader>
-            <DialogTitle className="font-headline text-3xl italic">Connect External Document</DialogTitle>
-            <p className="text-sm text-muted-foreground">Write in your preferred platform and let Noesis keep a synced copy when the document exposes readable text.</p>
-          </DialogHeader>
-          <div className="space-y-5 pt-4">
-            <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">Platform</Label>
-              <Select value={docDraft.provider} onValueChange={(value) => setDocDraft((prev) => ({ ...prev, provider: value as ExternalDocProvider }))}>
-                <SelectTrigger className="h-11 rounded-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(providerLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">Document Name</Label>
-              <Input value={docDraft.title} onChange={(event) => setDocDraft((prev) => ({ ...prev, title: event.target.value }))} className="h-11" />
-            </div>
-            <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">Document URL</Label>
-              <Input
-                value={docDraft.url}
-                onChange={(event) => {
-                  const url = event.target.value;
-                  setDocDraft((prev) => ({ ...prev, url, provider: detectProvider(url) }));
-                }}
-                placeholder="Paste a Google Doc, Notion, Word, Markdown, or text link..."
-                className="h-11"
-              />
-              <p className="text-xs text-muted-foreground italic">Auto-import works best with published Google Docs, public Markdown/text files, or pages that expose readable text.</p>
-            </div>
-            <label className="flex items-center gap-3 rounded-lg border border-border/40 bg-muted/10 p-4">
-              <input type="checkbox" checked={docDraft.autoSync} onChange={(event) => setDocDraft((prev) => ({ ...prev, autoSync: event.target.checked }))} className="size-4 accent-accent" />
-              <span className="text-sm font-body">Auto-sync while this draft is open</span>
-            </label>
-          </div>
-          <DialogFooter className="pt-6 gap-3">
-            <Button variant="ghost" onClick={() => setIsDocOpen(false)} className="rounded-full">Cancel</Button>
-            <Button onClick={connectExternalDoc} disabled={!docDraft.url.trim()} className="rounded-full bg-accent px-8">Connect Document</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
