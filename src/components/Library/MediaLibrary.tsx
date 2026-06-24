@@ -1,8 +1,7 @@
-
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Edit, Plus, Search, Trash2, MessageSquare, X, Sparkles, Loader2, HelpCircle, Triangle, BookOpen, FileText, Globe, Check } from 'lucide-react';
+import { ArrowLeft, Edit, Plus, Search, Trash2, MessageSquare, X, Sparkles, Loader2, HelpCircle, Triangle, BookOpen, FileText, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,6 +22,7 @@ import type { NormalizedSourceResult } from '@/lib/source-intake';
 import { sourceResultToMediaPatch } from '@/lib/source-intake';
 import { distillInsightsFromMedia } from '@/ai/flows/distill-insights-from-media';
 import { generateReflectiveQuestions } from '@/ai/flows/generate-reflective-questions-flow';
+import { locateMediaMetadata } from '@/ai/flows/locate-media-metadata-flow';
 
 interface MediaLibraryProps {
   media: Media[];
@@ -632,34 +632,10 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
   onSave: () => void;
 }) {
   const [tagInput, setTagInput] = useState('');
-  const [intakeMode, setIntakeMode] = useState<'search' | 'url' | 'manual'>('manual');
-  const [sourceQuery, setSourceQuery] = useState('');
-  const [sourceUrl, setSourceUrl] = useState('');
-  const [sourceResults, setSourceResults] = useState<NormalizedSourceResult[]>([]);
-  const [sourceError, setSourceError] = useState('');
-  const [sourceLoading, setSourceLoading] = useState(false);
-
-  const currentType = draft.type || 'book';
-  const terms = TYPE_TERMINOLOGY[currentType];
-  const searchSupported = SEARCH_SUPPORTED_TYPES.includes(currentType);
-  const urlSupported = URL_SUPPORTED_TYPES.includes(currentType);
-
-  useEffect(() => {
-    if (!open) return;
-    setSourceQuery('');
-    setSourceUrl('');
-    setSourceResults([]);
-    setSourceError('');
-    setSourceLoading(false);
-    
-    if (draft.id) {
-      setIntakeMode('manual');
-    } else {
-      if (searchSupported) setIntakeMode('search');
-      else if (urlSupported) setIntakeMode('url');
-      else setIntakeMode('manual');
-    }
-  }, [open, draft.id, currentType, searchSupported, urlSupported]);
+  const [locatorQuery, setLocatorQuery] = useState('');
+  const [locatorResults, setLocatorResults] = useState<any[]>([]);
+  const [isLocating, setIsLocating] = useState(false);
+  const terms = TYPE_TERMINOLOGY[draft.type || 'book'];
 
   const addTag = () => {
     if (!tagInput.trim()) return;
@@ -673,54 +649,39 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
     setDraft(prev => ({ ...prev, tags: next }));
   };
 
-  const applySourceResult = (result: NormalizedSourceResult) => {
-    const patch = sourceResultToMediaPatch(result);
-    setDraft((prev) => ({
+  const handleLocateSource = async () => {
+    if (!locatorQuery.trim()) return;
+    setIsLocating(true);
+    try {
+      const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(locatorQuery)}&maxResults=5`);
+      const data = await response.json();
+      setLocatorResults(data.items || []);
+    } catch (error) {
+      console.error('Locator search failed', error);
+    } finally {
+      setSourceLoading(false);
+    }
+  };
+
+  const selectLocatedSource = (item: any) => {
+    const info = item.volumeInfo;
+    const year = info.publishedDate ? info.publishedDate.substring(0, 4) : '';
+    const isbn = info.industryIdentifiers?.find((id: any) => id.type === 'ISBN_13')?.identifier || info.industryIdentifiers?.[0]?.identifier || '';
+    
+    setDraft(prev => ({
       ...prev,
-      ...patch,
-      status: prev.status || 'Want to Read',
-      tags: normalizeConceptTags([...(prev.tags || []), ...(patch.tags || [])]),
+      title: info.title || prev.title,
+      creator: info.authors?.join(', ') || prev.creator,
+      year: year || prev.year,
+      genre: info.categories?.join(', ') || prev.genre,
+      publisher: info.publisher || prev.publisher,
+      description: info.description || prev.description,
+      thumbnailUrl: info.imageLinks?.thumbnail?.replace('http:', 'https:') || prev.thumbnailUrl,
+      isbn: isbn || prev.isbn,
     }));
-    setSourceError('');
-    setIntakeMode('manual');
-  };
-
-  const searchSources = async () => {
-    if (sourceQuery.trim().length < 2) return;
-    setSourceLoading(true);
-    setSourceError('');
-    try {
-      const response = await fetch(`/api/source-search?query=${encodeURIComponent(sourceQuery.trim())}&type=${encodeURIComponent(draft.type || 'book')}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Source search failed.');
-      setSourceResults(data.results || []);
-      if (!(data.results || []).length) setSourceError('No results found. Manual entry is still available.');
-    } catch (error) {
-      setSourceResults([]);
-      setSourceError(error instanceof Error ? error.message : 'Source search failed.');
-    } finally {
-      setSourceLoading(false);
-    }
-  };
-
-  const fetchUrlMetadata = async () => {
-    if (!sourceUrl.trim()) return;
-    setSourceLoading(true);
-    setSourceError('');
-    try {
-      const response = await fetch('/api/source-metadata', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ url: sourceUrl.trim() }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Unable to read source metadata.');
-      applySourceResult(data.result);
-    } catch (error) {
-      setSourceError(error instanceof Error ? error.message : 'Unable to read source metadata.');
-    } finally {
-      setSourceLoading(false);
-    }
+    
+    setLocatorResults([]);
+    setLocatorQuery('');
   };
 
   return (
@@ -736,86 +697,41 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
             </DialogHeader>
 
             <div className="space-y-8">
-              {!draft.id && (
-                <section>
-                  <Label className="readex-kicker block mb-4 font-bold text-[10px]">INTAKE MODE</Label>
-                  <div className="flex gap-2 rounded-xl border border-border/50 bg-muted/10 p-1">
-                    {searchSupported && (
-                      <button
-                        type="button"
-                        onClick={() => setIntakeMode('search')}
-                        className={cn(
-                          "flex-1 h-9 rounded-lg font-code text-[9px] font-bold uppercase tracking-widest transition-colors",
-                          intakeMode === 'search' ? "bg-white text-accent shadow-sm" : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        Search Title
-                      </button>
-                    )}
-                    {urlSupported && (
-                      <button
-                        type="button"
-                        onClick={() => setIntakeMode('url')}
-                        className={cn(
-                          "flex-1 h-9 rounded-lg font-code text-[9px] font-bold uppercase tracking-widest transition-colors",
-                          intakeMode === 'url' ? "bg-white text-accent shadow-sm" : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        Paste URL
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setIntakeMode('manual')}
-                      className={cn(
-                        "flex-1 h-9 rounded-lg font-code text-[9px] font-bold uppercase tracking-widest transition-colors",
-                        intakeMode === 'manual' ? "bg-white text-accent shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Manual
-                    </button>
-                  </div>
-                </section>
-              )}
-
-              {intakeMode === 'search' && !draft.id && searchSupported && (
-                <section className="space-y-4 rounded-xl border border-border/40 bg-white p-5 shadow-sm">
-                  <div className="flex gap-3">
-                    <Input
-                      value={sourceQuery}
-                      onChange={(e) => setSourceQuery(e.target.value)}
-                      onKeyDown={(event) => event.key === 'Enter' && searchSources()}
-                      placeholder={draft.type === 'paper' ? 'Search paper title or DOI...' : 'Search title or author...'}
-                      className="h-11 text-sm rounded-full"
+              <section className="bg-muted/5 p-5 rounded-xl border border-dashed border-border/60">
+                <Label className="readex-kicker block mb-4 font-bold text-[10px] text-accent">LOCATE SOURCE ONLINE</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/40" />
+                    <Input 
+                      placeholder="Search by title, author, or ISBN..." 
+                      value={locatorQuery}
+                      onChange={(e) => setLocatorQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleLocateSource()}
+                      className="pl-9 h-10 text-sm italic rounded-full bg-white"
                     />
-                    <Button type="button" onClick={searchSources} disabled={sourceLoading || sourceQuery.trim().length < 2} className="h-11 rounded-full px-6 font-code text-[10px] font-bold uppercase tracking-widest">
-                      {sourceLoading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Search className="mr-2 size-4" />}
-                      Search
-                    </Button>
                   </div>
-                  <p className="text-xs italic text-muted-foreground">
-                    Title search queries global bibliographic indexes. Manual entry is always available.
-                  </p>
-                  {sourceError && <p className="text-xs text-destructive">{sourceError}</p>}
-                  <div className="space-y-3">
-                    {sourceResults.map((result) => (
+                  <Button variant="outline" onClick={handleLocateSource} disabled={isLocating} className="h-10 px-6 rounded-full font-bold">
+                    {isLocating ? <Loader2 className="size-4 animate-spin" /> : 'SEARCH'}
+                  </Button>
+                </div>
+                {locatorResults.length > 0 && (
+                  <div className="mt-4 space-y-2 border-t border-border/20 pt-4">
+                    {locatorResults.map((item) => (
                       <button
-                        key={`${result.provider}-${result.externalId}`}
-                        type="button"
-                        onClick={() => applySourceResult(result)}
-                        className="flex w-full gap-4 rounded-xl border border-border/50 bg-muted/5 p-3 text-left transition hover:border-accent/30 hover:bg-accent/5"
+                        key={item.id}
+                        onClick={() => selectLocatedSource(item)}
+                        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-md transition-all text-left group"
                       >
-                        <div className="size-16 shrink-0 overflow-hidden rounded-lg bg-muted">
-                          {result.thumbnailUrl ? <img src={result.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <BookOpen className="size-6 text-muted-foreground/30 m-auto" />}
+                        <div className="size-10 bg-muted/20 rounded shrink-0 overflow-hidden border border-border/20">
+                          {item.volumeInfo.imageLinks?.smallThumbnail && (
+                            <img src={item.volumeInfo.imageLinks.smallThumbnail.replace('http:', 'https:')} alt="" className="w-full h-full object-cover" />
+                          )}
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-body text-sm font-semibold italic">{result.title}</div>
-                          <div className="mt-1 truncate text-xs text-muted-foreground">{result.creators.join(', ') || result.publisher || 'Unknown creator'}</div>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            <Badge variant="outline" className="rounded-full bg-white font-code text-[8px] uppercase">{result.year || 'n.d.'}</Badge>
-                            <Badge variant="outline" className="rounded-full bg-white font-code text-[8px] uppercase">{result.type}</Badge>
-                          </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] font-headline font-bold italic truncate group-hover:text-accent">{item.volumeInfo.title}</div>
+                          <div className="text-[10px] text-muted-foreground truncate uppercase font-code tracking-tighter">{item.volumeInfo.authors?.join(', ')}</div>
                         </div>
+                        <Check className="size-3.5 opacity-0 group-hover:opacity-100 text-accent" />
                       </button>
                     ))}
                   </div>
