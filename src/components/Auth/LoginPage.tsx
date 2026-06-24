@@ -1,6 +1,8 @@
+
 "use client";
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
@@ -9,13 +11,14 @@ import {
   signInWithPopup,
   updateProfile,
 } from 'firebase/auth';
-import { BookOpen, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import placeholderData from '@/app/lib/placeholder-images.json';
 
 interface LoginPageProps {
   allowDemo: boolean;
@@ -40,6 +43,8 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState<'email' | 'google' | 'reset' | null>(null);
+
+  const logoData = placeholderData.placeholderImages.find(img => img.id === 'app-logo');
 
   const submitEmail = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -78,7 +83,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
     setBusy('reset');
     try {
       await sendPasswordResetEmail(auth, email.trim());
-      toast({ title: 'Reset email sent', description: 'Check your inbox for the password reset link.' });
+      toast({ title: 'Reset email sent', description: 'Check your inbox for a password reset link.' });
     } catch (error) {
       toast({ title: 'Reset failed', description: authMessage(error) });
     } finally {
@@ -90,9 +95,18 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
     <div className="min-h-screen bg-background text-foreground grid lg:grid-cols-[1.05fr_.95fr] overflow-hidden">
       <section className="relative hidden lg:flex flex-col justify-between border-r border-border bg-sidebar p-12 text-sidebar-foreground">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[0.05]">
-              <BookOpen className="size-5 text-accent" />
+          <div className="flex items-center gap-4">
+            <div className="relative size-12 overflow-hidden rounded-xl border border-white/10 bg-white/[0.05]">
+              {logoData && (
+                <Image
+                  src={logoData.imageUrl}
+                  alt={logoData.description}
+                  width={48}
+                  height={48}
+                  className="object-cover"
+                  data-ai-hint={logoData.imageHint}
+                />
+              )}
             </div>
             <div>
               <h1 className="font-headline text-3xl font-bold text-white">Noesis<span className="text-accent">.</span></h1>
@@ -120,7 +134,21 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
       <section className="flex min-h-screen items-center justify-center p-6">
         <div className="w-full max-w-md">
           <div className="mb-10 lg:hidden">
-            <h1 className="font-headline text-4xl font-bold">Noesis<span className="text-accent">.</span></h1>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="relative size-10 overflow-hidden rounded-lg bg-accent/10">
+                {logoData && (
+                  <Image
+                    src={logoData.imageUrl}
+                    alt={logoData.description}
+                    width={40}
+                    height={40}
+                    className="object-cover"
+                    data-ai-hint={logoData.imageHint}
+                  />
+                )}
+              </div>
+              <h1 className="font-headline text-4xl font-bold">Noesis<span className="text-accent">.</span></h1>
+            </div>
             <p className="mt-2 text-sm text-muted-foreground">Turn thought into understanding.</p>
           </div>
 

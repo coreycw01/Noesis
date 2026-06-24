@@ -24,6 +24,12 @@
       "description": "Abstract philosophical art",
       "imageUrl": "https://picsum.photos/seed/games/400/600",
       "imageHint": "abstract philosophy"
+    },
+    {
+      "id": "app-logo",
+      "description": "The Noesis brand logo",
+      "imageUrl": "https://picsum.photos/seed/noesis-logo/128/128",
+      "imageHint": "minimalist logo"
     }
   ]
 }

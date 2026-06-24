@@ -2,6 +2,7 @@
 "use client";
 
 import React from 'react';
+import Image from 'next/image';
 import { 
   BookOpen, 
   HelpCircle, 
@@ -23,6 +24,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import type { GoalSettings, MediaType } from '@/lib/types';
 import { MEDIA_LABELS } from '@/lib/readex';
+import placeholderData from '@/app/lib/placeholder-images.json';
 
 interface ShellProps {
   children: React.ReactNode;
@@ -57,6 +59,8 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
     { id: 'evolution', label: 'Evolution', icon: History, section: 'Outputs', count: counts.timeline },
   ];
 
+  const logoData = placeholderData.placeholderImages.find(img => img.id === 'app-logo');
+
   const sortedActiveGoals = goal.types.map((type) => {
     const done = goalProgress[type] || 0;
     const target = goal.targets[type] || 12;
@@ -68,7 +72,19 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
     <div className="flex h-screen w-full bg-background overflow-hidden">
       <aside className="w-[252px] bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border shadow-2xl z-20">
         <div className="p-5 border-b border-sidebar-border">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="relative size-8 overflow-hidden rounded-lg border border-white/10 bg-white/[0.05] shrink-0">
+              {logoData && (
+                <Image
+                  src={logoData.imageUrl}
+                  alt={logoData.description}
+                  width={32}
+                  height={32}
+                  className="object-cover"
+                  data-ai-hint={logoData.imageHint}
+                />
+              )}
+            </div>
             <span className="text-[22px] font-headline font-bold text-white tracking-tight">Noesis<span className="text-accent">.</span></span>
           </div>
           <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/30 font-medium">Turn thought into understanding.</p>
