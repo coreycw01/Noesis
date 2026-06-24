@@ -7,6 +7,9 @@ export type EventType = 'created' | 'refined' | 'challenged' | 'revised' | 'expa
 export type QuestionStatus = 'open' | 'investigating' | 'answered' | 'archived';
 export type DraftType = 'essay' | 'script' | 'field_note';
 export type DraftStatus = 'seed' | 'drafting' | 'revised' | 'final';
+export type ThemeMode = 'light' | 'dark' | 'system';
+export type AccentTheme = 'violet' | 'sage' | 'blue' | 'amber' | 'rose' | 'mono';
+export type WritingStyle = 'blank_paper' | 'ruled_notebook' | 'manuscript' | 'cornell_notes' | 'two_column_debate' | 'dialectic' | 'belief_audit' | 'source_analysis' | 'mind_map' | 'timeline';
 export type ExternalDocProvider = 'google_docs' | 'notion' | 'dropbox_paper' | 'microsoft_word' | 'markdown' | 'other';
 export type ExternalDocSyncStatus = 'connected' | 'syncing' | 'synced' | 'error';
 export type PracticeType = 'habit' | 'experiment' | 'discipline' | 'reflection_prompt' | 'commitment' | 'observation' | 'rule' | 'challenge';
@@ -157,6 +160,7 @@ export interface Draft {
   body: string;
   type: DraftType;
   status: DraftStatus;
+  writingStyle?: WritingStyle;
   externalDoc?: ExternalDraftDocument;
   conceptTags: string[];
   sourceIds: string[];
@@ -201,6 +205,30 @@ export interface GoalSettings {
   label: string;
   types: MediaType[];
   targets: Partial<Record<MediaType, number>>;
+}
+
+export interface WritingDefaults {
+  type: DraftType;
+  status: DraftStatus;
+  writingStyle: WritingStyle;
+  editorFeel: 'focused' | 'spacious' | 'dense';
+}
+
+export interface UserPreferences {
+  id?: string;
+  themeMode: ThemeMode;
+  accentTheme: AccentTheme;
+  writingDefaults: WritingDefaults;
+  dateUpdated?: string;
+}
+
+export interface UserProfile {
+  id?: string;
+  displayName: string;
+  email: string;
+  photoURL?: string;
+  bio?: string;
+  dateUpdated?: string;
 }
 
 export interface AtlasViewSettings {

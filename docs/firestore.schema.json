@@ -85,6 +85,7 @@
         "body": "string",
         "type": "essay | script | field_note",
         "status": "seed | drafting | revised | final",
+        "writingStyle": "blank_paper | ruled_notebook | manuscript | cornell_notes | two_column_debate | dialectic | belief_audit | source_analysis | mind_map | timeline",
         "externalDoc": "ExternalDraftDocument?",
         "conceptTags": "string[] concept names",
         "sourceIds": "string[]",
@@ -181,6 +182,32 @@
     "goal": "/users/{uid}/settings/goal",
     "atlasView": "/users/{uid}/settings/atlasView",
     "atlasNodes": "/users/{uid}/settings/atlasNodes",
+    "preferences": {
+      "path": "/users/{uid}/settings/preferences",
+      "purpose": "User appearance and writing defaults.",
+      "fields": {
+        "themeMode": "light | dark | system",
+        "accentTheme": "violet | sage | blue | amber | rose | mono",
+        "writingDefaults": {
+          "type": "essay | script | field_note",
+          "status": "seed | drafting | revised | final",
+          "writingStyle": "blank_paper | ruled_notebook | manuscript | cornell_notes | two_column_debate | dialectic | belief_audit | source_analysis | mind_map | timeline",
+          "editorFeel": "focused | spacious | dense"
+        },
+        "dateUpdated": "ISO string?"
+      }
+    },
+    "profile": {
+      "path": "/users/{uid}/settings/profile",
+      "purpose": "User profile details mirrored from Firebase Auth with Noesis-specific bio fields.",
+      "fields": {
+        "displayName": "string",
+        "email": "string",
+        "photoURL": "string?",
+        "bio": "string?",
+        "dateUpdated": "ISO string?"
+      }
+    },
     "schema": "/users/{uid}/settings/schema"
   }
 }

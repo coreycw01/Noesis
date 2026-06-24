@@ -1,4 +1,4 @@
-import type { Concept, Draft, Insight, Media, MediaType, Practice, Question, QuestionStatus, TimelineEvent, VaultEntry } from './types';
+import type { Concept, Draft, Insight, Media, MediaType, Practice, Question, QuestionStatus, TimelineEvent, VaultEntry, WritingStyle } from './types';
 import { Book, Headphones, Mic, Play, Film, FileText, GraduationCap, School, Clapperboard, MessageSquare, Users, File, Paperclip } from 'lucide-react';
 
 export const UNSORTED_CONCEPT = 'Unsorted Ideas';
@@ -42,6 +42,34 @@ export const DRAFT_LABELS = {
   script: 'Script',
   field_note: 'Field Note',
 };
+
+export const WRITING_STYLE_LABELS: Record<WritingStyle, string> = {
+  blank_paper: 'Blank Paper',
+  ruled_notebook: 'Ruled Notebook',
+  manuscript: 'Manuscript',
+  cornell_notes: 'Cornell Notes',
+  two_column_debate: 'Two-Column Debate',
+  dialectic: 'Dialectic',
+  belief_audit: 'Belief Audit',
+  source_analysis: 'Source Analysis',
+  mind_map: 'Mind Map',
+  timeline: 'Timeline',
+};
+
+export const WRITING_STYLE_DESCRIPTIONS: Record<WritingStyle, string> = {
+  blank_paper: 'A clean white page for essays, notes, drafts, and formal writing.',
+  ruled_notebook: 'Horizontal rules for journal-like notes and casual drafting.',
+  manuscript: 'A double-spaced drafting layout for essays, scripts, and revision.',
+  cornell_notes: 'Cue, notes, and summary zones for studying sources.',
+  two_column_debate: 'Argument on one side, counterargument on the other.',
+  dialectic: 'Thesis, antithesis, and synthesis for philosophical movement.',
+  belief_audit: 'Belief, origin, evidence, contradiction, cost, and revision.',
+  source_analysis: 'Quote, summary, interpretation, criticism, and connection.',
+  mind_map: 'A centered idea space for branching and visual association.',
+  timeline: 'A horizontal history for idea development and change.',
+};
+
+export const WRITING_STYLES = Object.keys(WRITING_STYLE_LABELS) as WritingStyle[];
 
 export const PRACTICE_LABELS = {
   habit: 'Habit',

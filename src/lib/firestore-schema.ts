@@ -1,5 +1,5 @@
 import { collection, doc, type Firestore } from 'firebase/firestore';
-import type { AtlasViewSettings, GoalSettings, MediaType } from './types';
+import type { AtlasViewSettings, GoalSettings, MediaType, UserPreferences, UserProfile } from './types';
 
 export const PROTOTYPE_USER_ID = 'anonymous-scholar';
 
@@ -20,6 +20,8 @@ export const READEX_SETTINGS_DOCS = {
   goal: 'goal',
   atlasView: 'atlasView',
   atlasNodes: 'atlasNodes',
+  preferences: 'preferences',
+  profile: 'profile',
   schema: 'schema',
 } as const;
 
@@ -37,6 +39,24 @@ export const DEFAULT_ATLAS_VIEW_SETTINGS: AtlasViewSettings = {
 
 export const DEFAULT_ATLAS_NODE_SETTINGS: { positions: Record<string, { x: number; y: number }> } = {
   positions: {},
+};
+
+export const DEFAULT_USER_PREFERENCES: UserPreferences = {
+  themeMode: 'light',
+  accentTheme: 'violet',
+  writingDefaults: {
+    type: 'essay',
+    status: 'seed',
+    writingStyle: 'blank_paper',
+    editorFeel: 'spacious',
+  },
+};
+
+export const DEFAULT_USER_PROFILE: UserProfile = {
+  displayName: '',
+  email: '',
+  photoURL: '',
+  bio: '',
 };
 
 export function userPath(uid: string) {
@@ -62,6 +82,8 @@ export function readexRefs(db: Firestore, uid: string) {
     settingsGoal: settingsDoc('goal'),
     settingsAtlasView: settingsDoc('atlasView'),
     settingsAtlasNodes: settingsDoc('atlasNodes'),
+    settingsPreferences: settingsDoc('preferences'),
+    settingsProfile: settingsDoc('profile'),
     settingsSchema: settingsDoc('schema'),
   };
 }
@@ -87,6 +109,8 @@ export function readexSchemaDoc(uid: string) {
       goal: `${userPath(uid)}/settings/goal`,
       atlasView: `${userPath(uid)}/settings/atlasView`,
       atlasNodes: `${userPath(uid)}/settings/atlasNodes`,
+      preferences: `${userPath(uid)}/settings/preferences`,
+      profile: `${userPath(uid)}/settings/profile`,
       schema: `${userPath(uid)}/settings/schema`,
     },
     mediaTypes: DEFAULT_GOAL_SETTINGS.types as MediaType[],

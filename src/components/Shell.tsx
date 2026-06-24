@@ -40,10 +40,10 @@ interface ShellProps {
   };
   goal: GoalSettings;
   goalProgress: Partial<Record<MediaType, number>>;
-  onEditGoal: () => void;
+  onOpenSettings: () => void;
 }
 
-export function Shell({ children, activeView, onViewChange, counts, goal, goalProgress, onEditGoal }: ShellProps) {
+export function Shell({ children, activeView, onViewChange, counts, goal, goalProgress, onOpenSettings }: ShellProps) {
   const navItems = [
     { id: 'atlas', label: 'Atlas', icon: MapIcon, section: 'Mind' },
     { id: 'concepts', label: 'Concepts', icon: BookOpen, section: 'Mind', count: counts.concepts },
@@ -74,7 +74,7 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
           <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/30 font-medium">Turn thought into understanding.</p>
 
           <div 
-            onClick={onEditGoal}
+            onClick={onOpenSettings}
             className="mt-6 w-full rounded border border-white/10 bg-white/[0.05] p-3 transition-all hover:border-white/20 hover:bg-white/[0.075] group/goals relative cursor-pointer"
           >
             <div className="flex justify-between items-center mb-3">
@@ -133,7 +133,11 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
         </nav>
 
         <div className="p-4 border-t border-sidebar-border bg-transparent flex items-center justify-between">
-          <button className="text-sidebar-foreground/40 hover:text-white transition-colors" onClick={onEditGoal}>
+          <button
+            className={cn('text-sidebar-foreground/40 hover:text-white transition-colors', activeView === 'settings' && 'text-white')}
+            onClick={onOpenSettings}
+            title="Settings"
+          >
             <Settings className="size-4" />
           </button>
           <span className="text-[9px] font-code text-sidebar-foreground/20">v1.3.0 cloud</span>

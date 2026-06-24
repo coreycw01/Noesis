@@ -34,6 +34,62 @@
     --sidebar-border: 30 4% 16%;
     --sidebar-ring: 262 73% 46%;
   }
+
+  .dark {
+    --background: 30 6% 8%;
+    --foreground: 45 22% 92%;
+    --card: 30 6% 11%;
+    --card-foreground: 45 22% 92%;
+    --popover: 30 6% 11%;
+    --popover-foreground: 45 22% 92%;
+    --primary: 45 22% 92%;
+    --primary-foreground: 30 6% 8%;
+    --secondary: 30 5% 16%;
+    --secondary-foreground: 45 22% 92%;
+    --muted: 30 5% 16%;
+    --muted-foreground: 42 10% 62%;
+    --border: 30 5% 22%;
+    --input: 30 5% 22%;
+    --sidebar-background: 30 6% 7%;
+    --sidebar-foreground: 45 18% 84%;
+    --sidebar-border: 30 5% 15%;
+  }
+
+  :root[data-theme="violet"] {
+    --accent: 262 73% 46%;
+    --ring: 262 73% 46%;
+    --sidebar-primary: 262 73% 46%;
+  }
+
+  :root[data-theme="sage"] {
+    --accent: 155 42% 34%;
+    --ring: 155 42% 34%;
+    --sidebar-primary: 155 42% 34%;
+  }
+
+  :root[data-theme="blue"] {
+    --accent: 215 72% 45%;
+    --ring: 215 72% 45%;
+    --sidebar-primary: 215 72% 45%;
+  }
+
+  :root[data-theme="amber"] {
+    --accent: 36 85% 43%;
+    --ring: 36 85% 43%;
+    --sidebar-primary: 36 85% 43%;
+  }
+
+  :root[data-theme="rose"] {
+    --accent: 346 70% 46%;
+    --ring: 346 70% 46%;
+    --sidebar-primary: 346 70% 46%;
+  }
+
+  :root[data-theme="mono"] {
+    --accent: 30 6% 22%;
+    --ring: 30 6% 22%;
+    --sidebar-primary: 30 6% 22%;
+  }
 }
 
 @layer base {
@@ -64,5 +120,118 @@
 
   .readex-chip-row {
     @apply flex flex-wrap gap-2;
+  }
+
+  .theme-dot-violet { background: hsl(262 73% 46%); }
+  .theme-dot-sage { background: hsl(155 42% 34%); }
+  .theme-dot-blue { background: hsl(215 72% 45%); }
+  .theme-dot-amber { background: hsl(36 85% 43%); }
+  .theme-dot-rose { background: hsl(346 70% 46%); }
+  .theme-dot-mono { background: hsl(30 6% 22%); }
+
+  .writing-surface {
+    border-radius: 14px;
+  }
+
+  .writing-editor {
+    transition: background-color 160ms ease, box-shadow 160ms ease, padding 160ms ease;
+  }
+
+  .writing-feel-focused .writing-editor {
+    max-width: 760px;
+    margin-inline: auto;
+  }
+
+  .writing-feel-spacious .writing-editor {
+    max-width: 920px;
+    margin-inline: auto;
+  }
+
+  .writing-feel-dense .writing-editor {
+    font-size: 16px;
+    line-height: 1.8;
+  }
+
+  .writing-style-blank_paper .writing-editor,
+  .writing-style-manuscript .writing-editor {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border) / .7);
+    box-shadow: 0 18px 50px hsl(var(--foreground) / .08);
+    padding: 48px;
+  }
+
+  .writing-style-manuscript .writing-editor {
+    line-height: 2.35;
+  }
+
+  .writing-style-ruled_notebook .writing-editor {
+    background:
+      repeating-linear-gradient(to bottom, hsl(var(--card)) 0, hsl(var(--card)) 34px, hsl(var(--accent) / .16) 35px),
+      hsl(var(--card));
+    border-left: 2px solid hsl(346 70% 46% / .35);
+    padding: 38px 44px;
+  }
+
+  .writing-style-cornell_notes .writing-editor {
+    background:
+      linear-gradient(to right, transparent 0, transparent 29%, hsl(var(--border) / .7) 29%, hsl(var(--border) / .7) calc(29% + 1px), transparent calc(29% + 1px)),
+      linear-gradient(to bottom, transparent 0, transparent 82%, hsl(var(--border) / .7) 82%, hsl(var(--border) / .7) calc(82% + 1px), transparent calc(82% + 1px)),
+      hsl(var(--card));
+    border: 1px solid hsl(var(--border) / .75);
+    padding: 42px;
+  }
+
+  .writing-style-two_column_debate .writing-editor,
+  .writing-style-dialectic .writing-editor,
+  .writing-style-belief_audit .writing-editor,
+  .writing-style-source_analysis .writing-editor {
+    background:
+      linear-gradient(to right, transparent 0, transparent 49.8%, hsl(var(--accent) / .24) 49.8%, hsl(var(--accent) / .24) 50.2%, transparent 50.2%),
+      hsl(var(--card));
+    border: 1px solid hsl(var(--border) / .75);
+    padding: 42px;
+  }
+
+  .writing-style-dialectic .writing-editor {
+    background:
+      linear-gradient(to bottom, transparent 0, transparent 33%, hsl(var(--border) / .6) 33%, hsl(var(--border) / .6) calc(33% + 1px), transparent calc(33% + 1px), transparent 66%, hsl(var(--border) / .6) 66%, hsl(var(--border) / .6) calc(66% + 1px), transparent calc(66% + 1px)),
+      hsl(var(--card));
+  }
+
+  .writing-style-belief_audit .writing-editor,
+  .writing-style-source_analysis .writing-editor {
+    background:
+      linear-gradient(to right, transparent 0, transparent 25%, hsl(var(--border) / .5) 25%, hsl(var(--border) / .5) calc(25% + 1px), transparent calc(25% + 1px), transparent 50%, hsl(var(--border) / .5) 50%, hsl(var(--border) / .5) calc(50% + 1px), transparent calc(50% + 1px), transparent 75%, hsl(var(--border) / .5) 75%, hsl(var(--border) / .5) calc(75% + 1px), transparent calc(75% + 1px)),
+      hsl(var(--card));
+  }
+
+  .writing-style-mind_map .writing-editor,
+  .writing-style-timeline .writing-editor {
+    background:
+      radial-gradient(hsl(var(--accent) / .2) 1px, transparent 1px),
+      hsl(var(--card));
+    background-size: 24px 24px;
+    border: 1px solid hsl(var(--border) / .75);
+    padding: 42px;
+  }
+
+  .writing-style-timeline .writing-editor {
+    background:
+      linear-gradient(to right, transparent 0, transparent 8%, hsl(var(--accent) / .28) 8%, hsl(var(--accent) / .28) calc(8% + 2px), transparent calc(8% + 2px)),
+      repeating-linear-gradient(to bottom, hsl(var(--card)) 0, hsl(var(--card)) 46px, hsl(var(--border) / .35) 47px),
+      hsl(var(--card));
+  }
+
+  .dark .bg-white,
+  .dark .bg-white\/95,
+  .dark .bg-white\/90,
+  .dark .bg-white\/50 {
+    background-color: hsl(var(--card));
+  }
+
+  .dark .text-primary,
+  .dark .text-primary\/80,
+  .dark .text-primary\/90 {
+    color: hsl(var(--primary));
   }
 }

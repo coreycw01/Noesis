@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
+import type { User } from 'firebase/auth';
 import {
   FirebaseClientProvider,
   initializeFirebase,
@@ -10,6 +11,7 @@ import {
   useFirebase,
   useUser,
 } from '@/firebase';
+import { LoginPage } from '@/components/Auth/LoginPage';
 import { Shell } from '@/components/Shell';
 import { ConceptAtlas } from '@/components/Atlas/ConceptAtlas';
 import { ConceptEncyclopedia } from '@/components/Concepts/ConceptEncyclopedia';
@@ -21,30 +23,20 @@ import { Atelier } from '@/components/Writing/Atelier';
 import { QuestionsWorkspace } from '@/components/Questions/QuestionsWorkspace';
 import { EvolutionTimeline } from '@/components/Evolution/EvolutionTimeline';
 import { PracticesWorkspace } from '@/components/Practices/PracticesWorkspace';
+import { SettingsPage } from '@/components/Settings/SettingsPage';
 import { Toaster } from '@/components/ui/toaster';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MEDIA_LABELS, MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today } from '@/lib/readex';
-import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
-import type { Annotation, AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext } from '@/lib/types';
+import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today } from '@/lib/readex';
+import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, DEFAULT_USER_PREFERENCES, DEFAULT_USER_PROFILE, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
+import type { Annotation, AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext, UserPreferences, UserProfile } from '@/lib/types';
 import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
-function ReadexApp() {
-  const { user } = useUser();
+function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
   const { db } = useFirebase();
   const [view, setView] = useState('atlas');
   const [focusedSourceId, setFocusedSourceId] = useState<string | null>(null);
-  const [goalOpen, setGoalOpen] = useState(false);
-  const [goalDraft, setGoalDraft] = useState<GoalSettings>(DEFAULT_GOAL_SETTINGS);
-  const effectiveUid = user?.uid || PROTOTYPE_USER_ID;
+  const effectiveUid = uid;
 
   const refs = useMemo(() => readexRefs(db, effectiveUid), [db, effectiveUid]);
 
@@ -58,9 +50,24 @@ function ReadexApp() {
   const { data: practices = [] } = useCollection<Practice>(refs.practices as any);
   const { data: atlasMaps = [] } = useCollection<AtlasMap>(refs.atlasMaps as any);
   const { data: goalDoc } = useDoc<GoalSettings>(refs.settingsGoal as any);
+  const { data: preferencesDoc } = useDoc<UserPreferences>(refs.settingsPreferences as any);
+  const { data: profileDoc } = useDoc<UserProfile>(refs.settingsProfile as any);
   const goal = { ...DEFAULT_GOAL_SETTINGS, ...(goalDoc || {}) };
-
-  useEffect(() => setGoalDraft(goal), [goalDoc]); // eslint-disable-line react-hooks/exhaustive-deps
+  const preferences: UserPreferences = {
+    ...DEFAULT_USER_PREFERENCES,
+    ...(preferencesDoc || {}),
+    writingDefaults: {
+      ...DEFAULT_USER_PREFERENCES.writingDefaults,
+      ...(preferencesDoc?.writingDefaults || {}),
+    },
+  };
+  const profile: UserProfile = {
+    ...DEFAULT_USER_PROFILE,
+    ...(profileDoc || {}),
+    displayName: profileDoc?.displayName || user?.displayName || '',
+    email: profileDoc?.email || user?.email || '',
+    photoURL: profileDoc?.photoURL || user?.photoURL || '',
+  };
 
   useEffect(() => {
     const setDefaultIfMissing = async (ref: DocumentReference<DocumentData>, data: DocumentData) => {
@@ -73,13 +80,33 @@ function ReadexApp() {
       await setDefaultIfMissing(refs.settingsGoal, DEFAULT_GOAL_SETTINGS);
       await setDefaultIfMissing(refs.settingsAtlasView, DEFAULT_ATLAS_VIEW_SETTINGS);
       await setDefaultIfMissing(refs.settingsAtlasNodes, DEFAULT_ATLAS_NODE_SETTINGS);
+      await setDefaultIfMissing(refs.settingsPreferences, DEFAULT_USER_PREFERENCES);
+      await setDoc(refs.settingsProfile, {
+        ...DEFAULT_USER_PROFILE,
+        displayName: user?.displayName || '',
+        email: user?.email || '',
+        photoURL: user?.photoURL || '',
+        dateUpdated: today(),
+      }, { merge: true });
       await setDoc(refs.settingsSchema, readexSchemaDoc(effectiveUid), { merge: true });
     };
 
     scaffoldFirestore().catch((error) => {
       console.warn('Unable to scaffold Noesis Firestore settings', error);
     });
-  }, [effectiveUid, refs.settingsAtlasNodes, refs.settingsAtlasView, refs.settingsGoal, refs.settingsSchema, refs.user]);
+  }, [effectiveUid, refs.settingsAtlasNodes, refs.settingsAtlasView, refs.settingsGoal, refs.settingsPreferences, refs.settingsProfile, refs.settingsSchema, refs.user, user?.displayName, user?.email, user?.photoURL]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const dark = preferences.themeMode === 'dark' || (preferences.themeMode === 'system' && systemDark);
+    root.classList.toggle('dark', dark);
+    root.dataset.theme = preferences.accentTheme;
+    window.localStorage.setItem('noesis:theme', JSON.stringify({
+      themeMode: preferences.themeMode,
+      accentTheme: preferences.accentTheme,
+    }));
+  }, [preferences.themeMode, preferences.accentTheme]);
 
   const emitError = (path: string, operation: SecurityRuleContext['operation'], data?: any) => {
     errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -313,8 +340,9 @@ function ReadexApp() {
       id: draftRef.id,
       title: data.title || 'Untitled Draft',
       body: data.body || '',
-      type: data.type || 'essay',
-      status: data.status || 'seed',
+      type: data.type || preferences.writingDefaults.type,
+      status: data.status || preferences.writingDefaults.status,
+      writingStyle: data.writingStyle || preferences.writingDefaults.writingStyle,
       externalDoc: data.externalDoc || null,
       conceptTags,
       sourceIds: data.sourceIds || [],
@@ -408,9 +436,18 @@ function ReadexApp() {
     deleteDoc(mapRef).catch(() => emitError(mapRef.path, 'delete'));
   };
 
-  const saveGoal = async () => {
-    await setDoc(refs.settingsGoal, goalDraft, { merge: true });
-    setGoalOpen(false);
+  const saveGoal = async (nextGoal: GoalSettings) => {
+    await setDoc(refs.settingsGoal, nextGoal, { merge: true });
+  };
+
+  const savePreferences = async (nextPreferences: UserPreferences) => {
+    const payload = { ...nextPreferences, dateUpdated: today() };
+    await setDoc(refs.settingsPreferences, payload, { merge: true });
+  };
+
+  const saveProfile = async (nextProfile: UserProfile) => {
+    const payload = { ...nextProfile, email: user?.email || nextProfile.email || '', dateUpdated: today() };
+    await setDoc(refs.settingsProfile, payload, { merge: true });
   };
 
   const goalProgress = MEDIA_TYPES.reduce((acc, type) => {
@@ -493,21 +530,28 @@ function ReadexApp() {
       case 'questions':
         return <QuestionsWorkspace questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={addQuestion} onUpdateQuestion={updateQuestion} />;
       case 'writing':
-        return <Atelier drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} onAddDraft={addDraft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={addConcept} />;
+        return <Atelier drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={addConcept} />;
       case 'evolution':
         return <EvolutionTimeline events={timeline} media={media} />;
       case 'practices':
         return <PracticesWorkspace practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} />;
+      case 'settings':
+        return (
+          <SettingsPage
+            user={user}
+            profile={profile}
+            preferences={preferences}
+            goal={goal}
+            goalProgress={goalProgress}
+            onSaveProfile={saveProfile}
+            onSavePreferences={savePreferences}
+            onSaveGoal={saveGoal}
+          />
+        );
       default:
         return null;
     }
   };
-
-  const activeGoalRows = goal.types.map((type) => ({
-    type,
-    done: goalProgress[type] || 0,
-    target: goal.targets[type] || 12
-  }));
 
   return (
     <Shell
@@ -525,82 +569,37 @@ function ReadexApp() {
       }}
       goal={goal}
       goalProgress={goalProgress}
-      onEditGoal={() => setGoalOpen(true)}
+      onOpenSettings={() => setView('settings')}
     >
       {renderContent()}
-      <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
-        <DialogContent className="max-w-xl p-0 overflow-hidden border-none rounded-2xl shadow-2xl bg-white font-body">
-          <Tabs defaultValue="progress" className="w-full">
-            <div className="p-8 pb-4">
-              <DialogHeader className="mb-6">
-                <DialogTitle className="text-4xl font-headline italic mb-2">Source Goals</DialogTitle>
-                <TabsList className="bg-muted/50 w-full justify-start h-9 p-1">
-                  <TabsTrigger value="progress" className="text-[10px] font-code uppercase tracking-widest px-6 h-7">Detailed Progress</TabsTrigger>
-                  <TabsTrigger value="settings" className="text-[10px] font-code uppercase tracking-widest px-6 h-7">Edit Targets</TabsTrigger>
-                </TabsList>
-              </DialogHeader>
-
-              <div className="min-h-[400px]">
-                <TabsContent value="progress" className="m-0 focus-visible:ring-0">
-                  <ScrollArea className="h-[400px] pr-4">
-                    <div className="space-y-6">
-                      {activeGoalRows.map((row) => (
-                        <div key={row.type} className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="font-code text-[11px] font-bold uppercase tracking-widest text-primary/80">{MEDIA_LABELS[row.type]}</span>
-                            <span className="font-code text-[12px] font-bold text-accent">{row.done} / {row.target}</span>
-                          </div>
-                          <Progress value={(row.done / Math.max(1, row.target)) * 100} className="h-2 bg-muted/40" />
-                          <p className="text-[10px] text-muted-foreground uppercase font-code tracking-tighter">
-                            {row.target - row.done > 0 ? `${row.target - row.done} remaining for ${goalDraft.label}` : 'Goal achieved!'}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </TabsContent>
-
-                <TabsContent value="settings" className="m-0 focus-visible:ring-0">
-                  <div className="space-y-6 pt-2">
-                    <div className="space-y-2">
-                      <Label className="readex-kicker uppercase">GOAL LABEL</Label>
-                      <Input value={goalDraft.label} onChange={(event) => setGoalDraft((prev) => ({ ...prev, label: event.target.value }))} className="h-12 border-border/60 bg-white shadow-sm font-body text-base" />
-                    </div>
-                    <Separator className="bg-border/40" />
-                    <div className="space-y-4">
-                      <Label className="readex-kicker uppercase">TARGETS BY TYPE</Label>
-                      <ScrollArea className="h-[240px] pr-4">
-                        <div className="space-y-3">
-                          {MEDIA_TYPES.map((type) => (
-                            <div key={type} className="grid grid-cols-[auto_1fr_90px] gap-4 items-center p-3 rounded-lg border border-border/30 bg-muted/5 transition-colors hover:bg-muted/10">
-                              <input
-                                type="checkbox"
-                                checked={goalDraft.types.includes(type)}
-                                onChange={(event) => setGoalDraft((prev) => ({ ...prev, types: event.target.checked ? [...prev.types, type] : prev.types.filter((t) => t !== type) }))}
-                                className="accent-accent size-4"
-                              />
-                              <span className="font-code text-[10px] font-bold uppercase tracking-wider text-primary/70">{MEDIA_LABELS[type]}</span>
-                              <Input type="number" min={1} value={goalDraft.targets[type] || 12} onChange={(event) => setGoalDraft((prev) => ({ ...prev, targets: { ...prev.targets, [type]: Math.max(1, Number(event.target.value) || 1) } }))} className="h-8 text-xs font-code text-right" />
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  </div>
-                </TabsContent>
-              </div>
-            </div>
-
-            <div className="p-8 pt-4 bg-muted/10 border-t flex justify-end gap-3">
-              <Button variant="ghost" onClick={() => setGoalOpen(false)} className="h-12 px-8 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent">CLOSE</Button>
-              <Button onClick={saveGoal} className="h-12 px-10 bg-accent font-code text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20">SAVE CHANGES</Button>
-            </div>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
       <Toaster />
     </Shell>
   );
+}
+
+function ReadexApp() {
+  const { user, loading } = useUser();
+  const [demoMode, setDemoMode] = useState(false);
+  const allowDemo = process.env.NEXT_PUBLIC_ALLOW_PROTOTYPE_MODE === 'true';
+
+  if (loading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background text-foreground">
+        <div className="font-code text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Loading Noesis</div>
+      </div>
+    );
+  }
+
+  if (!user && !demoMode) {
+    return (
+      <>
+        <LoginPage allowDemo={allowDemo} onDemo={() => allowDemo && setDemoMode(true)} />
+        <Toaster />
+      </>
+    );
+  }
+
+  return <ReadexWorkspace user={user} uid={user?.uid || PROTOTYPE_USER_ID} />;
 }
 
 export default function Home() {

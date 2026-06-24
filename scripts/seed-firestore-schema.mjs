@@ -84,6 +84,7 @@ const collectionPlaceholders = {
     body: '',
     type: 'essay',
     status: 'seed',
+    writingStyle: 'blank_paper',
     externalDoc: null,
     conceptTags: ['Unsorted Ideas'],
     sourceIds: [],
@@ -173,6 +174,24 @@ async function main() {
   }, { merge: true });
   batch.set(userRef.collection('settings').doc('atlasView'), { x: 0, y: 0, scale: 1 }, { merge: true });
   batch.set(userRef.collection('settings').doc('atlasNodes'), { positions: {} }, { merge: true });
+  batch.set(userRef.collection('settings').doc('preferences'), {
+    themeMode: 'light',
+    accentTheme: 'violet',
+    writingDefaults: {
+      type: 'essay',
+      status: 'seed',
+      writingStyle: 'blank_paper',
+      editorFeel: 'spacious'
+    },
+    dateUpdated: now
+  }, { merge: true });
+  batch.set(userRef.collection('settings').doc('profile'), {
+    displayName: '',
+    email: '',
+    photoURL: '',
+    bio: '',
+    dateUpdated: now
+  }, { merge: true });
   batch.set(userRef.collection('settings').doc('schema'), {
     ...schema,
     uid,
