@@ -32,11 +32,11 @@ interface ShellProps {
     concepts: number;
     questions: number;
     media: number;
+    annotations: number;
     vault: number;
     drafts: number;
     practices: number;
     timeline: number;
-    annotations: number;
   };
   goal: GoalSettings;
   goalProgress: Partial<Record<MediaType, number>>;
@@ -49,7 +49,7 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
     { id: 'concepts', label: 'Concepts', icon: BookOpen, section: 'Mind', count: counts.concepts },
     { id: 'questions', label: 'Inquiries', icon: HelpCircle, section: 'Mind', count: counts.questions },
     { id: 'library', label: 'Library', icon: Library, section: 'Inputs', count: counts.media },
-    { id: 'source-index', label: 'Source Index', icon: TableIcon, section: 'Inputs' },
+    { id: 'source-index', label: 'Source Index', icon: TableIcon, section: 'Inputs', count: counts.media },
     { id: 'annotations', label: 'Annotations', icon: Highlighter, section: 'Inputs', count: counts.annotations },
     { id: 'vault', label: 'Positions', icon: ShieldCheck, section: 'Outputs', count: counts.vault },
     { id: 'writing', label: 'Works', icon: PenTool, section: 'Outputs', count: counts.drafts },

@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Edit, Plus, Search, Trash2, MessageSquare, X, Sparkles, Loader2, HelpCircle, Triangle, BookOpen, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -36,6 +36,8 @@ interface MediaLibraryProps {
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
   onDeleteVaultEntry: (id: string) => void;
+  focusedSourceId?: string | null;
+  onFocusedSourceHandled?: () => void;
 }
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
@@ -53,7 +55,9 @@ export function MediaLibrary({
   onDeleteMedia, 
   onAddConcept,
   onCreateIdea,
-  onDeleteVaultEntry
+  onDeleteVaultEntry,
+  focusedSourceId,
+  onFocusedSourceHandled
 }: MediaLibraryProps) {
   const [filter, setFilter] = useState<MediaType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,6 +78,14 @@ export function MediaLibrary({
     const query = `${item.title} ${item.creator} ${(item.tags || []).join(' ')}`.toLowerCase();
     return typeOk && (!searchQuery || query.includes(searchQuery.toLowerCase()));
   }), [filter, media, searchQuery]);
+
+  useEffect(() => {
+    if (!focusedSourceId) return;
+    if (media.some((item) => item.id === focusedSourceId)) {
+      setSelectedId(focusedSourceId);
+      onFocusedSourceHandled?.();
+    }
+  }, [focusedSourceId, media, onFocusedSourceHandled]);
 
   const openEditor = (item?: Media) => {
     setDraft(item ? { ...item } : { type: 'book', title: '', creator: '', status: 'Want to Read', tags: [] });

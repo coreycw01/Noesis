@@ -32,7 +32,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MEDIA_LABELS, MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today } from '@/lib/readex';
 import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
-import type { AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext } from '@/lib/types';
+import type { Annotation, AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext } from '@/lib/types';
 import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -41,6 +41,7 @@ function ReadexApp() {
   const { user } = useUser();
   const { db } = useFirebase();
   const [view, setView] = useState('atlas');
+  const [focusedSourceId, setFocusedSourceId] = useState<string | null>(null);
   const [goalOpen, setGoalOpen] = useState(false);
   const [goalDraft, setGoalDraft] = useState<GoalSettings>(DEFAULT_GOAL_SETTINGS);
   const effectiveUid = user?.uid || PROTOTYPE_USER_ID;
@@ -186,6 +187,20 @@ function ReadexApp() {
   const deleteMedia = (id: string) => {
     const mediaRef = doc(refs.media, id);
     deleteDoc(mediaRef).catch(() => emitError(mediaRef.path, 'delete'));
+  };
+
+  const updateAnnotation = (sourceId: string, annotation: Annotation) => {
+    const source = media.find((item) => item.id === sourceId);
+    if (!source) return;
+    const annotations = (source.annotations || []).map((item) => item.id === annotation.id ? annotation : item);
+    updateMedia({ ...source, annotations, dateUpdated: today() });
+  };
+
+  const deleteAnnotation = (sourceId: string, annotationId: string) => {
+    const source = media.find((item) => item.id === sourceId);
+    if (!source) return;
+    const annotations = (source.annotations || []).filter((item) => item.id !== annotationId);
+    updateMedia({ ...source, annotations, dateUpdated: today() });
   };
 
   const addVaultEntry = (data: Partial<VaultEntry>) => {
@@ -402,8 +417,6 @@ function ReadexApp() {
     return acc;
   }, {} as Record<MediaType, number>);
 
-  const allFilteredAnnotations = useMemo(() => allAnnotations(media).filter(a => a.type !== 'question'), [media]);
-
   const renderContent = () => {
     switch (view) {
       case 'atlas':
@@ -441,12 +454,28 @@ function ReadexApp() {
             onAddConcept={addConcept} 
             onCreateIdea={createIdea}
             onDeleteVaultEntry={deleteVaultEntry}
+            focusedSourceId={focusedSourceId}
+            onFocusedSourceHandled={() => setFocusedSourceId(null)}
+          />
+        );
+      case 'annotations':
+        return (
+          <AnnotationsIndex
+            media={media}
+            concepts={concepts}
+            onUpdateAnnotation={updateAnnotation}
+            onDeleteAnnotation={deleteAnnotation}
+            onOpenSource={(sourceId) => {
+              setFocusedSourceId(sourceId);
+              setView('library');
+            }}
+            onCreatePosition={createIdea}
+            onCreateInquiry={addQuestion}
+            onAddConcept={addConcept}
           />
         );
       case 'source-index':
-        return <SourceIndex media={media} />;
-      case 'annotations':
-        return <AnnotationsIndex media={media} />;
+        return <SourceIndex media={media} vault={vault} drafts={drafts} practices={practices} onOpenSource={(sourceId) => { setFocusedSourceId(sourceId); setView('library'); }} />;
       case 'vault':
         return (
           <BeliefVault 
@@ -491,7 +520,7 @@ function ReadexApp() {
         drafts: drafts.length, 
         timeline: timeline.length, 
         practices: practices.length,
-        annotations: allFilteredAnnotations.length
+        annotations: allAnnotations(media).length
       }}
       goal={goal}
       goalProgress={goalProgress}
