@@ -32,6 +32,9 @@ import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, type DocumentDat
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
+// Initialize Firebase once at the top level
+const firebaseInstances = typeof window !== 'undefined' ? initializeFirebase() : null;
+
 function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
   const { db } = useFirebase();
   const [view, setView] = useState('atlas');
@@ -52,6 +55,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
   const { data: goalDoc } = useDoc<GoalSettings>(refs.settingsGoal as any);
   const { data: preferencesDoc } = useDoc<UserPreferences>(refs.settingsPreferences as any);
   const { data: profileDoc } = useDoc<UserProfile>(refs.settingsProfile as any);
+  
   const goal = { ...DEFAULT_GOAL_SETTINGS, ...(goalDoc || {}) };
   const preferences: UserPreferences = {
     ...DEFAULT_USER_PREFERENCES,
@@ -603,18 +607,7 @@ function ReadexApp() {
 }
 
 export default function Home() {
-  const [firebaseConfig, setFirebaseConfig] = useState<any>(null);
-
-  useEffect(() => {
-    try {
-      const config = initializeFirebase();
-      setFirebaseConfig(config);
-    } catch (err) {
-      console.error('Failed to initialize Firebase:', err);
-    }
-  }, []);
-
-  if (!firebaseConfig) {
+  if (!firebaseInstances) {
     return (
       <div className="grid min-h-screen place-items-center bg-background text-foreground">
         <div className="font-code text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Initializing Noesis...</div>
@@ -623,7 +616,7 @@ export default function Home() {
   }
 
   return (
-    <FirebaseClientProvider firebaseApp={firebaseConfig.firebaseApp} firestore={firebaseConfig.firestore} auth={firebaseConfig.auth}>
+    <FirebaseClientProvider firebaseApp={firebaseInstances.firebaseApp} firestore={firebaseInstances.firestore} auth={firebaseInstances.auth}>
       <ReadexApp />
     </FirebaseClientProvider>
   );
