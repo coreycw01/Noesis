@@ -605,19 +605,15 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
         return <SourceIndex media={media} vault={vault} drafts={drafts} practices={practices} onOpenSource={(sourceId) => { setFocusedSourceId(sourceId); setView('library'); }} />;
       case 'vault':
         return (
-          <BeliefVault
-            entries={vault}
-            media={media}
-            drafts={drafts}
-            concepts={concepts}
-            links={links}
-            onAddEntry={addVaultEntry}
-            onUpdateEntry={updateVaultEntry}
-            onDeleteEntry={deleteVaultEntry}
-            onAddConcept={addConcept}
-            onCreateLink={addPhilosophicalLink}
-            onAddDraft={addDraft}
-            onAddPractice={addPractice}
+          <BeliefVault 
+            entries={vault} 
+            media={media} 
+            drafts={drafts} 
+            concepts={concepts} 
+            onAddEntry={addVaultEntry} 
+            onUpdateEntry={updateVaultEntry} 
+            onDeleteEntry={deleteVaultEntry} 
+            onAddConcept={addConcept} 
           />
         );
       case 'questions':

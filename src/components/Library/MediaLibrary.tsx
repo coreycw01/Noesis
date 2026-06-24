@@ -402,14 +402,21 @@ export function MediaLibrary({
                   </p>
                   <div className="flex justify-between items-center">
                     <div className="flex flex-wrap gap-3">
-                      <Badge variant="secondary" className="font-code text-[9px] uppercase tracking-widest px-3 py-1 bg-muted/20 border-transparent text-muted-foreground rounded-full font-bold">
+                      <button 
+                        onClick={() => setSelectedId(selected.id)}
+                        className="inline-flex items-center font-code text-[9px] uppercase tracking-widest px-3 py-1 bg-muted/20 border-transparent text-muted-foreground rounded-full font-bold hover:bg-accent/10 hover:text-accent transition-all"
+                      >
                         <BookOpen className="size-3 mr-2 opacity-40" />
                         {selected.title}
-                      </Badge>
+                      </button>
                       {(insight.tags || []).slice(0, 3).map(tag => (
-                        <Badge key={tag} variant="secondary" className="font-code text-[9px] uppercase tracking-widest px-3 py-1 bg-muted/10 border-transparent text-muted-foreground/60 rounded-full font-bold">
+                        <button
+                          key={tag}
+                          onClick={() => setConceptPopupName(tag)}
+                          className="inline-flex items-center font-code text-[9px] uppercase tracking-widest px-3 py-1 bg-muted/10 border-transparent text-muted-foreground/60 rounded-full font-bold hover:bg-accent/10 hover:text-accent transition-all"
+                        >
                           {tag}
-                        </Badge>
+                        </button>
                       ))}
                     </div>
                     <div className="flex items-center gap-6">
@@ -441,6 +448,7 @@ export function MediaLibrary({
                 <Card 
                   key={entry.id} 
                   className="group cursor-pointer hover:shadow-xl transition-all border-border/50 bg-white p-6 flex gap-6 shadow-sm rounded-xl"
+                  onClick={() => {/* Potentially open entry detail */}}
                 >
                   <div className="size-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/50 shadow-sm">
                     <Triangle className="size-5 fill-current rotate-180" />
@@ -464,11 +472,19 @@ export function MediaLibrary({
                           />
                         ))}
                       </div>
-                      <Badge variant="secondary" className="font-code text-[9px] uppercase tracking-widest px-3 py-1 bg-emerald-100/40 text-emerald-700 border-emerald-200/50 rounded-full font-bold">
+                      <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest px-3 py-1 bg-emerald-100/40 text-emerald-700 border-emerald-200/50 rounded-full font-bold">
                         {entry.status || 'active'}
                       </Badge>
-                      <div className="font-code text-[10px] text-muted-foreground/60 font-bold uppercase tracking-widest">
-                        {(entry.sourceIds || []).length} source{(entry.sourceIds || []).length !== 1 && 's'}
+                      <div className="flex items-center gap-2 ml-auto">
+                        {(entry.tags || []).slice(0, 3).map(tag => (
+                          <button
+                            key={tag}
+                            onClick={(e) => { e.stopPropagation(); setConceptPopupName(tag); }}
+                            className="inline-flex items-center font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-muted/10 border-transparent text-muted-foreground/50 rounded-full font-bold hover:bg-accent/10 hover:text-accent transition-all"
+                          >
+                            {tag}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -511,7 +527,7 @@ export function MediaLibrary({
               </div>
               <div className="space-y-2">
                 <Label className="readex-kicker">Concepts</Label>
-                <ConceptTagPicker concepts={concepts} value={insightDraft.tags} onChange={(tags) => setInsightDraft(prev => ({ ...prev, tags }))} />
+                <ConceptTagPicker concepts={concepts} value={insightDraft.tags} onChange={(tags) => setInsightDraft(prev => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
               </div>
             </div>
             <DialogFooter className="pt-6"><Button onClick={saveInsight} className="rounded-full px-10 h-11 font-bold">Archive Insight</Button></DialogFooter>
@@ -961,7 +977,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
   );
 }
 
-function ConceptDetailDialog({ name, onClose, concepts, media, vault, drafts, questions, timeline, practices }: {
+export function ConceptDetailDialog({ name, onClose, concepts, media, vault, drafts, questions, timeline, practices }: {
   name: string | null;
   onClose: () => void;
   concepts: Concept[];

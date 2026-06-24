@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { suggestConceptDescription } from '@/ai/flows/suggest-concept-description';
 import { suggestPositionDrafts } from '@/ai/flows/philosophy-suggestions';
 import { useToast } from '@/hooks/use-toast';
+import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
 
 interface ConceptEncyclopediaProps {
   concepts: Concept[];
@@ -71,8 +72,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       return !search || `${name} ${JSON.stringify(related)}`.toLowerCase().includes(search.toLowerCase());
     });
   }, [allTerms, mode, search, concepts, media, insights, vault, drafts, practices, questions, timeline]);
-
-  const selectedRelated = selectedName ? conceptRelated(selectedName, { media, insights, vault, drafts, practices, questions, timeline }) : null;
 
   const openEditor = (concept?: Concept) => {
     if (concept) {
@@ -309,51 +308,14 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             <DialogTitle className="font-headline text-3xl italic">{selectedName}</DialogTitle>
           </DialogHeader>
           {selectedRelated && (
-            <div className="space-y-4">
-              <NextPhilosophicalActionPanel
-                title="Position Builder"
-                description="Use this concept's annotations as evidence for editable position drafts. AI suggests; you decide."
-                status={`${selectedRelated.annotations.length} annotations`}
-                actions={[
-                  {
-                    label: isDraftingPositions ? 'Drafting' : 'Draft Positions',
-                    tone: 'ai',
-                    disabled: isDraftingPositions || !selectedRelated.annotations.length,
-                    onClick: handleSuggestPositions,
-                  },
-                ]}
-              />
-
-              {positionDrafts.length > 0 && (
-                <div className="grid grid-cols-1 gap-3">
-                  {positionDrafts.map((draft, index) => {
-                    const body = `${draft.claim}\n\nSupport: ${draft.supportSummary}\n\nChallenge to consider: ${draft.challengeToConsider}`;
-                    return (
-                      <Card key={`${draft.claim}-${index}`} className="rounded-xl border-accent/20 bg-white p-5 shadow-sm">
-                        <div className="mb-2 flex items-start justify-between gap-3">
-                          <h4 className="font-headline text-xl font-bold italic text-primary">{draft.claim}</h4>
-                          <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">{draft.confidence} confidence</Badge>
-                        </div>
-                        <p className="text-sm italic leading-6 text-muted-foreground font-body">{draft.supportSummary}</p>
-                        <p className="mt-2 text-sm leading-6 text-destructive/75 font-body">Challenge: {draft.challengeToConsider}</p>
-                        <Button onClick={() => savePositionDraft(draft.claim, body)} size="sm" className="mt-4 rounded-full bg-accent px-5 font-code text-[9px] uppercase tracking-widest">
-                          Save Position
-                        </Button>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <RelatedSection title="Inputs: Sources" items={selectedRelated.sources.map((item) => `${item.title} - ${item.creator || item.type}`)} />
-                <RelatedSection title="Inputs: Annotations" items={selectedRelated.annotations.map((item) => `${item.type}: ${item.text}`)} />
-                <RelatedSection title="Inputs: Inquiries" items={selectedRelated.questions.map((item) => item.text)} />
-                <RelatedSection title="Outputs: Positions" items={selectedRelated.beliefs.map((item) => item.title)} />
-                <RelatedSection title="Outputs: Works" items={selectedRelated.drafts.map((item) => `${item.title} (${item.type})`)} />
-                <RelatedSection title="Outputs: Practices" items={selectedRelated.practices.map((item) => `${item.title} (${item.type})`)} />
-                <RelatedSection title="Outputs: Evolution" items={selectedRelated.events.map((item) => `${item.eventType}: ${item.entityTitle}`)} />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <RelatedSection title="Inputs: Sources" items={selectedRelated.sources.map((item) => `${item.title} - ${item.creator || item.type}`)} />
+              <RelatedSection title="Inputs: Annotations" items={selectedRelated.annotations.map((item) => `${item.type}: ${item.text}`)} />
+              <RelatedSection title="Inputs: Inquiries" items={selectedRelated.questions.map((item) => item.text)} />
+              <RelatedSection title="Outputs: Positions" items={selectedRelated.beliefs.map((item) => item.title)} />
+              <RelatedSection title="Outputs: Works" items={selectedRelated.drafts.map((item) => `${item.title} (${item.type})`)} />
+              <RelatedSection title="Outputs: Practices" items={selectedRelated.practices.map((item) => `${item.title} (${item.type})`)} />
+              <RelatedSection title="Outputs: Evolution" items={selectedRelated.events.map((item) => `${item.eventType}: ${item.entityTitle}`)} />
             </div>
           )}
         </DialogContent>
@@ -443,20 +405,5 @@ function Stat({ value, label, sub }: { value: number | string; label: string; su
       <div className="mt-1 text-2xl font-headline font-bold text-accent leading-none">{value}</div>
       <div className="mt-1 text-[10px] text-muted-foreground/40 truncate font-body">{sub}</div>
     </Card>
-  );
-}
-
-function RelatedSection({ title, items }: { title: string; items: string[] }) {
-  return (
-    <section className="rounded-xl border border-border/50 p-5 bg-white shadow-sm">
-      <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-4 font-bold">{title}</h4>
-      <div className="space-y-3">
-        {items.length ? items.map((item, index) => (
-          <div key={`${item}-${index}`} className="rounded-lg bg-muted/20 p-4 text-sm font-body text-primary/80 shadow-sm border border-border/10 italic leading-relaxed">{item}</div>
-        )) : (
-          <p className="text-sm text-muted-foreground italic font-body py-2">Nothing linked yet.</p>
-        )}
-      </div>
-    </section>
   );
 }

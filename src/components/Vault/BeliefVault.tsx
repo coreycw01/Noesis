@@ -13,15 +13,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { SourceLinker } from '@/components/SourceLinker';
-import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
-import type { Concept, Draft, Media, PhilosophicalLink, Practice, VaultEntry, VaultType } from '@/lib/types';
+import type { Concept, Draft, Media, VaultEntry, VaultType } from '@/lib/types';
 import { normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
 
 interface BeliefVaultProps {
   entries: VaultEntry[];
   media: Media[];
   drafts: Draft[];
+  practices: Practice[];
+  questions: Question[];
+  timeline: TimelineEvent[];
   concepts: Concept[];
   links: PhilosophicalLink[];
   onAddEntry: (data: Partial<VaultEntry>) => void;
@@ -43,12 +46,13 @@ const TYPE_LABELS: Record<VaultType, string> = {
   worldview: 'Worldview',
 };
 
-export function BeliefVault({ entries, media, drafts, concepts, links, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice }: BeliefVaultProps) {
+export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | VaultType>('all');
   const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'active', tags: [] });
+  const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
 
   const selected = entries.find((entry) => entry.id === selectedId) || null;
   const filteredEntries = entries.filter(e => {
@@ -90,7 +94,17 @@ export function BeliefVault({ entries, media, drafts, concepts, links, onAddEntr
           <Badge variant="outline" className="mb-3 font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{selected.type.replace('_', ' ')}</Badge>
           <h1 className="font-headline text-4xl font-bold mb-3">{selected.title}</h1>
           <p className="font-body text-lg italic text-primary/80 mb-4">{selected.statement || selected.description}</p>
-          <div className="flex flex-wrap gap-2">{(selected.tags || []).map((tag) => <Badge key={tag} className="font-code text-[9px] uppercase tracking-widest bg-white border-border/60 shadow-sm rounded-full">{tag}</Badge>)}</div>
+          <div className="flex flex-wrap gap-2">
+            {(selected.tags || []).map((tag) => (
+              <button 
+                key={tag} 
+                onClick={() => setConceptPopupName(tag)}
+                className="font-code text-[9px] uppercase tracking-widest px-3 py-1 bg-white border border-border/60 shadow-sm rounded-full font-bold hover:bg-accent/10 hover:text-accent transition-all"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
         </Card>
 
         <div className="mb-6">
@@ -194,6 +208,19 @@ export function BeliefVault({ entries, media, drafts, concepts, links, onAddEntr
           <InfoPanel title="Typed Links" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed links recorded yet." />
           <InfoPanel title="Version History" items={(selected.versionHistory || []).map((v) => `${v.date}: ${v.description}`)} empty="No revisions recorded yet." />
         </div>
+        
+        <ConceptDetailDialog 
+          name={conceptPopupName} 
+          onClose={() => setConceptPopupName(null)}
+          concepts={concepts}
+          media={media}
+          vault={entries}
+          drafts={drafts}
+          practices={practices}
+          questions={questions}
+          timeline={timeline}
+        />
+
         <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} />
       </div>
     );
@@ -327,8 +354,16 @@ export function BeliefVault({ entries, media, drafts, concepts, links, onAddEntr
               <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-emerald-100/40 text-emerald-700 border-emerald-200/50 rounded-full font-bold">
                 {entry.status}
               </Badge>
-              <div className="font-code text-[9px] text-muted-foreground/60 font-bold uppercase tracking-widest ml-auto">
-                {(entry.sourceIds || []).length} source{(entry.sourceIds || []).length !== 1 && 's'}
+              <div className="flex items-center gap-1.5 ml-auto">
+                {(entry.tags || []).slice(0, 2).map(tag => (
+                  <button
+                    key={tag}
+                    onClick={(e) => { e.stopPropagation(); setConceptPopupName(tag); }}
+                    className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-muted/10 text-muted-foreground/40 rounded-full font-bold hover:bg-accent/10 hover:text-accent transition-all"
+                  >
+                    {tag}
+                  </button>
+                ))}
               </div>
             </div>
           </Card>
@@ -341,6 +376,18 @@ export function BeliefVault({ entries, media, drafts, concepts, links, onAddEntr
           </div>
         )}
       </div>
+      
+      <ConceptDetailDialog 
+        name={conceptPopupName} 
+        onClose={() => setConceptPopupName(null)}
+        concepts={concepts}
+        media={media}
+        vault={entries}
+        drafts={drafts}
+        practices={practices}
+        questions={questions}
+        timeline={timeline}
+      />
 
       <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} />
     </div>

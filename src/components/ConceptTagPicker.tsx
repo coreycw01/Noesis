@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -66,7 +67,11 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
           className="flex items-center gap-1 font-code text-[10px] uppercase tracking-wider py-0.5"
         >
           {tag}
-          <button onClick={(e) => { e.preventDefault(); toggle(tag); }} className="hover:text-destructive transition-colors">
+          <button 
+            type="button"
+            onClick={(e) => { e.preventDefault(); toggle(tag); }} 
+            className="hover:text-destructive transition-colors"
+          >
             <X className="size-2.5" />
           </button>
         </Badge>
@@ -75,17 +80,19 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
       <Popover>
         <PopoverTrigger asChild>
           <Button 
+            type="button"
             variant="outline" 
             size="sm" 
             className={cn(
               "h-7 px-2 font-code text-[9px] uppercase tracking-widest border-dashed",
               compact && "h-6 px-1.5"
             )}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             <Plus className="size-3 mr-1" /> Concept
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-0" align="start">
+        <PopoverContent className="w-64 p-0" align="start" onPointerDown={(e) => e.stopPropagation()}>
           <div className="p-2 border-b">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
@@ -112,6 +119,7 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
                 return (
                   <button
                     key={name}
+                    type="button"
                     onClick={() => toggle(name)}
                     className={cn(
                       "w-full flex items-center justify-between p-2 rounded-sm text-left transition-colors hover:bg-muted",
@@ -125,6 +133,7 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
               })}
               {search && !allConceptNames.includes(conceptKey(search)) && (
                 <button
+                  type="button"
                   onClick={addNew}
                   className="w-full flex items-center gap-2 p-2 rounded-sm text-left hover:bg-accent/10 text-accent transition-colors border-t border-border mt-1"
                 >
