@@ -606,11 +606,21 @@ export default function Home() {
   const [firebaseConfig, setFirebaseConfig] = useState<any>(null);
 
   useEffect(() => {
-    const config = initializeFirebase();
-    setFirebaseConfig(config);
+    try {
+      const config = initializeFirebase();
+      setFirebaseConfig(config);
+    } catch (err) {
+      console.error('Failed to initialize Firebase:', err);
+    }
   }, []);
 
-  if (!firebaseConfig) return null;
+  if (!firebaseConfig) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background text-foreground">
+        <div className="font-code text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Initializing Noesis...</div>
+      </div>
+    );
+  }
 
   return (
     <FirebaseClientProvider firebaseApp={firebaseConfig.firebaseApp} firestore={firebaseConfig.firestore} auth={firebaseConfig.auth}>

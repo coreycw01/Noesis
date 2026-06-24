@@ -11,7 +11,7 @@ import {
   signInWithPopup,
   updateProfile,
 } from 'firebase/auth';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,7 +37,7 @@ function authMessage(error: unknown) {
   if (code.includes('auth/user-not-found')) return 'No account found with this email.';
   if (code.includes('auth/wrong-password')) return 'Incorrect password.';
   if (code.includes('auth/unauthorized-domain')) {
-    return `This domain ("${hostname}") is not authorized. Please add it to "Authorized Domains" in the Firebase Console (Authentication > Settings).`;
+    return `ACTION REQUIRED: This domain ("${hostname}") is not authorized in Firebase. Please add it to "Authorized Domains" in the Firebase Console (Authentication > Settings).`;
   }
   return 'Authentication failed. Check your details or Firebase configuration and try again.';
 }
@@ -51,11 +51,13 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState<'email' | 'google' | 'reset' | null>(null);
+  const [errorStatus, setErrorStatus] = useState<string | null>(null);
 
-  const logoData = placeholderData.placeholderImages.find(img => img.id === 'app-logo');
+  const logoData = placeholderData?.placeholderImages?.find(img => img.id === 'app-logo');
 
   const submitEmail = async (event: React.FormEvent) => {
     event.preventDefault();
+    setErrorStatus(null);
     if (!email.trim() || !password.trim()) {
       toast({ title: 'Input Required', description: 'Please enter both your email and password.' });
       return;
@@ -70,13 +72,12 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
       }
     } catch (error: any) {
       console.error('Auth error:', error);
-      if (error.code === 'auth/unauthorized-domain') {
-        console.warn(`ACTION REQUIRED: Add "${window.location.hostname}" to Authorized Domains in Firebase Console.`);
-      }
+      const msg = authMessage(error);
+      setErrorStatus(msg);
       toast({ 
         variant: 'destructive',
         title: mode === 'signup' ? 'Account not created' : 'Sign in failed', 
-        description: authMessage(error) 
+        description: msg
       });
     } finally {
       setBusy(null);
@@ -84,6 +85,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
   };
 
   const signInGoogle = async () => {
+    setErrorStatus(null);
     setBusy('google');
     try {
       const provider = new GoogleAuthProvider();
@@ -91,13 +93,12 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.error('Google Auth error:', error);
-      if (error.code === 'auth/unauthorized-domain') {
-        console.warn(`ACTION REQUIRED: Add "${window.location.hostname}" to Authorized Domains in Firebase Console.`);
-      }
+      const msg = authMessage(error);
+      setErrorStatus(msg);
       toast({ 
         variant: 'destructive',
         title: 'Google sign in failed', 
-        description: authMessage(error) 
+        description: msg
       });
     } finally {
       setBusy(null);
@@ -105,6 +106,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
   };
 
   const resetPassword = async () => {
+    setErrorStatus(null);
     if (!email.trim()) {
       toast({ title: 'Email required', description: 'Enter your email first, then request a password reset.' });
       return;
@@ -115,10 +117,12 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
       toast({ title: 'Reset email sent', description: 'Check your inbox for a password reset link.' });
     } catch (error) {
       console.error('Reset error:', error);
+      const msg = authMessage(error);
+      setErrorStatus(msg);
       toast({ 
         variant: 'destructive',
         title: 'Reset failed', 
-        description: authMessage(error) 
+        description: msg
       });
     } finally {
       setBusy(null);
@@ -194,6 +198,13 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
               </p>
             </div>
 
+            {errorStatus && errorStatus.includes('ACTION REQUIRED') && (
+              <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 font-body italic flex gap-3">
+                <AlertCircle className="size-5 shrink-0" />
+                <p>{errorStatus}</p>
+              </div>
+            )}
+
             <form onSubmit={submitEmail} className="space-y-5">
               {mode === 'signup' && (
                 <div className="space-y-2">
@@ -264,11 +275,6 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
               )}
             </div>
           </div>
-
-          <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">
-            Ensure Email/Password and Google providers are enabled in your Firebase Console. 
-            If sign-in fails, confirm this domain is added to "Authorized Domains".
-          </p>
         </div>
       </section>
     </div>
