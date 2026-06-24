@@ -29,6 +29,7 @@ import type { Concept, Draft, DraftStatus, DraftType, ExternalDocProvider, Media
 import { DRAFT_LABELS, WRITING_STYLE_LABELS, WRITING_STYLES, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { escapeTextAsHtml, sanitizeHtml } from '@/lib/sanitize';
 
 export type PageViewMode = 'vertical-continuous' | 'vertical-single' | 'horizontal-single';
 export type PageSize = 'letter' | 'a4';
@@ -148,7 +149,7 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
   }, [active, onUpdateDraft]);
 
   const handleUpdateContent = useCallback((newContent: string) => {
-    updateActive({ body: newContent });
+    updateActive({ body: sanitizeHtml(newContent) });
   }, [updateActive]);
 
   const exportManuscript = () => {
@@ -237,7 +238,7 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Document sync failed.');
       updateActive({
-        body: result.text,
+        body: escapeTextAsHtml(result.text),
         externalDoc: {
           ...draft.externalDoc,
           lastSyncedAt: result.importedAt || today(),

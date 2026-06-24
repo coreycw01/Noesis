@@ -144,6 +144,13 @@ export function ConceptAtlas({
     });
   }, [activeMap, concepts, drafts, draftPositions, insights, media, practices, search, vault, visibleTerms]);
 
+  const relatedByNode = useMemo(() => {
+    return new Map(nodes.map((node) => [
+      conceptKey(node.name),
+      conceptRelated(node.name, { media, insights, vault, drafts, practices, questions, timeline }),
+    ]));
+  }, [drafts, insights, media, nodes, practices, questions, timeline, vault]);
+
   const edges = useMemo<MapEdge[]>(() => {
     const result: MapEdge[] = [];
     const nodeNames = new Set(nodes.map((node) => conceptKey(node.name)));
@@ -169,8 +176,9 @@ export function ConceptAtlas({
     if (autoFiltersEnabled) {
       for (let i = 0; i < nodes.length; i += 1) {
         for (let j = i + 1; j < nodes.length; j += 1) {
-          const left = conceptRelated(nodes[i].name, { media, insights, vault, drafts, practices, questions, timeline });
-          const right = conceptRelated(nodes[j].name, { media, insights, vault, drafts, practices, questions, timeline });
+          const left = relatedByNode.get(conceptKey(nodes[i].name));
+          const right = relatedByNode.get(conceptKey(nodes[j].name));
+          if (!left || !right) continue;
           const sharedSources = left.sources.filter((item) => right.sources.some((other) => other.id === item.id)).length;
           const sharedPositions = left.beliefs.filter((item) => right.beliefs.some((other) => other.id === item.id)).length;
           const sharedInquiries = left.questions.filter((item) => right.questions.some((other) => other.id === item.id)).length;
@@ -187,7 +195,7 @@ export function ConceptAtlas({
       }
     }
     return result;
-  }, [activeMap, concepts, drafts, insights, media, mode, nodes, practices, questions, timeline, vault]);
+  }, [activeMap, concepts, mode, nodes, relatedByNode]);
 
   const uniqueFamilies = useMemo(() => {
     const families = new Set();

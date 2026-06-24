@@ -73,6 +73,7 @@ export function MediaLibrary({
   const { toast } = useToast();
 
   const selected = media.find((item) => item.id === selectedId) || null;
+  const [captureDraft, setCaptureDraft] = useState<Media['capture'] | null>(null);
   const filtered = useMemo(() => media.filter((item) => {
     const typeOk = filter === 'all' || item.type === filter;
     const query = `${item.title} ${item.creator} ${(item.tags || []).join(' ')}`.toLowerCase();
@@ -107,6 +108,23 @@ export function MediaLibrary({
     onUpdateMedia({ ...selected, ...patch, dateUpdated: today() });
   };
 
+  useEffect(() => {
+    setCaptureDraft(selected?.capture || { sessions: [] });
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (!selected || !captureDraft) return;
+    if (JSON.stringify(captureDraft) === JSON.stringify(selected.capture || { sessions: [] })) return;
+    const timeout = window.setTimeout(() => {
+      updateSelected({ capture: captureDraft });
+    }, 900);
+    return () => window.clearTimeout(timeout);
+  }, [captureDraft, selected?.id]);
+
+  const updateCaptureDraft = (capture: Media['capture']) => {
+    setCaptureDraft({ ...capture, sessions: capture?.sessions || [] });
+  };
+
   const addAnnotation = () => {
     if (!selected || !annotationDraft.text.trim()) return;
     const annotation: Annotation = { id: uid(), type: annotationDraft.type, text: annotationDraft.text.trim(), date: today(), conceptTags: selected.tags };
@@ -124,7 +142,10 @@ export function MediaLibrary({
         capturedNotes: selected.capture,
         annotations: selected.annotations,
       });
-      updateSelected({ capture: { ...selected.capture, after: { ...selected.capture.after, coreArgument: coreClaim }, sessions: selected.capture.sessions || [] } });
+      const capture = selected.capture || { sessions: [] };
+      const nextCapture = { ...capture, after: { ...capture.after, coreArgument: coreClaim }, sessions: capture.sessions || [] };
+      setCaptureDraft(nextCapture);
+      updateSelected({ capture: nextCapture });
       toast({ title: "Insight Distilled", description: "AI has suggested a core claim based on your notes." });
     } catch (error) {
       toast({ variant: "destructive", title: "Distillation Failed", description: "The AI was unable to synthesize a claim at this time." });
@@ -177,6 +198,7 @@ export function MediaLibrary({
 
   if (selected) {
     const linkedInsights = vault.filter((entry) => (entry.sourceIds || []).includes(selected.id));
+    const capture = captureDraft || selected.capture || { sessions: [] };
     
     return (
       <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
@@ -254,9 +276,9 @@ export function MediaLibrary({
                 <Plus className="size-2.5" /> BEFORE YOU START
               </h3>
               <div className="bg-muted/5 border border-border/30 rounded-xl overflow-hidden shadow-sm">
-                <CaptureRow label="PRIOR BELIEFS" value={selected.capture?.before?.priorBeliefs} placeholder="What do I already believe about this topic?" onChange={(val) => updateSelected({ capture: { ...selected.capture, before: { ...selected.capture?.before, priorBeliefs: val }, sessions: selected.capture?.sessions || [] } })} />
-                <CaptureRow label="EXPECTATION" value={selected.capture?.before?.expectation} placeholder="What am I hoping this challenges or confirms?" onChange={(val) => updateSelected({ capture: { ...selected.capture, before: { ...selected.capture?.before, expectation: val }, sessions: selected.capture?.sessions || [] } })} />
-                <CaptureRow label="OPEN QUESTION" value={selected.capture?.before?.openQuestion} placeholder="What core problem am I exploring here?" onChange={(val) => updateSelected({ capture: { ...selected.capture, before: { ...selected.capture?.before, openQuestion: val }, sessions: selected.capture?.sessions || [] } })} />
+                <CaptureRow label="PRIOR BELIEFS" value={capture.before?.priorBeliefs} placeholder="What do I already believe about this topic?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, priorBeliefs: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="EXPECTATION" value={capture.before?.expectation} placeholder="What am I hoping this challenges or confirms?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, expectation: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="OPEN QUESTION" value={capture.before?.openQuestion} placeholder="What core problem am I exploring here?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, openQuestion: val }, sessions: capture.sessions || [] })} />
               </div>
             </section>
 
@@ -277,17 +299,17 @@ export function MediaLibrary({
                 <Plus className="size-2.5" /> AFTER COMPLETING
               </h3>
               <div className="bg-muted/5 border border-border/30 rounded-xl overflow-hidden shadow-sm">
-                <CaptureRow label="CORE ARGUMENT" value={selected.capture?.after?.coreArgument} placeholder="The central thesis as understood post-consumption..." onChange={(val) => updateSelected({ capture: { ...selected.capture, after: { ...selected.capture?.after, coreArgument: val }, sessions: selected.capture?.sessions || [] } })} />
-                <CaptureRow label="WHAT HELD UP" value={selected.capture?.after?.heldUp} placeholder="Ideas that survived your skepticism" onChange={(val) => updateSelected({ capture: { ...selected.capture, after: { ...selected.capture?.after, heldUp: val }, sessions: selected.capture?.sessions || [] } })} />
-                <CaptureRow label="WHAT DIDN'T" value={selected.capture?.after?.didntHold} placeholder="Where it was wrong or incomplete" onChange={(val) => updateSelected({ capture: { ...selected.capture, after: { ...selected.capture?.after, didntHold: val }, sessions: selected.capture?.sessions || [] } })} />
-                <CaptureRow label="LASTING IDEA" value={selected.capture?.after?.lasting} placeholder="What is the one thing you'll take with you?" onChange={(val) => updateSelected({ capture: { ...selected.capture, after: { ...selected.capture?.after, lasting: val }, sessions: selected.capture?.sessions || [] } })} />
-                <CaptureRow label="BELIEF CHANGE" value={selected.capture?.after?.beliefChange} placeholder="How has your perspective shifted?" onChange={(val) => updateSelected({ capture: { ...selected.capture, after: { ...selected.capture?.after, beliefChange: val }, sessions: selected.capture?.sessions || [] } })} />
-                <CaptureRow label="CROSS-REFERENCES" value={selected.capture?.after?.crossRefs} placeholder="Other sources this connects to" onChange={(val) => updateSelected({ capture: { ...selected.capture, after: { ...selected.capture?.after, crossRefs: val }, sessions: selected.capture?.sessions || [] } })} />
+                <CaptureRow label="CORE ARGUMENT" value={capture.after?.coreArgument} placeholder="The central thesis as understood post-consumption..." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, coreArgument: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT HELD UP" value={capture.after?.heldUp} placeholder="Ideas that survived your skepticism" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, heldUp: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT DIDN'T" value={capture.after?.didntHold} placeholder="Where it was wrong or incomplete" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, didntHold: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="LASTING IDEA" value={capture.after?.lasting} placeholder="What is the one thing you'll take with you?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, lasting: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="BELIEF CHANGE" value={capture.after?.beliefChange} placeholder="How has your perspective shifted?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, beliefChange: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="CROSS-REFERENCES" value={capture.after?.crossRefs} placeholder="Other sources this connects to" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, crossRefs: val }, sessions: capture.sessions || [] })} />
               </div>
             </section>
 
             <div className="flex gap-4 pt-10 border-t border-border/30">
-              <Button className="bg-accent px-10 h-11 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">SAVE CAPTURE</Button>
+              <Button onClick={() => updateSelected({ capture })} className="bg-accent px-10 h-11 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">SAVE CAPTURE</Button>
               <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="h-11 px-10 font-code text-[11px] tracking-widest uppercase text-accent border-accent/20 shadow-sm bg-white rounded-full font-bold">
                 {isDistilling ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Sparkles className="size-4 mr-2" />}
                 DISTILL → INSIGHT

@@ -4,6 +4,7 @@
 import React, { useRef, useEffect } from 'react';
 import type { PageSize, PaperColor, PaperPattern } from './Atelier';
 import { cn } from '@/lib/utils';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 interface DocsPageProps {
   pageNumber: number;
@@ -21,7 +22,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, conte
 
   useEffect(() => {
     if (editorRef.current && editorRef.current !== document.activeElement) {
-      editorRef.current.innerHTML = content;
+      editorRef.current.innerHTML = sanitizeHtml(content);
     }
   }, [content]);
 
@@ -76,7 +77,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, conte
       <div 
         ref={editorRef}
         contentEditable={isEditable}
-        onInput={(e) => onContentChange(e.currentTarget.innerHTML)}
+        onInput={(e) => onContentChange(sanitizeHtml(e.currentTarget.innerHTML))}
         className={cn(
           "flex-1 p-24 focus:outline-none font-body text-[18px] italic leading-[2.4]",
           !isEditable && "pointer-events-none opacity-20",

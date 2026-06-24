@@ -6,6 +6,8 @@ import type { User } from 'firebase/auth';
 import {
   FirebaseClientProvider,
   initializeFirebase,
+  isFirebaseConfigComplete,
+  missingFirebaseConfigKeys,
   useCollection,
   useDoc,
   useFirebase,
@@ -34,8 +36,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Loader2 } from 'lucide-react';
 
-// Initialize Firebase once at the top level
-const firebaseInstances = typeof window !== 'undefined' ? initializeFirebase() : null;
+type FirebaseInstances = ReturnType<typeof initializeFirebase>;
 
 function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
   const { db } = useFirebase();
@@ -619,10 +620,56 @@ function ReadexApp() {
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
+  const [firebaseInstances, setFirebaseInstances] = useState<FirebaseInstances | null>(null);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mounted || !isFirebaseConfigComplete) return;
+    try {
+      setFirebaseInstances(initializeFirebase());
+    } catch (error) {
+      setInitError(error instanceof Error ? error.message : 'Firebase initialization failed.');
+    }
+  }, [mounted]);
+
+  if (mounted && !isFirebaseConfigComplete) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background px-6 text-foreground">
+        <div className="max-w-xl rounded-2xl border border-border/60 bg-card p-8 shadow-sm">
+          <div className="font-code text-[10px] uppercase tracking-[0.22em] text-accent">Firebase setup required</div>
+          <h1 className="mt-3 font-headline text-3xl font-semibold">Noesis needs your Firebase config.</h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            Add these missing variables to `.env.local`, then restart the dev server.
+          </p>
+          <div className="mt-5 rounded-xl bg-muted/60 p-4 font-code text-xs leading-6 text-muted-foreground">
+            {missingFirebaseConfigKeys.map((key) => <div key={key}>{key}</div>)}
+          </div>
+          <Button variant="outline" onClick={() => window.location.reload()} size="sm" className="mt-6 rounded-full">
+            <RefreshCw className="mr-2 size-3.5" /> Reload Page
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (mounted && initError) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background px-6 text-foreground">
+        <div className="max-w-xl rounded-2xl border border-destructive/30 bg-card p-8 shadow-sm">
+          <div className="font-code text-[10px] uppercase tracking-[0.22em] text-destructive">Firebase failed to start</div>
+          <h1 className="mt-3 font-headline text-3xl font-semibold">Check your Firebase settings.</h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">{initError}</p>
+          <Button variant="outline" onClick={() => window.location.reload()} size="sm" className="mt-6 rounded-full">
+            <RefreshCw className="mr-2 size-3.5" /> Reload Page
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!mounted || !firebaseInstances) {
     return (

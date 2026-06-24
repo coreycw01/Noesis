@@ -4,7 +4,7 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
-import { firebaseConfig } from './config';
+import { firebaseConfig, isFirebaseConfigComplete, missingFirebaseConfigKeys } from './config';
 
 let firebaseApp: FirebaseApp;
 let firestore: Firestore;
@@ -12,6 +12,10 @@ let auth: Auth;
 
 export function initializeFirebase() {
   try {
+    if (!isFirebaseConfigComplete) {
+      throw new Error(`Missing Firebase environment variables: ${missingFirebaseConfigKeys.join(', ')}`);
+    }
+
     if (getApps().length > 0) {
       firebaseApp = getApp();
     } else {
@@ -28,13 +32,7 @@ export function initializeFirebase() {
   }
 }
 
-// Initialize immediately on the client if possible
-const instances = typeof window !== 'undefined' ? initializeFirebase() : null;
-
-export const db = instances?.firestore;
-export const firebaseAuth = instances?.auth;
-export const app = instances?.firebaseApp;
-
+export { isFirebaseConfigComplete, missingFirebaseConfigKeys };
 export * from './provider';
 export * from './client-provider';
 export * from './auth/use-user';
