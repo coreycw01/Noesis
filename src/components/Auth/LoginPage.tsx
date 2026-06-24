@@ -11,7 +11,7 @@ import {
   signInWithPopup,
   updateProfile,
 } from 'firebase/auth';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,8 +31,10 @@ function authMessage(error: unknown) {
   if (code.includes('auth/email-already-in-use')) return 'That email already has a Noesis account.';
   if (code.includes('auth/weak-password')) return 'Use at least 6 characters for your password.';
   if (code.includes('auth/popup-closed-by-user')) return 'Google sign-in was closed before it finished.';
-  if (code.includes('auth/operation-not-allowed')) return 'This sign-in method is not enabled in Firebase Auth yet.';
-  return 'Authentication failed. Check your details and try again.';
+  if (code.includes('auth/operation-not-allowed')) return 'This sign-in method is not enabled in Firebase Auth. Please enable it in your Firebase Console.';
+  if (code.includes('auth/user-not-found')) return 'No account found with this email.';
+  if (code.includes('auth/wrong-password')) return 'Incorrect password.';
+  return 'Authentication failed. Check your details or Firebase configuration and try again.';
 }
 
 export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
@@ -42,13 +44,17 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState<'email' | 'google' | 'reset' | null>(null);
 
   const logoData = placeholderData.placeholderImages.find(img => img.id === 'app-logo');
 
   const submitEmail = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!email.trim() || !password.trim()) return;
+    if (!email.trim() || !password.trim()) {
+      toast({ title: 'Input Required', description: 'Please enter both your email and password.' });
+      return;
+    }
     setBusy('email');
     try {
       if (mode === 'signup') {
@@ -58,7 +64,12 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
     } catch (error) {
-      toast({ title: mode === 'signup' ? 'Account not created' : 'Sign in failed', description: authMessage(error) });
+      console.error('Auth error:', error);
+      toast({ 
+        variant: 'destructive',
+        title: mode === 'signup' ? 'Account not created' : 'Sign in failed', 
+        description: authMessage(error) 
+      });
     } finally {
       setBusy(null);
     }
@@ -67,9 +78,17 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
   const signInGoogle = async () => {
     setBusy('google');
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
+      const provider = new GoogleAuthProvider();
+      // Ensure popup works in various environments
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithPopup(auth, provider);
     } catch (error) {
-      toast({ title: 'Google sign in failed', description: authMessage(error) });
+      console.error('Google Auth error:', error);
+      toast({ 
+        variant: 'destructive',
+        title: 'Google sign in failed', 
+        description: authMessage(error) 
+      });
     } finally {
       setBusy(null);
     }
@@ -85,7 +104,12 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
       await sendPasswordResetEmail(auth, email.trim());
       toast({ title: 'Reset email sent', description: 'Check your inbox for a password reset link.' });
     } catch (error) {
-      toast({ title: 'Reset failed', description: authMessage(error) });
+      console.error('Reset error:', error);
+      toast({ 
+        variant: 'destructive',
+        title: 'Reset failed', 
+        description: authMessage(error) 
+      });
     } finally {
       setBusy(null);
     }
@@ -176,11 +200,26 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
                   <Label>Password</Label>
                   {mode === 'signin' && (
                     <button type="button" onClick={resetPassword} className="text-xs text-muted-foreground hover:text-accent">
-                      Reset
+                      Forgot Password?
                     </button>
                   )}
                 </div>
-                <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="********" className="h-11" />
+                <div className="relative">
+                  <Input 
+                    type={showPassword ? 'text' : 'password'} 
+                    value={password} 
+                    onChange={(event) => setPassword(event.target.value)} 
+                    placeholder="********" 
+                    className="h-11 pr-10" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
               </div>
 
               <Button type="submit" className="h-11 w-full rounded-full font-bold" disabled={busy !== null}>
@@ -195,7 +234,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
               <div className="h-px flex-1 bg-border" />
             </div>
 
-            <Button type="button" variant="outline" onClick={signInGoogle} disabled={busy !== null} className="h-11 w-full rounded-full bg-card font-bold">
+            <Button type="button" variant="outline" onClick={signInGoogle} disabled={busy !== null} className="h-11 w-full rounded-full bg-card font-bold border-border/60">
               {busy === 'google' && <Loader2 className="mr-2 size-4 animate-spin" />}
               Continue with Google
             </Button>
@@ -217,7 +256,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
           </div>
 
           <p className={cn('mt-6 text-center text-xs leading-5 text-muted-foreground', !allowDemo && 'opacity-70')}>
-            Enable Email/Password and Google providers in Firebase Auth before production testing.
+            Ensure Email/Password and Google providers are enabled in your Firebase Console for this project.
           </p>
         </div>
       </section>
