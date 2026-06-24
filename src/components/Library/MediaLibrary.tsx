@@ -77,7 +77,7 @@ export function MediaLibrary({
   focusedSourceId,
   onFocusedSourceHandled
 }: MediaLibraryProps) {
-  const [filter, setFilter] = setStatusFilter ?? useState<MediaType | 'all'>('all');
+  const [filter, setFilter] = useState<MediaType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
