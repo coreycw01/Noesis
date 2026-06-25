@@ -43,6 +43,7 @@ const collectionPlaceholders = {
     x: 50,
     y: 50,
     createdFrom: 'fallback',
+    philosophyStatus: 'emerging',
     dateCreated: now,
     dateUpdated: now,
     _schemaPlaceholder: true
@@ -148,6 +149,34 @@ const collectionPlaceholders = {
     categories: [],
     connections: [],
     beliefId: '',
+    dateCreated: now,
+    dateUpdated: now,
+    _schemaPlaceholder: true
+  },
+  links: {
+    fromType: 'source',
+    fromId: '_schema',
+    fromLabel: 'Schema Placeholder Source',
+    toType: 'position',
+    toId: '_schema',
+    toLabel: 'Placeholder Position',
+    type: 'supports',
+    note: 'Placeholder typed philosophical link.',
+    createdFrom: 'system',
+    dateCreated: now,
+    dateUpdated: now,
+    _schemaPlaceholder: true
+  },
+  suggestions: {
+    targetType: 'annotation',
+    targetId: '_schema',
+    targetLabel: 'Placeholder annotation',
+    suggestionType: 'annotation_consequence',
+    title: 'Placeholder AI suggestion',
+    body: 'AI suggestions are stored here until accepted, rejected, ignored, or acted on.',
+    payload: {},
+    status: 'pending',
+    createdFrom: 'ai',
     dateCreated: now,
     dateUpdated: now,
     _schemaPlaceholder: true

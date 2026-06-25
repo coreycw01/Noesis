@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { BookOpen, Edit, ExternalLink, HelpCircle, Highlighter, Lightbulb, Quote, Search, Trash2 } from 'lucide-react';
+import { BookOpen, Edit, ExternalLink, HelpCircle, Highlighter, Loader2, Quote, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,19 +12,25 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
-import type { Annotation, AnnotationType, Concept, Media } from '@/lib/types';
+import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
+import type { AiSuggestion, Annotation, AnnotationType, Concept, Media, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { suggestAnnotationConsequences } from '@/ai/flows/philosophy-suggestions';
 
 interface AnnotationsIndexProps {
   media: Media[];
   concepts: Concept[];
+  positions?: VaultEntry[];
+  inquiries?: Question[];
   onUpdateAnnotation: (sourceId: string, annotation: Annotation) => void;
   onDeleteAnnotation: (sourceId: string, annotationId: string) => void;
   onOpenSource: (sourceId: string) => void;
   onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
   onCreateInquiry: (data: { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation' }) => void;
   onAddConcept: (data: Partial<Concept>) => void;
+  onCreateSuggestion: (data: Partial<AiSuggestion>) => void;
 }
 
 type FlatAnnotation = Annotation & { source: Media };
@@ -33,27 +39,33 @@ type AnnotationFilter = AnnotationType | 'all' | 'unanswered';
 export function AnnotationsIndex({
   media,
   concepts,
+  positions = [],
+  inquiries = [],
   onUpdateAnnotation,
   onDeleteAnnotation,
   onOpenSource,
   onCreatePosition,
   onCreateInquiry,
   onAddConcept,
+  onCreateSuggestion,
 }: AnnotationsIndexProps) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<AnnotationFilter>('all');
   const [filterConcept, setFilterConcept] = useState<string>('all');
   const [filterSource, setFilterSource] = useState<string>('all');
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
+  const [suggestingId, setSuggestingId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const annotations = useMemo(() => allAnnotations(media) as FlatAnnotation[], [media]);
   const filtered = useMemo(() => {
     return annotations
       .filter((annotation) => {
-        // Exclude questions as requested
-        if (annotation.type === 'question') return false;
-        
-        const typeOk = filterType === 'all' || annotation.type === filterType;
+        const typeOk =
+          filterType === 'all' ||
+          (filterType === 'unanswered'
+            ? annotation.type === 'question' && !annotation.answer?.trim()
+            : annotation.type === filterType);
         const conceptOk = filterConcept === 'all' || (annotation.conceptTags || annotation.source.tags || []).map(conceptKey).includes(filterConcept);
         const sourceOk = filterSource === 'all' || annotation.source.id === filterSource;
         const query = `${annotation.text} ${annotation.source.title} ${annotation.source.creator} ${(annotation.conceptTags || annotation.source.tags || []).join(' ')}`.toLowerCase();
@@ -65,17 +77,17 @@ export function AnnotationsIndex({
   const allConcepts = useMemo(() => {
     const tags = new Set<string>();
     annotations.forEach((annotation) => {
-      if (annotation.type !== 'question') {
-        (annotation.conceptTags || annotation.source.tags || []).forEach((tag) => tags.add(conceptKey(tag)));
-      }
+      (annotation.conceptTags || annotation.source.tags || []).forEach((tag) => tags.add(conceptKey(tag)));
     });
     return Array.from(tags).sort();
   }, [annotations]);
 
   const typeCounts = useMemo(() => ({
-    total: annotations.filter(a => a.type !== 'question').length,
+    total: annotations.length,
     highlight: annotations.filter((annotation) => annotation.type === 'highlight').length,
     thought: annotations.filter((annotation) => annotation.type === 'thought').length,
+    question: annotations.filter((annotation) => annotation.type === 'question').length,
+    unanswered: annotations.filter((annotation) => annotation.type === 'question' && !annotation.answer?.trim()).length,
     connection: annotations.filter((annotation) => annotation.type === 'connection').length,
   }), [annotations]);
 
@@ -86,6 +98,7 @@ export function AnnotationsIndex({
       ...annotation,
       text: annotation.text.trim(),
       conceptTags: normalizeConceptTags(annotation.conceptTags || source.tags),
+      philosophyStatus: annotation.philosophyStatus || (annotation.type === 'question' ? 'questioned' : 'connected'),
       date: annotation.date || today(),
     });
     setEditing(null);
@@ -98,12 +111,61 @@ export function AnnotationsIndex({
       tags: normalizeConceptTags(annotation.conceptTags || annotation.source.tags),
       sourceIds: [annotation.source.id],
     });
+    const { source, ...annotationData } = annotation;
+    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'used_in_position' });
+  };
+
+  const createInquiry = (annotation: FlatAnnotation) => {
+    const tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags);
+    onCreateInquiry({
+      text: annotation.type === 'question' ? annotation.text : `What does this imply: ${annotation.text}`,
+      conceptIds: concepts.filter((concept) => tags.map(conceptKey).includes(conceptKey(concept.name))).map((concept) => concept.id),
+      sourceIds: [annotation.source.id],
+      evidenceIds: [annotation.id],
+      type: 'annotation',
+    });
+    const { source, ...annotationData } = annotation;
+    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'questioned' });
+  };
+
+  const suggestConsequences = async (annotation: FlatAnnotation) => {
+    setSuggestingId(annotation.id);
+    try {
+      const suggestion = await suggestAnnotationConsequences({
+        annotationText: annotation.text,
+        annotationType: annotation.type,
+        sourceTitle: annotation.source.title,
+        existingConcepts: concepts.map((concept) => concept.name),
+        existingInquiries: inquiries.map((inquiry) => inquiry.text),
+        existingPositions: positions.map((position) => position.statement || position.title),
+      });
+      onCreateSuggestion({
+        targetType: 'annotation',
+        targetId: `${annotation.source.id}:${annotation.id}`,
+        targetLabel: annotation.text.slice(0, 90),
+        suggestionType: 'annotation_consequence',
+        title: 'Possible consequence',
+        body: suggestion.rationale,
+        payload: {
+          ...suggestion,
+          sourceId: annotation.source.id,
+          annotationId: annotation.id,
+        },
+      });
+      toast({ title: 'Suggestion Saved', description: 'Noesis saved a possible next step for you to accept or ignore later.' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Suggestion Failed', description: 'The assistant could not read this annotation right now.' });
+    } finally {
+      setSuggestingId(null);
+    }
   };
 
   const filterButtons: { id: AnnotationFilter; label: string; count: number }[] = [
     { id: 'all', label: 'All', count: typeCounts.total },
     { id: 'highlight', label: 'Highlights', count: typeCounts.highlight },
     { id: 'thought', label: 'Thoughts', count: typeCounts.thought },
+    { id: 'question', label: 'Questions', count: typeCounts.question },
+    { id: 'unanswered', label: 'Unanswered', count: typeCounts.unanswered },
     { id: 'connection', label: 'Connections', count: typeCounts.connection },
   ];
 
@@ -112,7 +174,7 @@ export function AnnotationsIndex({
       <header className="flex justify-between items-center mb-10">
         <div>
           <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Annotations</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Review and refine captured highlights, thoughts, and connections across all sources.</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Review and refine captured highlights, thoughts, questions, and connections across all sources.</p>
         </div>
         <div className="flex items-center gap-6">
           <Stat label="Total Excerpts" value={typeCounts.total} />
@@ -188,6 +250,29 @@ export function AnnotationsIndex({
               ))}
             </div>
 
+            <NextPhilosophicalActionPanel
+              compact
+              status={annotation.philosophyStatus || (annotation.type === 'question' ? 'questioned' : 'raw')}
+              description="Ask what this note becomes: concept language, an inquiry, support for a position, or a challenge."
+              actions={[
+                {
+                  label: suggestingId === annotation.id ? 'Thinking' : 'Ask AI',
+                  tone: 'ai',
+                  disabled: suggestingId === annotation.id,
+                  onClick: () => suggestConsequences(annotation),
+                },
+                {
+                  label: 'Make Position',
+                  tone: 'support',
+                  onClick: () => createPosition(annotation),
+                },
+                {
+                  label: 'Make Inquiry',
+                  onClick: () => createInquiry(annotation),
+                },
+              ]}
+            />
+
             <div className="flex items-center justify-between gap-4 pt-6 border-t border-border/20">
               <button onClick={() => onOpenSource(annotation.source.id)} className="flex min-w-0 items-center gap-3 text-left">
                 <div className="size-8 rounded-lg bg-accent/5 flex items-center justify-center shrink-0 border border-accent/10">
@@ -199,8 +284,9 @@ export function AnnotationsIndex({
                 </div>
               </button>
               <div className="flex shrink-0 gap-2">
-                <Button variant="outline" size="sm" onClick={() => createPosition(annotation)} className="h-8 rounded-full font-code text-[9px] uppercase tracking-widest">
-                  <Lightbulb className="mr-1.5 size-3.5" /> Position
+                <Button variant="outline" size="sm" onClick={() => suggestConsequences(annotation)} disabled={suggestingId === annotation.id} className="h-8 rounded-full font-code text-[9px] uppercase tracking-widest">
+                  {suggestingId === annotation.id ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <HelpCircle className="mr-1.5 size-3.5" />}
+                  Next
                 </Button>
               </div>
             </div>
@@ -229,6 +315,7 @@ export function AnnotationsIndex({
                     <SelectContent>
                       <SelectItem value="highlight">Highlight</SelectItem>
                       <SelectItem value="thought">Thought</SelectItem>
+                      <SelectItem value="question">Question</SelectItem>
                       <SelectItem value="connection">Connection</SelectItem>
                     </SelectContent>
                   </Select>
@@ -242,6 +329,12 @@ export function AnnotationsIndex({
                 <Label>Text</Label>
                 <Textarea value={editing.text} onChange={(event) => setEditing((prev) => prev ? { ...prev, text: event.target.value } : prev)} className="min-h-[140px]" />
               </div>
+              {editing.type === 'question' && (
+                <div className="space-y-2">
+                  <Label>Working Answer</Label>
+                  <Textarea value={editing.answer || ''} onChange={(event) => setEditing((prev) => prev ? { ...prev, answer: event.target.value } : prev)} className="min-h-[100px]" />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Concept Tags</Label>
                 <ConceptTagPicker

@@ -129,7 +129,14 @@ export function MediaLibrary({
 
   const addAnnotation = () => {
     if (!selected || !annotationDraft.text.trim()) return;
-    const annotation: Annotation = { id: uid(), type: annotationDraft.type, text: annotationDraft.text.trim(), date: today(), conceptTags: selected.tags };
+    const annotation: Annotation = {
+      id: uid(),
+      type: annotationDraft.type,
+      text: annotationDraft.text.trim(),
+      date: today(),
+      conceptTags: selected.tags,
+      philosophyStatus: annotationDraft.type === 'question' ? 'questioned' : 'raw',
+    };
     updateSelected({ annotations: [annotation, ...(selected.annotations || [])] });
     setAnnotationDraft({ type: 'thought', text: '' });
   };
@@ -175,7 +182,8 @@ export function MediaLibrary({
         type: 'question',
         text: q,
         date: today(),
-        conceptTags: selected.tags
+        conceptTags: selected.tags,
+        philosophyStatus: 'questioned',
       }));
 
       updateSelected({ annotations: [...newAnnotations, ...(selected.annotations || [])] });
@@ -264,8 +272,8 @@ export function MediaLibrary({
           <TabsList className="bg-transparent border-b border-border/50 rounded-none h-14 w-full justify-start gap-10 p-0 mb-10">
             <TabsTrigger value="capture" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CAPTURE</TabsTrigger>
             <TabsTrigger value="annotations" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">ANNOTATIONS</TabsTrigger>
-            <TabsTrigger value="insights" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">INSIGHTS</TabsTrigger>
-            <TabsTrigger value="connections" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CONNECTIONS</TabsTrigger>
+            <TabsTrigger value="insights" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">POSITIONS</TabsTrigger>
+            <TabsTrigger value="connections" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">LINKS</TabsTrigger>
           </TabsList>
 
           <TabsContent value="capture" className="space-y-16">
@@ -314,7 +322,7 @@ export function MediaLibrary({
               <Button onClick={() => updateSelected({ capture })} className="bg-accent px-10 h-11 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">SAVE CAPTURE</Button>
               <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="h-11 px-10 font-code text-[11px] tracking-widest uppercase text-accent border-accent/20 shadow-sm bg-white rounded-full font-bold">
                 {isDistilling ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Sparkles className="size-4 mr-2" />}
-                DISTILL → INSIGHT
+                DISTILL POSITION
               </Button>
             </div>
           </TabsContent>
@@ -364,8 +372,8 @@ export function MediaLibrary({
 
           <TabsContent value="insights" className="space-y-10">
             <div className="flex justify-between items-center">
-              <h3 className="readex-kicker opacity-50 uppercase font-bold text-[11px]">{linkedInsights.length} BREAKTHROUGHS ANCHORED HERE</h3>
-              <Button onClick={() => setInsightOpen(true)} size="sm" className="bg-accent h-10 px-6 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">+ NEW INSIGHT</Button>
+              <h3 className="readex-kicker opacity-50 uppercase font-bold text-[11px]">{linkedInsights.length} POSITIONS ANCHORED HERE</h3>
+              <Button onClick={() => setInsightOpen(true)} size="sm" className="bg-accent h-10 px-6 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">+ NEW POSITION</Button>
             </div>
 
             <div className="space-y-5">
@@ -402,15 +410,15 @@ export function MediaLibrary({
 
               {linkedInsights.length === 0 && (
                 <div className="py-24 text-center opacity-30 bg-white rounded-xl border border-dashed border-border/50 shadow-sm">
-                  <p className="font-headline text-2xl italic mb-3">No breakthroughs archived yet.</p>
-                  <p className="font-body text-base">Turn your annotations into explicit claims using the "New Insight" action.</p>
+                  <p className="font-headline text-2xl italic mb-3">No positions archived yet.</p>
+                  <p className="font-body text-base">Turn your annotations into explicit positions using the "New Position" action.</p>
                 </div>
               )}
             </div>
           </TabsContent>
 
           <TabsContent value="connections" className="space-y-10">
-            <h3 className="readex-kicker opacity-50 uppercase font-bold text-[11px]">VAULT ENTRIES LINKED TO THIS SOURCE</h3>
+            <h3 className="readex-kicker opacity-50 uppercase font-bold text-[11px]">POSITIONS LINKED TO THIS SOURCE</h3>
             <div className="space-y-5">
               {linkedInsights.map((entry) => (
                 <Card 
@@ -452,8 +460,8 @@ export function MediaLibrary({
 
               {linkedInsights.length === 0 && (
                 <div className="py-24 text-center opacity-30 bg-white rounded-xl border border-dashed border-border/50 shadow-sm">
-                  <p className="font-headline text-2xl italic mb-3">No vault connections established.</p>
-                  <p className="font-body text-base">Create an insight or anchor a belief to this source to see it here.</p>
+                  <p className="font-headline text-2xl italic mb-3">No source links established.</p>
+                  <p className="font-body text-base">Create a position or link one to this source to see it here.</p>
                 </div>
               )}
             </div>
@@ -474,7 +482,7 @@ export function MediaLibrary({
 
         <Dialog open={insightOpen} onOpenChange={setInsightOpen}>
           <DialogContent className="max-w-xl border-none shadow-2xl rounded-2xl">
-            <DialogHeader><DialogTitle className="font-headline text-3xl italic">New Insight</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="font-headline text-3xl italic">New Position</DialogTitle></DialogHeader>
             <div className="space-y-6 pt-4">
               <div className="space-y-2">
                 <Label className="readex-kicker">Insight Title</Label>
@@ -959,6 +967,7 @@ function ConceptDetailDialog({ name, onClose, concepts, media, vault, drafts, qu
     { id: 'questions', label: 'QUESTIONS', count: related.questions.length },
     { id: 'beliefs', label: 'BELIEFS', count: related.beliefs.length },
     { id: 'writing', label: 'WRITING', count: related.drafts.length },
+    { id: 'practices', label: 'PRACTICES', count: related.practices.length },
     { id: 'evolution', label: 'EVOLUTION', count: related.events.length },
   ];
 
@@ -1037,6 +1046,22 @@ function ConceptDetailDialog({ name, onClose, concepts, media, vault, drafts, qu
               </Card>
             ))}
             {related.drafts.length === 0 && <p className="text-sm italic text-muted-foreground text-center py-12 font-body">No linked works discovered.</p>}
+          </div>
+        );
+      case 'practices':
+        return (
+          <div className="space-y-5">
+            <h4 className="readex-kicker opacity-50 font-bold text-[10px]">PRACTICES</h4>
+            {related.practices.map((practice, i) => (
+              <Card key={i} className="p-6 bg-white border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-2">
+                  <h5 className="font-headline font-bold text-xl italic text-primary leading-tight">{practice.title}</h5>
+                  <Badge variant="outline" className="text-[9px] border-border/60 bg-white shadow-sm rounded-full font-bold uppercase tracking-widest">{practice.status}</Badge>
+                </div>
+                <p className="font-body text-sm text-muted-foreground italic leading-relaxed">{practice.description || practice.type}</p>
+              </Card>
+            ))}
+            {related.practices.length === 0 && <p className="text-sm italic text-muted-foreground text-center py-12 font-body">No linked practices discovered.</p>}
           </div>
         );
       case 'evolution':

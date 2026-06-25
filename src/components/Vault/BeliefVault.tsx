@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { SourceLinker } from '@/components/SourceLinker';
-import type { Concept, Draft, Media, VaultEntry, VaultType } from '@/lib/types';
+import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
+import type { Concept, Draft, Media, PhilosophicalLink, VaultEntry, VaultType } from '@/lib/types';
 import { normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 
@@ -22,10 +23,12 @@ interface BeliefVaultProps {
   media: Media[];
   drafts: Draft[];
   concepts: Concept[];
+  links: PhilosophicalLink[];
   onAddEntry: (data: Partial<VaultEntry>) => void;
   onUpdateEntry: (entry: VaultEntry) => void;
   onDeleteEntry: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
+  onCreateLink: (data: Partial<PhilosophicalLink>) => void;
 }
 
 const vaultTypes: VaultType[] = ['belief', 'principle', 'mental_model', 'life_rule', 'worldview'];
@@ -38,7 +41,7 @@ const TYPE_LABELS: Record<VaultType, string> = {
   worldview: 'Worldview',
 };
 
-export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept }: BeliefVaultProps) {
+export function BeliefVault({ entries, media, drafts, concepts, links, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -69,6 +72,8 @@ export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUp
   if (selected) {
     const linkedSources = media.filter((item) => (selected.sourceIds || []).includes(item.id));
     const linkedDrafts = drafts.filter((draft) => (draft.beliefIds || []).includes(selected.id));
+    const typedLinks = links.filter((link) => (link.fromType === 'position' && link.fromId === selected.id) || (link.toType === 'position' && link.toId === selected.id));
+    const firstLinkedSource = linkedSources[0];
     return (
       <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-5xl mx-auto w-full font-body">
         <div className="flex items-center justify-between mb-8">
@@ -86,11 +91,63 @@ export function BeliefVault({ entries, media, drafts, concepts, onAddEntry, onUp
           <div className="flex flex-wrap gap-2">{(selected.tags || []).map((tag) => <Badge key={tag} className="font-code text-[9px] uppercase tracking-widest bg-white border-border/60 shadow-sm rounded-full">{tag}</Badge>)}</div>
         </Card>
 
+        <div className="mb-6">
+          <NextPhilosophicalActionPanel
+            status={selected.status}
+            title="Next Philosophical Action"
+            description="Positions are the center of gravity: support them, challenge them, express them, or test them."
+            actions={[
+              {
+                label: 'Link Support',
+                tone: 'support',
+                disabled: !firstLinkedSource,
+                description: firstLinkedSource ? `Use ${firstLinkedSource.title} as support.` : 'Attach a source before creating a support link.',
+                onClick: () => firstLinkedSource && onCreateLink({
+                  fromType: 'source',
+                  fromId: firstLinkedSource.id,
+                  fromLabel: firstLinkedSource.title,
+                  toType: 'position',
+                  toId: selected.id,
+                  toLabel: selected.title,
+                  type: 'supports',
+                  note: 'Source supports this position.',
+                }),
+              },
+              {
+                label: 'Mark Challenged',
+                tone: 'challenge',
+                onClick: () => onUpdateEntry({
+                  ...selected,
+                  status: 'challenged',
+                  versionHistory: [
+                    ...(selected.versionHistory || []),
+                    { date: today(), eventType: 'challenged', description: 'Marked as challenged for further examination.' },
+                  ],
+                  dateUpdated: today(),
+                }),
+              },
+              {
+                label: 'Mark Revised',
+                onClick: () => onUpdateEntry({
+                  ...selected,
+                  status: 'revised',
+                  versionHistory: [
+                    ...(selected.versionHistory || []),
+                    { date: today(), eventType: 'revised', description: 'Marked as revised after reflection.' },
+                  ],
+                  dateUpdated: today(),
+                }),
+              },
+            ]}
+          />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <EvidencePanel title="Evidence For" items={selected.evidenceFor || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceFor: [...(selected.evidenceFor || []), text], dateUpdated: today() })} />
           <EvidencePanel title="Evidence Against" items={selected.evidenceAgainst || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() })} />
           <InfoPanel title="Linked Sources" items={linkedSources.map((item) => item.title)} empty="No sources linked yet." />
           <InfoPanel title="Linked Works" items={linkedDrafts.map((draft) => draft.title)} empty="No works linked yet." />
+          <InfoPanel title="Typed Links" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed links recorded yet." />
           <InfoPanel title="Version History" items={(selected.versionHistory || []).map((v) => `${v.date}: ${v.description}`)} empty="No revisions recorded yet." />
         </div>
         <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} />

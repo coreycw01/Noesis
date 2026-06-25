@@ -12,10 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { SourceLinker } from '@/components/SourceLinker';
+import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
 import type { Concept, Draft, Insight, Media, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { suggestConceptDescription } from '@/ai/flows/suggest-concept-description';
+import { suggestPositionDrafts } from '@/ai/flows/philosophy-suggestions';
 import { useToast } from '@/hooks/use-toast';
 
 interface ConceptEncyclopediaProps {
@@ -42,6 +44,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [draftConcept, setDraftConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const [isDraftingPositions, setIsDraftingPositions] = useState(false);
+  const [positionDrafts, setPositionDrafts] = useState<Array<{ claim: string; confidence: 'low' | 'medium' | 'high'; supportSummary: string; challengeToConsider: string }>>([]);
   const { toast } = useToast();
   
   const [ideaOpen, setIdeaOpen] = useState(false);
@@ -153,6 +157,40 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     });
   };
 
+  const handleSuggestPositions = async () => {
+    if (!selectedName || !selectedRelated) return;
+    const annotationTexts = selectedRelated.annotations.map((annotation) => annotation.text).filter(Boolean);
+    if (!annotationTexts.length) {
+      toast({ title: 'More evidence needed', description: 'Add annotations to this concept before drafting positions from it.' });
+      return;
+    }
+    setIsDraftingPositions(true);
+    try {
+      const result = await suggestPositionDrafts({
+        conceptName: selectedName,
+        annotations: annotationTexts.slice(0, 16),
+        sourceTitles: selectedRelated.sources.map((source) => source.title).slice(0, 8),
+      });
+      setPositionDrafts(result.drafts);
+      toast({ title: 'Position Drafts Ready', description: 'Review the drafts and save only the claims you want to own.' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Builder Failed', description: 'Noesis could not draft positions from this concept right now.' });
+    } finally {
+      setIsDraftingPositions(false);
+    }
+  };
+
+  const savePositionDraft = (claim: string, body: string) => {
+    if (!selectedName || !selectedRelated) return;
+    onCreateIdea({
+      title: claim.slice(0, 90),
+      body,
+      tags: [selectedName],
+      sourceIds: selectedRelated.sources.map((source) => source.id),
+    });
+    toast({ title: 'Position Saved', description: 'The draft is now a Position linked to this concept.' });
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
       <header className="flex justify-between items-center mb-10">
@@ -216,7 +254,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 "rounded-xl p-5 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group bg-white/95 shadow-md border border-accent/20",
                 isIdea ? "border-accent/30" : "border-accent/20"
               )} 
-              onClick={() => setSelectedName(name)}
+              onClick={() => {
+                setSelectedName(name);
+                setPositionDrafts([]);
+              }}
             >
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="flex-1">
@@ -229,7 +270,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     )}
                   </div>
                   <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 mt-1 font-bold">
-                    {related.sources.length + related.beliefs.length + related.drafts.length} CONNECTIONS
+                    {related.sources.length + related.beliefs.length + related.drafts.length} LINKS
                   </div>
                 </div>
                 <div className={cn(
@@ -268,14 +309,51 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             <DialogTitle className="font-headline text-3xl italic">{selectedName}</DialogTitle>
           </DialogHeader>
           {selectedRelated && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <RelatedSection title="Inputs: Sources" items={selectedRelated.sources.map((item) => `${item.title} - ${item.creator || item.type}`)} />
-              <RelatedSection title="Inputs: Annotations" items={selectedRelated.annotations.map((item) => `${item.type}: ${item.text}`)} />
-              <RelatedSection title="Inputs: Inquiries" items={selectedRelated.questions.map((item) => item.text)} />
-              <RelatedSection title="Outputs: Positions" items={selectedRelated.beliefs.map((item) => item.title)} />
-              <RelatedSection title="Outputs: Works" items={selectedRelated.drafts.map((item) => `${item.title} (${item.type})`)} />
-              <RelatedSection title="Outputs: Practices" items={selectedRelated.practices.map((item) => `${item.title} (${item.type})`)} />
-              <RelatedSection title="Outputs: Evolution" items={selectedRelated.events.map((item) => `${item.eventType}: ${item.entityTitle}`)} />
+            <div className="space-y-4">
+              <NextPhilosophicalActionPanel
+                title="Position Builder"
+                description="Use this concept's annotations as evidence for editable position drafts. AI suggests; you decide."
+                status={`${selectedRelated.annotations.length} annotations`}
+                actions={[
+                  {
+                    label: isDraftingPositions ? 'Drafting' : 'Draft Positions',
+                    tone: 'ai',
+                    disabled: isDraftingPositions || !selectedRelated.annotations.length,
+                    onClick: handleSuggestPositions,
+                  },
+                ]}
+              />
+
+              {positionDrafts.length > 0 && (
+                <div className="grid grid-cols-1 gap-3">
+                  {positionDrafts.map((draft, index) => {
+                    const body = `${draft.claim}\n\nSupport: ${draft.supportSummary}\n\nChallenge to consider: ${draft.challengeToConsider}`;
+                    return (
+                      <Card key={`${draft.claim}-${index}`} className="rounded-xl border-accent/20 bg-white p-5 shadow-sm">
+                        <div className="mb-2 flex items-start justify-between gap-3">
+                          <h4 className="font-headline text-xl font-bold italic text-primary">{draft.claim}</h4>
+                          <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">{draft.confidence} confidence</Badge>
+                        </div>
+                        <p className="text-sm italic leading-6 text-muted-foreground font-body">{draft.supportSummary}</p>
+                        <p className="mt-2 text-sm leading-6 text-destructive/75 font-body">Challenge: {draft.challengeToConsider}</p>
+                        <Button onClick={() => savePositionDraft(draft.claim, body)} size="sm" className="mt-4 rounded-full bg-accent px-5 font-code text-[9px] uppercase tracking-widest">
+                          Save Position
+                        </Button>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <RelatedSection title="Inputs: Sources" items={selectedRelated.sources.map((item) => `${item.title} - ${item.creator || item.type}`)} />
+                <RelatedSection title="Inputs: Annotations" items={selectedRelated.annotations.map((item) => `${item.type}: ${item.text}`)} />
+                <RelatedSection title="Inputs: Inquiries" items={selectedRelated.questions.map((item) => item.text)} />
+                <RelatedSection title="Outputs: Positions" items={selectedRelated.beliefs.map((item) => item.title)} />
+                <RelatedSection title="Outputs: Works" items={selectedRelated.drafts.map((item) => `${item.title} (${item.type})`)} />
+                <RelatedSection title="Outputs: Practices" items={selectedRelated.practices.map((item) => `${item.title} (${item.type})`)} />
+                <RelatedSection title="Outputs: Evolution" items={selectedRelated.events.map((item) => `${item.eventType}: ${item.entityTitle}`)} />
+              </div>
             </div>
           )}
         </DialogContent>

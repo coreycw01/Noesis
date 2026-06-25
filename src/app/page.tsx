@@ -29,7 +29,7 @@ import { SettingsPage } from '@/components/Settings/SettingsPage';
 import { Toaster } from '@/components/ui/toaster';
 import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today } from '@/lib/readex';
 import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, DEFAULT_USER_PREFERENCES, DEFAULT_USER_PROFILE, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
-import type { Annotation, AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext, UserPreferences, UserProfile } from '@/lib/types';
+import type { AiSuggestion, Annotation, AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, PhilosophicalLink, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext, UserPreferences, UserProfile } from '@/lib/types';
 import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -55,6 +55,8 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
   const { data: drafts = [] } = useCollection<Draft>(refs.drafts as any);
   const { data: practices = [] } = useCollection<Practice>(refs.practices as any);
   const { data: atlasMaps = [] } = useCollection<AtlasMap>(refs.atlasMaps as any);
+  const { data: links = [] } = useCollection<PhilosophicalLink>(refs.links as any);
+  const { data: suggestions = [] } = useCollection<AiSuggestion>(refs.suggestions as any);
   const { data: goalDoc } = useDoc<GoalSettings>(refs.settingsGoal as any);
   const { data: preferencesDoc } = useDoc<UserPreferences>(refs.settingsPreferences as any);
   const { data: profileDoc } = useDoc<UserProfile>(refs.settingsProfile as any);
@@ -157,6 +159,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
         x: Math.random() * 80 + 10,
         y: Math.random() * 80 + 10,
         createdFrom: name === 'Unsorted Ideas' ? 'fallback' : 'tag',
+        philosophyStatus: name === 'Unsorted Ideas' ? 'emerging' : 'undefined',
         dateCreated: today(),
       };
       setDoc(conceptRef, data).catch(() => emitError(conceptRef.path, 'create', data));
@@ -174,6 +177,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
       x: data.x ?? Math.random() * 80 + 10,
       y: data.y ?? Math.random() * 80 + 10,
       createdFrom: data.createdFrom || 'manual',
+      philosophyStatus: data.philosophyStatus || (data.description ? 'emerging' : 'undefined'),
       dateCreated: today(),
     };
     setDoc(conceptRef, payload).catch(() => emitError(conceptRef.path, 'create', payload));
@@ -411,12 +415,68 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
   const updatePractice = (practice: Practice) => {
     ensureConcepts(practice.conceptTags || []);
     const practiceRef = doc(refs.practices, practice.id);
+    const previous = practices.find((item) => item.id === practice.id);
     updateDoc(practiceRef, { ...practice, dateUpdated: today() } as any).catch(() => emitError(practiceRef.path, 'update', practice));
+    if (previous && previous.status !== practice.status) {
+      createTimelineEvent({
+        entityId: practice.id,
+        entityType: 'practice',
+        entityTitle: practice.title,
+        eventType: practice.status === 'failed' ? 'challenged' : practice.status === 'abandoned' ? 'abandoned' : 'refined',
+        reason: `Practice moved from ${previous.status} to ${practice.status}`,
+        influencedBy: [...(practice.sourceIds || []), ...(practice.positionIds || [])],
+      });
+    }
   };
 
   const deletePractice = (id: string) => {
     const practiceRef = doc(refs.practices, id);
     deleteDoc(practiceRef).catch(() => emitError(practiceRef.path, 'delete'));
+  };
+
+  const addPhilosophicalLink = (data: Partial<PhilosophicalLink>) => {
+    if (!data.fromType || !data.fromId || !data.toType || !data.toId || !data.type) return;
+    const linkRef = doc(refs.links);
+    const payload = {
+      id: linkRef.id,
+      fromType: data.fromType,
+      fromId: data.fromId,
+      fromLabel: data.fromLabel || '',
+      toType: data.toType,
+      toId: data.toId,
+      toLabel: data.toLabel || '',
+      type: data.type,
+      note: data.note || '',
+      createdFrom: data.createdFrom || 'manual',
+      dateCreated: today(),
+      dateUpdated: today(),
+    };
+    setDoc(linkRef, payload).catch(() => emitError(linkRef.path, 'create', payload));
+  };
+
+  const addAiSuggestion = (data: Partial<AiSuggestion>) => {
+    if (!data.targetType || !data.targetId || !data.suggestionType) return;
+    const suggestionRef = doc(refs.suggestions);
+    const payload = {
+      id: suggestionRef.id,
+      targetType: data.targetType,
+      targetId: data.targetId,
+      targetLabel: data.targetLabel || '',
+      suggestionType: data.suggestionType,
+      title: data.title || 'Suggested next action',
+      body: data.body || '',
+      payload: data.payload || {},
+      status: data.status || 'pending',
+      createdFrom: 'ai',
+      dateCreated: today(),
+      dateUpdated: today(),
+    };
+    setDoc(suggestionRef, payload).catch(() => emitError(suggestionRef.path, 'create', payload));
+  };
+
+  const updateAiSuggestion = (suggestion: AiSuggestion) => {
+    const suggestionRef = doc(refs.suggestions, suggestion.id);
+    updateDoc(suggestionRef, { ...suggestion, dateUpdated: today() } as any).catch(() => emitError(suggestionRef.path, 'update', suggestion));
   };
 
   const addAtlasMap = (data: Partial<AtlasMap>) => {
@@ -474,7 +534,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
   const renderContent = () => {
     switch (view) {
       case 'atlas':
-        return <ConceptAtlas concepts={concepts} media={media} insights={insights} vault={vault} drafts={drafts} practices={practices} questions={questions} timeline={timeline} atlasMaps={atlasMaps} onAddConcept={addConcept} onUpdateConcept={updateConcept} onAddAtlasMap={addAtlasMap} onUpdateAtlasMap={updateAtlasMap} onDeleteAtlasMap={deleteAtlasMap} />;
+        return <ConceptAtlas concepts={concepts} media={media} insights={insights} vault={vault} drafts={drafts} practices={practices} questions={questions} timeline={timeline} atlasMaps={atlasMaps} links={links} onAddConcept={addConcept} onUpdateConcept={updateConcept} onAddAtlasMap={addAtlasMap} onUpdateAtlasMap={updateAtlasMap} onDeleteAtlasMap={deleteAtlasMap} />;
       case 'concepts':
         return (
           <ConceptEncyclopedia 
@@ -517,6 +577,8 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
           <AnnotationsIndex
             media={media}
             concepts={concepts}
+            positions={vault}
+            inquiries={questions}
             onUpdateAnnotation={updateAnnotation}
             onDeleteAnnotation={deleteAnnotation}
             onOpenSource={(sourceId) => {
@@ -526,6 +588,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
             onCreatePosition={createIdea}
             onCreateInquiry={addQuestion}
             onAddConcept={addConcept}
+            onCreateSuggestion={addAiSuggestion}
           />
         );
       case 'source-index':
@@ -537,10 +600,12 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
             media={media} 
             drafts={drafts} 
             concepts={concepts} 
+            links={links}
             onAddEntry={addVaultEntry} 
             onUpdateEntry={updateVaultEntry} 
             onDeleteEntry={deleteVaultEntry} 
             onAddConcept={addConcept} 
+            onCreateLink={addPhilosophicalLink}
           />
         );
       case 'questions':
@@ -550,7 +615,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
       case 'evolution':
         return <EvolutionTimeline events={timeline} media={media} />;
       case 'practices':
-        return <PracticesWorkspace practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} />;
+        return <PracticesWorkspace practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} />;
       case 'settings':
         return (
           <SettingsPage

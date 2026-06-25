@@ -20,6 +20,8 @@ import type {
   Draft,
   Insight,
   Media,
+  PhilosophicalLink,
+  PhilosophicalLinkType,
   Practice,
   Question,
   TimelineEvent,
@@ -38,6 +40,7 @@ interface ConceptAtlasProps {
   questions: Question[];
   timeline: TimelineEvent[];
   atlasMaps: AtlasMap[];
+  links: PhilosophicalLink[];
   onAddConcept: (data: Partial<Concept>) => void;
   onUpdateConcept: (concept: Concept) => void;
   onAddAtlasMap: (data: Partial<AtlasMap>) => void;
@@ -57,7 +60,7 @@ type MapNode = {
 type MapEdge = {
   from: string;
   to: string;
-  type: 'user' | 'concept' | 'shared';
+  type: 'user' | 'concept' | 'shared' | 'typed';
   label: string;
   linkType?: AtlasMapLinkType;
   id?: string;
@@ -72,7 +75,7 @@ const defaultAutoLinkFilters: AtlasAutoLinkFilters = {
   conceptLinks: true,
 };
 
-const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'examples', 'causes', 'questions', 'practices', 'relates', 'custom'];
+const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'relates', 'custom'];
 
 export function ConceptAtlas({
   concepts,
@@ -84,6 +87,7 @@ export function ConceptAtlas({
   questions,
   timeline,
   atlasMaps,
+  links,
   onAddConcept,
   onUpdateConcept,
   onAddAtlasMap,
@@ -95,6 +99,7 @@ export function ConceptAtlas({
   const [search, setSearch] = useState('');
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [linkSearch, setLinkSearch] = useState('');
+  const [typedLinkFilter, setTypedLinkFilter] = useState<PhilosophicalLinkType | 'all'>('all');
   const [mode, setMode] = useState<'auto' | 'custom'>('auto');
   const [activeMapId, setActiveMapId] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -194,8 +199,20 @@ export function ConceptAtlas({
         }
       }
     }
+
+    links
+      .filter((link) => typedLinkFilter === 'all' || link.type === typedLinkFilter)
+      .forEach((link) => {
+        const fromConcept = link.fromType === 'concept' ? concepts.find((concept) => concept.id === link.fromId) : null;
+        const toConcept = link.toType === 'concept' ? concepts.find((concept) => concept.id === link.toId) : null;
+        const fromName = conceptKey(fromConcept?.name || link.fromLabel);
+        const toName = conceptKey(toConcept?.name || link.toLabel);
+        if (fromName && toName && nodeNames.has(fromName) && nodeNames.has(toName)) {
+          result.push({ from: fromName, to: toName, type: 'typed', label: link.type.replace(/_/g, ' '), linkType: link.type, id: link.id });
+        }
+      });
     return result;
-  }, [activeMap, concepts, mode, nodes, relatedByNode]);
+  }, [activeMap, concepts, links, mode, nodes, relatedByNode, typedLinkFilter]);
 
   const uniqueFamilies = useMemo(() => {
     const families = new Set();
@@ -205,6 +222,42 @@ export function ConceptAtlas({
     });
     return families.size;
   }, [edges]);
+
+  const todayPrompt = useMemo(() => {
+    const rawAnnotations = media.flatMap((item) => item.annotations || []).filter((annotation) => (annotation.philosophyStatus || 'raw') === 'raw');
+    const openInquiries = questions.filter((question) => ['open', 'investigating', 'gathering_evidence', 'under_tension'].includes(question.status));
+    const unsupportedPositions = vault.filter((position) => !(position.sourceIds || []).length && !(position.evidenceFor || []).length);
+    const untestedPositions = vault.filter((position) => !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
+
+    if (rawAnnotations.length) {
+      return {
+        title: 'Connect one raw annotation',
+        body: 'Choose one captured note and decide whether it becomes a concept, an inquiry, support, or a challenge.',
+      };
+    }
+    if (openInquiries.length) {
+      return {
+        title: 'Move one inquiry forward',
+        body: 'Add evidence for or against one open question so it can eventually become a clearer position.',
+      };
+    }
+    if (unsupportedPositions.length) {
+      return {
+        title: 'Support or challenge a position',
+        body: 'Pick one position without evidence and link the source or objection that gives it pressure.',
+      };
+    }
+    if (untestedPositions.length) {
+      return {
+        title: 'Test a position in practice',
+        body: 'Turn one current position into a small behavior, experiment, or commitment.',
+      };
+    }
+    return {
+      title: 'Record what changed',
+      body: 'Add an Evolution note for the clearest shift in your thinking this week.',
+    };
+  }, [media, practices, questions, vault]);
 
   const availableNodeTerms = useMemo(() => {
     const existingNames = new Set(nodes.map(n => conceptKey(n.name)));
@@ -216,6 +269,16 @@ export function ConceptAtlas({
     const key = conceptKey(selectedName);
     return (activeMap.manualLinks || []).filter(l => conceptKey(l.from) === key || conceptKey(l.to) === key);
   }, [selectedName, mode, activeMap]);
+
+  const selectedTypedLinks = useMemo(() => {
+    if (!selectedName) return [];
+    const key = conceptKey(selectedName);
+    return links.filter((link) => {
+      const fromConcept = link.fromType === 'concept' ? concepts.find((concept) => concept.id === link.fromId) : null;
+      const toConcept = link.toType === 'concept' ? concepts.find((concept) => concept.id === link.toId) : null;
+      return conceptKey(fromConcept?.name || link.fromLabel) === key || conceptKey(toConcept?.name || link.toLabel) === key;
+    });
+  }, [concepts, links, selectedName]);
 
   const linkTargets = useMemo(() => {
     if (!selectedName) return [];
@@ -391,6 +454,16 @@ export function ConceptAtlas({
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-64 pl-9 rounded-full" />
           </div>
+          <select
+            value={typedLinkFilter}
+            onChange={(event) => setTypedLinkFilter(event.target.value as PhilosophicalLinkType | 'all')}
+            className="h-9 rounded-full border border-input bg-background px-4 font-code text-[10px] uppercase tracking-wider shadow-sm"
+          >
+            <option value="all">All Link Types</option>
+            {linkTypes.filter((type) => type !== 'relates' && type !== 'custom').map((type) => (
+              <option key={type} value={type}>{type.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
           <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90 rounded-full">
             <Plus className="mr-1.5 size-4" /> New Concept
           </Button>
@@ -425,10 +498,21 @@ export function ConceptAtlas({
 
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
           <Stat value={nodes.length} label="Nodes" />
-          <Stat value={edges.length} label="Connections" />
+          <Stat value={edges.length} label="Links" />
           <Stat value={uniqueFamilies} label="Link Families" />
           <Stat value={selectedName || 'None'} label="Active" />
         </div>
+
+        <Card className="rounded-xl border-accent/20 bg-white p-5 shadow-sm">
+          <div className="font-code text-[9px] font-bold uppercase tracking-[0.22em] text-accent">Today In Your Philosophy</div>
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="font-headline text-2xl font-bold italic text-primary">{todayPrompt.title}</h2>
+              <p className="mt-1 max-w-2xl text-sm italic leading-6 text-muted-foreground font-body">{todayPrompt.body}</p>
+            </div>
+            <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[9px] uppercase tracking-widest">One next action</Badge>
+          </div>
+        </Card>
       </div>
 
       <div className="flex flex-1 gap-4 overflow-hidden px-8 pb-8">
@@ -477,6 +561,7 @@ export function ConceptAtlas({
                 const points = edgePoints(from, to);
                 const user = edge.type === 'user';
                 const concept = edge.type === 'concept';
+                const typed = edge.type === 'typed';
                 return (
                   <line
                     key={`${edge.from}-${edge.to}-${edge.id || index}`}
@@ -484,8 +569,8 @@ export function ConceptAtlas({
                     y1={`${points.y1}%`}
                     x2={`${points.x2}%`}
                     y2={`${points.y2}%`}
-                    stroke={user ? 'hsl(var(--accent))' : concept ? 'hsl(var(--primary) / .55)' : 'hsl(var(--muted-foreground) / .35)'}
-                    strokeWidth={user ? 4 : concept ? 2.5 : 2}
+                    stroke={user ? 'hsl(var(--accent))' : typed ? 'hsl(160 70% 32%)' : concept ? 'hsl(var(--primary) / .55)' : 'hsl(var(--muted-foreground) / .35)'}
+                    strokeWidth={user ? 4 : typed ? 3 : concept ? 2.5 : 2}
                     strokeDasharray={user || concept ? '0' : '6 6'}
                     strokeLinecap="round"
                     className="transition-all"
@@ -551,6 +636,12 @@ export function ConceptAtlas({
                         </Badge>
                       ))}
 
+                      {selectedTypedLinks.map((link) => (
+                        <Badge key={link.id} variant="secondary" className="flex items-center gap-1 border-emerald-200 bg-emerald-50 pr-2 font-code text-[9px] uppercase tracking-widest text-emerald-700 rounded-full">
+                          {link.type.replace(/_/g, ' ')} - {link.fromLabel || link.fromType} to {link.toLabel || link.toType}
+                        </Badge>
+                      ))}
+
                       {(selectedConcept?.links || []).map((link) => (
                         <Badge key={link} variant="outline" className="flex items-center gap-1 pr-1 font-code text-[9px] uppercase tracking-widest rounded-full">
                           {link}
@@ -560,7 +651,7 @@ export function ConceptAtlas({
                         </Badge>
                       ))}
 
-                      {!selectedMapLinks.length && !(selectedConcept?.links?.length) && <p className="text-[10px] italic text-muted-foreground font-body">No links yet.</p>}
+                      {!selectedMapLinks.length && !selectedTypedLinks.length && !(selectedConcept?.links?.length) && <p className="text-[10px] italic text-muted-foreground font-body">No links yet.</p>}
                     </div>
                   </section>
 

@@ -13,9 +13,16 @@ export type WritingStyle = 'blank_paper' | 'ruled_notebook' | 'manuscript' | 'co
 export type ExternalDocProvider = 'google_docs' | 'notion' | 'dropbox_paper' | 'microsoft_word' | 'markdown' | 'other';
 export type ExternalDocSyncStatus = 'connected' | 'syncing' | 'synced' | 'error';
 export type PracticeType = 'habit' | 'experiment' | 'discipline' | 'reflection_prompt' | 'commitment' | 'observation' | 'rule' | 'challenge';
-export type PracticeStatus = 'planned' | 'active' | 'completed' | 'paused' | 'abandoned';
-export type AtlasMapLinkType = 'supports' | 'challenges' | 'examples' | 'causes' | 'questions' | 'practices' | 'relates' | 'custom';
+export type PracticeStatus = 'proposed' | 'planned' | 'active' | 'completed' | 'failed' | 'integrated' | 'paused' | 'abandoned';
+export type AnnotationPhilosophyStatus = 'raw' | 'connected' | 'questioned' | 'used_in_position' | 'archived';
+export type ConceptPhilosophyStatus = 'undefined' | 'emerging' | 'developed' | 'contested' | 'core';
+export type PositionPhilosophyStatus = 'draft' | 'active' | 'uncertain' | 'challenged' | 'revised' | 'rejected';
+export type PhilosophicalObjectType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'evolution';
+export type PhilosophicalLinkType = 'supports' | 'challenges' | 'defines' | 'refines' | 'contradicts' | 'exemplifies' | 'inspired_by' | 'tested_by' | 'expressed_in' | 'changed_by';
+export type AtlasMapLinkType = PhilosophicalLinkType | 'examples' | 'causes' | 'questions' | 'practices' | 'relates' | 'custom';
 export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'url_metadata' | 'manual';
+export type AiSuggestionType = 'annotation_consequence' | 'position_draft' | 'typed_link' | 'possible_tension' | 'evolution_summary' | 'daily_prompt';
+export type AiSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'ignored';
 
 export interface SecurityRuleContext {
   operation: 'create' | 'update' | 'delete' | 'list' | 'get' | 'write';
@@ -29,6 +36,7 @@ export interface Annotation {
   date: string;
   answer?: string;
   conceptTags?: string[];
+  philosophyStatus?: AnnotationPhilosophyStatus;
 }
 
 export interface SessionLog {
@@ -102,7 +110,7 @@ export interface VaultEntry {
   statement: string;
   description: string;
   confidence: number;
-  status: 'active' | 'questioning' | 'revised' | 'abandoned';
+  status: PositionPhilosophyStatus | 'questioning' | 'abandoned';
   tags: string[];
   sourceIds: string[];
   insightIds?: string[];
@@ -138,12 +146,13 @@ export interface Concept {
   x: number;
   y: number;
   createdFrom?: 'manual' | 'tag' | 'idea' | 'fallback';
+  philosophyStatus?: ConceptPhilosophyStatus;
 }
 
 export interface Question {
   id: string;
   text: string;
-  status: QuestionStatus;
+  status: QuestionStatus | 'gathering_evidence' | 'under_tension' | 'partially_answered' | 'resolved' | 'reopened';
   answer?: string;
   evidenceIds: string[];
   conceptIds: string[];
@@ -208,6 +217,36 @@ export interface Practice {
   positionIds: string[];
   draftIds: string[];
   notes: string;
+  dateCreated: string;
+  dateUpdated: string;
+}
+
+export interface PhilosophicalLink {
+  id: string;
+  fromType: PhilosophicalObjectType;
+  fromId: string;
+  fromLabel?: string;
+  toType: PhilosophicalObjectType;
+  toId: string;
+  toLabel?: string;
+  type: PhilosophicalLinkType;
+  note?: string;
+  createdFrom: 'manual' | 'suggestion' | 'system';
+  dateCreated: string;
+  dateUpdated: string;
+}
+
+export interface AiSuggestion {
+  id: string;
+  targetType: PhilosophicalObjectType;
+  targetId: string;
+  targetLabel?: string;
+  suggestionType: AiSuggestionType;
+  title: string;
+  body: string;
+  payload?: Record<string, any>;
+  status: AiSuggestionStatus;
+  createdFrom: 'ai';
   dateCreated: string;
   dateUpdated: string;
 }

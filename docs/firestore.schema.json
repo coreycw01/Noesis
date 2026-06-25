@@ -18,7 +18,7 @@
         "url": "string?",
         "thumbnailUrl": "string?",
         "tags": "string[] concept names",
-        "annotations": "Annotation[]",
+        "annotations": "Annotation[] with optional philosophyStatus: raw | connected | questioned | used_in_position | archived",
         "capture": "MediaCapture",
         "dateAdded": "ISO string",
         "dateUpdated": "ISO string?"
@@ -35,6 +35,7 @@
         "x": "number Atlas percent",
         "y": "number Atlas percent",
         "createdFrom": "manual | tag | idea | fallback",
+        "philosophyStatus": "undefined | emerging | developed | contested | core",
         "dateCreated": "ISO string",
         "dateUpdated": "ISO string?"
       }
@@ -44,7 +45,7 @@
       "purpose": "Inquiry answer workspaces.",
       "fields": {
         "text": "string",
-        "status": "open | investigating | answered | archived",
+        "status": "open | investigating | answered | archived | gathering_evidence | under_tension | partially_answered | resolved | reopened",
         "answer": "string?",
         "evidenceIds": "string[]",
         "conceptIds": "string[] concept names",
@@ -65,7 +66,7 @@
         "statement": "string",
         "description": "string",
         "confidence": "number 1-5",
-        "status": "active | questioning | revised | abandoned",
+        "status": "draft | active | uncertain | challenged | revised | rejected | questioning | abandoned",
         "tags": "string[] concept names",
         "sourceIds": "string[]",
         "insightIds": "string[]?",
@@ -112,7 +113,7 @@
         "title": "string",
         "description": "string",
         "type": "habit | experiment | discipline | reflection_prompt | commitment | observation | rule | challenge",
-        "status": "planned | active | completed | paused | abandoned",
+        "status": "proposed | planned | active | completed | failed | integrated | paused | abandoned",
         "durationDays": "number",
         "startDate": "YYYY-MM-DD string",
         "endDate": "YYYY-MM-DD string",
@@ -139,7 +140,7 @@
         "dateCreated": "ISO string",
         "dateUpdated": "ISO string"
       },
-      "linkTypes": "supports | challenges | examples | causes | questions | practices | relates | custom",
+      "linkTypes": "supports | challenges | defines | refines | contradicts | exemplifies | inspired_by | tested_by | expressed_in | changed_by | examples | causes | questions | practices | relates | custom",
       "autoLinkFilters": {
         "sharedSources": "boolean",
         "sharedPositions": "boolean",
@@ -173,6 +174,40 @@
         "categories": "string[]?",
         "connections": "string[]?",
         "beliefId": "string?",
+        "dateCreated": "ISO string",
+        "dateUpdated": "ISO string"
+      }
+    },
+    "links": {
+      "path": "/users/{uid}/links/{linkId}",
+      "purpose": "Typed philosophical relationships between sources, annotations, concepts, inquiries, positions, works, practices, and evolution events.",
+      "fields": {
+        "fromType": "source | annotation | concept | inquiry | position | work | practice | evolution",
+        "fromId": "string",
+        "fromLabel": "string?",
+        "toType": "source | annotation | concept | inquiry | position | work | practice | evolution",
+        "toId": "string",
+        "toLabel": "string?",
+        "type": "supports | challenges | defines | refines | contradicts | exemplifies | inspired_by | tested_by | expressed_in | changed_by",
+        "note": "string?",
+        "createdFrom": "manual | suggestion | system",
+        "dateCreated": "ISO string",
+        "dateUpdated": "ISO string"
+      }
+    },
+    "suggestions": {
+      "path": "/users/{uid}/suggestions/{suggestionId}",
+      "purpose": "AI suggestions stored separately until the user accepts, rejects, ignores, or acts on them.",
+      "fields": {
+        "targetType": "source | annotation | concept | inquiry | position | work | practice | evolution",
+        "targetId": "string",
+        "targetLabel": "string?",
+        "suggestionType": "annotation_consequence | position_draft | typed_link | possible_tension | evolution_summary | daily_prompt",
+        "title": "string",
+        "body": "string",
+        "payload": "object?",
+        "status": "pending | accepted | rejected | ignored",
+        "createdFrom": "ai",
         "dateCreated": "ISO string",
         "dateUpdated": "ISO string"
       }

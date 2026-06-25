@@ -24,6 +24,7 @@
         "id": { "type": "string" },
         "text": { "type": "string" },
         "type": { "type": "string", "enum": ["highlight", "thought", "question", "connection"] },
+        "philosophyStatus": { "type": "string", "enum": ["raw", "connected", "questioned", "used_in_position", "archived"] },
         "date": { "type": "string", "format": "date-time" }
       }
     },
@@ -37,7 +38,7 @@
         "statement": { "type": "string" },
         "description": { "type": "string" },
         "confidence": { "type": "number" },
-        "status": { "type": "string", "enum": ["active", "questioning", "revised", "abandoned"] },
+        "status": { "type": "string", "enum": ["draft", "active", "uncertain", "challenged", "revised", "rejected", "questioning", "abandoned"] },
         "sourceIds": { "type": "array", "items": { "type": "string" } },
         "dateCreated": { "type": "string", "format": "date-time" }
       }
@@ -51,6 +52,7 @@
         "description": { "type": "string" },
         "links": { "type": "array", "items": { "type": "string" } },
         "sourceIds": { "type": "array", "items": { "type": "string" } },
+        "philosophyStatus": { "type": "string", "enum": ["undefined", "emerging", "developed", "contested", "core"] },
         "x": { "type": "number" },
         "y": { "type": "number" },
         "dateCreated": { "type": "string", "format": "date-time" }
@@ -81,6 +83,41 @@
         "reason": { "type": "string" },
         "date": { "type": "string", "format": "date-time" }
       }
+    },
+    "PhilosophicalLink": {
+      "title": "Typed Philosophical Link",
+      "description": "A typed relationship between two Noesis objects.",
+      "type": "object",
+      "properties": {
+        "fromType": { "type": "string" },
+        "fromId": { "type": "string" },
+        "fromLabel": { "type": "string" },
+        "toType": { "type": "string" },
+        "toId": { "type": "string" },
+        "toLabel": { "type": "string" },
+        "type": { "type": "string", "enum": ["supports", "challenges", "defines", "refines", "contradicts", "exemplifies", "inspired_by", "tested_by", "expressed_in", "changed_by"] },
+        "note": { "type": "string" },
+        "createdFrom": { "type": "string", "enum": ["manual", "suggestion", "system"] },
+        "dateCreated": { "type": "string", "format": "date-time" },
+        "dateUpdated": { "type": "string", "format": "date-time" }
+      }
+    },
+    "AiSuggestion": {
+      "title": "AI Suggestion",
+      "description": "Socratic assistant output stored separately until the user acts.",
+      "type": "object",
+      "properties": {
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "suggestionType": { "type": "string", "enum": ["annotation_consequence", "position_draft", "typed_link", "possible_tension", "evolution_summary", "daily_prompt"] },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "payload": { "type": "object" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "ignored"] },
+        "createdFrom": { "type": "string", "enum": ["ai"] },
+        "dateCreated": { "type": "string", "format": "date-time" },
+        "dateUpdated": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -110,6 +147,14 @@
     "/users/{userId}/drafts/{draftId}": {
       "schema": "object",
       "description": "Writing manuscripts."
+    },
+    "/users/{userId}/links/{linkId}": {
+      "schema": "PhilosophicalLink",
+      "description": "Typed relationships between Noesis objects."
+    },
+    "/users/{userId}/suggestions/{suggestionId}": {
+      "schema": "AiSuggestion",
+      "description": "AI suggestions that do not mutate user philosophy until accepted."
     }
   }
 }

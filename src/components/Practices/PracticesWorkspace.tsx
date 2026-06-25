@@ -12,7 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
-import type { Concept, Draft, Media, Practice, PracticeStatus, PracticeType, Question, VaultEntry } from '@/lib/types';
+import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
+import type { Concept, Draft, Media, PhilosophicalLink, Practice, PracticeStatus, PracticeType, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, normalizeConceptTags, PRACTICE_LABELS, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 
@@ -27,12 +28,13 @@ interface PracticesWorkspaceProps {
   onUpdatePractice: (practice: Practice) => void;
   onDeletePractice: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
+  onCreateLink: (data: Partial<PhilosophicalLink>) => void;
 }
 
 const practiceTypes: PracticeType[] = ['habit', 'experiment', 'discipline', 'reflection_prompt', 'commitment', 'observation', 'rule', 'challenge'];
-const statuses: PracticeStatus[] = ['planned', 'active', 'completed', 'paused', 'abandoned'];
+const statuses: PracticeStatus[] = ['proposed', 'planned', 'active', 'completed', 'failed', 'integrated', 'paused', 'abandoned'];
 
-export function PracticesWorkspace({ practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept }: PracticesWorkspaceProps) {
+export function PracticesWorkspace({ practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink }: PracticesWorkspaceProps) {
   const [statusFilter, setStatusFilter] = useState<PracticeStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<PracticeType | 'all'>('all');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -73,7 +75,7 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {(activePractices.length ? activePractices : practices.slice(0, 3)).map((practice) => (
-            <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => openEditor(practice)} onDelete={() => onDeletePractice(practice.id)} />
+            <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => openEditor(practice)} onDelete={() => onDeletePractice(practice.id)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
           ))}
           {!practices.length && (
             <Card className="p-12 border-dashed border-border/60 text-center md:col-span-2 xl:col-span-3 bg-muted/5 rounded-xl shadow-inner">
@@ -105,7 +107,7 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filtered.map((practice) => (
-          <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => openEditor(practice)} onDelete={() => onDeletePractice(practice.id)} />
+          <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => openEditor(practice)} onDelete={() => onDeletePractice(practice.id)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
         ))}
       </div>
 
@@ -126,9 +128,19 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
   );
 }
 
-function PracticeCard({ practice, questions, positions, onEdit, onDelete }: { practice: Practice; questions: Question[]; positions: VaultEntry[]; onEdit: () => void; onDelete: () => void }) {
+function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpdatePractice, onCreateLink }: {
+  practice: Practice;
+  questions: Question[];
+  positions: VaultEntry[];
+  onEdit: () => void;
+  onDelete: () => void;
+  onUpdatePractice: (practice: Practice) => void;
+  onCreateLink: (data: Partial<PhilosophicalLink>) => void;
+}) {
   const linkedQuestions = questions.filter((question) => (practice.questionIds || []).includes(question.id));
   const linkedPositions = positions.filter((position) => (practice.positionIds || []).includes(position.id));
+  const firstLinkedPosition = linkedPositions[0];
+  const setStatus = (status: PracticeStatus) => onUpdatePractice({ ...practice, status, dateUpdated: today() });
   return (
     <Card className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-5 rounded-xl shadow-md">
       <div className="flex items-start justify-between gap-4 mb-4">
@@ -159,6 +171,49 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete }: { pr
         {(practice.conceptTags || []).slice(0, 4).map((tag) => (
           <Badge key={tag} variant="outline" className="font-code text-[8px] uppercase tracking-tighter bg-muted/10 border-transparent rounded-full font-bold shadow-sm">{tag}</Badge>
         ))}
+      </div>
+
+      <div className="mt-5">
+        <NextPhilosophicalActionPanel
+          compact
+          status={practice.status}
+          title="What does this test?"
+          description="Practices close the loop by testing positions in lived behavior."
+          actions={[
+            {
+              label: 'Activate',
+              disabled: practice.status === 'active',
+              onClick: () => setStatus('active'),
+            },
+            {
+              label: 'Complete',
+              tone: 'support',
+              disabled: practice.status === 'completed',
+              onClick: () => setStatus('completed'),
+            },
+            {
+              label: 'Failed',
+              tone: 'challenge',
+              disabled: practice.status === 'failed',
+              onClick: () => setStatus('failed'),
+            },
+            {
+              label: 'Link Test',
+              disabled: !firstLinkedPosition,
+              description: firstLinkedPosition ? `Mark ${practice.title} as testing ${firstLinkedPosition.title}.` : 'Choose a linked position first.',
+              onClick: () => firstLinkedPosition && onCreateLink({
+                fromType: 'position',
+                fromId: firstLinkedPosition.id,
+                fromLabel: firstLinkedPosition.title,
+                toType: 'practice',
+                toId: practice.id,
+                toLabel: practice.title,
+                type: 'tested_by',
+                note: 'Practice tests this position in lived behavior.',
+              }),
+            },
+          ]}
+        />
       </div>
     </Card>
   );

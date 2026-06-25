@@ -65,7 +65,7 @@ export const WRITING_STYLE_DESCRIPTIONS: Record<WritingStyle, string> = {
   dialectic: 'Thesis, antithesis, and synthesis for philosophical movement.',
   belief_audit: 'Belief, origin, evidence, contradiction, cost, and revision.',
   source_analysis: 'Quote, summary, interpretation, criticism, and connection.',
-  mind_map: 'A centered idea space for branching and visual association.',
+  mind_map: 'A centered idea space for linking and visual association.',
   timeline: 'A horizontal history for idea development and change.',
 };
 
