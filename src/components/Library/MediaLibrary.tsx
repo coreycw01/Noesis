@@ -1,8 +1,8 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Edit, Plus, Search, Trash2, MessageSquare, X, Sparkles, Loader2, HelpCircle, Triangle, BookOpen, FileText, Check, Globe } from 'lucide-react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { ArrowLeft, Edit, Plus, Search, Trash2, MessageSquare, X, Sparkles, Loader2, HelpCircle, Triangle, BookOpen, FileText, Check, Globe, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,14 +15,13 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import type { Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice } from '@/lib/types';
+import type { Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, today, uid, conceptKey, conceptRelated } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { sourceResultToMediaPatch } from '@/lib/source-intake';
+import { sourceResultToMediaPatch, type NormalizedSourceResult } from '@/lib/source-intake';
 import { distillInsightsFromMedia } from '@/ai/flows/distill-insights-from-media';
 import { generateReflectiveQuestions } from '@/ai/flows/generate-reflective-questions-flow';
-import { locateMediaMetadata } from '@/ai/flows/locate-media-metadata-flow';
 
 interface MediaLibraryProps {
   media: Media[];
@@ -232,7 +231,7 @@ export function MediaLibrary({
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <button onClick={() => setSelectedId(null)} className="font-code text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground flex items-center transition-colors">
-              &lt; LIBRARY
+              <ArrowLeft className="size-3 mr-2" /> LIBRARY
             </button>
             <span className="font-code text-[11px] uppercase tracking-widest text-primary/30">/</span>
             <span className="font-code text-[11px] uppercase tracking-widest text-primary/80 font-bold">
@@ -448,7 +447,7 @@ export function MediaLibrary({
                 <Card 
                   key={entry.id} 
                   className="group cursor-pointer hover:shadow-xl transition-all border-border/50 bg-white p-6 flex gap-6 shadow-sm rounded-xl"
-                  onClick={() => {/* Potentially open entry detail */}}
+                  onClick={() => setSelectedId(selected.id)}
                 >
                   <div className="size-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/50 shadow-sm">
                     <Triangle className="size-5 fill-current rotate-180" />
@@ -658,8 +657,62 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
   const [locatorQuery, setLocatorQuery] = useState('');
   const [locatorResults, setLocatorResults] = useState<NormalizedSourceResult[]>([]);
   const [isLocating, setIsLocating] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const terms = TYPE_TERMINOLOGY[draft.type || 'book'];
+
+  const isScholarly = ['book', 'audiobook', 'paper'].includes(draft.type || 'book');
+  const isDigital = ['video', 'podcast', 'article', 'course', 'lecture', 'documentary', 'interview', 'conversation', 'other'].includes(draft.type || 'book');
+  const isPaper = draft.type === 'paper';
+
+  const showSearch = isScholarly;
+  const showImport = isDigital || isPaper;
+
+  const handleLocateSource = useCallback(async (query: string) => {
+    if (query.trim().length < 3) return;
+    setIsLocating(true);
+    try {
+      const resp = await fetch(`/api/source-search?query=${encodeURIComponent(query)}&type=${draft.type}`);
+      const data = await resp.json();
+      if (data.results) {
+        setLocatorResults(data.results);
+        setShowDropdown(true);
+      }
+    } catch (error) {
+      console.error("Locator failed", error);
+    } finally {
+      setIsLocating(false);
+    }
+  }, [draft.type]);
+
+  const handleImportUrl = useCallback(async () => {
+    if (!importUrl.trim()) return;
+    setIsImporting(true);
+    try {
+      const response = await fetch('/api/source-metadata', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: importUrl.trim() }),
+      });
+      const data = await response.json();
+      if (data.result) {
+        const patch = sourceResultToMediaPatch(data.result);
+        setDraft((prev) => ({
+          ...prev,
+          ...patch,
+          tags: normalizeConceptTags([...(prev.tags || []), ...(patch.tags || [])]),
+        }));
+        toast({ title: "Source Imported", description: "Metadata harvested from the provided URL." });
+      } else {
+        throw new Error(data.error || "Could not read metadata from URL.");
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Import Failed", description: error.message || "Noesis could not archive this URL automatically." });
+    } finally {
+      setIsImporting(false);
+    }
+  }, [importUrl, setDraft, toast]);
 
   const addTag = () => {
     if (!tagInput.trim()) return;
@@ -673,79 +726,12 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
     setDraft(prev => ({ ...prev, tags: normalizeConceptTags(next) }));
   };
 
-  const applySourceResult = (result: NormalizedSourceResult) => {
-    const patch = sourceResultToMediaPatch(result);
-    setDraft((prev) => ({
-      ...prev,
-      ...patch,
-      status: prev.status || 'Want to Read',
-      tags: normalizeConceptTags([...(prev.tags || []), ...(patch.tags || [])]),
-    }));
-    setSourceError('');
-    setIntakeMode('manual');
-  };
-
-  const searchSources = async () => {
-    if (sourceQuery.trim().length < 2) return;
-    if (!isSearchableType) {
-      setSourceResults([]);
-      setSourceError('Search is not available for this media type yet. Use Paste URL or Manual entry.');
-      return;
-    }
-    setSourceLoading(true);
-    setSourceError('');
-    try {
-      const { results } = await locateMediaMetadata({
-        query: query,
-        mediaType: draft.type,
-      });
-      setLocatorResults(results || []);
-      setShowDropdown(true);
-    } catch (error) {
-      console.error("Locator failed", error);
-      const isQuotaError = error.message?.includes('RESOURCE_EXHAUSTED') || error.message?.includes('429');
-      toast({
-        variant: "destructive",
-        title: "AI Locator Interrupted",
-        description: isQuotaError 
-          ? "AI search limit reached. Please fill in details manually or check your AI Studio billing."
-          : "Unable to search online databases at this time. Manual archival is still available."
-      });
-      setShowDropdown(false);
-    } finally {
-      setIsLocating(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (locatorQuery.trim().length >= 3) {
-        handleLocateSource(locatorQuery);
-      } else {
-        setLocatorResults([]);
-        setShowDropdown(false);
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [locatorQuery, handleLocateSource]);
-
-  const selectLocatedSource = (item: any) => {
-    const info = item.volumeInfo;
-    const year = info.publishedDate ? info.publishedDate.substring(0, 4) : '';
-    const isbn = info.industryIdentifiers?.find((id: any) => id.type === 'ISBN_13')?.identifier || info.industryIdentifiers?.[0]?.identifier || '';
-    
+  const selectLocatedSource = (item: NormalizedSourceResult) => {
+    const patch = sourceResultToMediaPatch(item);
     setDraft(prev => ({
       ...prev,
-      title: info.title || prev.title,
-      creator: info.authors?.join(', ') || prev.creator,
-      year: year || prev.year,
-      genre: info.categories?.join(', ') || prev.genre,
-      publisher: info.publisher || prev.publisher,
-      description: info.description || prev.description,
-      thumbnailUrl: info.imageLinks?.thumbnail?.replace('http:', 'https:') || prev.thumbnailUrl,
-      isbn: isbn || prev.isbn,
+      ...patch,
     }));
-    
     setLocatorResults([]);
     setShowDropdown(false);
     setLocatorQuery('');
@@ -994,7 +980,6 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
   if (!name || !related) return null;
 
   const tabs = [
-    { id: 'all', label: 'ALL', count: null },
     { id: 'sources', label: 'SOURCES', count: related.sources.length },
     { id: 'notes', label: 'NOTES', count: related.annotations.length },
     { id: 'ideas', label: 'IDEAS', count: (related.ideas || []).length },
