@@ -53,6 +53,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [ideaDraft, setIdeaDraft] = useState({ title: '', body: '', tags: [UNSORTED_CONCEPT], sourceIds: [] as string[] });
 
   const allTerms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
+  const selectedRelated = useMemo(() => selectedName ? conceptRelated(selectedName, { media, insights, vault, drafts, practices, questions, timeline }) : null, [selectedName, media, insights, vault, drafts, practices, questions, timeline]);
   
   const filteredTerms = useMemo(() => {
     return allTerms.filter((name) => {
@@ -394,6 +395,20 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           <DialogFooter className="pt-4"><Button onClick={saveIdea} className="bg-accent shadow-md shadow-accent/20 rounded-full px-8">Archive Idea</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function RelatedSection({ title, items }: { title: string; items: string[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="space-y-1.5">
+      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">{title}</div>
+      <ul className="space-y-1">
+        {items.map((item, i) => (
+          <li key={i} className="text-xs text-foreground/70 truncate font-body">{item}</li>
+        ))}
+      </ul>
     </div>
   );
 }
