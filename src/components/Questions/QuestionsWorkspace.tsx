@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, Plus, Search } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Loader2, MessageCircle, Plus, Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SourceLinker } from '@/components/SourceLinker';
 import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
+import { socratesReflect } from '@/ai/flows/philosophy-suggestions';
 import type { Concept, Draft, Media, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, conceptKey, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
@@ -26,37 +27,27 @@ interface QuestionsWorkspaceProps {
   onUpdateQuestion: (question: Question) => void;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
+  onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
 }
 
 type FilterType = 'all' | 'open' | 'annotations' | 'answered';
 
-export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onAddVaultEntry, onAddDraft }: QuestionsWorkspaceProps) {
+export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onAddVaultEntry, onAddDraft, onFormPositionFromInquiry }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newQuestion, setNewQuestion] = useState({ text: '', sourceIds: [] as string[] });
-  
+
   const all = useMemo(() => allQuestions(media, questions), [media, questions]);
   const filtered = all.filter((question) => {
     let typeOk = true;
     if (filter === 'open') typeOk = !question.answer;
     if (filter === 'answered') typeOk = !!question.answer;
     if (filter === 'annotations') typeOk = question.type === 'annotation';
-    
     return typeOk && (!search || question.text.toLowerCase().includes(search.toLowerCase()) || (question.answer || '').toLowerCase().includes(search.toLowerCase()));
   });
   const selected = all.find((question) => question.id === selectedId) || null;
-
-  const saveAnswer = (answer: string) => {
-    if (!selected) return;
-    if (selected.id.startsWith('open:') || selected.id.startsWith('annotation:')) {
-      onAddQuestion({ text: selected.text, answer, status: 'answered', evidenceIds: selected.evidenceIds, conceptIds: selected.conceptIds, sourceIds: selected.sourceIds, type: selected.type });
-    } else {
-      onUpdateQuestion({ ...selected, answer, status: answer ? 'answered' : 'open', dateUpdated: today() });
-    }
-    setSelectedId(null);
-  };
 
   const createQuestion = () => {
     if (!newQuestion.text.trim()) return;
@@ -79,7 +70,17 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
     const conceptNames = selected.conceptIds || relatedSources.flatMap((item) => item.tags || []);
     const relatedBeliefs = vault.filter((entry) => (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => sourceIds.includes(id)));
     const relatedDrafts = drafts.filter((draft) => (draft.questionIds || []).includes(selected.id) || (draft.conceptTags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))));
-    return <QuestionDetail question={selected} sources={relatedSources} concepts={conceptNames} beliefs={relatedBeliefs} drafts={relatedDrafts} onBack={() => setSelectedId(null)} onSave={saveAnswer} onAddVaultEntry={onAddVaultEntry} onAddDraft={onAddDraft} />;
+    return (
+      <QuestionDetail
+        question={selected}
+        sources={relatedSources}
+        concepts={conceptNames}
+        beliefs={relatedBeliefs}
+        drafts={relatedDrafts}
+        onBack={() => setSelectedId(null)}
+        onFormPositionFromInquiry={onFormPositionFromInquiry}
+      />
+    );
   }
 
   const answered = all.filter((q) => !!q.answer).length;
@@ -90,7 +91,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
       <header className="flex justify-between items-center mb-10">
         <div>
           <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Inquiries</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Work through the questions that keep returning and gather evidence toward answers.</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Work through the questions that keep returning. Answer them through Socratic dialogue and crystallize a position.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -119,8 +120,8 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
               onClick={() => setFilter(v)}
               className={cn(
                 "px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.16em] transition-all shadow-sm",
-                filter === v 
-                  ? "bg-accent text-white border-accent" 
+                filter === v
+                  ? "bg-accent text-white border-accent"
                   : "bg-white text-muted-foreground border border-border/60 hover:text-foreground hover:bg-muted/5"
               )}
             >
@@ -134,12 +135,9 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
         {filtered.map((question) => {
           const sources = media.filter(m => (question.sourceIds || []).includes(m.id));
           const draftLinks = drafts.filter(d => (d.questionIds || []).includes(question.id)).length;
-          
+
           return (
-            <Card
-              key={question.id}
-              className="border border-accent/20 bg-white/95 p-6 rounded-xl shadow-md"
-            >
+            <Card key={question.id} className="border border-accent/20 bg-white/95 p-6 rounded-xl shadow-md">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5">
@@ -149,8 +147,11 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
                     "font-code text-[8px] font-bold uppercase tracking-widest",
                     question.answer ? "text-emerald-600/60" : "text-accent/60"
                   )}>
-                    {question.answer ? 'RESOLVED' : 'IN PROGRESS'}
+                    {question.answer ? 'ANSWERED' : 'OPEN'}
                   </span>
+                  {(question.beliefIds || []).length > 0 && (
+                    <span className="font-code text-[8px] font-bold uppercase tracking-widest text-emerald-600/80">· POSITION FORMED</span>
+                  )}
                 </div>
                 <div className="font-code text-[8px] uppercase text-muted-foreground/40 font-bold">{draftLinks} WORKS LINKED</div>
               </div>
@@ -172,21 +173,12 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
               <NextPhilosophicalActionPanel
                 compact
                 status={question.status || (question.answer ? 'answered' : 'open')}
-                title="What does this open?"
-                description="Inquiries should produce positions, works, or resolved understanding."
+                title="Investigate this inquiry"
+                description="Open a Socratic dialogue to work through this question and crystallize a position."
                 actions={[
                   {
-                    label: 'Form Position',
-                    tone: 'support',
-                    onClick: () => {
-                      onAddVaultEntry({ title: question.text.slice(0, 80), statement: question.answer || question.text, description: question.answer || '', sourceIds: question.sourceIds || [], tags: [] });
-                      if (!question.id.startsWith('open:') && !question.id.startsWith('annotation:')) {
-                        onUpdateQuestion({ ...question, status: 'answered', dateUpdated: today() } as Question);
-                      }
-                    },
-                  },
-                  {
                     label: 'Investigate',
+                    tone: 'support',
                     onClick: () => setSelectedId(question.id),
                   },
                   {
@@ -218,18 +210,17 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           <div className="space-y-8 pt-4">
             <div className="space-y-2">
               <Label className="readex-kicker">THE QUESTION</Label>
-              <Textarea 
-                value={newQuestion.text} 
-                onChange={(event) => setNewQuestion(prev => ({ ...prev, text: event.target.value }))} 
-                placeholder="What core problem or mystery are you exploring?" 
+              <Textarea
+                value={newQuestion.text}
+                onChange={(event) => setNewQuestion(prev => ({ ...prev, text: event.target.value }))}
+                placeholder="What core problem or mystery are you exploring?"
                 className="min-h-[140px] font-body text-xl italic bg-muted/5 leading-relaxed"
               />
             </div>
-            
-            <SourceLinker 
-              media={media} 
-              selectedIds={newQuestion.sourceIds} 
-              onToggle={toggleNewQuestionSource} 
+            <SourceLinker
+              media={media}
+              selectedIds={newQuestion.sourceIds}
+              onToggle={toggleNewQuestionSource}
               label="INFLUENCED BY SOURCE(S)"
             />
           </div>
@@ -240,82 +231,240 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
   );
 }
 
-function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onSave, onAddVaultEntry, onAddDraft }: {
+type DialogPhase = 'write' | 'probing' | 'ready';
+
+function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onFormPositionFromInquiry }: {
   question: Question;
   sources: Media[];
   concepts: string[];
   beliefs: VaultEntry[];
   drafts: Draft[];
   onBack: () => void;
-  onSave: (answer: string) => void;
-  onAddVaultEntry: (data: Partial<VaultEntry>) => void;
-  onAddDraft: (data: Partial<Draft>) => void;
+  onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
 }) {
-  const [answer, setAnswer] = useState(question.answer || '');
+  const [phase, setPhase] = useState<DialogPhase>('write');
+  const [initialAnswer, setInitialAnswer] = useState(question.answer || '');
+  const [exchanges, setExchanges] = useState<{ probe: string; response: string }[]>([]);
+  const [currentProbe, setCurrentProbe] = useState('');
+  const [currentFocus, setCurrentFocus] = useState('');
+  const [probeResponse, setProbeResponse] = useState('');
+  const [positionDraft, setPositionDraft] = useState<{ title: string; statement: string; description: string; confidence: number } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const startDialogue = async () => {
+    if (!initialAnswer.trim()) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await socratesReflect({ question: question.text, initialAnswer, exchanges: undefined });
+      if (result.ready) {
+        setPositionDraft({
+          title: result.positionTitle || question.text.slice(0, 60),
+          statement: result.statement || initialAnswer,
+          description: result.description || '',
+          confidence: result.confidence || 3,
+        });
+        setPhase('ready');
+      } else {
+        setCurrentProbe(result.probe || '');
+        setCurrentFocus(result.focus || '');
+        setPhase('probing');
+      }
+    } catch {
+      setError('AI reflection failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const continueDialogue = async () => {
+    if (!probeResponse.trim()) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const newExchanges = [...exchanges, { probe: currentProbe, response: probeResponse }];
+      const result = await socratesReflect({ question: question.text, initialAnswer, exchanges: newExchanges });
+      setExchanges(newExchanges);
+      setProbeResponse('');
+      if (result.ready) {
+        setPositionDraft({
+          title: result.positionTitle || question.text.slice(0, 60),
+          statement: result.statement || initialAnswer,
+          description: result.description || '',
+          confidence: result.confidence || 3,
+        });
+        setPhase('ready');
+      } else {
+        setCurrentProbe(result.probe || '');
+        setCurrentFocus(result.focus || '');
+      }
+    } catch {
+      setError('AI reflection failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const savePosition = () => {
+    if (!positionDraft) return;
+    const allAnswers = [initialAnswer, ...exchanges.map(e => e.response)].filter(Boolean).join('\n\n');
+    onFormPositionFromInquiry(question, positionDraft, allAnswers);
+    onBack();
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-6xl mx-auto w-full font-body">
-      <Button variant="ghost" onClick={onBack} className="mb-8 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50"><ArrowLeft className="size-4 mr-2" /> Back to Inquiries</Button>
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-10">
-        <div className="space-y-6">
-          <Card className="p-10 bg-white border border-accent/10 shadow-md rounded-2xl">
-            <Badge variant="outline" className="mb-6 font-code text-[10px] uppercase tracking-widest bg-muted/20 border-border/30 rounded-full px-4 py-1 font-bold">{question.type || 'manual'}</Badge>
-            <h1 className="font-headline text-4xl italic mb-10 text-primary leading-tight font-bold">{question.text}</h1>
-            <div className="relative">
-              <div className="absolute left-0 top-0 h-full w-px bg-accent/20" />
-              <Textarea
-                value={answer}
-                onChange={(event) => setAnswer(event.target.value)}
-                className="min-h-[400px] pl-10 text-[18px] leading-9 font-body border-none shadow-none bg-transparent focus-visible:ring-0 italic placeholder:text-muted-foreground/30"
-                placeholder="Begin your synthesis. Examine evidence, resolve contradictions, and work toward a formal position..."
-              />
-            </div>
-            <div className="flex justify-end mt-8"><Button onClick={() => onSave(answer)} className="px-12 h-12 rounded-full font-bold shadow-xl shadow-accent/20">ARCHIVE SYNTHESIS</Button></div>
-          </Card>
+      <Button variant="ghost" onClick={onBack} className="mb-8 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50">
+        <ArrowLeft className="size-4 mr-2" /> Back to Inquiries
+      </Button>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-10">
+        <div>
+          {phase === 'write' && (
+            <Card className="p-10 bg-white border border-accent/10 shadow-md rounded-2xl space-y-6">
+              <Badge variant="outline" className="font-code text-[10px] uppercase tracking-widest bg-muted/20 border-border/30 rounded-full px-4 py-1 font-bold">
+                {question.type || 'manual'}
+              </Badge>
+              <h1 className="font-headline text-4xl italic text-primary leading-tight font-bold">{question.text}</h1>
+              <p className="text-sm text-muted-foreground font-body leading-relaxed">Write what you currently believe. Socrates will probe your thinking until you can crystallize a clear position.</p>
+              <div>
+                <Label className="readex-kicker mb-2 block">YOUR ANSWER</Label>
+                <Textarea
+                  value={initialAnswer}
+                  onChange={(e) => setInitialAnswer(e.target.value)}
+                  className="min-h-[260px] text-[18px] leading-9 font-body italic"
+                  placeholder="What do you currently believe about this? Write freely..."
+                />
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button
+                onClick={startDialogue}
+                disabled={!initialAnswer.trim() || isLoading}
+                className="h-12 px-10 rounded-full font-bold shadow-lg shadow-accent/20"
+              >
+                {isLoading ? <Loader2 className="size-4 mr-2 animate-spin" /> : <MessageCircle className="size-4 mr-2" />}
+                BEGIN DIALOGUE
+              </Button>
+            </Card>
+          )}
 
-          <NextPhilosophicalActionPanel
-            status={question.status || (question.answer ? 'answered' : 'open')}
-            title="Next Philosophical Action"
-            description="What does this inquiry produce? Resolve it, crystallize it into a position, or express it."
-            actions={[
-              {
-                label: 'Form Position',
-                tone: 'support',
-                description: 'Turn the synthesis into a formal claim you are willing to own.',
-                onClick: () => onAddVaultEntry({
-                  title: question.text.slice(0, 80),
-                  statement: answer || question.text,
-                  description: answer || '',
-                  sourceIds: question.sourceIds || [],
-                  tags: [],
-                  status: 'draft',
-                }),
-              },
-              {
-                label: 'Turn into Essay',
-                description: 'Open this inquiry as an essay draft.',
-                onClick: () => onAddDraft({
-                  title: question.text.slice(0, 80),
-                  body: answer ? `**Inquiry:** ${question.text}\n\n**Working answer:**\n${answer}` : `**Inquiry:** ${question.text}\n\n`,
-                  type: 'essay',
-                  status: 'seed',
-                  sourceIds: question.sourceIds || [],
-                  questionIds: [question.id],
-                }),
-              },
-              {
-                label: 'Mark Resolved',
-                tone: 'support',
-                disabled: !!question.answer,
-                onClick: () => onSave(answer),
-              },
-            ]}
-          />
+          {phase === 'probing' && (
+            <Card className="p-10 bg-white border border-accent/10 shadow-md rounded-2xl space-y-6">
+              <h1 className="font-headline text-3xl italic text-primary leading-tight font-bold">{question.text}</h1>
+
+              <div className="space-y-4">
+                <div className="bg-muted/10 rounded-xl p-5 border border-border/10">
+                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 mb-2">YOUR INITIAL ANSWER</div>
+                  <p className="font-body italic text-[15px] text-primary/80 leading-relaxed">{initialAnswer}</p>
+                </div>
+                {exchanges.map((ex, i) => (
+                  <React.Fragment key={i}>
+                    <div className="bg-accent/5 rounded-xl p-5 border border-accent/10">
+                      <div className="font-code text-[9px] uppercase tracking-widest text-accent/60 mb-2">SOCRATIC PROBE</div>
+                      <p className="font-body text-[15px] text-primary leading-relaxed">{ex.probe}</p>
+                    </div>
+                    <div className="bg-muted/10 rounded-xl p-5 border border-border/10">
+                      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 mb-2">YOUR RESPONSE</div>
+                      <p className="font-body italic text-[15px] text-primary/80 leading-relaxed">{ex.response}</p>
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+
+              <div className="bg-accent/10 rounded-xl p-6 border border-accent/20">
+                {currentFocus && (
+                  <div className="font-code text-[9px] uppercase tracking-widest text-accent/70 mb-2">{currentFocus}</div>
+                )}
+                <p className="font-body text-[16px] text-primary leading-relaxed font-medium">{currentProbe}</p>
+              </div>
+
+              <div>
+                <Label className="readex-kicker mb-2 block">YOUR RESPONSE</Label>
+                <Textarea
+                  value={probeResponse}
+                  onChange={(e) => setProbeResponse(e.target.value)}
+                  className="min-h-[160px] text-[16px] leading-8 font-body italic"
+                  placeholder="Respond to the probe..."
+                />
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button
+                onClick={continueDialogue}
+                disabled={!probeResponse.trim() || isLoading}
+                className="h-12 px-10 rounded-full font-bold shadow-lg shadow-accent/20"
+              >
+                {isLoading ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Sparkles className="size-4 mr-2" />}
+                CONTINUE
+              </Button>
+            </Card>
+          )}
+
+          {phase === 'ready' && positionDraft && (
+            <Card className="p-10 bg-white border border-accent/10 shadow-md rounded-2xl space-y-6">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="size-4 text-emerald-500" />
+                <span className="font-code text-[10px] uppercase tracking-widest text-emerald-600 font-bold">Position Crystallized</span>
+              </div>
+              <h1 className="font-headline text-3xl italic text-primary leading-tight font-bold">{question.text}</h1>
+
+              <div className="space-y-5">
+                <div>
+                  <Label className="readex-kicker mb-2 block">POSITION TITLE</Label>
+                  <Input
+                    value={positionDraft.title}
+                    onChange={(e) => setPositionDraft(prev => prev ? { ...prev, title: e.target.value } : null)}
+                    className="font-headline text-xl italic h-auto p-4"
+                  />
+                </div>
+                <div>
+                  <Label className="readex-kicker mb-2 block">CORE STATEMENT</Label>
+                  <Textarea
+                    value={positionDraft.statement}
+                    onChange={(e) => setPositionDraft(prev => prev ? { ...prev, statement: e.target.value } : null)}
+                    className="font-body text-base min-h-[100px]"
+                  />
+                </div>
+                <div>
+                  <Label className="readex-kicker mb-2 block">DESCRIPTION</Label>
+                  <Textarea
+                    value={positionDraft.description}
+                    onChange={(e) => setPositionDraft(prev => prev ? { ...prev, description: e.target.value } : null)}
+                    className="font-body text-base min-h-[140px]"
+                  />
+                </div>
+                <div>
+                  <Label className="readex-kicker mb-3 block">CONFIDENCE</Label>
+                  <div className="flex gap-2">
+                    {([1, 2, 3, 4, 5] as const).map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => setPositionDraft(prev => prev ? { ...prev, confidence: v } : null)}
+                        className={cn(
+                          "size-10 rounded-full font-code text-sm font-bold transition-all",
+                          positionDraft.confidence === v
+                            ? "bg-accent text-white shadow-lg shadow-accent/30"
+                            : "bg-muted/20 text-muted-foreground hover:bg-muted/40"
+                        )}
+                      >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={savePosition} className="h-12 px-10 rounded-full font-bold shadow-lg shadow-accent/20">
+                <CheckCircle className="size-4 mr-2" /> SAVE POSITION
+              </Button>
+            </Card>
+          )}
         </div>
+
         <aside className="space-y-5">
-          <ContextPanel title="Evidence Sources" items={sources.map((item) => item.title)} />
+          <ContextPanel title="Evidence Sources" items={sources.map((s) => s.title)} />
           <ContextPanel title="Active Concepts" items={Array.from(new Set(concepts))} />
-          <ContextPanel title="Related Positions" items={beliefs.map((entry) => entry.title)} />
-          <ContextPanel title="Linked Works" items={drafts.map((draft) => draft.title)} />
+          <ContextPanel title="Related Positions" items={beliefs.map((e) => e.title)} />
+          <ContextPanel title="Linked Works" items={drafts.map((d) => d.title)} />
         </aside>
       </div>
     </div>

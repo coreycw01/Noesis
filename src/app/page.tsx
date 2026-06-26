@@ -330,6 +330,53 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
     batch.commit().catch(() => emitError('batch', 'write', data));
   };
 
+  const formPositionFromInquiry = (
+    question: Question,
+    position: { title: string; statement: string; description: string; confidence: number },
+    finalAnswer: string
+  ) => {
+    const batch = writeBatch(db);
+    const vaultRef = doc(refs.vault);
+    batch.set(vaultRef, {
+      id: vaultRef.id,
+      title: position.title,
+      type: 'belief',
+      statement: position.statement,
+      description: position.description,
+      confidence: position.confidence,
+      status: 'active',
+      tags: [],
+      sourceIds: question.sourceIds || [],
+      evidenceFor: [],
+      evidenceAgainst: [],
+      versionHistory: [],
+      createdFrom: 'inquiry',
+      dateCreated: today(),
+      dateUpdated: today(),
+    });
+    if (!question.id.startsWith('open:') && !question.id.startsWith('annotation:')) {
+      const questionRef = doc(refs.questions, question.id);
+      batch.update(questionRef as any, {
+        status: 'answered',
+        answer: finalAnswer,
+        beliefIds: [...(question.beliefIds || []), vaultRef.id],
+        dateUpdated: today(),
+      });
+    }
+    const eventRef = doc(refs.timeline);
+    batch.set(eventRef, {
+      id: eventRef.id,
+      entityId: vaultRef.id,
+      entityType: 'vault',
+      entityTitle: position.title,
+      eventType: 'created',
+      reason: 'Position formed from Socratic inquiry',
+      influencedBy: question.sourceIds || [],
+      date: today(),
+    });
+    batch.commit().catch(() => emitError('batch', 'write', position));
+  };
+
   const addQuestion = (data: Partial<Question>) => {
     const questionRef = doc(refs.questions);
     const payload = {
@@ -626,7 +673,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
           />
         );
       case 'questions':
-        return <QuestionsWorkspace questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={addQuestion} onUpdateQuestion={updateQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} />;
+        return <QuestionsWorkspace questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={addQuestion} onUpdateQuestion={updateQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onFormPositionFromInquiry={formPositionFromInquiry} />;
       case 'writing':
         return <Atelier drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={addConcept} />;
       case 'evolution':

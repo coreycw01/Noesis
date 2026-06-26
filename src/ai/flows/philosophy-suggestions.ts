@@ -225,6 +225,67 @@ const summarizeEvolutionEventFlow = ai.defineFlow({
   return output!;
 });
 
+const SocratesReflectInputSchema = z.object({
+  question: z.string(),
+  initialAnswer: z.string(),
+  exchanges: z.array(z.object({
+    probe: z.string(),
+    response: z.string(),
+  })).optional(),
+});
+
+const SocratesReflectOutputSchema = z.object({
+  ready: z.boolean(),
+  probe: z.string().optional(),
+  focus: z.string().optional(),
+  positionTitle: z.string().optional(),
+  statement: z.string().optional(),
+  description: z.string().optional(),
+  confidence: z.number().min(1).max(5).int().optional(),
+});
+
+export async function socratesReflect(input: z.infer<typeof SocratesReflectInputSchema>) {
+  return socratesReflectFlow(input);
+}
+
+const socratesReflectPrompt = ai.definePrompt({
+  name: 'socratesReflectPrompt',
+  input: { schema: SocratesReflectInputSchema },
+  output: { schema: SocratesReflectOutputSchema },
+  prompt: `You are Socrates in a philosophical dialogue. The user is working toward a clear position on a question.
+
+Question: {{{question}}}
+
+User's initial answer: {{{initialAnswer}}}
+
+{{#if exchanges}}
+Previous exchanges:
+{{#each exchanges}}
+Your probe: {{{probe}}}
+User's response: {{{response}}}
+{{/each}}
+{{/if}}
+
+Number of exchanges so far: {{exchanges.length}}
+
+Rules:
+- If exchanges < 2 and clarity is LOW: ask one more probing question (ready: false). Pick a dimension not yet explored: scope of claim, personal evidence, key exception, what this rules out, commitment level.
+- If exchanges >= 2 OR the user's answers are already clear enough to crystallize: set ready: true and synthesize the position.
+- Each probe must be specific to what the user actually said — do not ask generic philosophy questions.
+- When ready: distill a precise, ownable claim from all their answers. Keep positionTitle under 12 words. Statement is one sentence. Description is 2-3 sentences of their own reasoning reflected back sharply.
+- Confidence 1-5: read their certainty from the text (hedging = lower, conviction = higher; default 3).
+- When not ready: set probe and a short focus label (2-4 words), leave position fields absent.`,
+});
+
+const socratesReflectFlow = ai.defineFlow({
+  name: 'socratesReflectFlow',
+  inputSchema: SocratesReflectInputSchema,
+  outputSchema: SocratesReflectOutputSchema,
+}, async (input) => {
+  const { output } = await socratesReflectPrompt(input);
+  return output!;
+});
+
 const GenerateIdeaQuestionsInputSchema = z.object({
   ideaTitle: z.string(),
   ideaBody: z.string().optional(),
