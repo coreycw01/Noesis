@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { BookOpen, Edit, Plus, Search, Sparkles, Trash2, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BookOpen, Edit, Plus, Search, Sparkles, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,14 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { SourceLinker } from '@/components/SourceLinker';
-import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
 import type { Concept, Draft, Insight, Media, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { suggestConceptDescription } from '@/ai/flows/suggest-concept-description';
 import { suggestPositionDrafts } from '@/ai/flows/philosophy-suggestions';
 import { useToast } from '@/hooks/use-toast';
-import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
 
 interface ConceptEncyclopediaProps {
   concepts: Concept[];
@@ -164,6 +162,241 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     toast({ title: 'Position Saved', description: 'The draft is now a Position linked to this concept.' });
   };
 
+  // ── Full concept detail page ──────────────────────────────────────
+  if (selectedName && selectedRelated) {
+    const r = selectedRelated;
+    const concept = concepts.find((c) => conceptKey(c.name) === conceptKey(selectedName));
+    const sortedEvents = [...r.events].sort((a, b) => b.date.localeCompare(a.date));
+
+    const back = () => { setSelectedName(null); setPositionDrafts([]); };
+
+    return (
+      <div className="flex-1 overflow-y-auto font-body">
+        {/* Sticky nav bar */}
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/20 px-8 py-3 flex items-center justify-between">
+          <Button variant="ghost" onClick={back} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full">
+            <ArrowLeft className="size-4 mr-2" /> Concepts
+          </Button>
+          <div className="flex gap-2">
+            {concept && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => openEditor(concept)} className="h-8 bg-white border-border/60 shadow-sm rounded-full">
+                  <Edit className="size-4 mr-2" /> Edit
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => { onDeleteConcept(concept.id); back(); }} className="h-8 shadow-sm rounded-full">
+                  <Trash2 className="size-4 mr-2" /> Delete
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="p-8 pt-10 max-w-5xl mx-auto">
+          {/* Title + definition */}
+          <div className="mb-8">
+            <h1 className="text-[42px] font-headline font-bold italic text-primary leading-none mb-4">{selectedName}</h1>
+            {concept?.description ? (
+              <p className="text-lg text-muted-foreground font-body leading-relaxed max-w-3xl">{concept.description}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground/40 italic font-body">No definition yet — use Edit to anchor this concept.</p>
+            )}
+          </div>
+
+          {/* Stats pills */}
+          <div className="flex flex-wrap gap-2 mb-10">
+            {[
+              { label: 'Sources', n: r.sources.length },
+              { label: 'Annotations', n: r.annotations.length },
+              { label: 'Inquiries', n: r.questions.length },
+              { label: 'Positions', n: r.beliefs.length },
+              { label: 'Works', n: r.drafts.length },
+              { label: 'Practices', n: r.practices.length },
+              { label: 'Events', n: r.events.length },
+            ].map(({ label, n }) => (
+              <div key={label} className="flex items-center gap-1.5 rounded-full border border-border/40 bg-white/80 px-3 py-1 shadow-sm">
+                <span className="font-headline text-base font-bold text-accent">{n}</span>
+                <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Sources + Annotations */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+            <ConceptPageSection title="Related Sources" count={r.sources.length} empty="No sources tagged with this concept yet.">
+              <div className="space-y-3">
+                {r.sources.slice(0, 6).map((s) => (
+                  <div key={s.id} className="rounded-xl bg-white border border-border/40 shadow-sm p-4">
+                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">{s.type}{s.year ? ` · ${s.year}` : ''}</div>
+                    <p className="text-sm font-body font-semibold text-primary leading-snug">{s.title}</p>
+                    {s.creator && <p className="text-xs text-muted-foreground font-body mt-0.5">{s.creator}</p>}
+                  </div>
+                ))}
+              </div>
+            </ConceptPageSection>
+
+            <ConceptPageSection title="Related Annotations" count={r.annotations.length} empty="No annotations tagged with this concept yet.">
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                {r.annotations.slice(0, 8).map((a, i) => (
+                  <div key={`${a.source.id}-${i}`} className="rounded-xl bg-white border border-border/40 shadow-sm p-4">
+                    <span className="font-code text-[8px] uppercase tracking-widest text-accent/70 font-bold">{a.type}</span>
+                    <p className="text-sm font-body italic text-primary/80 line-clamp-3 mt-1">"{a.text}"</p>
+                    <p className="text-[10px] text-muted-foreground/40 font-body mt-1.5">{a.source.title}</p>
+                  </div>
+                ))}
+              </div>
+            </ConceptPageSection>
+          </div>
+
+          {/* Inquiries + Positions */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+            <ConceptPageSection title="Related Inquiries" count={r.questions.length} empty="No inquiries linked to this concept.">
+              <div className="space-y-3">
+                {r.questions.map((q) => (
+                  <div key={q.id} className="rounded-xl bg-white border border-border/40 shadow-sm p-4">
+                    <p className="text-sm font-body text-primary/90 mb-2">{q.text}</p>
+                    {q.answer ? (
+                      <p className="text-xs text-muted-foreground font-body italic line-clamp-2 border-t border-border/20 pt-2">{q.answer}</p>
+                    ) : (
+                      <span className="font-code text-[8px] uppercase tracking-widest text-amber-600 font-bold">Open</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ConceptPageSection>
+
+            <ConceptPageSection title="Related Positions" count={r.beliefs.length} empty="No positions formed around this concept yet.">
+              <div className="space-y-3">
+                {r.beliefs.map((b) => (
+                  <div key={b.id} className="rounded-xl bg-white border border-border/40 shadow-sm p-4">
+                    <p className="text-sm font-headline font-bold italic text-primary mb-1">{b.title}</p>
+                    <p className="text-xs font-body text-muted-foreground line-clamp-2 mb-2">{b.statement}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <div key={n} className={cn('size-1.5 rounded-full', n <= (b.confidence || 3) ? 'bg-accent' : 'bg-muted')} />
+                        ))}
+                      </div>
+                      <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">{b.status}</span>
+                    </div>
+                  </div>
+                ))}
+
+                {r.annotations.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={handleSuggestPositions} disabled={isDraftingPositions} className="w-full h-9 rounded-full bg-white border-accent/20 text-accent hover:bg-accent/5 font-code text-[10px] uppercase tracking-widest">
+                    {isDraftingPositions ? <Loader2 className="size-3.5 mr-2 animate-spin" /> : <Sparkles className="size-3.5 mr-2" />}
+                    {isDraftingPositions ? 'Drafting…' : 'Suggest Positions from AI'}
+                  </Button>
+                )}
+
+                {positionDrafts.map((draft, i) => (
+                  <div key={i} className="rounded-xl bg-accent/5 border border-accent/20 p-4">
+                    <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold mb-2">AI Draft · {draft.confidence}</div>
+                    <p className="text-sm font-body font-semibold text-primary mb-1">{draft.claim}</p>
+                    <p className="text-xs text-muted-foreground font-body mb-2">{draft.supportSummary}</p>
+                    <p className="text-[10px] text-amber-600/80 italic font-body mb-3">{draft.challengeToConsider}</p>
+                    <Button size="sm" onClick={() => savePositionDraft(draft.claim, draft.supportSummary)} className="h-7 px-4 rounded-full bg-accent text-white font-code text-[9px] uppercase tracking-widest">
+                      Save as Position
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </ConceptPageSection>
+          </div>
+
+          {/* Tensions & Conflicts */}
+          {r.beliefs.length >= 2 && (
+            <section className="mb-10">
+              <div className="flex items-center gap-2 mb-5">
+                <AlertTriangle className="size-4 text-amber-500" />
+                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Tensions & Conflicts</h2>
+              </div>
+              <div className="rounded-xl border border-amber-200/60 bg-amber-50/60 p-5">
+                <p className="text-xs text-amber-700/70 font-body mb-4 italic">
+                  These positions all orbit <span className="font-bold">{selectedName}</span>. Do they cohere, contradict, or refine each other?
+                </p>
+                <div className="space-y-4">
+                  {r.beliefs.slice(0, 4).map((a, ai) =>
+                    r.beliefs.slice(ai + 1, ai + 2).map((b) => (
+                      <div key={`${a.id}-${b.id}`} className="rounded-lg bg-white/80 border border-amber-100 p-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position A</p>
+                            <p className="text-sm font-headline font-bold italic text-primary">{a.title}</p>
+                            <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">"{a.statement}"</p>
+                          </div>
+                          <div>
+                            <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position B</p>
+                            <p className="text-sm font-headline font-bold italic text-primary">{b.title}</p>
+                            <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">"{b.statement}"</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Evolution over time */}
+          {sortedEvents.length > 0 && (
+            <section className="mb-10">
+              <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold mb-6">Evolution Over Time</h2>
+              <div className="relative pl-6 border-l-2 border-border/20 space-y-6">
+                {sortedEvents.map((event) => (
+                  <div key={event.id} className="relative">
+                    <div className="absolute -left-[29px] size-3.5 rounded-full bg-white border-2 border-accent/40 shadow-sm" />
+                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">
+                      {event.date} · {event.eventType.replace(/_/g, ' ')}
+                    </div>
+                    <p className="text-sm font-body font-semibold text-primary/90">{event.entityTitle}</p>
+                    {event.reason && <p className="text-xs text-muted-foreground font-body italic mt-0.5">{event.reason}</p>}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* Concept editor dialog (accessible from detail page too) */}
+        <Dialog open={editorOpen} onOpenChange={(open) => { setEditorOpen(open); if (!open) { setEditing(null); setDraftConcept({ name: '', description: '', sourceIds: [] }); } }}>
+          <DialogContent className="max-w-xl bg-white border-none shadow-2xl rounded-2xl">
+            <DialogHeader>
+              <div className="flex items-center justify-between pr-8">
+                <DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle>
+                {draftConcept.name && (
+                  <Button variant="outline" size="sm" onClick={handleSuggestDescription} disabled={isSuggesting} className="h-8 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-white shadow-sm rounded-full">
+                    {isSuggesting ? <Loader2 className="size-3.5 mr-2 animate-spin" /> : <Sparkles className="size-3.5 mr-2" />}
+                    Suggest Description
+                  </Button>
+                )}
+              </div>
+            </DialogHeader>
+            <div className="space-y-6 pt-2">
+              <div className="space-y-2">
+                <Label className="readex-kicker">Concept Name</Label>
+                <Input value={draftConcept.name} onChange={(e) => setDraftConcept((p) => ({ ...p, name: e.target.value }))} className="rounded-full" />
+              </div>
+              <div className="space-y-2">
+                <Label className="readex-kicker">Definition</Label>
+                <Textarea value={draftConcept.description} onChange={(e) => setDraftConcept((p) => ({ ...p, description: e.target.value }))} className="min-h-[120px]" placeholder="What does this concept mean to you? How do you understand it?" />
+              </div>
+              <SourceLinker media={media} selectedIds={draftConcept.sourceIds || []} onToggle={toggleConceptSource} label="Root Evidence (Sources)" />
+            </div>
+            <DialogFooter className="gap-2 pt-4">
+              {editing && (
+                <Button variant="destructive" onClick={() => { onDeleteConcept(editing.id); setEditing(null); setEditorOpen(false); back(); }} className="rounded-full px-6">
+                  <Trash2 className="size-4 mr-2" /> Delete
+                </Button>
+              )}
+              <Button onClick={saveConcept} className="bg-accent shadow-md shadow-accent/20 rounded-full px-8">Anchor Concept</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
       <header className="flex justify-between items-center mb-10">
@@ -244,32 +477,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         )}
       </div>
 
-      <Dialog open={!!selectedName} onOpenChange={(open) => !open && setSelectedName(null)}>
-        <DialogContent className="max-w-4xl max-h-[88vh] overflow-y-auto bg-[#FAFAF7] border-none shadow-2xl rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="font-headline text-3xl italic">{selectedName}</DialogTitle>
-          </DialogHeader>
-          {selectedRelated && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <RelatedSection title="Inputs: Sources" items={selectedRelated.sources.map((item) => `${item.title} - ${item.creator || item.type}`)} />
-              <RelatedSection title="Inputs: Annotations" items={selectedRelated.annotations.map((item) => `${item.type}: ${item.text}`)} />
-              <RelatedSection title="Inputs: Inquiries" items={selectedRelated.questions.map((item) => item.text)} />
-              <RelatedSection title="Outputs: Positions" items={selectedRelated.beliefs.map((item) => item.title)} />
-              <RelatedSection title="Outputs: Works" items={selectedRelated.drafts.map((item) => `${item.title} (${item.type})`)} />
-              <RelatedSection title="Outputs: Practices" items={selectedRelated.practices.map((item) => `${item.title} (${item.type})`)} />
-              <RelatedSection title="Outputs: Evolution" items={selectedRelated.events.map((item) => `${item.eventType}: ${item.entityTitle}`)} />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={editorOpen} onOpenChange={(open) => {
-        setEditorOpen(open);
-        if (!open) {
-          setEditing(null);
-          setDraftConcept({ name: '', description: '', sourceIds: [] });
-        }
-      }}>
+      <Dialog open={editorOpen} onOpenChange={(open) => { setEditorOpen(open); if (!open) { setEditing(null); setDraftConcept({ name: '', description: '', sourceIds: [] }); } }}>
         <DialogContent className="max-w-xl bg-white border-none shadow-2xl rounded-2xl">
           <DialogHeader>
             <div className="flex items-center justify-between pr-8">
@@ -288,15 +496,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <Input value={draftConcept.name} onChange={(event) => setDraftConcept((prev) => ({ ...prev, name: event.target.value }))} className="rounded-full" />
             </div>
             <div className="space-y-2">
-              <Label className="readex-kicker">Description</Label>
-              <Textarea value={draftConcept.description} onChange={(event) => setDraftConcept((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[100px]" />
+              <Label className="readex-kicker">Definition</Label>
+              <Textarea value={draftConcept.description} onChange={(event) => setDraftConcept((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[120px]" placeholder="What does this concept mean to you? How do you understand it?" />
             </div>
-            <SourceLinker 
-              media={media} 
-              selectedIds={draftConcept.sourceIds || []} 
-              onToggle={toggleConceptSource} 
-              label="Root Evidence (Sources)"
-            />
+            <SourceLinker media={media} selectedIds={draftConcept.sourceIds || []} onToggle={toggleConceptSource} label="Root Evidence (Sources)" />
           </div>
           <DialogFooter className="gap-2 pt-4">
             {editing && (
@@ -308,22 +511,21 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
 
-function RelatedSection({ title, items }: { title: string; items: string[] }) {
-  if (!items.length) return null;
+function ConceptPageSection({ title, count, empty, children }: { title: string; count: number; empty: string; children?: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">{title}</div>
-      <ul className="space-y-1">
-        {items.map((item, i) => (
-          <li key={i} className="text-xs text-foreground/70 truncate font-body">{item}</li>
-        ))}
-      </ul>
-    </div>
+    <section>
+      <div className="flex items-center gap-2 mb-4">
+        <h2 className="font-code text-[10px] uppercase tracking-[0.18em] text-foreground/50 font-bold">{title}</h2>
+        <span className="font-code text-[9px] bg-muted/30 text-muted-foreground/50 rounded-full px-2 py-0.5 font-bold">{count}</span>
+      </div>
+      {count === 0 ? (
+        <p className="text-sm text-muted-foreground/30 italic font-body">{empty}</p>
+      ) : children}
+    </section>
   );
 }
 
