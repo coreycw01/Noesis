@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, BookOpen, Edit, Plus, Search, Sparkles, Trash2, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BookOpen, Brain, CheckCircle2, Edit, Plus, Search, Sparkles, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,10 @@ import type { Concept, Draft, Insight, Media, Practice, Question, TimelineEvent,
 import { allAnnotations, conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { suggestConceptDescription } from '@/ai/flows/suggest-concept-description';
-import { suggestPositionDrafts } from '@/ai/flows/philosophy-suggestions';
+import { generateClarityCheck, suggestPositionDrafts } from '@/ai/flows/philosophy-suggestions';
+import type { ClarityCheckQuestion } from '@/ai/flows/philosophy-suggestions';
+import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
+import type { ClarityLevel } from '@/lib/clarity';
 import { useToast } from '@/hooks/use-toast';
 
 interface ConceptEncyclopediaProps {
@@ -44,6 +47,12 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isDraftingPositions, setIsDraftingPositions] = useState(false);
   const [positionDrafts, setPositionDrafts] = useState<Array<{ claim: string; confidence: 'low' | 'medium' | 'high'; supportSummary: string; challengeToConsider: string }>>([]);
+  const [clarityCheckOpen, setClarityCheckOpen] = useState(false);
+  const [clarityCheckQuestions, setClarityCheckQuestions] = useState<ClarityCheckQuestion[]>([]);
+  const [currentQIdx, setCurrentQIdx] = useState(0);
+  const [clarityAnswers, setClarityAnswers] = useState<Array<{ dimension: string; isClosest: boolean; feedback: string }>>([]);
+  const [isLoadingCheck, setIsLoadingCheck] = useState(false);
+  const [showReview, setShowReview] = useState(false);
   const { toast } = useToast();
   
   const allTerms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
@@ -128,6 +137,43 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     });
   };
 
+  const handleStartClarityCheck = async () => {
+    if (!selectedName || !selectedRelated) return;
+    const concept = concepts.find(c => conceptKey(c.name) === conceptKey(selectedName));
+    setClarityCheckOpen(true);
+    setCurrentQIdx(0);
+    setClarityAnswers([]);
+    setShowReview(false);
+    setClarityCheckQuestions([]);
+    setIsLoadingCheck(true);
+    try {
+      const diagnosis = computeConceptDiagnosis(selectedName, selectedRelated, concept?.description);
+      const result = await generateClarityCheck({
+        conceptName: selectedName,
+        conceptDefinition: concept?.description,
+        positionStatements: selectedRelated.beliefs.slice(0, 4).map(b => b.statement || b.title),
+        annotationTexts: selectedRelated.annotations.slice(0, 5).map(a => a.text).filter((t): t is string => !!t),
+        relatedConcepts: diagnosis.areasToReview,
+      });
+      setClarityCheckQuestions(result.questions);
+    } catch {
+      toast({ variant: 'destructive', title: 'Check Failed', description: 'Could not generate questions right now.' });
+      setClarityCheckOpen(false);
+    } finally {
+      setIsLoadingCheck(false);
+    }
+  };
+
+  const handleSelectOption = (question: ClarityCheckQuestion, isClosest: boolean) => {
+    const newAnswers = [...clarityAnswers, { dimension: question.dimension, isClosest, feedback: question.feedback }];
+    setClarityAnswers(newAnswers);
+    if (currentQIdx + 1 < clarityCheckQuestions.length) {
+      setCurrentQIdx(prev => prev + 1);
+    } else {
+      setShowReview(true);
+    }
+  };
+
   const handleSuggestPositions = async () => {
     if (!selectedName || !selectedRelated) return;
     const annotationTexts = selectedRelated.annotations.map((annotation) => annotation.text).filter(Boolean);
@@ -167,6 +213,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     const r = selectedRelated;
     const concept = concepts.find((c) => conceptKey(c.name) === conceptKey(selectedName));
     const sortedEvents = [...r.events].sort((a, b) => b.date.localeCompare(a.date));
+    const diagnosis = computeConceptDiagnosis(selectedName, r, concept?.description);
 
     const back = () => { setSelectedName(null); setPositionDrafts([]); };
 
@@ -218,6 +265,74 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</span>
               </div>
             ))}
+          </div>
+
+          {/* Growth Diagnosis */}
+          <div className="rounded-xl border border-border/30 bg-white shadow-sm p-6 mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <Brain className="size-4 text-muted-foreground/40" />
+                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Growth Diagnosis</h2>
+              </div>
+              <Button size="sm" onClick={handleStartClarityCheck} className="h-8 rounded-full bg-accent text-white shadow-sm font-code text-[10px] uppercase tracking-widest px-4">
+                <Sparkles className="size-3.5 mr-1.5" /> Clarity Check
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-3 mb-3">
+              <span className={cn('font-code text-[10px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full border', CLARITY_BG[diagnosis.level])}>
+                {diagnosis.level}
+              </span>
+              {diagnosis.evolving && (
+                <span className="font-code text-[10px] uppercase tracking-widest text-accent font-bold">· Recently Changed</span>
+              )}
+            </div>
+
+            <p className="text-sm font-body text-muted-foreground italic mb-5">{diagnosis.why}</p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">
+              {([
+                { label: 'Clarity', value: diagnosis.clarity },
+                { label: 'Evidence', value: diagnosis.evidence },
+                { label: 'Tension', value: diagnosis.tension },
+                { label: 'Embodiment', value: diagnosis.embodiment },
+                { label: 'Expression', value: diagnosis.expression },
+              ] as { label: string; value: string }[]).map(({ label, value }) => (
+                <div key={label} className="rounded-lg bg-muted/10 border border-border/20 px-3 py-2">
+                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50 font-bold mb-0.5">{label}</div>
+                  <div className="font-code text-[10px] uppercase tracking-widest font-bold text-foreground/70">{value}</div>
+                </div>
+              ))}
+            </div>
+
+            {diagnosis.growthAreas.length > 0 && (
+              <div className="mb-4">
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Growth Areas</div>
+                <ul className="space-y-1.5">
+                  {diagnosis.growthAreas.map((area, i) => (
+                    <li key={i} className="text-sm font-body text-foreground/80 flex items-start gap-2">
+                      <span className="text-accent mt-0.5 shrink-0">→</span>{area}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="rounded-lg bg-accent/5 border border-accent/15 p-3.5 mb-4">
+              <div className="font-code text-[9px] uppercase tracking-widest text-accent/70 mb-1 font-bold">Next Action</div>
+              <p className="text-sm font-body text-primary">{diagnosis.suggestedNextAction}</p>
+            </div>
+
+            {diagnosis.areasToReview.length > 0 && (
+              <div>
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Areas to Review</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {diagnosis.areasToReview.map(area => (
+                    <span key={area} className="font-code text-[9px] uppercase tracking-widest bg-muted/20 text-muted-foreground/70 rounded-full px-2.5 py-1 border border-border/30">{area}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sources + Annotations */}
@@ -393,6 +508,109 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Clarity Check dialog */}
+        <Dialog open={clarityCheckOpen} onOpenChange={(open) => { setClarityCheckOpen(open); if (!open) { setShowReview(false); setClarityCheckQuestions([]); setClarityAnswers([]); setCurrentQIdx(0); } }}>
+          <DialogContent className="max-w-2xl border-none shadow-2xl rounded-2xl bg-white">
+            {isLoadingCheck ? (
+              <div className="py-20 flex flex-col items-center gap-4">
+                <Loader2 className="size-8 animate-spin text-accent/40" />
+                <p className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Generating questions…</p>
+              </div>
+            ) : showReview ? (
+              <div className="space-y-6 py-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="size-5 text-emerald-500" />
+                  <span className="font-code text-[10px] uppercase tracking-widest text-emerald-600 font-bold">Clarity Check Complete</span>
+                </div>
+                <h2 className="font-headline text-3xl italic text-primary">{selectedName}</h2>
+
+                <div className="flex items-center gap-3">
+                  <span className={cn('font-code text-[10px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full border', CLARITY_BG[diagnosis.level])}>
+                    {diagnosis.level}
+                  </span>
+                  <span className="font-code text-[10px] text-muted-foreground/60 uppercase tracking-widest">
+                    {clarityAnswers.filter(a => a.isClosest).length}/{clarityAnswers.length} closest matched
+                  </span>
+                </div>
+
+                <p className="text-sm font-body text-muted-foreground italic">{diagnosis.why}</p>
+
+                {clarityAnswers.some(a => a.isClosest) && (
+                  <div className="space-y-2">
+                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">What Your Answers Reveal</div>
+                    {clarityAnswers.filter(a => a.isClosest).map((a, i) => (
+                      <div key={i} className="rounded-lg bg-emerald-50 border border-emerald-100 p-3 text-sm font-body text-emerald-800">{a.feedback}</div>
+                    ))}
+                  </div>
+                )}
+
+                {diagnosis.growthAreas.length > 0 && (
+                  <div>
+                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Growth Areas</div>
+                    <ul className="space-y-1.5">
+                      {diagnosis.growthAreas.map((area, i) => (
+                        <li key={i} className="text-sm font-body text-foreground/80 flex items-start gap-2">
+                          <span className="text-accent mt-0.5 shrink-0">→</span>{area}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="rounded-lg bg-accent/5 border border-accent/15 p-4">
+                  <div className="font-code text-[9px] uppercase tracking-widest text-accent/70 mb-1 font-bold">Next Action</div>
+                  <p className="text-sm font-body text-primary">{diagnosis.suggestedNextAction}</p>
+                </div>
+
+                {diagnosis.areasToReview.length > 0 && (
+                  <div>
+                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Areas to Review</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {diagnosis.areasToReview.map(area => (
+                        <span key={area} className="font-code text-[9px] uppercase tracking-widest bg-muted/20 text-muted-foreground/70 rounded-full px-2.5 py-1 border border-border/30">{area}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button onClick={() => setClarityCheckOpen(false)} className="rounded-full px-8 font-bold">Done</Button>
+                </DialogFooter>
+              </div>
+            ) : clarityCheckQuestions.length > 0 ? (
+              <div className="space-y-6 py-2">
+                <div className="flex items-center justify-between">
+                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">
+                    {currentQIdx + 1} / {clarityCheckQuestions.length}
+                  </div>
+                  <div className="font-code text-[9px] uppercase tracking-widest text-accent/70 font-bold">
+                    {clarityCheckQuestions[currentQIdx].dimension.replace('_', ' ')}
+                  </div>
+                </div>
+
+                <div className="w-full h-1 bg-muted/20 rounded-full overflow-hidden">
+                  <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${((currentQIdx) / clarityCheckQuestions.length) * 100}%` }} />
+                </div>
+
+                <h2 className="font-headline text-2xl italic text-primary leading-tight">{clarityCheckQuestions[currentQIdx].text}</h2>
+
+                <div className="space-y-3">
+                  {clarityCheckQuestions[currentQIdx].options.map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={() => handleSelectOption(clarityCheckQuestions[currentQIdx], option.isClosest)}
+                      className="w-full text-left rounded-xl bg-white border border-border/40 p-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
+                    >
+                      <span className="font-code text-[9px] uppercase font-bold text-muted-foreground/50 mr-2 group-hover:text-accent/70">{option.id.toUpperCase()}.</span>
+                      <span className="font-body text-[15px] text-primary">{option.text}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -426,11 +644,12 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         {filteredTerms.map((name) => {
           const related = conceptRelated(name, { media, insights: [], vault, drafts, practices, questions, timeline });
           const concept = concepts.find((item) => conceptKey(item.name) === conceptKey(name));
+          const diag = computeConceptDiagnosis(name, related, concept?.description);
 
           return (
             <Card
               key={name}
-              className="rounded-xl p-5 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group bg-white/95 shadow-md border border-accent/20" 
+              className="rounded-xl p-5 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group bg-white/95 shadow-md border border-accent/20"
               onClick={() => {
                 setSelectedName(name);
                 setPositionDrafts([]);
@@ -446,15 +665,20 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                       </Button>
                     )}
                   </div>
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 mt-1 font-bold">
-                    {related.sources.length + related.beliefs.length + related.drafts.length} LINKS
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={cn('font-code text-[8px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full border', CLARITY_BG[diag.level])}>
+                      {diag.level}
+                    </span>
+                    <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">
+                      {related.sources.length + related.beliefs.length + related.drafts.length} links
+                    </span>
                   </div>
                 </div>
                 <div className="size-8 rounded-full flex items-center justify-center transition-colors shadow-sm bg-primary/10 text-primary">
                   <BookOpen className="size-4" />
                 </div>
               </div>
-              
+
               <p className="text-[13px] leading-relaxed text-muted-foreground font-body line-clamp-2 italic mb-5">
                 {concept?.description || 'Inspect linked sources, positions, works, inquiries, and practices.'}
               </p>

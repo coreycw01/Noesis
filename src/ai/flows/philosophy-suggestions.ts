@@ -376,6 +376,84 @@ const formPositionFromIdeaFlow = ai.defineFlow({
   return output!;
 });
 
+const GenerateClarityCheckInputSchema = z.object({
+  conceptName: z.string(),
+  conceptDefinition: z.string().optional(),
+  positionStatements: z.array(z.string()).max(4),
+  annotationTexts: z.array(z.string()).max(5),
+  relatedConcepts: z.array(z.string()).max(6),
+});
+
+const ClarityCheckOptionSchema = z.object({
+  id: z.enum(['a', 'b', 'c', 'd']),
+  text: z.string(),
+  isClosest: z.boolean(),
+});
+
+const ClarityCheckQuestionSchema = z.object({
+  text: z.string(),
+  dimension: z.enum(['definition', 'distinction', 'application', 'tension', 'connection']),
+  options: z.array(ClarityCheckOptionSchema).min(4).max(4),
+  feedback: z.string(),
+});
+
+const GenerateClarityCheckOutputSchema = z.object({
+  questions: z.array(ClarityCheckQuestionSchema).min(3).max(5),
+});
+
+export type ClarityCheckQuestion = z.infer<typeof ClarityCheckQuestionSchema>;
+export type ClarityCheckOption = z.infer<typeof ClarityCheckOptionSchema>;
+
+export async function generateClarityCheck(input: z.infer<typeof GenerateClarityCheckInputSchema>) {
+  return generateClarityCheckFlow(input);
+}
+
+const generateClarityCheckPrompt = ai.definePrompt({
+  name: 'generateClarityCheckPrompt',
+  input: { schema: GenerateClarityCheckInputSchema },
+  output: { schema: GenerateClarityCheckOutputSchema },
+  prompt: `Generate a Clarity Check for a philosophical concept. This is NOT a quiz testing memory — it reveals what the user believes and where their thinking is unclear.
+
+Concept: {{{conceptName}}}
+Definition: {{{conceptDefinition}}}
+
+Current positions:
+{{#each positionStatements}}
+- {{{this}}}
+{{/each}}
+
+Key annotations:
+{{#each annotationTexts}}
+- {{{this}}}
+{{/each}}
+
+Related concepts: {{relatedConcepts}}
+
+Generate 3-5 questions. Each tests ONE dimension:
+- definition: what this concept means
+- distinction: how it differs from a closely related concept
+- application: when or how this applies in real life
+- tension: where the concept creates difficulty or conflict
+- connection: how it relates to another idea
+
+Rules:
+- Questions must be specific to THIS user's notes — not generic philosophy
+- Each question has exactly 4 options (id: a/b/c/d), ONE marked isClosest: true
+- isClosest should match what the user's notes suggest they believe
+- Do NOT make isClosest obvious — require genuine self-reflection
+- feedback: one sentence explaining what the closest option reveals
+- Option text under 20 words each`,
+});
+
+const generateClarityCheckFlow = ai.defineFlow({
+  name: 'generateClarityCheckFlow',
+  inputSchema: GenerateClarityCheckInputSchema,
+  outputSchema: GenerateClarityCheckOutputSchema,
+}, async (input) => {
+  const { output } = await generateClarityCheckPrompt(input);
+  return output!;
+});
+
 const SuggestDailyPhilosophyPromptInputSchema = z.object({
   rawAnnotationCount: z.number(),
   openInquiryCount: z.number(),
