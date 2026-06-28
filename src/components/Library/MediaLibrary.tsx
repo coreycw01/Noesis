@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { ArrowLeft, Edit, Plus, Search, Trash2, MessageSquare, X, Sparkles, Loader2, HelpCircle, Triangle, BookOpen, FileText, Check, Globe, Link2 } from 'lucide-react';
+import { ArrowLeft, Edit, Plus, Search, Trash2, MessageSquare, X, Sparkles, Loader2, HelpCircle, Triangle, BookOpen, FileText, Check, Globe, Link2, Clock, Pause, Play, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import type { Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink } from '@/lib/types';
+import type { Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink, ReadingSession } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, today, uid, conceptKey, conceptRelated } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +42,16 @@ interface MediaLibraryProps {
 }
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
+
+function formatDuration(totalSeconds = 0) {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`;
+}
 
 const TYPE_TERMINOLOGY: Record<MediaType, { creator: string; publisher: string; genre: string; identifier: string }> = {
   book: { creator: 'Author', publisher: 'Publisher', genre: 'Genre', identifier: 'ISBN' },
@@ -91,6 +101,12 @@ export function MediaLibrary({
 
   const selected = media.find((item) => item.id === selectedId) || null;
   const [captureDraft, setCaptureDraft] = useState<Media['capture'] | null>(null);
+  const [activeSession, setActiveSession] = useState<ReadingSession | null>(null);
+  const [sessionTick, setSessionTick] = useState(0);
+  const [sessionTargetMinutes, setSessionTargetMinutes] = useState('');
+  const [endSessionOpen, setEndSessionOpen] = useState(false);
+  const [endSessionNotes, setEndSessionNotes] = useState('');
+  const [targetAlerted, setTargetAlerted] = useState(false);
   
   const filtered = useMemo(() => media.filter((item) => {
     const typeOk = filter === 'all' || item.type === filter;
@@ -128,7 +144,96 @@ export function MediaLibrary({
 
   useEffect(() => {
     setCaptureDraft(selected?.capture || { sessions: [] });
+    setActiveSession(null);
+    setSessionTargetMinutes('');
+    setEndSessionOpen(false);
   }, [selected?.id]);
+
+  useEffect(() => {
+    if (!activeSession || activeSession.status !== 'active') return;
+    const interval = window.setInterval(() => setSessionTick((tick) => tick + 1), 1000);
+    return () => window.clearInterval(interval);
+  }, [activeSession?.id, activeSession?.status]);
+
+  const sessionElapsedSeconds = (session: ReadingSession | null) => {
+    if (!session?.startedAt) return 0;
+    const started = new Date(session.startedAt).getTime();
+    const now = session.status === 'paused' && session.pauseStartedAt ? new Date(session.pauseStartedAt).getTime() : Date.now();
+    const wallSeconds = Math.max(0, Math.floor((now - started) / 1000));
+    return Math.max(0, wallSeconds - (session.totalPausedSeconds || 0));
+  };
+
+  const elapsed = sessionElapsedSeconds(activeSession);
+
+  useEffect(() => {
+    if (!activeSession?.countdownTargetSeconds || activeSession.status !== 'active' || targetAlerted) return;
+    if (elapsed >= activeSession.countdownTargetSeconds) {
+      setTargetAlerted(true);
+      toast({ title: 'Reading target reached', description: 'Your session will keep counting until you end it.' });
+    }
+  }, [activeSession, elapsed, targetAlerted, toast]);
+
+  const startSession = () => {
+    if (!selected) return;
+    const target = Number(sessionTargetMinutes);
+    setActiveSession({
+      id: uid(),
+      sourceId: selected.id,
+      startedAt: today(),
+      status: 'active',
+      countdownTargetSeconds: target > 0 ? target * 60 : 0,
+      totalPausedSeconds: 0,
+      createdAt: today(),
+      updatedAt: today(),
+    });
+    setTargetAlerted(false);
+    setSessionTick(0);
+  };
+
+  const pauseSession = () => {
+    if (!activeSession || activeSession.status !== 'active') return;
+    setActiveSession({ ...activeSession, status: 'paused', pauseStartedAt: today(), updatedAt: today() });
+  };
+
+  const resumeSession = () => {
+    if (!activeSession || activeSession.status !== 'paused') return;
+    const pausedFor = activeSession.pauseStartedAt ? Math.floor((Date.now() - new Date(activeSession.pauseStartedAt).getTime()) / 1000) : 0;
+    setActiveSession({
+      ...activeSession,
+      status: 'active',
+      pauseStartedAt: '',
+      totalPausedSeconds: (activeSession.totalPausedSeconds || 0) + Math.max(0, pausedFor),
+      updatedAt: today(),
+    });
+  };
+
+  const openEndSession = () => {
+    if (!activeSession) return;
+    setEndSessionNotes('');
+    setEndSessionOpen(true);
+  };
+
+  const saveSession = (notes?: string) => {
+    if (!selected || !activeSession) return;
+    const completed: ReadingSession = {
+      ...activeSession,
+      endedAt: today(),
+      date: today(),
+      durationSeconds: elapsed,
+      totalElapsedSeconds: activeSession.startedAt ? Math.floor((Date.now() - new Date(activeSession.startedAt).getTime()) / 1000) : elapsed,
+      notes: notes || '',
+      status: 'completed',
+      updatedAt: today(),
+    };
+    const capture = captureDraft || selected.capture || { sessions: [] };
+    const nextCapture = { ...capture, sessions: [completed, ...(capture.sessions || [])] };
+    setCaptureDraft(nextCapture);
+    updateSelected({ capture: nextCapture });
+    setActiveSession(null);
+    setEndSessionOpen(false);
+    setSessionTargetMinutes('');
+    toast({ title: 'Session saved', description: `${formatDuration(completed.durationSeconds)} added to this source history.` });
+  };
 
   useEffect(() => {
     if (!selected || !captureDraft) return;
@@ -313,10 +418,78 @@ export function MediaLibrary({
                 <h3 className="readex-kicker flex items-center gap-3 opacity-40 font-bold">
                   <Plus className="size-2.5" /> SESSIONS
                 </h3>
-                <Button variant="outline" size="sm" className="h-8 px-5 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-white rounded-full font-bold">+ ADD SESSION</Button>
+                {!activeSession && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="Target min"
+                      value={sessionTargetMinutes}
+                      onChange={(event) => setSessionTargetMinutes(event.target.value)}
+                      className="h-8 w-28 rounded-full text-right font-code text-[10px]"
+                    />
+                    <Button variant="outline" size="sm" onClick={startSession} className="h-8 px-5 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-white rounded-full font-bold">
+                      <Play className="mr-2 size-3.5" /> Start Session
+                    </Button>
+                  </div>
+                )}
               </div>
-              <div className="bg-white border border-border/30 rounded-xl p-8 shadow-sm text-center">
-                <p className="font-body text-base text-muted-foreground italic">Log each session to trace your progress through the material.</p>
+              <div className="space-y-4">
+                {activeSession && (
+                  <Card className="rounded-xl border-accent/25 bg-accent/[0.04] p-5 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex size-12 items-center justify-center rounded-full bg-white text-accent shadow-sm">
+                          <Clock className="size-5" />
+                        </div>
+                        <div>
+                          <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                            {activeSession.status === 'paused' ? 'Paused' : 'Reading Now'}
+                          </div>
+                          <div className="font-headline text-3xl font-bold italic">{formatDuration(elapsed)}</div>
+                          {activeSession.countdownTargetSeconds && (
+                            <p className="text-xs italic text-muted-foreground">
+                              Target {formatDuration(activeSession.countdownTargetSeconds)} {elapsed >= activeSession.countdownTargetSeconds ? 'reached' : 'remaining target active'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {activeSession.status === 'paused' ? (
+                          <Button onClick={resumeSession} className="rounded-full"><Play className="mr-2 size-4" /> Resume</Button>
+                        ) : (
+                          <Button variant="outline" onClick={pauseSession} className="rounded-full bg-white"><Pause className="mr-2 size-4" /> Pause</Button>
+                        )}
+                        <Button variant="destructive" onClick={openEndSession} className="rounded-full"><Square className="mr-2 size-4" /> End</Button>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+
+                {(capture.sessions || []).length > 0 ? (
+                  <div className="space-y-3">
+                    {[...(capture.sessions || [])]
+                      .sort((a, b) => new Date(b.endedAt || b.date || b.startedAt || '').getTime() - new Date(a.endedAt || a.date || a.startedAt || '').getTime())
+                      .map((session) => (
+                        <Card key={session.id} className="rounded-xl border-border/40 bg-white p-4 shadow-sm">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                                {new Date(session.endedAt || session.date || session.startedAt || today()).toLocaleDateString()}
+                              </div>
+                              <div className="mt-1 font-headline text-xl font-bold italic">{formatDuration(session.durationSeconds || 0)}</div>
+                            </div>
+                            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{session.status || 'completed'}</Badge>
+                          </div>
+                          {session.notes && <p className="mt-3 text-sm italic leading-6 text-muted-foreground">{session.notes}</p>}
+                        </Card>
+                      ))}
+                  </div>
+                ) : !activeSession && (
+                  <div className="bg-white border border-border/30 rounded-xl p-8 shadow-sm text-center">
+                    <p className="font-body text-base text-muted-foreground italic">Start a session to trace real engagement with this source.</p>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -511,6 +684,29 @@ export function MediaLibrary({
           questions={questions}
           timeline={timeline}
         />
+
+        <Dialog open={endSessionOpen} onOpenChange={setEndSessionOpen}>
+          <DialogContent className="max-w-lg border-none bg-white shadow-2xl rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="font-headline text-3xl italic">End Reading Session</DialogTitle>
+              <p className="text-sm italic text-muted-foreground">Total active time: {formatDuration(elapsed)}</p>
+            </DialogHeader>
+            <div className="space-y-3 pt-3">
+              <Label className="readex-kicker text-[9px] font-bold uppercase">Reflection Notes</Label>
+              <Textarea
+                value={endSessionNotes}
+                onChange={(event) => setEndSessionNotes(event.target.value)}
+                placeholder="What did you read, notice, question, or connect?"
+                className="min-h-[130px] italic"
+              />
+            </div>
+            <DialogFooter className="gap-2 pt-4">
+              <Button variant="ghost" onClick={() => setEndSessionOpen(false)} className="rounded-full">Cancel</Button>
+              <Button variant="outline" onClick={() => saveSession('')} className="rounded-full bg-white">Skip Notes</Button>
+              <Button onClick={() => saveSession(endSessionNotes)} className="rounded-full bg-accent px-8">Save Session</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={insightOpen} onOpenChange={setInsightOpen}>
           <DialogContent className="max-w-xl border-none shadow-2xl rounded-2xl">

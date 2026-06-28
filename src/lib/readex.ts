@@ -41,11 +41,31 @@ export const DRAFT_LABELS = {
   essay: 'Essay',
   script: 'Script',
   field_note: 'Field Note',
+  manuscript: 'Manuscript',
+  reflection: 'Reflection',
+  argument: 'Argument',
+  source_analysis: 'Source Analysis',
+  text_note: 'Text Note',
   voice_note: 'Voice Note',
   talk_to_text: 'Talk-to-Text',
+  drawing_note: 'Drawing Note',
   drawing: 'Drawing',
   recording: 'Recording',
 };
+
+export const WORK_CATEGORY_LABELS = {
+  writing: 'Writings',
+  notes: 'Notes',
+  drawing: 'Drawing',
+  recording: 'Recording',
+};
+
+export function workCategoryForDraft(type?: string) {
+  if (type === 'recording') return 'recording';
+  if (type === 'drawing') return 'drawing';
+  if (type === 'voice_note' || type === 'talk_to_text' || type === 'text_note' || type === 'drawing_note') return 'notes';
+  return 'writing';
+}
 
 export const WRITING_STYLE_LABELS: Record<WritingStyle, string> = {
   blank_paper: 'Blank Paper',

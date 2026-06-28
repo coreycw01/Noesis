@@ -5,8 +5,11 @@ export type AnnotationType = 'highlight' | 'thought' | 'question' | 'connection'
 export type VaultType = 'belief' | 'principle' | 'mental_model' | 'life_rule' | 'worldview';
 export type EventType = 'created' | 'refined' | 'challenged' | 'revised' | 'expanded' | 'abandoned';
 export type QuestionStatus = 'open' | 'investigating' | 'answered' | 'archived';
-export type DraftType = 'essay' | 'script' | 'field_note' | 'voice_note' | 'talk_to_text' | 'drawing' | 'recording';
+export type DraftType = 'essay' | 'script' | 'field_note' | 'manuscript' | 'reflection' | 'argument' | 'source_analysis' | 'text_note' | 'voice_note' | 'talk_to_text' | 'drawing_note' | 'drawing' | 'recording';
 export type DraftStatus = 'seed' | 'drafting' | 'revised' | 'final';
+export type WorkCategory = 'writing' | 'notes' | 'drawing' | 'recording';
+export type WorkMode = 'draft' | 'final';
+export type RecordingType = 'video' | 'screen';
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type AccentTheme = 'violet' | 'sage' | 'blue' | 'amber' | 'rose' | 'mono';
 export type WritingStyle = 'blank_paper' | 'ruled_notebook' | 'manuscript' | 'cornell_notes' | 'two_column_debate' | 'dialectic' | 'belief_audit' | 'source_analysis' | 'mind_map' | 'timeline';
@@ -39,10 +42,22 @@ export interface Annotation {
   philosophyStatus?: AnnotationPhilosophyStatus;
 }
 
-export interface SessionLog {
+export interface ReadingSession {
   id: string;
-  date: string;
-  notes: string;
+  userId?: string;
+  sourceId?: string;
+  startedAt?: string;
+  endedAt?: string;
+  date?: string;
+  durationSeconds?: number;
+  totalElapsedSeconds?: number;
+  countdownTargetSeconds?: number;
+  notes?: string;
+  status?: 'active' | 'paused' | 'completed' | 'abandoned';
+  pauseStartedAt?: string;
+  totalPausedSeconds?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface MediaCapture {
@@ -60,7 +75,7 @@ export interface MediaCapture {
     beliefChange?: string;
     crossRefs?: string;
   };
-  sessions: SessionLog[];
+  sessions: ReadingSession[];
 }
 
 export interface Media {
@@ -181,6 +196,19 @@ export interface Draft {
   body: string;
   type: DraftType;
   status: DraftStatus;
+  label?: string;
+  workCategory?: WorkCategory;
+  paperType?: WritingStyle;
+  draftContent?: string;
+  finalContent?: string;
+  activeMode?: WorkMode;
+  activeRibbon?: 'writing' | 'drawing';
+  recordingType?: RecordingType;
+  durationSeconds?: number;
+  fileUrl?: string;
+  storagePath?: string;
+  thumbnailUrl?: string;
+  canvasData?: string;
   writingStyle?: WritingStyle;
   externalDoc?: ExternalDraftDocument;
   conceptTags: string[];
@@ -257,6 +285,33 @@ export interface GoalSettings {
   label: string;
   types: MediaType[];
   targets: Partial<Record<MediaType, number>>;
+  goalTypes?: GoalType[];
+  goals?: GoalItem[];
+}
+
+export interface GoalType {
+  id: string;
+  userId?: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  mediaTypes?: MediaType[];
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+export interface GoalItem {
+  id: string;
+  title: string;
+  typeId: string;
+  currentProgress: number;
+  targetProgress: number;
+  sortOrder: number;
+  status: 'active' | 'completed' | 'archived';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WritingDefaults {

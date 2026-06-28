@@ -31,6 +31,16 @@ export const DEFAULT_GOAL_SETTINGS: GoalSettings = {
   label: '2026 Goals',
   types: ['book', 'movie', 'video', 'documentary', 'article', 'podcast', 'audiobook'],
   targets: { book: 12, movie: 12, video: 12, documentary: 12, article: 12, podcast: 12, audiobook: 12 },
+  goalTypes: [
+    { id: 'books', name: 'Books', mediaTypes: ['book'], sortOrder: 0, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'audiobooks', name: 'Audiobooks', mediaTypes: ['audiobook'], sortOrder: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'podcasts', name: 'Podcasts', mediaTypes: ['podcast'], sortOrder: 2, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+  ],
+  goals: [
+    { id: 'books-2026', title: 'Books', typeId: 'books', currentProgress: 0, targetProgress: 12, sortOrder: 0, status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'audiobooks-2026', title: 'Audiobooks', typeId: 'audiobooks', currentProgress: 0, targetProgress: 12, sortOrder: 1, status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'podcasts-2026', title: 'Podcasts', typeId: 'podcasts', currentProgress: 0, targetProgress: 12, sortOrder: 2, status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+  ],
 };
 
 export const DEFAULT_ATLAS_VIEW_SETTINGS: AtlasViewSettings = {

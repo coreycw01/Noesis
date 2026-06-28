@@ -29,7 +29,7 @@ import { PracticesWorkspace } from '@/components/Practices/PracticesWorkspace';
 import { SettingsPage } from '@/components/Settings/SettingsPage';
 import { GoalsPage } from '@/components/Goals/GoalsPage';
 import { Toaster } from '@/components/ui/toaster';
-import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today } from '@/lib/readex';
+import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
 import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, DEFAULT_USER_PREFERENCES, DEFAULT_USER_PROFILE, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
 import type { AiSuggestion, Annotation, AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, PhilosophicalLink, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext, UserPreferences, UserProfile } from '@/lib/types';
 import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
@@ -419,6 +419,19 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
       body: data.body || '',
       type: data.type || preferences.writingDefaults.type,
       status: data.status || preferences.writingDefaults.status,
+      label: data.label || '',
+      workCategory: data.workCategory || workCategoryForDraft(data.type || preferences.writingDefaults.type),
+      paperType: data.paperType || data.writingStyle || preferences.writingDefaults.writingStyle,
+      draftContent: data.draftContent || data.body || '',
+      finalContent: data.finalContent || '',
+      activeMode: data.activeMode || 'draft',
+      activeRibbon: data.activeRibbon || 'writing',
+      recordingType: data.recordingType || 'screen',
+      durationSeconds: data.durationSeconds || 0,
+      fileUrl: data.fileUrl || '',
+      storagePath: data.storagePath || '',
+      thumbnailUrl: data.thumbnailUrl || '',
+      canvasData: data.canvasData || '',
       writingStyle: data.writingStyle || preferences.writingDefaults.writingStyle,
       externalDoc: data.externalDoc || null,
       conceptTags,

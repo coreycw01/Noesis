@@ -61,6 +61,8 @@ export function PageViewControls({
     { id: 'none', label: 'Plain', icon: Palette },
     { id: 'notebook', label: 'Lined', icon: LayoutGrid },
     { id: 'grid', label: 'Grid', icon: LayoutGrid },
+    { id: 'dotted', label: 'Dotted', icon: LayoutGrid },
+    { id: 'dotted_grid', label: 'Dot Grid', icon: LayoutGrid },
   ];
 
   return (

@@ -54,6 +54,32 @@ const TYPE_LABELS: Record<VaultType, string> = {
   worldview: 'Worldview',
 };
 
+function safePosition(entry: VaultEntry): VaultEntry {
+  const title = entry.title || entry.statement || entry.description || 'Untitled Position';
+  return {
+    ...entry,
+    id: entry.id || title,
+    title,
+    type: (entry.type || 'belief') as VaultType,
+    statement: entry.statement || entry.description || '',
+    description: entry.description || entry.statement || '',
+    confidence: Number.isFinite(entry.confidence) ? entry.confidence : 3,
+    status: entry.status || 'active',
+    tags: entry.tags || [],
+    sourceIds: entry.sourceIds || [],
+    evidenceFor: entry.evidenceFor || [],
+    evidenceAgainst: entry.evidenceAgainst || [],
+    versionHistory: entry.versionHistory || [],
+    dateCreated: entry.dateCreated || entry.dateUpdated || new Date().toISOString(),
+    dateUpdated: entry.dateUpdated || entry.dateCreated || new Date().toISOString(),
+  };
+}
+
+function safePositionDate(value?: string) {
+  const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date().toLocaleDateString() : date.toLocaleDateString();
+}
+
 export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onCreateIdea, onUpdateLink, focusedEntryId, onFocusedEntryHandled }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -133,16 +159,17 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     toast({ title: 'Position Created', description: `"${ideaPosition.positionTitle}" added to your Positions.` });
   };
 
-  const selected = entries.find((entry) => entry.id === selectedId) || null;
-  const filteredEntries = entries.filter(e => {
+  const safeEntries = useMemo(() => entries.filter((entry) => entry?.id).map(safePosition), [entries]);
+  const selected = safeEntries.find((entry) => entry.id === selectedId) || null;
+  const filteredEntries = safeEntries.filter(e => {
     const typeOk = filter === 'all'
       ? true
       : filter === 'ideas'
         ? e.createdFrom === 'idea'
         : e.type === filter;
+    const haystack = `${e.title || ''} ${e.statement || ''} ${e.description || ''}`.toLowerCase();
     const queryOk = !search ||
-      e.title.toLowerCase().includes(search.toLowerCase()) ||
-      e.statement.toLowerCase().includes(search.toLowerCase());
+      haystack.includes(search.toLowerCase());
     return typeOk && queryOk;
   });
 
@@ -153,19 +180,11 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
   useEffect(() => {
     if (!focusedEntryId) return;
-    if (entries.some((entry) => entry.id === focusedEntryId)) {
+    if (safeEntries.some((entry) => entry.id === focusedEntryId)) {
       setSelectedId(focusedEntryId);
       onFocusedEntryHandled?.();
     }
-  }, [entries, focusedEntryId, onFocusedEntryHandled]);
-
-  useEffect(() => {
-    if (!focusedEntryId) return;
-    if (entries.some((entry) => entry.id === focusedEntryId)) {
-      setSelectedId(focusedEntryId);
-      onFocusedEntryHandled?.();
-    }
-  }, [entries, focusedEntryId, onFocusedEntryHandled]);
+  }, [safeEntries, focusedEntryId, onFocusedEntryHandled]);
 
   const saveEntry = () => {
     if (!draftEntry.title?.trim()) return;
@@ -173,6 +192,22 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     else onAddEntry({ ...draftEntry, tags: normalizeConceptTags(draftEntry.tags) });
     setEditorOpen(false);
   };
+
+  const tensions = useMemo(() => {
+    const active = safeEntries.filter((e) => e.status !== 'rejected' && e.status !== 'abandoned');
+    const pairs: Array<{ a: VaultEntry; b: VaultEntry; sharedTags: string[] }> = [];
+    for (let i = 0; i < active.length; i++) {
+      for (let j = i + 1; j < active.length; j++) {
+        const tagsA = (active[i].tags || []).map((t) => t.toLowerCase());
+        const tagsB = (active[j].tags || []).map((t) => t.toLowerCase());
+        const shared = tagsA.filter((t) => tagsB.includes(t));
+        if (shared.length > 0 && active[i].id !== active[j].id) {
+          pairs.push({ a: active[i], b: active[j], sharedTags: shared });
+        }
+      }
+    }
+    return pairs.slice(0, 3);
+  }, [safeEntries]);
 
   if (selected) {
     const linkedSources = media.filter((item) => (selected.sourceIds || []).includes(item.id));
@@ -191,7 +226,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         </div>
 
         <Card className="p-6 mb-6 bg-white border-border/50 shadow-sm rounded-xl">
-          <Badge variant="outline" className="mb-3 font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{selected.type.replace('_', ' ')}</Badge>
+          <Badge variant="outline" className="mb-3 font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
           <h1 className="font-headline text-4xl font-bold mb-3">{selected.title}</h1>
           <p className="font-body text-lg italic text-primary/80 mb-4">{selected.statement || selected.description}</p>
           <div className="flex flex-wrap gap-2">
@@ -321,7 +356,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           onClose={() => setConceptPopupName(null)}
           concepts={concepts}
           media={media}
-          vault={entries}
+          vault={safeEntries}
           drafts={drafts}
           practices={practices}
           questions={questions}
@@ -332,22 +367,6 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       </div>
     );
   }
-
-  const tensions = useMemo(() => {
-    const active = entries.filter((e) => e.status !== 'rejected' && e.status !== 'abandoned');
-    const pairs: Array<{ a: VaultEntry; b: VaultEntry; sharedTags: string[] }> = [];
-    for (let i = 0; i < active.length; i++) {
-      for (let j = i + 1; j < active.length; j++) {
-        const tagsA = (active[i].tags || []).map((t) => t.toLowerCase());
-        const tagsB = (active[j].tags || []).map((t) => t.toLowerCase());
-        const shared = tagsA.filter((t) => tagsB.includes(t));
-        if (shared.length > 0 && active[i].id !== active[j].id) {
-          pairs.push({ a: active[i], b: active[j], sharedTags: shared });
-        }
-      }
-    }
-    return pairs.slice(0, 3);
-  }, [entries]);
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
@@ -456,7 +475,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex-1 min-w-0">
                 <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 mb-1 font-bold">
-                  {TYPE_LABELS[entry.type]}
+                  {TYPE_LABELS[entry.type] || 'Position'}
                 </div>
                 <h3 className="font-headline text-xl font-bold italic leading-tight group-hover:text-accent transition-colors truncate text-primary">
                   {entry.title}
@@ -478,7 +497,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                     key={n} 
                     className={cn(
                       'size-2 rounded-full shadow-sm', 
-                      n <= entry.confidence ? 'bg-accent' : 'bg-muted'
+                      n <= (entry.confidence || 3) ? 'bg-accent' : 'bg-muted'
                     )} 
                   />
                 ))}
@@ -776,7 +795,7 @@ function PositionsTable({ entries, onOpen }: { entries: VaultEntry[]; onOpen: (i
                   <div className="font-headline text-base font-semibold italic">{entry.title}</div>
                   <div className="line-clamp-1 text-xs text-muted-foreground">{entry.statement || entry.description}</div>
                 </TableCell>
-                <TableCell className="font-code text-[10px] uppercase tracking-widest">{TYPE_LABELS[entry.type]}</TableCell>
+                <TableCell className="font-code text-[10px] uppercase tracking-widest">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
                 <TableCell><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge></TableCell>
                 <TableCell>
                   <div className="flex gap-1.5">
@@ -786,7 +805,7 @@ function PositionsTable({ entries, onOpen }: { entries: VaultEntry[]; onOpen: (i
                   </div>
                 </TableCell>
                 <TableCell className="font-code text-xs">{(entry.sourceIds || []).length}</TableCell>
-                <TableCell className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{new Date(entry.dateUpdated || entry.dateCreated).toLocaleDateString()}</TableCell>
+                <TableCell className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{safePositionDate(entry.dateUpdated || entry.dateCreated)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -798,7 +817,7 @@ function PositionsTable({ entries, onOpen }: { entries: VaultEntry[]; onOpen: (i
           <button key={entry.id} onClick={() => onOpen(entry.id)} className="rounded-xl border border-border/60 bg-card p-4 text-left shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{TYPE_LABELS[entry.type]}</div>
+                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{TYPE_LABELS[entry.type] || 'Position'}</div>
                 <h3 className="mt-1 font-headline text-xl font-bold italic">{entry.title}</h3>
               </div>
               <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge>

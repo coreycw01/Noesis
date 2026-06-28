@@ -29,8 +29,12 @@ const DistillInsightsFromMediaInputSchema = z.object({
       crossRefs: z.string().optional().describe('Cross-references to other sources.'),
     }).optional(),
     sessions: z.array(z.object({
-      date: z.string().describe('Date of the session.'),
-      notes: z.string().describe('Notes from the session.'),
+      date: z.string().optional().describe('Date of the session.'),
+      startedAt: z.string().optional().describe('Session start timestamp.'),
+      endedAt: z.string().optional().describe('Session end timestamp.'),
+      durationSeconds: z.number().optional().describe('Active reading duration in seconds.'),
+      notes: z.string().optional().describe('Notes from the session.'),
+      status: z.string().optional().describe('Session status.'),
     })).optional(),
   }).optional(),
   annotations: z.array(z.object({

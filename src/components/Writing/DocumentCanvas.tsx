@@ -5,6 +5,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { DocsPage } from './DocsPage';
 import { PageNavigation } from './PageNavigation';
 import type { PageViewMode, PageSize, PaperColor, PaperPattern } from './Atelier';
+import type { WritingStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface DocumentCanvasProps {
@@ -14,10 +15,11 @@ interface DocumentCanvasProps {
   pageSize: PageSize;
   paperColor: PaperColor;
   paperPattern: PaperPattern;
+  writingStyle: WritingStyle;
   title: string;
 }
 
-export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, title }: DocumentCanvasProps) {
+export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title }: DocumentCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -61,6 +63,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
                 pageSize={pageSize}
                 paperColor={paperColor}
                 paperPattern={paperPattern}
+                writingStyle={writingStyle}
                 isEditable={i === 0}
                 content={i === 0 ? content : ""}
                 onContentChange={onContentChange}
@@ -73,6 +76,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
               pageSize={pageSize}
               paperColor={paperColor}
               paperPattern={paperPattern}
+              writingStyle={writingStyle}
               isEditable={true}
               content={content}
               onContentChange={onContentChange}
