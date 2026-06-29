@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { sendPasswordResetEmail, signOut, updateProfile } from 'firebase/auth';
-import { LogOut, Save } from 'lucide-react';
+import { Info, LogOut, Save } from 'lucide-react';
 import { useAuth } from '@/firebase';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DRAFT_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, WRITING_STYLES } from '@/lib/readex';
 import type { AccentTheme, DraftStatus, DraftType, ThemeMode, UserPreferences, UserProfile, WritingStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { noesisGuide } from '@/lib/noesis-guide';
 
 interface SettingsPageProps {
   user: User | null;
@@ -259,6 +261,152 @@ export function SettingsPage({
           </SettingsCard>
 
         </div>
+
+        <SettingsCard title={noesisGuide.title} description="A user-facing guide built from the current Noesis structure, labels, collections, and creation flows.">
+          <div className="rounded-2xl border border-accent/15 bg-accent/[0.04] p-5">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex size-9 items-center justify-center rounded-full border border-accent/20 bg-background text-accent">
+                <Info className="size-4" />
+              </div>
+              <div>
+                <h3 className="font-headline text-xl font-bold italic">Overview</h3>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{noesisGuide.overview}</p>
+              </div>
+            </div>
+          </div>
+
+          <Accordion type="multiple" className="mt-6 w-full">
+            <AccordionItem value="sections">
+              <AccordionTrigger className="font-headline text-xl italic no-underline hover:no-underline">Main Sections</AccordionTrigger>
+              <AccordionContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {noesisGuide.sections.map((section) => (
+                    <Card key={section.id} className="rounded-xl border-border bg-background/60 p-4 shadow-none">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="font-headline text-lg font-bold italic">{section.label}</h4>
+                          <p className="mt-1 font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                            {section.section}{section.viewId ? ` · view: ${section.viewId}` : ''}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{section.section}</Badge>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">{section.definition}</p>
+                      <GuideList label="What you do here" items={section.whatYouDo} />
+                      <GuideList label="How it connects" items={section.connectsTo} />
+                      <GuideList label="Important actions" items={section.importantActions} />
+                    </Card>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="objects">
+              <AccordionTrigger className="font-headline text-xl italic no-underline hover:no-underline">Core Objects</AccordionTrigger>
+              <AccordionContent>
+                <div className="grid gap-4">
+                  {noesisGuide.objects.map((item) => (
+                    <Card key={item.id} className="rounded-xl border-border bg-background/60 p-4 shadow-none">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="font-headline text-lg font-bold italic">{item.label}</h4>
+                        {item.collection && (
+                          <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                            {item.collection}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">{item.definition}</p>
+                      <GuideList label="Where it appears" items={item.appearsIn} />
+                      <GuideList label="Created by" items={item.createdBy} />
+                      <GuideList label="Connects to" items={item.connectsTo} />
+                    </Card>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="connections">
+              <AccordionTrigger className="font-headline text-xl italic no-underline hover:no-underline">How Things Connect</AccordionTrigger>
+              <AccordionContent>
+                <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+                  <Card className="rounded-xl border-border bg-background/60 p-5 shadow-none">
+                    <h4 className="font-headline text-lg font-bold italic">Common Flow</h4>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      This is a cautious map of the app as it currently behaves. It shows common movement through the system, not a rigid official hierarchy.
+                    </p>
+                    <pre className="mt-4 overflow-x-auto rounded-xl border border-border bg-card p-4 font-code text-[11px] leading-6 text-foreground/80">
+{noesisGuide.commonFlowDiagram}
+                    </pre>
+                  </Card>
+
+                  <Card className="rounded-xl border-border bg-background/60 p-5 shadow-none">
+                    <h4 className="font-headline text-lg font-bold italic">Relationship Fields in Use</h4>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      These are the kinds of fields the current app uses to connect objects across pages and collections.
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {noesisGuide.relationshipFields.map((field) => (
+                        <Badge key={field} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                          {field}
+                        </Badge>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="workflows">
+              <AccordionTrigger className="font-headline text-xl italic no-underline hover:no-underline">Common Workflows</AccordionTrigger>
+              <AccordionContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {noesisGuide.workflows.map((workflow) => (
+                    <Card key={workflow.id} className="rounded-xl border-border bg-background/60 p-4 shadow-none">
+                      <h4 className="font-headline text-lg font-bold italic">{workflow.label}</h4>
+                      <ol className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
+                        {workflow.steps.map((step, index) => (
+                          <li key={step} className="flex gap-3">
+                            <span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/10 font-code text-[10px] font-bold text-accent">
+                              {index + 1}
+                            </span>
+                            <span>{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </Card>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="goals">
+              <AccordionTrigger className="font-headline text-xl italic no-underline hover:no-underline">Goals Explained</AccordionTrigger>
+              <AccordionContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <GlossaryCard title="Goal Set" description="The named plan saved in the goals settings document. The sidebar card and Goals page both read from this shared saved state." />
+                  <GlossaryCard title="Goal Category" description="A bucket inside the goal set, such as Books or Podcasts. Each category maps to one or more included media types." />
+                  <GlossaryCard title="Included Media Types" description="The source formats that count toward that category, such as Book and Audiobook." />
+                  <GlossaryCard title="Progress Count" description="The current completed count derived from finished source items whose media type is included in the category." />
+                  <GlossaryCard title="Target Amount" description="The user-edited target value for that category inside the current goal set." />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="glossary">
+              <AccordionTrigger className="font-headline text-xl italic no-underline hover:no-underline">Glossary</AccordionTrigger>
+              <AccordionContent>
+                <div className="grid gap-3">
+                  {noesisGuide.glossary.map(([term, definition]) => (
+                    <div key={term} className="rounded-xl border border-border bg-background/60 p-4">
+                      <div className="font-headline text-lg font-bold italic">{term}</div>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{definition}</p>
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </SettingsCard>
       </div>
     </div>
   );
@@ -282,5 +430,30 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <Label className="readex-kicker text-[9px] font-bold uppercase">{label}</Label>
       {children}
     </div>
+  );
+}
+
+function GuideList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div className="mt-4">
+      <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+      <ul className="mt-2 space-y-1.5 text-sm leading-6 text-muted-foreground">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2">
+            <span className="text-accent">•</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function GlossaryCard({ title, description }: { title: string; description: string }) {
+  return (
+    <Card className="rounded-xl border-border bg-background/60 p-4 shadow-none">
+      <h4 className="font-headline text-lg font-bold italic">{title}</h4>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+    </Card>
   );
 }
