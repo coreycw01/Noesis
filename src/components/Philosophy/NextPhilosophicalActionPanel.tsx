@@ -1,11 +1,10 @@
 "use client";
 
 import React from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, GitBranch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { cn } from '@/lib/utils';
 
 export interface PhilosophicalAction {
@@ -34,11 +33,11 @@ export function NextPhilosophicalActionPanel({
   compact = false,
 }: NextPhilosophicalActionPanelProps) {
   return (
-    <Card className={cn('border-accent/20 bg-accent/[0.03] shadow-sm rounded-xl', compact ? 'p-3' : 'p-5')}>
-      <div className={cn('flex items-start justify-between gap-4', compact ? 'mb-2.5' : 'mb-4')}>
+    <Card className={cn('border-accent/20 bg-accent/[0.03] shadow-sm rounded-xl', compact ? 'p-2.5' : 'p-5')}>
+      <div className={cn('flex items-start justify-between gap-4', compact ? 'mb-2' : 'mb-4')}>
         <div>
           <div className="mb-1 flex items-center gap-2">
-            <GenerativeAiIcon className="size-4" />
+            <GitBranch className="size-4 text-accent" />
             <h3 className="font-code text-[10px] font-bold uppercase tracking-[0.2em] text-accent">{title}</h3>
           </div>
           <p className={cn('italic text-muted-foreground font-body', compact ? 'text-xs leading-4' : 'text-sm leading-5')}>{description}</p>

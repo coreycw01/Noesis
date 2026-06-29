@@ -40,6 +40,9 @@ export interface Annotation {
   answer?: string;
   conceptTags?: string[];
   philosophyStatus?: AnnotationPhilosophyStatus;
+  createdPositionId?: string;
+  createdInquiryId?: string;
+  linkedPositionIds?: string[];
 }
 
 export interface ReadingSession {
@@ -133,6 +136,9 @@ export interface VaultEntry {
   evidenceAgainst?: string[];
   versionHistory?: VaultVersion[];
   createdFrom?: 'manual' | 'idea';
+  sourceAnnotationId?: string;
+  sourceWorkId?: string;
+  sourceDocumentId?: string;
   dateCreated: string;
   dateUpdated: string;
 }
@@ -175,6 +181,9 @@ export interface Question {
   beliefIds?: string[];
   draftIds?: string[];
   type?: 'open' | 'annotation' | 'manual';
+  sourceAnnotationId?: string;
+  sourceWorkId?: string;
+  sourceDocumentId?: string;
   dateCreated: string;
   dateUpdated?: string;
 }

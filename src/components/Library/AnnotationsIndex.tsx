@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { BookOpen, Edit, ExternalLink, Highlighter, Loader2, Quote, Search, Trash2 } from 'lucide-react';
+import { BookOpen, Edit, ExternalLink, GitBranch, Highlighter, Loader2, Quote, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,12 +28,12 @@ interface AnnotationsIndexProps {
   onUpdateAnnotation: (sourceId: string, annotation: Annotation) => void;
   onDeleteAnnotation: (sourceId: string, annotationId: string) => void;
   onOpenSource: (sourceId: string) => void;
-  onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
-  onCreateInquiry: (data: { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation' }) => void;
+  onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string }) => { positionId: string; insightId: string; title: string };
+  onCreateInquiry: (data: { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string }) => Question;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateSuggestion: (data: Partial<AiSuggestion>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
-  onNavigate?: (view: string) => void;
+  onNavigate?: (view: string, targetId?: string) => void;
 }
 
 type FlatAnnotation = Annotation & { source: Media };
@@ -71,6 +71,7 @@ export function AnnotationsIndex({
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
   const [suggestingId, setSuggestingId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [linkDialog, setLinkDialog] = useState<{ annotation: FlatAnnotation; linkType: 'supports' | 'challenges' } | null>(null);
   const { toast } = useToast();
 
@@ -136,36 +137,67 @@ export function AnnotationsIndex({
   const submitPreflight = () => {
     if (!preflight) return;
     if (preflight.mode === 'position') {
-      createPosition(preflight.annotation, preflight.title, preflight.body, preflight.tags);
-      onNavigate?.('vault');
+      void createPosition(preflight.annotation, preflight.title, preflight.body, preflight.tags, true);
     } else {
-      createInquiry(preflight.annotation, preflight.question, preflight.tags);
-      onNavigate?.('questions');
+      void createInquiry(preflight.annotation, preflight.question, preflight.tags, true);
     }
     setPreflight(null);
   };
 
-  const createPosition = (annotation: FlatAnnotation, title = annotation.text.slice(0, 90), body = annotation.answer ? `${annotation.text}\n\nAnswer: ${annotation.answer}` : annotation.text, tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags)) => {
-    onCreatePosition({
+  const createPosition = async (
+    annotation: FlatAnnotation,
+    title = annotation.text.slice(0, 90),
+    body = annotation.answer ? `${annotation.text}\n\nAnswer: ${annotation.answer}` : annotation.text,
+    tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags),
+    navigateOnCreate = false
+  ) => {
+    if (annotation.createdPositionId) {
+      toast({ title: 'Position already exists', description: 'This annotation already has a position draft.' });
+      if (navigateOnCreate) onNavigate?.('vault', annotation.createdPositionId);
+      return annotation.createdPositionId;
+    }
+    setPendingAction(`position:${annotation.id}`);
+    const created = onCreatePosition({
       title,
       body,
       tags,
       sourceIds: [annotation.source.id],
+      sourceAnnotationId: annotation.id,
     });
     const { source, ...annotationData } = annotation;
-    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'used_in_position' });
+    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'used_in_position', createdPositionId: created.positionId });
+    toast({ title: 'Position draft created from annotation.', description: `Saved as "${created.title}".` });
+    if (navigateOnCreate) onNavigate?.('vault', created.positionId);
+    setPendingAction(null);
+    return created.positionId;
   };
 
-  const createInquiry = (annotation: FlatAnnotation, text = annotation.type === 'question' ? annotation.text : `What does this imply: ${annotation.text}`, tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags)) => {
-    onCreateInquiry({
+  const createInquiry = async (
+    annotation: FlatAnnotation,
+    text = annotation.type === 'question' ? annotation.text : `What does this imply: ${annotation.text}`,
+    tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags),
+    navigateOnCreate = false
+  ) => {
+    if (annotation.createdInquiryId) {
+      toast({ title: 'Inquiry already exists', description: 'This annotation already has an inquiry.' });
+      if (navigateOnCreate) onNavigate?.('questions', annotation.createdInquiryId);
+      return annotation.createdInquiryId;
+    }
+    setPendingAction(`inquiry:${annotation.id}`);
+    const created = onCreateInquiry({
       text,
       conceptIds: concepts.filter((concept) => tags.map(conceptKey).includes(conceptKey(concept.name))).map((concept) => concept.id),
       sourceIds: [annotation.source.id],
       evidenceIds: [annotation.id],
       type: 'annotation',
+      sourceAnnotationId: annotation.id,
     });
     const { source, ...annotationData } = annotation;
-    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'questioned' });
+    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'questioned', createdInquiryId: created.id });
+    toast({ title: 'Inquiry draft created from annotation.', description: 'You can keep working it in Inquiries.' });
+    if (navigateOnCreate) onNavigate?.('questions', created.id);
+    setPendingAction(null);
+    return created.id;
   };
 
   const suggestConsequences = async (annotation: FlatAnnotation) => {
@@ -261,14 +293,14 @@ export function AnnotationsIndex({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {filtered.map((annotation) => (
-          <Card key={`${annotation.source.id}:${annotation.id}`} className="p-6 bg-white border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all">
+          <Card key={`${annotation.source.id}:${annotation.id}`} className="p-5 bg-white border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all">
             <div className="flex justify-between items-start gap-4 mb-4">
               <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold px-3 py-1">
                 {annotation.type}
               </Badge>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" size="icon" className="size-8 rounded-full text-accent hover:text-accent" onClick={() => suggestConsequences(annotation)} disabled={suggestingId === annotation.id} title="Ask Noesis AI">
-                  {suggestingId === annotation.id ? <Loader2 className="size-3.5 animate-spin" /> : <GenerativeAiIcon className="size-4" />}
+                <Button variant="ghost" size="icon" className="size-10 rounded-full text-accent hover:text-accent" onClick={() => suggestConsequences(annotation)} disabled={suggestingId === annotation.id} title="Ask Noesis AI">
+                  {suggestingId === annotation.id ? <Loader2 className="size-5 animate-spin" /> : <GenerativeAiIcon className="size-8" />}
                 </Button>
                 <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => setEditing(annotation)} title="Edit annotation">
                   <Edit className="size-3.5" />
@@ -287,7 +319,7 @@ export function AnnotationsIndex({
               <p className="font-body italic leading-relaxed text-[18px] text-primary/90 relative z-10">"{annotation.text}"</p>
             </div>
 
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex flex-wrap gap-2 mb-3">
               {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).map((tag) => (
                 <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-wider rounded-full bg-muted/20 text-muted-foreground font-bold">{tag}</Badge>
               ))}
@@ -313,12 +345,16 @@ export function AnnotationsIndex({
                   onClick: () => setLinkDialog({ annotation, linkType: 'challenges' }),
                 },
                 {
-                  label: 'Form Position',
-                  onClick: () => openPreflight(annotation, 'position'),
+                  label: annotation.createdPositionId ? 'Open Position' : pendingAction === `position:${annotation.id}` ? 'Creating position...' : 'Form Position',
+                  disabled: pendingAction === `position:${annotation.id}`,
+                  icon: annotation.createdPositionId ? <GitBranch className="mr-1 size-3" /> : undefined,
+                  onClick: () => annotation.createdPositionId ? onNavigate?.('vault', annotation.createdPositionId) : openPreflight(annotation, 'position'),
                 },
                 {
-                  label: 'Open in Query',
-                  onClick: () => openPreflight(annotation, 'inquiry'),
+                  label: annotation.createdInquiryId ? 'Open Inquiry' : pendingAction === `inquiry:${annotation.id}` ? 'Creating inquiry...' : 'Open in Query',
+                  disabled: pendingAction === `inquiry:${annotation.id}`,
+                  icon: annotation.createdInquiryId ? <GitBranch className="mr-1 size-3" /> : undefined,
+                  onClick: () => annotation.createdInquiryId ? onNavigate?.('questions', annotation.createdInquiryId) : openPreflight(annotation, 'inquiry'),
                 },
               ]}
             />
@@ -334,8 +370,8 @@ export function AnnotationsIndex({
                 </div>
               </button>
               <div className="flex shrink-0 gap-2">
-                <Button variant="outline" size="icon" onClick={() => suggestConsequences(annotation)} disabled={suggestingId === annotation.id} className="size-8 rounded-full bg-card border-border/60" title="Ask Noesis AI">
-                  {suggestingId === annotation.id ? <Loader2 className="size-3.5 animate-spin" /> : <GenerativeAiIcon className="size-4" />}
+                <Button variant="outline" size="icon" onClick={() => suggestConsequences(annotation)} disabled={suggestingId === annotation.id} className="size-11 rounded-full bg-card border-border/60" title="Ask Noesis AI">
+                  {suggestingId === annotation.id ? <Loader2 className="size-5 animate-spin" /> : <GenerativeAiIcon className="size-8" />}
                 </Button>
               </div>
             </div>
@@ -385,8 +421,9 @@ export function AnnotationsIndex({
                       onUpdateAnnotation(source.id, {
                         ...annotationData,
                         philosophyStatus: linkDialog.linkType === 'supports' ? 'used_in_position' : 'questioned',
+                        linkedPositionIds: Array.from(new Set([...(annotationData.linkedPositionIds || []), position.id])),
                       });
-                      toast({ title: 'Link Created', description: `Annotation marked as ${linkDialog.linkType === 'supports' ? 'supporting' : 'challenging'} "${position.title}".` });
+                      toast({ title: linkDialog.linkType === 'supports' ? 'Annotation linked as support for position.' : 'Annotation linked as a challenge to position.', description: position.title });
                       setLinkDialog(null);
                     }}
                   >

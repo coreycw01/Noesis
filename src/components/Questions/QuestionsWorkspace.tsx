@@ -24,16 +24,18 @@ interface QuestionsWorkspaceProps {
   vault: VaultEntry[];
   drafts: Draft[];
   concepts: Concept[];
-  onAddQuestion: (data: Partial<Question>) => void;
+  onAddQuestion: (data: Partial<Question>) => Question;
   onUpdateQuestion: (question: Question) => void;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
+  focusedQuestionId?: string | null;
+  onFocusedQuestionHandled?: () => void;
 }
 
 type FilterType = 'all' | 'open' | 'annotations' | 'answered';
 
-export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onAddVaultEntry, onAddDraft, onFormPositionFromInquiry }: QuestionsWorkspaceProps) {
+export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onAddVaultEntry, onAddDraft, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -41,6 +43,11 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
   const [newQuestion, setNewQuestion] = useState({ text: '', sourceIds: [] as string[] });
 
   const all = useMemo(() => allQuestions(media, questions), [media, questions]);
+  React.useEffect(() => {
+    if (!focusedQuestionId) return;
+    setSelectedId(focusedQuestionId);
+    onFocusedQuestionHandled?.();
+  }, [focusedQuestionId, onFocusedQuestionHandled]);
   const filtered = all.filter((question) => {
     let typeOk = true;
     if (filter === 'open') typeOk = !question.answer;
@@ -52,9 +59,10 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
 
   const createQuestion = () => {
     if (!newQuestion.text.trim()) return;
-    onAddQuestion({ text: newQuestion.text.trim(), status: 'open', sourceIds: newQuestion.sourceIds, evidenceIds: newQuestion.sourceIds });
+    const created = onAddQuestion({ text: newQuestion.text.trim(), status: 'open', sourceIds: newQuestion.sourceIds, evidenceIds: newQuestion.sourceIds });
     setNewQuestion({ text: '', sourceIds: [] });
     setIsAddOpen(false);
+    setSelectedId(created.id);
   };
 
   const toggleNewQuestionSource = (id: string) => {
@@ -394,7 +402,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                 disabled={!probeResponse.trim() || isLoading}
                 className="h-12 px-10 rounded-full font-bold shadow-lg shadow-accent/20"
               >
-                {isLoading ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-4" />}
+                {isLoading ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
                 CONTINUE
               </Button>
             </Card>

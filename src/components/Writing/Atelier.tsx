@@ -7,12 +7,16 @@ import {
   Download,
   ExternalLink,
   Link2,
+  Mic,
+  NotebookPen,
+  PencilLine,
   Plus,
   RefreshCw,
   Save,
-  Trash2,
-  Unlink,
   Search,
+  Trash2,
+  Type,
+  Unlink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -43,7 +47,7 @@ interface AtelierProps {
   questions: Question[];
   concepts: Concept[];
   writingDefaults: UserPreferences['writingDefaults'];
-  onAddDraft: (data: Partial<Draft>) => void;
+  onAddDraft: (data: Partial<Draft>) => Draft;
   onUpdateDraft: (draft: Draft) => void;
   onDeleteDraft: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
@@ -107,6 +111,7 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
   const [search, setSearch] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isWorkTypeOpen, setIsWorkTypeOpen] = useState(false);
+  const [isNoteTypeOpen, setIsNoteTypeOpen] = useState(false);
   const [isDocOpen, setIsDocOpen] = useState(false);
   const [newDraft, setNewDraft] = useState({
     title: '',
@@ -183,7 +188,7 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
   const createDraft = () => {
     if (!newDraft.title.trim()) return;
     const category = workCategoryForDraft(newDraft.type);
-    onAddDraft({
+    const created = onAddDraft({
       ...newDraft,
       label: DRAFT_LABELS[newDraft.type],
       body: '',
@@ -204,6 +209,51 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
     });
     setIsAddOpen(false);
     setNewDraft({ title: '', type: writingDefaults.type, writingStyle: writingDefaults.writingStyle });
+    setWorkTab(category);
+    setActiveId(created.id);
+  };
+
+  const spawnDraft = (type: DraftType, title?: string) => {
+    const category = workCategoryForDraft(type);
+    const baseTitle =
+      title ||
+      (type === 'recording'
+        ? 'Untitled Recording'
+        : type === 'drawing' || type === 'drawing_note'
+          ? 'Untitled Drawing'
+          : type === 'voice_note'
+            ? 'Untitled Voice Note'
+            : type === 'talk_to_text'
+              ? 'Untitled Talk-to-Text'
+              : type === 'text_note'
+                ? 'Untitled Text Note'
+                : 'Untitled Writing');
+    const created = onAddDraft({
+      title: baseTitle,
+      type,
+      label: DRAFT_LABELS[type],
+      body: '',
+      draftContent: '',
+      finalContent: '',
+      activeMode: 'draft',
+      workCategory: category,
+      paperType: writingDefaults.writingStyle,
+      activeRibbon: type === 'drawing' || type === 'drawing_note' ? 'drawing' : 'writing',
+      recordingType: type === 'recording' || type === 'voice_note' ? 'screen' : undefined,
+      status: writingDefaults.status,
+      writingStyle: writingDefaults.writingStyle,
+      conceptTags: [],
+      sourceIds: [],
+      questionIds: [],
+      beliefIds: [],
+      dateCreated: today(),
+      dateUpdated: today(),
+    });
+    setIsWorkTypeOpen(false);
+    setIsNoteTypeOpen(false);
+    setWorkTab(category);
+    setFilter('all');
+    setActiveId(created.id);
   };
 
   const openNewDraft = (type: DraftType) => {
@@ -628,22 +678,54 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
         <DialogContent className="max-w-2xl border-none bg-white shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-headline text-3xl italic">Add Work</DialogTitle>
-            <p className="text-sm italic text-muted-foreground">Choose the kind of artifact you want to create.</p>
+            <p className="text-sm italic text-muted-foreground">Choose the workspace you want to open right now.</p>
           </DialogHeader>
           <div className="grid gap-4 pt-4 sm:grid-cols-2">
             {[
-              { title: 'Writing', description: 'Essays, scripts, reflections, arguments, and source analysis.', type: 'essay' as DraftType },
-              { title: 'Notes', description: 'Voice notes, text notes, talk-to-text, and quick drawing notes.', type: 'text_note' as DraftType },
-              { title: 'Drawing', description: 'Full drawing documents with drawing and writing ribbons.', type: 'drawing' as DraftType },
-              { title: 'Recording', description: 'Screen or video recordings, separate from audio-only voice notes.', type: 'recording' as DraftType },
+              { title: 'Writing', description: 'Open a long-form writing document.', icon: PencilLine, onClick: () => spawnDraft('essay', 'Untitled Writing') },
+              { title: 'Recording', description: 'Open a recording workspace for spoken capture.', icon: Mic, onClick: () => spawnDraft('recording') },
+              { title: 'Notes', description: 'Choose voice, drawing, or text note.', icon: NotebookPen, onClick: () => { setIsWorkTypeOpen(false); setIsNoteTypeOpen(true); } },
+              { title: 'Quick Text', description: 'Open a fast text fragment for definitions, claims, or reflections.', icon: Type, onClick: () => spawnDraft('text_note', 'Untitled Text') },
             ].map((option) => (
               <button
                 key={option.title}
-                onClick={() => openNewDraft(option.type)}
-                className="rounded-xl border border-border/60 bg-card p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md"
+                onClick={option.onClick}
+                className="rounded-full border border-border/60 bg-card px-5 py-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md"
               >
-                <div className="font-headline text-2xl font-bold italic text-primary">{option.title}</div>
-                <p className="mt-2 text-sm italic leading-6 text-muted-foreground">{option.description}</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex size-11 items-center justify-center rounded-full border border-accent/20 bg-accent/5 text-accent">
+                    <option.icon className="size-5" />
+                  </div>
+                  <div>
+                    <div className="font-headline text-2xl font-bold italic text-primary">{option.title}</div>
+                    <p className="mt-1 text-sm italic leading-5 text-muted-foreground">{option.description}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isNoteTypeOpen} onOpenChange={setIsNoteTypeOpen}>
+        <DialogContent className="max-w-xl border-none bg-white shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-3xl italic">Choose Note Type</DialogTitle>
+            <p className="text-sm italic text-muted-foreground">Notes can start as voice, drawing, or text and stay lightweight.</p>
+          </DialogHeader>
+          <div className="grid gap-3 pt-4">
+            {[
+              { title: 'Voice Note', description: 'Capture a spoken thought.', type: 'voice_note' as DraftType },
+              { title: 'Drawing Note', description: 'Sketch an idea or diagram.', type: 'drawing_note' as DraftType },
+              { title: 'Text Note', description: 'Write a quick definition, fragment, or observation.', type: 'text_note' as DraftType },
+            ].map((option) => (
+              <button
+                key={option.title}
+                onClick={() => spawnDraft(option.type, `Untitled ${option.title}`)}
+                className="rounded-xl border border-border/60 bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md"
+              >
+                <div className="font-headline text-xl font-bold italic text-primary">{option.title}</div>
+                <p className="mt-1 text-sm italic leading-5 text-muted-foreground">{option.description}</p>
               </button>
             ))}
           </div>

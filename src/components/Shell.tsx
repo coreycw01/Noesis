@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import {
   AlertTriangle,
@@ -72,7 +72,6 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
     { id: 'library', label: 'Library', icon: Library, section: 'Inputs', count: counts.media },
     { id: 'source-index', label: 'Source Index', icon: TableIcon, section: 'Inputs', count: counts.media },
     { id: 'annotations', label: 'Annotations', icon: Highlighter, section: 'Inputs', count: counts.annotations },
-    { id: 'goals', label: 'Goals', icon: Target, section: 'Inputs' },
     { id: 'vault', label: 'Positions', icon: ShieldCheck, section: 'Outputs', count: counts.vault },
     { id: 'writing', label: 'Works', icon: PenTool, section: 'Outputs', count: counts.drafts },
     { id: 'practices', label: 'Practices', icon: Repeat, section: 'Outputs', count: counts.practices },
@@ -90,12 +89,43 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
     window.localStorage.setItem('noesis:sidebar-collapsed', String(collapsed));
   }, [collapsed]);
 
-  const sortedActiveGoals = goal.types.map((type) => {
-    const done = goalProgress[type] || 0;
-    const target = goal.targets[type] || 12;
-    const percent = (done / Math.max(1, target)) * 100;
-    return { type, done, target, percent };
-  }).sort((a, b) => b.percent - a.percent);
+  const sortedActiveGoals = useMemo(() => {
+    const categories = [...(goal.goalTypes || [])].sort((a, b) => a.sortOrder - b.sortOrder);
+    const activeGoals = [...(goal.goals || [])]
+      .filter((item) => item.status === 'active')
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    if (categories.length && activeGoals.length) {
+      return activeGoals.map((item) => {
+        const category = categories.find((goalType) => goalType.id === item.typeId);
+        const mediaTypes = category?.mediaTypes || [];
+        const done = mediaTypes.reduce((sum, type) => sum + (goalProgress[type] || 0), 0);
+        const target = Math.max(1, item.targetProgress || 1);
+        const percent = (done / target) * 100;
+        return {
+          id: item.id,
+          label: item.title || category?.name || 'Goal Category',
+          done,
+          target,
+          percent,
+          mediaTypes,
+        };
+      });
+    }
+
+    return goal.types.map((type) => {
+      const done = goalProgress[type] || 0;
+      const target = goal.targets[type] || 12;
+      const percent = (done / Math.max(1, target)) * 100;
+      return {
+        id: type,
+        label: MEDIA_LABELS[type],
+        done,
+        target,
+        percent,
+        mediaTypes: [type],
+      };
+    });
+  }, [goal, goalProgress]).sort((a, b) => b.percent - a.percent);
 
   const toggleSidebar = () => setCollapsed((current) => !current);
   const handleNavChange = (view: string) => {
@@ -192,17 +222,25 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
             className="mt-4 w-full rounded border border-white/10 bg-white/[0.05] p-3 transition-all hover:border-white/20 hover:bg-white/[0.075] group/goals relative cursor-pointer"
           >
             <div className="mb-3 flex justify-between items-center">
-              <span className="font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/60 font-bold">Goals</span>
+              <div>
+                <span className="font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/60 font-bold">Goals</span>
+                <div className="mt-1 text-[13px] font-body text-white/90">{goal.label || 'Goal Set'}</div>
+              </div>
               <Edit2 className="size-3 text-sidebar-foreground/40 opacity-0 group-hover/goals:opacity-100 transition-opacity" />
             </div>
             <ScrollArea className="h-[110px] pr-2">
               <div className="space-y-4">
                 {sortedActiveGoals.map((row) => (
-                  <div key={row.type} className="space-y-1.5">
+                  <div key={row.id} className="space-y-1.5">
                     <div className="flex justify-between items-end">
-                      <span className="font-code text-[7px] uppercase tracking-widest text-sidebar-foreground/40 font-bold">{MEDIA_LABELS[row.type]}</span>
+                      <span className="font-code text-[7px] uppercase tracking-widest text-sidebar-foreground/40 font-bold">{row.label}</span>
                       <span className="font-code text-[9px] text-white/70 font-bold">{row.done}/{row.target}</span>
                     </div>
+                    {row.mediaTypes.length > 0 && (
+                      <div className="font-code text-[7px] uppercase tracking-widest text-sidebar-foreground/25">
+                        Counts: {row.mediaTypes.map((type) => MEDIA_LABELS[type]).join(', ')}
+                      </div>
+                    )}
                     <Progress value={row.percent} className="h-1 bg-white/10" />
                   </div>
                 ))}

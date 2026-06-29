@@ -276,7 +276,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Growth Diagnosis</h2>
               </div>
               <Button size="sm" onClick={handleStartClarityCheck} className="h-8 rounded-full bg-accent text-white shadow-sm font-code text-[10px] uppercase tracking-widest px-4">
-                <GenerativeAiIcon className="mr-1.5 size-3.5" /> Clarity Check
+                <GenerativeAiIcon className="mr-2 size-6" /> Clarity Check
               </Button>
             </div>
 
@@ -399,7 +399,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
                 {r.annotations.length > 0 && (
                   <Button variant="outline" size="sm" onClick={handleSuggestPositions} disabled={isDraftingPositions} className="w-full h-9 rounded-full bg-white border-accent/20 text-accent hover:bg-accent/5 font-code text-[10px] uppercase tracking-widest">
-                    {isDraftingPositions ? <Loader2 className="size-3.5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-3.5" />}
+                    {isDraftingPositions ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-6" />}
                     {isDraftingPositions ? 'Drafting…' : 'Suggest Positions from AI'}
                   </Button>
                 )}
@@ -482,7 +482,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle>
                 {draftConcept.name && (
                 <Button variant="outline" size="sm" onClick={handleSuggestDescription} disabled={isSuggesting} className="h-8 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-white shadow-sm rounded-full">
-                    {isSuggesting ? <Loader2 className="size-3.5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-3.5" />}
+                    {isSuggesting ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-6" />}
                     Suggest Description
                   </Button>
                 )}
@@ -709,7 +709,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle>
               {draftConcept.name && (
                 <Button variant="outline" size="sm" onClick={handleSuggestDescription} disabled={isSuggesting} className="h-8 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-white shadow-sm rounded-full">
-                  {isSuggesting ? <Loader2 className="size-3.5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-3.5" />}
+                  {isSuggesting ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-6" />}
                   Suggest Description
                 </Button>
               )}

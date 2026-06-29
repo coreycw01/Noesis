@@ -596,7 +596,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                   disabled={!ideaDraft.title.trim() || isGenerating}
                   className="bg-accent shadow-md shadow-accent/20 rounded-full px-8 w-full"
                 >
-                  {isGenerating ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-4" />}
+                  {isGenerating ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
                   {isGenerating ? 'Generating questions…' : 'Ask AI'}
                 </Button>
               </DialogFooter>

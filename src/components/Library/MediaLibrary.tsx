@@ -511,7 +511,7 @@ export function MediaLibrary({
             <div className="flex gap-4 pt-10 border-t border-border/30">
               <Button onClick={() => updateSelected({ capture })} className="bg-accent px-10 h-11 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">SAVE CAPTURE</Button>
               <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="h-11 px-10 font-code text-[11px] tracking-widest uppercase text-accent border-accent/20 shadow-sm bg-white rounded-full font-bold">
-                {isDistilling ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-4" />}
+                {isDistilling ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
                 DISTILL POSITION
               </Button>
             </div>

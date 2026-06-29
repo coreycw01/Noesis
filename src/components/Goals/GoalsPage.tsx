@@ -109,7 +109,7 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   };
 
   const addGoalType = () => {
-    const name = `New Type ${goalTypes.length + 1}`;
+    const name = `New Goal Category ${goalTypes.length + 1}`;
     const typeId = uid();
     const now = today();
     setDraft((prev) => ({
@@ -138,12 +138,16 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   const addGoal = () => {
     const typeId = activeGoalTypes[0]?.id || goalTypes[0]?.id;
     if (!typeId) return;
+    if ((draft.goals || []).some((item) => item.typeId === typeId && item.status === 'active')) {
+      toast({ title: 'Goal category already added', description: 'Each goal category can appear only once in this goal set.' });
+      return;
+    }
     const now = today();
     setDraft((prev) => ({
       ...prev,
       goals: [
         ...(prev.goals || []),
-        { id: uid(), title: 'New Goal', typeId, currentProgress: 0, targetProgress: 1, sortOrder: goals.length, status: 'active', createdAt: now, updatedAt: now },
+        { id: uid(), title: activeGoalTypes.find((type) => type.id === typeId)?.name || 'New Goal Category', typeId, currentProgress: 0, targetProgress: 1, sortOrder: goals.length, status: 'active', createdAt: now, updatedAt: now },
       ],
     }));
   };
@@ -163,10 +167,33 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   };
 
   const saveGoals = async () => {
+    const trimmedLabel = draft.label.trim();
+    if (!trimmedLabel) {
+      toast({ variant: 'destructive', title: 'Goal set name required', description: 'Give this goal set a name before saving.' });
+      return;
+    }
+    const cleanedTypes = (draft.goalTypes || []).map((type) => ({ ...type, name: type.name.trim() }));
+    const duplicateNames = new Set<string>();
+    for (const type of cleanedTypes) {
+      if (!type.name) {
+        toast({ variant: 'destructive', title: 'Goal category name required', description: 'Every goal category needs a name.' });
+        return;
+      }
+      const key = type.name.toLowerCase();
+      if (duplicateNames.has(key)) {
+        toast({ variant: 'destructive', title: 'Duplicate goal category', description: 'Goal category names need to stay distinct.' });
+        return;
+      }
+      duplicateNames.add(key);
+      if (new Set(type.mediaTypes || []).size !== (type.mediaTypes || []).length) {
+        toast({ variant: 'destructive', title: 'Duplicate media type', description: `Remove repeated media types from ${type.name}.` });
+        return;
+      }
+    }
     setSaving(true);
     try {
-      await onSaveGoal(draft);
-      toast({ title: 'Goals saved', description: 'Your custom goal types, progress, and order are now synced.' });
+      await onSaveGoal({ ...draft, label: trimmedLabel, goalTypes: cleanedTypes });
+      toast({ title: 'Goal set updated', description: 'Your categories, targets, and ordering are now synced.' });
     } catch {
       toast({ variant: 'destructive', title: 'Goals not saved', description: 'Noesis could not update your goals.' });
     } finally {
@@ -186,10 +213,10 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={addGoalType} className="rounded-full bg-card">
-              <Plus className="mr-2 size-4" /> Type
+              <Plus className="mr-2 size-4" /> New Goal Category
             </Button>
             <Button variant="outline" onClick={addGoal} className="rounded-full bg-card">
-              <Plus className="mr-2 size-4" /> Goal
+              <Plus className="mr-2 size-4" /> Add Goal Category
             </Button>
             <Button onClick={saveGoals} disabled={saving} className="rounded-full px-7 font-bold shadow-md shadow-accent/20">
               <Save className="mr-2 size-4" /> {saving ? 'Saving' : 'Save Goals'}
@@ -224,7 +251,7 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <Card className="rounded-2xl border-border bg-card p-6 shadow-sm">
             <div className="mb-6">
-              <Label className="readex-kicker text-[9px] font-bold uppercase">Goal Set Label</Label>
+              <Label className="readex-kicker text-[9px] font-bold uppercase">Goal Set Name</Label>
               <Input value={draft.label} onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))} className="mt-2 h-11 max-w-xl rounded-full" />
             </div>
 
@@ -236,11 +263,14 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                   onDragStart={() => setDraggedId(row.id)}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={() => draggedId && reorderGoal(draggedId, row.id)}
-                  className="grid grid-cols-[auto_1.4fr_160px_100px_90px_auto] items-center gap-3 rounded-xl border border-border bg-background/50 p-3 transition-colors hover:border-accent/30"
+                  className="grid grid-cols-[auto_1.3fr_180px_110px_auto] items-center gap-3 rounded-xl border border-border bg-background/50 p-3 transition-colors hover:border-accent/30"
                 >
                   <GripVertical className="size-4 cursor-grab text-muted-foreground/50" />
                   <div>
                     <Input value={row.title} onChange={(event) => updateGoal(row.id, { title: event.target.value })} className="h-9 rounded-full font-headline text-base italic" />
+                    <div className="mt-2 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+                      {(row.type?.mediaTypes || []).length ? `Counts: ${(row.type?.mediaTypes || []).map((mediaType) => MEDIA_LABELS[mediaType]).join(', ')}` : 'No media types selected yet'}
+                    </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-accent" style={{ width: `${row.percent}%` }} />
                     </div>
@@ -251,7 +281,9 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                       {activeGoalTypes.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Input type="number" min={0} value={row.currentProgress} onChange={(event) => updateGoal(row.id, { currentProgress: Math.max(0, Number(event.target.value)) })} className="h-9 rounded-full text-right font-code text-xs" />
+                  <div className="h-9 rounded-full border border-border bg-card px-4 font-code text-xs flex items-center justify-end">
+                    {row.currentProgress}
+                  </div>
                   <Input type="number" min={1} value={row.targetProgress} onChange={(event) => updateGoal(row.id, { targetProgress: Math.max(1, Number(event.target.value) || 1) })} className="h-9 rounded-full text-right font-code text-xs" />
                   <Button variant="ghost" size="icon" onClick={() => updateGoal(row.id, { status: 'archived' })} className="rounded-full text-muted-foreground hover:text-destructive">
                     <Archive className="size-4" />
@@ -262,8 +294,8 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
           </Card>
 
           <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
-            <h2 className="font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Goal Types</h2>
-            <p className="mt-2 text-xs italic text-muted-foreground">Types can represent books, courses, research papers, practices, or any progress unit you define.</p>
+            <h2 className="font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Goal Categories</h2>
+            <p className="mt-2 text-xs italic text-muted-foreground">A goal category is a custom bucket like Books or Articles. Included media types determine what gets counted.</p>
             <div className="mt-5 space-y-3">
               {goalTypes.map((type) => (
                 <div key={type.id} className={cn('rounded-xl border p-3', type.archivedAt ? 'bg-muted/20 opacity-55' : 'bg-background/50')}>
@@ -273,6 +305,7 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                       {type.archivedAt ? <Trash2 className="size-4" /> : <Archive className="size-4" />}
                     </Button>
                   </div>
+                  <div className="mt-3 font-code text-[8px] uppercase tracking-widest text-muted-foreground">Included Media Types</div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {MEDIA_TYPES.map((mediaType) => {
                       const active = (type.mediaTypes || []).includes(mediaType);

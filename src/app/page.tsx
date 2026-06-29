@@ -45,6 +45,8 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
   const [view, setView] = useState('atlas');
   const [focusedSourceId, setFocusedSourceId] = useState<string | null>(null);
   const [focusedPositionId, setFocusedPositionId] = useState<string | null>(null);
+  const [focusedQuestionId, setFocusedQuestionId] = useState<string | null>(null);
+  const [goalState, setGoalState] = useState<GoalSettings>(DEFAULT_GOAL_SETTINGS);
   const effectiveUid = uid;
 
   const refs = useMemo(() => readexRefs(db, effectiveUid), [db, effectiveUid]);
@@ -80,6 +82,10 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
     email: profileDoc?.email || user?.email || '',
     photoURL: profileDoc?.photoURL || user?.photoURL || '',
   };
+
+  useEffect(() => {
+    setGoalState(goal);
+  }, [goalDoc]);
 
   useEffect(() => {
     const setDefaultIfMissing = async (ref: DocumentReference<DocumentData>, data: DocumentData) => {
@@ -277,11 +283,15 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
       evidenceAgainst: data.evidenceAgainst || [],
       versionHistory: data.versionHistory || [],
       createdFrom: data.createdFrom || 'manual',
+      sourceAnnotationId: data.sourceAnnotationId || '',
+      sourceWorkId: data.sourceWorkId || '',
+      sourceDocumentId: data.sourceDocumentId || '',
       dateCreated: today(),
       dateUpdated: today(),
     };
     setDoc(vaultRef, payload).catch(() => emitError(vaultRef.path, 'create', payload));
     createTimelineEvent({ entityId: vaultRef.id, entityType: 'vault', entityTitle: payload.title, eventType: 'created', reason: 'Position formed', influencedBy: data.sourceIds });
+    return payload as VaultEntry;
   };
 
   const updateVaultEntry = (entry: VaultEntry) => {
@@ -296,7 +306,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
     deleteDoc(vaultRef).catch(() => emitError(vaultRef.path, 'delete'));
   };
 
-  const createIdea = (data: { title: string; body: string; tags: string[]; sourceIds: string[]; position?: { title: string; statement: string; description: string; confidence: number } }) => {
+  const createIdea = (data: { title: string; body: string; tags: string[]; sourceIds: string[]; position?: { title: string; statement: string; description: string; confidence: number }; sourceAnnotationId?: string; sourceWorkId?: string; sourceDocumentId?: string }) => {
     const tags = normalizeConceptTags(data.tags);
     ensureConcepts(tags);
     const insightRef = doc(refs.insights);
@@ -330,12 +340,16 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
       evidenceAgainst: [],
       versionHistory: [],
       createdFrom: 'idea',
+      sourceAnnotationId: data.sourceAnnotationId || '',
+      sourceWorkId: data.sourceWorkId || '',
+      sourceDocumentId: data.sourceDocumentId || '',
       dateCreated: today(),
       dateUpdated: today(),
     });
     const eventRef = doc(refs.timeline);
     batch.set(eventRef, { id: eventRef.id, entityId: beliefRef.id, entityType: 'vault', entityTitle: posTitle, eventType: 'created', reason: 'Idea formed as position', influencedBy: data.sourceIds || [], date: today() });
     batch.commit().catch(() => emitError('batch', 'write', data));
+    return { positionId: beliefRef.id, insightId: insightRef.id, title: posTitle };
   };
 
   const formPositionFromInquiry = (
@@ -398,10 +412,14 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
       beliefIds: data.beliefIds || [],
       draftIds: data.draftIds || [],
       type: data.type || 'manual',
+      sourceAnnotationId: data.sourceAnnotationId || '',
+      sourceWorkId: data.sourceWorkId || '',
+      sourceDocumentId: data.sourceDocumentId || '',
       dateCreated: today(),
       dateUpdated: today(),
     };
     setDoc(questionRef, payload).catch(() => emitError(questionRef.path, 'create', payload));
+    return payload as Question;
   };
 
   const updateQuestion = (question: Question) => {
@@ -443,6 +461,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
     };
     setDoc(draftRef, payload).catch(() => emitError(draftRef.path, 'create', payload));
     createTimelineEvent({ entityId: draftRef.id, entityType: 'draft', entityTitle: payload.title, eventType: 'created', reason: 'Work draft created' });
+    return payload as Draft;
   };
 
   const updateDraft = (draft: Draft) => {
@@ -593,6 +612,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
   };
 
   const saveGoal = async (nextGoal: GoalSettings) => {
+    setGoalState(nextGoal);
     await setDoc(refs.settingsGoal, nextGoal, { merge: true });
   };
 
@@ -701,13 +721,17 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
             onAddConcept={addConcept}
             onCreateSuggestion={addAiSuggestion}
             onCreateLink={addPhilosophicalLink}
-            onNavigate={setView}
+            onNavigate={(nextView, targetId) => {
+              if (nextView === 'vault' && targetId) setFocusedPositionId(targetId);
+              if (nextView === 'questions' && targetId) setFocusedQuestionId(targetId);
+              setView(nextView);
+            }}
           />
         );
       case 'source-index':
         return <SourceIndex media={media} vault={vault} drafts={drafts} practices={practices} onOpenSource={(sourceId) => { setFocusedSourceId(sourceId); setView('library'); }} />;
       case 'goals':
-        return <GoalsPage goal={goal} goalProgress={goalProgress} onSaveGoal={saveGoal} />;
+        return <GoalsPage goal={goalState} goalProgress={goalProgress} onSaveGoal={saveGoal} />;
       case 'vault':
         return (
           <BeliefVault
@@ -733,7 +757,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
           />
         );
       case 'questions':
-        return <QuestionsWorkspace questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={addQuestion} onUpdateQuestion={updateQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onFormPositionFromInquiry={formPositionFromInquiry} />;
+        return <QuestionsWorkspace questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={addQuestion} onUpdateQuestion={updateQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onFocusedQuestionHandled={() => setFocusedQuestionId(null)} />;
       case 'writing':
         return <Atelier drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={addConcept} />;
       case 'evolution':
@@ -769,7 +793,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
         practices: practices.length,
         annotations: allAnnotations(media).length
       }}
-      goal={goal}
+      goal={goalState}
       goalProgress={goalProgress}
       onOpenSettings={() => setView('settings')}
       movement={movement}
