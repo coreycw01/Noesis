@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc.cmd --noEmit",
     "firestore:schema": "node scripts/seed-firestore-schema.mjs"
   },
   "dependencies": {
