@@ -1,5 +1,5 @@
 import { collection, doc, type Firestore } from 'firebase/firestore';
-import type { AtlasViewSettings, GoalSettings, MediaType, UserPreferences, UserProfile } from './types';
+import type { AtlasViewSettings, GoalSettings, MediaType, UserPreferences, UserProfile, WorkspaceSettings } from './types';
 
 export const PROTOTYPE_USER_ID = 'anonymous-scholar';
 
@@ -24,6 +24,7 @@ export const READEX_SETTINGS_DOCS = {
   atlasNodes: 'atlasNodes',
   preferences: 'preferences',
   profile: 'profile',
+  workspace: 'workspace',
   schema: 'schema',
 } as const;
 
@@ -69,6 +70,23 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   email: '',
   photoURL: '',
   bio: '',
+  role: 'user',
+};
+
+export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
+  role: 'user',
+  workspaceMode: 'standard',
+  seedSource: 'none',
+  demoWorkspace: false,
+  reviewReady: false,
+  featureFlags: {
+    reviewMode: false,
+    demoWorkspaceSeed: false,
+    aiSuggestions: true,
+    atlasCustomMaps: true,
+    sourceIntakeProviders: true,
+    worksMultimodal: true,
+  },
 };
 
 export function userPath(uid: string) {
@@ -98,6 +116,7 @@ export function readexRefs(db: Firestore, uid: string) {
     settingsAtlasNodes: settingsDoc('atlasNodes'),
     settingsPreferences: settingsDoc('preferences'),
     settingsProfile: settingsDoc('profile'),
+    settingsWorkspace: settingsDoc('workspace'),
     settingsSchema: settingsDoc('schema'),
   };
 }
@@ -105,7 +124,7 @@ export function readexRefs(db: Firestore, uid: string) {
 export function readexSchemaDoc(uid: string) {
   return {
     uid,
-    version: 2,
+    version: 3,
     root: userPath(uid),
     collections: {
       media: `${userPath(uid)}/media`,
@@ -127,6 +146,7 @@ export function readexSchemaDoc(uid: string) {
       atlasNodes: `${userPath(uid)}/settings/atlasNodes`,
       preferences: `${userPath(uid)}/settings/preferences`,
       profile: `${userPath(uid)}/settings/profile`,
+      workspace: `${userPath(uid)}/settings/workspace`,
       schema: `${userPath(uid)}/settings/schema`,
     },
     mediaTypes: DEFAULT_GOAL_SETTINGS.types as MediaType[],

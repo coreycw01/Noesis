@@ -29,18 +29,20 @@ import { PracticesWorkspace } from '@/components/Practices/PracticesWorkspace';
 import { SettingsPage } from '@/components/Settings/SettingsPage';
 import { GoalsPage } from '@/components/Goals/GoalsPage';
 import { Toaster } from '@/components/ui/toaster';
+import { Badge } from '@/components/ui/badge';
 import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
-import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, DEFAULT_USER_PREFERENCES, DEFAULT_USER_PROFILE, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
-import type { AiSuggestion, Annotation, AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, PhilosophicalLink, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext, UserPreferences, UserProfile } from '@/lib/types';
+import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, DEFAULT_USER_PREFERENCES, DEFAULT_USER_PROFILE, DEFAULT_WORKSPACE_SETTINGS, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
+import { buildDemoWorkspace, buildReviewExport, REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS } from '@/lib/demo-workspace';
+import type { AiSuggestion, Annotation, AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, PhilosophicalLink, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext, UserPreferences, UserProfile, WorkspaceSettings } from '@/lib/types';
 import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Loader2 } from 'lucide-react';
+import { RefreshCw, Loader2, Download, FlaskConical } from 'lucide-react';
 
 type FirebaseInstances = ReturnType<typeof initializeFirebase>;
 
-function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
+function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null; uid: string; reviewMode?: boolean }) {
   const { db } = useFirebase();
   const [view, setView] = useState('atlas');
   const [focusedSourceId, setFocusedSourceId] = useState<string | null>(null);
@@ -65,6 +67,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
   const { data: goalDoc } = useDoc<GoalSettings>(refs.settingsGoal as any);
   const { data: preferencesDoc } = useDoc<UserPreferences>(refs.settingsPreferences as any);
   const { data: profileDoc } = useDoc<UserProfile>(refs.settingsProfile as any);
+  const { data: workspaceDoc } = useDoc<WorkspaceSettings>(refs.settingsWorkspace as any);
   
   const goal = { ...DEFAULT_GOAL_SETTINGS, ...(goalDoc || {}) };
   const preferences: UserPreferences = {
@@ -81,7 +84,20 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
     displayName: profileDoc?.displayName || user?.displayName || '',
     email: profileDoc?.email || user?.email || '',
     photoURL: profileDoc?.photoURL || user?.photoURL || '',
+    role: profileDoc?.role || DEFAULT_USER_PROFILE.role,
   };
+  const workspace: WorkspaceSettings = {
+    ...DEFAULT_WORKSPACE_SETTINGS,
+    ...(workspaceDoc || {}),
+    featureFlags: {
+      ...DEFAULT_WORKSPACE_SETTINGS.featureFlags,
+      ...(workspaceDoc?.featureFlags || {}),
+    },
+  };
+  const isReviewIdentity = (user?.email || profile.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
+  const isReviewWorkspace = reviewMode || isReviewIdentity || workspace.workspaceMode === 'review' || workspace.demoWorkspace;
+  const canSeedReviewWorkspace = effectiveUid === PROTOTYPE_USER_ID || isReviewIdentity;
+  const [isSeedingReview, setIsSeedingReview] = useState(false);
 
   useEffect(() => {
     setGoalState(goal);
@@ -104,11 +120,13 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
         await setDefaultIfMissing(refs.settingsAtlasView, DEFAULT_ATLAS_VIEW_SETTINGS);
         await setDefaultIfMissing(refs.settingsAtlasNodes, DEFAULT_ATLAS_NODE_SETTINGS);
         await setDefaultIfMissing(refs.settingsPreferences, DEFAULT_USER_PREFERENCES);
+        await setDefaultIfMissing(refs.settingsWorkspace, DEFAULT_WORKSPACE_SETTINGS);
         await setDoc(refs.settingsProfile, {
           ...DEFAULT_USER_PROFILE,
           displayName: user?.displayName || '',
           email: user?.email || '',
           photoURL: user?.photoURL || '',
+          role: isReviewIdentity ? 'demo' : (profileDoc?.role || DEFAULT_USER_PROFILE.role),
           dateUpdated: today(),
         }, { merge: true });
         await setDoc(refs.settingsSchema, readexSchemaDoc(effectiveUid), { merge: true });
@@ -118,7 +136,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
     };
 
     scaffoldFirestore();
-  }, [effectiveUid, refs, user]);
+  }, [effectiveUid, isReviewIdentity, profileDoc?.role, refs, user]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -137,6 +155,106 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
     mediaQuery.addEventListener('change', applyTheme);
     return () => mediaQuery.removeEventListener('change', applyTheme);
   }, [preferences.themeMode, preferences.accentTheme]);
+
+  const totalObjects = media.length + concepts.length + questions.length + vault.length + drafts.length + practices.length + timeline.length + insights.length + links.length + suggestions.length + atlasMaps.length;
+
+  const seedReviewWorkspace = async (replaceExisting = false) => {
+    setIsSeedingReview(true);
+    try {
+      const demo = buildDemoWorkspace(effectiveUid);
+      const batch = writeBatch(db);
+      const collectionsToClear = replaceExisting
+        ? [
+            ...media.map((item) => doc(refs.media, item.id)),
+            ...concepts.map((item) => doc(refs.concepts, item.id)),
+            ...questions.map((item) => doc(refs.questions, item.id)),
+            ...vault.map((item) => doc(refs.vault, item.id)),
+            ...drafts.map((item) => doc(refs.drafts, item.id)),
+            ...practices.map((item) => doc(refs.practices, item.id)),
+            ...timeline.map((item) => doc(refs.timeline, item.id)),
+            ...insights.map((item) => doc(refs.insights, item.id)),
+            ...links.map((item) => doc(refs.links, item.id)),
+            ...suggestions.map((item) => doc(refs.suggestions, item.id)),
+            ...atlasMaps.map((item) => doc(refs.atlasMaps, item.id)),
+          ]
+        : [];
+
+      collectionsToClear.forEach((ref) => batch.delete(ref));
+
+      batch.set(refs.user, {
+        uid: effectiveUid,
+        app: 'noesis',
+        reviewWorkspace: true,
+        reviewEmail: REVIEW_ACCOUNT_EMAIL,
+        updatedAt: today(),
+      }, { merge: true });
+      batch.set(refs.settingsGoal, demo.goal, { merge: true });
+      batch.set(refs.settingsPreferences, demo.preferences, { merge: true });
+      batch.set(refs.settingsProfile, demo.profile, { merge: true });
+      batch.set(refs.settingsWorkspace, demo.workspace, { merge: true });
+      batch.set(refs.settingsSchema, readexSchemaDoc(effectiveUid), { merge: true });
+      batch.set(refs.settingsAtlasView, DEFAULT_ATLAS_VIEW_SETTINGS, { merge: true });
+      batch.set(refs.settingsAtlasNodes, DEFAULT_ATLAS_NODE_SETTINGS, { merge: true });
+
+      demo.media.forEach((item) => batch.set(doc(refs.media, item.id), item));
+      demo.concepts.forEach((item) => batch.set(doc(refs.concepts, item.id), item));
+      demo.questions.forEach((item) => batch.set(doc(refs.questions, item.id), item));
+      demo.vault.forEach((item) => batch.set(doc(refs.vault, item.id), item));
+      demo.drafts.forEach((item) => batch.set(doc(refs.drafts, item.id), item));
+      demo.practices.forEach((item) => batch.set(doc(refs.practices, item.id), item));
+      demo.timeline.forEach((item) => batch.set(doc(refs.timeline, item.id), item));
+      demo.insights.forEach((item) => batch.set(doc(refs.insights, item.id), item));
+      demo.links.forEach((item) => batch.set(doc(refs.links, item.id), item));
+      demo.suggestions.forEach((item) => batch.set(doc(refs.suggestions, item.id), item));
+      demo.atlasMaps.forEach((item) => batch.set(doc(refs.atlasMaps, item.id), item));
+
+      await batch.commit();
+    } finally {
+      setIsSeedingReview(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isReviewWorkspace || !canSeedReviewWorkspace || isSeedingReview) return;
+    if (workspace.seedSource === 'system-demo' && totalObjects > 0) return;
+    if (totalObjects > 0 && workspace.demoWorkspace) return;
+    if (totalObjects === 0) {
+      seedReviewWorkspace(false).catch((error) => console.warn('Review seed failed', error));
+    }
+  }, [canSeedReviewWorkspace, isReviewWorkspace, isSeedingReview, totalObjects, workspace.demoWorkspace, workspace.seedSource]);
+
+  const exportReviewArchitecture = () => {
+    const payload = buildReviewExport({
+      uid: effectiveUid,
+      profile,
+      workspace: {
+        ...workspace,
+        role: isReviewWorkspace ? 'demo' : workspace.role,
+        workspaceMode: isReviewWorkspace ? 'review' : workspace.workspaceMode,
+        featureFlags: isReviewWorkspace ? { ...workspace.featureFlags, ...REVIEW_FEATURE_FLAGS } : workspace.featureFlags,
+      },
+      counts: {
+        concepts: concepts.length,
+        sources: media.length,
+        annotations: allAnnotations(media).length,
+        inquiries: questions.length,
+        positions: vault.length,
+        works: drafts.length,
+        practices: practices.length,
+        evolutionEvents: timeline.length,
+        aiSuggestions: suggestions.length,
+        atlasMaps: atlasMaps.length,
+        typedLinks: links.length,
+      },
+    });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `noesis-review-export-${effectiveUid}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   const emitError = (path: string, operation: SecurityRuleContext['operation'], data?: any) => {
     errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -450,6 +568,7 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
       storagePath: data.storagePath || '',
       thumbnailUrl: data.thumbnailUrl || '',
       canvasData: data.canvasData || '',
+      writingOverlayData: data.writingOverlayData || '',
       writingStyle: data.writingStyle || preferences.writingDefaults.writingStyle,
       externalDoc: data.externalDoc || null,
       conceptTags,
@@ -798,16 +917,59 @@ function ReadexWorkspace({ user, uid }: { user: User | null; uid: string }) {
       onOpenSettings={() => setView('settings')}
       movement={movement}
     >
+      {isReviewWorkspace && (
+        <div className="px-8 pt-8">
+          <div className="mx-auto max-w-7xl rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-3xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="rounded-full bg-amber-500 text-black">Review Workspace</Badge>
+                  <Badge variant="outline" className="rounded-full">Role: demo</Badge>
+                  <Badge variant="outline" className="rounded-full">Scoped to /users/{effectiveUid}</Badge>
+                </div>
+                <h2 className="mt-3 font-headline text-2xl font-semibold italic text-foreground">Developer and demo environment is active.</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  This workspace seeds realistic sources, annotations, inquiries, positions, works, practices, AI suggestions, and Atlas links so the app can be reviewed end to end without touching another user&apos;s data.
+                </p>
+                {!canSeedReviewWorkspace && (
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-amber-700 dark:text-amber-300">
+                    Sign in with <span className="font-code">{REVIEW_ACCOUNT_EMAIL}</span> or use demo mode to seed and refresh the dedicated review dataset. Your current account can still browse the app, but it will not overwrite its own workspace with demo content.
+                  </p>
+                )}
+                <div className="mt-4 flex flex-wrap gap-2 font-code text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <span>{media.length} sources</span>
+                  <span>{allAnnotations(media).length} annotations</span>
+                  <span>{questions.length} inquiries</span>
+                  <span>{vault.length} positions</span>
+                  <span>{drafts.length} works</span>
+                  <span>{practices.length} practices</span>
+                  <span>{links.length} typed links</span>
+                  <span>{suggestions.length} AI suggestions</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => seedReviewWorkspace(true)} disabled={isSeedingReview || !canSeedReviewWorkspace} className="rounded-full bg-card">
+                  <FlaskConical className="mr-2 size-4" />
+                  {isSeedingReview ? 'Refreshing Demo Data' : 'Refresh Demo Workspace'}
+                </Button>
+                <Button onClick={exportReviewArchitecture} className="rounded-full">
+                  <Download className="mr-2 size-4" /> Export Architecture
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {renderContent()}
       <Toaster />
     </Shell>
   );
 }
 
-function ReadexApp() {
+function ReadexApp({ reviewMode = false }: { reviewMode?: boolean }) {
   const { user, loading } = useUser();
   const [demoMode, setDemoMode] = useState(false);
-  const allowDemo = process.env.NEXT_PUBLIC_ALLOW_PROTOTYPE_MODE === 'true';
+  const allowDemo = reviewMode || process.env.NEXT_PUBLIC_ALLOW_PROTOTYPE_MODE === 'true';
 
   if (loading) {
     return (
@@ -829,10 +991,10 @@ function ReadexApp() {
     );
   }
 
-  return <ReadexWorkspace user={user} uid={user?.uid || PROTOTYPE_USER_ID} />;
+  return <ReadexWorkspace user={user} uid={user?.uid || PROTOTYPE_USER_ID} reviewMode={reviewMode || demoMode} />;
 }
 
-export default function Home() {
+export function NoesisHome({ reviewMode = false }: { reviewMode?: boolean }) {
   const [mounted, setMounted] = useState(false);
   const [firebaseInstances, setFirebaseInstances] = useState<FirebaseInstances | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
@@ -900,7 +1062,11 @@ export default function Home() {
 
   return (
     <FirebaseClientProvider firebaseApp={firebaseInstances.firebaseApp} firestore={firebaseInstances.firestore} auth={firebaseInstances.auth}>
-      <ReadexApp />
+      <ReadexApp reviewMode={reviewMode} />
     </FirebaseClientProvider>
   );
+}
+
+export default function Home() {
+  return <NoesisHome />;
 }

@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import type { PageSize, PaperColor, PaperPattern } from './Atelier';
 import type { WritingStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -17,16 +17,89 @@ interface DocsPageProps {
   onContentChange: (content: string) => void;
   isEditable: boolean;
   showBoundary?: boolean;
+  overlayData: string;
+  onOverlayChange: (content: string) => void;
+  overlayTool: 'text' | 'pencil' | 'eraser';
+  overlayColor: string;
+  overlayBrushSize: number;
 }
 
-export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary }: DocsPageProps) {
+export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary, overlayData, onOverlayChange, overlayTool, overlayColor, overlayBrushSize }: DocsPageProps) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const overlayDrawingRef = useRef(false);
 
   useEffect(() => {
     if (editorRef.current && editorRef.current !== document.activeElement) {
       editorRef.current.innerHTML = sanitizeHtml(content);
     }
   }, [content]);
+
+  const redrawOverlay = useCallback(() => {
+    const canvas = overlayRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const ratio = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth || 1;
+    const height = canvas.clientHeight || 1;
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(ratio, ratio);
+    ctx.clearRect(0, 0, width, height);
+    if (!overlayData) return;
+    const image = new Image();
+    image.onload = () => ctx.drawImage(image, 0, 0, width, height);
+    image.src = overlayData;
+  }, [overlayData]);
+
+  useEffect(() => {
+    redrawOverlay();
+  }, [redrawOverlay]);
+
+  useEffect(() => {
+    const onResize = () => redrawOverlay();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [redrawOverlay]);
+
+  const getOverlayPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  };
+
+  const startOverlayDraw = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isEditable || overlayTool === 'text') return;
+    const ctx = overlayRef.current?.getContext('2d');
+    if (!ctx) return;
+    const point = getOverlayPoint(event);
+    overlayDrawingRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = overlayBrushSize;
+    ctx.strokeStyle = overlayTool === 'eraser' ? '#ffffff' : overlayColor;
+  };
+
+  const moveOverlayDraw = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!overlayDrawingRef.current || overlayTool === 'text') return;
+    const ctx = overlayRef.current?.getContext('2d');
+    if (!ctx) return;
+    const point = getOverlayPoint(event);
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+  };
+
+  const endOverlayDraw = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!overlayDrawingRef.current || overlayTool === 'text') return;
+    overlayDrawingRef.current = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    const data = overlayRef.current?.toDataURL('image/png');
+    if (data) onOverlayChange(data);
+  };
 
   const sizeClasses = {
     letter: "w-[850px] min-h-[1100px]",
@@ -130,6 +203,18 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
           wordBreak: 'break-word',
           whiteSpace: 'pre-wrap'
         }}
+      />
+      <canvas
+        ref={overlayRef}
+        onPointerDown={startOverlayDraw}
+        onPointerMove={moveOverlayDraw}
+        onPointerUp={endOverlayDraw}
+        onPointerLeave={() => { overlayDrawingRef.current = false; }}
+        className={cn(
+          "absolute inset-0 h-full w-full",
+          overlayTool === 'text' ? "pointer-events-none" : "pointer-events-auto",
+          isEditable ? "cursor-crosshair" : "pointer-events-none"
+        )}
       />
 
       {structureLabels[writingStyle] && (

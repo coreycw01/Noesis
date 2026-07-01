@@ -47,6 +47,7 @@ export type PageViewMode = 'vertical-continuous' | 'vertical-single' | 'horizont
 export type PageSize = 'letter' | 'a4';
 export type PaperColor = 'blank' | 'warm' | 'sepia' | 'dark';
 export type PaperPattern = 'none' | 'notebook' | 'grid' | 'dotted' | 'dotted_grid';
+type WritingTool = 'text' | 'pencil' | 'eraser';
 type BrowserSpeechRecognitionCtor = new () => {
   continuous: boolean;
   interimResults: boolean;
@@ -141,6 +142,9 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
   const [paperColor, setPaperColor] = useState<PaperColor>('blank');
   const [paperPattern, setPaperPattern] = useState<PaperPattern>('none');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const [writingTool, setWritingTool] = useState<WritingTool>('text');
+  const [writingStrokeColor, setWritingStrokeColor] = useState('#4c1d95');
+  const [writingStrokeSize, setWritingStrokeSize] = useState(3);
 
   const { toast } = useToast();
   const activeFromStore = drafts.find((draft) => draft.id === activeId) || null;
@@ -520,6 +524,25 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
                   />
                 )}
               </div>
+              {showPaperControls && (
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/30 bg-white/70 px-4 py-3">
+                  <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">PENCIL</span>
+                  <Button variant={writingTool === 'text' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('text')} className="rounded-full">
+                    <Type className="mr-2 size-4" /> Type
+                  </Button>
+                  <Button variant={writingTool === 'pencil' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('pencil')} className="rounded-full">
+                    <PencilLine className="mr-2 size-4" /> Pencil
+                  </Button>
+                  <Button variant={writingTool === 'eraser' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('eraser')} className="rounded-full">
+                    <Eraser className="mr-2 size-4" /> Erase
+                  </Button>
+                  <input type="color" value={writingStrokeColor} onChange={(event) => setWritingStrokeColor(event.target.value)} className="h-9 w-11 rounded border border-border bg-background p-1" aria-label="Pencil color" />
+                  <input type="range" min={1} max={14} value={writingStrokeSize} onChange={(event) => setWritingStrokeSize(Number(event.target.value))} className="w-28" aria-label="Pencil size" />
+                  <Button variant="outline" size="sm" onClick={() => updateActive({ writingOverlayData: '' })} className="rounded-full bg-white">
+                    <Square className="mr-2 size-4" /> Clear Marks
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -537,18 +560,23 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
                 paperPattern={paperPattern}
                 writingStyle={active.writingStyle || writingDefaults.writingStyle}
                 title={active.title}
+                overlayData={active.writingOverlayData || ''}
+                onOverlayChange={(overlayData) => updateActive({ writingOverlayData: overlayData })}
+                overlayTool={writingTool}
+                overlayColor={writingStrokeColor}
+                overlayBrushSize={writingStrokeSize}
               />
             </>
           ) : active.type === 'recording' ? (
-            <RecordingStudio draft={active} updateActive={updateActive} saveActive={saveActive} />
+            <RecordingStudio draft={active} updateActive={updateActive} />
           ) : active.type === 'voice_note' ? (
-            <RecordingStudio draft={active} updateActive={updateActive} saveActive={saveActive} audioOnly />
+            <RecordingStudio draft={active} updateActive={updateActive} audioOnly />
           ) : active.type === 'drawing' ? (
-            <DrawingStudio draft={active} updateActive={updateActive} saveActive={saveActive} />
+            <DrawingStudio draft={active} updateActive={updateActive} />
           ) : active.type === 'drawing_note' ? (
-            <DrawingStudio draft={active} updateActive={updateActive} saveActive={saveActive} compact />
+            <DrawingStudio draft={active} updateActive={updateActive} compact />
           ) : (
-            <QuickNoteStudio draft={active} updateActive={updateActive} saveActive={saveActive} />
+            <QuickNoteStudio draft={active} updateActive={updateActive} />
           )}
         </div>
 
@@ -753,11 +781,9 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
 function QuickNoteStudio({
   draft,
   updateActive,
-  saveActive,
 }: {
   draft: Draft;
   updateActive: (patch: Partial<Draft>) => void;
-  saveActive: (patch?: Partial<Draft>) => Draft | null;
 }) {
   const recognitionRef = useRef<InstanceType<BrowserSpeechRecognitionCtor> | null>(null);
   const [dictationState, setDictationState] = useState<'idle' | 'listening' | 'unsupported' | 'error'>('idle');
@@ -865,9 +891,6 @@ function QuickNoteStudio({
           <p className="text-xs italic text-muted-foreground">
             Notes stay lightweight. You can still link concepts and reopen them later from Works.
           </p>
-          <Button onClick={() => saveActive()} className="rounded-full px-6 font-bold">
-            <Save className="mr-2 size-4" /> Save Note
-          </Button>
         </div>
       </Card>
     </div>
@@ -877,12 +900,10 @@ function QuickNoteStudio({
 function RecordingStudio({
   draft,
   updateActive,
-  saveActive,
   audioOnly = false,
 }: {
   draft: Draft;
   updateActive: (patch: Partial<Draft>) => void;
-  saveActive: (patch?: Partial<Draft>) => Draft | null;
   audioOnly?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -948,7 +969,7 @@ function RecordingStudio({
         setState('saving');
         const blob = new Blob(chunksRef.current, { type: audioOnly ? 'audio/webm' : 'video/webm' });
         const fileUrl = await blobToDataUrl(blob);
-        saveActive({
+        updateActive({
           fileUrl,
           durationSeconds: duration,
         });
@@ -956,7 +977,7 @@ function RecordingStudio({
         if (previewRef.current) {
           previewRef.current.src = fileUrl;
         }
-        setState('saved');
+        setState('stopped');
       };
       setDuration(0);
       recorder.start();
@@ -1026,8 +1047,18 @@ function RecordingStudio({
             <p>{state === 'idle' && 'Waiting for permission.'}</p>
             <p>{state === 'ready' && 'Camera and microphone are ready.'}</p>
             <p>{state === 'recording' && 'Recording is in progress.'}</p>
-            <p>{state === 'saving' && 'Saving recorded media...'}</p>
+            <p>{state === 'saving' && 'Preparing recorded media...'}</p>
+            <p>{state === 'stopped' && 'Recording is staged. Use the top Save button to persist it.'}</p>
             <p>{state === 'saved' && 'Recording saved. You can reopen it later from Works.'}</p>
+          </div>
+          <div className="mt-6 space-y-2">
+            <Label className="readex-kicker text-[9px] font-bold uppercase">Recording Notes</Label>
+            <textarea
+              value={draft.body || ''}
+              onChange={(event) => updateActive({ body: event.target.value, draftContent: event.target.value })}
+              placeholder={audioOnly ? 'Add a short summary or transcript note...' : 'Add context, notes, or a summary for this recording...'}
+              className="min-h-[160px] w-full rounded-2xl border border-border bg-background px-4 py-4 text-sm leading-6 text-foreground outline-none transition-colors focus:border-accent"
+            />
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button onClick={requestMedia} variant="outline" className="rounded-full bg-background">
@@ -1039,9 +1070,6 @@ function RecordingStudio({
             <Button onClick={stopRecording} disabled={state !== 'recording'} variant="outline" className="rounded-full bg-background">
               Stop Recording
             </Button>
-            <Button onClick={() => saveActive()} variant="outline" className="rounded-full bg-background">
-              <Save className="mr-2 size-4" /> Save Metadata
-            </Button>
           </div>
         </Card>
       </div>
@@ -1052,12 +1080,10 @@ function RecordingStudio({
 function DrawingStudio({
   draft,
   updateActive,
-  saveActive,
   compact = false,
 }: {
   draft: Draft;
   updateActive: (patch: Partial<Draft>) => void;
-  saveActive: (patch?: Partial<Draft>) => Draft | null;
   compact?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1135,6 +1161,7 @@ function DrawingStudio({
     drawingRef.current = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
     snapshot();
+    window.setTimeout(saveDrawing, 0);
   };
 
   const restoreHistory = (index: number) => {
@@ -1146,6 +1173,7 @@ function DrawingStudio({
     image.onload = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(image, 0, 0, parseInt(canvas.style.width, 10), parseInt(canvas.style.height, 10));
+      window.setTimeout(saveDrawing, 0);
     };
     image.src = history[index];
     setHistoryIndex(index);
@@ -1158,12 +1186,13 @@ function DrawingStudio({
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, parseInt(canvas.style.width, 10), parseInt(canvas.style.height, 10));
     snapshot();
+    window.setTimeout(saveDrawing, 0);
   };
 
   const saveDrawing = () => {
     const data = canvasRef.current?.toDataURL('image/png');
     if (!data) return;
-    saveActive({ canvasData: data, thumbnailUrl: data, body: draft.body || '' });
+    updateActive({ canvasData: data, thumbnailUrl: data });
   };
 
   return (
@@ -1194,24 +1223,38 @@ function DrawingStudio({
             <Button variant="outline" onClick={clearCanvas} className="rounded-full bg-background">
               <Square className="mr-2 size-4" /> Clear
             </Button>
-            <Button onClick={saveDrawing} className="rounded-full">
-              <Save className="mr-2 size-4" /> Save Drawing
-            </Button>
           </div>
         </div>
       </Card>
 
-      <div className="overflow-auto rounded-2xl border border-border bg-muted/10 p-4">
-        <canvas
-          ref={canvasRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerLeave={() => {
-            drawingRef.current = false;
-          }}
-          className="mx-auto block rounded-xl border border-border bg-white shadow-sm touch-none"
-        />
+      <div className={cn("grid gap-6", compact ? "xl:grid-cols-[1fr_320px]" : "xl:grid-cols-[1fr_360px]")}>
+        <div className="overflow-auto rounded-2xl border border-border bg-muted/10 p-4">
+          <canvas
+            ref={canvasRef}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerLeave={() => {
+              drawingRef.current = false;
+            }}
+            className="mx-auto block rounded-xl border border-border bg-white shadow-sm touch-none"
+          />
+        </div>
+        <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
+          <div className="font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Drawing Notes</div>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {compact ? 'Keep this quick. Use text for labels, context, or one sharp takeaway.' : 'Use text for labels, context, explanation, or the argument behind the sketch.'}
+          </p>
+          <textarea
+            value={draft.body || ''}
+            onChange={(event) => updateActive({ body: event.target.value, draftContent: event.target.value })}
+            placeholder={compact ? 'Add a short note for this sketch...' : 'Explain the diagram, map the idea, or write the reasoning behind the drawing...'}
+            className={cn(
+              "mt-4 w-full rounded-2xl border border-border bg-background px-4 py-4 text-sm leading-6 text-foreground outline-none transition-colors focus:border-accent",
+              compact ? "min-h-[220px]" : "min-h-[420px]"
+            )}
+          />
+        </Card>
       </div>
     </div>
   );

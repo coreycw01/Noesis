@@ -17,9 +17,14 @@ interface DocumentCanvasProps {
   paperPattern: PaperPattern;
   writingStyle: WritingStyle;
   title: string;
+  overlayData: string;
+  onOverlayChange: (content: string) => void;
+  overlayTool: 'text' | 'pencil' | 'eraser';
+  overlayColor: string;
+  overlayBrushSize: number;
 }
 
-export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title }: DocumentCanvasProps) {
+export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title, overlayData, onOverlayChange, overlayTool, overlayColor, overlayBrushSize }: DocumentCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -68,6 +73,11 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
                 content={i === 0 ? content : ""}
                 onContentChange={onContentChange}
                 showBoundary
+                overlayData={i === 0 ? overlayData : ''}
+                onOverlayChange={onOverlayChange}
+                overlayTool={overlayTool}
+                overlayColor={overlayColor}
+                overlayBrushSize={overlayBrushSize}
               />
             ))
           ) : (
@@ -81,6 +91,11 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
               content={content}
               onContentChange={onContentChange}
               showBoundary
+              overlayData={overlayData}
+              onOverlayChange={onOverlayChange}
+              overlayTool={overlayTool}
+              overlayColor={overlayColor}
+              overlayBrushSize={overlayBrushSize}
             />
           )}
         </div>

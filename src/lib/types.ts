@@ -15,6 +15,8 @@ export type AccentTheme = 'violet' | 'sage' | 'blue' | 'amber' | 'rose' | 'mono'
 export type WritingStyle = 'blank_paper' | 'ruled_notebook' | 'manuscript' | 'cornell_notes' | 'two_column_debate' | 'dialectic' | 'belief_audit' | 'source_analysis' | 'mind_map' | 'timeline';
 export type ExternalDocProvider = 'google_docs' | 'notion' | 'dropbox_paper' | 'microsoft_word' | 'markdown' | 'other';
 export type ExternalDocSyncStatus = 'connected' | 'syncing' | 'synced' | 'error';
+export type UserRole = 'user' | 'tester' | 'demo' | 'admin';
+export type WorkspaceMode = 'standard' | 'review';
 export type PracticeType = 'habit' | 'experiment' | 'discipline' | 'reflection_prompt' | 'commitment' | 'observation' | 'rule' | 'challenge';
 export type PracticeStatus = 'proposed' | 'planned' | 'active' | 'completed' | 'failed' | 'integrated' | 'paused' | 'abandoned';
 export type AnnotationPhilosophyStatus = 'raw' | 'connected' | 'questioned' | 'used_in_position' | 'archived';
@@ -218,6 +220,7 @@ export interface Draft {
   storagePath?: string;
   thumbnailUrl?: string;
   canvasData?: string;
+  writingOverlayData?: string;
   writingStyle?: WritingStyle;
   externalDoc?: ExternalDraftDocument;
   conceptTags: string[];
@@ -344,6 +347,18 @@ export interface UserProfile {
   email: string;
   photoURL?: string;
   bio?: string;
+  role?: UserRole;
+  dateUpdated?: string;
+}
+
+export interface WorkspaceSettings {
+  id?: string;
+  role: UserRole;
+  workspaceMode: WorkspaceMode;
+  seedSource?: 'system-demo' | 'manual' | 'none';
+  demoWorkspace?: boolean;
+  reviewReady?: boolean;
+  featureFlags: Record<string, boolean>;
   dateUpdated?: string;
 }
 

@@ -789,10 +789,16 @@ export function MediaLibrary({
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-8 gap-y-12">
         {filtered.map((item) => (
           <Card key={item.id} className="cursor-pointer border-none shadow-none bg-transparent group" onClick={() => setSelectedId(item.id)}>
-            <div className="aspect-[2/3] rounded-xl overflow-hidden shadow-sm mb-5 bg-white flex items-center justify-center p-8 text-center border border-border/30 group-hover:shadow-2xl group-hover:-translate-y-2 transition-all">
-              <div className="size-12 bg-muted/20 rounded-lg flex items-center justify-center mb-4 shadow-inner">
-                {React.createElement(MEDIA_ICONS_COMP[item.type], { className: "size-7 text-accent/40" })}
-              </div>
+            <div className="aspect-[2/3] rounded-xl overflow-hidden shadow-sm mb-5 bg-white border border-border/30 group-hover:shadow-2xl group-hover:-translate-y-2 transition-all">
+              {item.thumbnailUrl ? (
+                <img src={item.thumbnailUrl} alt={item.title} className="h-full w-full object-cover" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center p-8 text-center">
+                  <div className="size-12 bg-muted/20 rounded-lg flex items-center justify-center mb-4 shadow-inner">
+                    {React.createElement(MEDIA_ICONS_COMP[item.type], { className: "size-7 text-accent/40" })}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <div className="readex-kicker opacity-50 font-bold text-[9px]">{MEDIA_LABELS[item.type].toUpperCase()}</div>
