@@ -13,15 +13,13 @@ import {
   Menu,
   Map as MapIcon,
   PenTool,
-  UserCircle2,
   Repeat,
   Settings,
   ShieldCheck,
   Edit2,
   ChevronRight,
   Table as TableIcon,
-  Highlighter,
-  Target
+  Highlighter
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
@@ -29,6 +27,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { GoalSettings, MediaType } from '@/lib/types';
 import { MEDIA_LABELS } from '@/lib/readex';
@@ -46,6 +45,8 @@ interface ShellProps {
   children: React.ReactNode;
   activeView: string;
   onViewChange: (view: string) => void;
+  onOpenProfile?: () => void;
+  onOpenGoals?: () => void;
   counts: {
     concepts: number;
     questions: number;
@@ -59,9 +60,17 @@ interface ShellProps {
   goal: GoalSettings;
   goalProgress: Partial<Record<MediaType, number>>;
   movement?: MovementMetrics;
+  profile?: {
+    displayName?: string;
+    email?: string;
+    photoURL?: string;
+    avatarUrl?: string;
+    role?: string;
+  };
+  workspaceMode?: string;
 }
 
-export function Shell({ children, activeView, onViewChange, counts, goal, goalProgress, movement }: ShellProps) {
+export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpenGoals, counts, goal, goalProgress, movement, profile, workspaceMode }: ShellProps) {
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -76,12 +85,18 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
     { id: 'writing', label: 'Works', icon: PenTool, section: 'Outputs', count: counts.drafts },
     { id: 'practices', label: 'Practices', icon: Repeat, section: 'Outputs', count: counts.practices },
     { id: 'evolution', label: 'Evolution', icon: History, section: 'Outputs', count: counts.timeline },
-    { id: 'profile', label: 'Profile', icon: UserCircle2, section: 'Self' },
-    { id: 'goals', label: 'Goals', icon: Target, section: 'Self' },
     { id: 'settings', label: 'Settings', icon: Settings, section: 'System' },
   ];
 
   const logoData = placeholderData.placeholderImages.find(img => img.id === 'app-logo');
+  const profileInitials = useMemo(() => {
+    const label = profile?.displayName?.trim() || profile?.email?.trim() || 'Noesis';
+    return label
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') || 'N';
+  }, [profile?.displayName, profile?.email]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('noesis:sidebar-collapsed');
@@ -175,26 +190,52 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
   const sidebarContent = (
     <>
       <div className={cn("border-b border-sidebar-border", collapsed && !isMobile ? "p-3" : "p-5")}>
-        <div className={cn("mb-2 flex items-center", collapsed && !isMobile ? "justify-center" : "gap-3")}>
-          <div className="relative size-8 overflow-hidden rounded-lg border border-white/10 bg-white/[0.05] shrink-0">
-            {logoData && (
-              <Image
-                src={logoData.imageUrl}
-                alt={logoData.description}
-                width={32}
-                height={32}
-                className="object-cover"
-                data-ai-hint={logoData.imageHint}
-              />
+        <div className={cn("mb-2 flex", collapsed && !isMobile ? "flex-col items-center gap-3" : "items-start justify-between gap-3")}>
+          <div className={cn("flex items-center", collapsed && !isMobile ? "justify-center" : "gap-3")}>
+            <div className="relative size-8 overflow-hidden rounded-lg border border-white/10 bg-white/[0.05] shrink-0">
+              {logoData && (
+                <Image
+                  src={logoData.imageUrl}
+                  alt={logoData.description}
+                  width={32}
+                  height={32}
+                  className="object-cover"
+                  data-ai-hint={logoData.imageHint}
+                />
+              )}
+            </div>
+            {(!collapsed || isMobile) && (
+              <div>
+                <span className="text-[22px] font-headline font-bold text-white tracking-tight">Noesis<span className="text-accent">.</span></span>
+                <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/35 font-medium">Turn thought into understanding.</p>
+              </div>
             )}
           </div>
-          {(!collapsed || isMobile) && (
-            <span className="text-[22px] font-headline font-bold text-white tracking-tight">Noesis<span className="text-accent">.</span></span>
-          )}
+          <button
+            type="button"
+            onClick={onOpenProfile || (() => handleNavChange('profile'))}
+            className={cn(
+              "group flex items-center rounded-2xl border border-white/10 bg-white/[0.05] transition-colors hover:border-white/20 hover:bg-white/[0.08]",
+              collapsed && !isMobile ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+            )}
+            title="Open profile"
+          >
+            <Avatar className="size-9 border border-white/10">
+              <AvatarImage src={profile?.photoURL || profile?.avatarUrl || ''} alt={profile?.displayName || 'Profile'} />
+              <AvatarFallback className="bg-white/[0.08] text-[11px] font-semibold text-white">
+                {profileInitials}
+              </AvatarFallback>
+            </Avatar>
+            {(!collapsed || isMobile) && (
+              <div className="min-w-0 text-left">
+                <div className="truncate text-[12px] font-medium text-white/90">{profile?.displayName || 'Profile'}</div>
+                <div className="truncate font-code text-[8px] uppercase tracking-[0.14em] text-sidebar-foreground/38">
+                  {workspaceMode || profile?.role || 'Private workspace'}
+                </div>
+              </div>
+            )}
+          </button>
         </div>
-        {(!collapsed || isMobile) && (
-          <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/35 font-medium">Turn thought into understanding.</p>
-        )}
 
         <div className={cn("mt-4 flex items-center", collapsed && !isMobile ? "justify-center" : "justify-end")}>
           <Button
@@ -210,7 +251,7 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
 
         {(!collapsed || isMobile) && (
           <div
-            onClick={() => handleNavChange('goals')}
+            onClick={onOpenGoals || (() => handleNavChange('goals'))}
             className="mt-4 w-full rounded border border-white/10 bg-white/[0.05] p-3 transition-all hover:border-white/20 hover:bg-white/[0.075] group/goals relative cursor-pointer"
           >
             <div className="mb-3 flex justify-between items-center">
@@ -293,7 +334,7 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
       )}
 
       <nav className="flex-1 overflow-y-auto py-4 scrollbar-hide">
-        {['Mind', 'Inputs', 'Outputs', 'Self', 'System'].map((section) => (
+        {['Mind', 'Inputs', 'Outputs', 'System'].map((section) => (
           <div key={section} className="mb-5">
             {(!collapsed || isMobile) && (
               <h4 className="px-5 mb-1 font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/22 font-bold">{section}</h4>

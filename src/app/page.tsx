@@ -31,6 +31,7 @@ import { SettingsPage } from '@/components/Settings/SettingsPage';
 import { GoalsPage } from '@/components/Goals/GoalsPage';
 import { Toaster } from '@/components/ui/toaster';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
@@ -59,7 +60,7 @@ import {
   readexRefs,
   readexSchemaDoc,
 } from '@/lib/firestore-schema';
-import { buildDemoWorkspace, buildReviewExport, REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS } from '@/lib/demo-workspace';
+import { buildDemoWorkspace, buildReviewExport, REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS, REVIEW_WORKSPACE_UID } from '@/lib/demo-workspace';
 import type {
   AccountSettings,
   AiSuggestion,
@@ -112,6 +113,7 @@ type FirebaseInstances = ReturnType<typeof initializeFirebase>;
 
 function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null; uid: string; reviewMode?: boolean }) {
   const { db } = useFirebase();
+  const { toast } = useToast();
   const [view, setView] = useState('atlas');
   const [focusedSourceId, setFocusedSourceId] = useState<string | null>(null);
   const [focusedPositionId, setFocusedPositionId] = useState<string | null>(null);
@@ -275,7 +277,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
   const featureFlags = workspace.featureFlags || {};
   const isReviewIdentity = (user?.email || profile.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
   const isReviewWorkspace = Boolean(reviewMode || isReviewIdentity || workspace.workspaceMode === 'review' || workspace.demoWorkspace);
-  const canSeedReviewWorkspace = effectiveUid === PROTOTYPE_USER_ID || isReviewIdentity;
+  const canSeedReviewWorkspace = effectiveUid === REVIEW_WORKSPACE_UID || isReviewIdentity;
   const [isSeedingReview, setIsSeedingReview] = useState(false);
   const autoSeedAttemptedRef = useRef(false);
   const reviewDataLoading =
@@ -408,55 +410,48 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
 
   const totalObjects = media.length + concepts.length + questions.length + vault.length + drafts.length + practices.length + timeline.length + insights.length + links.length + suggestions.length + atlasMaps.length + thinkingEvents.length + beliefProfiles.length + unknowns.length + thinkingPatterns.length;
 
-  const seedReviewWorkspace = async (replaceExisting = false) => {
+  const seedReviewWorkspace = async ({ force = false, preserveUserCreated = true, announce = false }: { force?: boolean; preserveUserCreated?: boolean; announce?: boolean } = {}) => {
     setIsSeedingReview(true);
     try {
       const demo = buildDemoWorkspace(effectiveUid);
       const batch = writeBatch(db);
-      const collectionsToClear = replaceExisting
-        ? [
-            ...media.map((item) => doc(refs.media, item.id)),
-            ...concepts.map((item) => doc(refs.concepts, item.id)),
-            ...questions.map((item) => doc(refs.questions, item.id)),
-            ...vault.map((item) => doc(refs.vault, item.id)),
-            ...drafts.map((item) => doc(refs.drafts, item.id)),
-            ...practices.map((item) => doc(refs.practices, item.id)),
-            ...timeline.map((item) => doc(refs.timeline, item.id)),
-            ...insights.map((item) => doc(refs.insights, item.id)),
-            ...links.map((item) => doc(refs.links, item.id)),
-            ...suggestions.map((item) => doc(refs.suggestions, item.id)),
-            ...atlasMaps.map((item) => doc(refs.atlasMaps, item.id)),
-            ...thinkingEvents.map((item) => doc(refs.thinkingEvents, item.id)),
-            ...beliefProfiles.map((item) => doc(refs.beliefProfiles, item.positionId)),
-            ...unknowns.map((item) => doc(refs.unknowns, item.unknownId)),
-            ...thinkingPatterns.map((item) => doc(refs.thinkingPatterns, item.patternId)),
-          ]
-        : [];
 
-      collectionsToClear.forEach((ref) => batch.delete(ref));
-      if (replaceExisting) {
-        batch.delete(doc(refs.thinkingMetrics, 'summary'));
-        batch.delete(refs.profileMain);
-        batch.delete(refs.profilePrivacy);
-        batch.delete(refs.profileMetacognitionSummary);
-        batch.delete(refs.settingsGoal);
-        batch.delete(refs.settingsPreferences);
-        batch.delete(refs.settingsWorkspace);
-        batch.delete(refs.settingsAccount);
-        batch.delete(refs.settingsAppearance);
-        batch.delete(refs.settingsAi);
-        batch.delete(refs.settingsMetacognition);
-        batch.delete(refs.settingsPrivacy);
-        batch.delete(refs.settingsData);
-        batch.delete(refs.settingsSourceIntake);
-        batch.delete(refs.settingsWorks);
-        batch.delete(refs.settingsAtlas);
-        batch.delete(refs.settingsNotifications);
-        batch.delete(refs.settingsGoals);
-        batch.delete(refs.settingsDeveloper);
-        batch.delete(refs.settingsAtlasView);
-        batch.delete(refs.settingsAtlasNodes);
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[DemoSeed] Starting', { uid: effectiveUid, force, preserveUserCreated });
       }
+
+      const deleteStaleDemoDocs = <T,>(
+        currentItems: T[],
+        nextIds: Set<string>,
+        idFor: (item: T) => string,
+        refFor: (id: string) => DocumentReference<DocumentData>
+      ) => {
+        if (!force) return;
+        currentItems.forEach((item) => {
+          const currentId = idFor(item);
+          const isDemoRecord = Boolean((item as any)?.demoSeed);
+          const shouldDelete = isDemoRecord && !nextIds.has(currentId);
+          if (shouldDelete || (!preserveUserCreated && !nextIds.has(currentId))) {
+            batch.delete(refFor(currentId));
+          }
+        });
+      };
+
+      deleteStaleDemoDocs(media, new Set(demo.media.map((item) => item.id)), (item) => item.id, (id) => doc(refs.media, id));
+      deleteStaleDemoDocs(concepts, new Set(demo.concepts.map((item) => item.id)), (item) => item.id, (id) => doc(refs.concepts, id));
+      deleteStaleDemoDocs(questions, new Set(demo.questions.map((item) => item.id)), (item) => item.id, (id) => doc(refs.questions, id));
+      deleteStaleDemoDocs(vault, new Set(demo.vault.map((item) => item.id)), (item) => item.id, (id) => doc(refs.vault, id));
+      deleteStaleDemoDocs(drafts, new Set(demo.drafts.map((item) => item.id)), (item) => item.id, (id) => doc(refs.drafts, id));
+      deleteStaleDemoDocs(practices, new Set(demo.practices.map((item) => item.id)), (item) => item.id, (id) => doc(refs.practices, id));
+      deleteStaleDemoDocs(timeline, new Set(demo.timeline.map((item) => item.id)), (item) => item.id, (id) => doc(refs.timeline, id));
+      deleteStaleDemoDocs(insights, new Set(demo.insights.map((item) => item.id)), (item) => item.id, (id) => doc(refs.insights, id));
+      deleteStaleDemoDocs(links, new Set(demo.links.map((item) => item.id)), (item) => item.id, (id) => doc(refs.links, id));
+      deleteStaleDemoDocs(suggestions, new Set(demo.suggestions.map((item) => item.id)), (item) => item.id, (id) => doc(refs.suggestions, id));
+      deleteStaleDemoDocs(atlasMaps, new Set(demo.atlasMaps.map((item) => item.id)), (item) => item.id, (id) => doc(refs.atlasMaps, id));
+      deleteStaleDemoDocs(thinkingEvents, new Set(demo.thinkingEvents.map((item) => item.id)), (item) => item.id, (id) => doc(refs.thinkingEvents, id));
+      deleteStaleDemoDocs(beliefProfiles, new Set(demo.beliefProfiles.map((item) => item.positionId)), (item) => item.positionId, (id) => doc(refs.beliefProfiles, id));
+      deleteStaleDemoDocs(unknowns, new Set(demo.unknowns.map((item) => item.unknownId)), (item) => item.unknownId, (id) => doc(refs.unknowns, id));
+      deleteStaleDemoDocs(thinkingPatterns, new Set(demo.thinkingPatterns.map((item) => item.patternId)), (item) => item.patternId, (id) => doc(refs.thinkingPatterns, id));
 
       batch.set(refs.user, {
         uid: effectiveUid,
@@ -491,6 +486,20 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       batch.set(refs.settingsAtlasView, DEFAULT_ATLAS_VIEW_SETTINGS, { merge: true });
       batch.set(refs.settingsAtlasNodes, DEFAULT_ATLAS_NODE_SETTINGS, { merge: true });
 
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[DemoSeed] Writing collections', {
+          media: demo.media.length,
+          concepts: demo.concepts.length,
+          questions: demo.questions.length,
+          vault: demo.vault.length,
+          drafts: demo.drafts.length,
+          practices: demo.practices.length,
+          timeline: demo.timeline.length,
+          links: demo.links.length,
+          thinkingEvents: demo.thinkingEvents.length,
+        });
+      }
+
       demo.media.forEach((item) => batch.set(doc(refs.media, item.id), item));
       demo.concepts.forEach((item) => batch.set(doc(refs.concepts, item.id), item));
       demo.questions.forEach((item) => batch.set(doc(refs.questions, item.id), item));
@@ -509,6 +518,14 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
 
       await batch.commit();
       autoSeedAttemptedRef.current = true;
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[DemoSeed] Complete', { uid: effectiveUid });
+      }
+
+      if (announce) {
+        toast({ title: 'Demo workspace refreshed', description: 'Mock data was reseeded and remains scoped to the review workspace.' });
+      }
     } finally {
       setIsSeedingReview(false);
     }
@@ -521,7 +538,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     if (totalObjects > 0 && workspace.demoWorkspace) return;
     if (totalObjects === 0) {
       autoSeedAttemptedRef.current = true;
-      seedReviewWorkspace(false).catch((error) => console.warn('Review seed failed', error));
+      seedReviewWorkspace().catch((error) => console.warn('Review seed failed', error));
     }
   }, [canSeedReviewWorkspace, isReviewWorkspace, isSeedingReview, reviewDataLoading, totalObjects, workspace.demoWorkspace, workspace.seedSource]);
 
@@ -1819,6 +1836,16 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
             reviewMode={isReviewWorkspace}
             onSaveSection={saveSettingsSection}
             onExportWorkspace={exportWorkspaceData}
+            onOpenProfile={() => setView('profile')}
+            onRefreshDemoWorkspace={() => seedReviewWorkspace({ force: true })}
+            refreshingDemoWorkspace={isSeedingReview}
+            profileSummary={{
+              displayName: profile.displayName,
+              email: profile.email,
+              role: profile.role,
+              bio: profile.bio,
+              workspaceMode: workspace.workspaceMode,
+            }}
           />
         );
       default:
@@ -1830,6 +1857,8 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     <Shell
       activeView={view}
       onViewChange={setView}
+      onOpenProfile={() => setView('profile')}
+      onOpenGoals={() => setView('goals')}
       counts={{
         concepts: concepts.length,
         questions: questions.length,
@@ -1843,6 +1872,14 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       goal={goalState}
       goalProgress={goalProgress}
       movement={movement}
+      profile={{
+        displayName: profile.displayName,
+        email: profile.email,
+        photoURL: profile.photoURL,
+        avatarUrl: profile.avatarUrl,
+        role: profile.role,
+      }}
+      workspaceMode={workspace.workspaceMode}
     >
       {isReviewWorkspace && (
         <div className="px-8 pt-8">
@@ -1875,7 +1912,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => seedReviewWorkspace(true)} disabled={isSeedingReview || !canSeedReviewWorkspace} className="rounded-full bg-card">
+                <Button variant="outline" onClick={() => seedReviewWorkspace({ force: true, announce: true })} disabled={isSeedingReview || !canSeedReviewWorkspace} className="rounded-full bg-card">
                   <FlaskConical className="mr-2 size-4" />
                   {isSeedingReview ? 'Refreshing Demo Data' : 'Refresh Demo Workspace'}
                 </Button>
@@ -1897,6 +1934,7 @@ function ReadexApp({ reviewMode = false }: { reviewMode?: boolean }) {
   const { user, loading } = useUser();
   const [demoMode, setDemoMode] = useState(false);
   const allowDemo = reviewMode || process.env.NEXT_PUBLIC_ALLOW_PROTOTYPE_MODE === 'true';
+  const isReviewIdentity = (user?.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
 
   if (loading) {
     return (
@@ -1918,7 +1956,9 @@ function ReadexApp({ reviewMode = false }: { reviewMode?: boolean }) {
     );
   }
 
-  return <ReadexWorkspace user={user} uid={user?.uid || PROTOTYPE_USER_ID} reviewMode={reviewMode || demoMode} />;
+  const workspaceUid = (reviewMode || demoMode || isReviewIdentity) ? REVIEW_WORKSPACE_UID : (user?.uid || PROTOTYPE_USER_ID);
+
+  return <ReadexWorkspace user={user} uid={workspaceUid} reviewMode={reviewMode || demoMode || isReviewIdentity} />;
 }
 
 export function NoesisHome({ reviewMode = false }: { reviewMode?: boolean }) {
