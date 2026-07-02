@@ -26,14 +26,80 @@ import { Atelier } from '@/components/Writing/Atelier';
 import { QuestionsWorkspace } from '@/components/Questions/QuestionsWorkspace';
 import { EvolutionTimeline } from '@/components/Evolution/EvolutionTimeline';
 import { PracticesWorkspace } from '@/components/Practices/PracticesWorkspace';
+import { ProfilePage } from '@/components/Profile/ProfilePage';
 import { SettingsPage } from '@/components/Settings/SettingsPage';
 import { GoalsPage } from '@/components/Goals/GoalsPage';
 import { Toaster } from '@/components/ui/toaster';
 import { Badge } from '@/components/ui/badge';
 import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
-import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, DEFAULT_THINKING_METRICS, DEFAULT_USER_PREFERENCES, DEFAULT_USER_PROFILE, DEFAULT_WORKSPACE_SETTINGS, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
+import {
+  DEFAULT_ACCOUNT_SETTINGS,
+  DEFAULT_AI_SETTINGS,
+  DEFAULT_APPEARANCE_SETTINGS,
+  DEFAULT_ATLAS_NODE_SETTINGS,
+  DEFAULT_ATLAS_SETTINGS,
+  DEFAULT_ATLAS_VIEW_SETTINGS,
+  DEFAULT_DATA_SETTINGS,
+  DEFAULT_DEVELOPER_SETTINGS,
+  DEFAULT_GOAL_PREFERENCE_SETTINGS,
+  DEFAULT_GOAL_SETTINGS,
+  DEFAULT_METACOGNITION_SETTINGS,
+  DEFAULT_NOTIFICATION_SETTINGS,
+  DEFAULT_PRIVACY_SETTINGS,
+  DEFAULT_PROFILE_METACOGNITION_SUMMARY,
+  DEFAULT_PROFILE_PRIVACY,
+  DEFAULT_SOURCE_INTAKE_SETTINGS,
+  DEFAULT_THINKING_METRICS,
+  DEFAULT_USER_PREFERENCES,
+  DEFAULT_USER_PROFILE,
+  DEFAULT_WORKS_SETTINGS,
+  DEFAULT_WORKSPACE_PREFERENCES,
+  DEFAULT_WORKSPACE_SETTINGS,
+  PROTOTYPE_USER_ID,
+  readexRefs,
+  readexSchemaDoc,
+} from '@/lib/firestore-schema';
 import { buildDemoWorkspace, buildReviewExport, REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS } from '@/lib/demo-workspace';
-import type { AiSuggestion, Annotation, AtlasMap, BeliefProfile, Concept, Draft, GoalSettings, Insight, Media, MediaType, PhilosophicalLink, Practice, Question, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown, VaultEntry, SecurityRuleContext, UserPreferences, UserProfile, WorkspaceSettings } from '@/lib/types';
+import type {
+  AccountSettings,
+  AiSuggestion,
+  AiSettings,
+  Annotation,
+  AppearanceSettings,
+  AtlasMap,
+  AtlasSettings,
+  BeliefProfile,
+  Concept,
+  DataSettings,
+  DeveloperSettings,
+  Draft,
+  GoalPreferenceSettings,
+  GoalSettings,
+  Insight,
+  Media,
+  MediaType,
+  MetacognitionSettings,
+  NotificationSettings,
+  PhilosophicalLink,
+  Practice,
+  PrivacySettings,
+  ProfileMetacognitionSummary,
+  ProfilePrivacySettings,
+  Question,
+  SecurityRuleContext,
+  SourceIntakeSettings,
+  ThinkingEvent,
+  ThinkingMetrics,
+  ThinkingPattern,
+  TimelineEvent,
+  Unknown,
+  UserPreferences,
+  UserProfile,
+  VaultEntry,
+  WorksSettings,
+  WorkspacePreferenceSettings,
+  WorkspaceSettings,
+} from '@/lib/types';
 import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -72,26 +138,124 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
   const { data: thinkingPatterns = [], loading: thinkingPatternsLoading } = useCollection<ThinkingPattern>(refs.thinkingPatterns as any);
   const { data: thinkingMetricsDoc, loading: thinkingMetricsLoading } = useDoc<ThinkingMetrics>(doc(refs.thinkingMetrics, 'summary') as any);
   const { data: goalDoc, loading: goalLoading } = useDoc<GoalSettings>(refs.settingsGoal as any);
-  const { data: preferencesDoc, loading: preferencesLoading } = useDoc<UserPreferences>(refs.settingsPreferences as any);
-  const { data: profileDoc, loading: profileLoading } = useDoc<UserProfile>(refs.settingsProfile as any);
+  const { data: legacyPreferencesDoc, loading: preferencesLoading } = useDoc<UserPreferences>(refs.settingsPreferences as any);
+  const { data: legacyProfileDoc, loading: legacyProfileLoading } = useDoc<UserProfile>(refs.legacySettingsProfile as any);
   const { data: workspaceDoc, loading: workspaceLoading } = useDoc<WorkspaceSettings>(refs.settingsWorkspace as any);
+  const { data: profileMainDoc, loading: profileMainLoading } = useDoc<UserProfile>(refs.profileMain as any);
+  const { data: profilePrivacyDoc, loading: profilePrivacyLoading } = useDoc<ProfilePrivacySettings>(refs.profilePrivacy as any);
+  const { data: profileSummaryDoc, loading: profileSummaryLoading } = useDoc<ProfileMetacognitionSummary>(refs.profileMetacognitionSummary as any);
+  const { data: settingsAccountDoc, loading: settingsAccountLoading } = useDoc<AccountSettings>(refs.settingsAccount as any);
+  const { data: settingsAppearanceDoc, loading: settingsAppearanceLoading } = useDoc<AppearanceSettings>(refs.settingsAppearance as any);
+  const { data: settingsWorkspacePrefsDoc, loading: settingsWorkspacePrefsLoading } = useDoc<WorkspacePreferenceSettings>(refs.settingsWorkspace as any);
+  const { data: settingsAiDoc, loading: settingsAiLoading } = useDoc<AiSettings>(refs.settingsAi as any);
+  const { data: settingsMetacognitionDoc, loading: settingsMetacognitionLoading } = useDoc<MetacognitionSettings>(refs.settingsMetacognition as any);
+  const { data: settingsPrivacyDoc, loading: settingsPrivacyLoading } = useDoc<PrivacySettings>(refs.settingsPrivacy as any);
+  const { data: settingsDataDoc, loading: settingsDataLoading } = useDoc<DataSettings>(refs.settingsData as any);
+  const { data: settingsSourceIntakeDoc, loading: settingsSourceIntakeLoading } = useDoc<SourceIntakeSettings>(refs.settingsSourceIntake as any);
+  const { data: settingsWorksDoc, loading: settingsWorksLoading } = useDoc<WorksSettings>(refs.settingsWorks as any);
+  const { data: settingsAtlasDoc, loading: settingsAtlasLoading } = useDoc<AtlasSettings>(refs.settingsAtlas as any);
+  const { data: settingsNotificationsDoc, loading: settingsNotificationsLoading } = useDoc<NotificationSettings>(refs.settingsNotifications as any);
+  const { data: settingsGoalsDoc, loading: settingsGoalsLoading } = useDoc<GoalPreferenceSettings>(refs.settingsGoals as any);
+  const { data: settingsDeveloperDoc, loading: settingsDeveloperLoading } = useDoc<DeveloperSettings>(refs.settingsDeveloper as any);
   
   const goal = { ...DEFAULT_GOAL_SETTINGS, ...(goalDoc || {}) };
+  const appearanceSettings: AppearanceSettings = {
+    ...DEFAULT_APPEARANCE_SETTINGS,
+    themeMode: legacyPreferencesDoc?.themeMode || DEFAULT_APPEARANCE_SETTINGS.themeMode,
+    accentTheme: legacyPreferencesDoc?.accentTheme || DEFAULT_APPEARANCE_SETTINGS.accentTheme,
+    ...(settingsAppearanceDoc || {}),
+  };
+  const worksSettings: WorksSettings = {
+    ...DEFAULT_WORKS_SETTINGS,
+    defaultWorkType: legacyPreferencesDoc?.writingDefaults?.type || DEFAULT_WORKS_SETTINGS.defaultWorkType,
+    defaultDraftStatus: legacyPreferencesDoc?.writingDefaults?.status || DEFAULT_WORKS_SETTINGS.defaultDraftStatus,
+    defaultPaperStyle: legacyPreferencesDoc?.writingDefaults?.writingStyle || DEFAULT_WORKS_SETTINGS.defaultPaperStyle,
+    defaultEditorMode: legacyPreferencesDoc?.writingDefaults?.editorFeel || DEFAULT_WORKS_SETTINGS.defaultEditorMode,
+    ...(settingsWorksDoc || {}),
+  };
+  const workspacePreferences: WorkspacePreferenceSettings = {
+    ...DEFAULT_WORKSPACE_PREFERENCES,
+    ...(settingsWorkspacePrefsDoc || {}),
+  };
   const preferences: UserPreferences = {
     ...DEFAULT_USER_PREFERENCES,
-    ...(preferencesDoc || {}),
+    ...(legacyPreferencesDoc || {}),
+    themeMode: appearanceSettings.themeMode,
+    accentTheme: appearanceSettings.accentTheme,
     writingDefaults: {
       ...DEFAULT_USER_PREFERENCES.writingDefaults,
-      ...(preferencesDoc?.writingDefaults || {}),
+      ...(legacyPreferencesDoc?.writingDefaults || {}),
+      type: worksSettings.defaultWorkType,
+      status: worksSettings.defaultDraftStatus,
+      writingStyle: worksSettings.defaultPaperStyle,
+      editorFeel: worksSettings.defaultEditorMode,
     },
   };
   const profile: UserProfile = {
     ...DEFAULT_USER_PROFILE,
-    ...(profileDoc || {}),
-    displayName: profileDoc?.displayName || user?.displayName || '',
-    email: profileDoc?.email || user?.email || '',
-    photoURL: profileDoc?.photoURL || user?.photoURL || '',
-    role: profileDoc?.role || DEFAULT_USER_PROFILE.role,
+    ...(legacyProfileDoc || {}),
+    ...(profileMainDoc || {}),
+    displayName: profileMainDoc?.displayName || legacyProfileDoc?.displayName || user?.displayName || '',
+    email: profileMainDoc?.email || legacyProfileDoc?.email || user?.email || '',
+    photoURL: profileMainDoc?.photoURL || legacyProfileDoc?.photoURL || user?.photoURL || '',
+    avatarUrl: profileMainDoc?.avatarUrl || legacyProfileDoc?.avatarUrl || user?.photoURL || '',
+    role: profileMainDoc?.role || legacyProfileDoc?.role || DEFAULT_USER_PROFILE.role,
+  };
+  const profilePrivacy: ProfilePrivacySettings = {
+    ...DEFAULT_PROFILE_PRIVACY,
+    shareSlug: profile.shareSlug || DEFAULT_PROFILE_PRIVACY.shareSlug,
+    ...(profilePrivacyDoc || {}),
+  };
+  const profileMetacognitionSummary: ProfileMetacognitionSummary = {
+    ...DEFAULT_PROFILE_METACOGNITION_SUMMARY,
+    ...(profileSummaryDoc || {}),
+  };
+  const accountSettings: AccountSettings = {
+    ...DEFAULT_ACCOUNT_SETTINGS,
+    authEmail: user?.email || profile.email || DEFAULT_ACCOUNT_SETTINGS.authEmail,
+    connectedLoginMethods: user?.providerData?.map((provider) => provider.providerId).filter(Boolean) || [],
+    accountCreatedAt: user?.metadata?.creationTime || DEFAULT_ACCOUNT_SETTINGS.accountCreatedAt,
+    ...(settingsAccountDoc || {}),
+  };
+  const aiSettings: AiSettings = {
+    ...DEFAULT_AI_SETTINGS,
+    ...(settingsAiDoc || {}),
+  };
+  const metacognitionSettings: MetacognitionSettings = {
+    ...DEFAULT_METACOGNITION_SETTINGS,
+    ...(settingsMetacognitionDoc || {}),
+  };
+  const privacySettings: PrivacySettings = {
+    ...DEFAULT_PRIVACY_SETTINGS,
+    shareableProfileLink: profilePrivacy.shareSlug || DEFAULT_PRIVACY_SETTINGS.shareableProfileLink,
+    ...(settingsPrivacyDoc || {}),
+  };
+  const dataSettings: DataSettings = {
+    ...DEFAULT_DATA_SETTINGS,
+    ...(settingsDataDoc || {}),
+  };
+  const sourceIntakeSettings: SourceIntakeSettings = {
+    ...DEFAULT_SOURCE_INTAKE_SETTINGS,
+    ...(settingsSourceIntakeDoc || {}),
+  };
+  const atlasSettings: AtlasSettings = {
+    ...DEFAULT_ATLAS_SETTINGS,
+    ...(settingsAtlasDoc || {}),
+  };
+  const notificationSettings: NotificationSettings = {
+    ...DEFAULT_NOTIFICATION_SETTINGS,
+    ...(settingsNotificationsDoc || {}),
+  };
+  const goalPreferenceSettings: GoalPreferenceSettings = {
+    ...DEFAULT_GOAL_PREFERENCE_SETTINGS,
+    ...(settingsGoalsDoc || {}),
+  };
+  const developerSettings: DeveloperSettings = {
+    ...DEFAULT_DEVELOPER_SETTINGS,
+    currentUserPath: `users/${effectiveUid}`,
+    reviewModeStatus: reviewMode,
+    demoWorkspaceSeedStatus: workspaceDoc?.demoWorkspace || false,
+    ...(settingsDeveloperDoc || {}),
   };
   const workspace: WorkspaceSettings = {
     ...DEFAULT_WORKSPACE_SETTINGS,
@@ -99,11 +263,18 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     featureFlags: {
       ...DEFAULT_WORKSPACE_SETTINGS.featureFlags,
       ...(workspaceDoc?.featureFlags || {}),
+      aiSuggestions: aiSettings.enableAiSuggestions,
+      metacognitionEnabled: metacognitionSettings.enableMetacognitionFeatures,
+      beliefBiographiesEnabled: metacognitionSettings.enableBeliefBiographies,
+      unknownsEnabled: metacognitionSettings.enableUnknownsTracking,
+      thinkingPatternsEnabled: metacognitionSettings.enableThinkingPatternDetection,
+      missingPerspectivesEnabled: metacognitionSettings.enableMissingPerspectivesDetection,
+      thinkingMetricsEnabled: metacognitionSettings.enableCognitionMetrics,
     },
   };
   const featureFlags = workspace.featureFlags || {};
   const isReviewIdentity = (user?.email || profile.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
-  const isReviewWorkspace = reviewMode || isReviewIdentity || workspace.workspaceMode === 'review' || workspace.demoWorkspace;
+  const isReviewWorkspace = Boolean(reviewMode || isReviewIdentity || workspace.workspaceMode === 'review' || workspace.demoWorkspace);
   const canSeedReviewWorkspace = effectiveUid === PROTOTYPE_USER_ID || isReviewIdentity;
   const [isSeedingReview, setIsSeedingReview] = useState(false);
   const autoSeedAttemptedRef = useRef(false);
@@ -126,8 +297,24 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     thinkingMetricsLoading ||
     goalLoading ||
     preferencesLoading ||
-    profileLoading ||
-    workspaceLoading;
+    legacyProfileLoading ||
+    profileMainLoading ||
+    profilePrivacyLoading ||
+    profileSummaryLoading ||
+    workspaceLoading ||
+    settingsAccountLoading ||
+    settingsAppearanceLoading ||
+    settingsWorkspacePrefsLoading ||
+    settingsAiLoading ||
+    settingsMetacognitionLoading ||
+    settingsPrivacyLoading ||
+    settingsDataLoading ||
+    settingsSourceIntakeLoading ||
+    settingsWorksLoading ||
+    settingsAtlasLoading ||
+    settingsNotificationsLoading ||
+    settingsGoalsLoading ||
+    settingsDeveloperLoading;
 
   useEffect(() => {
     setGoalState(goal);
@@ -145,21 +332,53 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
 
     const scaffoldFirestore = async () => {
       try {
-        await setDoc(refs.user, { uid: effectiveUid, app: 'readex', updatedAt: today() }, { merge: true });
+        const legacyProfileSnapshot = await getDoc(refs.legacySettingsProfile);
+        const legacyProfileData = legacyProfileSnapshot.exists() ? legacyProfileSnapshot.data() as UserProfile : null;
+
+        await setDoc(refs.user, {
+          uid: effectiveUid,
+          app: 'readex',
+          displayName: user?.displayName || legacyProfileData?.displayName || '',
+          email: user?.email || legacyProfileData?.email || '',
+          avatarUrl: user?.photoURL || legacyProfileData?.avatarUrl || legacyProfileData?.photoURL || '',
+          updatedAt: today(),
+        }, { merge: true });
         await setDefaultIfMissing(refs.settingsGoal, DEFAULT_GOAL_SETTINGS);
         await setDefaultIfMissing(refs.settingsAtlasView, DEFAULT_ATLAS_VIEW_SETTINGS);
         await setDefaultIfMissing(refs.settingsAtlasNodes, DEFAULT_ATLAS_NODE_SETTINGS);
         await setDefaultIfMissing(refs.settingsPreferences, DEFAULT_USER_PREFERENCES);
         await setDefaultIfMissing(refs.settingsWorkspace, DEFAULT_WORKSPACE_SETTINGS);
+        await setDefaultIfMissing(refs.settingsAccount, DEFAULT_ACCOUNT_SETTINGS);
+        await setDefaultIfMissing(refs.settingsAppearance, DEFAULT_APPEARANCE_SETTINGS);
+        await setDefaultIfMissing(refs.settingsAi, DEFAULT_AI_SETTINGS);
+        await setDefaultIfMissing(refs.settingsMetacognition, DEFAULT_METACOGNITION_SETTINGS);
+        await setDefaultIfMissing(refs.settingsPrivacy, DEFAULT_PRIVACY_SETTINGS);
+        await setDefaultIfMissing(refs.settingsData, DEFAULT_DATA_SETTINGS);
+        await setDefaultIfMissing(refs.settingsSourceIntake, DEFAULT_SOURCE_INTAKE_SETTINGS);
+        await setDefaultIfMissing(refs.settingsWorks, DEFAULT_WORKS_SETTINGS);
+        await setDefaultIfMissing(refs.settingsAtlas, DEFAULT_ATLAS_SETTINGS);
+        await setDefaultIfMissing(refs.settingsNotifications, DEFAULT_NOTIFICATION_SETTINGS);
+        await setDefaultIfMissing(refs.settingsGoals, DEFAULT_GOAL_PREFERENCE_SETTINGS);
+        await setDefaultIfMissing(refs.settingsDeveloper, {
+          ...DEFAULT_DEVELOPER_SETTINGS,
+          currentUserPath: `users/${effectiveUid}`,
+          reviewModeStatus: reviewMode,
+          demoWorkspaceSeedStatus: isReviewIdentity,
+        });
         await setDefaultIfMissing(doc(refs.thinkingMetrics, 'summary') as any, DEFAULT_THINKING_METRICS);
-        await setDoc(refs.settingsProfile, {
+        await setDoc(refs.profileMain, {
           ...DEFAULT_USER_PROFILE,
-          displayName: user?.displayName || '',
-          email: user?.email || '',
-          photoURL: user?.photoURL || '',
-          role: isReviewIdentity ? 'demo' : (profileDoc?.role || DEFAULT_USER_PROFILE.role),
+          ...(legacyProfileData || {}),
+          displayName: user?.displayName || legacyProfileData?.displayName || '',
+          email: user?.email || legacyProfileData?.email || '',
+          photoURL: user?.photoURL || legacyProfileData?.photoURL || '',
+          avatarUrl: user?.photoURL || legacyProfileData?.avatarUrl || legacyProfileData?.photoURL || '',
+          role: isReviewIdentity ? 'demo' : (legacyProfileData?.role || DEFAULT_USER_PROFILE.role),
+          createdAt: legacyProfileData?.createdAt || today(),
           dateUpdated: today(),
         }, { merge: true });
+        await setDefaultIfMissing(refs.profilePrivacy, DEFAULT_PROFILE_PRIVACY);
+        await setDefaultIfMissing(refs.profileMetacognitionSummary, DEFAULT_PROFILE_METACOGNITION_SUMMARY);
         await setDoc(refs.settingsSchema, readexSchemaDoc(effectiveUid), { merge: true });
       } catch (err) {
         console.warn('Silent skip: scaffold error', err);
@@ -167,7 +386,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     };
 
     scaffoldFirestore();
-  }, [effectiveUid, isReviewIdentity, profileDoc?.role, refs, user]);
+  }, [effectiveUid, isReviewIdentity, refs, reviewMode, user]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -215,14 +434,61 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       batch.set(refs.user, {
         uid: effectiveUid,
         app: 'noesis',
+        displayName: demo.profile.displayName,
+        email: demo.profile.email,
+        avatarUrl: demo.profile.avatarUrl || demo.profile.photoURL || '',
         reviewWorkspace: true,
         reviewEmail: REVIEW_ACCOUNT_EMAIL,
         updatedAt: today(),
       }, { merge: true });
       batch.set(refs.settingsGoal, demo.goal, { merge: true });
       batch.set(refs.settingsPreferences, demo.preferences, { merge: true });
-      batch.set(refs.settingsProfile, demo.profile, { merge: true });
       batch.set(refs.settingsWorkspace, demo.workspace, { merge: true });
+      batch.set(refs.settingsAccount, {
+        ...DEFAULT_ACCOUNT_SETTINGS,
+        authEmail: demo.profile.email,
+        connectedLoginMethods: ['password'],
+      }, { merge: true });
+      batch.set(refs.settingsAppearance, {
+        ...DEFAULT_APPEARANCE_SETTINGS,
+        themeMode: demo.preferences.themeMode,
+        accentTheme: demo.preferences.accentTheme,
+      }, { merge: true });
+      batch.set(refs.settingsAi, DEFAULT_AI_SETTINGS, { merge: true });
+      batch.set(refs.settingsMetacognition, {
+        ...DEFAULT_METACOGNITION_SETTINGS,
+        enableMetacognitionFeatures: demo.workspace.featureFlags.metacognitionEnabled,
+        enableBeliefBiographies: demo.workspace.featureFlags.beliefBiographiesEnabled,
+        enableUnknownsTracking: demo.workspace.featureFlags.unknownsEnabled,
+        enableThinkingPatternDetection: demo.workspace.featureFlags.thinkingPatternsEnabled,
+        enableCognitionMetrics: demo.workspace.featureFlags.thinkingMetricsEnabled,
+        enableMissingPerspectivesDetection: demo.workspace.featureFlags.missingPerspectivesEnabled,
+      }, { merge: true });
+      batch.set(refs.settingsPrivacy, DEFAULT_PRIVACY_SETTINGS, { merge: true });
+      batch.set(refs.settingsData, DEFAULT_DATA_SETTINGS, { merge: true });
+      batch.set(refs.settingsSourceIntake, DEFAULT_SOURCE_INTAKE_SETTINGS, { merge: true });
+      batch.set(refs.settingsWorks, {
+        ...DEFAULT_WORKS_SETTINGS,
+        defaultWorkType: demo.preferences.writingDefaults.type,
+        defaultDraftStatus: demo.preferences.writingDefaults.status,
+        defaultPaperStyle: demo.preferences.writingDefaults.writingStyle,
+        defaultEditorMode: demo.preferences.writingDefaults.editorFeel,
+      }, { merge: true });
+      batch.set(refs.settingsAtlas, DEFAULT_ATLAS_SETTINGS, { merge: true });
+      batch.set(refs.settingsNotifications, DEFAULT_NOTIFICATION_SETTINGS, { merge: true });
+      batch.set(refs.settingsGoals, DEFAULT_GOAL_PREFERENCE_SETTINGS, { merge: true });
+      batch.set(refs.settingsDeveloper, {
+        ...DEFAULT_DEVELOPER_SETTINGS,
+        currentUserPath: `users/${effectiveUid}`,
+        reviewModeStatus: true,
+        demoWorkspaceSeedStatus: true,
+      }, { merge: true });
+      batch.set(refs.profileMain, demo.profile, { merge: true });
+      batch.set(refs.profilePrivacy, {
+        ...DEFAULT_PROFILE_PRIVACY,
+        publicProfileEnabled: false,
+      }, { merge: true });
+      batch.set(refs.profileMetacognitionSummary, DEFAULT_PROFILE_METACOGNITION_SUMMARY, { merge: true });
       batch.set(refs.settingsSchema, readexSchemaDoc(effectiveUid), { merge: true });
       batch.set(refs.settingsAtlasView, DEFAULT_ATLAS_VIEW_SETTINGS, { merge: true });
       batch.set(refs.settingsAtlasNodes, DEFAULT_ATLAS_NODE_SETTINGS, { merge: true });
@@ -297,6 +563,56 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = `noesis-review-export-${effectiveUid}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportWorkspaceData = () => {
+    const payload = {
+      exportedAt: today(),
+      user: {
+        uid: effectiveUid,
+        profile,
+        profilePrivacy,
+        profileMetacognitionSummary,
+      },
+      settings: {
+        account: accountSettings,
+        appearance: appearanceSettings,
+        workspace: workspacePreferences,
+        ai: aiSettings,
+        metacognition: metacognitionSettings,
+        privacy: privacySettings,
+        data: dataSettings,
+        sourceIntake: sourceIntakeSettings,
+        works: worksSettings,
+        atlas: atlasSettings,
+        notifications: notificationSettings,
+        goals: goalPreferenceSettings,
+        developer: developerSettings,
+      },
+      collections: {
+        media,
+        concepts,
+        questions,
+        vault,
+        drafts,
+        practices,
+        timeline,
+        links,
+        suggestions,
+        atlasMaps,
+        thinkingEvents,
+        beliefProfiles,
+        unknowns,
+        thinkingPatterns,
+      },
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `noesis-workspace-${effectiveUid}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -1191,14 +1507,112 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     await setDoc(refs.settingsGoal, nextGoal, { merge: true });
   };
 
-  const savePreferences = async (nextPreferences: UserPreferences) => {
-    const payload = { ...nextPreferences, dateUpdated: today() };
-    await setDoc(refs.settingsPreferences, payload, { merge: true });
+  const saveProfile = async (nextProfile: UserProfile) => {
+    const payload = {
+      ...nextProfile,
+      email: user?.email || nextProfile.email || '',
+      photoURL: nextProfile.photoURL || nextProfile.avatarUrl || user?.photoURL || '',
+      avatarUrl: nextProfile.avatarUrl || nextProfile.photoURL || user?.photoURL || '',
+      createdAt: nextProfile.createdAt || profile.createdAt || today(),
+      dateUpdated: today(),
+    };
+    await setDoc(refs.user, {
+      displayName: payload.displayName,
+      email: payload.email,
+      avatarUrl: payload.avatarUrl || '',
+      updatedAt: today(),
+    }, { merge: true });
+    await setDoc(refs.profileMain, payload, { merge: true });
   };
 
-  const saveProfile = async (nextProfile: UserProfile) => {
-    const payload = { ...nextProfile, email: user?.email || nextProfile.email || '', dateUpdated: today() };
-    await setDoc(refs.settingsProfile, payload, { merge: true });
+  const saveProfilePrivacy = async (nextPrivacy: ProfilePrivacySettings) => {
+    const payload = { ...nextPrivacy, dateUpdated: today() };
+    await setDoc(refs.profilePrivacy, payload, { merge: true });
+    await setDoc(refs.settingsPrivacy, {
+      ...privacySettings,
+      shareableProfileLink: payload.shareSlug || '',
+      dateUpdated: today(),
+    }, { merge: true });
+  };
+
+  const saveSettingsSection = async (section: 'account' | 'appearance' | 'workspace' | 'ai' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer', value: any) => {
+    const stamped = { ...value, dateUpdated: today() };
+    switch (section) {
+      case 'account':
+        await setDoc(refs.settingsAccount, stamped, { merge: true });
+        break;
+      case 'appearance':
+        await setDoc(refs.settingsAppearance, stamped, { merge: true });
+        await setDoc(refs.settingsPreferences, {
+          ...preferences,
+          themeMode: stamped.themeMode,
+          accentTheme: stamped.accentTheme,
+          dateUpdated: today(),
+        }, { merge: true });
+        break;
+      case 'workspace':
+        await setDoc(refs.settingsWorkspace, stamped, { merge: true });
+        break;
+      case 'ai':
+        await setDoc(refs.settingsAi, stamped, { merge: true });
+        await setDoc(refs.settingsWorkspace, {
+          featureFlags: {
+            ...workspace.featureFlags,
+            aiSuggestions: stamped.enableAiSuggestions,
+          },
+          dateUpdated: today(),
+        }, { merge: true });
+        break;
+      case 'metacognition':
+        await setDoc(refs.settingsMetacognition, stamped, { merge: true });
+        await setDoc(refs.settingsWorkspace, {
+          featureFlags: {
+            ...workspace.featureFlags,
+            metacognitionEnabled: stamped.enableMetacognitionFeatures,
+            beliefBiographiesEnabled: stamped.enableBeliefBiographies,
+            unknownsEnabled: stamped.enableUnknownsTracking,
+            thinkingPatternsEnabled: stamped.enableThinkingPatternDetection,
+            missingPerspectivesEnabled: stamped.enableMissingPerspectivesDetection,
+            thinkingMetricsEnabled: stamped.enableCognitionMetrics,
+          },
+          dateUpdated: today(),
+        }, { merge: true });
+        break;
+      case 'privacy':
+        await setDoc(refs.settingsPrivacy, stamped, { merge: true });
+        break;
+      case 'data':
+        await setDoc(refs.settingsData, stamped, { merge: true });
+        break;
+      case 'sourceIntake':
+        await setDoc(refs.settingsSourceIntake, stamped, { merge: true });
+        break;
+      case 'works':
+        await setDoc(refs.settingsWorks, stamped, { merge: true });
+        await setDoc(refs.settingsPreferences, {
+          ...preferences,
+          writingDefaults: {
+            type: stamped.defaultWorkType,
+            status: stamped.defaultDraftStatus,
+            writingStyle: stamped.defaultPaperStyle,
+            editorFeel: stamped.defaultEditorMode,
+          },
+          dateUpdated: today(),
+        }, { merge: true });
+        break;
+      case 'atlas':
+        await setDoc(refs.settingsAtlas, stamped, { merge: true });
+        break;
+      case 'notifications':
+        await setDoc(refs.settingsNotifications, stamped, { merge: true });
+        break;
+      case 'goals':
+        await setDoc(refs.settingsGoals, stamped, { merge: true });
+        break;
+      case 'developer':
+        await setDoc(refs.settingsDeveloper, stamped, { merge: true });
+        break;
+    }
   };
 
   const goalProgress = MEDIA_TYPES.reduce((acc, type) => {
@@ -1311,6 +1725,37 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
         return <SourceIndex media={media} vault={vault} drafts={drafts} practices={practices} onOpenSource={(sourceId) => { setFocusedSourceId(sourceId); setView('library'); }} />;
       case 'goals':
         return <GoalsPage goal={goalState} goalProgress={goalProgress} onSaveGoal={saveGoal} />;
+      case 'profile':
+        return (
+          <ProfilePage
+            user={user}
+            profile={profile}
+            privacy={profilePrivacy}
+            summary={profileMetacognitionSummary}
+            concepts={concepts}
+            inquiries={questions}
+            positions={vault}
+            sources={media}
+            works={drafts}
+            practices={practices}
+            thinkingEvents={thinkingEvents}
+            beliefProfiles={beliefProfiles}
+            unknowns={unknowns}
+            thinkingPatterns={thinkingPatterns}
+            thinkingMetrics={thinkingMetrics}
+            onSaveProfile={saveProfile}
+            onSavePrivacy={saveProfilePrivacy}
+            onAddUnknown={addUnknown}
+            onUpdateUnknown={updateUnknown}
+            onUpdateThinkingPattern={updateThinkingPattern}
+            onNavigate={(nextView, targetId) => {
+              if (nextView === 'questions' && targetId) setFocusedQuestionId(targetId);
+              if (nextView === 'vault' && targetId) setFocusedPositionId(targetId);
+              if (nextView === 'library' && targetId) setFocusedSourceId(targetId);
+              setView(nextView);
+            }}
+          />
+        );
       case 'vault':
         return (
           <BeliefVault
@@ -1354,28 +1799,24 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
         return (
           <SettingsPage
             user={user}
-            profile={profile}
-            preferences={preferences}
-            unknowns={unknowns}
-            thinkingPatterns={thinkingPatterns}
-            thinkingMetrics={thinkingMetrics}
-            featureFlags={featureFlags}
-            onSaveProfile={saveProfile}
-            onSavePreferences={savePreferences}
-            onAddUnknown={addUnknown}
-            onUpdateUnknown={updateUnknown}
-            onAddThinkingPattern={addThinkingPattern}
-            onUpdateThinkingPattern={updateThinkingPattern}
-            onCreateSuggestion={addAiSuggestion}
-            onUpdateSuggestion={updateAiSuggestion}
-            aiContext={{
-              positions: vault.map((item) => ({ title: item.title, statement: item.statement, confidence: item.confidence })),
-              inquiries: questions.map((item) => item.text),
-              works: drafts.map((item) => item.title),
-              sources: media.map((item) => ({ title: item.title, type: item.type })),
-              links: links.map((item) => ({ from: item.fromLabel || item.fromId, to: item.toLabel || item.toId, type: item.type })),
-              thinkingEvents: thinkingEvents.map((item) => ({ eventType: item.eventType, summary: item.summary })),
+            settings={{
+              account: accountSettings,
+              appearance: appearanceSettings,
+              workspace: workspacePreferences,
+              ai: aiSettings,
+              metacognition: metacognitionSettings,
+              privacy: privacySettings,
+              data: dataSettings,
+              sourceIntake: sourceIntakeSettings,
+              works: worksSettings,
+              atlas: atlasSettings,
+              notifications: notificationSettings,
+              goals: goalPreferenceSettings,
+              developer: developerSettings,
             }}
+            reviewMode={isReviewWorkspace}
+            onSaveSection={saveSettingsSection}
+            onExportWorkspace={exportWorkspaceData}
           />
         );
       default:
@@ -1399,7 +1840,6 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       }}
       goal={goalState}
       goalProgress={goalProgress}
-      onOpenSettings={() => setView('settings')}
       movement={movement}
     >
       {isReviewWorkspace && (

@@ -13,6 +13,7 @@ import {
   Menu,
   Map as MapIcon,
   PenTool,
+  UserCircle2,
   Repeat,
   Settings,
   ShieldCheck,
@@ -57,11 +58,10 @@ interface ShellProps {
   };
   goal: GoalSettings;
   goalProgress: Partial<Record<MediaType, number>>;
-  onOpenSettings: () => void;
   movement?: MovementMetrics;
 }
 
-export function Shell({ children, activeView, onViewChange, counts, goal, goalProgress, onOpenSettings, movement }: ShellProps) {
+export function Shell({ children, activeView, onViewChange, counts, goal, goalProgress, movement }: ShellProps) {
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -76,6 +76,9 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
     { id: 'writing', label: 'Works', icon: PenTool, section: 'Outputs', count: counts.drafts },
     { id: 'practices', label: 'Practices', icon: Repeat, section: 'Outputs', count: counts.practices },
     { id: 'evolution', label: 'Evolution', icon: History, section: 'Outputs', count: counts.timeline },
+    { id: 'profile', label: 'Profile', icon: UserCircle2, section: 'Self' },
+    { id: 'goals', label: 'Goals', icon: Target, section: 'Self' },
+    { id: 'settings', label: 'Settings', icon: Settings, section: 'System' },
   ];
 
   const logoData = placeholderData.placeholderImages.find(img => img.id === 'app-logo');
@@ -193,18 +196,7 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
           <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/35 font-medium">Turn thought into understanding.</p>
         )}
 
-        <div className={cn("mt-4 flex items-center", collapsed && !isMobile ? "justify-center" : "justify-between")}>
-          {(!collapsed || isMobile) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleNavChange('goals')}
-              className="group/goals rounded-full px-3 text-sidebar-foreground/70 hover:bg-white/[0.08] hover:text-white"
-            >
-              <Target className="mr-2 size-3.5" />
-              Goals
-            </Button>
-          )}
+        <div className={cn("mt-4 flex items-center", collapsed && !isMobile ? "justify-center" : "justify-end")}>
           <Button
             variant="ghost"
             size="icon"
@@ -301,7 +293,7 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
       )}
 
       <nav className="flex-1 overflow-y-auto py-4 scrollbar-hide">
-        {['Mind', 'Inputs', 'Outputs'].map((section) => (
+        {['Mind', 'Inputs', 'Outputs', 'Self', 'System'].map((section) => (
           <div key={section} className="mb-5">
             {(!collapsed || isMobile) && (
               <h4 className="px-5 mb-1 font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/22 font-bold">{section}</h4>
@@ -315,20 +307,8 @@ export function Shell({ children, activeView, onViewChange, counts, goal, goalPr
         ))}
       </nav>
 
-      <div className={cn("border-t border-sidebar-border bg-transparent flex items-center", collapsed && !isMobile ? "justify-center p-3" : "justify-between p-4")}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              className={cn('text-sidebar-foreground/45 hover:text-white transition-colors rounded-full p-2 hover:bg-white/[0.06]', activeView === 'settings' && 'text-white')}
-              onClick={() => { onOpenSettings(); setMobileNavOpen(false); }}
-              title="Settings"
-            >
-              <Settings className="size-4" />
-            </button>
-          </TooltipTrigger>
-          {collapsed && !isMobile && <TooltipContent side="right">Settings</TooltipContent>}
-        </Tooltip>
-        {(!collapsed || isMobile) && <span className="text-[9px] font-code text-sidebar-foreground/20">v1.3.0 cloud</span>}
+      <div className={cn("border-t border-sidebar-border bg-transparent", collapsed && !isMobile ? "p-3 text-center" : "p-4")}>
+        <span className="text-[9px] font-code text-sidebar-foreground/20">v1.3.0 cloud</span>
       </div>
     </>
   );

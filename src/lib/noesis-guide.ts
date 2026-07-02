@@ -4,7 +4,7 @@ export interface GuideSection {
   id: string;
   label: string;
   viewId?: string;
-  section: 'Mind' | 'Inputs' | 'Outputs' | 'System';
+  section: 'Mind' | 'Inputs' | 'Outputs' | 'Self' | 'System';
   definition: string;
   whatYouDo: string[];
   connectsTo: string[];
@@ -172,24 +172,24 @@ export const noesisGuide = {
       importantActions: ['Review timeline', 'Open related entity'],
     },
     {
-      id: 'settings',
-      label: 'Settings',
-      viewId: 'settings',
-      section: 'System',
-      definition: 'The account and preferences area for profile, appearance, defaults, and app guidance.',
+      id: 'profile',
+      label: 'Profile',
+      viewId: 'profile',
+      section: 'Self',
+      definition: 'The reflective self layer showing who the user is becoming intellectually.',
       whatYouDo: [
-        'Manage profile and authentication settings.',
-        'Choose theme mode, accent theme, and writing defaults.',
-        'Read this usage guide when the app structure feels unclear.',
+        'Edit identity, focus, themes, and learning season.',
+        'Review intellectual identity, belief biography, unknowns, and thinking patterns.',
+        'Prepare a future public philosophy view without exposing anything by default.',
       ],
-      connectsTo: ['Goals', 'Works'],
-      importantActions: ['Save profile', 'Save appearance', 'Save writing defaults'],
+      connectsTo: ['Concepts', 'Inquiries', 'Positions', 'Works', 'Practices', 'Evolution'],
+      importantActions: ['Save profile', 'Open linked objects', 'Review unknowns', 'Adjust public view'],
     },
     {
       id: 'goals',
       label: 'Goals',
       viewId: 'goals',
-      section: 'System',
+      section: 'Self',
       definition: 'The progress planner for source-based targets grouped by goal categories.',
       whatYouDo: [
         'Name a goal set.',
@@ -198,6 +198,20 @@ export const noesisGuide = {
       ],
       connectsTo: ['Library', 'Source Index', 'Settings'],
       importantActions: ['Add Goal Category', 'Edit target', 'Reorder categories', 'Save goals'],
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      viewId: 'settings',
+      section: 'System',
+      definition: 'The control surface for account behavior, appearance, defaults, privacy, AI, and system preferences.',
+      whatYouDo: [
+        'Manage account access, appearance, and workspace defaults.',
+        'Control AI, metacognition, privacy, and export behavior.',
+        'Tune source intake, works, Atlas, notifications, and developer review settings.',
+      ],
+      connectsTo: ['Profile', 'Goals', 'Works', 'Atlas'],
+      importantActions: ['Save section', 'Export data', 'Reset password'],
     },
   ] satisfies GuideSection[],
   objects: [
@@ -379,4 +393,3 @@ export const noesisGuide = {
     'Atlas reads across concepts, links, positions, works, inquiries, and practices.',
   ].join('\n'),
 };
-

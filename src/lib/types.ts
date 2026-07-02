@@ -17,6 +17,7 @@ export type ExternalDocProvider = 'google_docs' | 'notion' | 'dropbox_paper' | '
 export type ExternalDocSyncStatus = 'connected' | 'syncing' | 'synced' | 'error';
 export type UserRole = 'user' | 'tester' | 'demo' | 'admin';
 export type WorkspaceMode = 'standard' | 'review';
+export type VisibilitySetting = 'private' | 'shared_link' | 'public';
 export type PracticeType = 'habit' | 'experiment' | 'discipline' | 'reflection_prompt' | 'commitment' | 'observation' | 'rule' | 'challenge';
 export type PracticeStatus = 'proposed' | 'planned' | 'active' | 'completed' | 'failed' | 'integrated' | 'paused' | 'abandoned';
 export type AnnotationPhilosophyStatus = 'raw' | 'connected' | 'questioned' | 'used_in_position' | 'archived';
@@ -481,8 +482,16 @@ export interface UserProfile {
   displayName: string;
   email: string;
   photoURL?: string;
+  avatarUrl?: string;
   bio?: string;
+  intellectualFocus?: string[];
+  currentThemes?: string[];
+  disciplines?: string[];
+  learningSeason?: string;
+  publicProfileEnabled?: boolean;
+  shareSlug?: string;
   role?: UserRole;
+  createdAt?: string;
   dateUpdated?: string;
 }
 
@@ -494,6 +503,223 @@ export interface WorkspaceSettings {
   demoWorkspace?: boolean;
   reviewReady?: boolean;
   featureFlags: Record<string, boolean>;
+  dateUpdated?: string;
+}
+
+export interface ProfilePrivacySettings {
+  id?: string;
+  defaultVisibility: VisibilitySetting;
+  publicProfileEnabled: boolean;
+  publicConceptsEnabled: boolean;
+  publicPositionsEnabled: boolean;
+  publicWorksEnabled: boolean;
+  publicPracticesEnabled: boolean;
+  publicSourcesEnabled: boolean;
+  publicBeliefBiographyEnabled: boolean;
+  hidePrivateNotesFromSharedViews: boolean;
+  hideAnnotationsFromSharedViews: boolean;
+  hideMetacognitionFromSharedViews: boolean;
+  requireConfirmationBeforePublic: boolean;
+  shareSlug?: string;
+  dateUpdated?: string;
+}
+
+export interface ProfileMetacognitionSummary {
+  id?: string;
+  topThinkingPatterns: string[];
+  unresolvedTensions: string[];
+  currentUnknowns: string[];
+  strongestBeliefs: string[];
+  weakestBeliefs: string[];
+  lastComputedAt?: string;
+}
+
+export interface AccountSettings {
+  id?: string;
+  authEmail: string;
+  connectedLoginMethods: string[];
+  accountCreatedAt?: string;
+  allowDeleteAccount: boolean;
+  dateUpdated?: string;
+}
+
+export interface AppearanceSettings {
+  id?: string;
+  themeMode: ThemeMode;
+  accentTheme: AccentTheme;
+  density: 'comfortable' | 'compact';
+  fontSize: 'sm' | 'md' | 'lg';
+  readingWidth: 'narrow' | 'standard' | 'wide';
+  reducedMotion: boolean;
+  highContrastMode: boolean;
+  sidebarCollapsedByDefault: boolean;
+  showPageDescriptions: boolean;
+  dateUpdated?: string;
+}
+
+export interface WorkspacePreferenceSettings {
+  id?: string;
+  defaultLandingPage: string;
+  defaultAfterSourcePage: string;
+  defaultSourceStatus: MediaStatus;
+  defaultWorkType: DraftType;
+  defaultWritingStyle: WritingStyle;
+  defaultNoteMode: 'text_note' | 'voice_note' | 'drawing_note';
+  defaultLibraryView: 'grid' | 'list';
+  defaultAtlasView: 'map' | 'focus' | 'custom';
+  defaultSortOrder: 'recent' | 'updated' | 'alphabetical';
+  autoSaveBehavior: 'instant' | 'debounced' | 'manual_prompt';
+  confirmBeforeDeletingObjects: boolean;
+  enableReviewPromptsAfterMajorEdits: boolean;
+  dateUpdated?: string;
+}
+
+export interface AiSettings {
+  id?: string;
+  enableAiSuggestions: boolean;
+  provider: string;
+  model: string;
+  reasoningDepth: 'light' | 'standard' | 'deep';
+  autoGenerateQuestionsAfterSourceCapture: boolean;
+  autoDetectPossibleTensions: boolean;
+  autoSuggestConceptLinks: boolean;
+  autoSuggestPositionLinks: boolean;
+  autoSummarizeEvolutionEvents: boolean;
+  requireUserApprovalBeforeSavingAiOutput: boolean;
+  saveAiSuggestionsAsDraftOnly: boolean;
+  memoryScope: 'current_object' | 'linked_objects' | 'whole_workspace';
+  tone: 'neutral' | 'socratic' | 'critical' | 'exploratory';
+  safetyMode: 'conservative' | 'balanced' | 'open_ended';
+  dateUpdated?: string;
+}
+
+export interface MetacognitionSettings {
+  id?: string;
+  enableMetacognitionFeatures: boolean;
+  enableThinkingEventsLogging: boolean;
+  enableBeliefBiographies: boolean;
+  enableThinkingPatternDetection: boolean;
+  enableUnknownsTracking: boolean;
+  enableCognitionMetrics: boolean;
+  enableMissingPerspectivesDetection: boolean;
+  enableBlindSpotObservations: boolean;
+  showMetacognitionPanelsOnProfile: boolean;
+  showMetacognitionPanelsOnObjectPages: boolean;
+  recomputeMetacognitionAutomatically: boolean;
+  lastComputedAt?: string;
+  dateUpdated?: string;
+}
+
+export interface PrivacySettings {
+  id?: string;
+  defaultObjectVisibility: VisibilitySetting;
+  publicSharingEnabled: boolean;
+  allowPublicWorks: boolean;
+  allowPublicPositions: boolean;
+  allowPublicConcepts: boolean;
+  allowPublicPractices: boolean;
+  allowPublicSourceList: boolean;
+  hidePrivateNotesFromSharedViews: boolean;
+  hideAnnotationsFromSharedViews: boolean;
+  hideMetacognitionFromSharedViews: boolean;
+  requireConfirmationBeforePublic: boolean;
+  shareableProfileLink?: string;
+  dateUpdated?: string;
+}
+
+export interface DataSettings {
+  id?: string;
+  lastExportedAt?: string;
+  allowImport: boolean;
+  allowWorkspaceReset: boolean;
+  allowClearDemoData: boolean;
+  storageUsageNote?: string;
+  dateUpdated?: string;
+}
+
+export interface SourceIntakeSettings {
+  id?: string;
+  defaultMediaType: MediaType;
+  defaultSourceStatus: MediaStatus;
+  enableIsbnLookup: boolean;
+  enableDoiLookup: boolean;
+  enableYouTubeMetadataFetch: boolean;
+  enableArticleMetadataFetch: boolean;
+  enableFileUpload: boolean;
+  enableOcr: boolean;
+  defaultAnnotationType: AnnotationType;
+  autoCreateConceptsFromAnnotations: boolean;
+  autoCreateInquiriesFromQuestions: boolean;
+  requireConfirmationBeforeCreatingExtractedObjects: boolean;
+  dateUpdated?: string;
+}
+
+export interface WorksSettings {
+  id?: string;
+  defaultWorkType: DraftType;
+  defaultDraftStatus: DraftStatus;
+  defaultPaperStyle: WritingStyle;
+  defaultEditorMode: WritingDefaults['editorFeel'];
+  autoSaveIntervalSeconds: number;
+  externalDocSyncEnabled: boolean;
+  defaultExportFormat: 'pdf' | 'docx' | 'md' | 'txt';
+  showWordCount: boolean;
+  showLinkedConcepts: boolean;
+  showLinkedPositions: boolean;
+  showAiPanel: boolean;
+  recordingStorageSetting: 'local' | 'cloud';
+  drawingCanvasDefault: 'freeform' | 'notebook';
+  dateUpdated?: string;
+}
+
+export interface AtlasSettings {
+  id?: string;
+  defaultMapId?: string;
+  defaultNodeTypesVisible: string[];
+  defaultLinkTypesVisible: PhilosophicalLinkType[];
+  showLabelsByDefault: boolean;
+  showEvidenceStrength: boolean;
+  showContradictionLinks: boolean;
+  showPracticeLinks: boolean;
+  showSourceLinks: boolean;
+  layoutMode: 'force_graph' | 'radial' | 'hierarchical' | 'timeline';
+  nodeSizeBasedOn: 'link_count' | 'recent_activity' | 'confidence' | 'evidence_strength';
+  dateUpdated?: string;
+}
+
+export interface NotificationSettings {
+  id?: string;
+  dailyReviewReminders: boolean;
+  weeklyEvolutionSummary: boolean;
+  sourceGoalReminders: boolean;
+  practiceReminders: boolean;
+  unresolvedTensionReminders: boolean;
+  unknownFollowUpReminders: boolean;
+  positionReviewReminders: boolean;
+  staleBeliefReviewReminders: boolean;
+  emailNotifications: boolean;
+  inAppNotifications: boolean;
+  dateUpdated?: string;
+}
+
+export interface GoalPreferenceSettings {
+  id?: string;
+  goalReminderFrequency: 'off' | 'daily' | 'weekly' | 'monthly';
+  defaultGoalCategories: string[];
+  defaultMonthlySourceTarget: number;
+  includeAudiobooksInReadingGoals: boolean;
+  includePodcastsInLearningGoals: boolean;
+  includeVideosInSourceGoals: boolean;
+  showGoalsOnDashboard: boolean;
+  dateUpdated?: string;
+}
+
+export interface DeveloperSettings {
+  id?: string;
+  reviewModeStatus: boolean;
+  demoWorkspaceSeedStatus: boolean;
+  currentUserPath?: string;
+  themeCompatibilityTestedAt?: string;
   dateUpdated?: string;
 }
 

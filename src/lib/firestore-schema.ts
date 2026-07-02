@@ -1,5 +1,28 @@
 import { collection, doc, type Firestore } from 'firebase/firestore';
-import type { AtlasViewSettings, GoalSettings, MediaType, ThinkingMetrics, UserPreferences, UserProfile, WorkspaceSettings } from './types';
+import type {
+  AccountSettings,
+  AiSettings,
+  AppearanceSettings,
+  AtlasSettings,
+  AtlasViewSettings,
+  DataSettings,
+  DeveloperSettings,
+  GoalPreferenceSettings,
+  GoalSettings,
+  MediaType,
+  MetacognitionSettings,
+  NotificationSettings,
+  PrivacySettings,
+  ProfileMetacognitionSummary,
+  ProfilePrivacySettings,
+  SourceIntakeSettings,
+  ThinkingMetrics,
+  UserPreferences,
+  UserProfile,
+  WorksSettings,
+  WorkspacePreferenceSettings,
+  WorkspaceSettings,
+} from './types';
 
 export const PROTOTYPE_USER_ID = 'anonymous-scholar';
 
@@ -28,9 +51,27 @@ export const READEX_SETTINGS_DOCS = {
   atlasView: 'atlasView',
   atlasNodes: 'atlasNodes',
   preferences: 'preferences',
-  profile: 'profile',
+  legacyProfile: 'profile',
   workspace: 'workspace',
+  account: 'account',
+  appearance: 'appearance',
+  ai: 'ai',
+  metacognition: 'metacognition',
+  privacy: 'privacy',
+  data: 'data',
+  sourceIntake: 'sourceIntake',
+  works: 'works',
+  atlas: 'atlas',
+  notifications: 'notifications',
+  goals: 'goals',
+  developer: 'developer',
   schema: 'schema',
+} as const;
+
+export const READEX_PROFILE_DOCS = {
+  main: 'main',
+  privacy: 'privacy',
+  metacognitionSummary: 'metacognitionSummary',
 } as const;
 
 export const DEFAULT_GOAL_SETTINGS: GoalSettings = {
@@ -74,8 +115,39 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   displayName: '',
   email: '',
   photoURL: '',
+  avatarUrl: '',
   bio: '',
+  intellectualFocus: [],
+  currentThemes: [],
+  disciplines: [],
+  learningSeason: '',
+  publicProfileEnabled: false,
+  shareSlug: '',
   role: 'user',
+};
+
+export const DEFAULT_PROFILE_PRIVACY: ProfilePrivacySettings = {
+  defaultVisibility: 'private',
+  publicProfileEnabled: false,
+  publicConceptsEnabled: false,
+  publicPositionsEnabled: false,
+  publicWorksEnabled: false,
+  publicPracticesEnabled: false,
+  publicSourcesEnabled: false,
+  publicBeliefBiographyEnabled: false,
+  hidePrivateNotesFromSharedViews: true,
+  hideAnnotationsFromSharedViews: true,
+  hideMetacognitionFromSharedViews: true,
+  requireConfirmationBeforePublic: true,
+  shareSlug: '',
+};
+
+export const DEFAULT_PROFILE_METACOGNITION_SUMMARY: ProfileMetacognitionSummary = {
+  topThinkingPatterns: [],
+  unresolvedTensions: [],
+  currentUnknowns: [],
+  strongestBeliefs: [],
+  weakestBeliefs: [],
 };
 
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
@@ -99,6 +171,165 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
     thinkingMetricsEnabled: false,
     atlasTypedRelationsEnabled: false,
   },
+};
+
+export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
+  authEmail: '',
+  connectedLoginMethods: [],
+  allowDeleteAccount: false,
+};
+
+export const DEFAULT_APPEARANCE_SETTINGS: AppearanceSettings = {
+  themeMode: 'light',
+  accentTheme: 'violet',
+  density: 'comfortable',
+  fontSize: 'md',
+  readingWidth: 'standard',
+  reducedMotion: false,
+  highContrastMode: false,
+  sidebarCollapsedByDefault: false,
+  showPageDescriptions: true,
+};
+
+export const DEFAULT_WORKSPACE_PREFERENCES: WorkspacePreferenceSettings = {
+  defaultLandingPage: 'atlas',
+  defaultAfterSourcePage: 'library',
+  defaultSourceStatus: 'Want to Read',
+  defaultWorkType: 'essay',
+  defaultWritingStyle: 'blank_paper',
+  defaultNoteMode: 'text_note',
+  defaultLibraryView: 'grid',
+  defaultAtlasView: 'map',
+  defaultSortOrder: 'recent',
+  autoSaveBehavior: 'debounced',
+  confirmBeforeDeletingObjects: true,
+  enableReviewPromptsAfterMajorEdits: true,
+};
+
+export const DEFAULT_AI_SETTINGS: AiSettings = {
+  enableAiSuggestions: true,
+  provider: 'gemini',
+  model: '2.5-flash',
+  reasoningDepth: 'standard',
+  autoGenerateQuestionsAfterSourceCapture: true,
+  autoDetectPossibleTensions: true,
+  autoSuggestConceptLinks: true,
+  autoSuggestPositionLinks: true,
+  autoSummarizeEvolutionEvents: true,
+  requireUserApprovalBeforeSavingAiOutput: true,
+  saveAiSuggestionsAsDraftOnly: true,
+  memoryScope: 'linked_objects',
+  tone: 'socratic',
+  safetyMode: 'balanced',
+};
+
+export const DEFAULT_METACOGNITION_SETTINGS: MetacognitionSettings = {
+  enableMetacognitionFeatures: false,
+  enableThinkingEventsLogging: false,
+  enableBeliefBiographies: false,
+  enableThinkingPatternDetection: false,
+  enableUnknownsTracking: false,
+  enableCognitionMetrics: false,
+  enableMissingPerspectivesDetection: false,
+  enableBlindSpotObservations: false,
+  showMetacognitionPanelsOnProfile: true,
+  showMetacognitionPanelsOnObjectPages: true,
+  recomputeMetacognitionAutomatically: false,
+};
+
+export const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
+  defaultObjectVisibility: 'private',
+  publicSharingEnabled: false,
+  allowPublicWorks: false,
+  allowPublicPositions: false,
+  allowPublicConcepts: false,
+  allowPublicPractices: false,
+  allowPublicSourceList: false,
+  hidePrivateNotesFromSharedViews: true,
+  hideAnnotationsFromSharedViews: true,
+  hideMetacognitionFromSharedViews: true,
+  requireConfirmationBeforePublic: true,
+  shareableProfileLink: '',
+};
+
+export const DEFAULT_DATA_SETTINGS: DataSettings = {
+  allowImport: true,
+  allowWorkspaceReset: false,
+  allowClearDemoData: true,
+  storageUsageNote: '',
+};
+
+export const DEFAULT_SOURCE_INTAKE_SETTINGS: SourceIntakeSettings = {
+  defaultMediaType: 'book',
+  defaultSourceStatus: 'Want to Read',
+  enableIsbnLookup: true,
+  enableDoiLookup: true,
+  enableYouTubeMetadataFetch: false,
+  enableArticleMetadataFetch: true,
+  enableFileUpload: true,
+  enableOcr: false,
+  defaultAnnotationType: 'highlight',
+  autoCreateConceptsFromAnnotations: false,
+  autoCreateInquiriesFromQuestions: true,
+  requireConfirmationBeforeCreatingExtractedObjects: true,
+};
+
+export const DEFAULT_WORKS_SETTINGS: WorksSettings = {
+  defaultWorkType: 'essay',
+  defaultDraftStatus: 'seed',
+  defaultPaperStyle: 'blank_paper',
+  defaultEditorMode: 'spacious',
+  autoSaveIntervalSeconds: 3,
+  externalDocSyncEnabled: true,
+  defaultExportFormat: 'md',
+  showWordCount: true,
+  showLinkedConcepts: true,
+  showLinkedPositions: true,
+  showAiPanel: true,
+  recordingStorageSetting: 'local',
+  drawingCanvasDefault: 'freeform',
+};
+
+export const DEFAULT_ATLAS_SETTINGS: AtlasSettings = {
+  defaultMapId: '',
+  defaultNodeTypesVisible: ['concept', 'position', 'inquiry', 'work', 'practice'],
+  defaultLinkTypesVisible: ['supports', 'challenges', 'coheres', 'defines', 'refines'],
+  showLabelsByDefault: true,
+  showEvidenceStrength: false,
+  showContradictionLinks: true,
+  showPracticeLinks: true,
+  showSourceLinks: true,
+  layoutMode: 'force_graph',
+  nodeSizeBasedOn: 'link_count',
+};
+
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  dailyReviewReminders: false,
+  weeklyEvolutionSummary: false,
+  sourceGoalReminders: false,
+  practiceReminders: false,
+  unresolvedTensionReminders: false,
+  unknownFollowUpReminders: false,
+  positionReviewReminders: false,
+  staleBeliefReviewReminders: false,
+  emailNotifications: false,
+  inAppNotifications: true,
+};
+
+export const DEFAULT_GOAL_PREFERENCE_SETTINGS: GoalPreferenceSettings = {
+  goalReminderFrequency: 'weekly',
+  defaultGoalCategories: ['Books', 'Articles', 'Podcasts'],
+  defaultMonthlySourceTarget: 8,
+  includeAudiobooksInReadingGoals: true,
+  includePodcastsInLearningGoals: true,
+  includeVideosInSourceGoals: true,
+  showGoalsOnDashboard: true,
+};
+
+export const DEFAULT_DEVELOPER_SETTINGS: DeveloperSettings = {
+  reviewModeStatus: false,
+  demoWorkspaceSeedStatus: false,
+  currentUserPath: '',
 };
 
 export const DEFAULT_THINKING_METRICS: ThinkingMetrics = {
@@ -126,6 +357,7 @@ export function readexRefs(db: Firestore, uid: string) {
   const userDoc = doc(db, 'users', uid);
   const userCollection = (name: keyof typeof READEX_COLLECTIONS) => collection(userDoc, READEX_COLLECTIONS[name]);
   const settingsDoc = (name: keyof typeof READEX_SETTINGS_DOCS) => doc(userDoc, READEX_COLLECTIONS.settings, READEX_SETTINGS_DOCS[name]);
+  const profileDoc = (name: keyof typeof READEX_PROFILE_DOCS) => doc(userDoc, 'profile', READEX_PROFILE_DOCS[name]);
 
   return {
     user: userDoc,
@@ -149,8 +381,23 @@ export function readexRefs(db: Firestore, uid: string) {
     settingsAtlasView: settingsDoc('atlasView'),
     settingsAtlasNodes: settingsDoc('atlasNodes'),
     settingsPreferences: settingsDoc('preferences'),
-    settingsProfile: settingsDoc('profile'),
     settingsWorkspace: settingsDoc('workspace'),
+    settingsAccount: settingsDoc('account'),
+    settingsAppearance: settingsDoc('appearance'),
+    settingsAi: settingsDoc('ai'),
+    settingsMetacognition: settingsDoc('metacognition'),
+    settingsPrivacy: settingsDoc('privacy'),
+    settingsData: settingsDoc('data'),
+    settingsSourceIntake: settingsDoc('sourceIntake'),
+    settingsWorks: settingsDoc('works'),
+    settingsAtlas: settingsDoc('atlas'),
+    settingsNotifications: settingsDoc('notifications'),
+    settingsGoals: settingsDoc('goals'),
+    settingsDeveloper: settingsDoc('developer'),
+    legacySettingsProfile: settingsDoc('legacyProfile'),
+    profileMain: profileDoc('main'),
+    profilePrivacy: profileDoc('privacy'),
+    profileMetacognitionSummary: profileDoc('metacognitionSummary'),
     settingsSchema: settingsDoc('schema'),
   };
 }
@@ -158,7 +405,7 @@ export function readexRefs(db: Firestore, uid: string) {
 export function readexSchemaDoc(uid: string) {
   return {
     uid,
-    version: 3,
+    version: 4,
     root: userPath(uid),
     collections: {
       media: `${userPath(uid)}/media`,
@@ -177,15 +424,33 @@ export function readexSchemaDoc(uid: string) {
       unknowns: `${userPath(uid)}/unknowns`,
       thinkingPatterns: `${userPath(uid)}/thinkingPatterns`,
       thinkingMetrics: `${userPath(uid)}/thinkingMetrics`,
+      profile: `${userPath(uid)}/profile`,
       settings: `${userPath(uid)}/settings`,
+    },
+    profileDocs: {
+      main: `${userPath(uid)}/profile/main`,
+      privacy: `${userPath(uid)}/profile/privacy`,
+      metacognitionSummary: `${userPath(uid)}/profile/metacognitionSummary`,
     },
     settingsDocs: {
       goal: `${userPath(uid)}/settings/goal`,
       atlasView: `${userPath(uid)}/settings/atlasView`,
       atlasNodes: `${userPath(uid)}/settings/atlasNodes`,
       preferences: `${userPath(uid)}/settings/preferences`,
-      profile: `${userPath(uid)}/settings/profile`,
       workspace: `${userPath(uid)}/settings/workspace`,
+      account: `${userPath(uid)}/settings/account`,
+      appearance: `${userPath(uid)}/settings/appearance`,
+      ai: `${userPath(uid)}/settings/ai`,
+      metacognition: `${userPath(uid)}/settings/metacognition`,
+      privacy: `${userPath(uid)}/settings/privacy`,
+      data: `${userPath(uid)}/settings/data`,
+      sourceIntake: `${userPath(uid)}/settings/sourceIntake`,
+      works: `${userPath(uid)}/settings/works`,
+      atlas: `${userPath(uid)}/settings/atlas`,
+      notifications: `${userPath(uid)}/settings/notifications`,
+      goals: `${userPath(uid)}/settings/goals`,
+      developer: `${userPath(uid)}/settings/developer`,
+      legacyProfile: `${userPath(uid)}/settings/profile`,
       schema: `${userPath(uid)}/settings/schema`,
     },
     mediaTypes: DEFAULT_GOAL_SETTINGS.types as MediaType[],
