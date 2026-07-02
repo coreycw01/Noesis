@@ -53,14 +53,14 @@ const FILTER_OPTIONS: Array<{ value: EvolutionFilter; label: string }> = [
 ];
 
 function mapThinkingEventToFilter(eventType: ThinkingEvent['eventType']): EvolutionFilter {
-  if (['position_created', 'position_revised', 'position_abandoned'].includes(eventType)) return 'belief_revisions';
+  if (['created', 'edited', 'revised', 'abandoned', 'position_created', 'position_revised', 'position_abandoned'].includes(eventType)) return 'belief_revisions';
   if (eventType === 'confidence_changed') return 'confidence';
   if (['unknown_created', 'unknown_resolved'].includes(eventType)) return 'unknowns';
   if (['contradiction_detected', 'contradiction_resolved'].includes(eventType)) return 'contradictions';
   if (['thinking_pattern_inferred', 'thinking_pattern_acknowledged', 'thinking_pattern_dismissed'].includes(eventType)) return 'patterns';
-  if (['question_created', 'question_promoted'].includes(eventType)) return 'questions';
+  if (['question_created', 'question_promoted', 'question_resolved', 'position_formed'].includes(eventType)) return 'questions';
   if (['position_replaced'].includes(eventType)) return 'replacements';
-  if (['link_created'].includes(eventType)) return 'links';
+  if (['link_created', 'linked', 'unlinked'].includes(eventType)) return 'links';
   return 'all';
 }
 

@@ -30,7 +30,7 @@ import { SettingsPage } from '@/components/Settings/SettingsPage';
 import { GoalsPage } from '@/components/Goals/GoalsPage';
 import { Toaster } from '@/components/ui/toaster';
 import { Badge } from '@/components/ui/badge';
-import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
+import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
 import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, DEFAULT_THINKING_METRICS, DEFAULT_USER_PREFERENCES, DEFAULT_USER_PROFILE, DEFAULT_WORKSPACE_SETTINGS, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
 import { buildDemoWorkspace, buildReviewExport, REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS } from '@/lib/demo-workspace';
 import type { AiSuggestion, Annotation, AtlasMap, BeliefProfile, Concept, Draft, GoalSettings, Insight, Media, MediaType, PhilosophicalLink, Practice, Question, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown, VaultEntry, SecurityRuleContext, UserPreferences, UserProfile, WorkspaceSettings } from '@/lib/types';
@@ -39,6 +39,8 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Loader2, Download, FlaskConical } from 'lucide-react';
+import { classifyThinkingChange } from '@/lib/thinkingEvents/classifyThinkingChange';
+import { writeThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
 
 type FirebaseInstances = ReturnType<typeof initializeFirebase>;
 
@@ -307,22 +309,37 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     }));
   };
 
-  const createThinkingEvent = (event: Partial<ThinkingEvent>) => {
-    if (!metacognitionEnabled || !event.eventType || !event.targetType || !event.targetId) return;
-    const eventRef = doc(refs.thinkingEvents);
-    const payload: ThinkingEvent = {
-      eventId: eventRef.id,
+  const createThinkingEvent = (event: Partial<ThinkingEvent> & { entityType?: WriteThinkingEventInput['entityType']; entityId?: string; relatedEntityIds?: WriteThinkingEventInput['relatedEntityIds']; before?: Record<string, any> | null; after?: Record<string, any> | null; origin?: WriteThinkingEventInput['origin']; importance?: WriteThinkingEventInput['importance']; confidenceBefore?: number | null; confidenceAfter?: number | null; epistemicStatus?: WriteThinkingEventInput['epistemicStatus']; sourceActionId?: string | null; idempotencyKey?: string | null; userReason?: string | null; aiReason?: string | null; systemReason?: string | null }) => {
+    const entityType = event.entityType || (event.targetType === 'thinking_pattern' ? 'thinkingPattern' : event.targetType === 'unknown' ? 'unknown' : event.targetType === 'suggestion' ? 'suggestion' : event.targetType);
+    const entityId = event.entityId || event.targetId;
+    if (!metacognitionEnabled || !event.eventType || !entityType || !entityId) return;
+    writeThinkingEvent({
+      collection: refs.thinkingEvents as any,
+      userId: effectiveUid,
       eventType: event.eventType,
-      targetType: event.targetType,
-      targetId: event.targetId,
-      relatedTargetType: event.relatedTargetType,
-      relatedTargetId: event.relatedTargetId,
-      sourceType: event.sourceType || 'system',
+      entityType,
+      entityId,
+      relatedEntityIds: event.relatedEntityIds,
+      before: event.before,
+      after: event.after,
       summary: event.summary || '',
-      metadata: event.metadata || {},
-      createdAt: event.createdAt || today(),
-    };
-    setDoc(eventRef, payload).catch(() => emitError(eventRef.path, 'create', payload));
+      userReason: event.userReason,
+      aiReason: event.aiReason,
+      systemReason: event.systemReason,
+      origin: event.origin || event.sourceType || 'system',
+      confidenceBefore: event.confidenceBefore,
+      confidenceAfter: event.confidenceAfter,
+      epistemicStatus: event.epistemicStatus,
+      importance: event.importance,
+      sourceActionId: event.sourceActionId,
+      idempotencyKey: event.idempotencyKey,
+      visibility: event.visibility,
+      metadata: {
+        ...(event.metadata || {}),
+        relatedTargetType: event.relatedTargetType,
+        relatedTargetId: event.relatedTargetId,
+      },
+    }).catch(() => emitError(refs.thinkingEvents.path, 'create', event));
   };
 
   const refreshBeliefProfile = (entry: VaultEntry, patch?: Partial<BeliefProfile>) => {
@@ -372,7 +389,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       resolutionSummary: data.resolutionSummary || '',
     };
     setDoc(unknownRef, payload).catch(() => emitError(unknownRef.path, 'create', payload));
-    createThinkingEvent({ eventType: 'unknown_created', targetType: 'unknown', targetId: payload.unknownId, sourceType: payload.createdFrom === 'manual' ? 'user' : payload.createdFrom, summary: `Unknown created: ${payload.title}` });
+    createThinkingEvent({ eventType: 'unknown_created', entityType: 'unknown', entityId: payload.unknownId, after: payload, origin: payload.createdFrom === 'manual' ? 'user' : payload.createdFrom, summary: `Unknown created: ${payload.title}`, importance: 'medium', sourceActionId: makeActionId() });
     return payload;
   };
 
@@ -380,7 +397,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     const unknownRef = doc(refs.unknowns, item.unknownId);
     updateDoc(unknownRef, { ...item, dateUpdated: today() } as any).catch(() => emitError(unknownRef.path, 'update', item));
     if (item.status === 'resolved') {
-      createThinkingEvent({ eventType: 'unknown_resolved', targetType: 'unknown', targetId: item.unknownId, sourceType: 'user', summary: `Unknown resolved: ${item.title}` });
+      createThinkingEvent({ eventType: 'unknown_resolved', entityType: 'unknown', entityId: item.unknownId, after: item, origin: 'user', summary: `Unknown resolved: ${item.title}`, importance: 'high', sourceActionId: makeActionId() });
     }
   };
 
@@ -401,17 +418,17 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       dateUpdated: today(),
     };
     setDoc(patternRef, payload).catch(() => emitError(patternRef.path, 'create', payload));
-    createThinkingEvent({ eventType: 'thinking_pattern_inferred', targetType: 'thinking_pattern', targetId: payload.patternId, sourceType: payload.createdFrom, summary: `Thinking pattern inferred: ${payload.label}` });
+    createThinkingEvent({ eventType: 'thinking_pattern_inferred', entityType: 'thinkingPattern', entityId: payload.patternId, after: payload, origin: payload.createdFrom, summary: `Thinking pattern inferred: ${payload.label}`, importance: 'medium', sourceActionId: makeActionId() });
   };
 
   const updateThinkingPattern = (pattern: ThinkingPattern) => {
     const patternRef = doc(refs.thinkingPatterns, pattern.patternId);
     updateDoc(patternRef, { ...pattern, dateUpdated: today() } as any).catch(() => emitError(patternRef.path, 'update', pattern));
     if (pattern.status === 'acknowledged') {
-      createThinkingEvent({ eventType: 'thinking_pattern_acknowledged', targetType: 'thinking_pattern', targetId: pattern.patternId, sourceType: 'user', summary: `Thinking pattern acknowledged: ${pattern.label}` });
+      createThinkingEvent({ eventType: 'thinking_pattern_acknowledged', entityType: 'thinkingPattern', entityId: pattern.patternId, after: pattern, origin: 'user', summary: `Thinking pattern acknowledged: ${pattern.label}`, importance: 'medium', sourceActionId: makeActionId() });
     }
     if (pattern.status === 'dismissed') {
-      createThinkingEvent({ eventType: 'thinking_pattern_dismissed', targetType: 'thinking_pattern', targetId: pattern.patternId, sourceType: 'user', summary: `Thinking pattern dismissed: ${pattern.label}` });
+      createThinkingEvent({ eventType: 'thinking_pattern_dismissed', entityType: 'thinkingPattern', entityId: pattern.patternId, after: pattern, origin: 'user', summary: `Thinking pattern dismissed: ${pattern.label}`, importance: 'low', sourceActionId: makeActionId() });
     }
   };
 
@@ -419,18 +436,18 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     if (!metacognitionEnabled || !featureFlags.thinkingMetricsEnabled) return;
     const metricsRef = doc(refs.thinkingMetrics, 'summary');
     const payload: ThinkingMetrics = {
-      questionsAsked: questions.length,
-      assumptionsChallenged: thinkingEvents.filter((item) => item.eventType === 'assumption_challenged').length,
-      beliefsCreated: vault.length,
-      beliefsRevised: thinkingEvents.filter((item) => item.eventType === 'position_revised').length,
-      beliefsAbandoned: thinkingEvents.filter((item) => item.eventType === 'position_abandoned').length,
+      questionsAsked: thinkingEvents.filter((item) => item.eventType === 'question_created').length || questions.length,
+      assumptionsChallenged: thinkingEvents.filter((item) => item.eventType === 'assumption_challenged' || item.eventType === 'challenged').length,
+      beliefsCreated: thinkingEvents.filter((item) => item.entityType === 'position' && (item.eventType === 'created' || item.eventType === 'position_created' || item.eventType === 'position_formed')).length || vault.length,
+      beliefsRevised: thinkingEvents.filter((item) => item.entityType === 'position' && (item.eventType === 'revised' || item.eventType === 'position_revised')).length,
+      beliefsAbandoned: thinkingEvents.filter((item) => item.entityType === 'position' && (item.eventType === 'abandoned' || item.eventType === 'position_abandoned')).length,
       contradictionsDetected: thinkingEvents.filter((item) => item.eventType === 'contradiction_detected').length,
-      contradictionsResolved: thinkingEvents.filter((item) => item.eventType === 'contradiction_resolved').length,
-      connectionsCreated: links.length,
+      contradictionsResolved: thinkingEvents.filter((item) => item.eventType === 'contradiction_resolved' || item.eventType === 'resolved').length,
+      connectionsCreated: thinkingEvents.filter((item) => item.eventType === 'linked' || item.eventType === 'link_created').length || links.length,
       sourcesStudied: media.filter((item) => item.status === 'Finished').length,
-      ideasSynthesized: insights.length,
-      unknownsCreated: unknowns.length,
-      unknownsResolved: unknowns.filter((item) => item.status === 'resolved').length,
+      ideasSynthesized: thinkingEvents.filter((item) => item.eventType === 'synthesized').length || insights.length,
+      unknownsCreated: thinkingEvents.filter((item) => item.eventType === 'unknown_created').length || unknowns.length,
+      unknownsResolved: thinkingEvents.filter((item) => item.eventType === 'unknown_resolved').length || unknowns.filter((item) => item.status === 'resolved').length,
       positionsStressTested: thinkingEvents.filter((item) => item.eventType === 'stress_test_answered').length,
       lastComputedAt: today(),
       ...overrides,
@@ -488,11 +505,34 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       dateCreated: today(),
     };
     setDoc(conceptRef, payload).catch(() => emitError(conceptRef.path, 'create', payload));
+    createThinkingEvent({
+      eventType: 'created',
+      entityType: 'concept',
+      entityId: payload.id,
+      after: payload,
+      summary: `Created concept: ${payload.name}`,
+      origin: payload.createdFrom === 'manual' ? 'user' : 'system',
+      importance: 'medium',
+      sourceActionId: makeActionId(),
+    });
   };
 
   const updateConcept = (concept: Concept) => {
     const conceptRef = doc(refs.concepts, concept.id);
-    updateDoc(conceptRef, { ...concept, dateUpdated: today() }).catch(() => emitError(conceptRef.path, 'update', concept));
+    const previous = concepts.find((item) => item.id === concept.id);
+    const nextConcept = { ...concept, dateUpdated: today() };
+    updateDoc(conceptRef, nextConcept as any).catch(() => emitError(conceptRef.path, 'update', concept));
+    createThinkingEvent({
+      eventType: 'edited',
+      entityType: 'concept',
+      entityId: concept.id,
+      before: previous || null,
+      after: nextConcept,
+      summary: `Edited concept: ${concept.name}`,
+      origin: 'user',
+      importance: 'low',
+      sourceActionId: makeActionId(),
+    });
   };
 
   const deleteConcept = (id: string) => {
@@ -530,12 +570,35 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     };
     setDoc(mediaRef, payload).catch(() => emitError(mediaRef.path, 'create', payload));
     createTimelineEvent({ entityId: mediaRef.id, entityType: 'media', entityTitle: payload.title, eventType: 'created', reason: 'Source added to Noesis' });
+    createThinkingEvent({
+      eventType: 'created',
+      entityType: 'source',
+      entityId: payload.id,
+      after: payload,
+      summary: 'Added a new source.',
+      origin: 'user',
+      importance: 'medium',
+      sourceActionId: makeActionId(),
+    });
   };
 
   const updateMedia = (item: Media) => {
     ensureConcepts(item.tags || []);
     const mediaRef = doc(refs.media, item.id);
-    updateDoc(mediaRef, { ...item, dateUpdated: today() } as any).catch(() => emitError(mediaRef.path, 'update', item));
+    const previous = media.find((source) => source.id === item.id);
+    const nextItem = { ...item, dateUpdated: today() };
+    updateDoc(mediaRef, nextItem as any).catch(() => emitError(mediaRef.path, 'update', item));
+    createThinkingEvent({
+      eventType: 'edited',
+      entityType: 'source',
+      entityId: item.id,
+      before: previous || null,
+      after: nextItem,
+      summary: 'Updated source capture or metadata.',
+      origin: 'user',
+      importance: 'low',
+      sourceActionId: makeActionId(),
+    });
   };
 
   const deleteMedia = (id: string) => {
@@ -546,8 +609,21 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
   const updateAnnotation = (sourceId: string, annotation: Annotation) => {
     const source = media.find((item) => item.id === sourceId);
     if (!source) return;
+    const previous = (source.annotations || []).find((item) => item.id === annotation.id) || null;
     const annotations = (source.annotations || []).map((item) => item.id === annotation.id ? annotation : item);
     updateMedia({ ...source, annotations, dateUpdated: today() });
+    createThinkingEvent({
+      eventType: previous ? 'edited' : 'annotation_created',
+      entityType: 'annotation',
+      entityId: annotation.id,
+      before: previous,
+      after: annotation,
+      summary: previous ? 'Updated annotation.' : 'Created annotation.',
+      origin: 'user',
+      importance: previous ? 'low' : 'medium',
+      relatedEntityIds: { sourceIds: [sourceId], conceptIds: normalizeConceptTags(annotation.conceptTags).map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[] },
+      sourceActionId: makeActionId(),
+    });
   };
 
   const deleteAnnotation = (sourceId: string, annotationId: string) => {
@@ -584,7 +660,17 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     setDoc(vaultRef, payload).catch(() => emitError(vaultRef.path, 'create', payload));
     createTimelineEvent({ entityId: vaultRef.id, entityType: 'vault', entityTitle: payload.title, eventType: 'created', reason: 'Position formed', influencedBy: data.sourceIds });
     refreshBeliefProfile(payload as VaultEntry, { originSummary: payload.statement || payload.description });
-    createThinkingEvent({ eventType: 'position_created', targetType: 'position', targetId: payload.id, sourceType: payload.createdFrom === 'manual' ? 'user' : 'system', summary: `Position created: ${payload.title}`, metadata: { sourceIds: payload.sourceIds } });
+    createThinkingEvent({
+      eventType: 'created',
+      entityType: 'position',
+      entityId: payload.id,
+      after: payload,
+      summary: `Position created: ${payload.title}`,
+      origin: payload.createdFrom === 'manual' ? 'user' : 'system',
+      importance: 'high',
+      relatedEntityIds: { sourceIds: payload.sourceIds, conceptIds: tags.map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[] },
+      sourceActionId: makeActionId(),
+    });
     return payload as VaultEntry;
   };
 
@@ -599,34 +685,39 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       evidenceQuality: entry.evidenceQuality,
       lastRevisedAt: today(),
     };
+    const changeClassification = classifyThinkingChange(previous || null, entry);
     if (previous && (previous.evidenceFor || []).length < (entry.evidenceFor || []).length) {
       profilePatch.strengthenedBy = [...(beliefProfiles.find((item) => item.positionId === entry.id)?.strengthenedBy || []), 'Evidence added'];
-      createThinkingEvent({ eventType: 'evidence_added', targetType: 'position', targetId: entry.id, sourceType: 'user', summary: `Evidence added to ${entry.title}` });
+      createThinkingEvent({ eventType: 'evidence_added', entityType: 'position', entityId: entry.id, before: previous, after: entry, origin: 'user', summary: `Evidence added to ${entry.title}`, importance: 'medium', relatedEntityIds: { sourceIds: entry.sourceIds || [] }, sourceActionId: makeActionId() });
     }
     if (previous && (previous.evidenceAgainst || []).length < (entry.evidenceAgainst || []).length) {
       profilePatch.challengedBy = [...(beliefProfiles.find((item) => item.positionId === entry.id)?.challengedBy || []), 'Challenge recorded'];
       profilePatch.lastChallengedAt = today();
-      createThinkingEvent({ eventType: 'challenge_added', targetType: 'position', targetId: entry.id, sourceType: 'user', summary: `Challenge added to ${entry.title}` });
+      createThinkingEvent({ eventType: 'challenged', entityType: 'position', entityId: entry.id, before: previous, after: entry, origin: 'user', summary: `Challenge added to ${entry.title}`, importance: 'high', relatedEntityIds: { sourceIds: entry.sourceIds || [] }, sourceActionId: makeActionId(), epistemicStatus: 'challenged' });
     }
     if (previous && previous.confidence !== entry.confidence) {
-      createThinkingEvent({ eventType: 'confidence_changed', targetType: 'position', targetId: entry.id, sourceType: 'user', summary: `Confidence changed for ${entry.title}`, metadata: { from: previous.confidence, to: entry.confidence } });
+      createThinkingEvent({ eventType: 'confidence_changed', entityType: 'position', entityId: entry.id, before: previous, after: entry, origin: 'user', summary: `Confidence changed for ${entry.title}`, importance: 'medium', confidenceBefore: previous.confidence, confidenceAfter: entry.confidence, sourceActionId: makeActionId() });
     }
     if (previous && (previous.testingCount || 0) < (entry.testingCount || 0)) {
       createThinkingEvent({
         eventType: 'stress_test_answered',
-        targetType: 'position',
-        targetId: entry.id,
-        sourceType: 'user',
+        entityType: 'position',
+        entityId: entry.id,
+        before: previous,
+        after: entry,
+        origin: 'user',
         summary: `Stress test answered for ${entry.title}`,
         metadata: { from: previous.testingCount || 0, to: entry.testingCount || 0 },
+        importance: 'high',
+        sourceActionId: makeActionId(),
       });
     }
     if (entry.status === 'abandoned' && previous?.status !== 'abandoned') {
       profilePatch.abandonedAt = today();
       profilePatch.reviewStatus = 'abandoned';
-      createThinkingEvent({ eventType: 'position_abandoned', targetType: 'position', targetId: entry.id, sourceType: 'user', summary: `Position abandoned: ${entry.title}` });
+      createThinkingEvent({ eventType: 'abandoned', entityType: 'position', entityId: entry.id, before: previous, after: entry, origin: 'user', summary: `Position abandoned: ${entry.title}`, importance: 'major', epistemicStatus: 'abandoned', sourceActionId: makeActionId() });
     } else {
-      createThinkingEvent({ eventType: 'position_revised', targetType: 'position', targetId: entry.id, sourceType: 'user', summary: `Position revised: ${entry.title}` });
+      createThinkingEvent({ eventType: changeClassification.eventType, entityType: 'position', entityId: entry.id, before: previous || null, after: entry, origin: 'user', summary: `${changeClassification.eventType === 'revised' ? 'Position revised' : 'Position edited'}: ${entry.title}`, importance: changeClassification.importance, sourceActionId: makeActionId() });
     }
     refreshBeliefProfile(entry, profilePatch);
   };
@@ -679,6 +770,25 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     const eventRef = doc(refs.timeline);
     batch.set(eventRef, { id: eventRef.id, entityId: beliefRef.id, entityType: 'vault', entityTitle: posTitle, eventType: 'created', reason: 'Idea formed as position', influencedBy: data.sourceIds || [], date: today() });
     batch.commit().catch(() => emitError('batch', 'write', data));
+    createThinkingEvent({
+      eventType: 'position_formed',
+      entityType: 'position',
+      entityId: beliefRef.id,
+      after: {
+        title: posTitle,
+        statement: data.position?.statement || data.title,
+        description: data.position?.description || data.body,
+      },
+      origin: 'user',
+      summary: `Position formed from idea: ${posTitle}`,
+      importance: 'high',
+      relatedEntityIds: {
+        sourceIds: data.sourceIds || [],
+        annotationIds: data.sourceAnnotationId ? [data.sourceAnnotationId] : [],
+        workIds: data.sourceWorkId ? [data.sourceWorkId] : [],
+      },
+      sourceActionId: makeActionId(),
+    });
     return { positionId: beliefRef.id, insightId: insightRef.id, title: posTitle };
   };
 
@@ -726,7 +836,20 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       influencedBy: question.sourceIds || [],
       date: today(),
     });
-    createThinkingEvent({ eventType: 'question_promoted', targetType: 'inquiry', targetId: question.id, relatedTargetType: 'position', relatedTargetId: vaultRef.id, sourceType: 'system', summary: `Inquiry promoted into position: ${position.title}` });
+    createThinkingEvent({
+      eventType: 'position_formed',
+      entityType: 'position',
+      entityId: vaultRef.id,
+      after: position as any,
+      origin: 'system',
+      summary: `Inquiry promoted into position: ${position.title}`,
+      importance: 'high',
+      relatedEntityIds: {
+        inquiryIds: [question.id],
+        sourceIds: question.sourceIds || [],
+      },
+      sourceActionId: makeActionId(),
+    });
     batch.commit().catch(() => emitError('batch', 'write', position));
   };
 
@@ -750,13 +873,40 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       dateUpdated: today(),
     };
     setDoc(questionRef, payload).catch(() => emitError(questionRef.path, 'create', payload));
-    createThinkingEvent({ eventType: data.type === 'annotation' ? 'question_promoted' : 'question_created', targetType: 'inquiry', targetId: payload.id, sourceType: 'user', summary: `Inquiry created: ${payload.text}` });
+    createThinkingEvent({
+      eventType: data.type === 'annotation' ? 'question_created' : 'question_created',
+      entityType: 'inquiry',
+      entityId: payload.id,
+      after: payload,
+      summary: `Inquiry created: ${payload.text}`,
+      origin: 'user',
+      importance: 'medium',
+      relatedEntityIds: {
+        sourceIds: payload.sourceIds || [],
+        positionIds: payload.beliefIds || [],
+        annotationIds: payload.sourceAnnotationId ? [payload.sourceAnnotationId] : [],
+      },
+      sourceActionId: makeActionId(),
+    });
     return payload as Question;
   };
 
   const updateQuestion = (question: Question) => {
     const questionRef = doc(refs.questions, question.id);
-    updateDoc(questionRef, { ...question, dateUpdated: today() } as any).catch(() => emitError(questionRef.path, 'update', question));
+    const previous = questions.find((item) => item.id === question.id);
+    const nextQuestion = { ...question, dateUpdated: today() };
+    updateDoc(questionRef, nextQuestion as any).catch(() => emitError(questionRef.path, 'update', question));
+    createThinkingEvent({
+      eventType: question.status === 'resolved' || question.status === 'answered' ? 'question_resolved' : 'edited',
+      entityType: 'inquiry',
+      entityId: question.id,
+      before: previous || null,
+      after: nextQuestion,
+      summary: question.status === 'resolved' || question.status === 'answered' ? `Inquiry resolved: ${question.text}` : `Inquiry updated: ${question.text}`,
+      origin: 'user',
+      importance: question.status === 'resolved' || question.status === 'answered' ? 'high' : 'low',
+      sourceActionId: makeActionId(),
+    });
   };
 
   const addDraft = (data: Partial<Draft>) => {
@@ -794,13 +944,37 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     };
     setDoc(draftRef, payload).catch(() => emitError(draftRef.path, 'create', payload));
     createTimelineEvent({ entityId: draftRef.id, entityType: 'draft', entityTitle: payload.title, eventType: 'created', reason: 'Work draft created' });
+    createThinkingEvent({
+      eventType: 'created',
+      entityType: 'work',
+      entityId: payload.id,
+      after: payload,
+      summary: `Created work: ${payload.title}`,
+      origin: 'user',
+      importance: 'medium',
+      relatedEntityIds: { conceptIds: conceptTags.map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[], inquiryIds: payload.questionIds || [], positionIds: payload.beliefIds || [], sourceIds: payload.sourceIds || [] },
+      sourceActionId: makeActionId(),
+    });
     return payload as Draft;
   };
 
   const updateDraft = (draft: Draft) => {
     ensureConcepts(draft.conceptTags || []);
     const draftRef = doc(refs.drafts, draft.id);
-    updateDoc(draftRef, { ...draft, dateUpdated: today() } as any).catch(() => emitError(draftRef.path, 'update', draft));
+    const previous = drafts.find((item) => item.id === draft.id);
+    const nextDraft = { ...draft, dateUpdated: today() };
+    updateDoc(draftRef, nextDraft as any).catch(() => emitError(draftRef.path, 'update', draft));
+    createThinkingEvent({
+      eventType: 'edited',
+      entityType: 'work',
+      entityId: draft.id,
+      before: previous || null,
+      after: nextDraft,
+      summary: `Updated work: ${draft.title}`,
+      origin: 'user',
+      importance: 'low',
+      sourceActionId: makeActionId(),
+    });
   };
 
   const deleteDraft = (id: string) => {
@@ -832,13 +1006,25 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     };
     setDoc(practiceRef, payload).catch(() => emitError(practiceRef.path, 'create', payload));
     createTimelineEvent({ entityId: practiceRef.id, entityType: 'practice', entityTitle: payload.title, eventType: 'created', reason: 'New practice initiated' });
+    createThinkingEvent({
+      eventType: 'practice_created',
+      entityType: 'practice',
+      entityId: payload.id,
+      after: payload,
+      summary: `Created practice: ${payload.title}`,
+      origin: 'user',
+      importance: 'medium',
+      relatedEntityIds: { positionIds: payload.positionIds || [], inquiryIds: payload.questionIds || [], sourceIds: payload.sourceIds || [] },
+      sourceActionId: makeActionId(),
+    });
   };
 
   const updatePractice = (practice: Practice) => {
     ensureConcepts(practice.conceptTags || []);
     const practiceRef = doc(refs.practices, practice.id);
     const previous = practices.find((item) => item.id === practice.id);
-    updateDoc(practiceRef, { ...practice, dateUpdated: today() } as any).catch(() => emitError(practiceRef.path, 'update', practice));
+    const nextPractice = { ...practice, dateUpdated: today() };
+    updateDoc(practiceRef, nextPractice as any).catch(() => emitError(practiceRef.path, 'update', practice));
     if (previous && previous.status !== practice.status) {
       createTimelineEvent({
         entityId: practice.id,
@@ -849,6 +1035,20 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
         influencedBy: [...(practice.sourceIds || []), ...(practice.positionIds || [])],
       });
     }
+    const previousLogs = previous?.logDates?.length || 0;
+    const nextLogs = practice.logDates?.length || 0;
+    createThinkingEvent({
+      eventType: nextLogs > previousLogs ? 'tested' : 'edited',
+      entityType: 'practice',
+      entityId: practice.id,
+      before: previous || null,
+      after: nextPractice,
+      summary: nextLogs > previousLogs ? `Logged a practice test connected to ${practice.title}` : `Updated practice: ${practice.title}`,
+      origin: 'user',
+      importance: nextLogs > previousLogs ? 'high' : 'low',
+      relatedEntityIds: { positionIds: practice.positionIds || [], inquiryIds: practice.questionIds || [], workIds: practice.draftIds || [] },
+      sourceActionId: makeActionId(),
+    });
   };
 
   const deletePractice = (id: string) => {
@@ -875,13 +1075,20 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     };
     setDoc(linkRef, payload).catch(() => emitError(linkRef.path, 'create', payload));
     createThinkingEvent({
-      eventType: payload.type === 'contradicts' ? 'contradiction_detected' : 'link_created',
-      targetType: payload.fromType,
-      targetId: payload.fromId,
-      relatedTargetType: payload.toType,
-      relatedTargetId: payload.toId,
-      sourceType: payload.createdFrom === 'manual' ? 'user' : payload.createdFrom === 'suggestion' ? 'ai' : 'system',
+      eventType: payload.type === 'contradicts' ? 'contradiction_detected' : 'linked',
+      entityType: payload.type === 'contradicts' ? payload.fromType : 'link',
+      entityId: payload.type === 'contradicts' ? payload.fromId : payload.id,
+      after: payload,
+      relatedEntityIds: {
+        conceptIds: [payload.fromType === 'concept' ? payload.fromId : '', payload.toType === 'concept' ? payload.toId : ''].filter(Boolean),
+        inquiryIds: [payload.fromType === 'inquiry' ? payload.fromId : '', payload.toType === 'inquiry' ? payload.toId : ''].filter(Boolean),
+        positionIds: [payload.fromType === 'position' ? payload.fromId : '', payload.toType === 'position' ? payload.toId : ''].filter(Boolean),
+        linkIds: [payload.id],
+      },
       summary: `${payload.type.replace(/_/g, ' ')} link created between ${payload.fromLabel || payload.fromId} and ${payload.toLabel || payload.toId}`,
+      origin: payload.createdFrom === 'manual' ? 'user' : payload.createdFrom === 'suggestion' ? 'ai' : 'system',
+      importance: payload.type === 'contradicts' ? 'high' : 'medium',
+      sourceActionId: makeActionId(),
     });
   };
 
@@ -891,8 +1098,27 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
   };
 
   const deletePhilosophicalLink = (id: string) => {
+    const existing = links.find((item) => item.id === id);
     const linkRef = doc(refs.links, id);
     deleteDoc(linkRef).catch(() => emitError(linkRef.path, 'delete'));
+    if (existing) {
+      createThinkingEvent({
+        eventType: 'unlinked',
+        entityType: 'link',
+        entityId: existing.id,
+        before: existing,
+        summary: `Removed link between ${existing.fromLabel || existing.fromId} and ${existing.toLabel || existing.toId}`,
+        origin: 'user',
+        importance: existing.type === 'contradicts' ? 'high' : 'medium',
+        relatedEntityIds: {
+          conceptIds: [existing.fromType === 'concept' ? existing.fromId : '', existing.toType === 'concept' ? existing.toId : ''].filter(Boolean),
+          inquiryIds: [existing.fromType === 'inquiry' ? existing.fromId : '', existing.toType === 'inquiry' ? existing.toId : ''].filter(Boolean),
+          positionIds: [existing.fromType === 'position' ? existing.fromId : '', existing.toType === 'position' ? existing.toId : ''].filter(Boolean),
+          linkIds: [existing.id],
+        },
+        sourceActionId: makeActionId(),
+      });
+    }
   };
 
   const addAiSuggestion = (data: Partial<AiSuggestion>) => {
@@ -913,17 +1139,17 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       dateUpdated: today(),
     };
     setDoc(suggestionRef, payload).catch(() => emitError(suggestionRef.path, 'create', payload));
-    createThinkingEvent({ eventType: 'suggestion_created', targetType: 'suggestion', targetId: payload.id, sourceType: 'ai', summary: `Suggestion created: ${payload.title}` });
+    createThinkingEvent({ eventType: 'ai_suggestion_generated', entityType: 'suggestion', entityId: payload.id, after: payload, origin: 'ai', summary: `Suggestion created: ${payload.title}`, importance: 'medium', sourceActionId: makeActionId() });
   };
 
   const updateAiSuggestion = (suggestion: AiSuggestion) => {
     const suggestionRef = doc(refs.suggestions, suggestion.id);
     updateDoc(suggestionRef, { ...suggestion, dateUpdated: today() } as any).catch(() => emitError(suggestionRef.path, 'update', suggestion));
     if (suggestion.status === 'accepted') {
-      createThinkingEvent({ eventType: 'suggestion_accepted', targetType: 'suggestion', targetId: suggestion.id, sourceType: 'user', summary: `Suggestion accepted: ${suggestion.title}` });
+      createThinkingEvent({ eventType: 'ai_suggestion_accepted', entityType: 'suggestion', entityId: suggestion.id, after: suggestion, origin: 'user', summary: `Suggestion accepted: ${suggestion.title}`, importance: 'medium', sourceActionId: makeActionId() });
     }
     if (suggestion.status === 'dismissed' || suggestion.status === 'ignored') {
-      createThinkingEvent({ eventType: 'suggestion_dismissed', targetType: 'suggestion', targetId: suggestion.id, sourceType: 'user', summary: `Suggestion dismissed: ${suggestion.title}` });
+      createThinkingEvent({ eventType: 'ai_suggestion_rejected', entityType: 'suggestion', entityId: suggestion.id, after: suggestion, origin: 'user', summary: `Suggestion dismissed: ${suggestion.title}`, importance: 'low', sourceActionId: makeActionId() });
     }
   };
 

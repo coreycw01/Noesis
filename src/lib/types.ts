@@ -28,12 +28,16 @@ export type AtlasMapLinkType = PhilosophicalLinkType | 'examples' | 'causes' | '
 export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'url_metadata' | 'manual';
 export type AiSuggestionType = 'annotation_consequence' | 'position_draft' | 'typed_link' | 'possible_tension' | 'evolution_summary' | 'daily_prompt' | 'missing_perspective' | 'blind_spot' | 'missing_question' | 'stress_test' | 'thinking_pattern' | 'unknown_candidate' | 'contradiction_cluster';
 export type AiSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'ignored' | 'dismissed' | 'outdated';
-export type ThinkingEventType = 'position_created' | 'position_revised' | 'position_replaced' | 'position_abandoned' | 'confidence_changed' | 'evidence_added' | 'challenge_added' | 'assumption_added' | 'assumption_challenged' | 'unknown_created' | 'unknown_resolved' | 'question_created' | 'question_promoted' | 'link_created' | 'contradiction_detected' | 'contradiction_resolved' | 'suggestion_created' | 'suggestion_accepted' | 'suggestion_dismissed' | 'thinking_pattern_inferred' | 'thinking_pattern_acknowledged' | 'thinking_pattern_dismissed' | 'stress_test_generated' | 'stress_test_answered';
+export type ThinkingEventType = 'created' | 'edited' | 'revised' | 'challenged' | 'supported' | 'abandoned' | 'resolved' | 'linked' | 'unlinked' | 'tested' | 'synthesized' | 'confidence_changed' | 'evidence_added' | 'evidence_removed' | 'contradiction_detected' | 'contradiction_resolved' | 'unknown_created' | 'unknown_resolved' | 'question_created' | 'question_resolved' | 'position_formed' | 'practice_created' | 'source_distilled' | 'annotation_created' | 'ai_suggestion_generated' | 'ai_suggestion_accepted' | 'ai_suggestion_rejected' | 'position_created' | 'position_revised' | 'position_replaced' | 'position_abandoned' | 'question_promoted' | 'link_created' | 'suggestion_created' | 'suggestion_accepted' | 'suggestion_dismissed' | 'thinking_pattern_inferred' | 'thinking_pattern_acknowledged' | 'thinking_pattern_dismissed' | 'stress_test_generated' | 'stress_test_answered' | 'assumption_added' | 'assumption_challenged' | 'challenge_added';
 export type ThinkingPatternType = 'evidence_style' | 'reasoning_style' | 'questioning_style' | 'source_bias' | 'conceptual_gap' | 'revision_pattern' | 'contradiction_pattern' | 'certainty_pattern';
 export type ThinkingPatternStatus = 'pending' | 'acknowledged' | 'dismissed' | 'outdated';
 export type UnknownStatus = 'active' | 'exploring' | 'resolved' | 'archived';
 export type UnknownImportance = 'low' | 'medium' | 'high';
 export type BeliefProfileReviewStatus = 'current' | 'needs_review' | 'outdated' | 'abandoned';
+export type ThinkingEventEntityType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'atlasMap' | 'link' | 'unknown' | 'beliefProfile' | 'thinkingPattern' | 'metric' | 'suggestion' | 'evolution';
+export type ThinkingEventOrigin = 'user' | 'ai' | 'system';
+export type ThinkingEventEpistemicStatus = 'raw_capture' | 'uncertain' | 'emerging' | 'working_belief' | 'strong_belief' | 'challenged' | 'abandoned' | 'resolved';
+export type ThinkingEventImportance = 'low' | 'medium' | 'high' | 'major';
 
 export interface SecurityRuleContext {
   operation: 'create' | 'update' | 'delete' | 'list' | 'get' | 'write';
@@ -309,16 +313,47 @@ export interface AiSuggestion {
 }
 
 export interface ThinkingEvent {
+  id: string;
   eventId: string;
+  userId: string;
   eventType: ThinkingEventType;
+  entityType: ThinkingEventEntityType;
+  entityId: string;
+  relatedEntityIds?: {
+    sourceIds?: string[];
+    annotationIds?: string[];
+    conceptIds?: string[];
+    inquiryIds?: string[];
+    positionIds?: string[];
+    workIds?: string[];
+    practiceIds?: string[];
+    unknownIds?: string[];
+    linkIds?: string[];
+    suggestionIds?: string[];
+  };
+  before?: Record<string, any> | null;
+  after?: Record<string, any> | null;
+  diff?: Record<string, any> | null;
   targetType: PhilosophicalObjectType | 'unknown' | 'suggestion' | 'thinking_pattern';
   targetId: string;
   relatedTargetType?: PhilosophicalObjectType | 'unknown' | 'suggestion' | 'thinking_pattern';
   relatedTargetId?: string;
-  sourceType: 'user' | 'ai' | 'system';
+  sourceType: ThinkingEventOrigin;
   summary: string;
+  userReason?: string | null;
+  aiReason?: string | null;
+  systemReason?: string | null;
+  origin: ThinkingEventOrigin;
+  confidenceBefore?: number | null;
+  confidenceAfter?: number | null;
+  epistemicStatus?: ThinkingEventEpistemicStatus | null;
+  importance?: ThinkingEventImportance;
+  sourceActionId?: string | null;
+  idempotencyKey?: string | null;
+  visibility?: 'private' | 'public_preview';
   metadata?: Record<string, any>;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface BeliefProfile {
