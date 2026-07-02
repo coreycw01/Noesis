@@ -3,9 +3,14 @@ import { distillInsightsFromMedia } from '@/ai/flows/distill-insights-from-media
 import { generateReflectiveQuestions } from '@/ai/flows/generate-reflective-questions-flow';
 import { suggestConceptDescription } from '@/ai/flows/suggest-concept-description';
 import {
+  detectBlindSpotPatterns,
+  detectMissingPerspectives,
+  detectMissingQuestions,
+  generateStressTest,
   formPositionFromIdea,
   generateClarityCheck,
   generateIdeaQuestions,
+  inferThinkingPatterns,
   socratesReflect,
   suggestAnnotationConsequences,
   suggestPositionDrafts,
@@ -22,7 +27,12 @@ type AiAction =
   | 'formPositionFromIdea'
   | 'suggestConceptDescription'
   | 'generateClarityCheck'
-  | 'suggestPositionDrafts';
+  | 'suggestPositionDrafts'
+  | 'detectMissingPerspectives'
+  | 'detectMissingQuestions'
+  | 'generateStressTest'
+  | 'inferThinkingPatterns'
+  | 'detectBlindSpotPatterns';
 
 function isAiConfigured() {
   return Boolean(
@@ -89,6 +99,21 @@ export async function POST(request: Request) {
         break;
       case 'suggestPositionDrafts':
         result = await suggestPositionDrafts(payload as Parameters<typeof suggestPositionDrafts>[0]);
+        break;
+      case 'detectMissingPerspectives':
+        result = await detectMissingPerspectives(payload as Parameters<typeof detectMissingPerspectives>[0]);
+        break;
+      case 'detectMissingQuestions':
+        result = await detectMissingQuestions(payload as Parameters<typeof detectMissingQuestions>[0]);
+        break;
+      case 'generateStressTest':
+        result = await generateStressTest(payload as Parameters<typeof generateStressTest>[0]);
+        break;
+      case 'inferThinkingPatterns':
+        result = await inferThinkingPatterns(payload as Parameters<typeof inferThinkingPatterns>[0]);
+        break;
+      case 'detectBlindSpotPatterns':
+        result = await detectBlindSpotPatterns(payload as Parameters<typeof detectBlindSpotPatterns>[0]);
         break;
       default:
         return NextResponse.json({ error: 'Unknown AI action requested.' }, { status: 400 });

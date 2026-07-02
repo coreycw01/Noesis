@@ -33,8 +33,78 @@ export interface SuggestAnnotationConsequencesResult {
   suggestedConcepts: string[];
   suggestedInquiry?: string;
   suggestedPosition?: string;
-  suggestedLinkType?: 'supports' | 'challenges' | 'coheres' | 'defines' | 'refines' | 'contradicts' | 'exemplifies' | 'inspired_by' | 'tested_by' | 'expressed_in' | 'changed_by';
+  suggestedLinkType?: 'supports' | 'challenges' | 'coheres' | 'defines' | 'refines' | 'contradicts' | 'exemplifies' | 'inspired_by' | 'tested_by' | 'expressed_in' | 'changed_by' | 'depends_on' | 'explains' | 'explained_by' | 'derived_from' | 'references' | 'replaces' | 'questions' | 'expands' | 'weakens' | 'strengthens';
   rationale: string;
+}
+
+export interface DetectMissingPerspectivesPayload {
+  targetType: string;
+  targetTitle: string;
+  content: string;
+  sourceTitles?: string[];
+  conceptTags?: string[];
+  existingPerspectiveCoverage?: string[];
+}
+
+export interface DetectMissingPerspectivesResult {
+  suggestions: Array<{
+    perspective: string;
+    whyItMatters: string;
+    evidence: string[];
+    question: string;
+    confidence: number;
+  }>;
+}
+
+export interface DetectMissingQuestionsPayload {
+  concepts: string[];
+  positions: string[];
+  unknowns: string[];
+  inquiries: string[];
+  contradictions: string[];
+}
+
+export interface DetectMissingQuestionsResult {
+  suggestions: Array<{
+    question: string;
+    reasoning: string;
+    evidence: string[];
+    confidence: number;
+  }>;
+}
+
+export interface GenerateStressTestPayload {
+  targetType: string;
+  title: string;
+  content: string;
+}
+
+export interface GenerateStressTestResult {
+  prompts: Array<{
+    kind: 'change_mind' | 'hidden_assumption' | 'falsification' | 'prediction' | 'opposite_case' | 'weakening_evidence';
+    question: string;
+  }>;
+}
+
+export interface InferThinkingPatternsPayload {
+  positions: Array<{ title: string; statement: string; confidence?: number }>;
+  inquiries: string[];
+  works: string[];
+  sources: Array<{ title: string; type: string }>;
+  links: Array<{ from: string; to: string; type: string }>;
+  thinkingEvents: Array<{ eventType: string; summary: string }>;
+}
+
+export interface InferThinkingPatternsResult {
+  patterns: Array<{
+    patternType: 'evidence_style' | 'reasoning_style' | 'questioning_style' | 'source_bias' | 'conceptual_gap' | 'revision_pattern' | 'contradiction_pattern' | 'certainty_pattern';
+    label: string;
+    description: string;
+    evidence: string[];
+    confidence: number;
+    timespan: string;
+    trendDirection: 'increasing' | 'decreasing' | 'stable' | 'unclear';
+  }>;
 }
 
 export interface SocratesReflectPayload {
@@ -160,6 +230,22 @@ type AiActionMap = {
     payload: SuggestPositionDraftsPayload;
     result: SuggestPositionDraftsResult;
   };
+  detectMissingPerspectives: {
+    payload: DetectMissingPerspectivesPayload;
+    result: DetectMissingPerspectivesResult;
+  };
+  detectMissingQuestions: {
+    payload: DetectMissingQuestionsPayload;
+    result: DetectMissingQuestionsResult;
+  };
+  generateStressTest: {
+    payload: GenerateStressTestPayload;
+    result: GenerateStressTestResult;
+  };
+  inferThinkingPatterns: {
+    payload: InferThinkingPatternsPayload;
+    result: InferThinkingPatternsResult;
+  };
 };
 
 async function callAiAction<K extends keyof AiActionMap>(
@@ -194,4 +280,8 @@ export const aiClient = {
   suggestConceptDescription: (payload: SuggestConceptDescriptionPayload) => callAiAction('suggestConceptDescription', payload),
   generateClarityCheck: (payload: GenerateClarityCheckPayload) => callAiAction('generateClarityCheck', payload),
   suggestPositionDrafts: (payload: SuggestPositionDraftsPayload) => callAiAction('suggestPositionDrafts', payload),
+  detectMissingPerspectives: (payload: DetectMissingPerspectivesPayload) => callAiAction('detectMissingPerspectives', payload),
+  detectMissingQuestions: (payload: DetectMissingQuestionsPayload) => callAiAction('detectMissingQuestions', payload),
+  generateStressTest: (payload: GenerateStressTestPayload) => callAiAction('generateStressTest', payload),
+  inferThinkingPatterns: (payload: InferThinkingPatternsPayload) => callAiAction('inferThinkingPatterns', payload),
 };

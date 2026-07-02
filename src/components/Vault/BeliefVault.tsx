@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { SourceLinker } from '@/components/SourceLinker';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Concept, Draft, Media, PhilosophicalLink, Practice, Question, TimelineEvent, VaultEntry, VaultType } from '@/lib/types';
+import type { AiSuggestion, BeliefProfile, Concept, Draft, Media, PhilosophicalLink, Practice, Question, TimelineEvent, Unknown, VaultEntry, VaultType } from '@/lib/types';
 import { normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
@@ -32,6 +32,9 @@ interface BeliefVaultProps {
   timeline: TimelineEvent[];
   concepts: Concept[];
   links: PhilosophicalLink[];
+  beliefProfiles: BeliefProfile[];
+  unknowns: Unknown[];
+  suggestions: AiSuggestion[];
   onAddEntry: (data: Partial<VaultEntry>) => void;
   onUpdateEntry: (entry: VaultEntry) => void;
   onDeleteEntry: (id: string) => void;
@@ -39,7 +42,11 @@ interface BeliefVaultProps {
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
   onAddPractice: (data: Partial<Practice>) => void;
+  onAddQuestion: (data: Partial<Question>) => void;
   onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; position?: { title: string; statement: string; description: string; confidence: number } }) => void;
+  onAddUnknown: (data: Partial<Unknown>) => Unknown;
+  onUpdateSuggestion: (suggestion: AiSuggestion) => void;
+  onCreateSuggestion: (suggestion: Partial<AiSuggestion>) => void;
   onUpdateLink?: (link: PhilosophicalLink) => void;
   focusedEntryId?: string | null;
   onFocusedEntryHandled?: () => void;
@@ -81,7 +88,7 @@ function safePositionDate(value?: string) {
   return Number.isNaN(date.getTime()) ? new Date().toLocaleDateString() : date.toLocaleDateString();
 }
 
-export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onCreateIdea, onUpdateLink, focusedEntryId, onFocusedEntryHandled }: BeliefVaultProps) {
+export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, suggestions, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onCreateIdea, onAddUnknown, onUpdateSuggestion, onCreateSuggestion, onUpdateLink, focusedEntryId, onFocusedEntryHandled }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -98,6 +105,8 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const [ideaQA, setIdeaQA] = useState<Array<{ question: string; focus: string; answer: string }>>([]);
   const [ideaPosition, setIdeaPosition] = useState<{ positionTitle: string; statement: string; description: string; confidence: number } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [stressTests, setStressTests] = useState<Array<{ kind: string; question: string }>>([]);
+  const [stressAnswer, setStressAnswer] = useState('');
 
   const openIdeaDialog = () => {
     setIdeaDraft({ title: '', body: '' });
@@ -217,7 +226,104 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     const linkedDrafts = drafts.filter((draft) => (draft.beliefIds || []).includes(selected.id));
     const typedLinks = links.filter((link) => (link.fromType === 'position' && link.fromId === selected.id) || (link.toType === 'position' && link.toId === selected.id));
     const tensionLinks = typedLinks.filter((link) => link.type === 'contradicts' || link.type === 'challenges' || link.note?.toLowerCase().includes('tension'));
+    const beliefProfile = beliefProfiles.find((item) => item.positionId === selected.id);
+    const linkedUnknowns = unknowns.filter((item) => (item.positionIds || []).includes(selected.id));
+    const positionSuggestions = suggestions.filter((item) => item.targetType === 'position' && item.targetId === selected.id);
     const firstLinkedSource = linkedSources[0];
+
+    const createMissingPerspective = async () => {
+      try {
+        const result = await aiClient.detectMissingPerspectives({
+          targetType: 'position',
+          targetTitle: selected.title,
+          content: `${selected.title}\n${selected.statement}\n${selected.description || ''}`,
+          sourceTitles: linkedSources.map((item) => item.title),
+          conceptTags: selected.tags || [],
+          existingPerspectiveCoverage: typedLinks.map((item) => item.type),
+        });
+        result.suggestions.forEach((suggestion) => onCreateSuggestion({
+          targetType: 'position',
+          targetId: selected.id,
+          suggestionType: 'missing_perspective',
+          title: suggestion.perspective,
+          description: suggestion.question,
+          reasoning: suggestion.whyItMatters,
+          evidence: suggestion.evidence,
+          confidence: suggestion.confidence,
+          status: 'pending',
+        }));
+        toast({ title: 'Missing perspectives suggested', description: 'Review the possible lenses below before accepting any of them.' });
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'AI Unavailable', description: error instanceof Error ? error.message : 'Noesis could not suggest perspectives right now.' });
+      }
+    };
+
+    const createMissingQuestions = async () => {
+      try {
+        const result = await aiClient.detectMissingQuestions({
+          concepts: selected.tags || [],
+          positions: [selected.statement || selected.title],
+          unknowns: linkedUnknowns.map((item) => item.title),
+          inquiries: questions.filter((item) => (item.beliefIds || []).includes(selected.id)).map((item) => item.text),
+          contradictions: tensionLinks.map((item) => item.note || `${item.fromLabel || item.fromId} ${item.type} ${item.toLabel || item.toId}`),
+        });
+        result.suggestions.forEach((suggestion) => onCreateSuggestion({
+          targetType: 'position',
+          targetId: selected.id,
+          suggestionType: 'missing_question',
+          title: suggestion.question,
+          description: suggestion.reasoning,
+          reasoning: suggestion.reasoning,
+          evidence: suggestion.evidence,
+          confidence: suggestion.confidence,
+          status: 'pending',
+        }));
+        toast({ title: 'Missing questions suggested', description: 'Use them to open new inquiries where the map is thin.' });
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'AI Unavailable', description: error instanceof Error ? error.message : 'Noesis could not detect missing questions right now.' });
+      }
+    };
+
+    const createStressTests = async () => {
+      try {
+        const result = await aiClient.generateStressTest({
+          targetType: 'position',
+          title: selected.title,
+          content: `${selected.statement}\n${selected.description || ''}`,
+        });
+        setStressTests(result.prompts);
+        result.prompts.forEach((prompt) => onCreateSuggestion({
+          targetType: 'position',
+          targetId: selected.id,
+          suggestionType: 'stress_test',
+          title: 'Stress test prompt',
+          description: prompt.question,
+          reasoning: 'A position becomes more trustworthy when it survives pressure.',
+          evidence: linkedSources.map((item) => item.title).slice(0, 3),
+          confidence: 0.7,
+          status: 'pending',
+        }));
+        toast({ title: 'Stress tests generated', description: 'Answer one prompt to pressure-test the position instead of just polishing it.' });
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'AI Unavailable', description: error instanceof Error ? error.message : 'Noesis could not generate stress tests right now.' });
+      }
+    };
+
+    const saveStressAnswer = () => {
+      if (!stressAnswer.trim()) return;
+      onUpdateEntry({
+        ...selected,
+        testingCount: (selected.testingCount || 0) + 1,
+        versionHistory: [
+          ...(selected.versionHistory || []),
+          { date: today(), eventType: 'challenged', description: `Stress test answered: ${stressAnswer.trim()}` },
+        ],
+        dateUpdated: today(),
+      });
+      setStressAnswer('');
+      toast({ title: 'Stress test recorded', description: 'The answer has been added to this position history.' });
+    };
+
     return (
       <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-5xl mx-auto w-full font-body">
         <div className="flex items-center justify-between mb-8">
@@ -344,6 +450,118 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           onUpdateEntry={onUpdateEntry}
           onUpdateLink={onUpdateLink}
         />
+
+        <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Belief Biography</div>
+                <h3 className="mt-1 font-headline text-2xl font-bold italic">How this position has changed</h3>
+              </div>
+              <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                {beliefProfile?.reviewStatus || 'current'}
+              </Badge>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <InfoPanel title="Created From" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
+              <InfoPanel title="Confidence History" items={[`Current confidence: ${selected.confidenceScore ?? selected.confidence ?? 3}/5`, `Evidence quality: ${beliefProfile?.evidenceQuality || selected.evidenceQuality || 'unscored'}`, `Stress tests: ${beliefProfile?.testingCount ?? selected.testingCount ?? 0}`]} empty="No confidence history yet." />
+              <InfoPanel title="Strengthened By" items={beliefProfile?.strengthenedBy || []} empty="No supporting developments recorded yet." />
+              <InfoPanel title="Challenged By" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
+              <InfoPanel title="Weakened By" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
+              <InfoPanel title="Linked Unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />
+            </div>
+          </Card>
+
+          <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">AI Review</div>
+                <h3 className="mt-1 font-headline text-2xl font-bold italic">Pressure, questions, and perspective</h3>
+              </div>
+              <GenerativeAiIcon className="size-10" />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="rounded-full" onClick={createMissingPerspective}>Suggest Perspective</Button>
+              <Button size="sm" variant="outline" className="rounded-full" onClick={createMissingQuestions}>Suggest Question</Button>
+              <Button size="sm" className="rounded-full" onClick={createStressTests}>Generate Stress Test</Button>
+            </div>
+            {(stressTests.length > 0 || positionSuggestions.length > 0) && (
+              <div className="mt-4 space-y-3">
+                {stressTests.map((prompt) => (
+                  <div key={`${prompt.kind}:${prompt.question}`} className="rounded-xl border border-border/60 bg-muted/10 p-3 text-sm italic text-foreground/80">
+                    {prompt.question}
+                  </div>
+                ))}
+                {positionSuggestions.slice(0, 6).map((suggestion) => (
+                  <div key={suggestion.id} className="rounded-xl border border-border/60 bg-background p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{suggestion.suggestionType.replace(/_/g, ' ')}</Badge>
+                      {typeof suggestion.confidence === 'number' && (
+                        <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(suggestion.confidence * 100)}% confidence</Badge>
+                      )}
+                    </div>
+                    <h4 className="mt-2 font-headline text-lg font-bold italic">{suggestion.title}</h4>
+                    {suggestion.description && <p className="mt-1 text-sm text-muted-foreground">{suggestion.description}</p>}
+                    {suggestion.reasoning && <p className="mt-2 text-sm italic text-foreground/80">{suggestion.reasoning}</p>}
+                    {!!suggestion.evidence?.length && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {suggestion.evidence.map((item) => <Badge key={item} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item}</Badge>)}
+                      </div>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {suggestion.status === 'pending' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-full"
+                            onClick={() => {
+                              if (suggestion.suggestionType === 'missing_question') {
+                                onAddQuestion({
+                                  text: suggestion.title,
+                                  status: 'open',
+                                  beliefIds: [selected.id],
+                                  conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
+                                  evidenceIds: [],
+                                  sourceIds: selected.sourceIds || [],
+                                });
+                              }
+                              if (suggestion.suggestionType === 'unknown_candidate') {
+                                onAddUnknown({
+                                  title: suggestion.title,
+                                  description: suggestion.description || suggestion.reasoning || '',
+                                  positionIds: [selected.id],
+                                  conceptTags: selected.tags || [],
+                                  sourceIds: selected.sourceIds || [],
+                                  status: 'active',
+                                  importance: 'medium',
+                                  createdFrom: 'ai',
+                                });
+                              }
+                              onUpdateSuggestion({ ...suggestion, status: 'accepted', dateUpdated: new Date().toISOString() });
+                            }}
+                          >
+                            Accept
+                          </Button>
+                          <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateSuggestion({ ...suggestion, status: 'dismissed', dateUpdated: new Date().toISOString() })}>
+                            Dismiss
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-4">
+              <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Stress-Test Answer</Label>
+              <Textarea value={stressAnswer} onChange={(event) => setStressAnswer(event.target.value)} className="mt-2 min-h-[110px]" placeholder="What would change your mind? What prediction follows? What weakens this?" />
+              <div className="mt-3 flex justify-end">
+                <Button size="sm" className="rounded-full" onClick={saveStressAnswer}>Record Answer</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <EvidencePanel title="Evidence For" items={selected.evidenceFor || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceFor: [...(selected.evidenceFor || []), text], dateUpdated: today() })} />

@@ -26,7 +26,9 @@ import type {
   PhilosophicalLinkType,
   Practice,
   Question,
+  ThinkingEvent,
   TimelineEvent,
+  Unknown,
   VaultEntry,
 } from '@/lib/types';
 import { conceptKey, conceptRelated, conceptTerms, taggedItemsForConcept, today, uid as makeId } from '@/lib/readex';
@@ -43,6 +45,8 @@ interface ConceptAtlasProps {
   timeline: TimelineEvent[];
   atlasMaps: AtlasMap[];
   links: PhilosophicalLink[];
+  thinkingEvents: ThinkingEvent[];
+  unknowns: Unknown[];
   onAddConcept: (data: Partial<Concept>) => void;
   onUpdateConcept: (concept: Concept) => void;
   onAddAtlasMap: (data: Partial<AtlasMap>) => void;
@@ -93,7 +97,7 @@ const defaultAutoLinkFilters: AtlasAutoLinkFilters = {
   conceptLinks: true,
 };
 
-const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'relates', 'custom'];
+const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'depends_on', 'explains', 'explained_by', 'derived_from', 'references', 'replaces', 'questions', 'expands', 'weakens', 'strengthens', 'relates', 'custom'];
 
 export function ConceptAtlas({
   concepts,
@@ -106,6 +110,8 @@ export function ConceptAtlas({
   timeline,
   atlasMaps,
   links,
+  thinkingEvents,
+  unknowns,
   onAddConcept,
   onUpdateConcept,
   onAddAtlasMap,
@@ -143,6 +149,16 @@ export function ConceptAtlas({
   const activeMap = atlasMaps.find((map) => map.id === activeMapId) || atlasMaps[0] || null;
   const selectedConcept = concepts.find((item) => conceptKey(item.name) === conceptKey(selectedName || ''));
   const related = selectedName ? conceptRelated(selectedName, { media, insights, vault, drafts, practices, questions, timeline }) : null;
+  const relatedUnknowns = useMemo(() => {
+    if (!selectedName) return [];
+    return unknowns.filter((item) => (item.conceptTags || []).some((tag) => conceptKey(tag) === conceptKey(selectedName)));
+  }, [selectedName, unknowns]);
+  const recentThinkingForNode = useMemo(() => {
+    if (!selectedName) return [];
+    return thinkingEvents
+      .filter((item) => item.summary.toLowerCase().includes(selectedName.toLowerCase()))
+      .slice(0, 3);
+  }, [selectedName, thinkingEvents]);
 
   useEffect(() => {
     if (!activeMapId && atlasMaps[0]) setActiveMapId(atlasMaps[0].id);
@@ -901,10 +917,25 @@ export function ConceptAtlas({
                         <Badge variant="outline" className="bg-muted/30 rounded-full">{related.drafts.length} works</Badge>
                         <Badge variant="outline" className="bg-muted/30 rounded-full">{related.practices.length} practices</Badge>
                         <Badge variant="outline" className="bg-muted/30 rounded-full">{related.questions.length} inquiries</Badge>
+                        <Badge variant="outline" className="bg-muted/30 rounded-full">{relatedUnknowns.length} unknowns</Badge>
                       </div>
                     ) : (
                       <p className="text-xs italic text-muted-foreground font-body">Gathering links...</p>
                     )}
+                  </section>
+
+                  <section>
+                    <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Recent Thinking Events</h4>
+                    <div className="space-y-2">
+                      {recentThinkingForNode.length ? recentThinkingForNode.map((event) => (
+                        <div key={event.eventId} className="rounded-xl border border-border/60 bg-muted/10 p-3">
+                          <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{event.eventType.replace(/_/g, ' ')}</div>
+                          <p className="mt-1 text-sm italic text-foreground/80">{event.summary}</p>
+                        </div>
+                      )) : (
+                        <p className="text-xs italic text-muted-foreground font-body">No event-based history has been attached to this node yet.</p>
+                      )}
+                    </div>
                   </section>
                 </div>
               </>

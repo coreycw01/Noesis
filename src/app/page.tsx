@@ -31,9 +31,9 @@ import { GoalsPage } from '@/components/Goals/GoalsPage';
 import { Toaster } from '@/components/ui/toaster';
 import { Badge } from '@/components/ui/badge';
 import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
-import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, DEFAULT_USER_PREFERENCES, DEFAULT_USER_PROFILE, DEFAULT_WORKSPACE_SETTINGS, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
+import { DEFAULT_ATLAS_NODE_SETTINGS, DEFAULT_ATLAS_VIEW_SETTINGS, DEFAULT_GOAL_SETTINGS, DEFAULT_THINKING_METRICS, DEFAULT_USER_PREFERENCES, DEFAULT_USER_PROFILE, DEFAULT_WORKSPACE_SETTINGS, PROTOTYPE_USER_ID, readexRefs, readexSchemaDoc } from '@/lib/firestore-schema';
 import { buildDemoWorkspace, buildReviewExport, REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS } from '@/lib/demo-workspace';
-import type { AiSuggestion, Annotation, AtlasMap, Concept, Draft, GoalSettings, Insight, Media, MediaType, PhilosophicalLink, Practice, Question, TimelineEvent, VaultEntry, SecurityRuleContext, UserPreferences, UserProfile, WorkspaceSettings } from '@/lib/types';
+import type { AiSuggestion, Annotation, AtlasMap, BeliefProfile, Concept, Draft, GoalSettings, Insight, Media, MediaType, PhilosophicalLink, Practice, Question, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown, VaultEntry, SecurityRuleContext, UserPreferences, UserProfile, WorkspaceSettings } from '@/lib/types';
 import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -64,6 +64,11 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
   const { data: atlasMaps = [] } = useCollection<AtlasMap>(refs.atlasMaps as any);
   const { data: links = [] } = useCollection<PhilosophicalLink>(refs.links as any);
   const { data: suggestions = [] } = useCollection<AiSuggestion>(refs.suggestions as any);
+  const { data: thinkingEvents = [] } = useCollection<ThinkingEvent>(refs.thinkingEvents as any);
+  const { data: beliefProfiles = [] } = useCollection<BeliefProfile>(refs.beliefProfiles as any);
+  const { data: unknowns = [] } = useCollection<Unknown>(refs.unknowns as any);
+  const { data: thinkingPatterns = [] } = useCollection<ThinkingPattern>(refs.thinkingPatterns as any);
+  const { data: thinkingMetricsDoc } = useDoc<ThinkingMetrics>(doc(refs.thinkingMetrics, 'summary') as any);
   const { data: goalDoc } = useDoc<GoalSettings>(refs.settingsGoal as any);
   const { data: preferencesDoc } = useDoc<UserPreferences>(refs.settingsPreferences as any);
   const { data: profileDoc } = useDoc<UserProfile>(refs.settingsProfile as any);
@@ -94,6 +99,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       ...(workspaceDoc?.featureFlags || {}),
     },
   };
+  const featureFlags = workspace.featureFlags || {};
   const isReviewIdentity = (user?.email || profile.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
   const isReviewWorkspace = reviewMode || isReviewIdentity || workspace.workspaceMode === 'review' || workspace.demoWorkspace;
   const canSeedReviewWorkspace = effectiveUid === PROTOTYPE_USER_ID || isReviewIdentity;
@@ -121,6 +127,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
         await setDefaultIfMissing(refs.settingsAtlasNodes, DEFAULT_ATLAS_NODE_SETTINGS);
         await setDefaultIfMissing(refs.settingsPreferences, DEFAULT_USER_PREFERENCES);
         await setDefaultIfMissing(refs.settingsWorkspace, DEFAULT_WORKSPACE_SETTINGS);
+        await setDefaultIfMissing(doc(refs.thinkingMetrics, 'summary') as any, DEFAULT_THINKING_METRICS);
         await setDoc(refs.settingsProfile, {
           ...DEFAULT_USER_PROFILE,
           displayName: user?.displayName || '',
@@ -156,7 +163,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     return () => mediaQuery.removeEventListener('change', applyTheme);
   }, [preferences.themeMode, preferences.accentTheme]);
 
-  const totalObjects = media.length + concepts.length + questions.length + vault.length + drafts.length + practices.length + timeline.length + insights.length + links.length + suggestions.length + atlasMaps.length;
+  const totalObjects = media.length + concepts.length + questions.length + vault.length + drafts.length + practices.length + timeline.length + insights.length + links.length + suggestions.length + atlasMaps.length + thinkingEvents.length + beliefProfiles.length + unknowns.length + thinkingPatterns.length;
 
   const seedReviewWorkspace = async (replaceExisting = false) => {
     setIsSeedingReview(true);
@@ -223,6 +230,12 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     }
   }, [canSeedReviewWorkspace, isReviewWorkspace, isSeedingReview, totalObjects, workspace.demoWorkspace, workspace.seedSource]);
 
+  const metacognitionEnabled = Boolean(featureFlags.metacognitionEnabled);
+
+  useEffect(() => {
+    refreshThinkingMetrics();
+  }, [metacognitionEnabled, featureFlags.thinkingMetricsEnabled, questions.length, vault.length, links.length, media, insights.length, unknowns, thinkingEvents]);
+
   const exportReviewArchitecture = () => {
     const payload = buildReviewExport({
       uid: effectiveUid,
@@ -246,6 +259,11 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
         atlasMaps: atlasMaps.length,
         typedLinks: links.length,
       },
+      metacognition: {
+        thinkingPatterns: thinkingPatterns.map((item) => ({ label: item.label, status: item.status, confidence: item.confidence })),
+        unknowns: unknowns.map((item) => ({ title: item.title, status: item.status, importance: item.importance })),
+        metrics: thinkingMetrics,
+      },
     });
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -262,6 +280,137 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       operation,
       requestResourceData: data,
     }));
+  };
+
+  const createThinkingEvent = (event: Partial<ThinkingEvent>) => {
+    if (!metacognitionEnabled || !event.eventType || !event.targetType || !event.targetId) return;
+    const eventRef = doc(refs.thinkingEvents);
+    const payload: ThinkingEvent = {
+      eventId: eventRef.id,
+      eventType: event.eventType,
+      targetType: event.targetType,
+      targetId: event.targetId,
+      relatedTargetType: event.relatedTargetType,
+      relatedTargetId: event.relatedTargetId,
+      sourceType: event.sourceType || 'system',
+      summary: event.summary || '',
+      metadata: event.metadata || {},
+      createdAt: event.createdAt || today(),
+    };
+    setDoc(eventRef, payload).catch(() => emitError(eventRef.path, 'create', payload));
+  };
+
+  const refreshBeliefProfile = (entry: VaultEntry, patch?: Partial<BeliefProfile>) => {
+    if (!metacognitionEnabled || !featureFlags.beliefBiographiesEnabled) return;
+    const profileRef = doc(refs.beliefProfiles, entry.id);
+    const current = beliefProfiles.find((item) => item.positionId === entry.id);
+    const payload: BeliefProfile = {
+      positionId: entry.id,
+      createdAt: current?.createdAt || entry.dateCreated || today(),
+      createdFrom: entry.createdFrom || current?.createdFrom || 'manual',
+      originSummary: patch?.originSummary || current?.originSummary || entry.statement || entry.description || '',
+      strengthenedBy: patch?.strengthenedBy || current?.strengthenedBy || [],
+      challengedBy: patch?.challengedBy || current?.challengedBy || [],
+      weakenedBy: patch?.weakenedBy || current?.weakenedBy || [],
+      replacedByPositionId: patch?.replacedByPositionId ?? current?.replacedByPositionId,
+      abandonedAt: patch?.abandonedAt ?? current?.abandonedAt,
+      lastChallengedAt: patch?.lastChallengedAt ?? current?.lastChallengedAt ?? entry.lastChallengedAt,
+      lastRevisedAt: patch?.lastRevisedAt ?? current?.lastRevisedAt ?? entry.lastRevisedAt,
+      confidenceScore: patch?.confidenceScore ?? current?.confidenceScore ?? entry.confidenceScore ?? entry.confidence,
+      certaintyLevel: patch?.certaintyLevel ?? current?.certaintyLevel ?? entry.confidence,
+      evidenceQuality: patch?.evidenceQuality ?? current?.evidenceQuality ?? entry.evidenceQuality,
+      testingCount: patch?.testingCount ?? current?.testingCount ?? entry.testingCount ?? 0,
+      reviewStatus: patch?.reviewStatus || current?.reviewStatus || (entry.status === 'abandoned' ? 'abandoned' : 'current'),
+      updatedAt: today(),
+    };
+    setDoc(profileRef, payload, { merge: true }).catch(() => emitError(profileRef.path, 'create', payload));
+  };
+
+  const addUnknown = (data: Partial<Unknown>) => {
+    const unknownRef = doc(refs.unknowns);
+    const payload: Unknown = {
+      unknownId: unknownRef.id,
+      title: data.title || 'Untitled Unknown',
+      description: data.description || '',
+      domain: data.domain || '',
+      sourceIds: data.sourceIds || [],
+      positionIds: data.positionIds || [],
+      inquiryIds: data.inquiryIds || [],
+      conceptTags: normalizeConceptTags(data.conceptTags),
+      questionIds: data.questionIds || [],
+      status: data.status || 'active',
+      importance: data.importance || 'medium',
+      createdFrom: data.createdFrom || 'manual',
+      dateCreated: today(),
+      dateUpdated: today(),
+      resolvedAt: data.resolvedAt,
+      resolutionSummary: data.resolutionSummary || '',
+    };
+    setDoc(unknownRef, payload).catch(() => emitError(unknownRef.path, 'create', payload));
+    createThinkingEvent({ eventType: 'unknown_created', targetType: 'unknown', targetId: payload.unknownId, sourceType: payload.createdFrom === 'manual' ? 'user' : payload.createdFrom, summary: `Unknown created: ${payload.title}` });
+    return payload;
+  };
+
+  const updateUnknown = (item: Unknown) => {
+    const unknownRef = doc(refs.unknowns, item.unknownId);
+    updateDoc(unknownRef, { ...item, dateUpdated: today() } as any).catch(() => emitError(unknownRef.path, 'update', item));
+    if (item.status === 'resolved') {
+      createThinkingEvent({ eventType: 'unknown_resolved', targetType: 'unknown', targetId: item.unknownId, sourceType: 'user', summary: `Unknown resolved: ${item.title}` });
+    }
+  };
+
+  const addThinkingPattern = (data: Partial<ThinkingPattern>) => {
+    const patternRef = doc(refs.thinkingPatterns);
+    const payload: ThinkingPattern = {
+      patternId: patternRef.id,
+      patternType: data.patternType || 'reasoning_style',
+      label: data.label || 'Emerging pattern',
+      description: data.description || '',
+      evidence: data.evidence || [],
+      confidence: data.confidence ?? 0.5,
+      timespan: data.timespan || 'recent work',
+      trendDirection: data.trendDirection || 'unclear',
+      status: data.status || 'pending',
+      createdFrom: data.createdFrom || 'ai',
+      dateCreated: today(),
+      dateUpdated: today(),
+    };
+    setDoc(patternRef, payload).catch(() => emitError(patternRef.path, 'create', payload));
+    createThinkingEvent({ eventType: 'thinking_pattern_inferred', targetType: 'thinking_pattern', targetId: payload.patternId, sourceType: payload.createdFrom, summary: `Thinking pattern inferred: ${payload.label}` });
+  };
+
+  const updateThinkingPattern = (pattern: ThinkingPattern) => {
+    const patternRef = doc(refs.thinkingPatterns, pattern.patternId);
+    updateDoc(patternRef, { ...pattern, dateUpdated: today() } as any).catch(() => emitError(patternRef.path, 'update', pattern));
+    if (pattern.status === 'acknowledged') {
+      createThinkingEvent({ eventType: 'thinking_pattern_acknowledged', targetType: 'thinking_pattern', targetId: pattern.patternId, sourceType: 'user', summary: `Thinking pattern acknowledged: ${pattern.label}` });
+    }
+    if (pattern.status === 'dismissed') {
+      createThinkingEvent({ eventType: 'thinking_pattern_dismissed', targetType: 'thinking_pattern', targetId: pattern.patternId, sourceType: 'user', summary: `Thinking pattern dismissed: ${pattern.label}` });
+    }
+  };
+
+  const refreshThinkingMetrics = (overrides?: Partial<ThinkingMetrics>) => {
+    if (!metacognitionEnabled || !featureFlags.thinkingMetricsEnabled) return;
+    const metricsRef = doc(refs.thinkingMetrics, 'summary');
+    const payload: ThinkingMetrics = {
+      questionsAsked: questions.length,
+      assumptionsChallenged: thinkingEvents.filter((item) => item.eventType === 'assumption_challenged').length,
+      beliefsCreated: vault.length,
+      beliefsRevised: thinkingEvents.filter((item) => item.eventType === 'position_revised').length,
+      beliefsAbandoned: thinkingEvents.filter((item) => item.eventType === 'position_abandoned').length,
+      contradictionsDetected: thinkingEvents.filter((item) => item.eventType === 'contradiction_detected').length,
+      contradictionsResolved: thinkingEvents.filter((item) => item.eventType === 'contradiction_resolved').length,
+      connectionsCreated: links.length,
+      sourcesStudied: media.filter((item) => item.status === 'Finished').length,
+      ideasSynthesized: insights.length,
+      unknownsCreated: unknowns.length,
+      unknownsResolved: unknowns.filter((item) => item.status === 'resolved').length,
+      positionsStressTested: thinkingEvents.filter((item) => item.eventType === 'stress_test_answered').length,
+      lastComputedAt: today(),
+      ...overrides,
+    };
+    setDoc(metricsRef, payload, { merge: true }).catch(() => emitError(metricsRef.path, 'update', payload));
   };
 
   const createTimelineEvent = (event: Partial<TimelineEvent>) => {
@@ -409,14 +558,52 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     };
     setDoc(vaultRef, payload).catch(() => emitError(vaultRef.path, 'create', payload));
     createTimelineEvent({ entityId: vaultRef.id, entityType: 'vault', entityTitle: payload.title, eventType: 'created', reason: 'Position formed', influencedBy: data.sourceIds });
+    refreshBeliefProfile(payload as VaultEntry, { originSummary: payload.statement || payload.description });
+    createThinkingEvent({ eventType: 'position_created', targetType: 'position', targetId: payload.id, sourceType: payload.createdFrom === 'manual' ? 'user' : 'system', summary: `Position created: ${payload.title}`, metadata: { sourceIds: payload.sourceIds } });
     return payload as VaultEntry;
   };
 
   const updateVaultEntry = (entry: VaultEntry) => {
     ensureConcepts(entry.tags || []);
     const vaultRef = doc(refs.vault, entry.id);
+    const previous = vault.find((item) => item.id === entry.id);
     updateDoc(vaultRef, { ...entry, dateUpdated: today() } as any).catch(() => emitError(vaultRef.path, 'update', entry));
     createTimelineEvent({ entityId: entry.id, entityType: 'vault', entityTitle: entry.title, eventType: 'refined', reason: 'Position refined', influencedBy: entry.sourceIds });
+    const profilePatch: Partial<BeliefProfile> = {
+      confidenceScore: entry.confidenceScore ?? entry.confidence,
+      evidenceQuality: entry.evidenceQuality,
+      lastRevisedAt: today(),
+    };
+    if (previous && (previous.evidenceFor || []).length < (entry.evidenceFor || []).length) {
+      profilePatch.strengthenedBy = [...(beliefProfiles.find((item) => item.positionId === entry.id)?.strengthenedBy || []), 'Evidence added'];
+      createThinkingEvent({ eventType: 'evidence_added', targetType: 'position', targetId: entry.id, sourceType: 'user', summary: `Evidence added to ${entry.title}` });
+    }
+    if (previous && (previous.evidenceAgainst || []).length < (entry.evidenceAgainst || []).length) {
+      profilePatch.challengedBy = [...(beliefProfiles.find((item) => item.positionId === entry.id)?.challengedBy || []), 'Challenge recorded'];
+      profilePatch.lastChallengedAt = today();
+      createThinkingEvent({ eventType: 'challenge_added', targetType: 'position', targetId: entry.id, sourceType: 'user', summary: `Challenge added to ${entry.title}` });
+    }
+    if (previous && previous.confidence !== entry.confidence) {
+      createThinkingEvent({ eventType: 'confidence_changed', targetType: 'position', targetId: entry.id, sourceType: 'user', summary: `Confidence changed for ${entry.title}`, metadata: { from: previous.confidence, to: entry.confidence } });
+    }
+    if (previous && (previous.testingCount || 0) < (entry.testingCount || 0)) {
+      createThinkingEvent({
+        eventType: 'stress_test_answered',
+        targetType: 'position',
+        targetId: entry.id,
+        sourceType: 'user',
+        summary: `Stress test answered for ${entry.title}`,
+        metadata: { from: previous.testingCount || 0, to: entry.testingCount || 0 },
+      });
+    }
+    if (entry.status === 'abandoned' && previous?.status !== 'abandoned') {
+      profilePatch.abandonedAt = today();
+      profilePatch.reviewStatus = 'abandoned';
+      createThinkingEvent({ eventType: 'position_abandoned', targetType: 'position', targetId: entry.id, sourceType: 'user', summary: `Position abandoned: ${entry.title}` });
+    } else {
+      createThinkingEvent({ eventType: 'position_revised', targetType: 'position', targetId: entry.id, sourceType: 'user', summary: `Position revised: ${entry.title}` });
+    }
+    refreshBeliefProfile(entry, profilePatch);
   };
 
   const deleteVaultEntry = (id: string) => {
@@ -514,6 +701,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       influencedBy: question.sourceIds || [],
       date: today(),
     });
+    createThinkingEvent({ eventType: 'question_promoted', targetType: 'inquiry', targetId: question.id, relatedTargetType: 'position', relatedTargetId: vaultRef.id, sourceType: 'system', summary: `Inquiry promoted into position: ${position.title}` });
     batch.commit().catch(() => emitError('batch', 'write', position));
   };
 
@@ -537,6 +725,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       dateUpdated: today(),
     };
     setDoc(questionRef, payload).catch(() => emitError(questionRef.path, 'create', payload));
+    createThinkingEvent({ eventType: data.type === 'annotation' ? 'question_promoted' : 'question_created', targetType: 'inquiry', targetId: payload.id, sourceType: 'user', summary: `Inquiry created: ${payload.text}` });
     return payload as Question;
   };
 
@@ -660,6 +849,15 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       dateUpdated: today(),
     };
     setDoc(linkRef, payload).catch(() => emitError(linkRef.path, 'create', payload));
+    createThinkingEvent({
+      eventType: payload.type === 'contradicts' ? 'contradiction_detected' : 'link_created',
+      targetType: payload.fromType,
+      targetId: payload.fromId,
+      relatedTargetType: payload.toType,
+      relatedTargetId: payload.toId,
+      sourceType: payload.createdFrom === 'manual' ? 'user' : payload.createdFrom === 'suggestion' ? 'ai' : 'system',
+      summary: `${payload.type.replace(/_/g, ' ')} link created between ${payload.fromLabel || payload.fromId} and ${payload.toLabel || payload.toId}`,
+    });
   };
 
   const updatePhilosophicalLink = (link: PhilosophicalLink) => {
@@ -690,11 +888,18 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       dateUpdated: today(),
     };
     setDoc(suggestionRef, payload).catch(() => emitError(suggestionRef.path, 'create', payload));
+    createThinkingEvent({ eventType: 'suggestion_created', targetType: 'suggestion', targetId: payload.id, sourceType: 'ai', summary: `Suggestion created: ${payload.title}` });
   };
 
   const updateAiSuggestion = (suggestion: AiSuggestion) => {
     const suggestionRef = doc(refs.suggestions, suggestion.id);
     updateDoc(suggestionRef, { ...suggestion, dateUpdated: today() } as any).catch(() => emitError(suggestionRef.path, 'update', suggestion));
+    if (suggestion.status === 'accepted') {
+      createThinkingEvent({ eventType: 'suggestion_accepted', targetType: 'suggestion', targetId: suggestion.id, sourceType: 'user', summary: `Suggestion accepted: ${suggestion.title}` });
+    }
+    if (suggestion.status === 'dismissed' || suggestion.status === 'ignored') {
+      createThinkingEvent({ eventType: 'suggestion_dismissed', targetType: 'suggestion', targetId: suggestion.id, sourceType: 'user', summary: `Suggestion dismissed: ${suggestion.title}` });
+    }
   };
 
   const addAtlasMap = (data: Partial<AtlasMap>) => {
@@ -750,6 +955,8 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
     return acc;
   }, {} as Record<MediaType, number>);
 
+  const thinkingMetrics = { ...DEFAULT_THINKING_METRICS, ...(thinkingMetricsDoc || {}), lastComputedAt: thinkingMetricsDoc?.lastComputedAt || today() };
+
   const movement: MovementMetrics = {
     rawAnnotations: allAnnotations(media).filter((a) => !a.philosophyStatus || a.philosophyStatus === 'raw').length,
     unsupportedPositions: vault.filter((v) => (v.evidenceFor || []).length === 0 && (v.sourceIds || []).length === 0 && v.status !== 'rejected').length,
@@ -773,6 +980,8 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
             timeline={timeline}
             atlasMaps={atlasMaps}
             links={links}
+            thinkingEvents={thinkingEvents}
+            unknowns={unknowns}
             onAddConcept={addConcept}
             onUpdateConcept={updateConcept}
             onAddAtlasMap={addAtlasMap}
@@ -862,6 +1071,9 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
             timeline={timeline}
             concepts={concepts}
             links={links}
+            beliefProfiles={beliefProfiles}
+            unknowns={unknowns}
+            suggestions={suggestions}
             onAddEntry={addVaultEntry}
             onUpdateEntry={updateVaultEntry}
             onDeleteEntry={deleteVaultEntry}
@@ -869,8 +1081,12 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
             onCreateLink={addPhilosophicalLink}
             onAddDraft={addDraft}
             onAddPractice={addPractice}
+            onAddQuestion={addQuestion}
             onCreateIdea={createIdea}
             onUpdateLink={updatePhilosophicalLink}
+            onAddUnknown={addUnknown}
+            onUpdateSuggestion={updateAiSuggestion}
+            onCreateSuggestion={addAiSuggestion}
             focusedEntryId={focusedPositionId}
             onFocusedEntryHandled={() => setFocusedPositionId(null)}
           />
@@ -880,7 +1096,7 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       case 'writing':
         return <Atelier drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={addConcept} />;
       case 'evolution':
-        return <EvolutionTimeline events={timeline} media={media} />;
+        return <EvolutionTimeline events={timeline} media={media} thinkingEvents={thinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} />;
       case 'practices':
         return <PracticesWorkspace practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} />;
       case 'settings':
@@ -889,8 +1105,26 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
             user={user}
             profile={profile}
             preferences={preferences}
+            unknowns={unknowns}
+            thinkingPatterns={thinkingPatterns}
+            thinkingMetrics={thinkingMetrics}
+            featureFlags={featureFlags}
             onSaveProfile={saveProfile}
             onSavePreferences={savePreferences}
+            onAddUnknown={addUnknown}
+            onUpdateUnknown={updateUnknown}
+            onAddThinkingPattern={addThinkingPattern}
+            onUpdateThinkingPattern={updateThinkingPattern}
+            onCreateSuggestion={addAiSuggestion}
+            onUpdateSuggestion={updateAiSuggestion}
+            aiContext={{
+              positions: vault.map((item) => ({ title: item.title, statement: item.statement, confidence: item.confidence })),
+              inquiries: questions.map((item) => item.text),
+              works: drafts.map((item) => item.title),
+              sources: media.map((item) => ({ title: item.title, type: item.type })),
+              links: links.map((item) => ({ from: item.fromLabel || item.fromId, to: item.toLabel || item.toId, type: item.type })),
+              thinkingEvents: thinkingEvents.map((item) => ({ eventType: item.eventType, summary: item.summary })),
+            }}
           />
         );
       default:

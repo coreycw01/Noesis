@@ -373,6 +373,11 @@ export function buildReviewExport(args: {
   profile: UserProfile;
   workspace: WorkspaceSettings;
   counts: Record<string, number>;
+  metacognition?: {
+    thinkingPatterns: Array<{ label: string; status: string; confidence: number }>;
+    unknowns: Array<{ title: string; status: string; importance: string }>;
+    metrics: Record<string, number | string>;
+  };
 }) {
   return {
     exportedAt: new Date().toISOString(),
@@ -404,6 +409,16 @@ export function buildReviewExport(args: {
         'tested_by',
         'expressed_in',
         'changed_by',
+        'depends_on',
+        'explains',
+        'explained_by',
+        'derived_from',
+        'references',
+        'replaces',
+        'questions',
+        'expands',
+        'weakens',
+        'strengthens',
       ],
       hierarchy: [
         'Sources -> Annotations -> Concepts/Inquiries -> Positions -> Works/Practices -> Evolution',
@@ -426,6 +441,11 @@ export function buildReviewExport(args: {
       'Evolution summary suggestions',
     ],
     currentStatistics: args.counts,
+    metacognition: args.metacognition || {
+      thinkingPatterns: [],
+      unknowns: [],
+      metrics: {},
+    },
     featureFlags: args.workspace.featureFlags,
     profile: {
       displayName: args.profile.displayName,

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { sendPasswordResetEmail, signOut, updateProfile } from 'firebase/auth';
-import { Info, LogOut, Save } from 'lucide-react';
+import { Brain, Info, Lightbulb, LogOut, Save } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,8 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { DRAFT_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, WRITING_STYLES } from '@/lib/readex';
-import type { AccentTheme, DraftStatus, DraftType, ThemeMode, UserPreferences, UserProfile, WritingStyle } from '@/lib/types';
+import { aiClient, type InferThinkingPatternsPayload } from '@/lib/ai-client';
+import type { AccentTheme, AiSuggestion, DraftStatus, DraftType, ThemeMode, ThinkingMetrics, ThinkingPattern, Unknown, UserPreferences, UserProfile, WritingStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { noesisGuide } from '@/lib/noesis-guide';
 
@@ -23,8 +24,19 @@ interface SettingsPageProps {
   user: User | null;
   profile: UserProfile;
   preferences: UserPreferences;
+  unknowns: Unknown[];
+  thinkingPatterns: ThinkingPattern[];
+  thinkingMetrics: ThinkingMetrics;
+  featureFlags: Record<string, boolean>;
   onSaveProfile: (profile: UserProfile) => Promise<void>;
   onSavePreferences: (preferences: UserPreferences) => Promise<void>;
+  onAddUnknown: (unknown: Partial<Unknown>) => Unknown;
+  onUpdateUnknown: (unknown: Unknown) => void;
+  onAddThinkingPattern: (pattern: Partial<ThinkingPattern>) => void;
+  onUpdateThinkingPattern: (pattern: ThinkingPattern) => void;
+  onCreateSuggestion: (suggestion: Partial<AiSuggestion>) => void;
+  onUpdateSuggestion: (suggestion: AiSuggestion) => void;
+  aiContext: InferThinkingPatternsPayload;
 }
 
 const themeModes: ThemeMode[] = ['light', 'dark', 'system'];
@@ -45,13 +57,25 @@ export function SettingsPage({
   user,
   profile,
   preferences,
+  unknowns,
+  thinkingPatterns,
+  thinkingMetrics,
+  featureFlags,
   onSaveProfile,
   onSavePreferences,
+  onAddUnknown,
+  onUpdateUnknown,
+  onAddThinkingPattern,
+  onUpdateThinkingPattern,
+  onCreateSuggestion,
+  onUpdateSuggestion,
+  aiContext,
 }: SettingsPageProps) {
   const auth = useAuth();
   const { toast } = useToast();
   const [profileDraft, setProfileDraft] = useState<UserProfile>(profile);
   const [preferencesDraft, setPreferencesDraft] = useState<UserPreferences>(preferences);
+  const [unknownDraft, setUnknownDraft] = useState({ title: '', description: '', domain: '' });
   const [saving, setSaving] = useState<string | null>(null);
 
   useEffect(() => setProfileDraft(profile), [profile]);
@@ -113,6 +137,38 @@ export function SettingsPage({
       ...prev,
       writingDefaults: { ...prev.writingDefaults, ...patch },
     }));
+  };
+
+  const inferPatterns = async () => {
+    setSaving('patterns');
+    try {
+      const result = await aiClient.inferThinkingPatterns(aiContext);
+      result.patterns.forEach((pattern) => onAddThinkingPattern(pattern));
+      toast({ title: 'Thinking profile refreshed', description: 'Recent evidence suggests a few emerging tendencies worth reviewing.' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Pattern inference failed', description: error instanceof Error ? error.message : 'Noesis could not infer thinking patterns right now.' });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const addUnknown = () => {
+    if (!unknownDraft.title.trim()) return;
+    onAddUnknown({
+      title: unknownDraft.title.trim(),
+      description: unknownDraft.description.trim(),
+      domain: unknownDraft.domain.trim(),
+      createdFrom: 'manual',
+      importance: 'medium',
+      status: 'active',
+      conceptTags: [],
+      sourceIds: [],
+      positionIds: [],
+      inquiryIds: [],
+      questionIds: [],
+    });
+    setUnknownDraft({ title: '', description: '', domain: '' });
+    toast({ title: 'Unknown captured', description: 'Noesis is now tracking an area of admitted uncertainty.' });
   };
 
   return (
@@ -259,6 +315,80 @@ export function SettingsPage({
               </Button>
             </div>
           </SettingsCard>
+
+          {featureFlags.metacognitionEnabled && (
+            <SettingsCard title="Thinking Profile" description="Provisional observations about how your recent work has been developing.">
+              <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 p-4">
+                <div>
+                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Provisional only</div>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">Recent evidence suggests patterns. Nothing here is fixed identity or final truth.</p>
+                </div>
+                <Button onClick={inferPatterns} disabled={saving === 'patterns' || !featureFlags.thinkingPatternsEnabled} className="rounded-full px-5">
+                  <Brain className="mr-2 size-4" /> {saving === 'patterns' ? 'Reviewing' : 'Refresh Patterns'}
+                </Button>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <GlossaryCard title="Questions Asked" description={String(thinkingMetrics.questionsAsked)} />
+                <GlossaryCard title="Beliefs Revised" description={String(thinkingMetrics.beliefsRevised)} />
+                <GlossaryCard title="Contradictions Resolved" description={String(thinkingMetrics.contradictionsResolved)} />
+                <GlossaryCard title="Unknowns Open" description={String(unknowns.filter((item) => item.status !== 'resolved' && item.status !== 'archived').length)} />
+              </div>
+              <div className="mt-6 grid gap-4">
+                {thinkingPatterns.length ? thinkingPatterns.map((pattern) => (
+                  <Card key={pattern.patternId} className="rounded-xl border-border bg-background/60 p-4 shadow-none">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="font-headline text-lg font-bold italic">{pattern.label}</h4>
+                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(pattern.confidence * 100)}% confidence</Badge>
+                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{pattern.timespan}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{pattern.description}</p>
+                    <p className="mt-2 font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Recent evidence suggests this may be emerging.</p>
+                    <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                      {pattern.evidence.map((item) => <li key={item}>- {item}</li>)}
+                    </ul>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" className="rounded-full" onClick={() => onUpdateThinkingPattern({ ...pattern, status: 'acknowledged' })}>Acknowledge</Button>
+                      <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateThinkingPattern({ ...pattern, status: 'dismissed' })}>Dismiss</Button>
+                    </div>
+                  </Card>
+                )) : (
+                  <div className="rounded-xl border border-dashed border-border bg-background/40 p-5 text-sm italic text-muted-foreground">
+                    No thinking patterns inferred yet. Run a profile review once you have enough positions, inquiries, and links.
+                  </div>
+                )}
+              </div>
+            </SettingsCard>
+          )}
+
+          {featureFlags.unknownsEnabled && (
+            <SettingsCard title="Unknowns" description="Track what you know you do not yet understand.">
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_180px]">
+                <Input value={unknownDraft.title} onChange={(event) => setUnknownDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Unknown title" />
+                <Input value={unknownDraft.domain} onChange={(event) => setUnknownDraft((prev) => ({ ...prev, domain: event.target.value }))} placeholder="Domain" />
+                <Button onClick={addUnknown} className="rounded-full"><Lightbulb className="mr-2 size-4" /> Add Unknown</Button>
+              </div>
+              <Textarea value={unknownDraft.description} onChange={(event) => setUnknownDraft((prev) => ({ ...prev, description: event.target.value }))} className="mt-3 min-h-[90px]" placeholder="What do you not yet understand, and why does it matter?" />
+              <div className="mt-5 grid gap-3">
+                {unknowns.length ? unknowns.map((item) => (
+                  <Card key={item.unknownId} className="rounded-xl border-border bg-background/60 p-4 shadow-none">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="font-headline text-lg font-bold italic">{item.title}</h4>
+                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item.status}</Badge>
+                      {item.domain && <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item.domain}</Badge>}
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description || 'No description yet.'}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {item.status !== 'resolved' && <Button variant="outline" size="sm" className="rounded-full" onClick={() => onUpdateUnknown({ ...item, status: 'resolved', resolvedAt: new Date().toISOString() })}>Mark Resolved</Button>}
+                    </div>
+                  </Card>
+                )) : (
+                  <div className="rounded-xl border border-dashed border-border bg-background/40 p-5 text-sm italic text-muted-foreground">
+                    No unknowns recorded yet. A serious thinking system should be able to name its ignorance.
+                  </div>
+                )}
+              </div>
+            </SettingsCard>
+          )}
 
         </div>
 

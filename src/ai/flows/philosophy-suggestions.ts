@@ -3,7 +3,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-const LinkTypeSchema = z.enum(['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by']);
+const LinkTypeSchema = z.enum(['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'depends_on', 'explains', 'explained_by', 'derived_from', 'references', 'replaces', 'questions', 'expands', 'weakens', 'strengthens']);
 
 const SuggestAnnotationConsequencesInputSchema = z.object({
   annotationText: z.string(),
@@ -494,5 +494,266 @@ const suggestDailyPhilosophyPromptFlow = ai.defineFlow({
   outputSchema: SuggestDailyPhilosophyPromptOutputSchema,
 }, async (input) => {
   const {output} = await suggestDailyPhilosophyPromptPrompt(input);
+  return output!;
+});
+
+const DetectMissingPerspectivesInputSchema = z.object({
+  targetType: z.string(),
+  targetTitle: z.string(),
+  content: z.string(),
+  sourceTitles: z.array(z.string()).optional(),
+  conceptTags: z.array(z.string()).optional(),
+  existingPerspectiveCoverage: z.array(z.string()).optional(),
+});
+
+const DetectMissingPerspectivesOutputSchema = z.object({
+  suggestions: z.array(z.object({
+    perspective: z.string(),
+    whyItMatters: z.string(),
+    evidence: z.array(z.string()).max(4),
+    question: z.string(),
+    confidence: z.number().min(0).max(1),
+  })).max(4),
+});
+
+export async function detectMissingPerspectives(input: z.infer<typeof DetectMissingPerspectivesInputSchema>) {
+  return detectMissingPerspectivesFlow(input);
+}
+
+const detectMissingPerspectivesPrompt = ai.definePrompt({
+  name: 'detectMissingPerspectivesPrompt',
+  input: { schema: DetectMissingPerspectivesInputSchema },
+  output: { schema: DetectMissingPerspectivesOutputSchema },
+  prompt: `You are a philosophical review assistant for Noesis. Suggest missing perspectives only when the user’s actual material makes the omission plausible.
+
+Target type: {{targetType}}
+Target title: {{{targetTitle}}}
+Content: {{{content}}}
+Sources: {{sourceTitles}}
+Concepts: {{conceptTags}}
+Already covered: {{existingPerspectiveCoverage}}
+
+Rules:
+- Do not spray generic ideology lists
+- Ground each suggestion in the target content
+- Explain why the perspective matters here
+- Include short evidence points taken from the target content or source framing
+- Return at most 4 suggestions`,
+});
+
+const detectMissingPerspectivesFlow = ai.defineFlow({
+  name: 'detectMissingPerspectivesFlow',
+  inputSchema: DetectMissingPerspectivesInputSchema,
+  outputSchema: DetectMissingPerspectivesOutputSchema,
+}, async (input) => {
+  const { output } = await detectMissingPerspectivesPrompt(input);
+  return output!;
+});
+
+const DetectMissingQuestionsInputSchema = z.object({
+  concepts: z.array(z.string()),
+  positions: z.array(z.string()),
+  unknowns: z.array(z.string()),
+  inquiries: z.array(z.string()),
+  contradictions: z.array(z.string()),
+});
+
+const DetectMissingQuestionsOutputSchema = z.object({
+  suggestions: z.array(z.object({
+    question: z.string(),
+    reasoning: z.string(),
+    evidence: z.array(z.string()).max(4),
+    confidence: z.number().min(0).max(1),
+  })).max(5),
+});
+
+export async function detectMissingQuestions(input: z.infer<typeof DetectMissingQuestionsInputSchema>) {
+  return detectMissingQuestionsFlow(input);
+}
+
+const detectMissingQuestionsPrompt = ai.definePrompt({
+  name: 'detectMissingQuestionsPrompt',
+  input: { schema: DetectMissingQuestionsInputSchema },
+  output: { schema: DetectMissingQuestionsOutputSchema },
+  prompt: `You are identifying important questions the user may not yet have explored in Noesis.
+
+Concepts: {{concepts}}
+Positions: {{positions}}
+Unknowns: {{unknowns}}
+Open inquiries: {{inquiries}}
+Contradictions/tensions: {{contradictions}}
+
+Return only high-value missing questions. Each suggestion must include reasoning and evidence from the existing map. Avoid generic philosophy trivia.`,
+});
+
+const detectMissingQuestionsFlow = ai.defineFlow({
+  name: 'detectMissingQuestionsFlow',
+  inputSchema: DetectMissingQuestionsInputSchema,
+  outputSchema: DetectMissingQuestionsOutputSchema,
+}, async (input) => {
+  const { output } = await detectMissingQuestionsPrompt(input);
+  return output!;
+});
+
+const GenerateStressTestInputSchema = z.object({
+  targetType: z.string(),
+  title: z.string(),
+  content: z.string(),
+});
+
+const GenerateStressTestOutputSchema = z.object({
+  prompts: z.array(z.object({
+    kind: z.enum(['change_mind', 'hidden_assumption', 'falsification', 'prediction', 'opposite_case', 'weakening_evidence']),
+    question: z.string(),
+  })).length(6),
+});
+
+export async function generateStressTest(input: z.infer<typeof GenerateStressTestInputSchema>) {
+  return generateStressTestFlow(input);
+}
+
+const generateStressTestPrompt = ai.definePrompt({
+  name: 'generateStressTestPrompt',
+  input: { schema: GenerateStressTestInputSchema },
+  output: { schema: GenerateStressTestOutputSchema },
+  prompt: `Generate a philosophical stress test for this Noesis object.
+
+Type: {{targetType}}
+Title: {{{title}}}
+Content: {{{content}}}
+
+Write exactly six prompts, one for each kind:
+- change_mind
+- hidden_assumption
+- falsification
+- prediction
+- opposite_case
+- weakening_evidence
+
+Make them specific to the content, not generic.`,
+});
+
+const generateStressTestFlow = ai.defineFlow({
+  name: 'generateStressTestFlow',
+  inputSchema: GenerateStressTestInputSchema,
+  outputSchema: GenerateStressTestOutputSchema,
+}, async (input) => {
+  const { output } = await generateStressTestPrompt(input);
+  return output!;
+});
+
+const InferThinkingPatternsInputSchema = z.object({
+  positions: z.array(z.object({
+    title: z.string(),
+    statement: z.string(),
+    confidence: z.number().optional(),
+  })),
+  inquiries: z.array(z.string()),
+  works: z.array(z.string()),
+  sources: z.array(z.object({
+    title: z.string(),
+    type: z.string(),
+  })),
+  links: z.array(z.object({
+    from: z.string(),
+    to: z.string(),
+    type: z.string(),
+  })),
+  thinkingEvents: z.array(z.object({
+    eventType: z.string(),
+    summary: z.string(),
+  })),
+});
+
+const InferThinkingPatternsOutputSchema = z.object({
+  patterns: z.array(z.object({
+    patternType: z.enum(['evidence_style', 'reasoning_style', 'questioning_style', 'source_bias', 'conceptual_gap', 'revision_pattern', 'contradiction_pattern', 'certainty_pattern']),
+    label: z.string(),
+    description: z.string(),
+    evidence: z.array(z.string()).max(5),
+    confidence: z.number().min(0).max(1),
+    timespan: z.string(),
+    trendDirection: z.enum(['increasing', 'decreasing', 'stable', 'unclear']),
+  })).max(6),
+});
+
+export async function inferThinkingPatterns(input: z.infer<typeof InferThinkingPatternsInputSchema>) {
+  return inferThinkingPatternsFlow(input);
+}
+
+const inferThinkingPatternsPrompt = ai.definePrompt({
+  name: 'inferThinkingPatternsPrompt',
+  input: { schema: InferThinkingPatternsInputSchema },
+  output: { schema: InferThinkingPatternsOutputSchema },
+  prompt: `Infer provisional thinking patterns from this Noesis workspace.
+
+Positions:
+{{#each positions}}
+- {{{title}}}: {{{statement}}} (confidence: {{confidence}})
+{{/each}}
+
+Inquiries: {{inquiries}}
+Works: {{works}}
+Sources: {{sources}}
+Links: {{links}}
+Thinking events: {{thinkingEvents}}
+
+Rules:
+- Do not produce fixed identity labels
+- Every pattern must cite concrete evidence from the provided material
+- Prefer observations about evidence use, revision style, certainty, contradictions, and questioning behavior
+- Keep the language provisional`,
+});
+
+const inferThinkingPatternsFlow = ai.defineFlow({
+  name: 'inferThinkingPatternsFlow',
+  inputSchema: InferThinkingPatternsInputSchema,
+  outputSchema: InferThinkingPatternsOutputSchema,
+}, async (input) => {
+  const { output } = await inferThinkingPatternsPrompt(input);
+  return output!;
+});
+
+const DetectBlindSpotPatternsInputSchema = InferThinkingPatternsInputSchema;
+const DetectBlindSpotPatternsOutputSchema = z.object({
+  observations: z.array(z.object({
+    label: z.string(),
+    description: z.string(),
+    evidence: z.array(z.string()).max(5),
+    confidence: z.number().min(0).max(1),
+    timespan: z.string(),
+  })).max(4),
+});
+
+export async function detectBlindSpotPatterns(input: z.infer<typeof DetectBlindSpotPatternsInputSchema>) {
+  return detectBlindSpotPatternsFlow(input);
+}
+
+const detectBlindSpotPatternsPrompt = ai.definePrompt({
+  name: 'detectBlindSpotPatternsPrompt',
+  input: { schema: DetectBlindSpotPatternsInputSchema },
+  output: { schema: DetectBlindSpotPatternsOutputSchema },
+  prompt: `Review this Noesis workspace for recurring blind spots or neglected dimensions.
+
+Positions: {{positions}}
+Inquiries: {{inquiries}}
+Works: {{works}}
+Sources: {{sources}}
+Links: {{links}}
+Thinking events: {{thinkingEvents}}
+
+Rules:
+- Be careful and provisional
+- No accusation without evidence
+- Prefer observations about neglected evidence types, domains, or repeated explanation habits
+- Return at most 4 observations`,
+});
+
+const detectBlindSpotPatternsFlow = ai.defineFlow({
+  name: 'detectBlindSpotPatternsFlow',
+  inputSchema: DetectBlindSpotPatternsInputSchema,
+  outputSchema: DetectBlindSpotPatternsOutputSchema,
+}, async (input) => {
+  const { output } = await detectBlindSpotPatternsPrompt(input);
   return output!;
 });

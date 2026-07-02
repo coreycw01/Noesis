@@ -1,5 +1,5 @@
 import { collection, doc, type Firestore } from 'firebase/firestore';
-import type { AtlasViewSettings, GoalSettings, MediaType, UserPreferences, UserProfile, WorkspaceSettings } from './types';
+import type { AtlasViewSettings, GoalSettings, MediaType, ThinkingMetrics, UserPreferences, UserProfile, WorkspaceSettings } from './types';
 
 export const PROTOTYPE_USER_ID = 'anonymous-scholar';
 
@@ -15,6 +15,11 @@ export const READEX_COLLECTIONS = {
   suggestions: 'suggestions',
   timeline: 'timeline',
   insights: 'insights',
+  thinkingEvents: 'thinkingEvents',
+  beliefProfiles: 'beliefProfiles',
+  unknowns: 'unknowns',
+  thinkingPatterns: 'thinkingPatterns',
+  thinkingMetrics: 'thinkingMetrics',
   settings: 'settings',
 } as const;
 
@@ -86,7 +91,31 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
     atlasCustomMaps: true,
     sourceIntakeProviders: true,
     worksMultimodal: true,
+    metacognitionEnabled: false,
+    beliefBiographiesEnabled: false,
+    unknownsEnabled: false,
+    thinkingPatternsEnabled: false,
+    missingPerspectivesEnabled: false,
+    thinkingMetricsEnabled: false,
+    atlasTypedRelationsEnabled: false,
   },
+};
+
+export const DEFAULT_THINKING_METRICS: ThinkingMetrics = {
+  questionsAsked: 0,
+  assumptionsChallenged: 0,
+  beliefsCreated: 0,
+  beliefsRevised: 0,
+  beliefsAbandoned: 0,
+  contradictionsDetected: 0,
+  contradictionsResolved: 0,
+  connectionsCreated: 0,
+  sourcesStudied: 0,
+  ideasSynthesized: 0,
+  unknownsCreated: 0,
+  unknownsResolved: 0,
+  positionsStressTested: 0,
+  lastComputedAt: '',
 };
 
 export function userPath(uid: string) {
@@ -111,6 +140,11 @@ export function readexRefs(db: Firestore, uid: string) {
     suggestions: userCollection('suggestions'),
     timeline: userCollection('timeline'),
     insights: userCollection('insights'),
+    thinkingEvents: userCollection('thinkingEvents'),
+    beliefProfiles: userCollection('beliefProfiles'),
+    unknowns: userCollection('unknowns'),
+    thinkingPatterns: userCollection('thinkingPatterns'),
+    thinkingMetrics: userCollection('thinkingMetrics'),
     settingsGoal: settingsDoc('goal'),
     settingsAtlasView: settingsDoc('atlasView'),
     settingsAtlasNodes: settingsDoc('atlasNodes'),
@@ -138,6 +172,11 @@ export function readexSchemaDoc(uid: string) {
       suggestions: `${userPath(uid)}/suggestions`,
       timeline: `${userPath(uid)}/timeline`,
       insights: `${userPath(uid)}/insights`,
+      thinkingEvents: `${userPath(uid)}/thinkingEvents`,
+      beliefProfiles: `${userPath(uid)}/beliefProfiles`,
+      unknowns: `${userPath(uid)}/unknowns`,
+      thinkingPatterns: `${userPath(uid)}/thinkingPatterns`,
+      thinkingMetrics: `${userPath(uid)}/thinkingMetrics`,
       settings: `${userPath(uid)}/settings`,
     },
     settingsDocs: {

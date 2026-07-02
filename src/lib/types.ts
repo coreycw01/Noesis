@@ -23,11 +23,17 @@ export type AnnotationPhilosophyStatus = 'raw' | 'connected' | 'questioned' | 'u
 export type ConceptPhilosophyStatus = 'undefined' | 'emerging' | 'developed' | 'contested' | 'core';
 export type PositionPhilosophyStatus = 'draft' | 'active' | 'uncertain' | 'challenged' | 'revised' | 'rejected';
 export type PhilosophicalObjectType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'evolution';
-export type PhilosophicalLinkType = 'supports' | 'challenges' | 'coheres' | 'defines' | 'refines' | 'contradicts' | 'exemplifies' | 'inspired_by' | 'tested_by' | 'expressed_in' | 'changed_by';
+export type PhilosophicalLinkType = 'supports' | 'challenges' | 'coheres' | 'defines' | 'refines' | 'contradicts' | 'exemplifies' | 'inspired_by' | 'tested_by' | 'expressed_in' | 'changed_by' | 'depends_on' | 'explains' | 'explained_by' | 'derived_from' | 'references' | 'replaces' | 'questions' | 'expands' | 'weakens' | 'strengthens';
 export type AtlasMapLinkType = PhilosophicalLinkType | 'examples' | 'causes' | 'questions' | 'practices' | 'relates' | 'custom';
 export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'url_metadata' | 'manual';
-export type AiSuggestionType = 'annotation_consequence' | 'position_draft' | 'typed_link' | 'possible_tension' | 'evolution_summary' | 'daily_prompt';
-export type AiSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'ignored';
+export type AiSuggestionType = 'annotation_consequence' | 'position_draft' | 'typed_link' | 'possible_tension' | 'evolution_summary' | 'daily_prompt' | 'missing_perspective' | 'blind_spot' | 'missing_question' | 'stress_test' | 'thinking_pattern' | 'unknown_candidate' | 'contradiction_cluster';
+export type AiSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'ignored' | 'dismissed' | 'outdated';
+export type ThinkingEventType = 'position_created' | 'position_revised' | 'position_replaced' | 'position_abandoned' | 'confidence_changed' | 'evidence_added' | 'challenge_added' | 'assumption_added' | 'assumption_challenged' | 'unknown_created' | 'unknown_resolved' | 'question_created' | 'question_promoted' | 'link_created' | 'contradiction_detected' | 'contradiction_resolved' | 'suggestion_created' | 'suggestion_accepted' | 'suggestion_dismissed' | 'thinking_pattern_inferred' | 'thinking_pattern_acknowledged' | 'thinking_pattern_dismissed' | 'stress_test_generated' | 'stress_test_answered';
+export type ThinkingPatternType = 'evidence_style' | 'reasoning_style' | 'questioning_style' | 'source_bias' | 'conceptual_gap' | 'revision_pattern' | 'contradiction_pattern' | 'certainty_pattern';
+export type ThinkingPatternStatus = 'pending' | 'acknowledged' | 'dismissed' | 'outdated';
+export type UnknownStatus = 'active' | 'exploring' | 'resolved' | 'archived';
+export type UnknownImportance = 'low' | 'medium' | 'high';
+export type BeliefProfileReviewStatus = 'current' | 'needs_review' | 'outdated' | 'abandoned';
 
 export interface SecurityRuleContext {
   operation: 'create' | 'update' | 'delete' | 'list' | 'get' | 'write';
@@ -141,6 +147,12 @@ export interface VaultEntry {
   sourceAnnotationId?: string;
   sourceWorkId?: string;
   sourceDocumentId?: string;
+  confidenceScore?: number;
+  evidenceQuality?: 'low' | 'moderate' | 'high';
+  lastChallengedAt?: string;
+  testingCount?: number;
+  lastRevisedAt?: string;
+  beliefProfileId?: string;
   dateCreated: string;
   dateUpdated: string;
 }
@@ -285,11 +297,99 @@ export interface AiSuggestion {
   suggestionType: AiSuggestionType;
   title: string;
   body: string;
+  description?: string;
+  reasoning?: string;
+  evidence?: string[];
+  confidence?: number;
   payload?: Record<string, any>;
   status: AiSuggestionStatus;
   createdFrom: 'ai';
   dateCreated: string;
   dateUpdated: string;
+}
+
+export interface ThinkingEvent {
+  eventId: string;
+  eventType: ThinkingEventType;
+  targetType: PhilosophicalObjectType | 'unknown' | 'suggestion' | 'thinking_pattern';
+  targetId: string;
+  relatedTargetType?: PhilosophicalObjectType | 'unknown' | 'suggestion' | 'thinking_pattern';
+  relatedTargetId?: string;
+  sourceType: 'user' | 'ai' | 'system';
+  summary: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+}
+
+export interface BeliefProfile {
+  positionId: string;
+  createdAt: string;
+  createdFrom?: string;
+  originSummary: string;
+  strengthenedBy: string[];
+  challengedBy: string[];
+  weakenedBy: string[];
+  replacedByPositionId?: string;
+  abandonedAt?: string;
+  lastChallengedAt?: string;
+  lastRevisedAt?: string;
+  confidenceScore?: number;
+  certaintyLevel?: number;
+  evidenceQuality?: 'low' | 'moderate' | 'high';
+  testingCount?: number;
+  reviewStatus: BeliefProfileReviewStatus;
+  updatedAt: string;
+}
+
+export interface Unknown {
+  unknownId: string;
+  title: string;
+  description: string;
+  domain: string;
+  sourceIds: string[];
+  positionIds: string[];
+  inquiryIds: string[];
+  conceptTags: string[];
+  questionIds: string[];
+  status: UnknownStatus;
+  importance: UnknownImportance;
+  createdFrom: 'manual' | 'ai' | 'system';
+  dateCreated: string;
+  dateUpdated: string;
+  resolvedAt?: string;
+  resolutionSummary?: string;
+}
+
+export interface ThinkingPattern {
+  patternId: string;
+  patternType: ThinkingPatternType;
+  label: string;
+  description: string;
+  evidence: string[];
+  confidence: number;
+  timespan: string;
+  trendDirection: 'increasing' | 'decreasing' | 'stable' | 'unclear';
+  status: ThinkingPatternStatus;
+  createdFrom: 'ai' | 'system';
+  dateCreated: string;
+  dateUpdated: string;
+}
+
+export interface ThinkingMetrics {
+  questionsAsked: number;
+  assumptionsChallenged: number;
+  beliefsCreated: number;
+  beliefsRevised: number;
+  beliefsAbandoned: number;
+  contradictionsDetected: number;
+  contradictionsResolved: number;
+  connectionsCreated: number;
+  sourcesStudied: number;
+  ideasSynthesized: number;
+  unknownsCreated: number;
+  unknownsResolved: number;
+  positionsStressTested: number;
+  lastComputedAt: string;
 }
 
 export interface GoalSettings {
