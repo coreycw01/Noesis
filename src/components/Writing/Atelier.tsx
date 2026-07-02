@@ -88,6 +88,32 @@ const providerLabels: Record<ExternalDocProvider, string> = {
   other: 'Other',
 };
 
+const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
+  'title',
+  'label',
+  'body',
+  'draftContent',
+  'finalContent',
+  'activeMode',
+  'workCategory',
+  'paperType',
+  'activeRibbon',
+  'recordingType',
+  'durationSeconds',
+  'fileUrl',
+  'storagePath',
+  'thumbnailUrl',
+  'canvasData',
+  'writingOverlayData',
+  'writingStyle',
+  'externalDoc',
+  'conceptTags',
+  'sourceIds',
+  'questionIds',
+  'beliefIds',
+  'status',
+];
+
 function detectProvider(url: string): ExternalDocProvider {
   if (url.includes('docs.google.com/document')) return 'google_docs';
   if (url.includes('notion.so')) return 'notion';
@@ -124,6 +150,16 @@ function canvasStyleForWriting(style: WritingStyle): { color: PaperColor; patter
   }
 }
 
+function draftSaveSignature(draft: Draft | null | undefined) {
+  if (!draft) return '';
+  return JSON.stringify(
+    DRAFT_SAVE_FIELDS.reduce<Record<string, unknown>>((acc, key) => {
+      acc[key] = draft[key];
+      return acc;
+    }, {})
+  );
+}
+
 export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept }: AtelierProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | DraftType | DraftStatus>('all');
@@ -150,6 +186,8 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
   const activeFromStore = drafts.find((draft) => draft.id === activeId) || null;
   const active = draftBuffer || activeFromStore;
   const activeCategory = active ? active.workCategory || workCategoryForDraft(active.type) : null;
+  const activeStoreSignature = useMemo(() => draftSaveSignature(activeFromStore), [activeFromStore]);
+  const draftBufferSignature = useMemo(() => draftSaveSignature(draftBuffer), [draftBuffer]);
 
   const visibleDrafts = drafts
     .filter((draft) => {
@@ -162,14 +200,14 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
     .sort((a, b) => new Date(b.dateUpdated).getTime() - new Date(a.dateUpdated).getTime());
 
   const updateActive = useCallback((patch: Partial<Draft>) => {
-    setDraftBuffer((current) => {
-      const base = current || activeFromStore;
-      if (!base) return current;
-      return { ...base, ...patch, dateUpdated: today() };
-    });
+    const base = draftBuffer || activeFromStore;
+    if (!base) return;
+    const next = { ...base, ...patch, dateUpdated: today() };
+    if (draftSaveSignature(next) === draftSaveSignature(base)) return;
+    setDraftBuffer(next);
     setDirty(true);
     setSaveStatus('unsaved');
-  }, [activeFromStore]);
+  }, [activeFromStore, draftBuffer]);
 
   const saveActive = useCallback((patch?: Partial<Draft>) => {
     if (!active) return null;
@@ -339,10 +377,17 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
       setSaveStatus('saved');
       return;
     }
-    setDraftBuffer(activeFromStore);
-    setDirty(false);
-    setSaveStatus('saved');
-  }, [activeFromStore?.id]);
+    if (!draftBuffer || draftBuffer.id !== activeFromStore.id) {
+      setDraftBuffer(activeFromStore);
+      setDirty(false);
+      setSaveStatus('saved');
+      return;
+    }
+    if (!dirty && activeStoreSignature !== draftBufferSignature) {
+      setDraftBuffer(activeFromStore);
+      setSaveStatus('saved');
+    }
+  }, [activeFromStore, activeStoreSignature, draftBuffer, draftBufferSignature, dirty]);
 
   useEffect(() => {
     const style = active?.writingStyle || writingDefaults.writingStyle;
@@ -352,15 +397,20 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
   }, [active?.id, active?.writingStyle, writingDefaults.writingStyle]);
 
   useEffect(() => {
-    if (!dirty || !active) return;
+    if (!dirty || !draftBuffer) return;
+    if (draftBufferSignature === activeStoreSignature) {
+      setDirty(false);
+      setSaveStatus('saved');
+      return;
+    }
     const timeout = window.setTimeout(() => {
       setSaveStatus('saving');
-      onUpdateDraft({ ...active, dateUpdated: today() });
+      onUpdateDraft({ ...draftBuffer, dateUpdated: today() });
       setDirty(false);
       window.setTimeout(() => setSaveStatus('saved'), 600);
     }, 1400);
     return () => window.clearTimeout(timeout);
-  }, [active, dirty, onUpdateDraft]);
+  }, [activeStoreSignature, draftBuffer, draftBufferSignature, dirty, onUpdateDraft]);
 
   useEffect(() => {
     if (!active?.externalDoc?.autoSync || active.externalDoc.syncStatus === 'syncing') return;
