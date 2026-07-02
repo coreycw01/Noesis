@@ -426,10 +426,37 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
             ...links.map((item) => doc(refs.links, item.id)),
             ...suggestions.map((item) => doc(refs.suggestions, item.id)),
             ...atlasMaps.map((item) => doc(refs.atlasMaps, item.id)),
+            ...thinkingEvents.map((item) => doc(refs.thinkingEvents, item.id)),
+            ...beliefProfiles.map((item) => doc(refs.beliefProfiles, item.positionId)),
+            ...unknowns.map((item) => doc(refs.unknowns, item.unknownId)),
+            ...thinkingPatterns.map((item) => doc(refs.thinkingPatterns, item.patternId)),
           ]
         : [];
 
       collectionsToClear.forEach((ref) => batch.delete(ref));
+      if (replaceExisting) {
+        batch.delete(doc(refs.thinkingMetrics, 'summary'));
+        batch.delete(refs.profileMain);
+        batch.delete(refs.profilePrivacy);
+        batch.delete(refs.profileMetacognitionSummary);
+        batch.delete(refs.settingsGoal);
+        batch.delete(refs.settingsPreferences);
+        batch.delete(refs.settingsWorkspace);
+        batch.delete(refs.settingsAccount);
+        batch.delete(refs.settingsAppearance);
+        batch.delete(refs.settingsAi);
+        batch.delete(refs.settingsMetacognition);
+        batch.delete(refs.settingsPrivacy);
+        batch.delete(refs.settingsData);
+        batch.delete(refs.settingsSourceIntake);
+        batch.delete(refs.settingsWorks);
+        batch.delete(refs.settingsAtlas);
+        batch.delete(refs.settingsNotifications);
+        batch.delete(refs.settingsGoals);
+        batch.delete(refs.settingsDeveloper);
+        batch.delete(refs.settingsAtlasView);
+        batch.delete(refs.settingsAtlasNodes);
+      }
 
       batch.set(refs.user, {
         uid: effectiveUid,
@@ -444,51 +471,22 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       batch.set(refs.settingsGoal, demo.goal, { merge: true });
       batch.set(refs.settingsPreferences, demo.preferences, { merge: true });
       batch.set(refs.settingsWorkspace, demo.workspace, { merge: true });
-      batch.set(refs.settingsAccount, {
-        ...DEFAULT_ACCOUNT_SETTINGS,
-        authEmail: demo.profile.email,
-        connectedLoginMethods: ['password'],
-      }, { merge: true });
-      batch.set(refs.settingsAppearance, {
-        ...DEFAULT_APPEARANCE_SETTINGS,
-        themeMode: demo.preferences.themeMode,
-        accentTheme: demo.preferences.accentTheme,
-      }, { merge: true });
-      batch.set(refs.settingsAi, DEFAULT_AI_SETTINGS, { merge: true });
-      batch.set(refs.settingsMetacognition, {
-        ...DEFAULT_METACOGNITION_SETTINGS,
-        enableMetacognitionFeatures: demo.workspace.featureFlags.metacognitionEnabled,
-        enableBeliefBiographies: demo.workspace.featureFlags.beliefBiographiesEnabled,
-        enableUnknownsTracking: demo.workspace.featureFlags.unknownsEnabled,
-        enableThinkingPatternDetection: demo.workspace.featureFlags.thinkingPatternsEnabled,
-        enableCognitionMetrics: demo.workspace.featureFlags.thinkingMetricsEnabled,
-        enableMissingPerspectivesDetection: demo.workspace.featureFlags.missingPerspectivesEnabled,
-      }, { merge: true });
-      batch.set(refs.settingsPrivacy, DEFAULT_PRIVACY_SETTINGS, { merge: true });
-      batch.set(refs.settingsData, DEFAULT_DATA_SETTINGS, { merge: true });
-      batch.set(refs.settingsSourceIntake, DEFAULT_SOURCE_INTAKE_SETTINGS, { merge: true });
-      batch.set(refs.settingsWorks, {
-        ...DEFAULT_WORKS_SETTINGS,
-        defaultWorkType: demo.preferences.writingDefaults.type,
-        defaultDraftStatus: demo.preferences.writingDefaults.status,
-        defaultPaperStyle: demo.preferences.writingDefaults.writingStyle,
-        defaultEditorMode: demo.preferences.writingDefaults.editorFeel,
-      }, { merge: true });
-      batch.set(refs.settingsAtlas, DEFAULT_ATLAS_SETTINGS, { merge: true });
-      batch.set(refs.settingsNotifications, DEFAULT_NOTIFICATION_SETTINGS, { merge: true });
-      batch.set(refs.settingsGoals, DEFAULT_GOAL_PREFERENCE_SETTINGS, { merge: true });
-      batch.set(refs.settingsDeveloper, {
-        ...DEFAULT_DEVELOPER_SETTINGS,
-        currentUserPath: `users/${effectiveUid}`,
-        reviewModeStatus: true,
-        demoWorkspaceSeedStatus: true,
-      }, { merge: true });
+      batch.set(refs.settingsAccount, demo.settingsAccount, { merge: true });
+      batch.set(refs.settingsAppearance, demo.settingsAppearance, { merge: true });
+      batch.set(refs.settingsAi, demo.settingsAi, { merge: true });
+      batch.set(refs.settingsMetacognition, demo.settingsMetacognition, { merge: true });
+      batch.set(refs.settingsPrivacy, demo.settingsPrivacy, { merge: true });
+      batch.set(refs.settingsData, demo.settingsData, { merge: true });
+      batch.set(refs.settingsSourceIntake, demo.settingsSourceIntake, { merge: true });
+      batch.set(refs.settingsWorks, demo.settingsWorks, { merge: true });
+      batch.set(refs.settingsAtlas, demo.settingsAtlas, { merge: true });
+      batch.set(refs.settingsNotifications, demo.settingsNotifications, { merge: true });
+      batch.set(refs.settingsGoals, demo.settingsGoals, { merge: true });
+      batch.set(refs.settingsDeveloper, demo.settingsDeveloper, { merge: true });
       batch.set(refs.profileMain, demo.profile, { merge: true });
-      batch.set(refs.profilePrivacy, {
-        ...DEFAULT_PROFILE_PRIVACY,
-        publicProfileEnabled: false,
-      }, { merge: true });
-      batch.set(refs.profileMetacognitionSummary, DEFAULT_PROFILE_METACOGNITION_SUMMARY, { merge: true });
+      batch.set(refs.profilePrivacy, demo.profilePrivacy, { merge: true });
+      batch.set(refs.profileMetacognitionSummary, demo.profileMetacognitionSummary, { merge: true });
+      batch.set(doc(refs.thinkingMetrics, 'summary'), demo.thinkingMetrics, { merge: true });
       batch.set(refs.settingsSchema, readexSchemaDoc(effectiveUid), { merge: true });
       batch.set(refs.settingsAtlasView, DEFAULT_ATLAS_VIEW_SETTINGS, { merge: true });
       batch.set(refs.settingsAtlasNodes, DEFAULT_ATLAS_NODE_SETTINGS, { merge: true });
@@ -504,6 +502,10 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       demo.links.forEach((item) => batch.set(doc(refs.links, item.id), item));
       demo.suggestions.forEach((item) => batch.set(doc(refs.suggestions, item.id), item));
       demo.atlasMaps.forEach((item) => batch.set(doc(refs.atlasMaps, item.id), item));
+      demo.thinkingEvents.forEach((item) => batch.set(doc(refs.thinkingEvents, item.id), item));
+      demo.beliefProfiles.forEach((item) => batch.set(doc(refs.beliefProfiles, item.positionId), item));
+      demo.unknowns.forEach((item) => batch.set(doc(refs.unknowns, item.unknownId), item));
+      demo.thinkingPatterns.forEach((item) => batch.set(doc(refs.thinkingPatterns, item.patternId), item));
 
       await batch.commit();
       autoSeedAttemptedRef.current = true;

@@ -1,21 +1,50 @@
 import { noesisGuide } from './noesis-guide';
-import { DEFAULT_GOAL_SETTINGS, DEFAULT_USER_PREFERENCES, DEFAULT_WORKSPACE_SETTINGS, readexSchemaDoc } from './firestore-schema';
+import {
+  DEFAULT_GOAL_PREFERENCE_SETTINGS,
+  DEFAULT_GOAL_SETTINGS,
+  DEFAULT_PROFILE_METACOGNITION_SUMMARY,
+  DEFAULT_PROFILE_PRIVACY,
+  DEFAULT_THINKING_METRICS,
+  DEFAULT_USER_PREFERENCES,
+  DEFAULT_WORKSPACE_SETTINGS,
+  readexSchemaDoc,
+} from './firestore-schema';
 import type {
+  AccountSettings,
   AiSuggestion,
+  AiSettings,
+  AppearanceSettings,
   AtlasMap,
+  AtlasSettings,
+  BeliefProfile,
   Concept,
+  DataSettings,
+  DeveloperSettings,
   Draft,
   GoalSettings,
+  GoalPreferenceSettings,
   Insight,
   Media,
+  MetacognitionSettings,
+  NotificationSettings,
   PhilosophicalLink,
   Practice,
+  PrivacySettings,
+  ProfileMetacognitionSummary,
+  ProfilePrivacySettings,
   Question,
+  ThinkingEvent,
+  ThinkingMetrics,
+  ThinkingPattern,
   TimelineEvent,
+  Unknown,
   UserPreferences,
   UserProfile,
   VaultEntry,
+  WorksSettings,
+  WorkspacePreferenceSettings,
   WorkspaceSettings,
+  SourceIntakeSettings,
 } from './types';
 
 export const REVIEW_ACCOUNT_EMAIL = 'noesisdev4@gmail.com';
@@ -47,6 +76,26 @@ type DemoWorkspaceData = {
   links: PhilosophicalLink[];
   suggestions: AiSuggestion[];
   atlasMaps: AtlasMap[];
+  thinkingEvents: ThinkingEvent[];
+  beliefProfiles: BeliefProfile[];
+  unknowns: Unknown[];
+  thinkingPatterns: ThinkingPattern[];
+  thinkingMetrics: ThinkingMetrics;
+  profilePrivacy: ProfilePrivacySettings;
+  profileMetacognitionSummary: ProfileMetacognitionSummary;
+  settingsAccount: AccountSettings;
+  settingsAppearance: AppearanceSettings;
+  settingsWorkspace: WorkspacePreferenceSettings;
+  settingsAi: AiSettings;
+  settingsMetacognition: MetacognitionSettings;
+  settingsPrivacy: PrivacySettings;
+  settingsData: DataSettings;
+  settingsSourceIntake: SourceIntakeSettings;
+  settingsWorks: WorksSettings;
+  settingsAtlas: AtlasSettings;
+  settingsNotifications: NotificationSettings;
+  settingsGoals: GoalPreferenceSettings;
+  settingsDeveloper: DeveloperSettings;
 };
 
 function iso(day: number, hour = 12) {
@@ -214,6 +263,64 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
       dateAdded: iso(13),
       dateUpdated: iso(21),
     },
+    {
+      id: 'm_documentary_jodorowsky',
+      title: 'Examined Lives: Ritual and Meaning',
+      creator: 'Aster Documentary Studio',
+      creators: ['Aster Documentary Studio'],
+      type: 'documentary',
+      status: 'Finished',
+      year: '2025',
+      genre: 'Documentary',
+      description: 'A documentary following how deliberate ritual reshapes purpose, habit, and identity across seasons of change.',
+      url: 'https://example.com/documentary-examined-lives',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=900&q=80',
+      publisher: 'Aster Documentary Studio',
+      platform: 'Streaming',
+      sourceProvider: 'manual',
+      externalIds: { url: 'https://example.com/documentary-examined-lives' },
+      tags: ['Meaning', 'Practice', 'Identity'],
+      annotations: [
+        { id: 'a11', text: 'Ritual gives continuity to identity before motivation catches up.', type: 'highlight', date: iso(14), conceptTags: ['Practice', 'Identity'], philosophyStatus: 'connected' },
+        { id: 'a12', text: 'This example suggests practices can stabilize meaning, not just express it.', type: 'thought', date: iso(14, 14), conceptTags: ['Meaning', 'Practice'], philosophyStatus: 'connected', linkedPositionIds: ['v_commit_before_clarity'] },
+      ],
+      capture: {
+        before: { expectation: 'Looking for narrative examples of how ritual shapes identity.' },
+        after: { coreArgument: 'Ritual can carry a person through ambiguity before conviction fully forms.', heldUp: 'Practice creates a runway for meaning.', lasting: 'The documentary gives lived texture to the commitment-before-clarity belief.' },
+        sessions: [{ id: 'rs6', sourceId: 'm_documentary_jodorowsky', date: iso(14), durationSeconds: 5100, totalElapsedSeconds: 5100, status: 'completed', notes: 'Strong bridge between practice and belief evolution.', createdAt: iso(14), updatedAt: iso(14) }],
+      },
+      dateAdded: iso(14),
+      dateUpdated: iso(24),
+    },
+    {
+      id: 'm_movie_paterson',
+      title: 'Paterson',
+      creator: 'Jim Jarmusch',
+      creators: ['Jim Jarmusch'],
+      type: 'movie',
+      status: 'Finished',
+      year: '2016',
+      genre: 'Drama',
+      description: 'A film about repetition, attention, and quiet forms of meaning inside an ordinary life.',
+      url: 'https://example.com/paterson-film',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=900&q=80',
+      publisher: 'Amazon Studios',
+      platform: 'Streaming',
+      sourceProvider: 'manual',
+      externalIds: { url: 'https://example.com/paterson-film' },
+      tags: ['Attention', 'Meaning', 'Practice'],
+      annotations: [
+        { id: 'a13', text: 'Ordinary repetition can become meaning-bearing when attention is refined enough.', type: 'highlight', date: iso(15, 13), conceptTags: ['Attention', 'Meaning'], philosophyStatus: 'connected' },
+        { id: 'a14', text: 'Why do I still assume meaningful life must feel dramatic?', type: 'question', date: iso(15, 15), answer: '', conceptTags: ['Meaning'], philosophyStatus: 'questioned', createdInquiryId: 'q_ordinary_meaning' },
+      ],
+      capture: {
+        before: { priorBeliefs: 'Meaning needs scale or visible accomplishment.', expectation: 'Testing whether quiet repetition can still feel philosophical.' },
+        after: { coreArgument: 'Attention can turn ordinary routine into a serious moral and aesthetic life.', heldUp: 'Meaning may depend more on mode of seeing than on spectacle.', beliefChange: 'I have less trust now in drama as a sign of seriousness.' },
+        sessions: [{ id: 'rs7', sourceId: 'm_movie_paterson', date: iso(15), durationSeconds: 6600, totalElapsedSeconds: 6600, status: 'completed', notes: 'Produced a fresh inquiry about ordinary meaning.', createdAt: iso(15), updatedAt: iso(15) }],
+      },
+      dateAdded: iso(15),
+      dateUpdated: iso(24),
+    },
   ];
 
   const insights: Insight[] = [
@@ -227,6 +334,7 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     { id: 'q_narrative_distort', text: 'Does narrative coherence help or distort agency?', status: 'partially_answered', answer: 'It stabilizes action, but it can also protect the self from corrective evidence.', evidenceIds: ['m_paper_identity'], conceptIds: ['c_narrative', 'c_identity'], sourceIds: ['m_paper_identity'], beliefIds: ['v_identity_action'], draftIds: ['d_identity_essay'], type: 'annotation', sourceAnnotationId: 'a7', dateCreated: iso(11), dateUpdated: iso(22) },
     { id: 'q_discipline_without_meaning', text: 'Can discipline exist without meaning, or does it collapse into control for its own sake?', status: 'gathering_evidence', answer: '', evidenceIds: ['m_aurelius', 'm_article_meaning'], conceptIds: ['c_discipline', 'c_meaning'], sourceIds: ['m_aurelius', 'm_article_meaning'], beliefIds: ['v_attention_rule'], draftIds: ['d_field_notes'], type: 'manual', dateCreated: iso(9), dateUpdated: iso(21) },
     { id: 'q_responsibility_before_certainty', text: 'When should responsibility outrun clarity?', status: 'answered', answer: 'When values are strong enough that waiting for certainty becomes disguised avoidance.', evidenceIds: ['m_article_meaning', 'm_podcast_huberman'], conceptIds: ['c_responsibility', 'c_meaning', 'c_practice'], sourceIds: ['m_article_meaning', 'm_podcast_huberman'], beliefIds: ['v_commit_before_clarity'], draftIds: ['d_source_analysis'], type: 'manual', dateCreated: iso(10), dateUpdated: iso(23) },
+    { id: 'q_ordinary_meaning', text: 'Why do I keep associating seriousness with drama rather than sustained attention?', status: 'under_tension', answer: '', evidenceIds: ['m_movie_paterson', 'm_video_dreyfus'], conceptIds: ['c_attention', 'c_meaning'], sourceIds: ['m_movie_paterson', 'm_video_dreyfus'], beliefIds: ['v_commit_before_clarity'], draftIds: ['d_field_notes'], type: 'annotation', sourceAnnotationId: 'a14', dateCreated: iso(15), dateUpdated: iso(24) },
     { id: 'q_archived_stoic', text: 'Is Stoic detachment the same thing as emotional maturity?', status: 'archived', answer: 'No. Detachment can be defensive; maturity keeps contact with feeling while choosing well.', evidenceIds: ['m_aurelius'], conceptIds: ['c_identity', 'c_discipline'], sourceIds: ['m_aurelius'], beliefIds: [], draftIds: [], type: 'manual', dateCreated: iso(8), dateUpdated: iso(19) },
   ];
 
@@ -266,6 +374,8 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     { id: 'l8', fromType: 'concept', fromId: 'c_practice', fromLabel: 'Practice', toType: 'position', toId: 'v_character_in_motion', toLabel: 'Response to friction is philosophy in motion', type: 'exemplifies', note: 'Practice shows the position in lived form.', createdFrom: 'manual', dateCreated: iso(19), dateUpdated: iso(19) },
     { id: 'l9', fromType: 'source', fromId: 'm_podcast_huberman', fromLabel: 'Ritual, Attention, and Behavioral Change', toType: 'concept', toId: 'c_attention', toLabel: 'Attention', type: 'inspired_by', note: 'The source expanded the concept footprint.', createdFrom: 'system', dateCreated: iso(12), dateUpdated: iso(12) },
     { id: 'l10', fromType: 'position', fromId: 'v_withdrawal_rule', fromLabel: 'Withdrawal protects identity from failure', toType: 'evolution', toId: 't_abandoned_withdrawal', toLabel: 'Abandoned overgeneralized withdrawal belief', type: 'changed_by', note: 'The position was later retired.', createdFrom: 'system', dateCreated: iso(24), dateUpdated: iso(24) },
+    { id: 'l11', fromType: 'position', fromId: 'v_commit_before_clarity', fromLabel: 'Commitment can generate meaning before certainty exists', toType: 'position', toId: 'v_character_in_motion', toLabel: 'Response to friction is philosophy in motion', type: 'depends_on', note: 'The meaning claim depends on pressure revealing whether a commitment is real.', createdFrom: 'manual', dateCreated: iso(24), dateUpdated: iso(24) },
+    { id: 'l12', fromType: 'concept', fromId: 'c_meaning', fromLabel: 'Meaning', toType: 'position', toId: 'v_commit_before_clarity', toLabel: 'Commitment can generate meaning before certainty exists', type: 'explains', note: 'The concept provides the explanatory center for the position.', createdFrom: 'manual', dateCreated: iso(24), dateUpdated: iso(24) },
   ];
 
   const suggestions: AiSuggestion[] = [
@@ -275,6 +385,8 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     { id: 's4', targetType: 'inquiry', targetId: 'q_discipline_without_meaning', targetLabel: 'Can discipline exist without meaning?', suggestionType: 'daily_prompt', title: 'Best next step', body: 'Open the field note and add one concrete example where discipline held or failed this week.', payload: { route: 'writing', draftId: 'd_field_notes' }, status: 'pending', createdFrom: 'ai', dateCreated: iso(25), dateUpdated: iso(25) },
     { id: 's5', targetType: 'source', targetId: 'm_paper_identity', targetLabel: 'Narrative Identity and Agency Under Uncertainty', suggestionType: 'annotation_consequence', title: 'Extracted concept', body: 'Several annotations cluster around narrative self as its own organizing concept.', payload: { suggestedConcept: 'Narrative Self' }, status: 'accepted', createdFrom: 'ai', dateCreated: iso(11, 16), dateUpdated: iso(11, 16) },
     { id: 's6', targetType: 'evolution', targetId: 't_revision_identity', targetLabel: 'Identity revision event', suggestionType: 'evolution_summary', title: 'Revision summary', body: 'The action-first identity view was revised after narrative evidence complicated the earlier formulation.', payload: { positionId: 'v_identity_action' }, status: 'accepted', createdFrom: 'ai', dateCreated: iso(22, 16), dateUpdated: iso(22, 16) },
+    { id: 's7', targetType: 'position', targetId: 'v_withdrawal_rule', targetLabel: 'Withdrawal protects identity from failure', suggestionType: 'unknown_candidate', title: 'Possible unknown', body: 'The current evidence does not separate identity-protective withdrawal from fatigue-driven withdrawal.', reasoning: 'Several notes challenge the belief without resolving which mechanism dominates.', evidence: ['Avoidance spikes before ambiguous work.', 'Fatigue and overload remain plausible alternatives.'], confidence: 0.78, payload: { unknownTitle: 'What actually drives avoidance under ambiguity?' }, status: 'accepted', createdFrom: 'ai', dateCreated: iso(24, 10), dateUpdated: iso(24, 12) },
+    { id: 's8', targetType: 'inquiry', targetId: 'q_ordinary_meaning', targetLabel: 'Why do I keep associating seriousness with drama?', suggestionType: 'missing_perspective', title: 'Missing perspective', body: 'You may be missing an aesthetic perspective on meaning that values attention and form over intensity.', reasoning: 'Recent sources emphasize repetition, craft, and perception more than achievement or crisis.', evidence: ['Paterson notes', 'Embodiment lecture notes'], confidence: 0.71, status: 'pending', createdFrom: 'ai', dateCreated: iso(25, 11), dateUpdated: iso(25, 11) },
   ];
 
   const timeline: TimelineEvent[] = [
@@ -288,6 +400,58 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     { id: 't_challenged_story', entityId: 'v_pure_story_self', entityType: 'vault', entityTitle: 'Identity is fundamentally narrative', eventType: 'challenged', reason: 'The action-first position exposed gaps in a pure narrative account.', influencedBy: ['v_identity_action'], date: iso(22) },
     { id: 't_abandoned_withdrawal', entityId: 'v_withdrawal_rule', entityType: 'vault', entityTitle: 'Withdrawal protects identity from failure', eventType: 'abandoned', reason: 'Observed the belief was too totalizing and ignored fatigue variables.', influencedBy: ['p_failure_log'], date: iso(24) },
     { id: 't_source_identity', entityId: 'm_paper_identity', entityType: 'media', entityTitle: 'Narrative Identity and Agency Under Uncertainty', eventType: 'expanded', reason: 'Paper introduced a stronger narrative counterweight.', influencedBy: [], date: iso(11) },
+  ];
+
+  const beliefProfiles: BeliefProfile[] = [
+    { positionId: 'v_identity_action', createdAt: iso(12), createdFrom: 'manual', originSummary: 'Created from Meditations notes and later revised after narrative-self evidence complicated the original claim.', strengthenedBy: ['Repeated behavior observations', 'Identity essay draft'], challengedBy: ['Narrative identity paper', 'Competing worldview position'], weakenedBy: [], lastChallengedAt: iso(22), lastRevisedAt: iso(22), confidenceScore: 72, certaintyLevel: 3, evidenceQuality: 'moderate', testingCount: 1, reviewStatus: 'current', updatedAt: iso(24) },
+    { positionId: 'v_attention_rule', createdAt: iso(16), createdFrom: 'idea', originSummary: 'Derived from podcast notes and personal experiments around distraction triggers.', strengthenedBy: ['Morning friction log', 'Active attention practice'], challengedBy: ['Inquiry about discipline without meaning'], weakenedBy: [], confidenceScore: 86, certaintyLevel: 4, evidenceQuality: 'high', testingCount: 2, reviewStatus: 'current', updatedAt: iso(24) },
+    { positionId: 'v_commit_before_clarity', createdAt: iso(17), createdFrom: 'idea', originSummary: 'Formed from article and documentary evidence that action can reveal meaning.', strengthenedBy: ['Meaning article', 'Documentary on ritual'], challengedBy: ['Risk of premature commitment'], weakenedBy: [], confidenceScore: 68, certaintyLevel: 3, evidenceQuality: 'moderate', testingCount: 1, reviewStatus: 'current', updatedAt: iso(24) },
+    { positionId: 'v_character_in_motion', createdAt: iso(18), createdFrom: 'idea', originSummary: 'Formed from Stoic notes about resistance as a test of character.', strengthenedBy: ['Meditations highlight', 'Practice review'], challengedBy: [], weakenedBy: [], confidenceScore: 81, certaintyLevel: 4, evidenceQuality: 'high', testingCount: 1, reviewStatus: 'current', updatedAt: iso(24) },
+    { positionId: 'v_pure_story_self', createdAt: iso(19), createdFrom: 'manual', originSummary: 'Added intentionally as a live competing theory of self.', strengthenedBy: ['Narrative continuity evidence'], challengedBy: ['Action-first identity view'], weakenedBy: ['Observed action shifts that outpaced self-story'], lastChallengedAt: iso(22), confidenceScore: 49, certaintyLevel: 2, evidenceQuality: 'moderate', testingCount: 0, reviewStatus: 'needs_review', updatedAt: iso(24) },
+    { positionId: 'v_withdrawal_rule', createdAt: iso(15), createdFrom: 'manual', originSummary: 'Came from a self-explanation of avoidance before fatigue variables were taken seriously.', strengthenedBy: ['Observed avoidance before high-stakes work'], challengedBy: ['Practice logs', 'Alternative fatigue explanation'], weakenedBy: ['The belief overgeneralized across too many cases'], confidenceScore: 34, certaintyLevel: 1, evidenceQuality: 'low', testingCount: 1, reviewStatus: 'abandoned', abandonedAt: iso(24), updatedAt: iso(24) },
+  ];
+
+  const unknowns: Unknown[] = [
+    { unknownId: 'u_avoidance_driver', title: 'What actually drives avoidance under ambiguity?', description: 'The current workspace has not yet separated identity-protection from fatigue, ambiguity, and overload.', domain: 'identity', sourceIds: ['m_article_meaning'], positionIds: ['v_withdrawal_rule'], inquiryIds: ['q_identity_excuse'], conceptTags: ['Identity', 'Meaning'], questionIds: ['q_identity_excuse'], status: 'active', importance: 'high', createdFrom: 'ai', dateCreated: iso(24), dateUpdated: iso(24) },
+    { unknownId: 'u_ordinary_meaning', title: 'How does ordinary routine become meaning-bearing?', description: 'The app has evidence that attention matters, but the mechanism linking repetition to meaning is still underdeveloped.', domain: 'meaning', sourceIds: ['m_movie_paterson', 'm_video_dreyfus'], positionIds: ['v_commit_before_clarity'], inquiryIds: ['q_ordinary_meaning'], conceptTags: ['Meaning', 'Attention'], questionIds: ['q_ordinary_meaning'], status: 'exploring', importance: 'medium', createdFrom: 'manual', dateCreated: iso(25), dateUpdated: iso(25) },
+    { unknownId: 'u_stoic_detachment', title: 'When does detachment become avoidance?', description: 'This was a prior gap that now has a stable working answer.', domain: 'discipline', sourceIds: ['m_aurelius'], positionIds: [], inquiryIds: ['q_archived_stoic'], conceptTags: ['Discipline', 'Identity'], questionIds: ['q_archived_stoic'], status: 'resolved', importance: 'medium', createdFrom: 'system', dateCreated: iso(8), dateUpdated: iso(19), resolvedAt: iso(19), resolutionSummary: 'Resolved by distinguishing maturity from emotional distance.' },
+  ];
+
+  const thinkingPatterns: ThinkingPattern[] = [
+    { patternId: 'tp_revision_after_annotations', patternType: 'revision_pattern', label: 'Beliefs tend to revise after annotation clusters form', description: 'Recent evidence suggests that revision happens most often after several related annotations accumulate around one concept.', evidence: ['Identity position revised after Meditations and narrative-paper annotations', 'Meaning position sharpened after article and documentary notes'], confidence: 0.83, timespan: 'Last 30 days', trendDirection: 'stable', status: 'acknowledged', createdFrom: 'system', dateCreated: iso(24), dateUpdated: iso(24) },
+    { patternId: 'tp_source_to_practice_gap', patternType: 'conceptual_gap', label: 'Concepts are linked more often than they are tested', description: 'The workspace shows strong connection-making, but fewer ideas are translated into practices than into positions or works.', evidence: ['Concept density exceeds practice count', 'Only a subset of positions have active practices'], confidence: 0.77, timespan: 'Last 30 days', trendDirection: 'increasing', status: 'pending', createdFrom: 'ai', dateCreated: iso(25), dateUpdated: iso(25) },
+    { patternId: 'tp_questioning_meaning', patternType: 'questioning_style', label: 'Meaning questions recur through responsibility and attention', description: 'Questions about meaning repeatedly route through responsibility, ritual, and forms of attention rather than abstract theory alone.', evidence: ['Responsibility-before-certainty inquiry', 'Ordinary meaning inquiry', 'Article and film annotations'], confidence: 0.8, timespan: 'Current season', trendDirection: 'stable', status: 'acknowledged', createdFrom: 'ai', dateCreated: iso(25), dateUpdated: iso(25) },
+  ];
+
+  const thinkingMetrics: ThinkingMetrics = {
+    ...DEFAULT_THINKING_METRICS,
+    questionsAsked: 6,
+    assumptionsChallenged: 4,
+    beliefsCreated: 6,
+    beliefsRevised: 2,
+    beliefsAbandoned: 1,
+    contradictionsDetected: 1,
+    contradictionsResolved: 0,
+    connectionsCreated: 12,
+    sourcesStudied: 7,
+    ideasSynthesized: 3,
+    unknownsCreated: 3,
+    unknownsResolved: 1,
+    positionsStressTested: 2,
+    lastComputedAt: iso(26),
+  };
+
+  const thinkingEvents: ThinkingEvent[] = [
+    { id: 'te1', eventId: 'te1', userId: uid, eventType: 'position_created', entityType: 'position', entityId: 'v_identity_action', targetType: 'position', targetId: 'v_identity_action', sourceType: 'user', summary: 'Created the action-first identity position from Meditations notes.', origin: 'user', importance: 'medium', relatedEntityIds: { sourceIds: ['m_aurelius'] }, createdAt: iso(12), updatedAt: iso(12) },
+    { id: 'te2', eventId: 'te2', userId: uid, eventType: 'position_revised', entityType: 'position', entityId: 'v_identity_action', targetType: 'position', targetId: 'v_identity_action', sourceType: 'user', summary: 'Revised the identity position after narrative evidence complicated the original framing.', origin: 'user', importance: 'high', relatedEntityIds: { sourceIds: ['m_paper_identity'], positionIds: ['v_pure_story_self'] }, confidenceBefore: 81, confidenceAfter: 72, createdAt: iso(22), updatedAt: iso(22) },
+    { id: 'te3', eventId: 'te3', userId: uid, eventType: 'confidence_changed', entityType: 'position', entityId: 'v_pure_story_self', targetType: 'position', targetId: 'v_pure_story_self', sourceType: 'system', summary: 'Lowered confidence in the pure narrative-self position after contradiction review.', origin: 'system', importance: 'medium', confidenceBefore: 61, confidenceAfter: 49, relatedEntityIds: { positionIds: ['v_identity_action'] }, createdAt: iso(22, 14), updatedAt: iso(22, 14) },
+    { id: 'te4', eventId: 'te4', userId: uid, eventType: 'challenge_added', entityType: 'position', entityId: 'v_attention_rule', targetType: 'position', targetId: 'v_attention_rule', sourceType: 'user', summary: 'Added a challenge asking whether discipline without meaning collapses into control.', origin: 'user', importance: 'medium', relatedEntityIds: { inquiryIds: ['q_discipline_without_meaning'] }, createdAt: iso(21), updatedAt: iso(21) },
+    { id: 'te5', eventId: 'te5', userId: uid, eventType: 'position_abandoned', entityType: 'position', entityId: 'v_withdrawal_rule', targetType: 'position', targetId: 'v_withdrawal_rule', sourceType: 'user', summary: 'Abandoned the withdrawal rule after noticing it overgeneralized beyond the evidence.', origin: 'user', importance: 'high', relatedEntityIds: { practiceIds: ['p_failure_log'] }, createdAt: iso(24), updatedAt: iso(24) },
+    { id: 'te6', eventId: 'te6', userId: uid, eventType: 'unknown_created', entityType: 'unknown', entityId: 'u_avoidance_driver', targetType: 'unknown', targetId: 'u_avoidance_driver', sourceType: 'ai', summary: 'Created an unknown around what actually drives avoidance under ambiguity.', origin: 'ai', importance: 'medium', relatedEntityIds: { positionIds: ['v_withdrawal_rule'], inquiryIds: ['q_identity_excuse'] }, createdAt: iso(24, 12), updatedAt: iso(24, 12) },
+    { id: 'te7', eventId: 'te7', userId: uid, eventType: 'unknown_resolved', entityType: 'unknown', entityId: 'u_stoic_detachment', targetType: 'unknown', targetId: 'u_stoic_detachment', sourceType: 'system', summary: 'Resolved the detachment unknown by distinguishing maturity from avoidance.', origin: 'system', importance: 'medium', relatedEntityIds: { inquiryIds: ['q_archived_stoic'] }, createdAt: iso(19), updatedAt: iso(19) },
+    { id: 'te8', eventId: 'te8', userId: uid, eventType: 'suggestion_accepted', entityType: 'suggestion', entityId: 's2', targetType: 'suggestion', targetId: 's2', relatedTargetType: 'position', relatedTargetId: 'v_identity_action', sourceType: 'user', summary: 'Accepted the possible-tension suggestion between action-first and narrative identity positions.', origin: 'user', importance: 'medium', relatedEntityIds: { positionIds: ['v_identity_action', 'v_pure_story_self'], suggestionIds: ['s2'] }, createdAt: iso(22, 15), updatedAt: iso(22, 15) },
+    { id: 'te9', eventId: 'te9', userId: uid, eventType: 'thinking_pattern_inferred', entityType: 'thinkingPattern', entityId: 'tp_revision_after_annotations', targetType: 'thinking_pattern', targetId: 'tp_revision_after_annotations', sourceType: 'ai', summary: 'Inferred that belief revisions tend to follow annotation clustering.', origin: 'ai', importance: 'low', createdAt: iso(24), updatedAt: iso(24) },
+    { id: 'te10', eventId: 'te10', userId: uid, eventType: 'stress_test_answered', entityType: 'position', entityId: 'v_commit_before_clarity', targetType: 'position', targetId: 'v_commit_before_clarity', sourceType: 'user', summary: 'Answered a stress test about what would weaken the commitment-before-clarity belief.', origin: 'user', importance: 'medium', relatedEntityIds: { practiceIds: ['p_responsibility_block'], workIds: ['d_source_analysis'] }, createdAt: iso(25), updatedAt: iso(25) },
   ];
 
   const atlasMaps: AtlasMap[] = [
@@ -313,6 +477,27 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
       autoLinkFilters: { sharedSources: true, sharedPositions: true, sharedInquiries: true, sharedWorks: true, sharedPractices: true, conceptLinks: true },
       dateCreated: iso(22),
       dateUpdated: iso(24),
+    },
+    {
+      id: 'map_meaning_loop',
+      title: 'Meaning Loop Review Map',
+      description: 'A custom reviewer map showing how sources, inquiry, position, work, and practice cycle around the meaning question.',
+      nodeNames: ['Meaning', 'Responsibility', 'Practice', 'Attention', 'Identity'],
+      nodePositions: {
+        Meaning: { x: 52, y: 18 },
+        Responsibility: { x: 28, y: 38 },
+        Practice: { x: 36, y: 72 },
+        Attention: { x: 71, y: 62 },
+        Identity: { x: 73, y: 30 },
+      },
+      manualLinks: [
+        { id: 'aml4', from: 'Meaning', to: 'Responsibility', type: 'explains', label: 'explains', note: 'Responsibility is one of the main routes through which meaning gets tested.', dateCreated: iso(25) },
+        { id: 'aml5', from: 'Responsibility', to: 'Practice', type: 'tested_by', label: 'tested by', note: 'Reviewers can trace how the belief cashes out in a live practice.', dateCreated: iso(25) },
+        { id: 'aml6', from: 'Attention', to: 'Meaning', type: 'refines', label: 'refines', note: 'Attention may change what meaning even feels like in ordinary life.', dateCreated: iso(25) },
+      ],
+      autoLinkFilters: { sharedSources: true, sharedPositions: true, sharedInquiries: true, sharedWorks: true, sharedPractices: true, conceptLinks: true },
+      dateCreated: iso(25),
+      dateUpdated: iso(25),
     },
   ];
 
@@ -349,9 +534,40 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     displayName: 'Noesis Review Workspace',
     email: REVIEW_ACCOUNT_EMAIL,
     photoURL: '',
-    bio: 'Dedicated demo account for architectural, UX, AI, and workflow review.',
+    avatarUrl: '',
+    bio: 'Dedicated demo thinker profile for architectural, UX, AI, and workflow review across the whole Noesis system.',
+    intellectualFocus: ['philosophy synthesis', 'belief revision', 'attention and practice'],
+    currentThemes: ['Identity', 'Meaning', 'Responsibility', 'Practice'],
+    disciplines: ['philosophy', 'cognitive science', 'behavioral design'],
+    learningSeason: 'Turning philosophy into tested practice',
+    publicProfileEnabled: false,
+    shareSlug: 'noesis-review-workspace',
     role: 'demo',
+    createdAt: iso(1),
     dateUpdated: iso(24),
+  };
+
+  const profilePrivacy: ProfilePrivacySettings = {
+    ...DEFAULT_PROFILE_PRIVACY,
+    publicProfileEnabled: false,
+    publicConceptsEnabled: false,
+    publicPositionsEnabled: false,
+    publicWorksEnabled: false,
+    publicPracticesEnabled: false,
+    publicSourcesEnabled: false,
+    publicBeliefBiographyEnabled: false,
+    shareSlug: profile.shareSlug || '',
+    dateUpdated: iso(24),
+  };
+
+  const profileMetacognitionSummary: ProfileMetacognitionSummary = {
+    ...DEFAULT_PROFILE_METACOGNITION_SUMMARY,
+    topThinkingPatterns: ['Beliefs tend to revise after annotation clusters form', 'Meaning questions recur through responsibility and attention'],
+    unresolvedTensions: ['Action-first identity vs narrative identity', 'Discipline as control vs discipline as meaningful service'],
+    currentUnknowns: ['What actually drives avoidance under ambiguity?', 'How does ordinary routine become meaning-bearing?'],
+    strongestBeliefs: ['Attention must be protected before it can be directed', 'Response to friction is philosophy in motion'],
+    weakestBeliefs: ['Withdrawal protects identity from failure', 'Identity is fundamentally narrative'],
+    lastComputedAt: iso(26),
   };
 
   const workspace: WorkspaceSettings = {
@@ -365,7 +581,220 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     dateUpdated: iso(24),
   };
 
-  return { profile, preferences, goal, workspace, media, concepts, questions, vault, drafts, practices, timeline, insights, links, suggestions, atlasMaps };
+  const settingsAccount: AccountSettings = {
+    authEmail: REVIEW_ACCOUNT_EMAIL,
+    connectedLoginMethods: ['password'],
+    accountCreatedAt: iso(1),
+    allowDeleteAccount: false,
+    dateUpdated: iso(24),
+  };
+
+  const settingsAppearance: AppearanceSettings = {
+    themeMode: 'dark',
+    accentTheme: 'amber',
+    density: 'comfortable',
+    fontSize: 'md',
+    readingWidth: 'standard',
+    reducedMotion: false,
+    highContrastMode: false,
+    sidebarCollapsedByDefault: false,
+    showPageDescriptions: true,
+    dateUpdated: iso(24),
+  };
+
+  const settingsWorkspace: WorkspacePreferenceSettings = {
+    defaultLandingPage: 'atlas',
+    defaultAfterSourcePage: 'library',
+    defaultSourceStatus: 'Want to Read',
+    defaultWorkType: 'essay',
+    defaultWritingStyle: 'belief_audit',
+    defaultNoteMode: 'text_note',
+    defaultLibraryView: 'grid',
+    defaultAtlasView: 'map',
+    defaultSortOrder: 'recent',
+    autoSaveBehavior: 'debounced',
+    confirmBeforeDeletingObjects: true,
+    enableReviewPromptsAfterMajorEdits: true,
+    dateUpdated: iso(24),
+  };
+
+  const settingsAi: AiSettings = {
+    enableAiSuggestions: true,
+    provider: 'gemini',
+    model: '2.5-flash',
+    reasoningDepth: 'standard',
+    autoGenerateQuestionsAfterSourceCapture: true,
+    autoDetectPossibleTensions: true,
+    autoSuggestConceptLinks: true,
+    autoSuggestPositionLinks: true,
+    autoSummarizeEvolutionEvents: true,
+    requireUserApprovalBeforeSavingAiOutput: true,
+    saveAiSuggestionsAsDraftOnly: true,
+    memoryScope: 'linked_objects',
+    tone: 'socratic',
+    safetyMode: 'balanced',
+    dateUpdated: iso(24),
+  };
+
+  const settingsMetacognition: MetacognitionSettings = {
+    enableMetacognitionFeatures: true,
+    enableThinkingEventsLogging: true,
+    enableBeliefBiographies: true,
+    enableThinkingPatternDetection: true,
+    enableUnknownsTracking: true,
+    enableCognitionMetrics: true,
+    enableMissingPerspectivesDetection: true,
+    enableBlindSpotObservations: true,
+    showMetacognitionPanelsOnProfile: true,
+    showMetacognitionPanelsOnObjectPages: true,
+    recomputeMetacognitionAutomatically: true,
+    lastComputedAt: iso(26),
+    dateUpdated: iso(26),
+  };
+
+  const settingsPrivacy: PrivacySettings = {
+    defaultObjectVisibility: 'private',
+    publicSharingEnabled: false,
+    allowPublicWorks: false,
+    allowPublicPositions: false,
+    allowPublicConcepts: false,
+    allowPublicPractices: false,
+    allowPublicSourceList: false,
+    hidePrivateNotesFromSharedViews: true,
+    hideAnnotationsFromSharedViews: true,
+    hideMetacognitionFromSharedViews: true,
+    requireConfirmationBeforePublic: true,
+    shareableProfileLink: '',
+    dateUpdated: iso(24),
+  };
+
+  const settingsData: DataSettings = {
+    lastExportedAt: iso(24),
+    allowImport: true,
+    allowWorkspaceReset: false,
+    allowClearDemoData: true,
+    storageUsageNote: 'Demo workspace only; safe to refresh for reviews.',
+    dateUpdated: iso(24),
+  };
+
+  const settingsSourceIntake: SourceIntakeSettings = {
+    defaultMediaType: 'book',
+    defaultSourceStatus: 'Want to Read',
+    enableIsbnLookup: true,
+    enableDoiLookup: true,
+    enableYouTubeMetadataFetch: true,
+    enableArticleMetadataFetch: true,
+    enableFileUpload: true,
+    enableOcr: false,
+    defaultAnnotationType: 'highlight',
+    autoCreateConceptsFromAnnotations: false,
+    autoCreateInquiriesFromQuestions: true,
+    requireConfirmationBeforeCreatingExtractedObjects: true,
+    dateUpdated: iso(24),
+  };
+
+  const settingsWorks: WorksSettings = {
+    defaultWorkType: 'essay',
+    defaultDraftStatus: 'drafting',
+    defaultPaperStyle: 'belief_audit',
+    defaultEditorMode: 'spacious',
+    autoSaveIntervalSeconds: 3,
+    externalDocSyncEnabled: true,
+    defaultExportFormat: 'md',
+    showWordCount: true,
+    showLinkedConcepts: true,
+    showLinkedPositions: true,
+    showAiPanel: true,
+    recordingStorageSetting: 'local',
+    drawingCanvasDefault: 'freeform',
+    dateUpdated: iso(24),
+  };
+
+  const settingsAtlas: AtlasSettings = {
+    defaultMapId: 'map_identity_engine',
+    defaultNodeTypesVisible: ['concept', 'position', 'inquiry', 'work', 'practice'],
+    defaultLinkTypesVisible: ['supports', 'challenges', 'refines', 'contradicts', 'tested_by', 'expressed_in', 'depends_on', 'explains'],
+    showLabelsByDefault: true,
+    showEvidenceStrength: true,
+    showContradictionLinks: true,
+    showPracticeLinks: true,
+    showSourceLinks: true,
+    layoutMode: 'force_graph',
+    nodeSizeBasedOn: 'link_count',
+    dateUpdated: iso(24),
+  };
+
+  const settingsNotifications: NotificationSettings = {
+    dailyReviewReminders: false,
+    weeklyEvolutionSummary: true,
+    sourceGoalReminders: true,
+    practiceReminders: true,
+    unresolvedTensionReminders: true,
+    unknownFollowUpReminders: true,
+    positionReviewReminders: true,
+    staleBeliefReviewReminders: true,
+    emailNotifications: false,
+    inAppNotifications: true,
+    dateUpdated: iso(24),
+  };
+
+  const settingsGoals: GoalPreferenceSettings = {
+    ...DEFAULT_GOAL_PREFERENCE_SETTINGS,
+    goalReminderFrequency: 'weekly',
+    defaultGoalCategories: ['Books & Papers', 'Talks & Listening', 'Essays & Articles'],
+    defaultMonthlySourceTarget: 8,
+    includeAudiobooksInReadingGoals: true,
+    includePodcastsInLearningGoals: true,
+    includeVideosInSourceGoals: true,
+    showGoalsOnDashboard: true,
+    dateUpdated: iso(24),
+  };
+
+  const settingsDeveloper: DeveloperSettings = {
+    reviewModeStatus: true,
+    demoWorkspaceSeedStatus: true,
+    currentUserPath: `users/${uid}`,
+    themeCompatibilityTestedAt: iso(24),
+    dateUpdated: iso(24),
+  };
+
+  return {
+    profile,
+    preferences,
+    goal,
+    workspace,
+    media,
+    concepts,
+    questions,
+    vault,
+    drafts,
+    practices,
+    timeline,
+    insights,
+    links,
+    suggestions,
+    atlasMaps,
+    thinkingEvents,
+    beliefProfiles,
+    unknowns,
+    thinkingPatterns,
+    thinkingMetrics,
+    profilePrivacy,
+    profileMetacognitionSummary,
+    settingsAccount,
+    settingsAppearance,
+    settingsWorkspace,
+    settingsAi,
+    settingsMetacognition,
+    settingsPrivacy,
+    settingsData,
+    settingsSourceIntake,
+    settingsWorks,
+    settingsAtlas,
+    settingsNotifications,
+    settingsGoals,
+    settingsDeveloper,
+  };
 }
 
 export function buildReviewExport(args: {
