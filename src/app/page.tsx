@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import {
   FirebaseClientProvider,
@@ -53,26 +53,26 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
 
   const refs = useMemo(() => readexRefs(db, effectiveUid), [db, effectiveUid]);
 
-  const { data: media = [] } = useCollection<Media>(refs.media as any);
-  const { data: vault = [] } = useCollection<VaultEntry>(refs.vault as any);
-  const { data: insights = [] } = useCollection<Insight>(refs.insights as any);
-  const { data: concepts = [] } = useCollection<Concept>(refs.concepts as any);
-  const { data: questions = [] } = useCollection<Question>(refs.questions as any);
-  const { data: timeline = [] } = useCollection<TimelineEvent>(refs.timeline as any);
-  const { data: drafts = [] } = useCollection<Draft>(refs.drafts as any);
-  const { data: practices = [] } = useCollection<Practice>(refs.practices as any);
-  const { data: atlasMaps = [] } = useCollection<AtlasMap>(refs.atlasMaps as any);
-  const { data: links = [] } = useCollection<PhilosophicalLink>(refs.links as any);
-  const { data: suggestions = [] } = useCollection<AiSuggestion>(refs.suggestions as any);
-  const { data: thinkingEvents = [] } = useCollection<ThinkingEvent>(refs.thinkingEvents as any);
-  const { data: beliefProfiles = [] } = useCollection<BeliefProfile>(refs.beliefProfiles as any);
-  const { data: unknowns = [] } = useCollection<Unknown>(refs.unknowns as any);
-  const { data: thinkingPatterns = [] } = useCollection<ThinkingPattern>(refs.thinkingPatterns as any);
-  const { data: thinkingMetricsDoc } = useDoc<ThinkingMetrics>(doc(refs.thinkingMetrics, 'summary') as any);
-  const { data: goalDoc } = useDoc<GoalSettings>(refs.settingsGoal as any);
-  const { data: preferencesDoc } = useDoc<UserPreferences>(refs.settingsPreferences as any);
-  const { data: profileDoc } = useDoc<UserProfile>(refs.settingsProfile as any);
-  const { data: workspaceDoc } = useDoc<WorkspaceSettings>(refs.settingsWorkspace as any);
+  const { data: media = [], loading: mediaLoading } = useCollection<Media>(refs.media as any);
+  const { data: vault = [], loading: vaultLoading } = useCollection<VaultEntry>(refs.vault as any);
+  const { data: insights = [], loading: insightsLoading } = useCollection<Insight>(refs.insights as any);
+  const { data: concepts = [], loading: conceptsLoading } = useCollection<Concept>(refs.concepts as any);
+  const { data: questions = [], loading: questionsLoading } = useCollection<Question>(refs.questions as any);
+  const { data: timeline = [], loading: timelineLoading } = useCollection<TimelineEvent>(refs.timeline as any);
+  const { data: drafts = [], loading: draftsLoading } = useCollection<Draft>(refs.drafts as any);
+  const { data: practices = [], loading: practicesLoading } = useCollection<Practice>(refs.practices as any);
+  const { data: atlasMaps = [], loading: atlasMapsLoading } = useCollection<AtlasMap>(refs.atlasMaps as any);
+  const { data: links = [], loading: linksLoading } = useCollection<PhilosophicalLink>(refs.links as any);
+  const { data: suggestions = [], loading: suggestionsLoading } = useCollection<AiSuggestion>(refs.suggestions as any);
+  const { data: thinkingEvents = [], loading: thinkingEventsLoading } = useCollection<ThinkingEvent>(refs.thinkingEvents as any);
+  const { data: beliefProfiles = [], loading: beliefProfilesLoading } = useCollection<BeliefProfile>(refs.beliefProfiles as any);
+  const { data: unknowns = [], loading: unknownsLoading } = useCollection<Unknown>(refs.unknowns as any);
+  const { data: thinkingPatterns = [], loading: thinkingPatternsLoading } = useCollection<ThinkingPattern>(refs.thinkingPatterns as any);
+  const { data: thinkingMetricsDoc, loading: thinkingMetricsLoading } = useDoc<ThinkingMetrics>(doc(refs.thinkingMetrics, 'summary') as any);
+  const { data: goalDoc, loading: goalLoading } = useDoc<GoalSettings>(refs.settingsGoal as any);
+  const { data: preferencesDoc, loading: preferencesLoading } = useDoc<UserPreferences>(refs.settingsPreferences as any);
+  const { data: profileDoc, loading: profileLoading } = useDoc<UserProfile>(refs.settingsProfile as any);
+  const { data: workspaceDoc, loading: workspaceLoading } = useDoc<WorkspaceSettings>(refs.settingsWorkspace as any);
   
   const goal = { ...DEFAULT_GOAL_SETTINGS, ...(goalDoc || {}) };
   const preferences: UserPreferences = {
@@ -104,6 +104,28 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
   const isReviewWorkspace = reviewMode || isReviewIdentity || workspace.workspaceMode === 'review' || workspace.demoWorkspace;
   const canSeedReviewWorkspace = effectiveUid === PROTOTYPE_USER_ID || isReviewIdentity;
   const [isSeedingReview, setIsSeedingReview] = useState(false);
+  const autoSeedAttemptedRef = useRef(false);
+  const reviewDataLoading =
+    mediaLoading ||
+    vaultLoading ||
+    insightsLoading ||
+    conceptsLoading ||
+    questionsLoading ||
+    timelineLoading ||
+    draftsLoading ||
+    practicesLoading ||
+    atlasMapsLoading ||
+    linksLoading ||
+    suggestionsLoading ||
+    thinkingEventsLoading ||
+    beliefProfilesLoading ||
+    unknownsLoading ||
+    thinkingPatternsLoading ||
+    thinkingMetricsLoading ||
+    goalLoading ||
+    preferencesLoading ||
+    profileLoading ||
+    workspaceLoading;
 
   useEffect(() => {
     setGoalState(goal);
@@ -216,19 +238,22 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
       demo.atlasMaps.forEach((item) => batch.set(doc(refs.atlasMaps, item.id), item));
 
       await batch.commit();
+      autoSeedAttemptedRef.current = true;
     } finally {
       setIsSeedingReview(false);
     }
   };
 
   useEffect(() => {
-    if (!isReviewWorkspace || !canSeedReviewWorkspace || isSeedingReview) return;
+    if (!isReviewWorkspace || !canSeedReviewWorkspace || isSeedingReview || reviewDataLoading) return;
+    if (autoSeedAttemptedRef.current) return;
     if (workspace.seedSource === 'system-demo' && totalObjects > 0) return;
     if (totalObjects > 0 && workspace.demoWorkspace) return;
     if (totalObjects === 0) {
+      autoSeedAttemptedRef.current = true;
       seedReviewWorkspace(false).catch((error) => console.warn('Review seed failed', error));
     }
-  }, [canSeedReviewWorkspace, isReviewWorkspace, isSeedingReview, totalObjects, workspace.demoWorkspace, workspace.seedSource]);
+  }, [canSeedReviewWorkspace, isReviewWorkspace, isSeedingReview, reviewDataLoading, totalObjects, workspace.demoWorkspace, workspace.seedSource]);
 
   const metacognitionEnabled = Boolean(featureFlags.metacognitionEnabled);
 
