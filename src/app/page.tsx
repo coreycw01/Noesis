@@ -111,7 +111,17 @@ import { writeThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinking
 
 type FirebaseInstances = ReturnType<typeof initializeFirebase>;
 
-function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null; uid: string; reviewMode?: boolean }) {
+function ReadexWorkspace({
+  user,
+  uid,
+  reviewMode = false,
+  reviewWorkspaceUid,
+}: {
+  user: User | null;
+  uid: string;
+  reviewMode?: boolean;
+  reviewWorkspaceUid?: string;
+}) {
   const { db } = useFirebase();
   const { toast } = useToast();
   const [view, setView] = useState('atlas');
@@ -276,8 +286,13 @@ function ReadexWorkspace({ user, uid, reviewMode = false }: { user: User | null;
   };
   const featureFlags = workspace.featureFlags || {};
   const isReviewIdentity = (user?.email || profile.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
+  const activeReviewWorkspaceUid = reviewWorkspaceUid || REVIEW_WORKSPACE_UID;
   const isReviewWorkspace = Boolean(reviewMode || isReviewIdentity || workspace.workspaceMode === 'review' || workspace.demoWorkspace);
-  const canSeedReviewWorkspace = effectiveUid === REVIEW_WORKSPACE_UID || isReviewIdentity;
+  const canSeedReviewWorkspace = Boolean(
+    isReviewIdentity ||
+    (user?.uid && effectiveUid === user.uid) ||
+    effectiveUid === activeReviewWorkspaceUid
+  );
   const [isSeedingReview, setIsSeedingReview] = useState(false);
   const autoSeedAttemptedRef = useRef(false);
   const reviewDataLoading =
@@ -1935,6 +1950,7 @@ function ReadexApp({ reviewMode = false }: { reviewMode?: boolean }) {
   const [demoMode, setDemoMode] = useState(false);
   const allowDemo = reviewMode || process.env.NEXT_PUBLIC_ALLOW_PROTOTYPE_MODE === 'true';
   const isReviewIdentity = (user?.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
+  const resolvedReviewWorkspaceUid = isReviewIdentity ? (user?.uid || REVIEW_WORKSPACE_UID) : REVIEW_WORKSPACE_UID;
 
   if (loading) {
     return (
@@ -1956,9 +1972,18 @@ function ReadexApp({ reviewMode = false }: { reviewMode?: boolean }) {
     );
   }
 
-  const workspaceUid = (reviewMode || demoMode || isReviewIdentity) ? REVIEW_WORKSPACE_UID : (user?.uid || PROTOTYPE_USER_ID);
+  const workspaceUid = (reviewMode || demoMode || isReviewIdentity)
+    ? resolvedReviewWorkspaceUid
+    : (user?.uid || PROTOTYPE_USER_ID);
 
-  return <ReadexWorkspace user={user} uid={workspaceUid} reviewMode={reviewMode || demoMode || isReviewIdentity} />;
+  return (
+    <ReadexWorkspace
+      user={user}
+      uid={workspaceUid}
+      reviewMode={reviewMode || demoMode || isReviewIdentity}
+      reviewWorkspaceUid={resolvedReviewWorkspaceUid}
+    />
+  );
 }
 
 export function NoesisHome({ reviewMode = false }: { reviewMode?: boolean }) {

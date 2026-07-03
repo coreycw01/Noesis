@@ -190,7 +190,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   const sidebarContent = (
     <>
       <div className={cn("border-b border-sidebar-border", collapsed && !isMobile ? "p-3" : "p-5")}>
-        <div className={cn("mb-2 flex", collapsed && !isMobile ? "flex-col items-center gap-3" : "items-start justify-between gap-3")}>
+        <div className={cn("mb-2 flex", collapsed && !isMobile ? "flex-col items-center gap-3" : "items-start gap-3")}>
           <div className={cn("flex items-center", collapsed && !isMobile ? "justify-center" : "gap-3")}>
             <div className="relative size-8 overflow-hidden rounded-lg border border-white/10 bg-white/[0.05] shrink-0">
               {logoData && (
@@ -211,31 +211,32 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
               </div>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onOpenProfile || (() => handleNavChange('profile'))}
-            className={cn(
-              "group flex items-center rounded-2xl border border-white/10 bg-white/[0.05] transition-colors hover:border-white/20 hover:bg-white/[0.08]",
-              collapsed && !isMobile ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
-            )}
-            title="Open profile"
-          >
-            <Avatar className="size-9 border border-white/10">
-              <AvatarImage src={profile?.photoURL || profile?.avatarUrl || ''} alt={profile?.displayName || 'Profile'} />
-              <AvatarFallback className="bg-white/[0.08] text-[11px] font-semibold text-white">
-                {profileInitials}
-              </AvatarFallback>
-            </Avatar>
-            {(!collapsed || isMobile) && (
-              <div className="min-w-0 text-left">
-                <div className="truncate text-[12px] font-medium text-white/90">{profile?.displayName || 'Profile'}</div>
-                <div className="truncate font-code text-[8px] uppercase tracking-[0.14em] text-sidebar-foreground/38">
-                  {workspaceMode || profile?.role || 'Private workspace'}
-                </div>
-              </div>
-            )}
-          </button>
         </div>
+
+        <button
+          type="button"
+          onClick={onOpenProfile || (() => handleNavChange('profile'))}
+          className={cn(
+            "group flex items-center rounded-2xl border border-white/10 bg-white/[0.05] transition-colors hover:border-white/20 hover:bg-white/[0.08]",
+            collapsed && !isMobile ? "mt-3 w-full justify-center p-2.5" : "mt-3 w-full gap-3 px-3 py-2.5"
+          )}
+          title="Open profile"
+        >
+          <Avatar className="size-9 border border-white/10">
+            <AvatarImage src={profile?.photoURL || profile?.avatarUrl || ''} alt={profile?.displayName || 'Profile'} />
+            <AvatarFallback className="bg-white/[0.08] text-[11px] font-semibold text-white">
+              {profileInitials}
+            </AvatarFallback>
+          </Avatar>
+          {(!collapsed || isMobile) && (
+            <div className="min-w-0 text-left">
+              <div className="truncate text-[12px] font-medium text-white/90">{profile?.displayName || 'Profile'}</div>
+              <div className="truncate font-code text-[8px] uppercase tracking-[0.14em] text-sidebar-foreground/38">
+                {workspaceMode || profile?.role || 'Private workspace'}
+              </div>
+            </div>
+          )}
+        </button>
 
         <div className={cn("mt-4 flex items-center", collapsed && !isMobile ? "justify-center" : "justify-end")}>
           <Button
