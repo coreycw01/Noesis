@@ -775,7 +775,11 @@ export function ConceptAtlas({
   };
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-background">
+    <div className={cn(
+      "relative flex h-full w-full flex-col overflow-hidden bg-background",
+      isFullScreen && "fixed inset-0 z-50"
+    )}>
+      {!isFullScreen && (
       <header className="z-20 mb-6 flex items-start justify-between gap-4 px-8 pt-8">
         <div>
           <h1 className="font-headline text-[28px] font-semibold italic">Atlas</h1>
@@ -802,7 +806,9 @@ export function ConceptAtlas({
           </Button>
         </div>
       </header>
+      )}
 
+      {!isFullScreen && (
       <div className="z-10 space-y-3 px-8 pb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 rounded-full border border-border bg-white p-1 shadow-sm">
@@ -847,11 +853,18 @@ export function ConceptAtlas({
           </div>
         </Card>
       </div>
+      )}
 
-      <div className="flex flex-1 gap-4 overflow-hidden px-8 pb-8">
+      <div className={cn(
+        "flex flex-1 gap-4 overflow-hidden",
+        isFullScreen ? "px-0 pb-0" : "px-8 pb-8"
+      )}>
         <div
           ref={mapRef}
-          className="relative flex-1 cursor-grab overflow-hidden rounded-xl border border-border bg-muted/5 active:cursor-grabbing shadow-inner"
+          className={cn(
+            "relative flex-1 cursor-grab overflow-hidden border border-border bg-muted/5 active:cursor-grabbing shadow-inner",
+            isFullScreen ? "rounded-none" : "rounded-xl"
+          )}
           onMouseDown={startPanning}
           onMouseMove={handleMouseMove}
           onMouseUp={() => setIsPanning(false)}
@@ -1132,7 +1145,7 @@ export function ConceptAtlas({
         )}
       </div>
 
-      {isFullScreen && isPanelOpen && atlasPanel}
+      {isFullScreen && isPanelOpen && selectedName && atlasPanel}
 
       <Dialog open={!!selectedLink} onOpenChange={(open) => !open && setSelectedLink(null)}>
         <DialogContent className="max-w-lg border-none shadow-2xl rounded-2xl">
