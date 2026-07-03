@@ -1943,7 +1943,6 @@ function ReadexWorkspace({
               </div>
             </div>
           </div>
-        </div>
       )}
       {renderContent()}
       <Toaster />
