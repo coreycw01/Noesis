@@ -748,7 +748,7 @@ export function ConceptAtlas({
                             }}
                             className="h-7 rounded-full px-3 text-destructive hover:text-destructive disabled:text-muted-foreground"
                           >
-                            Cut Link
+                            Delete Link
                           </Button>
                         </div>
                       </div>
@@ -818,7 +818,7 @@ export function ConceptAtlas({
                         onClick={() => setIsDeleteAllLinksOpen(true)}
                         className="h-8 w-full justify-center rounded-full text-xs text-destructive hover:text-destructive disabled:text-muted-foreground"
                       >
-                        Delete All Links
+                        Delete Connected Links
                       </Button>
                       {mode === 'custom' && activeMap && (
                         <Button variant="ghost" size="sm" onClick={() => removeNodeFromMap(selectedName)} className="h-8 w-full justify-center rounded-full text-destructive hover:text-destructive">
@@ -1349,7 +1349,7 @@ export function ConceptAtlas({
                                 }}
                                 className="h-7 rounded-full px-3 text-destructive hover:text-destructive disabled:text-muted-foreground"
                               >
-                                Cut Link
+                                Delete Link
                               </Button>
                             </div>
                           </div>
@@ -1449,7 +1449,7 @@ export function ConceptAtlas({
                         onClick={() => setIsDeleteAllLinksOpen(true)}
                         className="h-8 w-full justify-center rounded-full text-xs text-destructive hover:text-destructive disabled:text-muted-foreground"
                       >
-                        Delete All Links
+                        Delete Connected Links
                       </Button>
                       {mode === 'custom' && activeMap && (
                         <Button variant="ghost" size="sm" onClick={() => removeNodeFromMap(selectedName)} className="h-8 w-full justify-center rounded-full text-destructive hover:text-destructive">
@@ -1550,7 +1550,7 @@ export function ConceptAtlas({
                 }}
                 className="rounded-full px-7"
               >
-                Cut Link
+                Delete Link
               </Button>
             )}
           </DialogFooter>
@@ -1560,16 +1560,16 @@ export function ConceptAtlas({
       <Dialog open={!!cutLinkCandidate} onOpenChange={(open) => !open && setCutLinkCandidate(null)}>
         <DialogContent className="max-w-md border-none shadow-2xl rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl italic">Cut This Link?</DialogTitle>
+            <DialogTitle className="font-headline text-2xl italic">Delete This Link?</DialogTitle>
           </DialogHeader>
           {cutLinkCandidate && (
             <p className="pt-2 text-sm italic leading-6 text-muted-foreground">
-              This severs the relationship between <span className="text-foreground">{cutLinkCandidate.from}</span> and <span className="text-foreground">{cutLinkCandidate.to}</span>. The nodes and their source items stay intact.
+              This removes the relationship between <span className="text-foreground">{cutLinkCandidate.from}</span> and <span className="text-foreground">{cutLinkCandidate.to}</span>. The nodes and their source items stay intact.
             </p>
           )}
           <DialogFooter className="pt-4">
             <Button variant="ghost" onClick={() => setCutLinkCandidate(null)} className="rounded-full">Cancel</Button>
-            <Button variant="destructive" onClick={() => cutLink(cutLinkCandidate!)} className="rounded-full px-7">Cut Link</Button>
+            <Button variant="destructive" onClick={() => cutLink(cutLinkCandidate!)} className="rounded-full px-7">Delete Link</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1648,14 +1648,14 @@ export function ConceptAtlas({
       <Dialog open={isDeleteAllLinksOpen} onOpenChange={setIsDeleteAllLinksOpen}>
         <DialogContent className="max-w-md border-none shadow-2xl rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl italic">Delete All Links?</DialogTitle>
+            <DialogTitle className="font-headline text-2xl italic">Delete Connected Links?</DialogTitle>
           </DialogHeader>
           <p className="pt-2 text-sm italic leading-6 text-muted-foreground">
-            This removes every removable link attached to <span className="text-foreground">{selectedName}</span>. Derived shared-evidence links will stay, because they come from overlap elsewhere in the system.
+            This removes every removable link attached to <span className="text-foreground">{selectedName}</span>. It does not delete every link on the map. Derived shared-evidence links will stay, because they come from overlap elsewhere in the system.
           </p>
           <DialogFooter className="pt-4">
             <Button variant="ghost" onClick={() => setIsDeleteAllLinksOpen(false)} className="rounded-full">Cancel</Button>
-            <Button variant="destructive" onClick={clearSelectedNodeLinks} className="rounded-full px-7">Delete All Links</Button>
+            <Button variant="destructive" onClick={clearSelectedNodeLinks} className="rounded-full px-7">Delete Connected Links</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
