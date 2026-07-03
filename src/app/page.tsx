@@ -541,6 +541,14 @@ function ReadexWorkspace({
       if (announce) {
         toast({ title: 'Demo workspace refreshed', description: 'Mock data was reseeded and remains scoped to the review workspace.' });
       }
+    } catch (error) {
+      console.error('[DemoSeed] Failed', error);
+      toast({
+        title: 'Demo workspace refresh failed',
+        description: 'Firestore rejected the workspace seed. Deploy the latest firestore.rules and confirm this account can write to its own /users/{uid} path.',
+        variant: 'destructive',
+      });
+      throw error;
     } finally {
       setIsSeedingReview(false);
     }
