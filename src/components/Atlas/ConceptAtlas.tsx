@@ -143,6 +143,8 @@ export function ConceptAtlas({
   const [selectedLink, setSelectedLink] = useState<AtlasLinkItem | null>(null);
   const [cutLinkCandidate, setCutLinkCandidate] = useState<AtlasLinkItem | null>(null);
   const [isPositionsOpen, setIsPositionsOpen] = useState(false);
+  const [relatedDialogType, setRelatedDialogType] = useState<null | 'sources' | 'works' | 'practices' | 'inquiries' | 'unknowns'>(null);
+  const [isDeleteAllLinksOpen, setIsDeleteAllLinksOpen] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [newConcept, setNewConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
@@ -601,6 +603,78 @@ export function ConceptAtlas({
     });
   }, [concepts, edges, onDeleteLink, selectedMapLinks, selectedName, selectedTypedLinks]);
 
+  const removableNodeLinks = useMemo(() => selectedNodeLinks.filter((link) => link.removable), [selectedNodeLinks]);
+
+  const relatedDialogData = useMemo(() => {
+    if (!relatedDialogType || !related) return null;
+
+    switch (relatedDialogType) {
+      case 'sources':
+        return {
+          title: `${selectedName} Sources`,
+          empty: 'No related sources yet.',
+          items: related.sources.map((item) => ({
+            id: item.id,
+            title: item.title,
+            meta: [item.creator, item.type, item.status].filter(Boolean).join(' · '),
+            body:
+              item.description ||
+              item.capture?.after?.coreArgument ||
+              item.capture?.after?.lasting ||
+              item.capture?.before?.expectation ||
+              item.capture?.before?.openQuestion ||
+              '',
+          })),
+        };
+      case 'works':
+        return {
+          title: `${selectedName} Works`,
+          empty: 'No related works yet.',
+          items: related.drafts.map((item) => ({
+            id: item.id,
+            title: item.title,
+            meta: [item.type.replace(/_/g, ' '), item.status].filter(Boolean).join(' · '),
+            body: item.body || item.finalContent || item.draftContent || '',
+          })),
+        };
+      case 'practices':
+        return {
+          title: `${selectedName} Practices`,
+          empty: 'No related practices yet.',
+          items: related.practices.map((item) => ({
+            id: item.id,
+            title: item.title,
+            meta: [item.type.replace(/_/g, ' '), item.status].filter(Boolean).join(' · '),
+            body: item.description || item.notes || '',
+          })),
+        };
+      case 'inquiries':
+        return {
+          title: `${selectedName} Inquiries`,
+          empty: 'No related inquiries yet.',
+          items: related.questions.map((item) => ({
+            id: item.id,
+            title: item.text,
+            meta: item.status.replace(/_/g, ' '),
+            body: item.answer || '',
+          })),
+        };
+      case 'unknowns':
+        return {
+          title: `${selectedName} Unknowns`,
+          empty: 'No related unknowns yet.',
+          items: relatedUnknowns.map((item) => ({
+            id: item.unknownId,
+            title: item.title,
+            meta: [item.status, item.importance].filter(Boolean).join(' · '),
+            body: item.description || item.resolutionSummary || '',
+          })),
+        };
+      default:
+        return null;
+    }
+  }, [related, relatedDialogType, relatedUnknowns, selectedName]);
+
   const atlasPanel = (
     <aside
       className={cn(
@@ -690,14 +764,24 @@ export function ConceptAtlas({
                 <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Evidence And Outputs</h4>
                 {related ? (
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="bg-muted/30 rounded-full">{related.sources.length} sources</Badge>
+                    <button onClick={() => setRelatedDialogType('sources')} disabled={!related.sources.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.sources.length} sources</Badge>
+                    </button>
                     <button onClick={() => setIsPositionsOpen(true)} disabled={!related.beliefs.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
                       <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.beliefs.length} positions</Badge>
                     </button>
-                    <Badge variant="outline" className="bg-muted/30 rounded-full">{related.drafts.length} works</Badge>
-                    <Badge variant="outline" className="bg-muted/30 rounded-full">{related.practices.length} practices</Badge>
-                    <Badge variant="outline" className="bg-muted/30 rounded-full">{related.questions.length} inquiries</Badge>
-                    <Badge variant="outline" className="bg-muted/30 rounded-full">{relatedUnknowns.length} unknowns</Badge>
+                    <button onClick={() => setRelatedDialogType('works')} disabled={!related.drafts.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.drafts.length} works</Badge>
+                    </button>
+                    <button onClick={() => setRelatedDialogType('practices')} disabled={!related.practices.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.practices.length} practices</Badge>
+                    </button>
+                    <button onClick={() => setRelatedDialogType('inquiries')} disabled={!related.questions.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.questions.length} inquiries</Badge>
+                    </button>
+                    <button onClick={() => setRelatedDialogType('unknowns')} disabled={!relatedUnknowns.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{relatedUnknowns.length} unknowns</Badge>
+                    </button>
                   </div>
                 ) : (
                   <p className="text-xs italic text-muted-foreground font-body">Gathering links...</p>
@@ -721,15 +805,24 @@ export function ConceptAtlas({
               </section>
             )}
 
-            {panelSection === 'actions' && (
-              <section className="space-y-3">
-                <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
-                <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => setIsLinkOpen(true)}>
-                  <Link2 className="mr-1.5 size-3.5" /> Link This Idea
-                </Button>
-                {mode === 'custom' && activeMap && (
-                  <Button variant="ghost" size="sm" onClick={() => removeNodeFromMap(selectedName)} className="h-8 w-full justify-center rounded-full text-destructive hover:text-destructive">
-                    Remove from this map
+                  {panelSection === 'actions' && (
+                    <section className="space-y-3">
+                      <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
+                      <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => setIsLinkOpen(true)}>
+                        <Link2 className="mr-1.5 size-3.5" /> Link This Idea
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!removableNodeLinks.length}
+                        onClick={() => setIsDeleteAllLinksOpen(true)}
+                        className="h-8 w-full justify-center rounded-full text-xs text-destructive hover:text-destructive disabled:text-muted-foreground"
+                      >
+                        Delete All Links
+                      </Button>
+                      {mode === 'custom' && activeMap && (
+                        <Button variant="ghost" size="sm" onClick={() => removeNodeFromMap(selectedName)} className="h-8 w-full justify-center rounded-full text-destructive hover:text-destructive">
+                          Remove from this map
                   </Button>
                 )}
               </section>
@@ -865,6 +958,37 @@ export function ConceptAtlas({
     }
     setSelectedLink(null);
     setCutLinkCandidate(null);
+  };
+
+  const clearSelectedNodeLinks = () => {
+    if (!selectedName) return;
+    const key = conceptKey(selectedName);
+
+    if (activeMap) {
+      updateActiveMap({
+        manualLinks: (activeMap.manualLinks || []).filter((link) => conceptKey(link.from) !== key && conceptKey(link.to) !== key),
+      });
+    }
+
+    concepts.forEach((concept) => {
+      const nextLinks = (concept.links || []).filter((link) => {
+        const from = conceptKey(concept.name);
+        const to = conceptKey(link);
+        return from !== key && to !== key;
+      });
+
+      if (nextLinks.length !== (concept.links || []).length) {
+        onUpdateConcept({ ...concept, links: nextLinks, dateUpdated: today() });
+      }
+    });
+
+    if (onDeleteLink) {
+      selectedTypedLinks.forEach((link) => onDeleteLink(link.id));
+    }
+
+    setSelectedLink(null);
+    setCutLinkCandidate(null);
+    setIsDeleteAllLinksOpen(false);
   };
 
   const startPanning = (event: React.MouseEvent | React.PointerEvent) => {
@@ -1270,14 +1394,24 @@ export function ConceptAtlas({
                     <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Evidence And Outputs</h4>
                     {related ? (
                       <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline" className="bg-muted/30 rounded-full">{related.sources.length} sources</Badge>
+                        <button onClick={() => setRelatedDialogType('sources')} disabled={!related.sources.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                          <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.sources.length} sources</Badge>
+                        </button>
                         <button onClick={() => setIsPositionsOpen(true)} disabled={!related.beliefs.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
                           <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.beliefs.length} positions</Badge>
                         </button>
-                        <Badge variant="outline" className="bg-muted/30 rounded-full">{related.drafts.length} works</Badge>
-                        <Badge variant="outline" className="bg-muted/30 rounded-full">{related.practices.length} practices</Badge>
-                        <Badge variant="outline" className="bg-muted/30 rounded-full">{related.questions.length} inquiries</Badge>
-                        <Badge variant="outline" className="bg-muted/30 rounded-full">{relatedUnknowns.length} unknowns</Badge>
+                        <button onClick={() => setRelatedDialogType('works')} disabled={!related.drafts.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                          <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.drafts.length} works</Badge>
+                        </button>
+                        <button onClick={() => setRelatedDialogType('practices')} disabled={!related.practices.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                          <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.practices.length} practices</Badge>
+                        </button>
+                        <button onClick={() => setRelatedDialogType('inquiries')} disabled={!related.questions.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                          <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.questions.length} inquiries</Badge>
+                        </button>
+                        <button onClick={() => setRelatedDialogType('unknowns')} disabled={!relatedUnknowns.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                          <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{relatedUnknowns.length} unknowns</Badge>
+                        </button>
                       </div>
                     ) : (
                       <p className="text-xs italic text-muted-foreground font-body">Gathering links...</p>
@@ -1307,6 +1441,15 @@ export function ConceptAtlas({
                       <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
                       <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => setIsLinkOpen(true)}>
                         <Link2 className="mr-1.5 size-3.5" /> Link This Idea
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!removableNodeLinks.length}
+                        onClick={() => setIsDeleteAllLinksOpen(true)}
+                        className="h-8 w-full justify-center rounded-full text-xs text-destructive hover:text-destructive disabled:text-muted-foreground"
+                      >
+                        Delete All Links
                       </Button>
                       {mode === 'custom' && activeMap && (
                         <Button variant="ghost" size="sm" onClick={() => removeNodeFromMap(selectedName)} className="h-8 w-full justify-center rounded-full text-destructive hover:text-destructive">
@@ -1478,6 +1621,42 @@ export function ConceptAtlas({
               </TableBody>
             </Table>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!relatedDialogType} onOpenChange={(open) => !open && setRelatedDialogType(null)}>
+        <DialogContent className="max-w-3xl border-none shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl italic">{relatedDialogData?.title || 'Related Items'}</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto pt-2">
+            {relatedDialogData?.items.length ? relatedDialogData.items.map((item) => (
+              <div key={item.id} className="rounded-xl border border-border/60 bg-muted/10 p-4">
+                <div className="font-headline text-lg font-semibold italic">{item.title}</div>
+                {item.meta && <div className="mt-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">{item.meta}</div>}
+                {item.body && <p className="mt-2 text-sm italic leading-6 text-muted-foreground">{item.body}</p>}
+              </div>
+            )) : (
+              <div className="py-10 text-center text-sm italic text-muted-foreground">
+                {relatedDialogData?.empty || 'No related items yet.'}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteAllLinksOpen} onOpenChange={setIsDeleteAllLinksOpen}>
+        <DialogContent className="max-w-md border-none shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl italic">Delete All Links?</DialogTitle>
+          </DialogHeader>
+          <p className="pt-2 text-sm italic leading-6 text-muted-foreground">
+            This removes every removable link attached to <span className="text-foreground">{selectedName}</span>. Derived shared-evidence links will stay, because they come from overlap elsewhere in the system.
+          </p>
+          <DialogFooter className="pt-4">
+            <Button variant="ghost" onClick={() => setIsDeleteAllLinksOpen(false)} className="rounded-full">Cancel</Button>
+            <Button variant="destructive" onClick={clearSelectedNodeLinks} className="rounded-full px-7">Delete All Links</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
