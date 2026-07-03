@@ -72,6 +72,9 @@ type MapEdge = {
   label: string;
   linkType?: AtlasMapLinkType;
   id?: string;
+  weight?: number;
+  strength?: 'strong' | 'moderate' | 'weak' | 'suggested';
+  objectTypes?: Array<'concept' | 'position' | 'inquiry' | 'source' | 'annotation' | 'work' | 'practice'>;
 };
 
 type AtlasLinkItem = {
@@ -98,6 +101,9 @@ const defaultAutoLinkFilters: AtlasAutoLinkFilters = {
 };
 
 const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'depends_on', 'explains', 'explained_by', 'derived_from', 'references', 'replaces', 'questions', 'expands', 'weakens', 'strengthens', 'relates', 'custom'];
+const highImportanceLinkTypes = new Set<AtlasMapLinkType | PhilosophicalLinkType>(['contradicts', 'supports', 'challenges', 'depends_on', 'strengthens', 'weakens', 'tested_by', 'changed_by', 'refines']);
+const moderateImportanceLinkTypes = new Set<AtlasMapLinkType | PhilosophicalLinkType>(['coheres', 'defines', 'explains', 'explained_by', 'questions', 'expands', 'replaces', 'derived_from']);
+type AtlasViewMode = 'core' | 'conflict' | 'evidence' | 'practice' | 'evolution' | 'full';
 
 export function ConceptAtlas({
   concepts,
@@ -126,6 +132,8 @@ export function ConceptAtlas({
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [linkSearch, setLinkSearch] = useState('');
   const [typedLinkFilter, setTypedLinkFilter] = useState<PhilosophicalLinkType | 'all'>('all');
+  const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('strong');
+  const [viewMode, setViewMode] = useState<AtlasViewMode>('core');
   const [mode, setMode] = useState<'auto' | 'custom'>('auto');
   const [activeMapId, setActiveMapId] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -201,6 +209,13 @@ export function ConceptAtlas({
     ]));
   }, [drafts, insights, media, nodes, practices, questions, timeline, vault]);
 
+  const classifyStrength = (score: number) => {
+    if (score >= 70) return 'strong' as const;
+    if (score >= 40) return 'moderate' as const;
+    if (score >= 15) return 'weak' as const;
+    return 'suggested' as const;
+  };
+
   const edges = useMemo<MapEdge[]>(() => {
     const result: MapEdge[] = [];
     const nodeNames = new Set(nodes.map((node) => conceptKey(node.name)));
@@ -209,7 +224,17 @@ export function ConceptAtlas({
     if (mode === 'custom' && activeMap) {
       (activeMap.manualLinks || []).forEach((link) => {
         if (nodeNames.has(conceptKey(link.from)) && nodeNames.has(conceptKey(link.to))) {
-          result.push({ from: conceptKey(link.from), to: conceptKey(link.to), type: 'user', label: link.label || link.type, linkType: link.type, id: link.id });
+          result.push({
+            from: conceptKey(link.from),
+            to: conceptKey(link.to),
+            type: 'user',
+            label: link.label || link.type,
+            linkType: link.type,
+            id: link.id,
+            weight: 85,
+            strength: 'strong',
+            objectTypes: ['concept'],
+          });
         }
       });
     }
@@ -217,13 +242,22 @@ export function ConceptAtlas({
     if (mode === 'auto' || filters.conceptLinks) {
       concepts.forEach((concept) => (concept.links || []).forEach((link) => {
         if (nodeNames.has(conceptKey(concept.name)) && nodeNames.has(conceptKey(link))) {
-          result.push({ from: conceptKey(concept.name), to: conceptKey(link), type: 'concept', label: 'saved concept link' });
+          result.push({
+            from: conceptKey(concept.name),
+            to: conceptKey(link),
+            type: 'concept',
+            label: 'saved concept link',
+            weight: 55,
+            strength: 'moderate',
+            objectTypes: ['concept'],
+          });
         }
       }));
     }
 
     const autoFiltersEnabled = mode === 'auto' || filters.sharedSources || filters.sharedPositions || filters.sharedInquiries || filters.sharedWorks || filters.sharedPractices;
     if (autoFiltersEnabled) {
+      const sharedCandidates: MapEdge[] = [];
       for (let i = 0; i < nodes.length; i += 1) {
         for (let j = i + 1; j < nodes.length; j += 1) {
           const left = relatedByNode.get(conceptKey(nodes[i].name));
@@ -234,14 +268,71 @@ export function ConceptAtlas({
           const sharedInquiries = left.questions.filter((item) => right.questions.some((other) => other.id === item.id)).length;
           const sharedWorks = left.drafts.filter((item) => right.drafts.some((other) => other.id === item.id)).length;
           const sharedPractices = left.practices.filter((item) => right.practices.some((other) => other.id === item.id)).length;
+          const objectTypeCount = [
+            sharedSources > 0,
+            sharedPositions > 0,
+            sharedInquiries > 0,
+            sharedWorks > 0,
+            sharedPractices > 0,
+          ].filter(Boolean).length;
           const shared =
             (mode === 'auto' || filters.sharedSources ? sharedSources : 0) +
             (mode === 'auto' || filters.sharedPositions ? sharedPositions : 0) +
             (mode === 'auto' || filters.sharedInquiries ? sharedInquiries : 0) +
             (mode === 'auto' || filters.sharedWorks ? sharedWorks : 0) +
             (mode === 'auto' || filters.sharedPractices ? sharedPractices : 0);
-          if (shared) result.push({ from: nodes[i].name, to: nodes[j].name, type: 'shared', label: `${shared} shared` });
+          if (shared) {
+            const score = Math.min(100, shared * 12 + objectTypeCount * 10);
+            sharedCandidates.push({
+              from: nodes[i].name,
+              to: nodes[j].name,
+              type: 'shared',
+              label: `${shared} shared`,
+              weight: score,
+              strength: classifyStrength(score),
+              objectTypes: [
+                ...(sharedSources ? ['source' as const] : []),
+                ...(sharedPositions ? ['position' as const] : []),
+                ...(sharedInquiries ? ['inquiry' as const] : []),
+                ...(sharedWorks ? ['work' as const] : []),
+                ...(sharedPractices ? ['practice' as const] : []),
+              ],
+            });
+          }
         }
+      }
+
+      if (autoConnectionFocus === 'all') {
+        result.push(...sharedCandidates);
+      } else if (autoConnectionFocus === 'moderate') {
+        const sortedCandidates = [...sharedCandidates].sort((a, b) => (b.weight || 0) - (a.weight || 0));
+        const perNodeCounts = new Map<string, number>();
+        sortedCandidates.forEach((edge) => {
+          const strength = edge.strength || 'suggested';
+          if (strength === 'weak' || strength === 'suggested') return;
+          const fromKey = conceptKey(edge.from);
+          const toKey = conceptKey(edge.to);
+          const fromCount = perNodeCounts.get(fromKey) || 0;
+          const toCount = perNodeCounts.get(toKey) || 0;
+          if (fromCount >= 6 || toCount >= 6) return;
+          result.push(edge);
+          perNodeCounts.set(fromKey, fromCount + 1);
+          perNodeCounts.set(toKey, toCount + 1);
+        });
+      } else {
+        const sortedCandidates = [...sharedCandidates].sort((a, b) => (b.weight || 0) - (a.weight || 0));
+        const perNodeCounts = new Map<string, number>();
+        sortedCandidates.forEach((edge) => {
+          if (edge.strength !== 'strong') return;
+          const fromKey = conceptKey(edge.from);
+          const toKey = conceptKey(edge.to);
+          const fromCount = perNodeCounts.get(fromKey) || 0;
+          const toCount = perNodeCounts.get(toKey) || 0;
+          if (fromCount >= 4 || toCount >= 4) return;
+          result.push(edge);
+          perNodeCounts.set(fromKey, fromCount + 1);
+          perNodeCounts.set(toKey, toCount + 1);
+        });
       }
     }
 
@@ -253,20 +344,79 @@ export function ConceptAtlas({
         const fromName = conceptKey(fromConcept?.name || link.fromLabel);
         const toName = conceptKey(toConcept?.name || link.toLabel);
         if (fromName && toName && nodeNames.has(fromName) && nodeNames.has(toName)) {
-          result.push({ from: fromName, to: toName, type: 'typed', label: link.type.replace(/_/g, ' '), linkType: link.type, id: link.id });
+          const importanceScore = highImportanceLinkTypes.has(link.type) ? 85 : moderateImportanceLinkTypes.has(link.type) ? 60 : 35;
+          result.push({
+            from: fromName,
+            to: toName,
+            type: 'typed',
+            label: link.type.replace(/_/g, ' '),
+            linkType: link.type,
+            id: link.id,
+            weight: importanceScore,
+            strength: classifyStrength(importanceScore),
+            objectTypes: [
+              ...(link.fromType === 'concept' || link.toType === 'concept' ? ['concept' as const] : []),
+              ...(link.fromType === 'position' || link.toType === 'position' ? ['position' as const] : []),
+              ...(link.fromType === 'inquiry' || link.toType === 'inquiry' ? ['inquiry' as const] : []),
+              ...(link.fromType === 'source' || link.toType === 'source' ? ['source' as const] : []),
+              ...(link.fromType === 'annotation' || link.toType === 'annotation' ? ['annotation' as const] : []),
+              ...(link.fromType === 'work' || link.toType === 'work' ? ['work' as const] : []),
+              ...(link.fromType === 'practice' || link.toType === 'practice' ? ['practice' as const] : []),
+            ],
+          });
         }
       });
     return result;
-  }, [activeMap, concepts, links, mode, nodes, relatedByNode, typedLinkFilter]);
+  }, [activeMap, autoConnectionFocus, concepts, links, mode, nodes, relatedByNode, typedLinkFilter]);
 
-  const uniqueFamilies = useMemo(() => {
+  const visibleEdges = useMemo(() => {
+    const selectedKey = conceptKey(selectedName || '');
+    const isSelectedEdge = (edge: MapEdge) => conceptKey(edge.from) === selectedKey || conceptKey(edge.to) === selectedKey;
+    const hasObjectType = (edge: MapEdge, types: Array<NonNullable<MapEdge['objectTypes']>[number]>) =>
+      (edge.objectTypes || []).some((type) => types.includes(type));
+
+    const filtered = edges.filter((edge) => {
+      const typedLabel = (edge.linkType || '').toString();
+      if (viewMode === 'full') return true;
+
+      if (viewMode === 'conflict') {
+        return ['contradicts', 'challenges', 'weakens', 'questions'].includes(typedLabel);
+      }
+
+      if (viewMode === 'evidence') {
+        return edge.type === 'shared' || hasObjectType(edge, ['source', 'annotation', 'position']);
+      }
+
+      if (viewMode === 'practice') {
+        return hasObjectType(edge, ['practice', 'work']) || ['tested_by', 'expressed_in'].includes(typedLabel);
+      }
+
+      if (viewMode === 'evolution') {
+        return ['changed_by', 'replaces', 'refines', 'strengthens', 'weakens'].includes(typedLabel);
+      }
+
+      if (edge.strength === 'strong') return true;
+      if (isSelectedEdge(edge) && edge.strength === 'moderate') return true;
+      if (['contradicts', 'challenges', 'depends_on', 'refines', 'strengthens', 'weakens', 'tested_by', 'changed_by'].includes(typedLabel) && edge.strength === 'moderate') return true;
+      if (edge.type === 'user') return true;
+      return false;
+    });
+
+    if (viewMode !== 'full' && !selectedName) {
+      return filtered.filter((edge) => edge.strength !== 'weak' && edge.strength !== 'suggested');
+    }
+
+    return filtered;
+  }, [edges, selectedName, viewMode]);
+
+  const visibleFamilies = useMemo(() => {
     const families = new Set();
-    edges.forEach(edge => {
+    visibleEdges.forEach((edge) => {
       const pair = [conceptKey(edge.from), conceptKey(edge.to)].sort().join('::');
       families.add(pair);
     });
     return families.size;
-  }, [edges]);
+  }, [visibleEdges]);
 
   const todayPrompt = useMemo(() => {
     const rawAnnotations = media.flatMap((item) => item.annotations || []).filter((annotation) => (annotation.philosophyStatus || 'raw') === 'raw');
@@ -780,7 +930,7 @@ export function ConceptAtlas({
       isFullScreen && "fixed inset-0 z-50"
     )}>
       {!isFullScreen && (
-      <header className="z-20 mb-6 flex items-start justify-between gap-4 px-8 pt-8">
+      <header className="z-20 mb-4 flex items-start justify-between gap-4 px-8 pt-6">
         <div>
           <h1 className="font-headline text-[28px] font-semibold italic">Atlas</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Map the relationships between concepts, sources, inquiries, positions, works, and practices.</p>
@@ -801,6 +951,29 @@ export function ConceptAtlas({
               ))}
             </SelectContent>
           </Select>
+          <Select value={autoConnectionFocus} onValueChange={(value) => setAutoConnectionFocus(value as 'strong' | 'moderate' | 'all')}>
+            <SelectTrigger className="h-9 w-44 rounded-full border-input bg-background px-4 font-code text-[10px] uppercase tracking-wider shadow-sm">
+              <SelectValue placeholder="Connection Focus" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="strong" className="font-code text-[10px] uppercase tracking-wider">Strong Connections</SelectItem>
+              <SelectItem value="moderate" className="font-code text-[10px] uppercase tracking-wider">Strong + Moderate</SelectItem>
+              <SelectItem value="all" className="font-code text-[10px] uppercase tracking-wider">All Connections</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={viewMode} onValueChange={(value) => setViewMode(value as AtlasViewMode)}>
+            <SelectTrigger className="h-9 w-40 rounded-full border-input bg-background px-4 font-code text-[10px] uppercase tracking-wider shadow-sm">
+              <SelectValue placeholder="View Mode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="core" className="font-code text-[10px] uppercase tracking-wider">Core Map</SelectItem>
+              <SelectItem value="conflict" className="font-code text-[10px] uppercase tracking-wider">Conflict Map</SelectItem>
+              <SelectItem value="evidence" className="font-code text-[10px] uppercase tracking-wider">Evidence Map</SelectItem>
+              <SelectItem value="practice" className="font-code text-[10px] uppercase tracking-wider">Practice/Test</SelectItem>
+              <SelectItem value="evolution" className="font-code text-[10px] uppercase tracking-wider">Evolution Map</SelectItem>
+              <SelectItem value="full" className="font-code text-[10px] uppercase tracking-wider">Full Map</SelectItem>
+            </SelectContent>
+          </Select>
           <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90 rounded-full">
             <Plus className="mr-1.5 size-4" /> New Concept
           </Button>
@@ -809,7 +982,7 @@ export function ConceptAtlas({
       )}
 
       {!isFullScreen && (
-      <div className="z-10 space-y-3 px-8 pb-4">
+      <div className="z-10 space-y-3 px-8 pb-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 rounded-full border border-border bg-white p-1 shadow-sm">
             <Button variant={mode === 'auto' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('auto')} className="h-8 rounded-full">Auto Map</Button>
@@ -837,19 +1010,27 @@ export function ConceptAtlas({
 
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
           <Stat value={nodes.length} label="Nodes" />
-          <Stat value={edges.length} label="Links" />
-          <Stat value={uniqueFamilies} label="Link Families" />
+          <Stat value={visibleEdges.length} label="Visible Links" />
+          <Stat value={visibleFamilies} label="Visible Families" />
           <Stat value={selectedName || 'None'} label="Active" />
         </div>
 
-        <Card className="rounded-xl border-accent/20 bg-white p-5 shadow-sm">
+        <Card className="rounded-xl border-accent/20 bg-white p-4 shadow-sm">
           <div className="font-code text-[9px] font-bold uppercase tracking-[0.22em] text-accent">Today In Your Philosophy</div>
-          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="font-headline text-2xl font-bold italic text-primary">{todayPrompt.title}</h2>
-              <p className="mt-1 max-w-2xl text-sm italic leading-6 text-muted-foreground font-body">{todayPrompt.body}</p>
+              <h2 className="font-headline text-xl font-bold italic text-primary">{todayPrompt.title}</h2>
+              <p className="mt-1 max-w-2xl text-sm italic leading-5 text-muted-foreground font-body">{todayPrompt.body}</p>
             </div>
             <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[9px] uppercase tracking-widest">One next action</Badge>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+              {viewMode === 'core' ? 'Core map shows strongest links first' : `${viewMode.replace(/_/g, ' ')} view`}
+            </Badge>
+            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+              {autoConnectionFocus === 'strong' ? 'Strong only by default' : autoConnectionFocus === 'moderate' ? 'Moderate links expanded' : 'All auto links visible'}
+            </Badge>
           </div>
         </Card>
       </div>
@@ -862,7 +1043,7 @@ export function ConceptAtlas({
         <div
           ref={mapRef}
           className={cn(
-            "relative flex-1 cursor-grab overflow-hidden border border-border bg-muted/5 active:cursor-grabbing shadow-inner",
+            "relative flex-1 cursor-grab overflow-hidden border border-border bg-muted/5 active:cursor-grabbing shadow-inner min-h-[78vh]",
             isFullScreen ? "rounded-none" : "rounded-xl"
           )}
           onMouseDown={startPanning}
@@ -903,7 +1084,7 @@ export function ConceptAtlas({
             }}
           >
             <svg className="pointer-events-none absolute inset-0 h-full w-full">
-              {edges.map((edge, index) => {
+              {visibleEdges.map((edge, index) => {
                 const from = nodes.find((node) => conceptKey(node.name) === conceptKey(edge.from));
                 const to = nodes.find((node) => conceptKey(node.name) === conceptKey(edge.to));
                 if (!from || !to) return null;
@@ -911,6 +1092,10 @@ export function ConceptAtlas({
                 const user = edge.type === 'user';
                 const concept = edge.type === 'concept';
                 const typed = edge.type === 'typed';
+                const contradiction = ['contradicts', 'challenges', 'weakens'].includes((edge.linkType || '').toString());
+                const strength = edge.strength || 'suggested';
+                const strokeWidth = strength === 'strong' ? (user ? 4.5 : 4) : strength === 'moderate' ? (typed ? 3 : 2.75) : 1.75;
+                const strokeOpacity = strength === 'strong' ? 0.95 : strength === 'moderate' ? 0.72 : strength === 'weak' ? 0.32 : 0.2;
                 const key = `${edge.from}-${edge.to}-${edge.id || index}`;
                 return (
                   <g key={key}>
@@ -919,9 +1104,10 @@ export function ConceptAtlas({
                       y1={`${points.y1}%`}
                       x2={`${points.x2}%`}
                       y2={`${points.y2}%`}
-                      stroke={user ? 'hsl(var(--accent))' : typed ? 'hsl(160 70% 32%)' : concept ? 'hsl(var(--primary) / .55)' : 'hsl(var(--muted-foreground) / .35)'}
-                      strokeWidth={user ? 4 : typed ? 3 : concept ? 2.5 : 2}
-                      strokeDasharray={user || concept ? '0' : '6 6'}
+                      stroke={contradiction ? 'hsl(0 72% 56%)' : user ? 'hsl(var(--accent))' : typed ? 'hsl(160 70% 32%)' : concept ? 'hsl(var(--primary) / .55)' : 'hsl(var(--muted-foreground) / .35)'}
+                      strokeWidth={strokeWidth}
+                      strokeOpacity={strokeOpacity}
+                      strokeDasharray={strength === 'suggested' ? '4 8' : user || concept ? '0' : strength === 'weak' ? '3 7' : '6 6'}
                       strokeLinecap="round"
                       className="transition-all"
                     />
