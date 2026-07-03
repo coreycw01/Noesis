@@ -1905,25 +1905,23 @@ function ReadexWorkspace({
       workspaceMode={workspace.workspaceMode}
     >
       {isReviewWorkspace && (
-        <div className="px-8 pt-8">
-          <div className="mx-auto max-w-7xl rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="max-w-3xl">
-                <div className="flex flex-wrap items-center gap-2">
+        <div className="border-b border-amber-500/15 bg-amber-500/6 px-6 py-2.5">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
                   <Badge className="rounded-full bg-amber-500 text-black">Review Workspace</Badge>
                   <Badge variant="outline" className="rounded-full">Role: demo</Badge>
                   <Badge variant="outline" className="rounded-full">Scoped to /users/{effectiveUid}</Badge>
+                  <span className="text-sm text-muted-foreground">
+                    Demo environment active with seeded sources, annotations, inquiries, positions, works, practices, and Atlas links.
+                  </span>
                 </div>
-                <h2 className="mt-3 font-headline text-2xl font-semibold italic text-foreground">Developer and demo environment is active.</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  This workspace seeds realistic sources, annotations, inquiries, positions, works, practices, AI suggestions, and Atlas links so the app can be reviewed end to end without touching another user&apos;s data.
-                </p>
                 {!canSeedReviewWorkspace && (
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-amber-700 dark:text-amber-300">
-                    Sign in with <span className="font-code">{REVIEW_ACCOUNT_EMAIL}</span> or use demo mode to seed and refresh the dedicated review dataset. Your current account can still browse the app, but it will not overwrite its own workspace with demo content.
+                  <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
+                    Sign in with <span className="font-code">{REVIEW_ACCOUNT_EMAIL}</span> or use demo mode to refresh the dedicated review dataset.
                   </p>
                 )}
-                <div className="mt-4 flex flex-wrap gap-2 font-code text-[10px] uppercase tracking-wider text-muted-foreground">
+                <div className="mt-1 flex flex-wrap gap-2 font-code text-[10px] uppercase tracking-wider text-muted-foreground">
                   <span>{media.length} sources</span>
                   <span>{allAnnotations(media).length} annotations</span>
                   <span>{questions.length} inquiries</span>
@@ -1934,13 +1932,13 @@ function ReadexWorkspace({
                   <span>{suggestions.length} AI suggestions</span>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => seedReviewWorkspace({ force: true, announce: true })} disabled={isSeedingReview || !canSeedReviewWorkspace} className="rounded-full bg-card">
-                  <FlaskConical className="mr-2 size-4" />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" onClick={() => seedReviewWorkspace({ force: true, announce: true })} disabled={isSeedingReview || !canSeedReviewWorkspace} className="h-8 rounded-full bg-card px-3 text-xs">
+                  <FlaskConical className="mr-1.5 size-3.5" />
                   {isSeedingReview ? 'Refreshing Demo Data' : 'Refresh Demo Workspace'}
                 </Button>
-                <Button onClick={exportReviewArchitecture} className="rounded-full">
-                  <Download className="mr-2 size-4" /> Export Architecture
+                <Button onClick={exportReviewArchitecture} className="h-8 rounded-full px-3 text-xs">
+                  <Download className="mr-1.5 size-3.5" /> Export Architecture
                 </Button>
               </div>
             </div>
