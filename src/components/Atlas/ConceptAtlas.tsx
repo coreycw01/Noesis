@@ -982,7 +982,7 @@ export function ConceptAtlas({
       )}
 
       {!isFullScreen && (
-      <div className="z-10 space-y-3 px-8 pb-3">
+      <div className="z-10 space-y-2 px-8 pb-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 rounded-full border border-border bg-white p-1 shadow-sm">
             <Button variant={mode === 'auto' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('auto')} className="h-8 rounded-full">Auto Map</Button>
@@ -1015,16 +1015,18 @@ export function ConceptAtlas({
           <Stat value={selectedName || 'None'} label="Active" />
         </div>
 
-        <Card className="rounded-xl border-accent/20 bg-white p-4 shadow-sm">
-          <div className="font-code text-[9px] font-bold uppercase tracking-[0.22em] text-accent">Today In Your Philosophy</div>
-          <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="font-headline text-xl font-bold italic text-primary">{todayPrompt.title}</h2>
-              <p className="mt-1 max-w-2xl text-sm italic leading-5 text-muted-foreground font-body">{todayPrompt.body}</p>
+        <Card className="rounded-lg border-accent/15 bg-white/92 p-3 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Today In Your Philosophy</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <h2 className="font-headline text-base font-bold italic leading-none text-primary">{todayPrompt.title}</h2>
+                <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">One next action</Badge>
+              </div>
+              <p className="mt-1 max-w-3xl text-xs italic leading-5 text-muted-foreground font-body">{todayPrompt.body}</p>
             </div>
-            <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[9px] uppercase tracking-widest">One next action</Badge>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
               {viewMode === 'core' ? 'Core map shows strongest links first' : `${viewMode.replace(/_/g, ' ')} view`}
             </Badge>
@@ -1038,12 +1040,12 @@ export function ConceptAtlas({
 
       <div className={cn(
         "flex flex-1 gap-4 overflow-hidden",
-        isFullScreen ? "px-0 pb-0" : "px-8 pb-8"
+        isFullScreen ? "px-0 pb-0" : "px-8 pb-6"
       )}>
         <div
           ref={mapRef}
           className={cn(
-            "relative flex-1 cursor-grab overflow-hidden border border-border bg-muted/5 active:cursor-grabbing shadow-inner min-h-[78vh]",
+            "relative flex-1 cursor-grab overflow-hidden border border-border bg-muted/5 active:cursor-grabbing shadow-inner min-h-[80vh]",
             isFullScreen ? "rounded-none" : "rounded-xl"
           )}
           onMouseDown={startPanning}
