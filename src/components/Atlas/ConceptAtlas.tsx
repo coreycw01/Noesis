@@ -136,6 +136,7 @@ export function ConceptAtlas({
   const [cutLinkCandidate, setCutLinkCandidate] = useState<AtlasLinkItem | null>(null);
   const [isPositionsOpen, setIsPositionsOpen] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [newConcept, setNewConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
   const [newMap, setNewMap] = useState({ title: '', description: '' });
   const [linkDraft, setLinkDraft] = useState<{ to: string; type: AtlasMapLinkType; label: string; note: string }>({ to: '', type: 'relates', label: '', note: '' });
@@ -143,6 +144,7 @@ export function ConceptAtlas({
   const [draggingName, setDraggingName] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+  const [panelSection, setPanelSection] = useState<'links' | 'evidence' | 'events' | 'actions'>('links');
   const mapRef = useRef<HTMLDivElement | null>(null);
 
   const terms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
@@ -164,6 +166,10 @@ export function ConceptAtlas({
     if (!activeMapId && atlasMaps[0]) setActiveMapId(atlasMaps[0].id);
     if (activeMapId && !atlasMaps.some((map) => map.id === activeMapId)) setActiveMapId(atlasMaps[0]?.id || '');
   }, [activeMapId, atlasMaps]);
+
+  useEffect(() => {
+    if (selectedName) setPanelSection('links');
+  }, [selectedName]);
 
   const visibleTerms = useMemo(() => {
     if (mode === 'custom') return activeMap ? activeMap.nodeNames.map(conceptKey) : [];
@@ -445,6 +451,151 @@ export function ConceptAtlas({
     });
   }, [concepts, edges, onDeleteLink, selectedMapLinks, selectedName, selectedTypedLinks]);
 
+  const atlasPanel = (
+    <aside
+      className={cn(
+        "z-20 flex shrink-0 flex-col overflow-hidden border border-border bg-white shadow-sm",
+        isFullScreen
+          ? "absolute inset-y-4 right-4 w-80 rounded-2xl"
+          : "w-80 rounded-xl"
+      )}
+    >
+      {selectedName ? (
+        <>
+          <div className="flex items-start justify-between border-b border-border/50 p-5">
+            <div>
+              <Badge variant="outline" className="mb-2 font-code text-[9px] uppercase tracking-widest text-accent rounded-full">Map Node</Badge>
+              <h2 className="font-headline text-2xl font-bold italic">{selectedName}</h2>
+              {selectedConcept?.description && <p className="mt-2 text-sm text-muted-foreground font-body">{selectedConcept.description}</p>}
+            </div>
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedName(null)}><X className="size-4" /></Button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5">
+            <div className="mb-4 space-y-2">
+              <Label className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Panel Section</Label>
+              <Select value={panelSection} onValueChange={(value) => setPanelSection(value as 'links' | 'evidence' | 'events' | 'actions')}>
+                <SelectTrigger className="h-9 rounded-full bg-card">
+                  <SelectValue placeholder="Choose section" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="links">Links</SelectItem>
+                  <SelectItem value="evidence">Evidence & Outputs</SelectItem>
+                  <SelectItem value="events">Recent Events</SelectItem>
+                  <SelectItem value="actions">Actions</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {panelSection === 'links' && (
+              <section>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Links</h4>
+                  <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={() => setIsLinkOpen(true)}>
+                    <Link2 className="mr-1 size-3.5" /> Link This Idea
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  {selectedNodeLinks.map((link) => {
+                    const target = conceptKey(link.from) === conceptKey(selectedName) ? link.to : link.from;
+                    return (
+                      <div key={`${link.kind}:${link.id}`} className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                        <button onClick={() => setSelectedLink(link)} className="w-full text-left">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-headline text-sm font-semibold italic text-primary">{target}</div>
+                              <div className="mt-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+                                {link.sourceLabel} · {link.label}
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="shrink-0 rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{link.kind}</Badge>
+                          </div>
+                          {link.note && <p className="mt-2 line-clamp-2 text-xs italic text-muted-foreground">{link.note}</p>}
+                        </button>
+                        <div className="mt-2 flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setSelectedLink(link)} className="h-7 rounded-full px-3">Details</Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!link.removable}
+                            onClick={() => {
+                              setSelectedLink(null);
+                              setCutLinkCandidate(link);
+                            }}
+                            className="h-7 rounded-full px-3 text-destructive hover:text-destructive disabled:text-muted-foreground"
+                          >
+                            Cut Link
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!selectedNodeLinks.length && <p className="text-[10px] italic text-muted-foreground font-body">No links yet.</p>}
+                </div>
+              </section>
+            )}
+
+            {panelSection === 'evidence' && (
+              <section>
+                <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Evidence And Outputs</h4>
+                {related ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="bg-muted/30 rounded-full">{related.sources.length} sources</Badge>
+                    <button onClick={() => setIsPositionsOpen(true)} disabled={!related.beliefs.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
+                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.beliefs.length} positions</Badge>
+                    </button>
+                    <Badge variant="outline" className="bg-muted/30 rounded-full">{related.drafts.length} works</Badge>
+                    <Badge variant="outline" className="bg-muted/30 rounded-full">{related.practices.length} practices</Badge>
+                    <Badge variant="outline" className="bg-muted/30 rounded-full">{related.questions.length} inquiries</Badge>
+                    <Badge variant="outline" className="bg-muted/30 rounded-full">{relatedUnknowns.length} unknowns</Badge>
+                  </div>
+                ) : (
+                  <p className="text-xs italic text-muted-foreground font-body">Gathering links...</p>
+                )}
+              </section>
+            )}
+
+            {panelSection === 'events' && (
+              <section>
+                <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Recent Thinking Events</h4>
+                <div className="space-y-2">
+                  {recentThinkingForNode.length ? recentThinkingForNode.map((event) => (
+                    <div key={event.eventId} className="rounded-xl border border-border/60 bg-muted/10 p-3">
+                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{event.eventType.replace(/_/g, ' ')}</div>
+                      <p className="mt-1 text-sm italic text-foreground/80">{event.summary}</p>
+                    </div>
+                  )) : (
+                    <p className="text-xs italic text-muted-foreground font-body">No event-based history has been attached to this node yet.</p>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {panelSection === 'actions' && (
+              <section className="space-y-3">
+                <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
+                <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => setIsLinkOpen(true)}>
+                  <Link2 className="mr-1.5 size-3.5" /> Link This Idea
+                </Button>
+                {mode === 'custom' && activeMap && (
+                  <Button variant="ghost" size="sm" onClick={() => removeNodeFromMap(selectedName)} className="h-8 w-full justify-center rounded-full text-destructive hover:text-destructive">
+                    Remove from this map
+                  </Button>
+                )}
+              </section>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-muted-foreground">
+          <MapIcon className="mb-4 size-12 opacity-10" />
+          <h3 className="mb-2 font-headline text-lg italic">Mental Atlas</h3>
+          <p className="text-sm font-body">Select a concept node to inspect its links, evidence, and outputs.</p>
+        </div>
+      )}
+    </aside>
+  );
+
   const linkTargets = useMemo(() => {
     if (!selectedName) return [];
     const key = conceptKey(selectedName);
@@ -711,6 +862,9 @@ export function ConceptAtlas({
             <div className="flex w-10 items-center justify-center font-code text-[10px] font-bold text-primary/60">{Math.round(zoom * 100)}%</div>
             <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.min(2, z + 0.1)); }} className="h-7 w-7 rounded-full font-bold">+</Button>
             <div className="mx-1 my-1 w-px bg-border" />
+            <Button variant={isPanelOpen ? 'secondary' : 'ghost'} size="icon" onClick={(event) => { event.stopPropagation(); setIsPanelOpen((open) => !open); }} className="h-7 w-7 rounded-full">
+              <SlidersHorizontal className="size-3.5" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setIsFullScreen(!isFullScreen); }} className="h-7 w-7 rounded-full">
               {isFullScreen ? <Minimize className="size-3.5" /> : <Maximize className="size-3.5" />}
             </Button>
@@ -809,7 +963,7 @@ export function ConceptAtlas({
           </div>
         </div>
 
-        {!isFullScreen && (
+        {!isFullScreen && isPanelOpen && (
           <aside className="z-20 flex w-80 shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm">
             {selectedName ? (
               <>
@@ -821,7 +975,23 @@ export function ConceptAtlas({
                   </div>
                   <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedName(null)}><X className="size-4" /></Button>
                 </div>
-                <div className="flex-1 space-y-6 overflow-y-auto p-5">
+                <div className="flex-1 overflow-y-auto p-5">
+                  <div className="mb-4 space-y-2">
+                    <Label className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Panel Section</Label>
+                    <Select value={panelSection} onValueChange={(value) => setPanelSection(value as 'links' | 'evidence' | 'events' | 'actions')}>
+                      <SelectTrigger className="h-9 rounded-full bg-card">
+                        <SelectValue placeholder="Choose section" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="links">Links</SelectItem>
+                        <SelectItem value="evidence">Evidence & Outputs</SelectItem>
+                        <SelectItem value="events">Recent Events</SelectItem>
+                        <SelectItem value="actions">Actions</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {panelSection === 'links' && (
                   <section>
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Links</h4>
@@ -897,15 +1067,9 @@ export function ConceptAtlas({
                       {!selectedMapLinks.length && !selectedTypedLinks.length && !(selectedConcept?.links?.length) && <p className="text-[10px] italic text-muted-foreground font-body">No links yet.</p>}
                     </div>
                   </section>
-
-                  {mode === 'custom' && activeMap && (
-                    <section>
-                      <Button variant="ghost" size="sm" onClick={() => removeNodeFromMap(selectedName)} className="h-8 px-0 text-destructive hover:text-destructive rounded-none">
-                        Remove from this map
-                      </Button>
-                    </section>
                   )}
 
+                  {panelSection === 'evidence' && (
                   <section>
                     <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Evidence And Outputs</h4>
                     {related ? (
@@ -923,7 +1087,9 @@ export function ConceptAtlas({
                       <p className="text-xs italic text-muted-foreground font-body">Gathering links...</p>
                     )}
                   </section>
+                  )}
 
+                  {panelSection === 'events' && (
                   <section>
                     <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Recent Thinking Events</h4>
                     <div className="space-y-2">
@@ -937,6 +1103,22 @@ export function ConceptAtlas({
                       )}
                     </div>
                   </section>
+
+                  )}
+
+                  {panelSection === 'actions' && (
+                    <section className="space-y-3">
+                      <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
+                      <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => setIsLinkOpen(true)}>
+                        <Link2 className="mr-1.5 size-3.5" /> Link This Idea
+                      </Button>
+                      {mode === 'custom' && activeMap && (
+                        <Button variant="ghost" size="sm" onClick={() => removeNodeFromMap(selectedName)} className="h-8 w-full justify-center rounded-full text-destructive hover:text-destructive">
+                          Remove from this map
+                        </Button>
+                      )}
+                    </section>
+                  )}
                 </div>
               </>
             ) : (
@@ -949,6 +1131,8 @@ export function ConceptAtlas({
           </aside>
         )}
       </div>
+
+      {isFullScreen && isPanelOpen && atlasPanel}
 
       <Dialog open={!!selectedLink} onOpenChange={(open) => !open && setSelectedLink(null)}>
         <DialogContent className="max-w-lg border-none shadow-2xl rounded-2xl">

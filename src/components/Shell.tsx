@@ -213,12 +213,24 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
           </div>
         </div>
 
+        <div className={cn("mt-2 flex items-center", collapsed && !isMobile ? "justify-center" : "justify-end")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={isMobile ? () => setMobileNavOpen(false) : toggleSidebar}
+            className="rounded-full text-sidebar-foreground/55 hover:bg-white/[0.08] hover:text-white"
+            title={collapsed && !isMobile ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isMobile ? <ChevronLeft className="size-4" /> : <ChevronLeft className={cn("size-4 transition-transform", collapsed && "rotate-180")} />}
+          </Button>
+        </div>
+
         <button
           type="button"
           onClick={onOpenProfile || (() => handleNavChange('profile'))}
           className={cn(
             "group flex items-center rounded-2xl border border-white/10 bg-white/[0.05] transition-colors hover:border-white/20 hover:bg-white/[0.08]",
-            collapsed && !isMobile ? "mt-3 w-full justify-center p-2.5" : "mt-3 w-full gap-3 px-3 py-2.5"
+            collapsed && !isMobile ? "mt-2 w-full justify-center p-2.5" : "mt-2 w-full gap-3 px-3 py-2.5"
           )}
           title="Open profile"
         >
@@ -238,22 +250,10 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
           )}
         </button>
 
-        <div className={cn("mt-4 flex items-center", collapsed && !isMobile ? "justify-center" : "justify-end")}>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={isMobile ? () => setMobileNavOpen(false) : toggleSidebar}
-            className="rounded-full text-sidebar-foreground/55 hover:bg-white/[0.08] hover:text-white"
-            title={collapsed && !isMobile ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {isMobile ? <ChevronLeft className="size-4" /> : <ChevronLeft className={cn("size-4 transition-transform", collapsed && "rotate-180")} />}
-          </Button>
-        </div>
-
         {(!collapsed || isMobile) && (
           <div
             onClick={onOpenGoals || (() => handleNavChange('goals'))}
-            className="mt-4 w-full rounded border border-white/10 bg-white/[0.05] p-3 transition-all hover:border-white/20 hover:bg-white/[0.075] group/goals relative cursor-pointer"
+            className="mt-3 w-full rounded border border-white/10 bg-white/[0.05] p-3 transition-all hover:border-white/20 hover:bg-white/[0.075] group/goals relative cursor-pointer"
           >
             <div className="mb-3 flex justify-between items-center">
               <div>
