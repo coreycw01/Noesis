@@ -930,10 +930,28 @@ export function ConceptAtlas({
       isFullScreen && "fixed inset-0 z-50"
     )}>
       {!isFullScreen && (
-      <header className="z-20 mb-4 flex items-start justify-between gap-4 px-8 pt-6">
-        <div>
+      <header className="z-20 mb-3 flex items-start justify-between gap-4 px-8 pt-6">
+        <div className="min-w-0 flex-1">
           <h1 className="font-headline text-[28px] font-semibold italic">Atlas</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Map the relationships between concepts, sources, inquiries, positions, works, and practices.</p>
+          <div className="mt-3 rounded-lg border border-accent/15 bg-white/92 px-3 py-2 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Today In Your Philosophy</div>
+              <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">One next action</Badge>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h2 className="font-headline text-sm font-bold italic leading-none text-primary">{todayPrompt.title}</h2>
+              <p className="text-xs italic leading-5 text-muted-foreground font-body">{todayPrompt.body}</p>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+                {viewMode === 'core' ? 'Core map shows strongest links first' : `${viewMode.replace(/_/g, ' ')} view`}
+              </Badge>
+              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+                {autoConnectionFocus === 'strong' ? 'Strong only by default' : autoConnectionFocus === 'moderate' ? 'Moderate links expanded' : 'All auto links visible'}
+              </Badge>
+            </div>
+          </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
           <div className="relative">
@@ -1014,27 +1032,6 @@ export function ConceptAtlas({
           <Stat value={visibleFamilies} label="Visible Families" />
           <Stat value={selectedName || 'None'} label="Active" />
         </div>
-
-        <Card className="rounded-lg border-accent/15 bg-white/92 p-3 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Today In Your Philosophy</div>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <h2 className="font-headline text-base font-bold italic leading-none text-primary">{todayPrompt.title}</h2>
-                <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">One next action</Badge>
-              </div>
-              <p className="mt-1 max-w-3xl text-xs italic leading-5 text-muted-foreground font-body">{todayPrompt.body}</p>
-            </div>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
-              {viewMode === 'core' ? 'Core map shows strongest links first' : `${viewMode.replace(/_/g, ' ')} view`}
-            </Badge>
-            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
-              {autoConnectionFocus === 'strong' ? 'Strong only by default' : autoConnectionFocus === 'moderate' ? 'Moderate links expanded' : 'All auto links visible'}
-            </Badge>
-          </div>
-        </Card>
       </div>
       )}
 
