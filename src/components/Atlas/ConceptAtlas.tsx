@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { AlertTriangle, FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, Unlink2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SourceLinker } from '@/components/SourceLinker';
 import type {
   AtlasAutoLinkFilters,
@@ -93,6 +101,20 @@ type AtlasLinkItem = {
   updatedAt?: string;
 };
 
+type AtlasRelationshipFilterMode = 'recommended' | 'all' | 'custom';
+
+type AttentionItem = {
+  id: string;
+  title: string;
+  detail: string;
+  tone: 'danger' | 'warning' | 'notice';
+  icon: 'conflict' | 'evidence' | 'practice' | 'concept' | 'inquiry';
+  conceptName?: string;
+  positionId?: string;
+  questionId?: string;
+  link?: AtlasLinkItem;
+};
+
 const defaultAutoLinkFilters: AtlasAutoLinkFilters = {
   sharedSources: true,
   sharedPositions: true,
@@ -106,6 +128,22 @@ const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'coheres', 'def
 const highImportanceLinkTypes = new Set<AtlasMapLinkType | PhilosophicalLinkType>(['contradicts', 'supports', 'challenges', 'depends_on', 'strengthens', 'weakens', 'tested_by', 'changed_by', 'refines']);
 const moderateImportanceLinkTypes = new Set<AtlasMapLinkType | PhilosophicalLinkType>(['coheres', 'defines', 'explains', 'explained_by', 'questions', 'expands', 'replaces', 'derived_from']);
 type AtlasViewMode = 'core' | 'conflict' | 'evidence' | 'practice' | 'evolution' | 'full';
+const atlasRelationshipTypes = linkTypes.filter((type) => type !== 'relates' && type !== 'custom') as PhilosophicalLinkType[];
+const atlasRelationshipGroups: Array<{ label: string; types: PhilosophicalLinkType[] }> = [
+  { label: 'Reasoning', types: ['supports', 'challenges', 'contradicts', 'strengthens', 'weakens'] },
+  { label: 'Meaning', types: ['defines', 'explains', 'explained_by', 'exemplifies', 'coheres'] },
+  { label: 'Development', types: ['refines', 'replaces', 'expands', 'derived_from', 'changed_by'] },
+  { label: 'Practice', types: ['tested_by', 'depends_on', 'expressed_in', 'questions'] },
+  { label: 'Reference', types: ['references', 'inspired_by'] },
+];
+const recommendedRelationshipTypesByViewMode: Record<AtlasViewMode, PhilosophicalLinkType[]> = {
+  core: ['supports', 'challenges', 'contradicts', 'depends_on', 'refines', 'strengthens', 'weakens', 'tested_by', 'defines', 'questions'],
+  conflict: ['challenges', 'contradicts', 'weakens', 'questions'],
+  evidence: ['supports', 'exemplifies', 'references', 'derived_from', 'strengthens'],
+  practice: ['tested_by', 'depends_on', 'expressed_in', 'questions'],
+  evolution: ['refines', 'replaces', 'changed_by', 'derived_from', 'strengthens', 'weakens'],
+  full: atlasRelationshipTypes,
+};
 
 export function ConceptAtlas({
   concepts,
@@ -133,9 +171,10 @@ export function ConceptAtlas({
   const [search, setSearch] = useState('');
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [linkSearch, setLinkSearch] = useState('');
-  const [typedLinkFilter, setTypedLinkFilter] = useState<PhilosophicalLinkType | 'all'>('all');
   const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('strong');
   const [viewMode, setViewMode] = useState<AtlasViewMode>('core');
+  const [relationshipFilterMode, setRelationshipFilterMode] = useState<AtlasRelationshipFilterMode>('recommended');
+  const [customRelationshipTypes, setCustomRelationshipTypes] = useState<PhilosophicalLinkType[]>([]);
   const [mode, setMode] = useState<'auto' | 'custom'>('auto');
   const [activeMapId, setActiveMapId] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -180,6 +219,21 @@ export function ConceptAtlas({
       .filter((item) => item.summary.toLowerCase().includes(selectedName.toLowerCase()))
       .slice(0, 3);
   }, [selectedName, thinkingEvents]);
+  const recommendedRelationshipTypes = useMemo(
+    () => recommendedRelationshipTypesByViewMode[viewMode],
+    [viewMode]
+  );
+  const activeRelationshipTypes = useMemo(() => {
+    if (relationshipFilterMode === 'all') return [] as PhilosophicalLinkType[];
+    if (relationshipFilterMode === 'recommended') return recommendedRelationshipTypes;
+    return customRelationshipTypes;
+  }, [customRelationshipTypes, recommendedRelationshipTypes, relationshipFilterMode]);
+  const relationshipFilterLabel = useMemo(() => {
+    if (relationshipFilterMode === 'all') return 'Relationship Types: All';
+    if (relationshipFilterMode === 'recommended') return 'Relationship Types: Recommended';
+    if (!customRelationshipTypes.length) return 'Relationship Types: None';
+    return `Relationship Types: ${customRelationshipTypes.length} selected`;
+  }, [customRelationshipTypes.length, relationshipFilterMode]);
 
   useEffect(() => {
     if (!activeMapId && atlasMaps[0]) setActiveMapId(atlasMaps[0].id);
@@ -360,7 +414,7 @@ export function ConceptAtlas({
     }
 
     links
-      .filter((link) => typedLinkFilter === 'all' || link.type === typedLinkFilter)
+      .filter((link) => !activeRelationshipTypes.length || activeRelationshipTypes.includes(link.type))
       .forEach((link) => {
         const fromConcept = link.fromType === 'concept' ? concepts.find((concept) => concept.id === link.fromId) : null;
         const toConcept = link.toType === 'concept' ? concepts.find((concept) => concept.id === link.toId) : null;
@@ -390,7 +444,7 @@ export function ConceptAtlas({
         }
       });
     return result;
-  }, [activeMap, autoConnectionFocus, concepts, links, mode, nodes, relatedByNode, typedLinkFilter]);
+  }, [activeMap, activeRelationshipTypes, autoConnectionFocus, concepts, links, mode, nodes, relatedByNode]);
 
   const visibleEdges = useMemo(() => {
     const selectedKey = conceptKey(selectedName || '');
@@ -400,6 +454,14 @@ export function ConceptAtlas({
 
     const filtered = edges.filter((edge) => {
       const typedLabel = (edge.linkType || '').toString();
+      if (
+        typedLabel
+        && activeRelationshipTypes.length
+        && !['custom', 'relates'].includes(typedLabel)
+        && !activeRelationshipTypes.includes(typedLabel as PhilosophicalLinkType)
+      ) {
+        return false;
+      }
       if (viewMode === 'full') return true;
 
       if (viewMode === 'conflict') {
@@ -430,7 +492,7 @@ export function ConceptAtlas({
     }
 
     return filtered;
-  }, [edges, selectedName, viewMode]);
+  }, [activeRelationshipTypes, edges, selectedName, viewMode]);
 
   const visibleFamilies = useMemo(() => {
     const families = new Set();
@@ -1164,6 +1226,140 @@ export function ConceptAtlas({
     };
   };
 
+  const edgeStrokeColor = (edge: MapEdge) => {
+    const type = (edge.linkType || '').toString();
+    if (['contradicts', 'challenges', 'weakens', 'questions'].includes(type)) return 'hsl(0 72% 56%)';
+    if (['supports', 'exemplifies', 'references', 'derived_from', 'strengthens'].includes(type)) return 'hsl(152 58% 34%)';
+    if (['defines', 'explains', 'explained_by', 'coheres'].includes(type)) return 'hsl(206 74% 40%)';
+    if (['tested_by', 'depends_on', 'expressed_in'].includes(type)) return 'hsl(38 88% 44%)';
+    if (['refines', 'replaces', 'changed_by', 'expands'].includes(type)) return 'hsl(266 54% 48%)';
+    if (edge.type === 'user') return 'hsl(var(--accent))';
+    if (edge.type === 'concept') return 'hsl(var(--primary) / .55)';
+    return 'hsl(var(--muted-foreground) / .35)';
+  };
+
+  const attentionItems = useMemo<AttentionItem[]>(() => {
+    const items: AttentionItem[] = [];
+    const contradictionLink = links.find((link) =>
+      ['contradicts', 'challenges', 'weakens'].includes(link.type)
+      && link.fromType === 'concept'
+      && link.toType === 'concept'
+    );
+    if (contradictionLink) {
+      items.push({
+        id: `attention-link-${contradictionLink.id}`,
+        title: 'Possible contradiction',
+        detail: `${contradictionLink.fromLabel || 'Idea'} vs ${contradictionLink.toLabel || 'idea'}`,
+        tone: 'danger',
+        icon: 'conflict',
+        conceptName: contradictionLink.fromLabel,
+        link: {
+          id: contradictionLink.id,
+          kind: 'typed',
+          from: contradictionLink.fromLabel || contradictionLink.fromType,
+          to: contradictionLink.toLabel || contradictionLink.toType,
+          label: contradictionLink.type.replace(/_/g, ' '),
+          linkType: contradictionLink.type,
+          note: contradictionLink.note,
+          removable: Boolean(onDeleteLink),
+          sourceLabel: 'Typed philosophical link',
+          createdAt: contradictionLink.dateCreated,
+          updatedAt: contradictionLink.dateUpdated,
+        },
+      });
+    }
+
+    const weakPosition = vault.find((position) => !(position.sourceIds || []).length && !(position.evidenceFor || []).length);
+    if (weakPosition) {
+      items.push({
+        id: `attention-position-${weakPosition.id}`,
+        title: 'Weak evidence',
+        detail: weakPosition.title,
+        tone: 'warning',
+        icon: 'evidence',
+        conceptName: weakPosition.tags?.[0],
+        positionId: weakPosition.id,
+      });
+    }
+
+    const untestedPosition = vault.find((position) => !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
+    if (untestedPosition) {
+      items.push({
+        id: `attention-practice-${untestedPosition.id}`,
+        title: 'Untested position',
+        detail: untestedPosition.title,
+        tone: 'notice',
+        icon: 'practice',
+        conceptName: untestedPosition.tags?.[0],
+        positionId: untestedPosition.id,
+      });
+    }
+
+    const orphanedConcept = concepts.find((concept) => {
+      const conceptRelations = conceptRelated(concept.name, { media, insights, vault, drafts, practices, questions, timeline });
+      return (
+        !(concept.links || []).length
+        && !concept.sourceIds.length
+        && !conceptRelations.sources.length
+        && !conceptRelations.beliefs.length
+        && !conceptRelations.questions.length
+        && !conceptRelations.drafts.length
+        && !conceptRelations.practices.length
+      );
+    });
+    if (orphanedConcept) {
+      items.push({
+        id: `attention-concept-${orphanedConcept.id}`,
+        title: 'Orphaned concept',
+        detail: orphanedConcept.name,
+        tone: 'warning',
+        icon: 'concept',
+        conceptName: orphanedConcept.name,
+      });
+    }
+
+    const staleInquiry = [...questions]
+      .filter((question) => ['open', 'investigating', 'gathering_evidence', 'under_tension', 'partially_answered', 'reopened'].includes(question.status))
+      .sort((a, b) => Date.parse(a.dateUpdated || a.dateCreated) - Date.parse(b.dateUpdated || b.dateCreated))[0];
+    if (staleInquiry) {
+      const inquiryConcept = concepts.find((concept) => staleInquiry.conceptIds.includes(concept.id));
+      items.push({
+        id: `attention-inquiry-${staleInquiry.id}`,
+        title: 'Stale inquiry',
+        detail: staleInquiry.text,
+        tone: 'notice',
+        icon: 'inquiry',
+        conceptName: inquiryConcept?.name,
+        questionId: staleInquiry.id,
+      });
+    }
+
+    return items.slice(0, 5);
+  }, [concepts, drafts, insights, links, media, onDeleteLink, practices, questions, timeline, vault]);
+
+  const handleAttentionItemClick = (item: AttentionItem) => {
+    setIsPanelOpen(true);
+    if (item.conceptName) {
+      setSelectedName(item.conceptName);
+    }
+    if (item.link) {
+      openLinkDetail(item.link);
+      return;
+    }
+    if (item.positionId) {
+      setPanelSection('evidence');
+      setIsPositionsOpen(true);
+      return;
+    }
+    if (item.questionId) {
+      setPanelSection('evidence');
+      setRelatedDialogType('inquiries');
+    }
+  };
+
+  const isMapEmpty = visibleEdges.length === 0;
+  const isMapCrowded = visibleEdges.length > 60 || visibleFamilies > 20;
+
   return (
     <div className={cn(
       "relative flex min-h-screen w-full flex-col bg-background",
@@ -1176,31 +1372,6 @@ export function ConceptAtlas({
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Map the relationships between concepts, sources, inquiries, positions, works, and practices.</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-64 pl-9 rounded-full" />
-          </div>
-          <Select value={typedLinkFilter} onValueChange={(value) => setTypedLinkFilter(value as PhilosophicalLinkType | 'all')}>
-            <SelectTrigger className="h-9 w-48 rounded-full border-input bg-background px-4 font-code text-[10px] uppercase tracking-wider shadow-sm">
-              <SelectValue placeholder="All Link Types" />
-            </SelectTrigger>
-            <SelectContent className="max-h-72 w-56">
-              <SelectItem value="all" className="font-code text-[10px] uppercase tracking-wider">All Link Types</SelectItem>
-              {linkTypes.filter((type) => type !== 'relates' && type !== 'custom').map((type) => (
-                <SelectItem key={type} value={type} className="font-code text-[10px] uppercase tracking-wider">{type.replace(/_/g, ' ')}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={autoConnectionFocus} onValueChange={(value) => setAutoConnectionFocus(value as 'strong' | 'moderate' | 'all')}>
-            <SelectTrigger className="h-9 w-44 rounded-full border-input bg-background px-4 font-code text-[10px] uppercase tracking-wider shadow-sm">
-              <SelectValue placeholder="Connection Focus" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="strong" className="font-code text-[10px] uppercase tracking-wider">Strong Connections</SelectItem>
-              <SelectItem value="moderate" className="font-code text-[10px] uppercase tracking-wider">Strong + Moderate</SelectItem>
-              <SelectItem value="all" className="font-code text-[10px] uppercase tracking-wider">All Connections</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={viewMode} onValueChange={(value) => setViewMode(value as AtlasViewMode)}>
             <SelectTrigger className="h-9 w-40 rounded-full border-input bg-background px-4 font-code text-[10px] uppercase tracking-wider shadow-sm">
               <SelectValue placeholder="View Mode" />
@@ -1214,6 +1385,71 @@ export function ConceptAtlas({
               <SelectItem value="full" className="font-code text-[10px] uppercase tracking-wider">Full Map</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={autoConnectionFocus} onValueChange={(value) => setAutoConnectionFocus(value as 'strong' | 'moderate' | 'all')}>
+            <SelectTrigger className="h-9 w-44 rounded-full border-input bg-background px-4 font-code text-[10px] uppercase tracking-wider shadow-sm">
+              <SelectValue placeholder="Connection Focus" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="strong" className="font-code text-[10px] uppercase tracking-wider">Strong Connections</SelectItem>
+              <SelectItem value="moderate" className="font-code text-[10px] uppercase tracking-wider">Strong + Moderate</SelectItem>
+              <SelectItem value="all" className="font-code text-[10px] uppercase tracking-wider">All Connections</SelectItem>
+            </SelectContent>
+          </Select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-9 rounded-full px-4 font-code text-[10px] uppercase tracking-wider shadow-sm">
+                {relationshipFilterLabel}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-[420px] w-72 overflow-y-auto rounded-2xl">
+              <DropdownMenuLabel className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Relationship Types</DropdownMenuLabel>
+              <div className="flex gap-2 px-2 pb-2 pt-1">
+                <Button size="sm" variant={relationshipFilterMode === 'recommended' ? 'default' : 'outline'} className="h-7 rounded-full px-3 text-[10px]" onClick={() => setRelationshipFilterMode('recommended')}>
+                  Select Recommended
+                </Button>
+                <Button size="sm" variant={relationshipFilterMode === 'all' ? 'default' : 'outline'} className="h-7 rounded-full px-3 text-[10px]" onClick={() => setRelationshipFilterMode('all')}>
+                  Show All
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 rounded-full px-3 text-[10px]" onClick={() => { setRelationshipFilterMode('custom'); setCustomRelationshipTypes([]); }}>
+                  Clear
+                </Button>
+              </div>
+              <DropdownMenuSeparator />
+              {atlasRelationshipGroups.map((group) => (
+                <div key={group.label}>
+                  <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/80">{group.label}</DropdownMenuLabel>
+                  {group.types.map((type) => (
+                    <DropdownMenuCheckboxItem
+                      key={type}
+                      checked={
+                        relationshipFilterMode === 'all'
+                          ? true
+                          : relationshipFilterMode === 'recommended'
+                            ? recommendedRelationshipTypes.includes(type)
+                            : customRelationshipTypes.includes(type)
+                      }
+                      onCheckedChange={(checked) => {
+                        setRelationshipFilterMode('custom');
+                        setCustomRelationshipTypes((prev) => (
+                          checked
+                            ? [...new Set([...prev, type])]
+                            : prev.filter((item) => item !== type)
+                        ));
+                      }}
+                      className="font-code text-[10px] uppercase tracking-wider"
+                    >
+                      {type.replace(/_/g, ' ')}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                </div>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-64 pl-9 rounded-full" />
+          </div>
           <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90 rounded-full">
             <Plus className="mr-1.5 size-4" /> New Concept
           </Button>
@@ -1270,6 +1506,35 @@ export function ConceptAtlas({
             </Badge>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2 pb-1">
+          <Badge variant="outline" className="rounded-full bg-white font-code text-[8px] uppercase tracking-widest text-muted-foreground">Needs Attention</Badge>
+          {attentionItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleAttentionItemClick(item)}
+              className={cn(
+                "flex min-h-[44px] items-center gap-2 rounded-full border px-4 py-2 text-left shadow-sm transition-colors",
+                item.tone === 'danger' && "border-rose-200 bg-rose-50/90 text-rose-900 hover:bg-rose-100",
+                item.tone === 'warning' && "border-amber-200 bg-amber-50/90 text-amber-900 hover:bg-amber-100",
+                item.tone === 'notice' && "border-sky-200 bg-sky-50/90 text-sky-900 hover:bg-sky-100"
+              )}
+            >
+              {item.icon === 'conflict' && <AlertTriangle className="size-4 shrink-0" />}
+              {item.icon === 'evidence' && <Unlink2 className="size-4 shrink-0" />}
+              {item.icon === 'practice' && <FlaskConical className="size-4 shrink-0" />}
+              {item.icon === 'concept' && <Link2 className="size-4 shrink-0" />}
+              {item.icon === 'inquiry' && <HelpCircle className="size-4 shrink-0" />}
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="whitespace-nowrap font-code text-[9px] uppercase tracking-widest">{item.title}</span>
+                <span className="truncate text-xs italic opacity-80">{item.detail}</span>
+              </span>
+            </button>
+          ))}
+          {!attentionItems.length && (
+            <span className="text-xs italic text-muted-foreground">Nothing urgent is surfacing in this map yet.</span>
+          )}
+        </div>
       </div>
       )}
 
@@ -1305,6 +1570,29 @@ export function ConceptAtlas({
             </Button>
           </div>
 
+          {isMapEmpty && (
+            <div className="absolute left-4 top-4 z-20 max-w-sm rounded-2xl border border-border bg-white/95 p-4 shadow-lg backdrop-blur">
+              <div className="font-headline text-lg font-semibold italic">Not enough strong connections yet.</div>
+              <p className="mt-1 text-sm italic leading-5 text-muted-foreground">Create links, interact with nodes, or lower the strength filter to reveal weaker relationships.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" className="rounded-full" onClick={() => setAutoConnectionFocus('moderate')}>Show Strong + Moderate</Button>
+                <Button size="sm" variant="outline" className="rounded-full" onClick={() => setAutoConnectionFocus('all')}>Show All Connections</Button>
+                <Button size="sm" className="rounded-full" onClick={() => setIsLinkOpen(true)} disabled={!selectedName}>Create Link</Button>
+              </div>
+            </div>
+          )}
+
+          {!isMapEmpty && isMapCrowded && (
+            <div className="absolute left-4 top-4 z-20 max-w-sm rounded-full border border-border bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">Crowded Map</Badge>
+                <span className="text-sm italic text-muted-foreground">Showing the strongest connections first.</span>
+                <Button size="sm" variant="outline" className="h-7 rounded-full px-3 text-[10px]" onClick={() => setAutoConnectionFocus('all')}>Show More</Button>
+                <Button size="sm" variant="ghost" className="h-7 rounded-full px-3 text-[10px]" onClick={() => setViewMode('full')}>Switch to Full Map</Button>
+              </div>
+            </div>
+          )}
+
           {mode === 'custom' && !activeMap && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70">
               <Card className="max-w-sm rounded-2xl p-8 text-center shadow-2xl border-none">
@@ -1331,7 +1619,6 @@ export function ConceptAtlas({
                 const user = edge.type === 'user';
                 const concept = edge.type === 'concept';
                 const typed = edge.type === 'typed';
-                const contradiction = ['contradicts', 'challenges', 'weakens'].includes((edge.linkType || '').toString());
                 const strength = edge.strength || 'suggested';
                 const key = `${edge.from}-${edge.to}-${edge.id || index}`;
                 const isHovered = hoveredEdgeId === key;
@@ -1344,7 +1631,7 @@ export function ConceptAtlas({
                       y1={`${points.y1}%`}
                       x2={`${points.x2}%`}
                       y2={`${points.y2}%`}
-                      stroke={contradiction ? 'hsl(0 72% 56%)' : user ? 'hsl(var(--accent))' : typed ? 'hsl(160 70% 32%)' : concept ? 'hsl(var(--primary) / .55)' : 'hsl(var(--muted-foreground) / .35)'}
+                      stroke={edgeStrokeColor(edge)}
                       strokeWidth={strokeWidth}
                       strokeOpacity={strokeOpacity}
                       strokeDasharray={strength === 'suggested' ? '4 8' : user || concept ? '0' : strength === 'weak' ? '3 7' : '6 6'}
