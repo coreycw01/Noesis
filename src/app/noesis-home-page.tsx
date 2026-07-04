@@ -2213,8 +2213,10 @@ function ReadexWorkspace({
 }
 
 function ReadexApp({ reviewMode = false }: { reviewMode?: boolean }) {
+  const pathname = usePathname();
   const { user, loading } = useUser();
   const [demoMode, setDemoMode] = useState(false);
+  const routeDemoMode = pathname === '/demo';
   const allowDemo = reviewMode || process.env.NEXT_PUBLIC_ALLOW_PROTOTYPE_MODE === 'true';
   const isReviewIdentity = (user?.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
   const resolvedReviewWorkspaceUid = isReviewIdentity ? (user?.uid || REVIEW_WORKSPACE_UID) : REVIEW_WORKSPACE_UID;
@@ -2230,7 +2232,7 @@ function ReadexApp({ reviewMode = false }: { reviewMode?: boolean }) {
     );
   }
 
-  if (!user && !demoMode) {
+  if (!user && !demoMode && !routeDemoMode) {
     return (
       <>
         <LoginPage allowDemo={allowDemo} onDemo={() => allowDemo && setDemoMode(true)} />
@@ -2239,7 +2241,7 @@ function ReadexApp({ reviewMode = false }: { reviewMode?: boolean }) {
     );
   }
 
-  const workspaceUid = (reviewMode || demoMode || isReviewIdentity)
+  const workspaceUid = (reviewMode || demoMode || routeDemoMode || isReviewIdentity)
     ? resolvedReviewWorkspaceUid
     : (user?.uid || PROTOTYPE_USER_ID);
 
@@ -2247,7 +2249,7 @@ function ReadexApp({ reviewMode = false }: { reviewMode?: boolean }) {
     <ReadexWorkspace
       user={user}
       uid={workspaceUid}
-      reviewMode={reviewMode || demoMode || isReviewIdentity}
+      reviewMode={reviewMode || demoMode || routeDemoMode || isReviewIdentity}
       reviewWorkspaceUid={resolvedReviewWorkspaceUid}
     />
   );

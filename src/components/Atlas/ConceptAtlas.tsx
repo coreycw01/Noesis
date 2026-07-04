@@ -296,6 +296,7 @@ export function ConceptAtlas({
   const [styleDraft, setStyleDraft] = useState<AtlasMapStyle>(defaultAtlasMapStyle);
   const [isUploadingBackground, setIsUploadingBackground] = useState(false);
   const [linkDraft, setLinkDraft] = useState<{ to: string; type: AtlasMapLinkType; label: string; note: string }>({ to: '', type: 'relates', label: '', note: '' });
+  const [showAdvancedLinkTypes, setShowAdvancedLinkTypes] = useState(false);
   const [draftPositions, setDraftPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [draggingName, setDraggingName] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -304,6 +305,8 @@ export function ConceptAtlas({
   const mapRef = useRef<HTMLDivElement | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
   const edgeHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressNextEdgeClickRef = useRef(false);
+  const edgeHoverInteractionRef = useRef<Record<string, number>>({});
 
   const terms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
   const activeMap = atlasMaps.find((map) => map.id === activeMapId) || atlasMaps[0] || null;
@@ -978,18 +981,36 @@ export function ConceptAtlas({
     setSelectedLink(link);
   };
 
+  const handleEdgeHoverInteraction = (edge: MapEdge) => {
+    if (edge.type !== 'typed') return;
+    const hoverKey = edge.id || atlasEdgePairKey(edge);
+    const now = Date.now();
+    const last = edgeHoverInteractionRef.current[hoverKey] || 0;
+    if (now - last < 10000) return;
+    edgeHoverInteractionRef.current[hoverKey] = now;
+    markLinkInteraction(linkItemForEdge(edge));
+  };
+
   const beginQuickLinkMode = (sourceName: string) => {
     setSelectedName(sourceName);
     setQuickLinkSource(sourceName);
     setQuickLinkTarget(null);
     setQuickLinkHoverTarget(null);
+    setShowAdvancedLinkTypes(false);
     setPanelSection('actions');
+  };
+
+  const openNodeLinkPanel = (sourceName: string) => {
+    setSelectedName(sourceName);
+    setIsPanelOpen(true);
+    setPanelSection('links');
   };
 
   const clearQuickLinkMode = () => {
     setQuickLinkSource(null);
     setQuickLinkTarget(null);
     setQuickLinkHoverTarget(null);
+    setShowAdvancedLinkTypes(false);
   };
 
   const getLinkInteractionTime = (link: AtlasLinkItem) =>
@@ -1005,6 +1026,7 @@ export function ConceptAtlas({
       setCutLinkMethod('atlas_long_hold');
       setCutLinkCandidate(linkItem);
       markLinkInteraction(linkItem);
+      suppressNextEdgeClickRef.current = true;
       edgeHoldTimerRef.current = null;
     }, 700);
   };
@@ -2135,7 +2157,7 @@ export function ConceptAtlas({
                   Show All
                 </Button>
                 <Button size="sm" variant="ghost" className="h-7 rounded-full px-3 text-[10px]" onClick={() => { setRelationshipFilterMode('custom'); setCustomRelationshipTypes([]); }}>
-                  Clear
+                  Clear All
                 </Button>
               </div>
               <DropdownMenuSeparator />
@@ -2398,16 +2420,23 @@ export function ConceptAtlas({
                       strokeWidth={16}
                       strokeLinecap="round"
                       className="pointer-events-auto cursor-pointer"
-                      onMouseDown={(event) => {
+                      onPointerDown={(event) => {
                         event.stopPropagation();
                         startEdgeHold(edge);
                       }}
-                      onMouseUp={cancelEdgeHold}
-                      onMouseLeave={() => {
+                      onPointerUp={cancelEdgeHold}
+                      onPointerLeave={() => {
                         cancelEdgeHold();
                         setHoveredEdgeId(null);
                       }}
-                      onMouseEnter={() => setHoveredEdgeId(key)}
+                      onPointerCancel={() => {
+                        cancelEdgeHold();
+                        setHoveredEdgeId(null);
+                      }}
+                      onPointerEnter={() => {
+                        setHoveredEdgeId(key);
+                        handleEdgeHoverInteraction(edge);
+                      }}
                       onContextMenu={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -2421,6 +2450,10 @@ export function ConceptAtlas({
                       }}
                       onClick={(event) => {
                         event.stopPropagation();
+                        if (suppressNextEdgeClickRef.current) {
+                          suppressNextEdgeClickRef.current = false;
+                          return;
+                        }
                         const linkItem = linkItemForEdge(edge);
                         openLinkDetail(linkItem);
                       }}
@@ -2465,7 +2498,7 @@ export function ConceptAtlas({
                 onContextMenu={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
-                  setSelectedName(node.name);
+                  openNodeLinkPanel(node.name);
                 }}
                 onPointerEnter={() => {
                   if (quickLinkSource && conceptKey(node.name) !== conceptKey(quickLinkSource)) {
@@ -3286,7 +3319,10 @@ export function ConceptAtlas({
 
       <Dialog open={isLinkOpen} onOpenChange={(open) => {
         setIsLinkOpen(open);
-        if (!open) setQuickLinkTarget(null);
+        if (!open) {
+          setQuickLinkTarget(null);
+          setShowAdvancedLinkTypes(false);
+        }
       }}>
         <DialogContent className="max-w-lg border-none shadow-2xl rounded-2xl">
           <DialogHeader>
@@ -3327,14 +3363,26 @@ export function ConceptAtlas({
                       {type.replace(/_/g, ' ')}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedLinkTypes((open) => !open)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-widest transition-colors",
+                      showAdvancedLinkTypes ? "border-accent bg-accent/10 text-accent" : "border-border bg-card text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {showAdvancedLinkTypes ? 'Hide More' : 'More Types'}
+                  </button>
                 </div>
-                <select
-                  value={linkDraft.type}
-                  onChange={(event) => setLinkDraft((prev) => ({ ...prev, type: event.target.value as AtlasMapLinkType }))}
-                  className="h-10 w-full rounded-full border border-border/60 bg-white px-4 text-sm font-body shadow-sm appearance-none"
-                >
-                  {linkTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-                </select>
+                {showAdvancedLinkTypes && (
+                  <select
+                    value={linkDraft.type}
+                    onChange={(event) => setLinkDraft((prev) => ({ ...prev, type: event.target.value as AtlasMapLinkType }))}
+                    className="h-10 w-full rounded-full border border-border/60 bg-white px-4 text-sm font-body shadow-sm appearance-none"
+                  >
+                    {linkTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                )}
               </div>
               <div className="space-y-2">
                 <Label className="readex-kicker">Label</Label>
