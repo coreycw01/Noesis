@@ -31,6 +31,7 @@ export type AtlasMapBackgroundType = 'default' | 'color' | 'preset' | 'uploaded'
 export type AtlasMapBackgroundPreset = 'dark' | 'light' | 'paper' | 'grid' | 'blank';
 export type AtlasMapFontFamily = 'system' | 'serif' | 'mono' | 'rounded' | 'condensed';
 export type AtlasMapNodeStyle = 'default' | 'compact' | 'pill' | 'card';
+export type AtlasMapMode = 'core' | 'conflict' | 'evidence' | 'practice' | 'evolution' | 'full' | 'custom';
 export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'url_metadata' | 'manual';
 export type AiSuggestionType = 'annotation_consequence' | 'position_draft' | 'typed_link' | 'possible_tension' | 'evolution_summary' | 'daily_prompt' | 'missing_perspective' | 'blind_spot' | 'missing_question' | 'stress_test' | 'thinking_pattern' | 'unknown_candidate' | 'contradiction_cluster';
 export type AiSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'ignored' | 'dismissed' | 'outdated';
@@ -794,10 +795,13 @@ export interface AtlasMapStyle {
 export interface AtlasMap {
   id: string;
   title: string;
+  mode: AtlasMapMode;
   description: string;
   nodeNames: string[];
+  nodeIds?: string[];
   nodePositions: Record<string, AtlasMapNodePosition>;
   manualLinks: AtlasMapLink[];
+  linkIds?: string[];
   autoLinkFilters: AtlasAutoLinkFilters;
   style?: AtlasMapStyle;
   dateCreated: string;

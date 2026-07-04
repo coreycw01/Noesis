@@ -468,8 +468,10 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     {
       id: 'map_identity_engine',
       title: 'Identity Engine',
+      mode: 'custom',
       description: 'A reviewer-friendly custom map linking the app’s major philosophy loop from source to position to practice.',
       nodeNames: ['Identity', 'Narrative Self', 'Discipline', 'Attention', 'Meaning', 'Responsibility', 'Practice'],
+      nodeIds: ['c_identity', 'c_narrative', 'c_discipline', 'c_attention', 'c_meaning', 'c_responsibility', 'c_practice'],
       nodePositions: {
         Identity: { x: 44, y: 18 },
         'Narrative Self': { x: 24, y: 34 },
@@ -484,6 +486,7 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
         { id: 'aml2', from: 'Discipline', to: 'Attention', type: 'supports', label: 'protects', note: 'Discipline shows up here as a protection structure for attention.', dateCreated: iso(24) },
         { id: 'aml3', from: 'Responsibility', to: 'Practice', type: 'tested_by', label: 'requires test', note: 'Responsibility should cash out in a behavioral practice.', dateCreated: iso(24) },
       ],
+      linkIds: ['aml1', 'aml2', 'aml3'],
       autoLinkFilters: { sharedSources: true, sharedPositions: true, sharedInquiries: true, sharedWorks: true, sharedPractices: true, conceptLinks: true },
       style: {
         lineMode: 'relationshipCategoryColor',
@@ -499,8 +502,10 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     {
       id: 'map_meaning_loop',
       title: 'Meaning Loop Review Map',
+      mode: 'custom',
       description: 'A custom reviewer map showing how sources, inquiry, position, work, and practice cycle around the meaning question.',
       nodeNames: ['Meaning', 'Responsibility', 'Practice', 'Attention', 'Identity'],
+      nodeIds: ['c_meaning', 'c_responsibility', 'c_practice', 'c_attention', 'c_identity'],
       nodePositions: {
         Meaning: { x: 52, y: 18 },
         Responsibility: { x: 28, y: 38 },
@@ -513,6 +518,7 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
         { id: 'aml5', from: 'Responsibility', to: 'Practice', type: 'tested_by', label: 'tested by', note: 'Reviewers can trace how the belief cashes out in a live practice.', dateCreated: iso(25) },
         { id: 'aml6', from: 'Attention', to: 'Meaning', type: 'refines', label: 'refines', note: 'Attention may change what meaning even feels like in ordinary life.', dateCreated: iso(25) },
       ],
+      linkIds: ['aml4', 'aml5', 'aml6'],
       autoLinkFilters: { sharedSources: true, sharedPositions: true, sharedInquiries: true, sharedWorks: true, sharedPractices: true, conceptLinks: true },
       style: {
         lineMode: 'strengthColor',
@@ -1277,8 +1283,10 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
   atlasMaps.push({
     id: 'map_technology_training',
     title: 'Technology Training Map',
+    mode: 'custom',
     description: 'A reviewer map focused on how tools, attention, identity, and truth shape one another.',
     nodeNames: ['Technology', 'Attention', 'Identity', 'Truth', 'Agency', 'Practice'],
+    nodeIds: ['c_technology', 'c_attention', 'c_identity', 'c_truth', 'c_agency', 'c_practice'],
     nodePositions: {
       Technology: { x: 48, y: 20 },
       Attention: { x: 73, y: 36 },
@@ -1292,6 +1300,7 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
       { id: 'aml8', from: 'Attention', to: 'Identity', type: 'refines', label: 'shapes', note: 'Sustained attention changes what identity feels answerable to.', dateCreated: iso(25) },
       { id: 'aml9', from: 'Truth', to: 'Practice', type: 'tested_by', label: 'tested by', note: 'Truth claims need repeatable contact with life.', dateCreated: iso(25) },
     ],
+    linkIds: ['aml7', 'aml8', 'aml9'],
     autoLinkFilters: { sharedSources: true, sharedPositions: true, sharedInquiries: true, sharedWorks: true, sharedPractices: true, conceptLinks: true },
     style: {
       lineMode: 'singleColor',

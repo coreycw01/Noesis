@@ -69,7 +69,7 @@ interface ConceptAtlasProps {
   onAddAtlasMap: (data: Partial<AtlasMap>) => void;
   onUpdateAtlasMap: (map: AtlasMap) => void;
   onDeleteAtlasMap: (id: string) => void;
-  onDeleteLink?: (id: string) => void;
+  onDeleteLink?: (id: string, options?: { method?: string }) => void;
   onInteractLink?: (id: string) => void;
   onOpenPosition?: (id: string) => void;
   uid?: string;
@@ -119,6 +119,7 @@ type AtlasLinkItem = {
   interactionCount?: number;
   groupedLinkIds?: string[];
   relationshipTypes?: string[];
+  objectTypes?: Array<'concept' | 'position' | 'inquiry' | 'source' | 'annotation' | 'work' | 'practice'>;
 };
 
 type AtlasRelationshipFilterMode = 'recommended' | 'all' | 'custom';
@@ -223,6 +224,17 @@ function atlasEdgePairKey(edge: Pick<MapEdge, 'from' | 'to'>) {
   return [conceptKey(edge.from), conceptKey(edge.to)].sort().join('::');
 }
 
+function edgePriorityScore(edge: MapEdge) {
+  const strengthBonus = edge.strength === 'strong' ? 24 : edge.strength === 'moderate' ? 12 : edge.strength === 'weak' ? 2 : 0;
+  const typeBonus = edge.type === 'typed' ? 24 : edge.type === 'concept' ? 14 : edge.type === 'user' ? 18 : 0;
+  const relationshipBonus = highImportanceLinkTypes.has((edge.linkType || '') as AtlasMapLinkType | PhilosophicalLinkType)
+    ? 14
+    : moderateImportanceLinkTypes.has((edge.linkType || '') as AtlasMapLinkType | PhilosophicalLinkType)
+      ? 8
+      : 0;
+  return (edge.weight || 0) + strengthBonus + typeBonus + relationshipBonus;
+}
+
 export function ConceptAtlas({
   concepts,
   media,
@@ -266,6 +278,7 @@ export function ConceptAtlas({
   const [selectedLink, setSelectedLink] = useState<AtlasLinkItem | null>(null);
   const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null);
   const [cutLinkCandidate, setCutLinkCandidate] = useState<AtlasLinkItem | null>(null);
+  const [cutLinkMethod, setCutLinkMethod] = useState<'atlas_long_hold' | 'atlas_link_detail' | 'atlas_node_action'>('atlas_link_detail');
   const [isPositionsOpen, setIsPositionsOpen] = useState(false);
   const [relatedDialogType, setRelatedDialogType] = useState<null | 'sources' | 'works' | 'practices' | 'inquiries' | 'unknowns'>(null);
   const [isDeleteAllLinksOpen, setIsDeleteAllLinksOpen] = useState(false);
@@ -989,6 +1002,7 @@ export function ConceptAtlas({
     if (edgeHoldTimerRef.current) clearTimeout(edgeHoldTimerRef.current);
     edgeHoldTimerRef.current = setTimeout(() => {
       setSelectedLink(null);
+      setCutLinkMethod('atlas_long_hold');
       setCutLinkCandidate(linkItem);
       markLinkInteraction(linkItem);
       edgeHoldTimerRef.current = null;
@@ -1077,6 +1091,7 @@ export function ConceptAtlas({
       sourceLabel: 'Auto/shared evidence link',
       createdAt: undefined,
       updatedAt: undefined,
+      objectTypes: edge.objectTypes,
     };
   };
 
@@ -1432,7 +1447,10 @@ export function ConceptAtlas({
                         variant="outline"
                         size="sm"
                         disabled={!removableNodeLinks.length}
-                        onClick={() => setIsDeleteAllLinksOpen(true)}
+                        onClick={() => {
+                          setCutLinkMethod('atlas_node_action');
+                          setIsDeleteAllLinksOpen(true);
+                        }}
                         className="h-8 w-full justify-center rounded-full text-xs text-destructive hover:text-destructive disabled:text-muted-foreground"
                       >
                         Delete Connected Links
@@ -1477,14 +1495,21 @@ export function ConceptAtlas({
     });
   };
 
+  const atlasNodeIdsForNames = (names: string[]) =>
+    names.map((name) => concepts.find((concept) => conceptKey(concept.name) === conceptKey(name))?.id || conceptKey(name));
+
   const createCustomMap = () => {
     if (!newMap.title.trim()) return;
+    const initialNodeNames = selectedName ? [conceptKey(selectedName)] : [];
     onAddAtlasMap({
       title: newMap.title.trim(),
+      mode: 'custom',
       description: newMap.description.trim(),
-      nodeNames: selectedName ? [conceptKey(selectedName)] : [],
+      nodeNames: initialNodeNames,
+      nodeIds: atlasNodeIdsForNames(initialNodeNames),
       nodePositions: selectedName ? { [conceptKey(selectedName)]: { x: 50, y: 50 } } : {},
       manualLinks: [],
+      linkIds: [],
       autoLinkFilters: defaultAutoLinkFilters,
       style: defaultAtlasMapStyle,
     });
@@ -1495,7 +1520,16 @@ export function ConceptAtlas({
 
   const updateActiveMap = (patch: Partial<AtlasMap>) => {
     if (!activeMap) return;
-    onUpdateAtlasMap({ ...activeMap, ...patch, dateUpdated: today() });
+    const nextNodeNames = patch.nodeNames || activeMap.nodeNames || [];
+    const nextManualLinks = patch.manualLinks || activeMap.manualLinks || [];
+    onUpdateAtlasMap({
+      ...activeMap,
+      ...patch,
+      mode: patch.mode || activeMap.mode || 'custom',
+      nodeIds: patch.nodeIds || atlasNodeIdsForNames(nextNodeNames),
+      linkIds: patch.linkIds || nextManualLinks.map((link) => link.id),
+      dateUpdated: today(),
+    });
   };
 
   const addNodeToMap = (name: string) => {
@@ -1590,7 +1624,7 @@ export function ConceptAtlas({
     if (item.kind === 'custom') {
       removeUserLink(item.id);
     } else if (item.kind === 'typed') {
-      onDeleteLink?.(item.id);
+      onDeleteLink?.(item.id, { method: cutLinkMethod });
     } else if (item.kind === 'concept' && item.sourceConceptId && item.conceptTarget) {
       const sourceConcept = concepts.find((concept) => concept.id === item.sourceConceptId);
       if (sourceConcept) {
@@ -1601,6 +1635,7 @@ export function ConceptAtlas({
     if (activeEdgeId === activeEdgeSignatureForLink(item)) setActiveEdgeId(null);
     setSelectedLink(null);
     setCutLinkCandidate(null);
+    setCutLinkMethod('atlas_link_detail');
   };
 
   const clearSelectedNodeLinks = () => {
@@ -1626,13 +1661,14 @@ export function ConceptAtlas({
     });
 
     if (onDeleteLink) {
-      selectedTypedLinks.forEach((link) => onDeleteLink(link.id));
+      selectedTypedLinks.forEach((link) => onDeleteLink(link.id, { method: cutLinkMethod }));
     }
 
     setSelectedLink(null);
     setCutLinkCandidate(null);
     setActiveEdgeId(null);
     setIsDeleteAllLinksOpen(false);
+    setCutLinkMethod('atlas_link_detail');
   };
 
   const startPanning = (event: React.MouseEvent | React.PointerEvent) => {
@@ -1769,17 +1805,6 @@ export function ConceptAtlas({
             ? 0.08
             : 0,
     };
-  };
-
-  const edgePriorityScore = (edge: MapEdge) => {
-    const strengthBonus = edge.strength === 'strong' ? 24 : edge.strength === 'moderate' ? 12 : edge.strength === 'weak' ? 2 : 0;
-    const typeBonus = edge.type === 'typed' ? 24 : edge.type === 'concept' ? 14 : edge.type === 'user' ? 18 : 0;
-    const relationshipBonus = highImportanceLinkTypes.has((edge.linkType || '') as AtlasMapLinkType | PhilosophicalLinkType)
-      ? 14
-      : moderateImportanceLinkTypes.has((edge.linkType || '') as AtlasMapLinkType | PhilosophicalLinkType)
-        ? 8
-        : 0;
-    return (edge.weight || 0) + strengthBonus + typeBonus + relationshipBonus;
   };
 
   const mapFontFamily = (fontFamily: AtlasMapFontFamily) => {
@@ -2039,6 +2064,21 @@ export function ConceptAtlas({
       setPanelSection('evidence');
       setRelatedDialogType('inquiries');
     }
+  };
+
+  const disableSharedAutoFiltersForLink = (link: AtlasLinkItem) => {
+    if (mode !== 'custom' || !activeMap || link.kind !== 'shared') return;
+    const objectTypes = link.objectTypes || [];
+    updateActiveMap({
+      autoLinkFilters: {
+        ...(activeMap.autoLinkFilters || defaultAutoLinkFilters),
+        sharedSources: objectTypes.includes('source') ? false : (activeMap.autoLinkFilters?.sharedSources ?? defaultAutoLinkFilters.sharedSources),
+        sharedPositions: objectTypes.includes('position') ? false : (activeMap.autoLinkFilters?.sharedPositions ?? defaultAutoLinkFilters.sharedPositions),
+        sharedInquiries: objectTypes.includes('inquiry') ? false : (activeMap.autoLinkFilters?.sharedInquiries ?? defaultAutoLinkFilters.sharedInquiries),
+        sharedWorks: objectTypes.includes('work') ? false : (activeMap.autoLinkFilters?.sharedWorks ?? defaultAutoLinkFilters.sharedWorks),
+        sharedPractices: objectTypes.includes('practice') ? false : (activeMap.autoLinkFilters?.sharedPractices ?? defaultAutoLinkFilters.sharedPractices),
+      },
+    });
   };
 
   const isMapEmpty = visibleEdges.length === 0;
@@ -2504,6 +2544,7 @@ export function ConceptAtlas({
                           event.stopPropagation();
                           if (removableNodeLinks.length) {
                             setSelectedName(node.name);
+                            setCutLinkMethod('atlas_node_action');
                             setIsDeleteAllLinksOpen(true);
                           }
                         }}
@@ -2677,7 +2718,10 @@ export function ConceptAtlas({
                         variant="outline"
                         size="sm"
                         disabled={!removableNodeLinks.length}
-                        onClick={() => setIsDeleteAllLinksOpen(true)}
+                        onClick={() => {
+                          setCutLinkMethod('atlas_node_action');
+                          setIsDeleteAllLinksOpen(true);
+                        }}
                         className="h-8 w-full justify-center rounded-full text-xs text-destructive hover:text-destructive disabled:text-muted-foreground"
                       >
                         Delete Connected Links
@@ -2748,6 +2792,7 @@ export function ConceptAtlas({
                   variant="outline"
                   onClick={() => {
                     setSelectedName(selectedLink.from);
+                    setPanelSection('evidence');
                     setSelectedLink(null);
                   }}
                   className="rounded-full px-5"
@@ -2758,16 +2803,7 @@ export function ConceptAtlas({
                   <Button
                     variant="outline"
                     onClick={() => {
-                      updateActiveMap({
-                        autoLinkFilters: {
-                          ...(activeMap.autoLinkFilters || defaultAutoLinkFilters),
-                          sharedSources: false,
-                          sharedPositions: false,
-                          sharedInquiries: false,
-                          sharedWorks: false,
-                          sharedPractices: false,
-                        },
-                      });
+                      disableSharedAutoFiltersForLink(selectedLink);
                       setSelectedLink(null);
                     }}
                     className="rounded-full px-5"
@@ -2794,6 +2830,7 @@ export function ConceptAtlas({
               <Button
                 variant="destructive"
                 onClick={() => {
+                  setCutLinkMethod('atlas_link_detail');
                   setCutLinkCandidate(selectedLink);
                   setSelectedLink(null);
                 }}
@@ -2806,7 +2843,15 @@ export function ConceptAtlas({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!cutLinkCandidate} onOpenChange={(open) => !open && setCutLinkCandidate(null)}>
+      <Dialog
+        open={!!cutLinkCandidate}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCutLinkCandidate(null);
+            setCutLinkMethod('atlas_link_detail');
+          }
+        }}
+      >
         <DialogContent className="max-w-md border-none shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl italic">Remove this link?</DialogTitle>
@@ -2894,7 +2939,13 @@ export function ConceptAtlas({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteAllLinksOpen} onOpenChange={setIsDeleteAllLinksOpen}>
+      <Dialog
+        open={isDeleteAllLinksOpen}
+        onOpenChange={(open) => {
+          setIsDeleteAllLinksOpen(open);
+          if (!open) setCutLinkMethod('atlas_link_detail');
+        }}
+      >
         <DialogContent className="max-w-md border-none shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl italic">Delete Connected Links?</DialogTitle>

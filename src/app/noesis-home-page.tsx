@@ -1689,7 +1689,7 @@ function ReadexWorkspace({
     } as any).catch(() => emitError(linkRef.path, 'update', link));
   };
 
-  const deletePhilosophicalLink = (id: string) => {
+  const deletePhilosophicalLink = (id: string, options?: { method?: string }) => {
     const existing = links.find((item) => item.id === id);
     const linkRef = doc(refs.links, id);
     deleteDoc(linkRef).catch(() => emitError(linkRef.path, 'delete'));
@@ -1708,7 +1708,12 @@ function ReadexWorkspace({
           positionIds: [existing.fromType === 'position' ? existing.fromId : '', existing.toType === 'position' ? existing.toId : ''].filter(Boolean),
           linkIds: [existing.id],
         },
-        metadata: { method: 'atlas_long_hold', relationshipType: existing.type, sourceId: existing.fromId, targetId: existing.toId },
+        metadata: {
+          method: options?.method || 'atlas_long_hold',
+          relationshipType: existing.type,
+          sourceId: existing.fromId,
+          targetId: existing.toId,
+        },
         sourceActionId: makeActionId(),
       });
     }
@@ -1748,13 +1753,19 @@ function ReadexWorkspace({
 
   const addAtlasMap = (data: Partial<AtlasMap>) => {
     const mapRef = doc(refs.atlasMaps);
+    const nodeNames = data.nodeNames || [];
+    const manualLinks = data.manualLinks || [];
+    const resolvedNodeIds = nodeNames.map((name) => concepts.find((concept) => conceptKey(concept.name) === conceptKey(name))?.id || conceptKey(name));
     const payload = {
       id: mapRef.id,
       title: data.title || 'Untitled Map',
+      mode: data.mode || 'custom',
       description: data.description || '',
-      nodeNames: data.nodeNames || [],
+      nodeNames,
+      nodeIds: data.nodeIds || resolvedNodeIds,
       nodePositions: data.nodePositions || {},
-      manualLinks: data.manualLinks || [],
+      manualLinks,
+      linkIds: data.linkIds || manualLinks.map((link) => link.id),
       autoLinkFilters: data.autoLinkFilters || {
         sharedSources: true,
         sharedPositions: true,
