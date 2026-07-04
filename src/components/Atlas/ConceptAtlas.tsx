@@ -1164,7 +1164,7 @@ export function ConceptAtlas({
         <div
           ref={mapRef}
           className={cn(
-            "relative flex-1 cursor-grab overflow-hidden border border-border bg-muted/5 active:cursor-grabbing shadow-inner min-h-[82vh]",
+            "relative flex-1 cursor-grab overflow-hidden border border-border bg-background active:cursor-grabbing shadow-inner min-h-[82vh]",
             isFullScreen ? "rounded-none" : "rounded-xl"
           )}
           onMouseDown={startPanning}
@@ -1200,8 +1200,6 @@ export function ConceptAtlas({
             style={{
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
-              backgroundImage: 'radial-gradient(circle at 20% 10%, hsl(var(--accent) / .08), transparent 25%), radial-gradient(circle at 82% 18%, hsl(160 87% 20% / .08), transparent 24%), radial-gradient(hsl(var(--muted-foreground) / 0.12) 1px, transparent 0)',
-              backgroundSize: '32px 32px',
             }}
           >
             <svg className="pointer-events-none absolute inset-0 h-full w-full">
@@ -1242,6 +1240,15 @@ export function ConceptAtlas({
                       strokeLinecap="round"
                       className="pointer-events-auto cursor-pointer"
                       onMouseDown={(event) => event.stopPropagation()}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const linkItem = linkItemForEdge(edge);
+                        if (linkItem.removable) {
+                          setSelectedLink(null);
+                          setCutLinkCandidate(linkItem);
+                        }
+                      }}
                       onClick={(event) => {
                         event.stopPropagation();
                         setSelectedLink(linkItemForEdge(edge));
@@ -1277,9 +1284,46 @@ export function ConceptAtlas({
                 <Card className={cn('rounded-xl border-accent/20 bg-white/95 p-3 shadow-md transition-all hover:-translate-y-1 hover:shadow-xl', selectedName === node.name && 'border-accent shadow-2xl ring-2 ring-accent')}>
                   <h3 className="font-headline font-semibold text-primary">{node.name}</h3>
                   <div className="font-code text-[9px] uppercase text-muted-foreground">{node.count} linked</div>
+                  {selectedName === node.name && (
+                    <div className="mt-2 flex items-center justify-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 rounded-full px-2 text-[10px]"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedName(node.name);
+                          setIsLinkOpen(true);
+                        }}
+                      >
+                        <Link2 className="mr-1 size-3" /> Quick Link
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 rounded-full px-2 text-[10px] text-destructive hover:text-destructive"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (removableNodeLinks.length) {
+                            setSelectedName(node.name);
+                            setIsDeleteAllLinksOpen(true);
+                          }
+                        }}
+                        disabled={!removableNodeLinks.length}
+                      >
+                        Cut Links
+                      </Button>
+                    </div>
+                  )}
                 </Card>
               </button>
             ))}
+
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-px bg-border" />
           </div>
         </div>
 
