@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,11 +23,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SourceLinker } from '@/components/SourceLinker';
+import { initializeFirebase } from '@/firebase';
 import type {
   AtlasAutoLinkFilters,
   AtlasMap,
+  AtlasMapBackgroundPreset,
+  AtlasMapFontFamily,
   AtlasMapLink,
   AtlasMapLinkType,
+  AtlasMapNodeStyle,
+  AtlasMapStyle,
   Concept,
   Draft,
   Insight,
@@ -41,6 +48,7 @@ import type {
 } from '@/lib/types';
 import { conceptKey, conceptRelated, conceptTerms, taggedItemsForConcept, today, uid as makeId } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { deleteObject, getDownloadURL, getStorage, ref as storageRef, uploadBytes } from 'firebase/storage';
 
 interface ConceptAtlasProps {
   concepts: Concept[];
@@ -123,6 +131,19 @@ const defaultAutoLinkFilters: AtlasAutoLinkFilters = {
   sharedPractices: true,
   conceptLinks: true,
 };
+const defaultAtlasMapStyle: AtlasMapStyle = {
+  lineMode: 'relationshipCategoryColor',
+  customLineColor: '#7c3aed',
+  background: {
+    type: 'preset',
+    preset: 'dark',
+    opacity: 0.42,
+    blur: 0,
+  },
+  fontFamily: 'system',
+  nodeStyle: 'default',
+  showWeakLinks: false,
+};
 
 const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'depends_on', 'explains', 'explained_by', 'derived_from', 'references', 'replaces', 'questions', 'expands', 'weakens', 'strengthens', 'relates', 'custom'];
 const highImportanceLinkTypes = new Set<AtlasMapLinkType | PhilosophicalLinkType>(['contradicts', 'supports', 'challenges', 'depends_on', 'strengthens', 'weakens', 'tested_by', 'changed_by', 'refines']);
@@ -145,6 +166,17 @@ const recommendedRelationshipTypesByViewMode: Record<AtlasViewMode, Philosophica
   full: atlasRelationshipTypes,
 };
 
+function normalizeAtlasMapStyle(style?: AtlasMapStyle): AtlasMapStyle {
+  return {
+    ...defaultAtlasMapStyle,
+    ...style,
+    background: {
+      ...defaultAtlasMapStyle.background,
+      ...(style?.background || {}),
+    },
+  };
+}
+
 export function ConceptAtlas({
   concepts,
   media,
@@ -164,6 +196,7 @@ export function ConceptAtlas({
   onUpdateAtlasMap,
   onDeleteAtlasMap,
   onDeleteLink,
+  uid,
   onOpenPosition,
 }: ConceptAtlasProps) {
   const [zoom, setZoom] = useState(1);
@@ -179,6 +212,7 @@ export function ConceptAtlas({
   const [activeMapId, setActiveMapId] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
+  const [isStyleOpen, setIsStyleOpen] = useState(false);
   const [isLinkOpen, setIsLinkOpen] = useState(false);
   const [isNodeOpen, setIsNodeOpen] = useState(false);
   const [selectedLink, setSelectedLink] = useState<AtlasLinkItem | null>(null);
@@ -196,6 +230,8 @@ export function ConceptAtlas({
   const [linkInteractionMap, setLinkInteractionMap] = useState<Record<string, { lastInteractedAt: string; interactionCount: number }>>({});
   const [newConcept, setNewConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
   const [newMap, setNewMap] = useState({ title: '', description: '' });
+  const [styleDraft, setStyleDraft] = useState<AtlasMapStyle>(defaultAtlasMapStyle);
+  const [isUploadingBackground, setIsUploadingBackground] = useState(false);
   const [linkDraft, setLinkDraft] = useState<{ to: string; type: AtlasMapLinkType; label: string; note: string }>({ to: '', type: 'relates', label: '', note: '' });
   const [draftPositions, setDraftPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [draggingName, setDraggingName] = useState<string | null>(null);
@@ -203,10 +239,15 @@ export function ConceptAtlas({
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [panelSection, setPanelSection] = useState<'links' | 'evidence' | 'events' | 'actions'>('links');
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const backgroundInputRef = useRef<HTMLInputElement | null>(null);
   const edgeHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const terms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
   const activeMap = atlasMaps.find((map) => map.id === activeMapId) || atlasMaps[0] || null;
+  const activeMapStyle = useMemo(
+    () => normalizeAtlasMapStyle(activeMap?.style),
+    [activeMap?.style]
+  );
   const selectedConcept = concepts.find((item) => conceptKey(item.name) === conceptKey(selectedName || ''));
   const related = selectedName ? conceptRelated(selectedName, { media, insights, vault, drafts, practices, questions, timeline }) : null;
   const relatedUnknowns = useMemo(() => {
@@ -243,6 +284,12 @@ export function ConceptAtlas({
   useEffect(() => {
     if (selectedName) setPanelSection('links');
   }, [selectedName]);
+
+  useEffect(() => {
+    if (isStyleOpen) {
+      setStyleDraft(normalizeAtlasMapStyle(activeMap?.style));
+    }
+  }, [activeMap?.style, isStyleOpen]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -487,12 +534,16 @@ export function ConceptAtlas({
       return false;
     });
 
+    const customFiltered = mode === 'custom' && activeMapStyle.showWeakLinks === false
+      ? filtered.filter((edge) => edge.strength !== 'weak' && edge.strength !== 'suggested')
+      : filtered;
+
     if (viewMode !== 'full' && !selectedName) {
-      return filtered.filter((edge) => edge.strength !== 'weak' && edge.strength !== 'suggested');
+      return customFiltered.filter((edge) => edge.strength !== 'weak' && edge.strength !== 'suggested');
     }
 
-    return filtered;
-  }, [activeRelationshipTypes, edges, selectedName, viewMode]);
+    return customFiltered;
+  }, [activeMapStyle.showWeakLinks, activeRelationshipTypes, edges, mode, selectedName, viewMode]);
 
   const visibleFamilies = useMemo(() => {
     const families = new Set();
@@ -1038,6 +1089,7 @@ export function ConceptAtlas({
       nodePositions: selectedName ? { [conceptKey(selectedName)]: { x: 50, y: 50 } } : {},
       manualLinks: [],
       autoLinkFilters: defaultAutoLinkFilters,
+      style: defaultAtlasMapStyle,
     });
     setNewMap({ title: '', description: '' });
     setMode('custom');
@@ -1228,6 +1280,14 @@ export function ConceptAtlas({
 
   const edgeStrokeColor = (edge: MapEdge) => {
     const type = (edge.linkType || '').toString();
+    if (mode === 'custom') {
+      if (activeMapStyle.lineMode === 'singleColor') return activeMapStyle.customLineColor || '#7c3aed';
+      if (activeMapStyle.lineMode === 'strengthColor') {
+        if (edge.strength === 'strong') return '#f59e0b';
+        if (edge.strength === 'moderate') return '#8b5cf6';
+        return '#94a3b8';
+      }
+    }
     if (['contradicts', 'challenges', 'weakens', 'questions'].includes(type)) return 'hsl(0 72% 56%)';
     if (['supports', 'exemplifies', 'references', 'derived_from', 'strengthens'].includes(type)) return 'hsl(152 58% 34%)';
     if (['defines', 'explains', 'explained_by', 'coheres'].includes(type)) return 'hsl(206 74% 40%)';
@@ -1236,6 +1296,146 @@ export function ConceptAtlas({
     if (edge.type === 'user') return 'hsl(var(--accent))';
     if (edge.type === 'concept') return 'hsl(var(--primary) / .55)';
     return 'hsl(var(--muted-foreground) / .35)';
+  };
+
+  const mapFontFamily = (fontFamily: AtlasMapFontFamily) => {
+    switch (fontFamily) {
+      case 'serif':
+        return 'Georgia, Cambria, "Times New Roman", Times, serif';
+      case 'mono':
+        return '"IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+      case 'rounded':
+        return '"Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", sans-serif';
+      case 'condensed':
+        return '"Arial Narrow", "Aptos Narrow", "Helvetica Neue", Arial, sans-serif';
+      default:
+        return 'Inter, "Segoe UI", Arial, sans-serif';
+    }
+  };
+
+  const customMapBackgroundStyle = useMemo<React.CSSProperties>(() => {
+    if (mode !== 'custom') return {};
+    const background = activeMapStyle.background;
+    const base: React.CSSProperties = {};
+
+    if (background.type === 'color' && background.color) {
+      base.backgroundColor = background.color;
+      return base;
+    }
+
+    if (background.type === 'uploaded' && background.imageUrl) {
+      base.backgroundImage = `url(${background.imageUrl})`;
+      base.backgroundSize = 'cover';
+      base.backgroundPosition = 'center';
+      return base;
+    }
+
+    const preset = background.preset || 'dark';
+    if (preset === 'light') {
+      base.background = 'linear-gradient(180deg, rgba(250,248,244,1) 0%, rgba(242,238,232,1) 100%)';
+    } else if (preset === 'paper') {
+      base.background = 'linear-gradient(180deg, rgba(246,239,223,1) 0%, rgba(240,231,212,1) 100%)';
+    } else if (preset === 'grid') {
+      base.backgroundColor = '#111111';
+      base.backgroundImage = 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)';
+      base.backgroundSize = '28px 28px';
+    } else if (preset === 'blank') {
+      base.backgroundColor = '#ffffff';
+    } else {
+      base.background = 'radial-gradient(circle at top, rgba(58,41,24,0.24), transparent 36%), linear-gradient(180deg, rgba(17,14,11,1) 0%, rgba(12,11,10,1) 100%)';
+    }
+
+    return base;
+  }, [activeMapStyle.background, mode]);
+
+  const customMapBackgroundOverlayStyle = useMemo<React.CSSProperties>(() => {
+    if (mode !== 'custom') return {};
+    return {
+      opacity: activeMapStyle.background.opacity ?? 0.42,
+      filter: `blur(${activeMapStyle.background.blur ?? 0}px)`,
+    };
+  }, [activeMapStyle.background.blur, activeMapStyle.background.opacity, mode]);
+
+  const nodeCardClassName = (nodeStyle: AtlasMapNodeStyle | undefined, isSelected: boolean) => cn(
+    'border-accent/20 bg-white/95 shadow-md transition-all hover:-translate-y-1 hover:shadow-xl',
+    nodeStyle === 'compact' && 'min-w-[112px] rounded-lg px-3 py-2',
+    nodeStyle === 'pill' && 'min-w-[124px] rounded-full px-5 py-2.5',
+    nodeStyle === 'card' && 'min-w-[152px] rounded-2xl px-4 py-4 shadow-lg',
+    (!nodeStyle || nodeStyle === 'default') && 'rounded-xl p-3',
+    isSelected && 'border-accent shadow-2xl ring-2 ring-accent'
+  );
+
+  const saveMapStyle = () => {
+    if (!activeMap) return;
+    updateActiveMap({ style: styleDraft });
+    setIsStyleOpen(false);
+  };
+
+  const clearUploadedBackground = async () => {
+    if (!styleDraft.background.storagePath) {
+      setStyleDraft((prev) => ({
+        ...prev,
+        background: {
+          ...prev.background,
+          type: 'preset',
+          preset: 'dark',
+          imageUrl: '',
+          storagePath: '',
+          blur: 0,
+          opacity: 0.42,
+        },
+      }));
+      return;
+    }
+
+    try {
+      const { firebaseApp } = initializeFirebase();
+      const storage = getStorage(firebaseApp);
+      await deleteObject(storageRef(storage, styleDraft.background.storagePath));
+    } catch (error) {
+      console.warn('Unable to delete atlas background from storage', error);
+    }
+
+    setStyleDraft((prev) => ({
+      ...prev,
+      background: {
+        ...prev.background,
+        type: 'preset',
+        preset: 'dark',
+        imageUrl: '',
+        storagePath: '',
+        blur: 0,
+        opacity: 0.42,
+      },
+    }));
+  };
+
+  const handleBackgroundUpload = async (file?: File | null) => {
+    if (!file || !activeMap || !uid) return;
+    setIsUploadingBackground(true);
+    try {
+      const { firebaseApp } = initializeFirebase();
+      const storage = getStorage(firebaseApp);
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+      const path = `users/${uid}/atlasMaps/${activeMap.id}/background-${Date.now()}-${safeName}`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, file, { contentType: file.type || 'image/png' });
+      const imageUrl = await getDownloadURL(fileRef);
+      setStyleDraft((prev) => ({
+        ...prev,
+        background: {
+          ...prev.background,
+          type: 'uploaded',
+          imageUrl,
+          storagePath: path,
+          opacity: prev.background.opacity ?? 0.58,
+          blur: prev.background.blur ?? 0,
+        },
+      }));
+    } finally {
+      setIsUploadingBackground(false);
+      if (backgroundInputRef.current) backgroundInputRef.current.value = '';
+    }
   };
 
   const attentionItems = useMemo<AttentionItem[]>(() => {
@@ -1475,6 +1675,9 @@ export function ConceptAtlas({
                 {!atlasMaps.length && <option value="">No custom maps</option>}
                 {atlasMaps.map((map) => <option key={map.id} value={map.id}>{map.title}</option>)}
               </select>
+              <Button variant="outline" size="sm" className="rounded-full" onClick={() => setIsStyleOpen(true)} disabled={!activeMap}>
+                <SlidersHorizontal className="mr-1.5 size-4" /> Map Style
+              </Button>
               <Button variant="outline" size="sm" className="rounded-full" onClick={() => setIsMapOpen(true)}><Plus className="mr-1.5 size-4" /> Custom Map</Button>
               <Button variant="outline" size="sm" className="rounded-full" onClick={() => setIsNodeOpen(true)} disabled={!activeMap}><Plus className="mr-1.5 size-4" /> Add Node</Button>
               {activeMap && (
@@ -1557,6 +1760,12 @@ export function ConceptAtlas({
           onMouseUp={() => setIsPanning(false)}
           onMouseLeave={() => setIsPanning(false)}
         >
+          {mode === 'custom' && (
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ ...customMapBackgroundStyle, ...customMapBackgroundOverlayStyle }}
+            />
+          )}
           <div className="absolute right-4 top-4 z-30 flex h-9 rounded-full border border-border/50 bg-white/90 p-1 shadow-md backdrop-blur">
             <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.max(0.5, z - 0.1)); }} className="h-7 w-7 rounded-full font-bold">-</Button>
             <div className="flex w-10 items-center justify-center font-code text-[10px] font-bold text-primary/60">{Math.round(zoom * 100)}%</div>
@@ -1705,7 +1914,7 @@ export function ConceptAtlas({
             {nodes.map((node) => (
               <button
                 key={node.name}
-                className="absolute min-w-[140px] -translate-x-1/2 -translate-y-1/2 cursor-grab text-center transition-none active:cursor-grabbing"
+                className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab text-center transition-none active:cursor-grabbing"
                 style={{ left: `${node.x}%`, top: `${node.y}%` }}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -1737,8 +1946,13 @@ export function ConceptAtlas({
                 onPointerUp={() => persistNode(node.name)}
                 onPointerCancel={() => setDraggingName(null)}
               >
-                <Card className={cn('rounded-xl border-accent/20 bg-white/95 p-3 shadow-md transition-all hover:-translate-y-1 hover:shadow-xl', selectedName === node.name && 'border-accent shadow-2xl ring-2 ring-accent')}>
-                  <h3 className="font-headline font-semibold text-primary">{node.name}</h3>
+                <Card
+                  className={nodeCardClassName(activeMapStyle.nodeStyle, selectedName === node.name)}
+                  style={{ fontFamily: mode === 'custom' ? mapFontFamily(activeMapStyle.fontFamily) : undefined }}
+                >
+                  <h3 className={cn('font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-[15px]')}>
+                    {node.name}
+                  </h3>
                   <div className="font-code text-[9px] uppercase text-muted-foreground">{node.count} linked</div>
                   {selectedName === node.name && (
                     <div className="mt-2 flex items-center justify-center gap-2">
@@ -2218,6 +2432,276 @@ export function ConceptAtlas({
             </div>
           </div>
           <DialogFooter className="pt-4"><Button onClick={createCustomMap} className="rounded-full px-8">Create Map</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isStyleOpen} onOpenChange={setIsStyleOpen}>
+        <DialogContent className="max-w-2xl border-none shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl italic">Customize Map</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] space-y-6 overflow-y-auto pt-2 pr-1">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="readex-kicker">Line Color Preference</Label>
+                <Select
+                  value={styleDraft.lineMode}
+                  onValueChange={(value) => setStyleDraft((prev) => ({ ...prev, lineMode: value as AtlasMapStyle['lineMode'] }))}
+                >
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default relationship colors</SelectItem>
+                    <SelectItem value="singleColor">Single custom line color</SelectItem>
+                    <SelectItem value="strengthColor">Strength-based line colors</SelectItem>
+                    <SelectItem value="relationshipCategoryColor">Relationship-category colors</SelectItem>
+                  </SelectContent>
+                </Select>
+                {styleDraft.lineMode === 'singleColor' && (
+                  <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-3">
+                    <Input
+                      type="color"
+                      value={styleDraft.customLineColor || '#7c3aed'}
+                      onChange={(event) => setStyleDraft((prev) => ({ ...prev, customLineColor: event.target.value }))}
+                      className="h-10 w-16 rounded-lg p-1"
+                    />
+                    <Input
+                      value={styleDraft.customLineColor || '#7c3aed'}
+                      onChange={(event) => setStyleDraft((prev) => ({ ...prev, customLineColor: event.target.value }))}
+                      className="rounded-full"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="readex-kicker">Font Choice</Label>
+                <Select
+                  value={styleDraft.fontFamily}
+                  onValueChange={(value) => setStyleDraft((prev) => ({ ...prev, fontFamily: value as AtlasMapFontFamily }))}
+                >
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="system">System</SelectItem>
+                    <SelectItem value="serif">Serif</SelectItem>
+                    <SelectItem value="mono">Mono</SelectItem>
+                    <SelectItem value="rounded">Rounded</SelectItem>
+                    <SelectItem value="condensed">Condensed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="readex-kicker">Background Choice</Label>
+                <Select
+                  value={styleDraft.background.type}
+                  onValueChange={(value) => setStyleDraft((prev) => ({
+                    ...prev,
+                    background: {
+                      ...prev.background,
+                      type: value as AtlasMapStyle['background']['type'],
+                    },
+                  }))}
+                >
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default dark</SelectItem>
+                    <SelectItem value="preset">Preset background</SelectItem>
+                    <SelectItem value="color">Solid color</SelectItem>
+                    <SelectItem value="uploaded">Uploaded image</SelectItem>
+                  </SelectContent>
+                </Select>
+                {styleDraft.background.type === 'preset' && (
+                  <Select
+                    value={styleDraft.background.preset || 'dark'}
+                    onValueChange={(value) => setStyleDraft((prev) => ({
+                      ...prev,
+                      background: {
+                        ...prev.background,
+                        preset: value as AtlasMapBackgroundPreset,
+                      },
+                    }))}
+                  >
+                    <SelectTrigger className="rounded-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dark">Default dark</SelectItem>
+                      <SelectItem value="light">Soft light</SelectItem>
+                      <SelectItem value="paper">Paper</SelectItem>
+                      <SelectItem value="grid">Grid</SelectItem>
+                      <SelectItem value="blank">Blank</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                {styleDraft.background.type === 'color' && (
+                  <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-3">
+                    <Input
+                      type="color"
+                      value={styleDraft.background.color || '#111111'}
+                      onChange={(event) => setStyleDraft((prev) => ({
+                        ...prev,
+                        background: {
+                          ...prev.background,
+                          color: event.target.value,
+                        },
+                      }))}
+                      className="h-10 w-16 rounded-lg p-1"
+                    />
+                    <Input
+                      value={styleDraft.background.color || '#111111'}
+                      onChange={(event) => setStyleDraft((prev) => ({
+                        ...prev,
+                        background: {
+                          ...prev.background,
+                          color: event.target.value,
+                        },
+                      }))}
+                      className="rounded-full"
+                    />
+                  </div>
+                )}
+                {styleDraft.background.type === 'uploaded' && (
+                  <div className="space-y-3 rounded-2xl border border-border/60 bg-card p-4">
+                    <input
+                      ref={backgroundInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/avif"
+                      className="hidden"
+                      onChange={(event) => handleBackgroundUpload(event.target.files?.[0] || null)}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-full"
+                        onClick={() => backgroundInputRef.current?.click()}
+                        disabled={!uid || isUploadingBackground}
+                      >
+                        {isUploadingBackground ? 'Uploading...' : 'Upload Background'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="rounded-full text-destructive hover:text-destructive"
+                        onClick={clearUploadedBackground}
+                        disabled={!styleDraft.background.imageUrl}
+                      >
+                        Remove Background
+                      </Button>
+                    </div>
+                    {!uid && <p className="text-xs italic text-muted-foreground">Background upload becomes available once this workspace has a user id.</p>}
+                    {styleDraft.background.imageUrl && (
+                      <div className="space-y-2">
+                        <div className="overflow-hidden rounded-xl border border-border/60">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={styleDraft.background.imageUrl} alt="Map background preview" className="h-32 w-full object-cover" />
+                        </div>
+                        <Input
+                          value={styleDraft.background.imageUrl}
+                          onChange={(event) => setStyleDraft((prev) => ({
+                            ...prev,
+                            background: {
+                              ...prev.background,
+                              imageUrl: event.target.value,
+                            },
+                          }))}
+                          className="rounded-full"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="readex-kicker">Node Style</Label>
+                <Select
+                  value={styleDraft.nodeStyle || 'default'}
+                  onValueChange={(value) => setStyleDraft((prev) => ({ ...prev, nodeStyle: value as AtlasMapNodeStyle }))}
+                >
+                  <SelectTrigger className="rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default</SelectItem>
+                    <SelectItem value="compact">Compact</SelectItem>
+                    <SelectItem value="pill">Pill</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="rounded-2xl border border-border/60 bg-card p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="font-headline text-base font-semibold italic">Show weak links</div>
+                      <p className="text-xs italic text-muted-foreground">Keep faint weak links visible on this custom map.</p>
+                    </div>
+                    <Switch
+                      checked={styleDraft.showWeakLinks ?? false}
+                      onCheckedChange={(checked) => setStyleDraft((prev) => ({ ...prev, showWeakLinks: checked }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-3 rounded-2xl border border-border/60 bg-card p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <Label className="readex-kicker">Background opacity</Label>
+                  <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {Math.round((styleDraft.background.opacity ?? 0.42) * 100)}%
+                  </span>
+                </div>
+                <Slider
+                  value={[Math.round((styleDraft.background.opacity ?? 0.42) * 100)]}
+                  min={10}
+                  max={100}
+                  step={1}
+                  onValueChange={([value]) => setStyleDraft((prev) => ({
+                    ...prev,
+                    background: {
+                      ...prev.background,
+                      opacity: value / 100,
+                    },
+                  }))}
+                />
+              </div>
+              <div className="space-y-3 rounded-2xl border border-border/60 bg-card p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <Label className="readex-kicker">Background blur</Label>
+                  <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {styleDraft.background.blur ?? 0}px
+                  </span>
+                </div>
+                <Slider
+                  value={[styleDraft.background.blur ?? 0]}
+                  min={0}
+                  max={18}
+                  step={1}
+                  onValueChange={([value]) => setStyleDraft((prev) => ({
+                    ...prev,
+                    background: {
+                      ...prev.background,
+                      blur: value,
+                    },
+                  }))}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="pt-4">
+            <Button variant="ghost" onClick={() => setIsStyleOpen(false)} className="rounded-full">Cancel</Button>
+            <Button onClick={saveMapStyle} className="rounded-full px-8">Save Map Style</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

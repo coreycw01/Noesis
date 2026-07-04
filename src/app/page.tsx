@@ -1528,6 +1528,19 @@ function ReadexWorkspace({
         sharedPractices: true,
         conceptLinks: true,
       },
+      style: data.style || {
+        lineMode: 'relationshipCategoryColor',
+        customLineColor: '#7c3aed',
+        background: {
+          type: 'preset',
+          preset: 'dark',
+          opacity: 0.4,
+          blur: 0,
+        },
+        fontFamily: 'system',
+        nodeStyle: 'default',
+        showWeakLinks: false,
+      },
       dateCreated: today(),
       dateUpdated: today(),
     };
@@ -1695,6 +1708,7 @@ function ReadexWorkspace({
             onUpdateAtlasMap={updateAtlasMap}
             onDeleteAtlasMap={deleteAtlasMap}
             onDeleteLink={deletePhilosophicalLink}
+            uid={effectiveUid}
             onOpenPosition={(id) => {
               setFocusedPositionId(id);
               setView('vault');

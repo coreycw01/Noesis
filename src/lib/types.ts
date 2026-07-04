@@ -26,6 +26,11 @@ export type PositionPhilosophyStatus = 'draft' | 'active' | 'uncertain' | 'chall
 export type PhilosophicalObjectType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'evolution';
 export type PhilosophicalLinkType = 'supports' | 'challenges' | 'coheres' | 'defines' | 'refines' | 'contradicts' | 'exemplifies' | 'inspired_by' | 'tested_by' | 'expressed_in' | 'changed_by' | 'depends_on' | 'explains' | 'explained_by' | 'derived_from' | 'references' | 'replaces' | 'questions' | 'expands' | 'weakens' | 'strengthens';
 export type AtlasMapLinkType = PhilosophicalLinkType | 'examples' | 'causes' | 'questions' | 'practices' | 'relates' | 'custom';
+export type AtlasMapLineMode = 'default' | 'singleColor' | 'strengthColor' | 'relationshipCategoryColor';
+export type AtlasMapBackgroundType = 'default' | 'color' | 'preset' | 'uploaded';
+export type AtlasMapBackgroundPreset = 'dark' | 'light' | 'paper' | 'grid' | 'blank';
+export type AtlasMapFontFamily = 'system' | 'serif' | 'mono' | 'rounded' | 'condensed';
+export type AtlasMapNodeStyle = 'default' | 'compact' | 'pill' | 'card';
 export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'url_metadata' | 'manual';
 export type AiSuggestionType = 'annotation_consequence' | 'position_draft' | 'typed_link' | 'possible_tension' | 'evolution_summary' | 'daily_prompt' | 'missing_perspective' | 'blind_spot' | 'missing_question' | 'stress_test' | 'thinking_pattern' | 'unknown_candidate' | 'contradiction_cluster';
 export type AiSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'ignored' | 'dismissed' | 'outdated';
@@ -761,6 +766,25 @@ export interface AtlasMapLink {
   dateCreated: string;
 }
 
+export interface AtlasMapBackground {
+  type: AtlasMapBackgroundType;
+  color?: string;
+  preset?: AtlasMapBackgroundPreset;
+  imageUrl?: string;
+  opacity?: number;
+  blur?: number;
+  storagePath?: string;
+}
+
+export interface AtlasMapStyle {
+  lineMode: AtlasMapLineMode;
+  customLineColor?: string;
+  background: AtlasMapBackground;
+  fontFamily: AtlasMapFontFamily;
+  nodeStyle?: AtlasMapNodeStyle;
+  showWeakLinks?: boolean;
+}
+
 export interface AtlasMap {
   id: string;
   title: string;
@@ -769,6 +793,7 @@ export interface AtlasMap {
   nodePositions: Record<string, AtlasMapNodePosition>;
   manualLinks: AtlasMapLink[];
   autoLinkFilters: AtlasAutoLinkFilters;
+  style?: AtlasMapStyle;
   dateCreated: string;
   dateUpdated: string;
 }
