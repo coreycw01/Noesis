@@ -69,6 +69,7 @@ interface ConceptAtlasProps {
   onUpdateAtlasMap: (map: AtlasMap) => void;
   onDeleteAtlasMap: (id: string) => void;
   onDeleteLink?: (id: string) => void;
+  onInteractLink?: (id: string) => void;
   onOpenPosition?: (id: string) => void;
   uid?: string;
 }
@@ -107,6 +108,8 @@ type AtlasLinkItem = {
   conceptTarget?: string;
   createdAt?: string;
   updatedAt?: string;
+  lastInteractedAt?: string;
+  interactionCount?: number;
 };
 
 type AtlasRelationshipFilterMode = 'recommended' | 'all' | 'custom';
@@ -196,6 +199,7 @@ export function ConceptAtlas({
   onUpdateAtlasMap,
   onDeleteAtlasMap,
   onDeleteLink,
+  onInteractLink,
   uid,
   onOpenPosition,
 }: ConceptAtlasProps) {
@@ -476,8 +480,8 @@ export function ConceptAtlas({
             label: link.type.replace(/_/g, ' '),
             linkType: link.type,
             id: link.id,
-            weight: importanceScore,
-            strength: classifyStrength(importanceScore),
+            weight: link.connectionScore ?? importanceScore,
+            strength: link.connectionStrength || classifyStrength(link.connectionScore ?? importanceScore),
             objectTypes: [
               ...(link.fromType === 'concept' || link.toType === 'concept' ? ['concept' as const] : []),
               ...(link.fromType === 'position' || link.toType === 'position' ? ['position' as const] : []),
@@ -619,6 +623,9 @@ export function ConceptAtlas({
         interactionCount: (prev[link.id]?.interactionCount || 0) + 1,
       },
     }));
+    if (link.kind === 'typed') {
+      onInteractLink?.(link.id);
+    }
   };
 
   const openLinkDetail = (link: AtlasLinkItem) => {
@@ -639,7 +646,7 @@ export function ConceptAtlas({
   };
 
   const getLinkInteractionTime = (link: AtlasLinkItem) =>
-    linkInteractionMap[link.id]?.lastInteractedAt || link.updatedAt || link.createdAt || '';
+    linkInteractionMap[link.id]?.lastInteractedAt || link.lastInteractedAt || link.updatedAt || link.createdAt || '';
 
   const startEdgeHold = (edge: MapEdge) => {
     const linkItem = linkItemForEdge(edge);
@@ -692,6 +699,8 @@ export function ConceptAtlas({
         sourceLabel: 'Typed philosophical link',
         createdAt: typedLink?.dateCreated,
         updatedAt: typedLink?.dateUpdated,
+        lastInteractedAt: typedLink?.lastInteractedAt,
+        interactionCount: typedLink?.interactionCount,
       };
     }
 
@@ -784,6 +793,8 @@ export function ConceptAtlas({
         sourceLabel: 'Typed philosophical link',
         createdAt: link.dateCreated,
         updatedAt: link.dateUpdated,
+        lastInteractedAt: link.lastInteractedAt,
+        interactionCount: link.interactionCount,
       });
     });
 

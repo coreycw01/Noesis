@@ -82,6 +82,7 @@ import type {
   MetacognitionSettings,
   NotificationSettings,
   PhilosophicalLink,
+  PhilosophicalLinkType,
   Practice,
   PrivacySettings,
   ProfileMetacognitionSummary,
@@ -1414,9 +1415,144 @@ function ReadexWorkspace({
     deleteDoc(practiceRef).catch(() => emitError(practiceRef.path, 'delete'));
   };
 
+  const highImportanceAtlasLinks = new Set<PhilosophicalLinkType>(['contradicts', 'supports', 'challenges', 'tested_by', 'refines', 'depends_on']);
+  const moderateImportanceAtlasLinks = new Set<PhilosophicalLinkType>(['defines', 'explains', 'explained_by', 'strengthens', 'weakens', 'derived_from', 'questions', 'replaces', 'expands']);
+
+  const getLinkObjectProfile = (type: PhilosophicalLink['fromType'], id: string) => {
+    if (type === 'source') {
+      const source = media.find((item) => item.id === id);
+      return {
+        conceptTags: source?.tags || [],
+        sourceIds: source ? [source.id] : [],
+        evidenceCount: source ? 1 : 0,
+        date: source?.dateUpdated || source?.dateAdded || '',
+      };
+    }
+
+    if (type === 'annotation') {
+      const annotation = allAnnotations(media).find((item) => item.id === id);
+      return {
+        conceptTags: annotation?.conceptTags || annotation?.source.tags || [],
+        sourceIds: annotation?.source?.id ? [annotation.source.id] : [],
+        evidenceCount: annotation?.source?.id ? 1 : 0,
+        date: annotation?.date || '',
+      };
+    }
+
+    if (type === 'concept') {
+      const concept = concepts.find((item) => item.id === id);
+      return {
+        conceptTags: concept?.name ? [concept.name] : [],
+        sourceIds: concept?.sourceIds || [],
+        evidenceCount: (concept?.sourceIds || []).length,
+        date: concept?.dateUpdated || concept?.dateCreated || '',
+      };
+    }
+
+    if (type === 'inquiry') {
+      const inquiry = questions.find((item) => item.id === id);
+      return {
+        conceptTags: (inquiry?.conceptIds || []).map((conceptId) => concepts.find((item) => item.id === conceptId)?.name || conceptId),
+        sourceIds: inquiry?.sourceIds || inquiry?.evidenceIds || [],
+        evidenceCount: (inquiry?.evidenceIds || []).length,
+        date: inquiry?.dateUpdated || inquiry?.dateCreated || '',
+      };
+    }
+
+    if (type === 'position') {
+      const position = vault.find((item) => item.id === id);
+      return {
+        conceptTags: position?.tags || [],
+        sourceIds: position?.sourceIds || [],
+        evidenceCount: (position?.sourceIds || []).length + (position?.evidenceFor || []).length,
+        date: position?.dateUpdated || position?.dateCreated || '',
+      };
+    }
+
+    if (type === 'work') {
+      const work = drafts.find((item) => item.id === id);
+      return {
+        conceptTags: work?.conceptTags || [],
+        sourceIds: work?.sourceIds || [],
+        evidenceCount: (work?.sourceIds || []).length,
+        date: work?.dateUpdated || work?.dateCreated || '',
+      };
+    }
+
+    if (type === 'practice') {
+      const practice = practices.find((item) => item.id === id);
+      return {
+        conceptTags: practice?.conceptTags || [],
+        sourceIds: practice?.sourceIds || [],
+        evidenceCount: (practice?.sourceIds || []).length + (practice?.positionIds || []).length,
+        date: practice?.dateUpdated || practice?.dateCreated || '',
+      };
+    }
+
+    return { conceptTags: [], sourceIds: [], evidenceCount: 0, date: '' };
+  };
+
+  const deriveAtlasMapModesForLink = (type: PhilosophicalLinkType) => {
+    const modes = new Set<'core' | 'conflict' | 'evidence' | 'practice' | 'evolution' | 'full'>(['full']);
+    if (['challenges', 'contradicts', 'weakens', 'questions'].includes(type)) modes.add('conflict');
+    if (['supports', 'exemplifies', 'references', 'derived_from', 'strengthens'].includes(type)) modes.add('evidence');
+    if (['tested_by', 'expressed_in', 'depends_on'].includes(type)) modes.add('practice');
+    if (['refines', 'replaces', 'changed_by', 'derived_from'].includes(type)) modes.add('evolution');
+    if (highImportanceAtlasLinks.has(type) || moderateImportanceAtlasLinks.has(type)) modes.add('core');
+    return Array.from(modes);
+  };
+
+  const scoreAtlasLink = (draft: Pick<PhilosophicalLink, 'fromType' | 'fromId' | 'toType' | 'toId' | 'type' | 'createdFrom'> & Partial<PhilosophicalLink>) => {
+    const fromProfile = getLinkObjectProfile(draft.fromType, draft.fromId);
+    const toProfile = getLinkObjectProfile(draft.toType, draft.toId);
+    const sharedConceptCount = Array.from(new Set(normalizeConceptTags(fromProfile.conceptTags))).filter((tag) =>
+      normalizeConceptTags(toProfile.conceptTags).includes(tag)
+    ).length;
+    const explicitLinkScore = draft.createdFrom === 'manual' ? 40 : draft.createdFrom === 'suggestion' ? 30 : 20;
+    const interactionScore = Math.min((draft.interactionCount || 0) * 5, 15);
+    const latestDate = [fromProfile.date, toProfile.date].map((value) => Date.parse(value || '') || 0).sort((a, b) => b - a)[0] || 0;
+    const ageDays = latestDate ? Math.max(0, (Date.now() - latestDate) / (1000 * 60 * 60 * 24)) : 999;
+    const recencyScore = ageDays <= 7 ? 10 : ageDays <= 30 ? 6 : ageDays <= 90 ? 3 : 0;
+    const evidenceScore = Math.min(fromProfile.evidenceCount + toProfile.evidenceCount, 10);
+    const relationshipImportanceScore = highImportanceAtlasLinks.has(draft.type) ? 15 : moderateImportanceAtlasLinks.has(draft.type) ? 9 : 4;
+    const sharedConceptScore = Math.min(sharedConceptCount * 8, 24);
+    const connectionScore = Math.min(100, explicitLinkScore + sharedConceptScore + interactionScore + recencyScore + evidenceScore + relationshipImportanceScore);
+    const connectionStrength = connectionScore >= 65 ? 'strong' : connectionScore >= 35 ? 'moderate' : 'weak';
+    return {
+      connectionScore,
+      connectionStrength,
+      mapModes: deriveAtlasMapModesForLink(draft.type),
+    };
+  };
+
+  const markPhilosophicalLinkInteraction = (id: string) => {
+    const existing = links.find((item) => item.id === id);
+    if (!existing) return;
+    const nextInteractionCount = (existing.interactionCount || 0) + 1;
+    const linkRef = doc(refs.links, id);
+    const scoreMeta = scoreAtlasLink({ ...existing, interactionCount: nextInteractionCount });
+    updateDoc(linkRef, {
+      lastInteractedAt: today(),
+      interactionCount: nextInteractionCount,
+      connectionScore: scoreMeta.connectionScore,
+      connectionStrength: scoreMeta.connectionStrength,
+      mapModes: scoreMeta.mapModes,
+      dateUpdated: today(),
+    } as any).catch(() => emitError(linkRef.path, 'update', { id, lastInteractedAt: today(), interactionCount: nextInteractionCount }));
+  };
+
   const addPhilosophicalLink = (data: Partial<PhilosophicalLink>) => {
     if (!data.fromType || !data.fromId || !data.toType || !data.toId || !data.type) return;
     const linkRef = doc(refs.links);
+    const atlasMeta = scoreAtlasLink({
+      fromType: data.fromType,
+      fromId: data.fromId,
+      toType: data.toType,
+      toId: data.toId,
+      type: data.type,
+      createdFrom: data.createdFrom || 'manual',
+      interactionCount: 0,
+    });
     const payload = {
       id: linkRef.id,
       fromType: data.fromType,
@@ -1428,14 +1564,20 @@ function ReadexWorkspace({
       type: data.type,
       note: data.note || '',
       createdFrom: data.createdFrom || 'manual',
+      acceptedByUser: data.acceptedByUser ?? (data.createdFrom === 'manual' || data.createdFrom === 'suggestion'),
+      connectionScore: atlasMeta.connectionScore,
+      connectionStrength: atlasMeta.connectionStrength,
+      lastInteractedAt: today(),
+      interactionCount: 1,
+      mapModes: atlasMeta.mapModes,
       dateCreated: today(),
       dateUpdated: today(),
     };
     setDoc(linkRef, payload).catch(() => emitError(linkRef.path, 'create', payload));
     createThinkingEvent({
-      eventType: payload.type === 'contradicts' ? 'contradiction_detected' : 'linked',
-      entityType: payload.type === 'contradicts' ? payload.fromType : 'link',
-      entityId: payload.type === 'contradicts' ? payload.fromId : payload.id,
+      eventType: payload.type === 'contradicts' ? 'contradiction_detected' : 'link_created',
+      entityType: 'link',
+      entityId: payload.id,
       after: payload,
       relatedEntityIds: {
         conceptIds: [payload.fromType === 'concept' ? payload.fromId : '', payload.toType === 'concept' ? payload.toId : ''].filter(Boolean),
@@ -1446,13 +1588,21 @@ function ReadexWorkspace({
       summary: `${payload.type.replace(/_/g, ' ')} link created between ${payload.fromLabel || payload.fromId} and ${payload.toLabel || payload.toId}`,
       origin: payload.createdFrom === 'manual' ? 'user' : payload.createdFrom === 'suggestion' ? 'ai' : 'system',
       importance: payload.type === 'contradicts' ? 'high' : 'medium',
+      metadata: { method: 'philosophical_link_create', relationshipType: payload.type, sourceId: payload.fromId, targetId: payload.toId },
       sourceActionId: makeActionId(),
     });
   };
 
   const updatePhilosophicalLink = (link: PhilosophicalLink) => {
     const linkRef = doc(refs.links, link.id);
-    updateDoc(linkRef, { ...link, dateUpdated: today() } as any).catch(() => emitError(linkRef.path, 'update', link));
+    const atlasMeta = scoreAtlasLink(link);
+    updateDoc(linkRef, {
+      ...link,
+      connectionScore: atlasMeta.connectionScore,
+      connectionStrength: atlasMeta.connectionStrength,
+      mapModes: atlasMeta.mapModes,
+      dateUpdated: today(),
+    } as any).catch(() => emitError(linkRef.path, 'update', link));
   };
 
   const deletePhilosophicalLink = (id: string) => {
@@ -1461,7 +1611,7 @@ function ReadexWorkspace({
     deleteDoc(linkRef).catch(() => emitError(linkRef.path, 'delete'));
     if (existing) {
       createThinkingEvent({
-        eventType: 'unlinked',
+        eventType: 'link_removed',
         entityType: 'link',
         entityId: existing.id,
         before: existing,
@@ -1474,6 +1624,7 @@ function ReadexWorkspace({
           positionIds: [existing.fromType === 'position' ? existing.fromId : '', existing.toType === 'position' ? existing.toId : ''].filter(Boolean),
           linkIds: [existing.id],
         },
+        metadata: { method: 'atlas_long_hold', relationshipType: existing.type, sourceId: existing.fromId, targetId: existing.toId },
         sourceActionId: makeActionId(),
       });
     }
@@ -1708,6 +1859,7 @@ function ReadexWorkspace({
             onUpdateAtlasMap={updateAtlasMap}
             onDeleteAtlasMap={deleteAtlasMap}
             onDeleteLink={deletePhilosophicalLink}
+            onInteractLink={markPhilosophicalLinkInteraction}
             uid={effectiveUid}
             onOpenPosition={(id) => {
               setFocusedPositionId(id);
