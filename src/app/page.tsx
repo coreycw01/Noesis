@@ -1541,7 +1541,7 @@ function ReadexWorkspace({
     } as any).catch(() => emitError(linkRef.path, 'update', { id, lastInteractedAt: today(), interactionCount: nextInteractionCount }));
   };
 
-  const addPhilosophicalLink = (data: Partial<PhilosophicalLink>) => {
+  const addPhilosophicalLink = (data: Partial<PhilosophicalLink>, options?: { creationMethod?: string }) => {
     if (!data.fromType || !data.fromId || !data.toType || !data.toId || !data.type) return;
     const linkRef = doc(refs.links);
     const atlasMeta = scoreAtlasLink({
@@ -1588,10 +1588,12 @@ function ReadexWorkspace({
       summary: `${payload.type.replace(/_/g, ' ')} link created between ${payload.fromLabel || payload.fromId} and ${payload.toLabel || payload.toId}`,
       origin: payload.createdFrom === 'manual' ? 'user' : payload.createdFrom === 'suggestion' ? 'ai' : 'system',
       importance: payload.type === 'contradicts' ? 'high' : 'medium',
-      metadata: { method: 'philosophical_link_create', relationshipType: payload.type, sourceId: payload.fromId, targetId: payload.toId },
+      metadata: { method: options?.creationMethod || 'philosophical_link_create', relationshipType: payload.type, sourceId: payload.fromId, targetId: payload.toId },
       sourceActionId: makeActionId(),
     });
   };
+
+  const addAtlasQuickLink = (data: Partial<PhilosophicalLink>) => addPhilosophicalLink(data, { creationMethod: 'atlas_quick_link' });
 
   const updatePhilosophicalLink = (link: PhilosophicalLink) => {
     const linkRef = doc(refs.links, link.id);
@@ -1855,6 +1857,7 @@ function ReadexWorkspace({
             unknowns={unknowns}
             onAddConcept={addConcept}
             onUpdateConcept={updateConcept}
+            onCreateLink={addAtlasQuickLink}
             onAddAtlasMap={addAtlasMap}
             onUpdateAtlasMap={updateAtlasMap}
             onDeleteAtlasMap={deleteAtlasMap}

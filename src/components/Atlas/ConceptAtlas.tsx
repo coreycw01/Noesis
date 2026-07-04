@@ -65,6 +65,7 @@ interface ConceptAtlasProps {
   unknowns: Unknown[];
   onAddConcept: (data: Partial<Concept>) => void;
   onUpdateConcept: (concept: Concept) => void;
+  onCreateLink?: (data: Partial<PhilosophicalLink>) => void;
   onAddAtlasMap: (data: Partial<AtlasMap>) => void;
   onUpdateAtlasMap: (map: AtlasMap) => void;
   onDeleteAtlasMap: (id: string) => void;
@@ -93,6 +94,11 @@ type MapEdge = {
   strength?: 'strong' | 'moderate' | 'weak' | 'suggested';
   objectTypes?: Array<'concept' | 'position' | 'inquiry' | 'source' | 'annotation' | 'work' | 'practice'>;
   mapModes?: AtlasViewMode[];
+  groupedLinkIds?: string[];
+  groupedTypes?: PhilosophicalLinkType[];
+  note?: string;
+  interactionCount?: number;
+  lastInteractedAt?: string;
 };
 
 type AtlasLinkItem = {
@@ -111,6 +117,8 @@ type AtlasLinkItem = {
   updatedAt?: string;
   lastInteractedAt?: string;
   interactionCount?: number;
+  groupedLinkIds?: string[];
+  relationshipTypes?: string[];
 };
 
 type AtlasRelationshipFilterMode = 'recommended' | 'all' | 'custom';
@@ -126,6 +134,8 @@ type AttentionItem = {
   questionId?: string;
   link?: AtlasLinkItem;
 };
+
+type AtlasRelationshipFamily = 'conflict' | 'support' | 'meaning' | 'practice' | 'evolution' | 'reference' | 'manual' | 'derived';
 
 const defaultAutoLinkFilters: AtlasAutoLinkFilters = {
   sharedSources: true,
@@ -181,6 +191,38 @@ function normalizeAtlasMapStyle(style?: AtlasMapStyle): AtlasMapStyle {
   };
 }
 
+function normalizeAtlasLinkType(type: AtlasMapLinkType): PhilosophicalLinkType {
+  switch (type) {
+    case 'custom':
+    case 'relates':
+      return 'coheres';
+    case 'examples':
+      return 'exemplifies';
+    case 'causes':
+      return 'explains';
+    case 'practices':
+      return 'tested_by';
+    default:
+      return type;
+  }
+}
+
+function getAtlasRelationshipFamily(edge: Pick<MapEdge, 'linkType' | 'type'>): AtlasRelationshipFamily {
+  const type = (edge.linkType || '').toString();
+  if (['contradicts', 'challenges', 'weakens', 'questions'].includes(type)) return 'conflict';
+  if (['supports', 'exemplifies', 'references', 'derived_from', 'strengthens'].includes(type)) return 'support';
+  if (['defines', 'explains', 'explained_by', 'coheres'].includes(type)) return 'meaning';
+  if (['tested_by', 'depends_on', 'expressed_in'].includes(type)) return 'practice';
+  if (['refines', 'replaces', 'changed_by', 'expands'].includes(type)) return 'evolution';
+  if (['inspired_by'].includes(type)) return 'reference';
+  if (edge.type === 'user') return 'manual';
+  return 'derived';
+}
+
+function atlasEdgePairKey(edge: Pick<MapEdge, 'from' | 'to'>) {
+  return [conceptKey(edge.from), conceptKey(edge.to)].sort().join('::');
+}
+
 export function ConceptAtlas({
   concepts,
   media,
@@ -196,6 +238,7 @@ export function ConceptAtlas({
   unknowns,
   onAddConcept,
   onUpdateConcept,
+  onCreateLink,
   onAddAtlasMap,
   onUpdateAtlasMap,
   onDeleteAtlasMap,
@@ -221,6 +264,7 @@ export function ConceptAtlas({
   const [isLinkOpen, setIsLinkOpen] = useState(false);
   const [isNodeOpen, setIsNodeOpen] = useState(false);
   const [selectedLink, setSelectedLink] = useState<AtlasLinkItem | null>(null);
+  const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null);
   const [cutLinkCandidate, setCutLinkCandidate] = useState<AtlasLinkItem | null>(null);
   const [isPositionsOpen, setIsPositionsOpen] = useState(false);
   const [relatedDialogType, setRelatedDialogType] = useState<null | 'sources' | 'works' | 'practices' | 'inquiries' | 'unknowns'>(null);
@@ -602,6 +646,7 @@ export function ConceptAtlas({
       }
     }
 
+    const typedEdgeMap = new Map<string, MapEdge>();
     links
       .filter((link) => !activeRelationshipTypes.length || activeRelationshipTypes.includes(link.type))
       .forEach((link) => {
@@ -609,17 +654,24 @@ export function ConceptAtlas({
         const toConcept = link.toType === 'concept' ? concepts.find((concept) => concept.id === link.toId) : null;
         const fromName = conceptKey(fromConcept?.name || link.fromLabel);
         const toName = conceptKey(toConcept?.name || link.toLabel);
-        if (fromName && toName && nodeNames.has(fromName) && nodeNames.has(toName)) {
-          const importanceScore = highImportanceLinkTypes.has(link.type) ? 85 : moderateImportanceLinkTypes.has(link.type) ? 60 : 35;
-          result.push({
+        if (!fromName || !toName || !nodeNames.has(fromName) || !nodeNames.has(toName)) return;
+
+        const importanceScore = highImportanceLinkTypes.has(link.type) ? 85 : moderateImportanceLinkTypes.has(link.type) ? 60 : 35;
+        const linkWeight = link.connectionScore ?? importanceScore;
+        const linkStrength = link.connectionStrength || classifyStrength(linkWeight);
+        const pairKey = [fromName, toName].sort().join('::');
+        const existing = typedEdgeMap.get(pairKey);
+
+        if (!existing) {
+          typedEdgeMap.set(pairKey, {
             from: fromName,
             to: toName,
             type: 'typed',
             label: link.type.replace(/_/g, ' '),
             linkType: link.type,
-            id: link.id,
-            weight: link.connectionScore ?? importanceScore,
-            strength: link.connectionStrength || classifyStrength(link.connectionScore ?? importanceScore),
+            id: `typed-group:${pairKey}`,
+            weight: linkWeight,
+            strength: linkStrength,
             objectTypes: [
               ...(link.fromType === 'concept' || link.toType === 'concept' ? ['concept' as const] : []),
               ...(link.fromType === 'position' || link.toType === 'position' ? ['position' as const] : []),
@@ -630,9 +682,47 @@ export function ConceptAtlas({
               ...(link.fromType === 'practice' || link.toType === 'practice' ? ['practice' as const] : []),
             ],
             mapModes: link.mapModes || deriveMapModesFromType(link.type),
+            groupedLinkIds: [link.id],
+            groupedTypes: [link.type],
+            note: link.note || '',
+            interactionCount: link.interactionCount || 0,
+            lastInteractedAt: link.lastInteractedAt || link.dateUpdated || link.dateCreated || '',
           });
+          return;
+        }
+
+        const existingWeight = existing.weight || 0;
+        const shouldPromotePrimary = linkWeight > existingWeight;
+        existing.groupedLinkIds = Array.from(new Set([...(existing.groupedLinkIds || []), link.id]));
+        existing.groupedTypes = Array.from(new Set([...(existing.groupedTypes || []), link.type]));
+        existing.mapModes = Array.from(new Set([...(existing.mapModes || []), ...(link.mapModes || deriveMapModesFromType(link.type))]));
+        existing.objectTypes = Array.from(new Set([...(existing.objectTypes || []),
+          ...(link.fromType === 'concept' || link.toType === 'concept' ? ['concept' as const] : []),
+          ...(link.fromType === 'position' || link.toType === 'position' ? ['position' as const] : []),
+          ...(link.fromType === 'inquiry' || link.toType === 'inquiry' ? ['inquiry' as const] : []),
+          ...(link.fromType === 'source' || link.toType === 'source' ? ['source' as const] : []),
+          ...(link.fromType === 'annotation' || link.toType === 'annotation' ? ['annotation' as const] : []),
+          ...(link.fromType === 'work' || link.toType === 'work' ? ['work' as const] : []),
+          ...(link.fromType === 'practice' || link.toType === 'practice' ? ['practice' as const] : []),
+        ]));
+        existing.interactionCount = Math.max(existing.interactionCount || 0, link.interactionCount || 0);
+        existing.lastInteractedAt = [existing.lastInteractedAt || '', link.lastInteractedAt || link.dateUpdated || link.dateCreated || '']
+          .sort((a, b) => (Date.parse(b || '') || 0) - (Date.parse(a || '') || 0))[0] || existing.lastInteractedAt;
+        if (link.note) {
+          existing.note = [existing.note || '', link.note].filter(Boolean).slice(0, 2).join('\n');
+        }
+        if (shouldPromotePrimary) {
+          existing.label = link.type.replace(/_/g, ' ');
+          existing.linkType = link.type;
+          existing.weight = linkWeight;
+          existing.strength = linkStrength;
         }
       });
+
+    result.push(...typedEdgeMap.values().map((edge) => ({
+      ...edge,
+      label: (edge.groupedTypes?.length || 0) > 1 ? `${edge.label} + ${(edge.groupedTypes?.length || 1) - 1} more` : edge.label,
+    })));
     return result;
   }, [activeMap, activeRelationshipTypes, autoConnectionFocus, concepts, deriveMapModesFromType, links, mode, nodes, relatedByNode, scoreSharedConnection, typedConceptPairMeta]);
 
@@ -683,12 +773,65 @@ export function ConceptAtlas({
       ? filtered.filter((edge) => edge.strength !== 'weak' && edge.strength !== 'suggested')
       : filtered;
 
-    if (viewMode !== 'full' && !selectedName) {
-      return customFiltered.filter((edge) => edge.strength !== 'weak' && edge.strength !== 'suggested');
+    let prioritized = customFiltered;
+
+    if (mode === 'auto') {
+      const explicitKinds = new Map<string, { typed: boolean; concept: boolean }>();
+      prioritized.forEach((edge) => {
+        const pairKey = atlasEdgePairKey(edge);
+        const existing = explicitKinds.get(pairKey) || { typed: false, concept: false };
+        if (edge.type === 'typed') existing.typed = true;
+        if (edge.type === 'concept') existing.concept = true;
+        explicitKinds.set(pairKey, existing);
+      });
+
+      prioritized = prioritized.filter((edge) => {
+        const pairKinds = explicitKinds.get(atlasEdgePairKey(edge));
+        if (!pairKinds) return true;
+        if (edge.type === 'shared' && (pairKinds.typed || pairKinds.concept)) return false;
+        if (edge.type === 'concept' && pairKinds.typed) return false;
+        return true;
+      });
     }
 
-    return customFiltered;
-  }, [activeMapStyle.showWeakLinks, activeRelationshipTypes, edges, mode, selectedName, viewMode]);
+    if (mode === 'auto' && viewMode !== 'full' && !selectedName) {
+      const sorted = [...prioritized]
+        .filter((edge) => edge.strength !== 'weak' && edge.strength !== 'suggested')
+        .sort((left, right) => edgePriorityScore(right) - edgePriorityScore(left));
+      const perNodeCounts = new Map<string, number>();
+      const perNodeLimit = autoConnectionFocus === 'all' ? 7 : autoConnectionFocus === 'moderate' ? 5 : 4;
+      const globalLimit = viewMode === 'core'
+        ? (autoConnectionFocus === 'all' ? 54 : autoConnectionFocus === 'moderate' ? 40 : 28)
+        : (autoConnectionFocus === 'all' ? 42 : autoConnectionFocus === 'moderate' ? 30 : 22);
+      const kept: MapEdge[] = [];
+
+      sorted.forEach((edge) => {
+        const fromKey = conceptKey(edge.from);
+        const toKey = conceptKey(edge.to);
+        const fromCount = perNodeCounts.get(fromKey) || 0;
+        const toCount = perNodeCounts.get(toKey) || 0;
+        const typedLabel = (edge.linkType || '').toString();
+        const keepBeyondCap =
+          edge.type === 'typed' &&
+          (edge.strength === 'strong' || ['contradicts', 'challenges', 'depends_on', 'refines', 'tested_by', 'supports'].includes(typedLabel));
+
+        if (!keepBeyondCap && kept.length >= globalLimit) return;
+        if (!keepBeyondCap && (fromCount >= perNodeLimit || toCount >= perNodeLimit)) return;
+
+        kept.push(edge);
+        perNodeCounts.set(fromKey, fromCount + 1);
+        perNodeCounts.set(toKey, toCount + 1);
+      });
+
+      return kept;
+    }
+
+    if (viewMode !== 'full' && !selectedName) {
+      return prioritized.filter((edge) => edge.strength !== 'weak' && edge.strength !== 'suggested');
+    }
+
+    return prioritized;
+  }, [activeMapStyle.showWeakLinks, activeRelationshipTypes, autoConnectionFocus, edges, mode, selectedName, viewMode]);
 
   const visibleFamilies = useMemo(() => {
     const families = new Set();
@@ -698,6 +841,13 @@ export function ConceptAtlas({
     });
     return families.size;
   }, [visibleEdges]);
+
+  const activeEdgeNodes = useMemo(() => {
+    if (!activeEdgeId) return new Set<string>();
+    const activeEdge = visibleEdges.find((edge) => edgeSignature(edge) === activeEdgeId);
+    if (!activeEdge) return new Set<string>();
+    return new Set([conceptKey(activeEdge.from), conceptKey(activeEdge.to)]);
+  }, [activeEdgeId, visibleEdges]);
 
   const todayPrompt = useMemo(() => {
     const rawAnnotations = media.flatMap((item) => item.annotations || []).filter((annotation) => (annotation.philosophyStatus || 'raw') === 'raw');
@@ -765,12 +915,17 @@ export function ConceptAtlas({
       },
     }));
     if (link.kind === 'typed') {
-      onInteractLink?.(link.id);
+      if (link.groupedLinkIds?.length) {
+        link.groupedLinkIds.forEach((id) => onInteractLink?.(id));
+      } else {
+        onInteractLink?.(link.id);
+      }
     }
   };
 
   const openLinkDetail = (link: AtlasLinkItem) => {
     markLinkInteraction(link);
+    setActiveEdgeId(activeEdgeSignatureForLink(link));
     setSelectedLink(link);
   };
 
@@ -792,6 +947,7 @@ export function ConceptAtlas({
   const startEdgeHold = (edge: MapEdge) => {
     const linkItem = linkItemForEdge(edge);
     if (!linkItem.removable) return;
+    setActiveEdgeId(activeEdgeSignatureForLink(linkItem));
     if (edgeHoldTimerRef.current) clearTimeout(edgeHoldTimerRef.current);
     edgeHoldTimerRef.current = setTimeout(() => {
       setSelectedLink(null);
@@ -827,21 +983,29 @@ export function ConceptAtlas({
     }
 
     if (edge.type === 'typed') {
-      const typedLink = links.find((link) => link.id === edge.id);
+      const groupedLinks = (edge.groupedLinkIds?.length
+        ? links.filter((link) => edge.groupedLinkIds?.includes(link.id))
+        : links.filter((link) => link.id === edge.id)
+      ).sort((left, right) => (right.connectionScore || 0) - (left.connectionScore || 0));
+      const typedLink = groupedLinks[0];
       return {
-        id: edge.id || `${edge.from}:${edge.to}`,
+        id: groupedLinks.length > 1 ? (edge.id || `${edge.from}:${edge.to}`) : (typedLink?.id || edge.id || `${edge.from}:${edge.to}`),
         kind: 'typed',
         from: typedLink?.fromLabel || edge.from,
         to: typedLink?.toLabel || edge.to,
         label: typedLink?.type?.replace(/_/g, ' ') || edge.label,
         linkType: typedLink?.type || edge.linkType,
-        note: typedLink?.note,
-        removable: Boolean(typedLink && onDeleteLink),
-        sourceLabel: 'Typed philosophical link',
+        note: groupedLinks.length > 1
+          ? `This pair carries ${groupedLinks.length} typed relationships: ${groupedLinks.map((link) => link.type.replace(/_/g, ' ')).join(', ')}.${typedLink?.note ? `\n\nPrimary note: ${typedLink.note}` : ''}`
+          : typedLink?.note,
+        removable: Boolean(groupedLinks.length === 1 && typedLink && onDeleteLink),
+        sourceLabel: groupedLinks.length > 1 ? 'Typed philosophical relationships' : 'Typed philosophical link',
         createdAt: typedLink?.dateCreated,
         updatedAt: typedLink?.dateUpdated,
-        lastInteractedAt: typedLink?.lastInteractedAt,
-        interactionCount: typedLink?.interactionCount,
+        lastInteractedAt: edge.lastInteractedAt || typedLink?.lastInteractedAt,
+        interactionCount: edge.interactionCount || typedLink?.interactionCount,
+        groupedLinkIds: groupedLinks.map((link) => link.id),
+        relationshipTypes: groupedLinks.map((link) => link.type.replace(/_/g, ' ')),
       };
     }
 
@@ -876,6 +1040,23 @@ export function ConceptAtlas({
       createdAt: undefined,
       updatedAt: undefined,
     };
+  };
+
+  const edgeSignature = (edge: MapEdge) => {
+    if (edge.type === 'user') return edge.id || `${edge.from}:${edge.to}`;
+    if (edge.type === 'typed') return edge.id || `${edge.from}:${edge.to}`;
+    if (edge.type === 'concept') {
+      const sourceConcept = concepts.find((concept) => conceptKey(concept.name) === conceptKey(edge.from));
+      return `concept:${sourceConcept?.id || edge.from}:${conceptKey(edge.to)}`;
+    }
+    return `shared:${conceptKey(edge.from)}:${conceptKey(edge.to)}`;
+  };
+
+  const activeEdgeSignatureForLink = (link: AtlasLinkItem) => {
+    if (link.kind === 'typed') {
+      return `typed-group:${[conceptKey(link.from), conceptKey(link.to)].sort().join('::')}`;
+    }
+    return link.id;
   };
 
   const selectedNodeLinks = useMemo<AtlasLinkItem[]>(() => {
@@ -1035,6 +1216,65 @@ export function ConceptAtlas({
     }
   }, [related, relatedDialogType, relatedUnknowns, selectedName]);
 
+  const renderSelectedNodeLinkCard = (link: AtlasLinkItem) => {
+    const target = conceptKey(link.from) === conceptKey(selectedName || '') ? link.to : link.from;
+    const isGroupedTyped = link.kind === 'typed' && (link.relationshipTypes?.length || 0) > 1;
+    return (
+      <div key={`${link.kind}:${link.id}`} className="rounded-lg border border-border/50 bg-muted/10 p-3">
+        <button onClick={() => openLinkDetail(link)} className="w-full text-left">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate font-headline text-sm font-semibold italic text-primary">{target}</div>
+              <div className="mt-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+                {link.sourceLabel} · {link.label}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {isGroupedTyped && (
+                <Badge variant="outline" className="rounded-full bg-accent/10 font-code text-[8px] uppercase tracking-widest text-accent">
+                  {link.relationshipTypes?.length} types
+                </Badge>
+              )}
+              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{link.kind}</Badge>
+            </div>
+          </div>
+          {isGroupedTyped && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {link.relationshipTypes?.slice(0, 4).map((type) => (
+                <Badge key={type} variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">
+                  {type}
+                </Badge>
+              ))}
+              {(link.relationshipTypes?.length || 0) > 4 && (
+                <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">
+                  +{(link.relationshipTypes?.length || 0) - 4} more
+                </Badge>
+              )}
+            </div>
+          )}
+          {link.note && <p className="mt-2 line-clamp-2 text-xs italic text-muted-foreground">{link.note}</p>}
+        </button>
+        <div className="mt-2 flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={() => openLinkDetail(link)} className="h-7 rounded-full px-3">
+            {isGroupedTyped ? 'Review Set' : 'Details'}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!link.removable}
+            onClick={() => {
+              setSelectedLink(null);
+              setCutLinkCandidate(link);
+            }}
+            className="h-7 rounded-full px-3 text-destructive hover:text-destructive disabled:text-muted-foreground"
+          >
+            Delete Link
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   const atlasPanel = (
     <aside
       className={cn(
@@ -1092,40 +1332,7 @@ export function ConceptAtlas({
                 </div>
 
                 <div className="space-y-2">
-                  {selectedNodeLinks.map((link) => {
-                    const target = conceptKey(link.from) === conceptKey(selectedName) ? link.to : link.from;
-                    return (
-                      <div key={`${link.kind}:${link.id}`} className="rounded-lg border border-border/50 bg-muted/10 p-3">
-                        <button onClick={() => openLinkDetail(link)} className="w-full text-left">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate font-headline text-sm font-semibold italic text-primary">{target}</div>
-                              <div className="mt-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                                {link.sourceLabel} · {link.label}
-                              </div>
-                            </div>
-                            <Badge variant="outline" className="shrink-0 rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{link.kind}</Badge>
-                          </div>
-                          {link.note && <p className="mt-2 line-clamp-2 text-xs italic text-muted-foreground">{link.note}</p>}
-                        </button>
-                        <div className="mt-2 flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => openLinkDetail(link)} className="h-7 rounded-full px-3">Details</Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={!link.removable}
-                            onClick={() => {
-                              setSelectedLink(null);
-                              setCutLinkCandidate(link);
-                            }}
-                            className="h-7 rounded-full px-3 text-destructive hover:text-destructive disabled:text-muted-foreground"
-                          >
-                            Delete Link
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {selectedNodeLinks.map(renderSelectedNodeLinkCard)}
                   {!selectedNodeLinks.length && <p className="text-[10px] italic text-muted-foreground font-body">No links yet.</p>}
                 </div>
               </section>
@@ -1284,6 +1491,7 @@ export function ConceptAtlas({
 
   const createLink = () => {
     if (!selectedName || !linkDraft.to.trim()) return;
+    const targetConcept = concepts.find((concept) => conceptKey(concept.name) === conceptKey(linkDraft.to));
 
     if (mode === 'custom' && activeMap) {
       const link: AtlasMapLink = {
@@ -1296,6 +1504,28 @@ export function ConceptAtlas({
         dateCreated: today(),
       };
       updateActiveMap({ manualLinks: [...(activeMap.manualLinks || []), link] });
+    } else if (selectedConcept && targetConcept && onCreateLink) {
+      const requestedType = linkDraft.type;
+      const type = normalizeAtlasLinkType(requestedType);
+      const label = linkDraft.label.trim();
+      const note = [
+        label && label !== requestedType ? `Atlas label: ${label}` : '',
+        linkDraft.note.trim(),
+      ]
+        .filter(Boolean)
+        .join('\n');
+      onCreateLink({
+        fromType: 'concept',
+        fromId: selectedConcept.id,
+        fromLabel: selectedConcept.name,
+        toType: 'concept',
+        toId: targetConcept.id,
+        toLabel: targetConcept.name,
+        type,
+        note,
+        createdFrom: 'manual',
+        acceptedByUser: true,
+      });
     } else if (selectedConcept) {
       const links = Array.from(new Set([...(selectedConcept.links || []), conceptKey(linkDraft.to)]));
       onUpdateConcept({ ...selectedConcept, links, dateUpdated: today() });
@@ -1330,6 +1560,7 @@ export function ConceptAtlas({
         onUpdateConcept({ ...sourceConcept, links: nextLinks, dateUpdated: today() });
       }
     }
+    if (activeEdgeId === activeEdgeSignatureForLink(item)) setActiveEdgeId(null);
     setSelectedLink(null);
     setCutLinkCandidate(null);
   };
@@ -1362,6 +1593,7 @@ export function ConceptAtlas({
 
     setSelectedLink(null);
     setCutLinkCandidate(null);
+    setActiveEdgeId(null);
     setIsDeleteAllLinksOpen(false);
   };
 
@@ -1431,7 +1663,7 @@ export function ConceptAtlas({
   };
 
   const edgeStrokeColor = (edge: MapEdge) => {
-    const type = (edge.linkType || '').toString();
+    const family = getAtlasRelationshipFamily(edge);
     if (mode === 'custom') {
       if (activeMapStyle.lineMode === 'singleColor') return activeMapStyle.customLineColor || '#7c3aed';
       if (activeMapStyle.lineMode === 'strengthColor') {
@@ -1440,14 +1672,57 @@ export function ConceptAtlas({
         return '#94a3b8';
       }
     }
-    if (['contradicts', 'challenges', 'weakens', 'questions'].includes(type)) return 'hsl(0 72% 56%)';
-    if (['supports', 'exemplifies', 'references', 'derived_from', 'strengthens'].includes(type)) return 'hsl(152 58% 34%)';
-    if (['defines', 'explains', 'explained_by', 'coheres'].includes(type)) return 'hsl(206 74% 40%)';
-    if (['tested_by', 'depends_on', 'expressed_in'].includes(type)) return 'hsl(38 88% 44%)';
-    if (['refines', 'replaces', 'changed_by', 'expands'].includes(type)) return 'hsl(266 54% 48%)';
-    if (edge.type === 'user') return 'hsl(var(--accent))';
-    if (edge.type === 'concept') return 'hsl(var(--primary) / .55)';
-    return 'hsl(var(--muted-foreground) / .35)';
+    switch (family) {
+      case 'conflict':
+        return 'hsl(0 68% 52%)';
+      case 'support':
+        return 'hsl(150 56% 34%)';
+      case 'meaning':
+        return 'hsl(209 72% 40%)';
+      case 'practice':
+        return 'hsl(36 84% 46%)';
+      case 'evolution':
+        return 'hsl(266 50% 48%)';
+      case 'reference':
+        return 'hsl(198 20% 48%)';
+      case 'manual':
+        return 'hsl(var(--accent))';
+      default:
+        return edge.type === 'concept' ? 'hsl(var(--primary) / .58)' : 'hsl(var(--muted-foreground) / .42)';
+    }
+  };
+
+  const edgeVisuals = (edge: MapEdge, isHovered: boolean, isActive: boolean, hasActiveEdge: boolean) => {
+    const strength = edge.strength || 'suggested';
+    const isStrong = strength === 'strong';
+    const isModerate = strength === 'moderate';
+    const isWeak = strength === 'weak';
+    const isSuggested = strength === 'suggested';
+    const baseWidth = isStrong ? 3.7 : isModerate ? 2.25 : isWeak ? 1.1 : 1.4;
+    const baseOpacity = isStrong ? 0.94 : isModerate ? 0.66 : isWeak ? 0.26 : 0.18;
+    const widthBoost = isHovered ? 0.7 : 0;
+    const opacityBoost = isHovered ? 0.14 : 0;
+    const activeBoost = isActive ? 0.85 : 0;
+    const activeOpacityBoost = isActive ? 0.18 : 0;
+    const inactiveFade = hasActiveEdge && !isActive && !isHovered ? 0.45 : 1;
+    return {
+      strokeWidth: baseWidth + widthBoost + activeBoost,
+      strokeOpacity: Math.min(1, (baseOpacity + opacityBoost + activeOpacityBoost) * inactiveFade),
+      strokeDasharray: isSuggested ? '4 8' : isWeak ? '4 4' : '0',
+      glowWidth: baseWidth + (isStrong ? 3.4 : isModerate ? 2.4 : 1.7) + (isActive ? 2.1 : 0),
+      glowOpacity: isActive ? 0.3 : isHovered ? (isStrong ? 0.22 : isModerate ? 0.16 : 0.1) : 0,
+    };
+  };
+
+  const edgePriorityScore = (edge: MapEdge) => {
+    const strengthBonus = edge.strength === 'strong' ? 24 : edge.strength === 'moderate' ? 12 : edge.strength === 'weak' ? 2 : 0;
+    const typeBonus = edge.type === 'typed' ? 24 : edge.type === 'concept' ? 14 : edge.type === 'user' ? 18 : 0;
+    const relationshipBonus = highImportanceLinkTypes.has((edge.linkType || '') as AtlasMapLinkType | PhilosophicalLinkType)
+      ? 14
+      : moderateImportanceLinkTypes.has((edge.linkType || '') as AtlasMapLinkType | PhilosophicalLinkType)
+        ? 8
+        : 0;
+    return (edge.weight || 0) + strengthBonus + typeBonus + relationshipBonus;
   };
 
   const mapFontFamily = (fontFamily: AtlasMapFontFamily) => {
@@ -1906,6 +2181,7 @@ export function ConceptAtlas({
           )}
           onClick={() => {
             if (quickLinkSource) clearQuickLinkMode();
+            else setActiveEdgeId(null);
           }}
           onMouseDown={startPanning}
           onMouseMove={handleMouseMove}
@@ -1977,25 +2253,34 @@ export function ConceptAtlas({
                 const to = nodes.find((node) => conceptKey(node.name) === conceptKey(edge.to));
                 if (!from || !to) return null;
                 const points = edgePoints(from, to);
-                const user = edge.type === 'user';
-                const concept = edge.type === 'concept';
-                const typed = edge.type === 'typed';
-                const strength = edge.strength || 'suggested';
                 const key = `${edge.from}-${edge.to}-${edge.id || index}`;
                 const isHovered = hoveredEdgeId === key;
-                const strokeWidth = (strength === 'strong' ? (user ? 4.5 : 4) : strength === 'moderate' ? (typed ? 3 : 2.75) : 1.75) + (isHovered ? 0.85 : 0);
-                const strokeOpacity = Math.min(1, (strength === 'strong' ? 0.95 : strength === 'moderate' ? 0.72 : strength === 'weak' ? 0.32 : 0.2) + (isHovered ? 0.15 : 0));
+                const edgeColor = edgeStrokeColor(edge);
+                const isActive = activeEdgeId === edgeSignature(edge);
+                const visuals = edgeVisuals(edge, isHovered, isActive, Boolean(activeEdgeId));
                 return (
                   <g key={key}>
+                    {visuals.glowOpacity > 0 && (
+                      <line
+                        x1={`${points.x1}%`}
+                        y1={`${points.y1}%`}
+                        x2={`${points.x2}%`}
+                        y2={`${points.y2}%`}
+                        stroke={edgeColor}
+                        strokeWidth={visuals.glowWidth}
+                        strokeOpacity={visuals.glowOpacity}
+                        strokeLinecap="round"
+                      />
+                    )}
                     <line
                       x1={`${points.x1}%`}
                       y1={`${points.y1}%`}
                       x2={`${points.x2}%`}
                       y2={`${points.y2}%`}
-                      stroke={edgeStrokeColor(edge)}
-                      strokeWidth={strokeWidth}
-                      strokeOpacity={strokeOpacity}
-                      strokeDasharray={strength === 'suggested' ? '4 8' : user || concept ? '0' : strength === 'weak' ? '3 7' : '6 6'}
+                      stroke={edgeColor}
+                      strokeWidth={visuals.strokeWidth}
+                      strokeOpacity={visuals.strokeOpacity}
+                      strokeDasharray={visuals.strokeDasharray}
                       strokeLinecap="round"
                       className="transition-all"
                     />
@@ -2025,6 +2310,7 @@ export function ConceptAtlas({
                         if (linkItem.removable) {
                           setSelectedLink(null);
                           setCutLinkCandidate(linkItem);
+                          setActiveEdgeId(linkItem.id);
                           markLinkInteraction(linkItem);
                         }
                       }}
@@ -2099,7 +2385,11 @@ export function ConceptAtlas({
                 onPointerCancel={() => setDraggingName(null)}
               >
                 <Card
-                  className={nodeCardClassName(activeMapStyle.nodeStyle, selectedName === node.name)}
+                  className={cn(
+                    nodeCardClassName(activeMapStyle.nodeStyle, selectedName === node.name),
+                    activeEdgeNodes.size > 0 && !activeEdgeNodes.has(conceptKey(node.name)) && 'opacity-45',
+                    activeEdgeNodes.has(conceptKey(node.name)) && 'ring-2 ring-accent/60 shadow-xl'
+                  )}
                   style={{ fontFamily: mode === 'custom' ? mapFontFamily(activeMapStyle.fontFamily) : undefined }}
                 >
                   <h3 className={cn('font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-[15px]')}>
@@ -2213,40 +2503,7 @@ export function ConceptAtlas({
                     </div>
 
                     <div className="space-y-2">
-                      {selectedNodeLinks.map((link) => {
-                        const target = conceptKey(link.from) === conceptKey(selectedName) ? link.to : link.from;
-                        return (
-                          <div key={`${link.kind}:${link.id}`} className="rounded-lg border border-border/50 bg-muted/10 p-3">
-                            <button onClick={() => openLinkDetail(link)} className="w-full text-left">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="truncate font-headline text-sm font-semibold italic text-primary">{target}</div>
-                                  <div className="mt-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                                    {link.sourceLabel} · {link.label}
-                                  </div>
-                                </div>
-                                <Badge variant="outline" className="shrink-0 rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{link.kind}</Badge>
-                              </div>
-                              {link.note && <p className="mt-2 line-clamp-2 text-xs italic text-muted-foreground">{link.note}</p>}
-                            </button>
-                            <div className="mt-2 flex justify-end gap-2">
-                              <Button variant="ghost" size="sm" onClick={() => openLinkDetail(link)} className="h-7 rounded-full px-3">Details</Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={!link.removable}
-                                onClick={() => {
-                                  setSelectedLink(null);
-                                  setCutLinkCandidate(link);
-                                }}
-                                className="h-7 rounded-full px-3 text-destructive hover:text-destructive disabled:text-muted-foreground"
-                              >
-                                Delete Link
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {selectedNodeLinks.map(renderSelectedNodeLinkCard)}
 
                       {!selectedNodeLinks.length && <p className="text-[10px] italic text-muted-foreground font-body">No links yet.</p>}
                     </div>
@@ -2385,6 +2642,11 @@ export function ConceptAtlas({
               <div className="flex flex-wrap gap-2">
                 <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-widest">{selectedLink.linkType || selectedLink.label}</Badge>
                 <Badge variant="outline" className="rounded-full bg-card font-code text-[9px] uppercase tracking-widest">{selectedLink.sourceLabel}</Badge>
+                {selectedLink.relationshipTypes && selectedLink.relationshipTypes.length > 1 && selectedLink.relationshipTypes.map((type) => (
+                  <Badge key={type} variant="outline" className="rounded-full bg-muted/20 font-code text-[9px] uppercase tracking-widest">
+                    {type}
+                  </Badge>
+                ))}
               </div>
               <p className="rounded-xl border border-border/60 bg-card p-4 text-sm italic leading-6 text-muted-foreground">
                 {selectedLink.note || (selectedLink.kind === 'shared' ? 'This relationship is derived from shared evidence across the system.' : 'No note recorded for this link.')}
@@ -2432,6 +2694,19 @@ export function ConceptAtlas({
                   </Button>
                 )}
               </>
+            )}
+            {selectedLink?.kind === 'typed' && selectedLink.groupedLinkIds && selectedLink.groupedLinkIds.length > 1 && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedName(selectedLink.from);
+                  setPanelSection('links');
+                  setSelectedLink(null);
+                }}
+                className="rounded-full px-5"
+              >
+                Review Relationship Set
+              </Button>
             )}
             {selectedLink?.removable && (
               <Button
@@ -2961,3 +3236,4 @@ const MapIcon = ({ className }: { className?: string }) => (
     <line x1="15" y1="6" x2="15" y2="21" />
   </svg>
 );
+
