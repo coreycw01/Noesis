@@ -252,7 +252,7 @@ export function ConceptAtlas({
   const [search, setSearch] = useState('');
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [linkSearch, setLinkSearch] = useState('');
-  const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('strong');
+  const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('moderate');
   const [viewMode, setViewMode] = useState<AtlasViewMode>('core');
   const [relationshipFilterMode, setRelationshipFilterMode] = useState<AtlasRelationshipFilterMode>('recommended');
   const [customRelationshipTypes, setCustomRelationshipTypes] = useState<PhilosophicalLinkType[]>([]);
@@ -274,6 +274,7 @@ export function ConceptAtlas({
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [quickLinkSource, setQuickLinkSource] = useState<string | null>(null);
   const [quickLinkTarget, setQuickLinkTarget] = useState<string | null>(null);
+  const [quickLinkHoverTarget, setQuickLinkHoverTarget] = useState<string | null>(null);
   const [quickLinkCursor, setQuickLinkCursor] = useState({ x: 0, y: 0 });
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [linkInteractionMap, setLinkInteractionMap] = useState<Record<string, { lastInteractedAt: string; interactionCount: number }>>({});
@@ -415,10 +416,19 @@ export function ConceptAtlas({
   }, [conceptNameById, links]);
 
   const classifyStrength = (score: number) => {
-    if (score >= 70) return 'strong' as const;
-    if (score >= 40) return 'moderate' as const;
+    if (score >= 65) return 'strong' as const;
+    if (score >= 35) return 'moderate' as const;
     if (score >= 15) return 'weak' as const;
     return 'suggested' as const;
+  };
+
+  const matchesConnectionFocus = (
+    strength: MapEdge['strength'],
+    focus: 'strong' | 'moderate' | 'all'
+  ) => {
+    if (focus === 'all') return true;
+    if (focus === 'moderate') return strength === 'strong' || strength === 'moderate';
+    return strength === 'strong';
   };
 
   const deriveMapModesFromType = (type?: string): AtlasViewMode[] => {
@@ -794,9 +804,10 @@ export function ConceptAtlas({
       });
     }
 
+    const strengthFiltered = prioritized.filter((edge) => matchesConnectionFocus(edge.strength, autoConnectionFocus));
+
     if (mode === 'auto' && viewMode !== 'full' && !selectedName) {
-      const sorted = [...prioritized]
-        .filter((edge) => edge.strength !== 'weak' && edge.strength !== 'suggested')
+      const sorted = [...strengthFiltered]
         .sort((left, right) => edgePriorityScore(right) - edgePriorityScore(left));
       const perNodeCounts = new Map<string, number>();
       const perNodeLimit = autoConnectionFocus === 'all' ? 7 : autoConnectionFocus === 'moderate' ? 5 : 4;
@@ -826,11 +837,7 @@ export function ConceptAtlas({
       return kept;
     }
 
-    if (viewMode !== 'full' && !selectedName) {
-      return prioritized.filter((edge) => edge.strength !== 'weak' && edge.strength !== 'suggested');
-    }
-
-    return prioritized;
+    return strengthFiltered;
   }, [activeMapStyle.showWeakLinks, activeRelationshipTypes, autoConnectionFocus, edges, mode, selectedName, viewMode]);
 
   const visibleFamilies = useMemo(() => {
@@ -848,6 +855,35 @@ export function ConceptAtlas({
     if (!activeEdge) return new Set<string>();
     return new Set([conceptKey(activeEdge.from), conceptKey(activeEdge.to)]);
   }, [activeEdgeId, visibleEdges]);
+
+  const selectedClusterNodes = useMemo(() => {
+    if (!selectedName || activeEdgeId) return new Set<string>();
+    const selectedKey = conceptKey(selectedName);
+    const cluster = new Set<string>([selectedKey]);
+    visibleEdges.forEach((edge) => {
+      const fromKey = conceptKey(edge.from);
+      const toKey = conceptKey(edge.to);
+      if (fromKey === selectedKey || toKey === selectedKey) {
+        cluster.add(fromKey);
+        cluster.add(toKey);
+      }
+    });
+    return cluster;
+  }, [activeEdgeId, selectedName, visibleEdges]);
+
+  const selectedClusterEdges = useMemo(() => {
+    if (!selectedName || activeEdgeId) return new Set<string>();
+    const selectedKey = conceptKey(selectedName);
+    const cluster = new Set<string>();
+    visibleEdges.forEach((edge) => {
+      const fromKey = conceptKey(edge.from);
+      const toKey = conceptKey(edge.to);
+      if (fromKey === selectedKey || toKey === selectedKey) {
+        cluster.add(edgeSignature(edge));
+      }
+    });
+    return cluster;
+  }, [activeEdgeId, selectedName, visibleEdges]);
 
   const todayPrompt = useMemo(() => {
     const rawAnnotations = media.flatMap((item) => item.annotations || []).filter((annotation) => (annotation.philosophyStatus || 'raw') === 'raw');
@@ -933,12 +969,14 @@ export function ConceptAtlas({
     setSelectedName(sourceName);
     setQuickLinkSource(sourceName);
     setQuickLinkTarget(null);
+    setQuickLinkHoverTarget(null);
     setPanelSection('actions');
   };
 
   const clearQuickLinkMode = () => {
     setQuickLinkSource(null);
     setQuickLinkTarget(null);
+    setQuickLinkHoverTarget(null);
   };
 
   const getLinkInteractionTime = (link: AtlasLinkItem) =>
@@ -1692,7 +1730,14 @@ export function ConceptAtlas({
     }
   };
 
-  const edgeVisuals = (edge: MapEdge, isHovered: boolean, isActive: boolean, hasActiveEdge: boolean) => {
+  const edgeVisuals = (
+    edge: MapEdge,
+    isHovered: boolean,
+    isActive: boolean,
+    hasActiveEdge: boolean,
+    isSelectedClusterEdge: boolean,
+    hasSelectedCluster: boolean,
+  ) => {
     const strength = edge.strength || 'suggested';
     const isStrong = strength === 'strong';
     const isModerate = strength === 'moderate';
@@ -1704,13 +1749,25 @@ export function ConceptAtlas({
     const opacityBoost = isHovered ? 0.14 : 0;
     const activeBoost = isActive ? 0.85 : 0;
     const activeOpacityBoost = isActive ? 0.18 : 0;
-    const inactiveFade = hasActiveEdge && !isActive && !isHovered ? 0.45 : 1;
+    const selectedBoost = hasSelectedCluster && isSelectedClusterEdge ? 0.35 : 0;
+    const selectedOpacityBoost = hasSelectedCluster && isSelectedClusterEdge ? 0.12 : 0;
+    const inactiveFade = hasActiveEdge && !isActive && !isHovered
+      ? 0.45
+      : hasSelectedCluster && !isSelectedClusterEdge && !isHovered
+        ? 0.18
+        : 1;
     return {
-      strokeWidth: baseWidth + widthBoost + activeBoost,
-      strokeOpacity: Math.min(1, (baseOpacity + opacityBoost + activeOpacityBoost) * inactiveFade),
+      strokeWidth: baseWidth + widthBoost + activeBoost + selectedBoost,
+      strokeOpacity: Math.min(1, (baseOpacity + opacityBoost + activeOpacityBoost + selectedOpacityBoost) * inactiveFade),
       strokeDasharray: isSuggested ? '4 8' : isWeak ? '4 4' : '0',
       glowWidth: baseWidth + (isStrong ? 3.4 : isModerate ? 2.4 : 1.7) + (isActive ? 2.1 : 0),
-      glowOpacity: isActive ? 0.3 : isHovered ? (isStrong ? 0.22 : isModerate ? 0.16 : 0.1) : 0,
+      glowOpacity: isActive
+        ? 0.3
+        : isHovered
+          ? (isStrong ? 0.22 : isModerate ? 0.16 : 0.1)
+          : hasSelectedCluster && isSelectedClusterEdge
+            ? 0.08
+            : 0,
     };
   };
 
@@ -1990,7 +2047,7 @@ export function ConceptAtlas({
   return (
     <div className={cn(
       "relative flex min-h-screen w-full flex-col bg-background",
-      isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "overflow-visible pb-8"
+      isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "overflow-y-auto pb-8"
     )}>
       {!isFullScreen && (
       <header className="z-20 mb-2 flex items-start justify-between gap-4 px-8 pt-6">
@@ -2175,7 +2232,7 @@ export function ConceptAtlas({
         <div
           ref={mapRef}
           className={cn(
-            "relative flex-1 overflow-hidden border border-border bg-background shadow-inner min-h-[82vh]",
+            "relative flex-1 overflow-hidden border border-border bg-background shadow-inner min-h-[760px] lg:min-h-[820px]",
             quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
             isFullScreen ? "rounded-none" : "rounded-xl"
           )}
@@ -2257,7 +2314,15 @@ export function ConceptAtlas({
                 const isHovered = hoveredEdgeId === key;
                 const edgeColor = edgeStrokeColor(edge);
                 const isActive = activeEdgeId === edgeSignature(edge);
-                const visuals = edgeVisuals(edge, isHovered, isActive, Boolean(activeEdgeId));
+                const isSelectedClusterEdge = selectedClusterEdges.has(edgeSignature(edge));
+                const visuals = edgeVisuals(
+                  edge,
+                  isHovered,
+                  isActive,
+                  Boolean(activeEdgeId),
+                  isSelectedClusterEdge,
+                  Boolean(selectedName) && selectedClusterEdges.size > 0
+                );
                 return (
                   <g key={key}>
                     {visuals.glowOpacity > 0 && (
@@ -2352,18 +2417,30 @@ export function ConceptAtlas({
             {nodes.map((node) => (
               <button
                 key={node.name}
-                className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab text-center transition-none active:cursor-grabbing"
+                className={cn(
+                  "absolute -translate-x-1/2 -translate-y-1/2 text-center transition-none",
+                  quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"
+                )}
                 style={{ left: `${node.x}%`, top: `${node.y}%` }}
                 onContextMenu={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
                   setSelectedName(node.name);
                 }}
+                onPointerEnter={() => {
+                  if (quickLinkSource && conceptKey(node.name) !== conceptKey(quickLinkSource)) {
+                    setQuickLinkHoverTarget(node.name);
+                  }
+                }}
+                onPointerLeave={() => {
+                  if (quickLinkHoverTarget === node.name) setQuickLinkHoverTarget(null);
+                }}
                 onPointerDown={(event) => {
                   if (quickLinkSource) {
                     event.stopPropagation();
                     if (conceptKey(node.name) === conceptKey(quickLinkSource)) return;
                     setQuickLinkTarget(node.name);
+                    setQuickLinkHoverTarget(node.name);
                     setLinkDraft((prev) => ({
                       ...prev,
                       to: conceptKey(node.name),
@@ -2387,8 +2464,13 @@ export function ConceptAtlas({
                 <Card
                   className={cn(
                     nodeCardClassName(activeMapStyle.nodeStyle, selectedName === node.name),
+                    quickLinkSource && conceptKey(node.name) === conceptKey(quickLinkSource) && 'border-accent ring-2 ring-accent shadow-2xl',
+                    quickLinkSource && conceptKey(node.name) !== conceptKey(quickLinkSource) && 'opacity-95',
+                    quickLinkHoverTarget && conceptKey(node.name) === conceptKey(quickLinkHoverTarget) && 'border-accent bg-accent/10 ring-2 ring-accent shadow-2xl',
                     activeEdgeNodes.size > 0 && !activeEdgeNodes.has(conceptKey(node.name)) && 'opacity-45',
-                    activeEdgeNodes.has(conceptKey(node.name)) && 'ring-2 ring-accent/60 shadow-xl'
+                    activeEdgeNodes.has(conceptKey(node.name)) && 'ring-2 ring-accent/60 shadow-xl',
+                    !activeEdgeNodes.size && selectedClusterNodes.size > 0 && !selectedClusterNodes.has(conceptKey(node.name)) && 'opacity-25 saturate-50',
+                    !activeEdgeNodes.size && selectedClusterNodes.has(conceptKey(node.name)) && selectedName !== node.name && 'border-accent/35 ring-1 ring-accent/35 shadow-lg'
                   )}
                   style={{ fontFamily: mode === 'custom' ? mapFontFamily(activeMapStyle.fontFamily) : undefined }}
                 >
@@ -2407,7 +2489,7 @@ export function ConceptAtlas({
                         onClick={(event) => {
                           event.stopPropagation();
                           setSelectedName(node.name);
-                          setIsLinkOpen(true);
+                          beginQuickLinkMode(node.name);
                         }}
                       >
                         <Link2 className="mr-1 size-3" /> Quick Link
@@ -2727,7 +2809,7 @@ export function ConceptAtlas({
       <Dialog open={!!cutLinkCandidate} onOpenChange={(open) => !open && setCutLinkCandidate(null)}>
         <DialogContent className="max-w-md border-none shadow-2xl rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl italic">Delete This Link?</DialogTitle>
+            <DialogTitle className="font-headline text-2xl italic">Remove this link?</DialogTitle>
           </DialogHeader>
           {cutLinkCandidate && (
             <p className="pt-2 text-sm italic leading-6 text-muted-foreground">
@@ -2736,7 +2818,7 @@ export function ConceptAtlas({
           )}
           <DialogFooter className="pt-4">
             <Button variant="ghost" onClick={() => setCutLinkCandidate(null)} className="rounded-full">Cancel</Button>
-            <Button variant="destructive" onClick={() => cutLink(cutLinkCandidate!)} className="rounded-full px-7">Delete Link</Button>
+            <Button variant="destructive" onClick={() => cutLink(cutLinkCandidate!)} className="rounded-full px-7">Remove</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
