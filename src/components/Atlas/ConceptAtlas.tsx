@@ -92,6 +92,7 @@ type MapEdge = {
   weight?: number;
   strength?: 'strong' | 'moderate' | 'weak' | 'suggested';
   objectTypes?: Array<'concept' | 'position' | 'inquiry' | 'source' | 'annotation' | 'work' | 'practice'>;
+  mapModes?: AtlasViewMode[];
 };
 
 type AtlasLinkItem = {
@@ -336,12 +337,137 @@ export function ConceptAtlas({
       conceptRelated(node.name, { media, insights, vault, drafts, practices, questions, timeline }),
     ]));
   }, [drafts, insights, media, nodes, practices, questions, timeline, vault]);
+  const conceptNameById = useMemo(
+    () => new Map(concepts.map((concept) => [concept.id, concept.name])),
+    [concepts]
+  );
+  const savedConceptLinkPairs = useMemo(() => {
+    const pairs = new Set<string>();
+    concepts.forEach((concept) => {
+      (concept.links || []).forEach((target) => {
+        pairs.add([conceptKey(concept.name), conceptKey(target)].sort().join('::'));
+      });
+    });
+    return pairs;
+  }, [concepts]);
+  const typedConceptPairMeta = useMemo(() => {
+    const pairs = new Map<string, { interactionCount: number; acceptedByUser: boolean; latestDate: string; types: PhilosophicalLinkType[] }>();
+    links.forEach((link) => {
+      if (link.fromType !== 'concept' || link.toType !== 'concept') return;
+      const fromName = conceptKey(conceptNameById.get(link.fromId) || link.fromLabel || '');
+      const toName = conceptKey(conceptNameById.get(link.toId) || link.toLabel || '');
+      if (!fromName || !toName) return;
+      const key = [fromName, toName].sort().join('::');
+      const current = pairs.get(key);
+      pairs.set(key, {
+        interactionCount: Math.max(current?.interactionCount || 0, link.interactionCount || 0),
+        acceptedByUser: Boolean(current?.acceptedByUser || link.acceptedByUser || link.createdFrom === 'manual'),
+        latestDate: [current?.latestDate || '', link.lastInteractedAt || link.dateUpdated || link.dateCreated || '']
+          .sort((a, b) => (Date.parse(b || '') || 0) - (Date.parse(a || '') || 0))[0] || '',
+        types: Array.from(new Set([...(current?.types || []), link.type])),
+      });
+    });
+    return pairs;
+  }, [conceptNameById, links]);
 
   const classifyStrength = (score: number) => {
     if (score >= 70) return 'strong' as const;
     if (score >= 40) return 'moderate' as const;
     if (score >= 15) return 'weak' as const;
     return 'suggested' as const;
+  };
+
+  const deriveMapModesFromType = (type?: string): AtlasViewMode[] => {
+    const modes = new Set<AtlasViewMode>(['full']);
+    if (!type || ['custom', 'relates'].includes(type)) {
+      modes.add('core');
+      return Array.from(modes);
+    }
+    if (['challenges', 'contradicts', 'weakens', 'questions'].includes(type)) modes.add('conflict');
+    if (['supports', 'exemplifies', 'references', 'derived_from', 'strengthens'].includes(type)) modes.add('evidence');
+    if (['tested_by', 'expressed_in', 'depends_on'].includes(type)) modes.add('practice');
+    if (['refines', 'replaces', 'changed_by', 'derived_from'].includes(type)) modes.add('evolution');
+    if (highImportanceLinkTypes.has(type as AtlasMapLinkType) || moderateImportanceLinkTypes.has(type as AtlasMapLinkType)) modes.add('core');
+    return Array.from(modes);
+  };
+
+  const collectRelatedTags = (related: ReturnType<typeof conceptRelated>, conceptName: string) => {
+    const tags = new Set<string>();
+    related.sources.forEach((item) => (item.tags || []).forEach((tag) => tags.add(conceptKey(tag))));
+    related.beliefs.forEach((item) => (item.tags || []).forEach((tag) => tags.add(conceptKey(tag))));
+    related.drafts.forEach((item) => (item.conceptTags || []).forEach((tag) => tags.add(conceptKey(tag))));
+    related.practices.forEach((item) => (item.conceptTags || []).forEach((tag) => tags.add(conceptKey(tag))));
+    related.questions.forEach((item) => (item.conceptIds || []).forEach((id) => tags.add(conceptKey(conceptNameById.get(id) || id))));
+    tags.delete(conceptKey(conceptName));
+    return tags;
+  };
+
+  const scoreSharedConnection = (
+    leftName: string,
+    rightName: string,
+    left: ReturnType<typeof conceptRelated>,
+    right: ReturnType<typeof conceptRelated>,
+    counts: { sharedSources: number; sharedPositions: number; sharedInquiries: number; sharedWorks: number; sharedPractices: number }
+  ) => {
+    const pairKey = [conceptKey(leftName), conceptKey(rightName)].sort().join('::');
+    const typedPairMeta = typedConceptPairMeta.get(pairKey);
+    const explicitLinkScore = savedConceptLinkPairs.has(pairKey)
+      ? 40
+      : typedPairMeta?.acceptedByUser
+        ? 30
+        : typedPairMeta
+          ? 10
+          : 0;
+    const leftTags = collectRelatedTags(left, leftName);
+    const rightTags = collectRelatedTags(right, rightName);
+    const sharedConceptCount = [...leftTags].filter((tag) => rightTags.has(tag)).length;
+    const sharedConceptScore = Math.min(sharedConceptCount * 8, 24);
+    const interactionScore = Math.min((typedPairMeta?.interactionCount || 0) * 5, 15);
+    const sharedDates = [
+      ...left.sources.filter((item) => right.sources.some((other) => other.id === item.id)).map((item) => item.dateUpdated || item.dateAdded || ''),
+      ...left.beliefs.filter((item) => right.beliefs.some((other) => other.id === item.id)).map((item) => item.dateUpdated || item.dateCreated || ''),
+      ...left.questions.filter((item) => right.questions.some((other) => other.id === item.id)).map((item) => item.dateUpdated || item.dateCreated || ''),
+      ...left.drafts.filter((item) => right.drafts.some((other) => other.id === item.id)).map((item) => item.dateUpdated || item.dateCreated || ''),
+      ...left.practices.filter((item) => right.practices.some((other) => other.id === item.id)).map((item) => item.dateUpdated || item.dateCreated || ''),
+      typedPairMeta?.latestDate || '',
+    ].filter(Boolean);
+    const latestDate = sharedDates.sort((a, b) => (Date.parse(b || '') || 0) - (Date.parse(a || '') || 0))[0] || '';
+    const ageDays = latestDate ? Math.max(0, (Date.now() - (Date.parse(latestDate) || 0)) / (1000 * 60 * 60 * 24)) : 999;
+    const recencyScore = ageDays <= 7 ? 10 : ageDays <= 30 ? 6 : ageDays <= 90 ? 3 : 0;
+    const evidenceScore = counts.sharedSources >= 2 ? 10 : counts.sharedSources === 1 ? 6 : 0;
+    const relationshipImportanceScore =
+      counts.sharedPractices > 0
+        ? 15
+        : counts.sharedPositions > 0
+          ? 12
+          : counts.sharedInquiries > 0
+            ? 9
+            : counts.sharedWorks > 0
+              ? 7
+              : 4;
+    const connectionScore = Math.min(
+      100,
+      explicitLinkScore + sharedConceptScore + interactionScore + recencyScore + evidenceScore + relationshipImportanceScore
+    );
+    const modes = new Set<AtlasViewMode>(['full']);
+    modes.add('core');
+    if (counts.sharedPositions || counts.sharedSources) modes.add('evidence');
+    if (counts.sharedPractices || counts.sharedWorks) modes.add('practice');
+    if (counts.sharedInquiries || counts.sharedPositions) modes.add('conflict');
+    if (counts.sharedWorks || counts.sharedPositions) modes.add('evolution');
+    const labelBits = [
+      counts.sharedSources ? `${counts.sharedSources} source${counts.sharedSources > 1 ? 's' : ''}` : '',
+      counts.sharedPositions ? `${counts.sharedPositions} position${counts.sharedPositions > 1 ? 's' : ''}` : '',
+      counts.sharedInquiries ? `${counts.sharedInquiries} inquir${counts.sharedInquiries > 1 ? 'ies' : 'y'}` : '',
+      counts.sharedPractices ? `${counts.sharedPractices} practice${counts.sharedPractices > 1 ? 's' : ''}` : '',
+      counts.sharedWorks ? `${counts.sharedWorks} work${counts.sharedWorks > 1 ? 's' : ''}` : '',
+    ].filter(Boolean);
+    return {
+      score: connectionScore,
+      strength: classifyStrength(connectionScore),
+      mapModes: Array.from(modes),
+      label: labelBits.slice(0, 2).join(' • '),
+    };
   };
 
   const edges = useMemo<MapEdge[]>(() => {
@@ -362,6 +488,7 @@ export function ConceptAtlas({
             weight: 85,
             strength: 'strong',
             objectTypes: ['concept'],
+            mapModes: deriveMapModesFromType(link.type),
           });
         }
       });
@@ -370,14 +497,18 @@ export function ConceptAtlas({
     if (mode === 'auto' || filters.conceptLinks) {
       concepts.forEach((concept) => (concept.links || []).forEach((link) => {
         if (nodeNames.has(conceptKey(concept.name)) && nodeNames.has(conceptKey(link))) {
+          const pairKey = [conceptKey(concept.name), conceptKey(link)].sort().join('::');
+          const pairMeta = typedConceptPairMeta.get(pairKey);
+          const conceptScore = Math.min(100, 55 + Math.min((pairMeta?.interactionCount || 0) * 5, 15));
           result.push({
             from: conceptKey(concept.name),
             to: conceptKey(link),
             type: 'concept',
             label: 'saved concept link',
-            weight: 55,
-            strength: 'moderate',
+            weight: conceptScore,
+            strength: classifyStrength(conceptScore),
             objectTypes: ['concept'],
+            mapModes: ['core', 'full'],
           });
         }
       }));
@@ -410,14 +541,20 @@ export function ConceptAtlas({
             (mode === 'auto' || filters.sharedWorks ? sharedWorks : 0) +
             (mode === 'auto' || filters.sharedPractices ? sharedPractices : 0);
           if (shared) {
-            const score = Math.min(100, shared * 12 + objectTypeCount * 10);
+            const scored = scoreSharedConnection(nodes[i].name, nodes[j].name, left, right, {
+              sharedSources,
+              sharedPositions,
+              sharedInquiries,
+              sharedWorks,
+              sharedPractices,
+            });
             sharedCandidates.push({
               from: nodes[i].name,
               to: nodes[j].name,
               type: 'shared',
-              label: `${shared} shared`,
-              weight: score,
-              strength: classifyStrength(score),
+              label: scored.label || `${shared} shared`,
+              weight: scored.score,
+              strength: scored.strength,
               objectTypes: [
                 ...(sharedSources ? ['source' as const] : []),
                 ...(sharedPositions ? ['position' as const] : []),
@@ -425,6 +562,7 @@ export function ConceptAtlas({
                 ...(sharedWorks ? ['work' as const] : []),
                 ...(sharedPractices ? ['practice' as const] : []),
               ],
+              mapModes: scored.mapModes,
             });
           }
         }
@@ -491,11 +629,12 @@ export function ConceptAtlas({
               ...(link.fromType === 'work' || link.toType === 'work' ? ['work' as const] : []),
               ...(link.fromType === 'practice' || link.toType === 'practice' ? ['practice' as const] : []),
             ],
+            mapModes: link.mapModes || deriveMapModesFromType(link.type),
           });
         }
       });
     return result;
-  }, [activeMap, activeRelationshipTypes, autoConnectionFocus, concepts, links, mode, nodes, relatedByNode]);
+  }, [activeMap, activeRelationshipTypes, autoConnectionFocus, concepts, deriveMapModesFromType, links, mode, nodes, relatedByNode, scoreSharedConnection, typedConceptPairMeta]);
 
   const visibleEdges = useMemo(() => {
     const selectedKey = conceptKey(selectedName || '');
@@ -505,6 +644,7 @@ export function ConceptAtlas({
 
     const filtered = edges.filter((edge) => {
       const typedLabel = (edge.linkType || '').toString();
+      const matchesMode = edge.mapModes?.includes(viewMode) ?? false;
       if (
         typedLabel
         && activeRelationshipTypes.length
@@ -516,21 +656,22 @@ export function ConceptAtlas({
       if (viewMode === 'full') return true;
 
       if (viewMode === 'conflict') {
-        return ['contradicts', 'challenges', 'weakens', 'questions'].includes(typedLabel);
+        return matchesMode || ['contradicts', 'challenges', 'weakens', 'questions'].includes(typedLabel);
       }
 
       if (viewMode === 'evidence') {
-        return edge.type === 'shared' || hasObjectType(edge, ['source', 'annotation', 'position']);
+        return matchesMode || edge.type === 'shared' || hasObjectType(edge, ['source', 'annotation', 'position']);
       }
 
       if (viewMode === 'practice') {
-        return hasObjectType(edge, ['practice', 'work']) || ['tested_by', 'expressed_in'].includes(typedLabel);
+        return matchesMode || hasObjectType(edge, ['practice', 'work']) || ['tested_by', 'expressed_in'].includes(typedLabel);
       }
 
       if (viewMode === 'evolution') {
-        return ['changed_by', 'replaces', 'refines', 'strengthens', 'weakens'].includes(typedLabel);
+        return matchesMode || ['changed_by', 'replaces', 'refines', 'strengthens', 'weakens'].includes(typedLabel);
       }
 
+      if (matchesMode && edge.strength !== 'weak' && edge.strength !== 'suggested') return true;
       if (edge.strength === 'strong') return true;
       if (isSelectedEdge(edge) && edge.strength === 'moderate') return true;
       if (['contradicts', 'challenges', 'depends_on', 'refines', 'strengthens', 'weakens', 'tested_by', 'changed_by'].includes(typedLabel) && edge.strength === 'moderate') return true;
