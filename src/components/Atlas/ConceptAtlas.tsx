@@ -89,6 +89,8 @@ type AtlasLinkItem = {
   sourceLabel: string;
   sourceConceptId?: string;
   conceptTarget?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 const defaultAutoLinkFilters: AtlasAutoLinkFilters = {
@@ -145,8 +147,14 @@ export function ConceptAtlas({
   const [isPositionsOpen, setIsPositionsOpen] = useState(false);
   const [relatedDialogType, setRelatedDialogType] = useState<null | 'sources' | 'works' | 'practices' | 'inquiries' | 'unknowns'>(null);
   const [isDeleteAllLinksOpen, setIsDeleteAllLinksOpen] = useState(false);
+  const [linkSort, setLinkSort] = useState<'alpha' | 'created' | 'interacted'>('alpha');
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [quickLinkSource, setQuickLinkSource] = useState<string | null>(null);
+  const [quickLinkTarget, setQuickLinkTarget] = useState<string | null>(null);
+  const [quickLinkCursor, setQuickLinkCursor] = useState({ x: 0, y: 0 });
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [linkInteractionMap, setLinkInteractionMap] = useState<Record<string, { lastInteractedAt: string; interactionCount: number }>>({});
   const [newConcept, setNewConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
   const [newMap, setNewMap] = useState({ title: '', description: '' });
   const [linkDraft, setLinkDraft] = useState<{ to: string; type: AtlasMapLinkType; label: string; note: string }>({ to: '', type: 'relates', label: '', note: '' });
@@ -156,6 +164,7 @@ export function ConceptAtlas({
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [panelSection, setPanelSection] = useState<'links' | 'evidence' | 'events' | 'actions'>('links');
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const edgeHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const terms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
   const activeMap = atlasMaps.find((map) => map.id === activeMapId) || atlasMaps[0] || null;
@@ -180,6 +189,18 @@ export function ConceptAtlas({
   useEffect(() => {
     if (selectedName) setPanelSection('links');
   }, [selectedName]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setQuickLinkSource(null);
+        setQuickLinkTarget(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const visibleTerms = useMemo(() => {
     if (mode === 'custom') return activeMap ? activeMap.nodeNames.map(conceptKey) : [];
@@ -477,6 +498,55 @@ export function ConceptAtlas({
     });
   }, [concepts, links, selectedName]);
 
+  const markLinkInteraction = (link: AtlasLinkItem) => {
+    setLinkInteractionMap((prev) => ({
+      ...prev,
+      [link.id]: {
+        lastInteractedAt: today(),
+        interactionCount: (prev[link.id]?.interactionCount || 0) + 1,
+      },
+    }));
+  };
+
+  const openLinkDetail = (link: AtlasLinkItem) => {
+    markLinkInteraction(link);
+    setSelectedLink(link);
+  };
+
+  const beginQuickLinkMode = (sourceName: string) => {
+    setSelectedName(sourceName);
+    setQuickLinkSource(sourceName);
+    setQuickLinkTarget(null);
+    setPanelSection('actions');
+  };
+
+  const clearQuickLinkMode = () => {
+    setQuickLinkSource(null);
+    setQuickLinkTarget(null);
+  };
+
+  const getLinkInteractionTime = (link: AtlasLinkItem) =>
+    linkInteractionMap[link.id]?.lastInteractedAt || link.updatedAt || link.createdAt || '';
+
+  const startEdgeHold = (edge: MapEdge) => {
+    const linkItem = linkItemForEdge(edge);
+    if (!linkItem.removable) return;
+    if (edgeHoldTimerRef.current) clearTimeout(edgeHoldTimerRef.current);
+    edgeHoldTimerRef.current = setTimeout(() => {
+      setSelectedLink(null);
+      setCutLinkCandidate(linkItem);
+      markLinkInteraction(linkItem);
+      edgeHoldTimerRef.current = null;
+    }, 700);
+  };
+
+  const cancelEdgeHold = () => {
+    if (edgeHoldTimerRef.current) {
+      clearTimeout(edgeHoldTimerRef.current);
+      edgeHoldTimerRef.current = null;
+    }
+  };
+
   const linkItemForEdge = (edge: MapEdge): AtlasLinkItem => {
     if (edge.type === 'user') {
       const mapLink = activeMap?.manualLinks?.find((link) => link.id === edge.id);
@@ -490,6 +560,8 @@ export function ConceptAtlas({
         note: mapLink?.note,
         removable: Boolean(mapLink),
         sourceLabel: 'Custom map link',
+        createdAt: mapLink?.dateCreated,
+        updatedAt: mapLink?.dateCreated,
       };
     }
 
@@ -505,6 +577,8 @@ export function ConceptAtlas({
         note: typedLink?.note,
         removable: Boolean(typedLink && onDeleteLink),
         sourceLabel: 'Typed philosophical link',
+        createdAt: typedLink?.dateCreated,
+        updatedAt: typedLink?.dateUpdated,
       };
     }
 
@@ -521,6 +595,8 @@ export function ConceptAtlas({
         sourceLabel: 'Saved concept link',
         sourceConceptId: sourceConcept?.id,
         conceptTarget: conceptKey(edge.to),
+        createdAt: sourceConcept?.dateCreated,
+        updatedAt: sourceConcept?.dateUpdated,
       };
     }
 
@@ -534,6 +610,8 @@ export function ConceptAtlas({
       note: 'This link is derived from shared sources, positions, inquiries, works, or practices.',
       removable: false,
       sourceLabel: 'Auto/shared evidence link',
+      createdAt: undefined,
+      updatedAt: undefined,
     };
   };
 
@@ -553,6 +631,8 @@ export function ConceptAtlas({
         note: link.note,
         removable: true,
         sourceLabel: 'Custom map link',
+        createdAt: link.dateCreated,
+        updatedAt: link.dateCreated,
       });
     });
 
@@ -572,6 +652,8 @@ export function ConceptAtlas({
           sourceLabel: 'Saved concept link',
           sourceConceptId: concept.id,
           conceptTarget: to,
+          createdAt: concept.dateCreated,
+          updatedAt: concept.dateUpdated,
         });
       });
     });
@@ -587,6 +669,8 @@ export function ConceptAtlas({
         note: link.note,
         removable: Boolean(onDeleteLink),
         sourceLabel: 'Typed philosophical link',
+        createdAt: link.dateCreated,
+        updatedAt: link.dateUpdated,
       });
     });
 
@@ -595,13 +679,24 @@ export function ConceptAtlas({
       .forEach((edge) => items.push(linkItemForEdge(edge)));
 
     const seen = new Set<string>();
-    return items.filter((item) => {
+    const uniqueItems = items.filter((item) => {
       const id = `${item.kind}:${item.id}`;
       if (seen.has(id)) return false;
       seen.add(id);
       return true;
     });
-  }, [concepts, edges, onDeleteLink, selectedMapLinks, selectedName, selectedTypedLinks]);
+    return [...uniqueItems].sort((a, b) => {
+      const aTarget = conceptKey(a.from) === key ? a.to : a.from;
+      const bTarget = conceptKey(b.from) === key ? b.to : b.from;
+      if (linkSort === 'created') {
+        return (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0);
+      }
+      if (linkSort === 'interacted') {
+        return (Date.parse(getLinkInteractionTime(b)) || 0) - (Date.parse(getLinkInteractionTime(a)) || 0);
+      }
+      return aTarget.localeCompare(bTarget);
+    });
+  }, [concepts, edges, getLinkInteractionTime, linkSort, onDeleteLink, selectedMapLinks, selectedName, selectedTypedLinks]);
 
   const removableNodeLinks = useMemo(() => selectedNodeLinks.filter((link) => link.removable), [selectedNodeLinks]);
 
@@ -714,9 +809,21 @@ export function ConceptAtlas({
               <section>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Links</h4>
-                  <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={() => setIsLinkOpen(true)}>
+                  <div className="flex items-center gap-2">
+                    <Select value={linkSort} onValueChange={(value) => setLinkSort(value as 'alpha' | 'created' | 'interacted')}>
+                      <SelectTrigger className="h-7 w-[148px] rounded-full bg-card px-3 font-code text-[9px] uppercase tracking-widest">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="alpha">Sort: A-Z</SelectItem>
+                        <SelectItem value="created">Sort: Recently Created</SelectItem>
+                        <SelectItem value="interacted">Sort: Recently Interacted</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={() => beginQuickLinkMode(selectedName!)}>
                     <Link2 className="mr-1 size-3.5" /> Link This Idea
-                  </Button>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -724,7 +831,7 @@ export function ConceptAtlas({
                     const target = conceptKey(link.from) === conceptKey(selectedName) ? link.to : link.from;
                     return (
                       <div key={`${link.kind}:${link.id}`} className="rounded-lg border border-border/50 bg-muted/10 p-3">
-                        <button onClick={() => setSelectedLink(link)} className="w-full text-left">
+                        <button onClick={() => openLinkDetail(link)} className="w-full text-left">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="truncate font-headline text-sm font-semibold italic text-primary">{target}</div>
@@ -737,7 +844,7 @@ export function ConceptAtlas({
                           {link.note && <p className="mt-2 line-clamp-2 text-xs italic text-muted-foreground">{link.note}</p>}
                         </button>
                         <div className="mt-2 flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => setSelectedLink(link)} className="h-7 rounded-full px-3">Details</Button>
+                          <Button variant="ghost" size="sm" onClick={() => openLinkDetail(link)} className="h-7 rounded-full px-3">Details</Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -808,8 +915,8 @@ export function ConceptAtlas({
                   {panelSection === 'actions' && (
                     <section className="space-y-3">
                       <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
-                      <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => setIsLinkOpen(true)}>
-                        <Link2 className="mr-1.5 size-3.5" /> Link This Idea
+                      <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => beginQuickLinkMode(selectedName!)}>
+                        <Link2 className="mr-1.5 size-3.5" /> Quick Link
                       </Button>
                       <Button
                         variant="outline"
@@ -931,6 +1038,7 @@ export function ConceptAtlas({
     setLinkDraft({ to: '', type: 'relates', label: '', note: '' });
     setLinkSearch('');
     setIsLinkOpen(false);
+    clearQuickLinkMode();
   };
 
   const removeUserLink = (id: string) => {
@@ -992,6 +1100,11 @@ export function ConceptAtlas({
   };
 
   const startPanning = (event: React.MouseEvent | React.PointerEvent) => {
+    if (quickLinkSource) {
+      setLastMousePos({ x: event.clientX, y: event.clientY });
+      setQuickLinkCursor({ x: event.clientX, y: event.clientY });
+      return;
+    }
     if (draggingName) return;
     setIsPanning(true);
     setLastMousePos({ x: event.clientX, y: event.clientY });
@@ -999,6 +1112,9 @@ export function ConceptAtlas({
   };
 
   const handleMouseMove = (event: React.MouseEvent) => {
+    if (quickLinkSource) {
+      setQuickLinkCursor({ x: event.clientX, y: event.clientY });
+    }
     if (!isPanning) return;
     const dx = event.clientX - lastMousePos.x;
     const dy = event.clientY - lastMousePos.y;
@@ -1050,8 +1166,8 @@ export function ConceptAtlas({
 
   return (
     <div className={cn(
-      "relative flex h-full w-full flex-col overflow-hidden bg-background",
-      isFullScreen && "fixed inset-0 z-50"
+      "relative flex min-h-screen w-full flex-col bg-background",
+      isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "overflow-visible pb-8"
     )}>
       {!isFullScreen && (
       <header className="z-20 mb-2 flex items-start justify-between gap-4 px-8 pt-6">
@@ -1158,15 +1274,19 @@ export function ConceptAtlas({
       )}
 
       <div className={cn(
-        "flex flex-1 gap-4 overflow-hidden",
-        isFullScreen ? "px-0 pb-0" : "px-8 pb-5"
+        "flex flex-1 gap-4",
+        isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-visible px-8 pb-5"
       )}>
         <div
           ref={mapRef}
           className={cn(
-            "relative flex-1 cursor-grab overflow-hidden border border-border bg-background active:cursor-grabbing shadow-inner min-h-[82vh]",
+            "relative flex-1 overflow-hidden border border-border bg-background shadow-inner min-h-[82vh]",
+            quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
             isFullScreen ? "rounded-none" : "rounded-xl"
           )}
+          onClick={() => {
+            if (quickLinkSource) clearQuickLinkMode();
+          }}
           onMouseDown={startPanning}
           onMouseMove={handleMouseMove}
           onMouseUp={() => setIsPanning(false)}
@@ -1213,9 +1333,10 @@ export function ConceptAtlas({
                 const typed = edge.type === 'typed';
                 const contradiction = ['contradicts', 'challenges', 'weakens'].includes((edge.linkType || '').toString());
                 const strength = edge.strength || 'suggested';
-                const strokeWidth = strength === 'strong' ? (user ? 4.5 : 4) : strength === 'moderate' ? (typed ? 3 : 2.75) : 1.75;
-                const strokeOpacity = strength === 'strong' ? 0.95 : strength === 'moderate' ? 0.72 : strength === 'weak' ? 0.32 : 0.2;
                 const key = `${edge.from}-${edge.to}-${edge.id || index}`;
+                const isHovered = hoveredEdgeId === key;
+                const strokeWidth = (strength === 'strong' ? (user ? 4.5 : 4) : strength === 'moderate' ? (typed ? 3 : 2.75) : 1.75) + (isHovered ? 0.85 : 0);
+                const strokeOpacity = Math.min(1, (strength === 'strong' ? 0.95 : strength === 'moderate' ? 0.72 : strength === 'weak' ? 0.32 : 0.2) + (isHovered ? 0.15 : 0));
                 return (
                   <g key={key}>
                     <line
@@ -1239,7 +1360,16 @@ export function ConceptAtlas({
                       strokeWidth={16}
                       strokeLinecap="round"
                       className="pointer-events-auto cursor-pointer"
-                      onMouseDown={(event) => event.stopPropagation()}
+                      onMouseDown={(event) => {
+                        event.stopPropagation();
+                        startEdgeHold(edge);
+                      }}
+                      onMouseUp={cancelEdgeHold}
+                      onMouseLeave={() => {
+                        cancelEdgeHold();
+                        setHoveredEdgeId(null);
+                      }}
+                      onMouseEnter={() => setHoveredEdgeId(key)}
                       onContextMenu={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -1247,17 +1377,43 @@ export function ConceptAtlas({
                         if (linkItem.removable) {
                           setSelectedLink(null);
                           setCutLinkCandidate(linkItem);
+                          markLinkInteraction(linkItem);
                         }
                       }}
                       onClick={(event) => {
                         event.stopPropagation();
-                        setSelectedLink(linkItemForEdge(edge));
+                        const linkItem = linkItemForEdge(edge);
+                        openLinkDetail(linkItem);
                       }}
                     />
                   </g>
                 );
               })}
             </svg>
+
+            {quickLinkSource && (() => {
+              const sourceNode = nodes.find((node) => conceptKey(node.name) === conceptKey(quickLinkSource));
+              const rect = mapRef.current?.getBoundingClientRect();
+              if (!sourceNode || !rect) return null;
+              const cursorX = ((quickLinkCursor.x - rect.left - pan.x) / (rect.width * zoom)) * 100;
+              const cursorY = ((quickLinkCursor.y - rect.top - pan.y) / (rect.height * zoom)) * 100;
+              const ghost = edgePoints(sourceNode, { name: '', count: 0, x: cursorX, y: cursorY });
+              return (
+                <g>
+                  <line
+                    x1={`${ghost.x1}%`}
+                    y1={`${ghost.y1}%`}
+                    x2={`${ghost.x2}%`}
+                    y2={`${ghost.y2}%`}
+                    stroke="hsl(var(--accent))"
+                    strokeWidth={2.5}
+                    strokeOpacity={0.7}
+                    strokeDasharray="6 6"
+                    strokeLinecap="round"
+                  />
+                </g>
+              );
+            })()}
 
             {nodes.map((node) => (
               <button
@@ -1270,6 +1426,19 @@ export function ConceptAtlas({
                   setSelectedName(node.name);
                 }}
                 onPointerDown={(event) => {
+                  if (quickLinkSource) {
+                    event.stopPropagation();
+                    if (conceptKey(node.name) === conceptKey(quickLinkSource)) return;
+                    setQuickLinkTarget(node.name);
+                    setLinkDraft((prev) => ({
+                      ...prev,
+                      to: conceptKey(node.name),
+                      type: prev.type || 'supports',
+                      label: prev.label || 'supports',
+                    }));
+                    setIsLinkOpen(true);
+                    return;
+                  }
                   event.stopPropagation();
                   setSelectedName(node.name);
                   setDraggingName(node.name);
@@ -1325,6 +1494,20 @@ export function ConceptAtlas({
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-px bg-border" />
           </div>
+
+          {quickLinkSource && (
+            <div
+              className="pointer-events-none absolute z-30 rounded-full border border-accent/30 bg-white/95 px-3 py-1.5 shadow-md"
+              style={{
+                left: Math.min((mapRef.current?.clientWidth || 0) - 220, Math.max(12, quickLinkCursor.x - (mapRef.current?.getBoundingClientRect().left || 0) + 14)),
+                top: Math.min((mapRef.current?.clientHeight || 0) - 48, Math.max(12, quickLinkCursor.y - (mapRef.current?.getBoundingClientRect().top || 0) + 14)),
+              }}
+            >
+              <div className="font-code text-[9px] uppercase tracking-widest text-accent">
+                Link from {quickLinkSource} - click a target node
+              </div>
+            </div>
+          )}
         </div>
 
         {!isFullScreen && isPanelOpen && (
@@ -1359,9 +1542,21 @@ export function ConceptAtlas({
                   <section>
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Links</h4>
-                      <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={() => setIsLinkOpen(true)}>
-                        <Link2 className="mr-1 size-3.5" /> Link This Idea
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Select value={linkSort} onValueChange={(value) => setLinkSort(value as 'alpha' | 'created' | 'interacted')}>
+                          <SelectTrigger className="h-7 w-[148px] rounded-full bg-card px-3 font-code text-[9px] uppercase tracking-widest">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="alpha">Sort: A-Z</SelectItem>
+                            <SelectItem value="created">Sort: Recently Created</SelectItem>
+                            <SelectItem value="interacted">Sort: Recently Interacted</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={() => beginQuickLinkMode(selectedName!)}>
+                          <Link2 className="mr-1 size-3.5" /> Link This Idea
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -1369,7 +1564,7 @@ export function ConceptAtlas({
                         const target = conceptKey(link.from) === conceptKey(selectedName) ? link.to : link.from;
                         return (
                           <div key={`${link.kind}:${link.id}`} className="rounded-lg border border-border/50 bg-muted/10 p-3">
-                            <button onClick={() => setSelectedLink(link)} className="w-full text-left">
+                            <button onClick={() => openLinkDetail(link)} className="w-full text-left">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="truncate font-headline text-sm font-semibold italic text-primary">{target}</div>
@@ -1382,7 +1577,7 @@ export function ConceptAtlas({
                               {link.note && <p className="mt-2 line-clamp-2 text-xs italic text-muted-foreground">{link.note}</p>}
                             </button>
                             <div className="mt-2 flex justify-end gap-2">
-                              <Button variant="ghost" size="sm" onClick={() => setSelectedLink(link)} className="h-7 rounded-full px-3">Details</Button>
+                              <Button variant="ghost" size="sm" onClick={() => openLinkDetail(link)} className="h-7 rounded-full px-3">Details</Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1483,8 +1678,8 @@ export function ConceptAtlas({
                   {panelSection === 'actions' && (
                     <section className="space-y-3">
                       <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
-                      <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => setIsLinkOpen(true)}>
-                        <Link2 className="mr-1.5 size-3.5" /> Link This Idea
+                      <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => beginQuickLinkMode(selectedName!)}>
+                        <Link2 className="mr-1.5 size-3.5" /> Quick Link
                       </Button>
                       <Button
                         variant="outline"
@@ -1758,9 +1953,16 @@ export function ConceptAtlas({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isLinkOpen} onOpenChange={setIsLinkOpen}>
+      <Dialog open={isLinkOpen} onOpenChange={(open) => {
+        setIsLinkOpen(open);
+        if (!open) setQuickLinkTarget(null);
+      }}>
         <DialogContent className="max-w-lg border-none shadow-2xl rounded-2xl">
-          <DialogHeader><DialogTitle className="font-headline text-2xl italic">Link This Idea</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl italic">
+              {quickLinkSource && quickLinkTarget ? `Link ${quickLinkSource} to ${quickLinkTarget}` : 'Link This Idea'}
+            </DialogTitle>
+          </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label className="readex-kicker">From</Label>
@@ -1780,6 +1982,21 @@ export function ConceptAtlas({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="readex-kicker">Link Type</Label>
+                <div className="flex flex-wrap gap-2 pb-1">
+                  {(['supports', 'challenges', 'defines', 'refines', 'contradicts', 'tested_by'] as AtlasMapLinkType[]).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setLinkDraft((prev) => ({ ...prev, type, label: type.replace(/_/g, ' ') }))}
+                      className={cn(
+                        "rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-widest transition-colors",
+                        linkDraft.type === type ? "border-accent bg-accent/10 text-accent" : "border-border bg-card text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {type.replace(/_/g, ' ')}
+                    </button>
+                  ))}
+                </div>
                 <select
                   value={linkDraft.type}
                   onChange={(event) => setLinkDraft((prev) => ({ ...prev, type: event.target.value as AtlasMapLinkType }))}
