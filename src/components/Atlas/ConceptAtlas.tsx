@@ -2117,89 +2117,15 @@ export function ConceptAtlas({
       isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-[calc(100vh-3.5rem)] overflow-hidden"
     )}>
       {!isFullScreen && (
-      <header className="z-20 mb-2 flex items-start justify-between gap-4 px-8 pt-6">
+      <header className="z-20 mb-1 flex items-start justify-between gap-4 px-8 pt-4">
         <div className="min-w-0 flex-1">
           <h1 className="font-headline text-[28px] font-semibold italic">Atlas</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Map the relationships between concepts, sources, inquiries, positions, works, and practices.</p>
+          <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">Map the relationships between concepts, sources, inquiries, positions, works, and practices.</p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <Select value={viewMode} onValueChange={(value) => setViewMode(value as AtlasViewMode)}>
-            <SelectTrigger className="h-9 w-40 rounded-full border-input bg-background px-4 font-code text-[10px] uppercase tracking-wider shadow-sm">
-              <SelectValue placeholder="View Mode" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="core" className="font-code text-[10px] uppercase tracking-wider">Core Map</SelectItem>
-              <SelectItem value="conflict" className="font-code text-[10px] uppercase tracking-wider">Conflict Map</SelectItem>
-              <SelectItem value="evidence" className="font-code text-[10px] uppercase tracking-wider">Evidence Map</SelectItem>
-              <SelectItem value="practice" className="font-code text-[10px] uppercase tracking-wider">Practice/Test</SelectItem>
-              <SelectItem value="evolution" className="font-code text-[10px] uppercase tracking-wider">Evolution Map</SelectItem>
-              <SelectItem value="full" className="font-code text-[10px] uppercase tracking-wider">Full Map</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={autoConnectionFocus} onValueChange={(value) => setAutoConnectionFocus(value as 'strong' | 'moderate' | 'all')}>
-            <SelectTrigger className="h-9 w-44 rounded-full border-input bg-background px-4 font-code text-[10px] uppercase tracking-wider shadow-sm">
-              <SelectValue placeholder="Connection Focus" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="strong" className="font-code text-[10px] uppercase tracking-wider">Strong Connections</SelectItem>
-              <SelectItem value="moderate" className="font-code text-[10px] uppercase tracking-wider">Strong + Moderate</SelectItem>
-              <SelectItem value="all" className="font-code text-[10px] uppercase tracking-wider">All Connections</SelectItem>
-            </SelectContent>
-          </Select>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-9 rounded-full px-4 font-code text-[10px] uppercase tracking-wider shadow-sm">
-                {relationshipFilterLabel}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="max-h-[420px] w-72 overflow-y-auto rounded-2xl">
-              <DropdownMenuLabel className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Relationship Types</DropdownMenuLabel>
-              <div className="flex gap-2 px-2 pb-2 pt-1">
-                <Button size="sm" variant={relationshipFilterMode === 'recommended' ? 'default' : 'outline'} className="h-7 rounded-full px-3 text-[10px]" onClick={() => setRelationshipFilterMode('recommended')}>
-                  Select Recommended
-                </Button>
-                <Button size="sm" variant={relationshipFilterMode === 'all' ? 'default' : 'outline'} className="h-7 rounded-full px-3 text-[10px]" onClick={() => setRelationshipFilterMode('all')}>
-                  Show All
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 rounded-full px-3 text-[10px]" onClick={() => { setRelationshipFilterMode('custom'); setCustomRelationshipTypes([]); }}>
-                  Clear All
-                </Button>
-              </div>
-              <DropdownMenuSeparator />
-              {atlasRelationshipGroups.map((group) => (
-                <div key={group.label}>
-                  <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/80">{group.label}</DropdownMenuLabel>
-                  {group.types.map((type) => (
-                    <DropdownMenuCheckboxItem
-                      key={type}
-                      checked={
-                        relationshipFilterMode === 'all'
-                          ? true
-                          : relationshipFilterMode === 'recommended'
-                            ? recommendedRelationshipTypes.includes(type)
-                            : customRelationshipTypes.includes(type)
-                      }
-                      onCheckedChange={(checked) => {
-                        setRelationshipFilterMode('custom');
-                        setCustomRelationshipTypes((prev) => (
-                          checked
-                            ? [...new Set([...prev, type])]
-                            : prev.filter((item) => item !== type)
-                        ));
-                      }}
-                      className="font-code text-[10px] uppercase tracking-wider"
-                    >
-                      {type.replace(/_/g, ' ')}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                </div>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-64 pl-9 rounded-full" />
+            <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-56 pl-9 rounded-full" />
           </div>
           <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90 rounded-full">
             <Plus className="mr-1.5 size-4" /> New Concept
@@ -2210,10 +2136,87 @@ export function ConceptAtlas({
 
       {!isFullScreen && (
       <div className="z-10 space-y-2 px-8 pb-1">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 rounded-full border border-border bg-white p-1 shadow-sm">
             <Button variant={mode === 'auto' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('auto')} className="h-8 rounded-full">Auto Map</Button>
             <Button variant={mode === 'custom' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('custom')} className="h-8 rounded-full">Custom Maps</Button>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Select value={viewMode} onValueChange={(value) => setViewMode(value as AtlasViewMode)}>
+              <SelectTrigger className="h-8 w-36 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
+                <SelectValue placeholder="View Mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="core" className="font-code text-[10px] uppercase tracking-wider">Core Map</SelectItem>
+                <SelectItem value="conflict" className="font-code text-[10px] uppercase tracking-wider">Conflict Map</SelectItem>
+                <SelectItem value="evidence" className="font-code text-[10px] uppercase tracking-wider">Evidence Map</SelectItem>
+                <SelectItem value="practice" className="font-code text-[10px] uppercase tracking-wider">Practice/Test</SelectItem>
+                <SelectItem value="evolution" className="font-code text-[10px] uppercase tracking-wider">Evolution Map</SelectItem>
+                <SelectItem value="full" className="font-code text-[10px] uppercase tracking-wider">Full Map</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={autoConnectionFocus} onValueChange={(value) => setAutoConnectionFocus(value as 'strong' | 'moderate' | 'all')}>
+              <SelectTrigger className="h-8 w-40 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
+                <SelectValue placeholder="Connection Focus" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="strong" className="font-code text-[10px] uppercase tracking-wider">Strong Connections</SelectItem>
+                <SelectItem value="moderate" className="font-code text-[10px] uppercase tracking-wider">Strong + Moderate</SelectItem>
+                <SelectItem value="all" className="font-code text-[10px] uppercase tracking-wider">All Connections</SelectItem>
+              </SelectContent>
+            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-8 rounded-full px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
+                  {relationshipFilterLabel}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-[420px] w-72 overflow-y-auto rounded-2xl">
+                <DropdownMenuLabel className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Relationship Types</DropdownMenuLabel>
+                <div className="flex gap-2 px-2 pb-2 pt-1">
+                  <Button size="sm" variant={relationshipFilterMode === 'recommended' ? 'default' : 'outline'} className="h-7 rounded-full px-3 text-[10px]" onClick={() => setRelationshipFilterMode('recommended')}>
+                    Select Recommended
+                  </Button>
+                  <Button size="sm" variant={relationshipFilterMode === 'all' ? 'default' : 'outline'} className="h-7 rounded-full px-3 text-[10px]" onClick={() => setRelationshipFilterMode('all')}>
+                    Show All
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 rounded-full px-3 text-[10px]" onClick={() => { setRelationshipFilterMode('custom'); setCustomRelationshipTypes([]); }}>
+                    Clear All
+                  </Button>
+                </div>
+                <DropdownMenuSeparator />
+                {atlasRelationshipGroups.map((group) => (
+                  <div key={group.label}>
+                    <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/80">{group.label}</DropdownMenuLabel>
+                    {group.types.map((type) => (
+                      <DropdownMenuCheckboxItem
+                        key={type}
+                        checked={
+                          relationshipFilterMode === 'all'
+                            ? true
+                            : relationshipFilterMode === 'recommended'
+                              ? recommendedRelationshipTypes.includes(type)
+                              : customRelationshipTypes.includes(type)
+                        }
+                        onCheckedChange={(checked) => {
+                          setRelationshipFilterMode('custom');
+                          setCustomRelationshipTypes((prev) => (
+                            checked
+                              ? [...new Set([...prev, type])]
+                              : prev.filter((item) => item !== type)
+                          ));
+                        }}
+                        className="font-code text-[10px] uppercase tracking-wider"
+                      >
+                        {type.replace(/_/g, ' ')}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                  </div>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {mode === 'custom' && (
@@ -2221,18 +2224,18 @@ export function ConceptAtlas({
               <select
                 value={activeMap?.id || ''}
                 onChange={(event) => setActiveMapId(event.target.value)}
-                className="h-9 rounded-full border border-input bg-background px-4 font-code text-[11px] uppercase tracking-wider shadow-sm appearance-none cursor-pointer"
+                className="h-8 rounded-full border border-input bg-background px-4 font-code text-[11px] uppercase tracking-wider shadow-sm appearance-none cursor-pointer"
               >
                 {!atlasMaps.length && <option value="">No custom maps</option>}
                 {atlasMaps.map((map) => <option key={map.id} value={map.id}>{map.title}</option>)}
               </select>
-              <Button variant="outline" size="sm" className="rounded-full" onClick={() => setIsStyleOpen(true)} disabled={!activeMap}>
+              <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setIsStyleOpen(true)} disabled={!activeMap}>
                 <SlidersHorizontal className="mr-1.5 size-4" /> Map Style
               </Button>
-              <Button variant="outline" size="sm" className="rounded-full" onClick={() => setIsMapOpen(true)}><Plus className="mr-1.5 size-4" /> Custom Map</Button>
-              <Button variant="outline" size="sm" className="rounded-full" onClick={() => setIsNodeOpen(true)} disabled={!activeMap}><Plus className="mr-1.5 size-4" /> Add Node</Button>
+              <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setIsMapOpen(true)}><Plus className="mr-1.5 size-4" /> Custom Map</Button>
+              <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setIsNodeOpen(true)} disabled={!activeMap}><Plus className="mr-1.5 size-4" /> Add Node</Button>
               {activeMap && (
-                <Button variant="ghost" size="sm" onClick={() => onDeleteAtlasMap(activeMap.id)} className="text-destructive hover:text-destructive rounded-full">Delete Map</Button>
+                <Button variant="ghost" size="sm" onClick={() => onDeleteAtlasMap(activeMap.id)} className="h-8 text-destructive hover:text-destructive rounded-full">Delete Map</Button>
               )}
             </div>
           )}
@@ -2339,17 +2342,6 @@ export function ConceptAtlas({
                 <Button size="sm" variant="outline" className="rounded-full" onClick={() => setAutoConnectionFocus('moderate')}>Show Strong + Moderate</Button>
                 <Button size="sm" variant="outline" className="rounded-full" onClick={() => setAutoConnectionFocus('all')}>Show All Connections</Button>
                 <Button size="sm" className="rounded-full" onClick={() => setIsLinkOpen(true)} disabled={!selectedName}>Create Link</Button>
-              </div>
-            </div>
-          )}
-
-          {!isMapEmpty && isMapCrowded && (
-            <div className="absolute left-4 top-4 z-20 max-w-sm rounded-full border border-border bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">Crowded Map</Badge>
-                <span className="text-sm italic text-muted-foreground">Showing the strongest connections first.</span>
-                <Button size="sm" variant="outline" className="h-7 rounded-full px-3 text-[10px]" onClick={() => setAutoConnectionFocus('all')}>Show More</Button>
-                <Button size="sm" variant="ghost" className="h-7 rounded-full px-3 text-[10px]" onClick={() => setViewMode('full')}>Switch to Full Map</Button>
               </div>
             </div>
           )}
