@@ -2083,6 +2083,7 @@ export function ConceptAtlas({
     }
     if (item.positionId) {
       setPanelSection('evidence');
+      onOpenPosition?.(item.positionId);
       setIsPositionsOpen(true);
       return;
     }
@@ -2112,8 +2113,8 @@ export function ConceptAtlas({
 
   return (
     <div className={cn(
-      "relative flex min-h-screen w-full flex-col bg-background",
-      isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "overflow-hidden"
+      "relative flex w-full min-h-0 flex-col bg-background",
+      isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-[calc(100vh-3.5rem)] overflow-hidden"
     )}>
       {!isFullScreen && (
       <header className="z-20 mb-2 flex items-start justify-between gap-4 px-8 pt-6">
@@ -2244,63 +2245,63 @@ export function ConceptAtlas({
             <Stat value={visibleFamilies} label="Visible Families" />
             <Stat value={selectedName || 'None'} label="Active" />
           </div>
-          <div className="flex min-w-[280px] max-w-[620px] flex-1 items-center justify-end gap-2 rounded-full border border-accent/15 bg-white/92 px-3 py-2 shadow-sm">
-            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">Today</div>
-            <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">One next action</Badge>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-headline text-sm font-bold italic leading-none text-primary">{todayPrompt.title}</div>
-              <div className="truncate text-[11px] italic leading-4 text-muted-foreground font-body">{todayPrompt.body}</div>
+          <div className="flex min-w-[320px] max-w-[760px] flex-1 items-center justify-end gap-2">
+            <div className="flex min-w-[260px] flex-1 items-center gap-2 rounded-full border border-accent/15 bg-white/92 px-3 py-2 shadow-sm">
+              <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">Today</div>
+              <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">One next action</Badge>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-headline text-sm font-bold italic leading-none text-primary">{todayPrompt.title}</div>
+                <div className="truncate text-[11px] italic leading-4 text-muted-foreground font-body">{todayPrompt.body}</div>
+              </div>
+              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+                {viewMode === 'core' ? 'Core' : viewMode.replace(/_/g, ' ')}
+              </Badge>
+              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+                {autoConnectionFocus === 'strong' ? 'Strong' : autoConnectionFocus === 'moderate' ? 'Moderate' : 'All'}
+              </Badge>
             </div>
-            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
-              {viewMode === 'core' ? 'Core' : viewMode.replace(/_/g, ' ')}
-            </Badge>
-            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
-              {autoConnectionFocus === 'strong' ? 'Strong' : autoConnectionFocus === 'moderate' ? 'Moderate' : 'All'}
-            </Badge>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 pb-1">
-          <Badge variant="outline" className="rounded-full bg-white font-code text-[8px] uppercase tracking-widest text-muted-foreground">Needs Attention</Badge>
-          {attentionItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleAttentionItemClick(item)}
-              className={cn(
-                "flex min-h-[44px] items-center gap-2 rounded-full border px-4 py-2 text-left shadow-sm transition-colors",
-                item.tone === 'danger' && "border-rose-200 bg-rose-50/90 text-rose-900 hover:bg-rose-100",
-                item.tone === 'warning' && "border-amber-200 bg-amber-50/90 text-amber-900 hover:bg-amber-100",
-                item.tone === 'notice' && "border-sky-200 bg-sky-50/90 text-sky-900 hover:bg-sky-100"
+            <div className="flex items-center gap-2 rounded-full border border-border bg-white/96 px-2.5 py-1.5 shadow-sm">
+              <Badge variant="outline" className="rounded-full bg-white font-code text-[8px] uppercase tracking-widest text-muted-foreground">Needs Attention</Badge>
+              {attentionItems.length ? attentionItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  title={`${item.title}: ${item.detail}`}
+                  onClick={() => handleAttentionItemClick(item)}
+                  className={cn(
+                    "relative flex h-9 w-9 items-center justify-center rounded-full border transition-all hover:-translate-y-0.5 hover:scale-[1.03]",
+                    "before:absolute before:inset-0 before:rounded-full before:animate-pulse before:opacity-70",
+                    item.tone === 'danger' && "border-rose-300 bg-rose-50 text-rose-700 shadow-[0_0_18px_rgba(244,63,94,0.28)] before:bg-rose-200/40 hover:bg-rose-100",
+                    item.tone === 'warning' && "border-amber-300 bg-amber-50 text-amber-700 shadow-[0_0_18px_rgba(245,158,11,0.24)] before:bg-amber-200/40 hover:bg-amber-100",
+                    item.tone === 'notice' && "border-sky-300 bg-sky-50 text-sky-700 shadow-[0_0_18px_rgba(14,165,233,0.22)] before:bg-sky-200/40 hover:bg-sky-100"
+                  )}
+                >
+                  {item.icon === 'conflict' && <AlertTriangle className="relative z-10 size-4 shrink-0" />}
+                  {item.icon === 'evidence' && <Unlink2 className="relative z-10 size-4 shrink-0" />}
+                  {item.icon === 'practice' && <FlaskConical className="relative z-10 size-4 shrink-0" />}
+                  {item.icon === 'concept' && <Link2 className="relative z-10 size-4 shrink-0" />}
+                  {item.icon === 'inquiry' && <HelpCircle className="relative z-10 size-4 shrink-0" />}
+                  <span className="sr-only">{item.title}: {item.detail}</span>
+                </button>
+              )) : (
+                <span className="px-2 text-[11px] italic text-muted-foreground">Nothing urgent</span>
               )}
-            >
-              {item.icon === 'conflict' && <AlertTriangle className="size-4 shrink-0" />}
-              {item.icon === 'evidence' && <Unlink2 className="size-4 shrink-0" />}
-              {item.icon === 'practice' && <FlaskConical className="size-4 shrink-0" />}
-              {item.icon === 'concept' && <Link2 className="size-4 shrink-0" />}
-              {item.icon === 'inquiry' && <HelpCircle className="size-4 shrink-0" />}
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="whitespace-nowrap font-code text-[9px] uppercase tracking-widest">{item.title}</span>
-                <span className="truncate text-xs italic opacity-80">{item.detail}</span>
-              </span>
-            </button>
-          ))}
-          {!attentionItems.length && (
-            <span className="text-xs italic text-muted-foreground">Nothing urgent is surfacing in this map yet.</span>
-          )}
+            </div>
+          </div>
         </div>
       </div>
       )}
 
       <div className={cn(
         "flex min-h-0 flex-1 gap-4",
-        isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-visible px-8 pb-5"
+        isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-hidden px-8 pb-4"
       )}>
         <div
           ref={mapRef}
           className={cn(
-            "relative h-full min-h-0 flex-1 overflow-hidden border border-border bg-background shadow-inner",
+            "relative h-full min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-background shadow-inner",
             quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
-            isFullScreen ? "rounded-none" : "rounded-xl"
+            isFullScreen && "rounded-none"
           )}
           onClick={() => {
             if (quickLinkSource) clearQuickLinkMode();
