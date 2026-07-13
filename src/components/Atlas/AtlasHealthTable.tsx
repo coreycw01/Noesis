@@ -20,10 +20,12 @@ type HealthSort = 'weakest' | 'strongest' | 'stale' | 'tension' | 'recent';
 export function AtlasHealthTable({ rows, onOpenPosition }: AtlasHealthTableProps) {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<HealthSort>('weakest');
+  const [healthFilter, setHealthFilter] = useState<'all' | AtlasHealthRow['healthLabel']>('all');
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     const base = rows.filter((row) => {
+      if (healthFilter !== 'all' && row.healthLabel !== healthFilter) return false;
       if (!query) return true;
       return `${row.position.title} ${row.position.statement} ${row.position.description} ${row.healthLabel} ${row.nextAction}`.toLowerCase().includes(query);
     });
@@ -45,7 +47,23 @@ export function AtlasHealthTable({ rows, onOpenPosition }: AtlasHealthTableProps
             : b.tensionLevel - a.tensionLevel;
       }
     });
-  }, [rows, search, sort]);
+  }, [healthFilter, rows, search, sort]);
+
+  const summary = useMemo(() => ([
+    { label: 'Unsupported', value: rows.filter((row) => row.healthLabel === 'unsupported').length, tone: 'text-rose-700 bg-rose-50 border-rose-200' },
+    { label: 'Contradicted', value: rows.filter((row) => row.healthLabel === 'contradicted').length, tone: 'text-amber-700 bg-amber-50 border-amber-200' },
+    { label: 'Needs Practice', value: rows.filter((row) => row.healthLabel === 'needs practice' || row.healthLabel === 'untested').length, tone: 'text-sky-700 bg-sky-50 border-sky-200' },
+    { label: 'Stale', value: rows.filter((row) => row.healthLabel === 'stale').length, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
+  ]), [rows]);
+
+  const healthFilters: Array<{ value: 'all' | AtlasHealthRow['healthLabel']; label: string }> = [
+    { value: 'all', label: 'All' },
+    { value: 'unsupported', label: 'Unsupported' },
+    { value: 'contradicted', label: 'Contradicted' },
+    { value: 'needs practice', label: 'Needs Practice' },
+    { value: 'under-challenged', label: 'Under-Challenged' },
+    { value: 'stale', label: 'Stale' },
+  ];
 
   return (
     <div className="space-y-5">
@@ -73,6 +91,28 @@ export function AtlasHealthTable({ rows, onOpenPosition }: AtlasHealthTableProps
               </SelectContent>
             </Select>
           </div>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {summary.map((item) => (
+            <div key={item.label} className={`rounded-2xl border px-4 py-3 ${item.tone}`}>
+              <div className="font-code text-[9px] uppercase tracking-widest">{item.label}</div>
+              <div className="mt-2 font-headline text-2xl font-semibold italic">{item.value}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {healthFilters.map((item) => (
+            <Button
+              key={item.value}
+              type="button"
+              variant={healthFilter === item.value ? 'default' : 'outline'}
+              size="sm"
+              className="rounded-full"
+              onClick={() => setHealthFilter(item.value)}
+            >
+              {item.label}
+            </Button>
+          ))}
         </div>
       </Card>
 

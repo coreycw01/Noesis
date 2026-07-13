@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { BrainCircuit, FlaskConical, HelpCircle, Library, PenTool, RefreshCcw, ShieldCheck, Sparkles, TriangleAlert } from 'lucide-react';
+import { BrainCircuit, FlaskConical, HelpCircle, Library, PenTool, RefreshCcw, Sparkles, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -106,6 +106,16 @@ export function AtlasPositionCanvas({ row, onOpenConcept, onOpenQuestion, onOpen
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
+        <CanvasGroup title="Source Evidence" icon={<Library className="size-4 text-emerald-700" />}>
+          <div className="space-y-2">
+            {row.supportSources.length ? row.supportSources.map((source) => (
+              <div key={source.id} className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+                <div className="font-headline text-lg font-semibold italic text-foreground">{source.title}</div>
+                <div className="text-sm text-muted-foreground">{source.creator || source.publisher || source.url || 'Linked source'}</div>
+              </div>
+            )) : <p className="text-sm italic text-muted-foreground">No source objects are attached yet.</p>}
+          </div>
+        </CanvasGroup>
         <CanvasGroup title="Practices / Tests" icon={<FlaskConical className="size-4 text-sky-600" />}>
           <div className="space-y-2">
             {row.linkedPractices.length ? row.linkedPractices.map((practice) => (
@@ -126,28 +136,17 @@ export function AtlasPositionCanvas({ row, onOpenConcept, onOpenQuestion, onOpen
             )) : <p className="text-sm italic text-muted-foreground">No inquiry is currently attached to this position.</p>}
           </div>
         </CanvasGroup>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
         <CanvasGroup title="Works Expressing It" icon={<PenTool className="size-4 text-fuchsia-600" />}>
           <div className="space-y-2">
             {row.linkedDrafts.length ? row.linkedDrafts.map((draft) => (
               <button key={draft.id} type="button" className="block w-full rounded-2xl border border-border/60 bg-muted/15 p-3 text-left transition-colors hover:border-accent/40" onClick={() => onOpenDraft?.(draft.id)}>
                 <div className="font-headline text-lg font-semibold italic text-foreground">{draft.title}</div>
-                <div className="text-sm text-muted-foreground">{draft.status} · {draft.type}</div>
+                <div className="text-sm text-muted-foreground">{draft.status} - {draft.type}</div>
               </button>
             )) : <p className="text-sm italic text-muted-foreground">No work is currently expressing this position.</p>}
-          </div>
-        </CanvasGroup>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
-        <CanvasGroup title="Revision History" icon={<RefreshCcw className="size-4 text-slate-600" />}>
-          <div className="space-y-2">
-            {(row.position.versionHistory || []).length ? row.position.versionHistory?.map((version, index) => (
-              <div key={`${version.date}-${index}`} className="rounded-2xl border border-border/60 bg-muted/15 p-3">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{version.eventType || 'revision'} · {new Date(version.date).toLocaleDateString()}</div>
-                <div className="mt-2 text-sm leading-6 text-muted-foreground">{version.description}</div>
-                {version.reason && <div className="mt-2 text-xs italic text-muted-foreground">Reason: {version.reason}</div>}
-              </div>
-            )) : <p className="text-sm italic text-muted-foreground">No revision history has been recorded yet.</p>}
           </div>
         </CanvasGroup>
         <CanvasGroup title="AI Critique" icon={<Sparkles className="size-4 text-amber-500" />}>
@@ -157,6 +156,41 @@ export function AtlasPositionCanvas({ row, onOpenConcept, onOpenQuestion, onOpen
               <Button variant="outline" size="sm" className="rounded-full">Challenge Position</Button>
               <Button variant="outline" size="sm" className="rounded-full">Find Assumption</Button>
               <Button variant="outline" size="sm" className="rounded-full">Suggest Practice</Button>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Next pressure point</div>
+              <div className="mt-2 font-headline text-lg font-semibold italic text-foreground">{row.nextAction}</div>
+              <div className="mt-1 text-sm text-muted-foreground">This is the strongest deterministic next move based on current support, challenge, practice, and revision signals.</div>
+            </div>
+          </div>
+        </CanvasGroup>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
+        <CanvasGroup title="Revision History" icon={<RefreshCcw className="size-4 text-slate-600" />}>
+          <div className="space-y-2">
+            {(row.position.versionHistory || []).length ? row.position.versionHistory?.map((version, index) => (
+              <div key={`${version.date}-${index}`} className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{version.eventType || 'revision'} - {new Date(version.date).toLocaleDateString()}</div>
+                <div className="mt-2 text-sm leading-6 text-muted-foreground">{version.description}</div>
+                {version.reason && <div className="mt-2 text-xs italic text-muted-foreground">Reason: {version.reason}</div>}
+              </div>
+            )) : <p className="text-sm italic text-muted-foreground">No revision history has been recorded yet.</p>}
+          </div>
+        </CanvasGroup>
+        <CanvasGroup title="Decision Pressure" icon={<TriangleAlert className="size-4 text-rose-500" />}>
+          <div className="space-y-3 text-sm leading-6 text-muted-foreground">
+            <div className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Health label</div>
+              <div className="mt-2 font-headline text-lg font-semibold italic text-foreground">{row.healthLabel}</div>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Tension level</div>
+              <div className="mt-2 font-headline text-lg font-semibold italic text-foreground">{row.tensionLevel}</div>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Next move</div>
+              <div className="mt-2 font-headline text-lg font-semibold italic text-foreground">{row.nextAction}</div>
             </div>
           </div>
         </CanvasGroup>

@@ -390,7 +390,7 @@ export function ConceptAtlas({
       description: 'Inspect what one belief is built on, what challenges it, and what should happen to it next.',
     },
     graph: {
-      label: 'Graph View',
+      label: 'Map View',
       description: 'Explore Atlas visually through concepts, positions, practices, and typed links.',
     },
   };
@@ -2154,24 +2154,6 @@ export function ConceptAtlas({
     return items.slice(0, 5);
   }, [concepts, drafts, insights, links, media, onDeleteLink, practices, questions, timeline, vault]);
 
-  const handleAttentionItemClick = (item: AttentionItem) => {
-    setIsPanelOpen(true);
-    if (item.conceptName) {
-      setSelectedName(item.conceptName);
-    }
-    if (item.link) {
-      openLinkDetail(item.link);
-      return;
-    }
-    if (item.positionId) {
-      openPositionCanvas(item.positionId);
-      return;
-    }
-    if (item.questionId) {
-      onOpenQuestion?.(item.questionId);
-    }
-  };
-
   const disableSharedAutoFiltersForLink = (link: AtlasLinkItem) => {
     if (mode !== 'custom' || !activeMap || link.kind !== 'shared') return;
     const objectTypes = link.objectTypes || [];
@@ -2227,7 +2209,7 @@ export function ConceptAtlas({
             ['health', 'Idea Health'],
             ['tensions', 'Tensions'],
             ['position', 'Position Canvas'],
-            ['graph', 'Graph View'],
+            ['graph', 'Map View'],
           ] as Array<[AtlasSection, string]>).map(([section, label]) => (
             <Button
               key={section}
@@ -2354,48 +2336,13 @@ export function ConceptAtlas({
             <Stat value={visibleFamilies} label="Visible Families" />
             <Stat value={selectedName || 'None'} label="Active" />
           </div>
-          <div className="flex min-w-[320px] max-w-[760px] flex-1 items-center justify-end gap-2">
-            <div className="flex min-w-[260px] flex-1 items-center gap-2 rounded-full border border-accent/15 bg-white/92 px-3 py-2 shadow-sm">
-              <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">Today</div>
-              <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">One next action</Badge>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-headline text-sm font-bold italic leading-none text-primary">{todayPrompt.title}</div>
-                <div className="truncate text-[11px] italic leading-4 text-muted-foreground font-body">{todayPrompt.body}</div>
-              </div>
-              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
-                {viewMode === 'core' ? 'Core' : viewMode.replace(/_/g, ' ')}
-              </Badge>
-              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
-                {autoConnectionFocus === 'strong' ? 'Strong' : autoConnectionFocus === 'moderate' ? 'Moderate' : 'All'}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-2 rounded-full border border-border bg-white/96 px-2.5 py-1.5 shadow-sm">
-              <Badge variant="outline" className="rounded-full bg-white font-code text-[8px] uppercase tracking-widest text-muted-foreground">Needs Attention</Badge>
-              {attentionItems.length ? attentionItems.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  title={`${item.title}: ${item.detail}`}
-                  onClick={() => handleAttentionItemClick(item)}
-                  className={cn(
-                    "relative flex h-9 w-9 items-center justify-center rounded-full border transition-all hover:-translate-y-0.5 hover:scale-[1.03]",
-                    "before:absolute before:inset-0 before:rounded-full before:animate-pulse before:opacity-70",
-                    item.tone === 'danger' && "border-rose-300 bg-rose-50 text-rose-700 shadow-[0_0_18px_rgba(244,63,94,0.28)] before:bg-rose-200/40 hover:bg-rose-100",
-                    item.tone === 'warning' && "border-amber-300 bg-amber-50 text-amber-700 shadow-[0_0_18px_rgba(245,158,11,0.24)] before:bg-amber-200/40 hover:bg-amber-100",
-                    item.tone === 'notice' && "border-sky-300 bg-sky-50 text-sky-700 shadow-[0_0_18px_rgba(14,165,233,0.22)] before:bg-sky-200/40 hover:bg-sky-100"
-                  )}
-                >
-                  {item.icon === 'conflict' && <AlertTriangle className="relative z-10 size-4 shrink-0" />}
-                  {item.icon === 'evidence' && <Unlink2 className="relative z-10 size-4 shrink-0" />}
-                  {item.icon === 'practice' && <FlaskConical className="relative z-10 size-4 shrink-0" />}
-                  {item.icon === 'concept' && <Link2 className="relative z-10 size-4 shrink-0" />}
-                  {item.icon === 'inquiry' && <HelpCircle className="relative z-10 size-4 shrink-0" />}
-                  <span className="sr-only">{item.title}: {item.detail}</span>
-                </button>
-              )) : (
-                <span className="px-2 text-[11px] italic text-muted-foreground">Nothing urgent</span>
-              )}
-            </div>
+          <div className="flex items-center justify-end gap-2">
+            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+              {viewMode === 'core' ? 'Core' : viewMode.replace(/_/g, ' ')}
+            </Badge>
+            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+              {autoConnectionFocus === 'strong' ? 'Strong' : autoConnectionFocus === 'moderate' ? 'Moderate' : 'All'}
+            </Badge>
           </div>
         </div>
         </>
@@ -2408,6 +2355,8 @@ export function ConceptAtlas({
           {atlasSection === 'overview' && (
             <AtlasOverview
               overview={overviewData}
+              todayPrompt={todayPrompt}
+              attentionItems={attentionItems}
               onOpenPosition={openPositionCanvas}
               onOpenQuestion={(id) => onOpenQuestion?.(id)}
               onOpenConcept={openConceptInGraph}

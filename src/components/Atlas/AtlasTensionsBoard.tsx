@@ -44,23 +44,48 @@ export function AtlasTensionsBoard({ grouped, onOpenPosition, onOpenQuestion, on
     }
   };
 
+  const totalTensions = Object.values(grouped).reduce((sum, items) => sum + items.length, 0);
+
   return (
     <div className="space-y-5">
       <Card className="rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm">
-        <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">Tensions</Badge>
-        <h2 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">Where does my thinking need work?</h2>
-        <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
-          Atlas should create pressure in the right places. This board surfaces the gaps, contradictions, and under-tested ideas that need deliberate attention.
-        </p>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">Tensions</Badge>
+            <h2 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">Where does my thinking need work?</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
+              Atlas should create pressure in the right places. This board surfaces the gaps, contradictions, and under-tested ideas that need deliberate attention.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
+              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Open tensions</div>
+              <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">{totalTensions}</div>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
+              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Highest pressure</div>
+              <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">{grouped.contradictory.length + grouped.needs_evidence.length}</div>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
+              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Needs practice</div>
+              <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">{grouped.needs_practice.length}</div>
+            </div>
+          </div>
+        </div>
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-3 2xl:grid-cols-4">
         {COLUMN_META.map((column) => (
           <Card key={column.id} className="flex min-h-[280px] flex-col rounded-3xl border border-border/60 bg-card/85 p-4 shadow-sm">
             <div className="mb-4 space-y-2">
-              <div className="flex items-center gap-2">
-                {column.icon}
-                <h3 className="font-headline text-xl font-semibold italic text-foreground">{column.label}</h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {column.icon}
+                  <h3 className="font-headline text-xl font-semibold italic text-foreground">{column.label}</h3>
+                </div>
+                <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">
+                  {grouped[column.id].length}
+                </Badge>
               </div>
               <p className="text-sm leading-6 text-muted-foreground">{column.description}</p>
             </div>
@@ -76,7 +101,10 @@ export function AtlasTensionsBoard({ grouped, onOpenPosition, onOpenQuestion, on
                       <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{item.severity}</Badge>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-2">
-                      <span className="font-code text-[9px] uppercase tracking-widest text-accent">{item.actionLabel}</span>
+                      <div className="space-y-1">
+                        <span className="block font-code text-[9px] uppercase tracking-widest text-accent">{item.actionLabel}</span>
+                        <span className="block text-[11px] text-muted-foreground">Open the linked object and resolve the pressure directly.</span>
+                      </div>
                       <Button variant="ghost" size="sm" className="h-8 rounded-full px-3" onClick={(event) => { event.stopPropagation(); openItem(item); }}>
                         Open
                       </Button>
