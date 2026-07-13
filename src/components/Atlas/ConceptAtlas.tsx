@@ -22,6 +22,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { AtlasHealthTable } from '@/components/Atlas/AtlasHealthTable';
+import { AtlasOverview } from '@/components/Atlas/AtlasOverview';
+import { AtlasPositionCanvas } from '@/components/Atlas/AtlasPositionCanvas';
+import { AtlasTensionsBoard } from '@/components/Atlas/AtlasTensionsBoard';
 import { SourceLinker } from '@/components/SourceLinker';
 import { initializeFirebase } from '@/firebase';
 import type {
@@ -49,6 +53,7 @@ import type {
 import { conceptKey, conceptRelated, conceptTerms, taggedItemsForConcept, today, uid as makeId } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { deleteObject, getDownloadURL, getStorage, ref as storageRef, uploadBytes } from 'firebase/storage';
+import { AtlasSection, deriveAtlasHealthRows, deriveAtlasOverview, deriveAtlasTensions, groupTensions } from './atlas-diagnostics';
 
 interface ConceptAtlasProps {
   concepts: Concept[];
@@ -72,6 +77,7 @@ interface ConceptAtlasProps {
   onDeleteLink?: (id: string, options?: { method?: string }) => void;
   onInteractLink?: (id: string) => void;
   onOpenPosition?: (id: string) => void;
+  onOpenQuestion?: (id: string) => void;
   uid?: string;
 }
 
@@ -159,6 +165,11 @@ const defaultAtlasMapStyle: AtlasMapStyle = {
   nodeStyle: 'default',
   showWeakLinks: false,
 };
+const ATLAS_BASE_ZOOM = 0.8;
+const ATLAS_MIN_ZOOM = 0.45;
+const ATLAS_MAX_ZOOM = 1.7;
+const ATLAS_ZOOM_STEP = 0.08;
+const ATLAS_ZOOM_STORAGE_KEY = 'noesis.atlas.zoom';
 
 const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'depends_on', 'explains', 'explained_by', 'derived_from', 'references', 'replaces', 'questions', 'expands', 'weakens', 'strengthens', 'relates', 'custom'];
 const highImportanceLinkTypes = new Set<AtlasMapLinkType | PhilosophicalLinkType>(['contradicts', 'supports', 'challenges', 'depends_on', 'strengthens', 'weakens', 'tested_by', 'changed_by', 'refines']);
@@ -258,11 +269,14 @@ export function ConceptAtlas({
   onInteractLink,
   uid,
   onOpenPosition,
+  onOpenQuestion,
 }: ConceptAtlasProps) {
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(ATLAS_BASE_ZOOM);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
+  const [atlasSection, setAtlasSection] = useState<AtlasSection>('overview');
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [linkSearch, setLinkSearch] = useState('');
   const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('moderate');
   const [viewMode, setViewMode] = useState<AtlasViewMode>('core');
@@ -308,6 +322,20 @@ export function ConceptAtlas({
   const suppressNextEdgeClickRef = useRef(false);
   const edgeHoverInteractionRef = useRef<Record<string, number>>({});
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem(ATLAS_ZOOM_STORAGE_KEY);
+    if (!stored) return;
+    const parsed = Number(stored);
+    if (!Number.isFinite(parsed)) return;
+    setZoom(Math.min(ATLAS_MAX_ZOOM, Math.max(ATLAS_MIN_ZOOM, parsed)));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(ATLAS_ZOOM_STORAGE_KEY, String(zoom));
+  }, [zoom]);
+
   const terms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
   const activeMap = atlasMaps.find((map) => map.id === activeMapId) || atlasMaps[0] || null;
   const activeMapStyle = useMemo(
@@ -330,6 +358,48 @@ export function ConceptAtlas({
     () => recommendedRelationshipTypesByViewMode[viewMode],
     [viewMode]
   );
+  const healthRows = useMemo(
+    () => deriveAtlasHealthRows({ vault, concepts, media, practices, questions, drafts, links, thinkingEvents }),
+    [vault, concepts, media, practices, questions, drafts, links, thinkingEvents]
+  );
+  const tensionItems = useMemo(() => deriveAtlasTensions(healthRows), [healthRows]);
+  const groupedTensions = useMemo(() => groupTensions(tensionItems), [tensionItems]);
+  const overviewData = useMemo(
+    () => deriveAtlasOverview({ rows: healthRows, tensions: tensionItems, concepts, practices, questions, timeline, thinkingEvents }),
+    [healthRows, tensionItems, concepts, practices, questions, timeline, thinkingEvents]
+  );
+  const selectedHealthRow = useMemo(
+    () => healthRows.find((row) => row.position.id === selectedPositionId) || null,
+    [healthRows, selectedPositionId]
+  );
+  const atlasSectionMeta: Record<AtlasSection, { label: string; description: string }> = {
+    overview: {
+      label: 'Overview',
+      description: 'See the current state of your worldview before you drop into detail.',
+    },
+    health: {
+      label: 'Idea Health',
+      description: 'Review which positions are strong, weak, stale, or under pressure.',
+    },
+    tensions: {
+      label: 'Tensions',
+      description: 'Surface contradictions, missing evidence, and ideas that need work.',
+    },
+    position: {
+      label: 'Position Canvas',
+      description: 'Inspect what one belief is built on, what challenges it, and what should happen to it next.',
+    },
+    graph: {
+      label: 'Graph View',
+      description: 'Explore Atlas visually through concepts, positions, practices, and typed links.',
+    },
+  };
+
+  useEffect(() => {
+    if (atlasSection !== 'graph' && isFullScreen) {
+      setIsFullScreen(false);
+    }
+  }, [atlasSection, isFullScreen]);
   const activeRelationshipTypes = useMemo(() => {
     if (relationshipFilterMode === 'all') return [] as PhilosophicalLinkType[];
     if (relationshipFilterMode === 'recommended') return recommendedRelationshipTypes;
@@ -936,6 +1006,18 @@ export function ConceptAtlas({
       body: 'Add an Evolution note for the clearest shift in your thinking this week.',
     };
   }, [media, practices, questions, vault]);
+
+  const openConceptInGraph = (name: string) => {
+    setSelectedName(name);
+    setIsPanelOpen(true);
+    setPanelSection('evidence');
+    setAtlasSection('graph');
+  };
+
+  const openPositionCanvas = (id: string) => {
+    setSelectedPositionId(id);
+    setAtlasSection('position');
+  };
 
   const availableNodeTerms = useMemo(() => {
     const existingNames = new Set(nodes.map(n => conceptKey(n.name)));
@@ -2082,14 +2164,11 @@ export function ConceptAtlas({
       return;
     }
     if (item.positionId) {
-      setPanelSection('evidence');
-      onOpenPosition?.(item.positionId);
-      setIsPositionsOpen(true);
+      openPositionCanvas(item.positionId);
       return;
     }
     if (item.questionId) {
-      setPanelSection('evidence');
-      setRelatedDialogType('inquiries');
+      onOpenQuestion?.(item.questionId);
     }
   };
 
@@ -2109,7 +2188,6 @@ export function ConceptAtlas({
   };
 
   const isMapEmpty = visibleEdges.length === 0;
-  const isMapCrowded = visibleEdges.length > 60 || visibleFamilies > 20;
 
   return (
     <div className={cn(
@@ -2119,23 +2197,51 @@ export function ConceptAtlas({
       {!isFullScreen && (
       <header className="z-20 mb-1 flex items-start justify-between gap-4 px-8 pt-4">
         <div className="min-w-0 flex-1">
-          <h1 className="font-headline text-[28px] font-semibold italic">Atlas</h1>
-          <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">Map the relationships between concepts, sources, inquiries, positions, works, and practices.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-headline text-[28px] font-semibold italic">Atlas</h1>
+            <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{atlasSectionMeta[atlasSection].label}</Badge>
+          </div>
+          <p className="mt-1 max-w-3xl text-sm leading-5 text-muted-foreground">{atlasSectionMeta[atlasSection].description}</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-56 pl-9 rounded-full" />
-          </div>
-          <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90 rounded-full">
-            <Plus className="mr-1.5 size-4" /> New Concept
-          </Button>
+          {atlasSection === 'graph' && (
+            <>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-56 pl-9 rounded-full" />
+              </div>
+              <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90 rounded-full">
+                <Plus className="mr-1.5 size-4" /> New Concept
+              </Button>
+            </>
+          )}
         </div>
       </header>
       )}
 
       {!isFullScreen && (
       <div className="z-10 space-y-2 px-8 pb-1">
+        <div className="flex flex-wrap items-center gap-2">
+          {([
+            ['overview', 'Overview'],
+            ['health', 'Idea Health'],
+            ['tensions', 'Tensions'],
+            ['position', 'Position Canvas'],
+            ['graph', 'Graph View'],
+          ] as Array<[AtlasSection, string]>).map(([section, label]) => (
+            <Button
+              key={section}
+              variant={atlasSection === section ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 rounded-full"
+              onClick={() => setAtlasSection(section)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+        {atlasSection === 'graph' && (
+        <>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 rounded-full border border-border bg-white p-1 shadow-sm">
             <Button variant={mode === 'auto' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('auto')} className="h-8 rounded-full">Auto Map</Button>
@@ -2292,9 +2398,48 @@ export function ConceptAtlas({
             </div>
           </div>
         </div>
+        </>
+        )}
       </div>
       )}
 
+      {atlasSection !== 'graph' && !isFullScreen && (
+        <div className="flex-1 overflow-y-auto px-8 pb-6 pt-2">
+          {atlasSection === 'overview' && (
+            <AtlasOverview
+              overview={overviewData}
+              onOpenPosition={openPositionCanvas}
+              onOpenQuestion={(id) => onOpenQuestion?.(id)}
+              onOpenConcept={openConceptInGraph}
+              onOpenTensions={() => setAtlasSection('tensions')}
+            />
+          )}
+          {atlasSection === 'health' && (
+            <AtlasHealthTable
+              rows={healthRows}
+              onOpenPosition={openPositionCanvas}
+            />
+          )}
+          {atlasSection === 'tensions' && (
+            <AtlasTensionsBoard
+              grouped={groupedTensions}
+              onOpenPosition={openPositionCanvas}
+              onOpenQuestion={(id) => onOpenQuestion?.(id)}
+              onOpenConcept={openConceptInGraph}
+            />
+          )}
+          {atlasSection === 'position' && (
+            <AtlasPositionCanvas
+              row={selectedHealthRow}
+              onOpenConcept={openConceptInGraph}
+              onOpenQuestion={(id) => onOpenQuestion?.(id)}
+              onBackToHealth={() => setAtlasSection('health')}
+            />
+          )}
+        </div>
+      )}
+
+      {atlasSection === 'graph' && (
       <div className={cn(
         "flex min-h-0 flex-1 gap-4",
         isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-hidden px-8 pb-4"
@@ -2322,9 +2467,9 @@ export function ConceptAtlas({
             />
           )}
           <div className="absolute right-4 top-4 z-30 flex h-9 rounded-full border border-border/50 bg-white/90 p-1 shadow-md backdrop-blur">
-            <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.max(0.5, z - 0.1)); }} className="h-7 w-7 rounded-full font-bold">-</Button>
-            <div className="flex w-10 items-center justify-center font-code text-[10px] font-bold text-primary/60">{Math.round(zoom * 100)}%</div>
-            <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.min(2, z + 0.1)); }} className="h-7 w-7 rounded-full font-bold">+</Button>
+            <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.max(ATLAS_MIN_ZOOM, z - ATLAS_ZOOM_STEP)); }} className="h-7 w-7 rounded-full font-bold">-</Button>
+            <div className="flex w-10 items-center justify-center font-code text-[10px] font-bold text-primary/60">{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</div>
+            <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.min(ATLAS_MAX_ZOOM, z + ATLAS_ZOOM_STEP)); }} className="h-7 w-7 rounded-full font-bold">+</Button>
             <div className="mx-1 my-1 w-px bg-border" />
             <Button variant={isPanelOpen ? 'secondary' : 'ghost'} size="icon" onClick={(event) => { event.stopPropagation(); setIsPanelOpen((open) => !open); }} className="h-7 w-7 rounded-full">
               <SlidersHorizontal className="size-3.5" />
@@ -2619,8 +2764,9 @@ export function ConceptAtlas({
         </div>
         {!isFullScreen && isPanelOpen && atlasPanel}
       </div>
+      )}
 
-      {isFullScreen && isPanelOpen && atlasPanel}
+      {atlasSection === 'graph' && isFullScreen && isPanelOpen && atlasPanel}
 
       <Dialog open={!!selectedLink} onOpenChange={(open) => !open && setSelectedLink(null)}>
         <DialogContent className="max-w-lg border-none shadow-2xl rounded-2xl">
@@ -2767,7 +2913,7 @@ export function ConceptAtlas({
                     className="cursor-pointer"
                     onClick={() => {
                       setIsPositionsOpen(false);
-                      onOpenPosition?.(position.id);
+                      openPositionCanvas(position.id);
                     }}
                   >
                     <TableCell>

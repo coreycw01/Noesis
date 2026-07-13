@@ -1961,6 +1961,10 @@ function ReadexWorkspace({
               setFocusedPositionId(id);
               setView('vault');
             }}
+            onOpenQuestion={(id) => {
+              setFocusedQuestionId(id);
+              setView('questions');
+            }}
           />
         );
       case 'concepts':
