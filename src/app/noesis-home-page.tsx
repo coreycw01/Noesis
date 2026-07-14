@@ -1965,6 +1965,16 @@ function ReadexWorkspace({
               setFocusedQuestionId(id);
               setView('questions');
             }}
+            onOpenSource={(id) => {
+              setFocusedSourceId(id);
+              setView('library');
+            }}
+            onOpenWriting={() => {
+              setView('writing');
+            }}
+            onOpenPractices={() => {
+              setView('practices');
+            }}
           />
         );
       case 'concepts':
@@ -2091,6 +2101,20 @@ function ReadexWorkspace({
             onAddUnknown={addUnknown}
             onUpdateSuggestion={updateAiSuggestion}
             onCreateSuggestion={addAiSuggestion}
+            onOpenSource={(id) => {
+              setFocusedSourceId(id);
+              setView('library');
+            }}
+            onOpenQuestion={(id) => {
+              setFocusedQuestionId(id);
+              setView('questions');
+            }}
+            onOpenPractice={() => {
+              setView('practices');
+            }}
+            onOpenWork={() => {
+              setView('writing');
+            }}
             focusedEntryId={focusedPositionId}
             onFocusedEntryHandled={() => setFocusedPositionId(null)}
           />

@@ -48,6 +48,10 @@ interface BeliefVaultProps {
   onUpdateSuggestion: (suggestion: AiSuggestion) => void;
   onCreateSuggestion: (suggestion: Partial<AiSuggestion>) => void;
   onUpdateLink?: (link: PhilosophicalLink) => void;
+  onOpenSource?: (id: string) => void;
+  onOpenQuestion?: (id: string) => void;
+  onOpenPractice?: (id: string) => void;
+  onOpenWork?: (id: string) => void;
   focusedEntryId?: string | null;
   onFocusedEntryHandled?: () => void;
 }
@@ -88,12 +92,13 @@ function safePositionDate(value?: string) {
   return Number.isNaN(date.getTime()) ? new Date().toLocaleDateString() : date.toLocaleDateString();
 }
 
-export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, suggestions, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onCreateIdea, onAddUnknown, onUpdateSuggestion, onCreateSuggestion, onUpdateLink, focusedEntryId, onFocusedEntryHandled }: BeliefVaultProps) {
+export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, suggestions, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onCreateIdea, onAddUnknown, onUpdateSuggestion, onCreateSuggestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | VaultType | 'ideas'>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'relations' | 'history'>('overview');
   const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'active', tags: [] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
   const { toast } = useToast();
@@ -194,6 +199,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     if (!focusedEntryId) return;
     if (safeEntries.some((entry) => entry.id === focusedEntryId)) {
       setSelectedId(focusedEntryId);
+      setDetailTab('overview');
       onFocusedEntryHandled?.();
     }
   }, [safeEntries, focusedEntryId, onFocusedEntryHandled]);
@@ -224,12 +230,30 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   if (selected) {
     const linkedSources = media.filter((item) => (selected.sourceIds || []).includes(item.id));
     const linkedDrafts = drafts.filter((draft) => (draft.beliefIds || []).includes(selected.id));
+    const linkedPractices = practices.filter((practice) => (practice.positionIds || []).includes(selected.id));
+    const linkedQuestions = questions.filter((question) => (question.beliefIds || []).includes(selected.id));
     const typedLinks = links.filter((link) => (link.fromType === 'position' && link.fromId === selected.id) || (link.toType === 'position' && link.toId === selected.id));
     const tensionLinks = typedLinks.filter((link) => link.type === 'contradicts' || link.type === 'challenges' || link.note?.toLowerCase().includes('tension'));
+    const relatedPositions = safeEntries.filter((entry) =>
+      entry.id !== selected.id &&
+      typedLinks.some((link) =>
+        (link.fromId === entry.id && link.toId === selected.id) ||
+        (link.toId === entry.id && link.fromId === selected.id)
+      )
+    );
     const beliefProfile = beliefProfiles.find((item) => item.positionId === selected.id);
     const linkedUnknowns = unknowns.filter((item) => (item.positionIds || []).includes(selected.id));
     const positionSuggestions = suggestions.filter((item) => item.targetType === 'position' && item.targetId === selected.id);
     const firstLinkedSource = linkedSources[0];
+    const strongestObjection = tensionLinks[0]?.note || selected.evidenceAgainst?.[0] || 'No direct objection has been articulated yet.';
+    const strongestSupport = selected.evidenceFor?.[0] || linkedSources[0]?.title || 'No direct support has been recorded yet.';
+    const latestRevision = [...(selected.versionHistory || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    const reviewTabs: Array<{ id: 'overview' | 'evidence' | 'relations' | 'history'; label: string }> = [
+      { id: 'overview', label: 'Overview' },
+      { id: 'evidence', label: 'Evidence' },
+      { id: 'relations', label: 'Relations' },
+      { id: 'history', label: 'History' },
+    ];
 
     const createMissingPerspective = async () => {
       try {
@@ -336,8 +360,30 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
         <Card className="p-6 mb-6 bg-white border-border/50 shadow-sm rounded-xl">
           <Badge variant="outline" className="mb-3 font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
-          <h1 className="font-headline text-4xl font-bold mb-3">{selected.title}</h1>
-          <p className="font-body text-lg italic text-primary/80 mb-4">{selected.statement || selected.description}</p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="font-headline text-4xl font-bold mb-3">{selected.title}</h1>
+              <p className="font-body text-lg italic text-primary/80 mb-4">{selected.statement || selected.description}</p>
+            </div>
+            <div className="grid min-w-[220px] gap-2 rounded-xl border border-border/50 bg-muted/10 p-4">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-code uppercase tracking-widest text-muted-foreground">Confidence</span>
+                <span className="font-headline text-lg font-semibold italic">{selected.confidence}/5</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-code uppercase tracking-widest text-muted-foreground">Support</span>
+                <span className="font-headline text-lg font-semibold italic">{(selected.evidenceFor || []).length}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-code uppercase tracking-widest text-muted-foreground">Challenge</span>
+                <span className="font-headline text-lg font-semibold italic">{(selected.evidenceAgainst || []).length + tensionLinks.length}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-code uppercase tracking-widest text-muted-foreground">Practices</span>
+                <span className="font-headline text-lg font-semibold italic">{linkedPractices.length}</span>
+              </div>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-2">
             {(selected.tags || []).map((tag) => (
               <button 
@@ -444,133 +490,337 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           />
         </div>
 
-        <TensionResolutionPanel
-          selected={selected}
-          tensionLinks={tensionLinks}
-          onUpdateEntry={onUpdateEntry}
-          onUpdateLink={onUpdateLink}
-        />
+        <div className="mb-6 flex flex-wrap gap-2">
+          {reviewTabs.map((tab) => (
+            <Button
+              key={tab.id}
+              variant={detailTab === tab.id ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDetailTab(tab.id)}
+              className="rounded-full"
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Belief Biography</div>
-                <h3 className="mt-1 font-headline text-2xl font-bold italic">How this position has changed</h3>
-              </div>
-              <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                {beliefProfile?.reviewStatus || 'current'}
-              </Badge>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <InfoPanel title="Created From" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
-              <InfoPanel title="Confidence History" items={[`Current confidence: ${selected.confidenceScore ?? selected.confidence ?? 3}/5`, `Evidence quality: ${beliefProfile?.evidenceQuality || selected.evidenceQuality || 'unscored'}`, `Stress tests: ${beliefProfile?.testingCount ?? selected.testingCount ?? 0}`]} empty="No confidence history yet." />
-              <InfoPanel title="Strengthened By" items={beliefProfile?.strengthenedBy || []} empty="No supporting developments recorded yet." />
-              <InfoPanel title="Challenged By" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
-              <InfoPanel title="Weakened By" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
-              <InfoPanel title="Linked Unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />
-            </div>
-          </Card>
+        {detailTab === 'overview' && (
+          <>
+            <TensionResolutionPanel
+              selected={selected}
+              tensionLinks={tensionLinks}
+              onUpdateEntry={onUpdateEntry}
+              onUpdateLink={onUpdateLink}
+            />
 
-          <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">AI Review</div>
-                <h3 className="mt-1 font-headline text-2xl font-bold italic">Pressure, questions, and perspective</h3>
-              </div>
-              <GenerativeAiIcon className="size-10" />
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" className="rounded-full" onClick={createMissingPerspective}>Suggest Perspective</Button>
-              <Button size="sm" variant="outline" className="rounded-full" onClick={createMissingQuestions}>Suggest Question</Button>
-              <Button size="sm" className="rounded-full" onClick={createStressTests}>Generate Stress Test</Button>
-            </div>
-            {(stressTests.length > 0 || positionSuggestions.length > 0) && (
-              <div className="mt-4 space-y-3">
-                {stressTests.map((prompt) => (
-                  <div key={`${prompt.kind}:${prompt.question}`} className="rounded-xl border border-border/60 bg-muted/10 p-3 text-sm italic text-foreground/80">
-                    {prompt.question}
+            <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Position Pressure</div>
+                    <h3 className="mt-1 font-headline text-2xl font-bold italic">What most strengthens and pressures this belief</h3>
                   </div>
-                ))}
-                {positionSuggestions.slice(0, 6).map((suggestion) => (
-                  <div key={suggestion.id} className="rounded-xl border border-border/60 bg-background p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{suggestion.suggestionType.replace(/_/g, ' ')}</Badge>
-                      {typeof suggestion.confidence === 'number' && (
-                        <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(suggestion.confidence * 100)}% confidence</Badge>
-                      )}
+                  <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                    {selected.status}
+                  </Badge>
+                </div>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <InfoPanel title="Strongest Support" items={[strongestSupport]} empty="No support recorded yet." />
+                  <InfoPanel title="Strongest Objection" items={[strongestObjection]} empty="No objection recorded yet." />
+                  <InfoPanel title="Latest Revision" items={latestRevision ? [`${latestRevision.date}: ${latestRevision.description}`] : []} empty="No revision history yet." />
+                  <InfoPanel title="Testing Posture" items={[
+                    linkedPractices.length ? `${linkedPractices.length} practice(s) linked` : 'No practices linked yet.',
+                    `${selected.testingCount || 0} stress test answer(s) recorded`,
+                  ]} empty="No testing activity yet." />
+                </div>
+              </Card>
+
+              <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Object Flow</div>
+                    <h3 className="mt-1 font-headline text-2xl font-bold italic">What this position touches</h3>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <MiniMetricCard label="Sources" value={linkedSources.length} sub="evidence inputs" />
+                  <MiniMetricCard label="Inquiries" value={linkedQuestions.length} sub="active questions" />
+                  <MiniMetricCard label="Works" value={linkedDrafts.length} sub="expressed outputs" />
+                  <MiniMetricCard label="Practices" value={linkedPractices.length} sub="lived tests" />
+                </div>
+              </Card>
+            </div>
+
+            <div className="mb-6">
+              <NextPhilosophicalActionPanel
+                status={selected.status}
+                title="Next Philosophical Action"
+                description="Positions are the center of gravity: support them, challenge them, express them, or test them."
+                actions={[
+                  {
+                    label: 'Raise Confidence',
+                    tone: 'support',
+                    disabled: selected.confidence >= 5,
+                    description: 'Increase confidence in this position.',
+                    onClick: () => onUpdateEntry({ ...selected, confidence: Math.min(5, (selected.confidence || 3) + 1), dateUpdated: today() }),
+                  },
+                  {
+                    label: 'Lower Confidence',
+                    tone: 'challenge',
+                    disabled: selected.confidence <= 1,
+                    description: 'Decrease confidence and mark room for revision.',
+                    onClick: () => onUpdateEntry({ ...selected, confidence: Math.max(1, (selected.confidence || 3) - 1), dateUpdated: today() }),
+                  },
+                  {
+                    label: 'Turn into Essay',
+                    description: 'Open this position as an essay draft.',
+                    onClick: () => onAddDraft({
+                      title: selected.title,
+                      body: `**Position:** ${selected.statement}\n\n**Reasoning:**\n${selected.description || ''}`,
+                      type: 'essay',
+                      status: 'seed',
+                      beliefIds: [selected.id],
+                      sourceIds: selected.sourceIds || [],
+                      conceptTags: selected.tags || [],
+                    }),
+                  },
+                  {
+                    label: 'Start Practice',
+                    description: 'Create a behavioral experiment to test this position.',
+                    onClick: () => onAddPractice({
+                      title: `Test: ${selected.title.slice(0, 60)}`,
+                      description: `This practice tests the position: "${selected.statement}"`,
+                      type: 'experiment',
+                      status: 'planned',
+                      durationDays: 7,
+                      positionIds: [selected.id],
+                      conceptTags: selected.tags || [],
+                      sourceIds: selected.sourceIds || [],
+                    }),
+                  },
+                  {
+                    label: 'Open Inquiry',
+                    description: 'Turn pressure into a named question.',
+                    onClick: () => onAddQuestion({
+                      text: `What would revise: ${selected.title}?`,
+                      status: 'open',
+                      beliefIds: [selected.id],
+                      conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
+                      sourceIds: selected.sourceIds || [],
+                      evidenceIds: [],
+                    }),
+                  },
+                  {
+                    label: 'Mark Revised',
+                    disabled: selected.status === 'revised',
+                    onClick: () => onUpdateEntry({
+                      ...selected,
+                      status: 'revised',
+                      versionHistory: [
+                        ...(selected.versionHistory || []),
+                        { date: today(), eventType: 'revised', description: 'Marked as revised after reflection.' },
+                      ],
+                      dateUpdated: today(),
+                    }),
+                  },
+                ]}
+              />
+            </div>
+          </>
+        )}
+
+        {detailTab === 'evidence' && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <EvidencePanel title="Evidence For" items={selected.evidenceFor || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceFor: [...(selected.evidenceFor || []), text], dateUpdated: today() })} />
+            <EvidencePanel title="Evidence Against" items={selected.evidenceAgainst || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() })} />
+            <EntityListPanel
+              title="Linked Sources"
+              empty="No sources linked yet."
+              items={linkedSources.map((item) => ({
+                id: item.id,
+                title: item.title,
+                meta: `${item.type} ${item.creator ? `• ${item.creator}` : ''}`.trim(),
+                onClick: onOpenSource ? () => onOpenSource(item.id) : undefined,
+              }))}
+            />
+            <InfoPanel
+              title="Evidence Ledger"
+              items={[
+                `${(selected.evidenceFor || []).length} supporting note(s) recorded`,
+                `${(selected.evidenceAgainst || []).length} challenging note(s) recorded`,
+                `${linkedSources.length} source link(s) attached`,
+              ]}
+              empty="No ledger data yet."
+            />
+          </div>
+        )}
+
+        {detailTab === 'relations' && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <EntityListPanel
+              title="Related Positions"
+              empty="No typed relations to other positions yet."
+              items={relatedPositions.map((entry) => ({
+                id: entry.id,
+                title: entry.title,
+                meta: typedLinks
+                  .filter((link) =>
+                    (link.fromId === entry.id && link.toId === selected.id) ||
+                    (link.toId === entry.id && link.fromId === selected.id)
+                  )
+                  .map((link) => link.type.replace(/_/g, ' '))
+                  .join(', '),
+                onClick: () => setSelectedId(entry.id),
+              }))}
+            />
+            <EntityListPanel
+              title="Linked Inquiries"
+              empty="No inquiries are linked to this position yet."
+              items={linkedQuestions.map((item) => ({
+                id: item.id,
+                title: item.text,
+                meta: item.status,
+                onClick: onOpenQuestion ? () => onOpenQuestion(item.id) : undefined,
+              }))}
+            />
+            <EntityListPanel
+              title="Works Expressing It"
+              empty="No works are carrying this position yet."
+              items={linkedDrafts.map((item) => ({
+                id: item.id,
+                title: item.title,
+                meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`,
+                onClick: onOpenWork ? () => onOpenWork(item.id) : undefined,
+              }))}
+            />
+            <EntityListPanel
+              title="Practices Testing It"
+              empty="No practices are testing this belief yet."
+              items={linkedPractices.map((item) => ({
+                id: item.id,
+                title: item.title,
+                meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`,
+                onClick: onOpenPractice ? () => onOpenPractice(item.id) : undefined,
+              }))}
+            />
+          </div>
+        )}
+
+        {detailTab === 'history' && (
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+            <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Belief Biography</div>
+                  <h3 className="mt-1 font-headline text-2xl font-bold italic">How this position has changed</h3>
+                </div>
+                <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                  {beliefProfile?.reviewStatus || 'current'}
+                </Badge>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <InfoPanel title="Created From" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
+                <InfoPanel title="Confidence History" items={[`Current confidence: ${selected.confidenceScore ?? selected.confidence ?? 3}/5`, `Evidence quality: ${beliefProfile?.evidenceQuality || selected.evidenceQuality || 'unscored'}`, `Stress tests: ${beliefProfile?.testingCount ?? selected.testingCount ?? 0}`]} empty="No confidence history yet." />
+                <InfoPanel title="Strengthened By" items={beliefProfile?.strengthenedBy || []} empty="No supporting developments recorded yet." />
+                <InfoPanel title="Challenged By" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
+                <InfoPanel title="Weakened By" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
+                <InfoPanel title="Linked Unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />
+                <InfoPanel title="Version History" items={(selected.versionHistory || []).map((v) => `${v.date}: ${v.description}`)} empty="No revisions recorded yet." />
+                <InfoPanel title="Typed Links" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed links recorded yet." />
+              </div>
+            </Card>
+
+            <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">AI Review</div>
+                  <h3 className="mt-1 font-headline text-2xl font-bold italic">Pressure, questions, and perspective</h3>
+                </div>
+                <GenerativeAiIcon className="size-10" />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" className="rounded-full" onClick={createMissingPerspective}>Suggest Perspective</Button>
+                <Button size="sm" variant="outline" className="rounded-full" onClick={createMissingQuestions}>Suggest Question</Button>
+                <Button size="sm" className="rounded-full" onClick={createStressTests}>Generate Stress Test</Button>
+              </div>
+              {(stressTests.length > 0 || positionSuggestions.length > 0) && (
+                <div className="mt-4 space-y-3">
+                  {stressTests.map((prompt) => (
+                    <div key={`${prompt.kind}:${prompt.question}`} className="rounded-xl border border-border/60 bg-muted/10 p-3 text-sm italic text-foreground/80">
+                      {prompt.question}
                     </div>
-                    <h4 className="mt-2 font-headline text-lg font-bold italic">{suggestion.title}</h4>
-                    {suggestion.description && <p className="mt-1 text-sm text-muted-foreground">{suggestion.description}</p>}
-                    {suggestion.reasoning && <p className="mt-2 text-sm italic text-foreground/80">{suggestion.reasoning}</p>}
-                    {!!suggestion.evidence?.length && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {suggestion.evidence.map((item) => <Badge key={item} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item}</Badge>)}
+                  ))}
+                  {positionSuggestions.slice(0, 6).map((suggestion) => (
+                    <div key={suggestion.id} className="rounded-xl border border-border/60 bg-background p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{suggestion.suggestionType.replace(/_/g, ' ')}</Badge>
+                        {typeof suggestion.confidence === 'number' && (
+                          <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(suggestion.confidence * 100)}% confidence</Badge>
+                        )}
                       </div>
-                    )}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {suggestion.status === 'pending' && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-full"
-                            onClick={() => {
-                              if (suggestion.suggestionType === 'missing_question') {
-                                onAddQuestion({
-                                  text: suggestion.title,
-                                  status: 'open',
-                                  beliefIds: [selected.id],
-                                  conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
-                                  evidenceIds: [],
-                                  sourceIds: selected.sourceIds || [],
-                                });
-                              }
-                              if (suggestion.suggestionType === 'unknown_candidate') {
-                                onAddUnknown({
-                                  title: suggestion.title,
-                                  description: suggestion.description || suggestion.reasoning || '',
-                                  positionIds: [selected.id],
-                                  conceptTags: selected.tags || [],
-                                  sourceIds: selected.sourceIds || [],
-                                  status: 'active',
-                                  importance: 'medium',
-                                  createdFrom: 'ai',
-                                });
-                              }
-                              onUpdateSuggestion({ ...suggestion, status: 'accepted', dateUpdated: new Date().toISOString() });
-                            }}
-                          >
-                            Accept
-                          </Button>
-                          <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateSuggestion({ ...suggestion, status: 'dismissed', dateUpdated: new Date().toISOString() })}>
-                            Dismiss
-                          </Button>
-                        </>
+                      <h4 className="mt-2 font-headline text-lg font-bold italic">{suggestion.title}</h4>
+                      {suggestion.description && <p className="mt-1 text-sm text-muted-foreground">{suggestion.description}</p>}
+                      {suggestion.reasoning && <p className="mt-2 text-sm italic text-foreground/80">{suggestion.reasoning}</p>}
+                      {!!suggestion.evidence?.length && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {suggestion.evidence.map((item) => <Badge key={item} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item}</Badge>)}
+                        </div>
                       )}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {suggestion.status === 'pending' && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-full"
+                              onClick={() => {
+                                if (suggestion.suggestionType === 'missing_question') {
+                                  onAddQuestion({
+                                    text: suggestion.title,
+                                    status: 'open',
+                                    beliefIds: [selected.id],
+                                    conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
+                                    evidenceIds: [],
+                                    sourceIds: selected.sourceIds || [],
+                                  });
+                                }
+                                if (suggestion.suggestionType === 'unknown_candidate') {
+                                  onAddUnknown({
+                                    title: suggestion.title,
+                                    description: suggestion.description || suggestion.reasoning || '',
+                                    positionIds: [selected.id],
+                                    conceptTags: selected.tags || [],
+                                    sourceIds: selected.sourceIds || [],
+                                    status: 'active',
+                                    importance: 'medium',
+                                    createdFrom: 'ai',
+                                  });
+                                }
+                                onUpdateSuggestion({ ...suggestion, status: 'accepted', dateUpdated: new Date().toISOString() });
+                              }}
+                            >
+                              Accept
+                            </Button>
+                            <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateSuggestion({ ...suggestion, status: 'dismissed', dateUpdated: new Date().toISOString() })}>
+                              Dismiss
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+              <div className="mt-4">
+                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">What would change your mind?</Label>
+                <Textarea value={stressAnswer} onChange={(event) => setStressAnswer(event.target.value)} className="mt-2 min-h-[110px]" placeholder="What prediction follows? What weakens this? What contrary evidence would matter?" />
+                <div className="mt-3 flex justify-end">
+                  <Button size="sm" className="rounded-full" onClick={saveStressAnswer}>Record Answer</Button>
+                </div>
               </div>
-            )}
-            <div className="mt-4">
-              <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Stress-Test Answer</Label>
-              <Textarea value={stressAnswer} onChange={(event) => setStressAnswer(event.target.value)} className="mt-2 min-h-[110px]" placeholder="What would change your mind? What prediction follows? What weakens this?" />
-              <div className="mt-3 flex justify-end">
-                <Button size="sm" className="rounded-full" onClick={saveStressAnswer}>Record Answer</Button>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <EvidencePanel title="Evidence For" items={selected.evidenceFor || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceFor: [...(selected.evidenceFor || []), text], dateUpdated: today() })} />
-          <EvidencePanel title="Evidence Against" items={selected.evidenceAgainst || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() })} />
-          <InfoPanel title="Linked Sources" items={linkedSources.map((item) => item.title)} empty="No sources linked yet." />
-          <InfoPanel title="Linked Works" items={linkedDrafts.map((draft) => draft.title)} empty="No works linked yet." />
-          <InfoPanel title="Typed Links" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed links recorded yet." />
-          <InfoPanel title="Version History" items={(selected.versionHistory || []).map((v) => `${v.date}: ${v.description}`)} empty="No revisions recorded yet." />
-        </div>
+            </Card>
+          </div>
+        )}
         
         <ConceptDetailDialog 
           name={conceptPopupName} 
@@ -1077,6 +1327,64 @@ function InfoPanel({ title, items, empty }: { title: string; items: string[]; em
       {items.length ? items.map((item) => (
         <div key={item} className="rounded-lg bg-muted/30 p-3 text-sm mb-2 italic shadow-sm border border-border/10 leading-relaxed text-primary/80">{item}</div>
       )) : (
+        <p className="text-sm text-muted-foreground italic px-2 font-body">{empty}</p>
+      )}
+    </Card>
+  );
+}
+
+function MiniMetricCard({ label, value, sub }: { label: string; value: number; sub: string }) {
+  return (
+    <div className="rounded-xl border border-border/50 bg-background p-4 shadow-sm">
+      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="mt-1 font-headline text-2xl font-bold italic">{value}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
+    </div>
+  );
+}
+
+function EntityListPanel({
+  title,
+  items,
+  empty,
+}: {
+  title: string;
+  items: Array<{ id: string; title: string; meta?: string; onClick?: () => void }>;
+  empty: string;
+}) {
+  return (
+    <Card className="p-5 bg-white border-border/40 shadow-sm rounded-xl">
+      <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-bold">{title}</h3>
+      {items.length ? (
+        <div className="space-y-2">
+          {items.map((item) => {
+            const content = (
+              <>
+                <div className="font-headline text-base font-semibold italic text-primary">{item.title}</div>
+                {item.meta ? <div className="mt-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">{item.meta}</div> : null}
+              </>
+            );
+
+            if (item.onClick) {
+              return (
+                <button
+                  key={item.id}
+                  onClick={item.onClick}
+                  className="w-full rounded-lg border border-border/10 bg-muted/30 p-3 text-left shadow-sm transition hover:border-accent/30 hover:bg-accent/5"
+                >
+                  {content}
+                </button>
+              );
+            }
+
+            return (
+              <div key={item.id} className="rounded-lg border border-border/10 bg-muted/30 p-3 shadow-sm">
+                {content}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
         <p className="text-sm text-muted-foreground italic px-2 font-body">{empty}</p>
       )}
     </Card>

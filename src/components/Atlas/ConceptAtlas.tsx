@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, Unlink2, X } from 'lucide-react';
+import { FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,9 +22,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { AtlasHealthTable } from '@/components/Atlas/AtlasHealthTable';
-import { AtlasOverview } from '@/components/Atlas/AtlasOverview';
-import { AtlasPositionCanvas } from '@/components/Atlas/AtlasPositionCanvas';
+import { AtlasDevelopmentView } from '@/components/Atlas/AtlasDevelopmentView';
+import { AtlasPathView } from '@/components/Atlas/AtlasPathView';
+import { AtlasTerritoryView } from '@/components/Atlas/AtlasTerritoryView';
 import { AtlasTensionsBoard } from '@/components/Atlas/AtlasTensionsBoard';
 import { SourceLinker } from '@/components/SourceLinker';
 import { initializeFirebase } from '@/firebase';
@@ -53,7 +53,14 @@ import type {
 import { conceptKey, conceptRelated, conceptTerms, taggedItemsForConcept, today, uid as makeId } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { deleteObject, getDownloadURL, getStorage, ref as storageRef, uploadBytes } from 'firebase/storage';
-import { AtlasSection, deriveAtlasHealthRows, deriveAtlasOverview, deriveAtlasTensions, groupTensions } from './atlas-diagnostics';
+import {
+  AtlasSection,
+  deriveAtlasDevelopmentView,
+  deriveAtlasPathView,
+  deriveAtlasRegions,
+  deriveAtlasSystemTensions,
+  deriveAtlasTerritoryView,
+} from './atlas-diagnostics';
 
 interface ConceptAtlasProps {
   concepts: Concept[];
@@ -78,6 +85,9 @@ interface ConceptAtlasProps {
   onInteractLink?: (id: string) => void;
   onOpenPosition?: (id: string) => void;
   onOpenQuestion?: (id: string) => void;
+  onOpenSource?: (id: string) => void;
+  onOpenWriting?: () => void;
+  onOpenPractices?: () => void;
   uid?: string;
 }
 
@@ -129,18 +139,6 @@ type AtlasLinkItem = {
 };
 
 type AtlasRelationshipFilterMode = 'recommended' | 'all' | 'custom';
-
-type AttentionItem = {
-  id: string;
-  title: string;
-  detail: string;
-  tone: 'danger' | 'warning' | 'notice';
-  icon: 'conflict' | 'evidence' | 'practice' | 'concept' | 'inquiry';
-  conceptName?: string;
-  positionId?: string;
-  questionId?: string;
-  link?: AtlasLinkItem;
-};
 
 type AtlasRelationshipFamily = 'conflict' | 'support' | 'meaning' | 'practice' | 'evolution' | 'reference' | 'manual' | 'derived';
 
@@ -270,13 +268,16 @@ export function ConceptAtlas({
   uid,
   onOpenPosition,
   onOpenQuestion,
+  onOpenSource,
+  onOpenWriting,
+  onOpenPractices,
 }: ConceptAtlasProps) {
   const [zoom, setZoom] = useState(ATLAS_BASE_ZOOM);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
-  const [atlasSection, setAtlasSection] = useState<AtlasSection>('overview');
+  const [atlasSection, setAtlasSection] = useState<AtlasSection>('territory');
   const [selectedName, setSelectedName] = useState<string | null>(null);
-  const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
   const [linkSearch, setLinkSearch] = useState('');
   const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('moderate');
   const [viewMode, setViewMode] = useState<AtlasViewMode>('core');
@@ -358,45 +359,55 @@ export function ConceptAtlas({
     () => recommendedRelationshipTypesByViewMode[viewMode],
     [viewMode]
   );
-  const healthRows = useMemo(
-    () => deriveAtlasHealthRows({ vault, concepts, media, practices, questions, drafts, links, thinkingEvents }),
-    [vault, concepts, media, practices, questions, drafts, links, thinkingEvents]
+  const atlasRegions = useMemo(
+    () => deriveAtlasRegions({ concepts, media, vault, practices, questions, drafts, links, timeline, thinkingEvents }),
+    [concepts, media, vault, practices, questions, drafts, links, timeline, thinkingEvents]
   );
-  const tensionItems = useMemo(() => deriveAtlasTensions(healthRows), [healthRows]);
-  const groupedTensions = useMemo(() => groupTensions(tensionItems), [tensionItems]);
-  const overviewData = useMemo(
-    () => deriveAtlasOverview({ rows: healthRows, tensions: tensionItems, concepts, practices, questions, timeline, thinkingEvents }),
-    [healthRows, tensionItems, concepts, practices, questions, timeline, thinkingEvents]
+  const atlasTerritoryCards = useMemo(
+    () => deriveAtlasTerritoryView(atlasRegions),
+    [atlasRegions]
   );
-  const selectedHealthRow = useMemo(
-    () => healthRows.find((row) => row.position.id === selectedPositionId) || null,
-    [healthRows, selectedPositionId]
+  const atlasSystemTensions = useMemo(
+    () => deriveAtlasSystemTensions({ regions: atlasRegions, concepts, vault, practices, links }),
+    [atlasRegions, concepts, vault, practices, links]
+  );
+  const atlasDevelopmentBuckets = useMemo(
+    () => deriveAtlasDevelopmentView(atlasRegions),
+    [atlasRegions]
+  );
+  const atlasPathRecommendations = useMemo(
+    () => deriveAtlasPathView(atlasRegions),
+    [atlasRegions]
+  );
+  const selectedRegion = useMemo(
+    () => atlasRegions.find((region) => region.id === selectedRegionId) || atlasRegions[0] || null,
+    [atlasRegions, selectedRegionId]
   );
   const atlasSectionMeta: Record<AtlasSection, { label: string; description: string }> = {
-    overview: {
-      label: 'Overview',
-      description: 'See the current state of your worldview before you drop into detail.',
-    },
-    health: {
-      label: 'Idea Health',
-      description: 'Review which positions are strong, weak, stale, or under pressure.',
+    territory: {
+      label: 'Territory View',
+      description: 'See the regions, densities, and dominant territories shaping your current thought-world.',
     },
     tensions: {
-      label: 'Tensions',
-      description: 'Surface contradictions, missing evidence, and ideas that need work.',
+      label: 'Tension View',
+      description: 'Surface instability across regions, not just inside one belief.',
     },
-    position: {
-      label: 'Position Canvas',
-      description: 'Inspect what one belief is built on, what challenges it, and what should happen to it next.',
+    development: {
+      label: 'Development View',
+      description: 'Compare which territories are developed, stale, under-tested, or rapidly evolving.',
     },
-    graph: {
+    path: {
+      label: 'Path View',
+      description: 'Follow the strongest deterministic next routes through the current map of thought.',
+    },
+    map: {
       label: 'Map View',
-      description: 'Explore Atlas visually through concepts, positions, practices, and typed links.',
+      description: 'Explore Atlas visually as a secondary map, filtered by the territory you want to inspect.',
     },
   };
 
   useEffect(() => {
-    if (atlasSection !== 'graph' && isFullScreen) {
+    if (atlasSection !== 'map' && isFullScreen) {
       setIsFullScreen(false);
     }
   }, [atlasSection, isFullScreen]);
@@ -422,6 +433,10 @@ export function ConceptAtlas({
   }, [selectedName]);
 
   useEffect(() => {
+    if (!selectedRegionId && atlasRegions[0]) setSelectedRegionId(atlasRegions[0].id);
+  }, [atlasRegions, selectedRegionId]);
+
+  useEffect(() => {
     if (isStyleOpen) {
       setStyleDraft(normalizeAtlasMapStyle(activeMap?.style));
     }
@@ -440,9 +455,21 @@ export function ConceptAtlas({
   }, []);
 
   const visibleTerms = useMemo(() => {
-    if (mode === 'custom') return activeMap ? activeMap.nodeNames.map(conceptKey) : [];
-    return terms;
-  }, [activeMap, mode, terms]);
+    const baseTerms = mode === 'custom' ? (activeMap ? activeMap.nodeNames.map(conceptKey) : []) : terms;
+    if (atlasSection !== 'map' || !selectedRegion) return baseTerms;
+    const regionNames = [
+      ...selectedRegion.conceptIds
+        .map((id) => concepts.find((concept) => concept.id === id)?.name)
+        .filter(Boolean)
+        .map((name) => conceptKey(name as string)),
+      ...selectedRegion.dominantConcepts.map((name) => conceptKey(name)),
+      ...vault
+        .filter((position) => selectedRegion.positionIds.includes(position.id))
+        .flatMap((position) => position.tags || [])
+        .map((tag) => conceptKey(tag)),
+    ];
+    return baseTerms.filter((name) => regionNames.includes(conceptKey(name)));
+  }, [activeMap, atlasSection, concepts, mode, selectedRegion, terms, vault]);
 
   const nodes = useMemo<MapNode[]>(() => {
     const filtered = visibleTerms.filter((name) => !search || name.toLowerCase().includes(search.toLowerCase()));
@@ -971,52 +998,21 @@ export function ConceptAtlas({
     return cluster;
   }, [activeEdgeId, selectedName, visibleEdges]);
 
-  const todayPrompt = useMemo(() => {
-    const rawAnnotations = media.flatMap((item) => item.annotations || []).filter((annotation) => (annotation.philosophyStatus || 'raw') === 'raw');
-    const openInquiries = questions.filter((question) => ['open', 'investigating', 'gathering_evidence', 'under_tension'].includes(question.status));
-    const unsupportedPositions = vault.filter((position) => !(position.sourceIds || []).length && !(position.evidenceFor || []).length);
-    const untestedPositions = vault.filter((position) => !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
-
-    if (rawAnnotations.length) {
-      return {
-        title: 'Connect one raw annotation',
-        body: 'Choose one captured note and decide whether it becomes a concept, an inquiry, support, or a challenge.',
-      };
-    }
-    if (openInquiries.length) {
-      return {
-        title: 'Move one inquiry forward',
-        body: 'Add evidence for or against one open question so it can eventually become a clearer position.',
-      };
-    }
-    if (unsupportedPositions.length) {
-      return {
-        title: 'Support or challenge a position',
-        body: 'Pick one position without evidence and link the source or objection that gives it pressure.',
-      };
-    }
-    if (untestedPositions.length) {
-      return {
-        title: 'Test a position in practice',
-        body: 'Turn one current position into a small behavior, experiment, or commitment.',
-      };
-    }
-    return {
-      title: 'Record what changed',
-      body: 'Add an Evolution note for the clearest shift in your thinking this week.',
-    };
-  }, [media, practices, questions, vault]);
-
   const openConceptInGraph = (name: string) => {
     setSelectedName(name);
     setIsPanelOpen(true);
     setPanelSection('evidence');
-    setAtlasSection('graph');
+    setAtlasSection('map');
   };
 
-  const openPositionCanvas = (id: string) => {
-    setSelectedPositionId(id);
-    setAtlasSection('position');
+  const openRegionInMap = (regionId: string) => {
+    setSelectedRegionId(regionId);
+    setAtlasSection('map');
+  };
+
+  const openRegionWorkspace = (regionId: string) => {
+    setSelectedRegionId(regionId);
+    setAtlasSection('territory');
   };
 
   const availableNodeTerms = useMemo(() => {
@@ -2055,105 +2051,6 @@ export function ConceptAtlas({
     }
   };
 
-  const attentionItems = useMemo<AttentionItem[]>(() => {
-    const items: AttentionItem[] = [];
-    const contradictionLink = links.find((link) =>
-      ['contradicts', 'challenges', 'weakens'].includes(link.type)
-      && link.fromType === 'concept'
-      && link.toType === 'concept'
-    );
-    if (contradictionLink) {
-      items.push({
-        id: `attention-link-${contradictionLink.id}`,
-        title: 'Possible contradiction',
-        detail: `${contradictionLink.fromLabel || 'Idea'} vs ${contradictionLink.toLabel || 'idea'}`,
-        tone: 'danger',
-        icon: 'conflict',
-        conceptName: contradictionLink.fromLabel,
-        link: {
-          id: contradictionLink.id,
-          kind: 'typed',
-          from: contradictionLink.fromLabel || contradictionLink.fromType,
-          to: contradictionLink.toLabel || contradictionLink.toType,
-          label: contradictionLink.type.replace(/_/g, ' '),
-          linkType: contradictionLink.type,
-          note: contradictionLink.note,
-          removable: Boolean(onDeleteLink),
-          sourceLabel: 'Typed philosophical link',
-          createdAt: contradictionLink.dateCreated,
-          updatedAt: contradictionLink.dateUpdated,
-        },
-      });
-    }
-
-    const weakPosition = vault.find((position) => !(position.sourceIds || []).length && !(position.evidenceFor || []).length);
-    if (weakPosition) {
-      items.push({
-        id: `attention-position-${weakPosition.id}`,
-        title: 'Weak evidence',
-        detail: weakPosition.title,
-        tone: 'warning',
-        icon: 'evidence',
-        conceptName: weakPosition.tags?.[0],
-        positionId: weakPosition.id,
-      });
-    }
-
-    const untestedPosition = vault.find((position) => !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
-    if (untestedPosition) {
-      items.push({
-        id: `attention-practice-${untestedPosition.id}`,
-        title: 'Untested position',
-        detail: untestedPosition.title,
-        tone: 'notice',
-        icon: 'practice',
-        conceptName: untestedPosition.tags?.[0],
-        positionId: untestedPosition.id,
-      });
-    }
-
-    const orphanedConcept = concepts.find((concept) => {
-      const conceptRelations = conceptRelated(concept.name, { media, insights, vault, drafts, practices, questions, timeline });
-      return (
-        !(concept.links || []).length
-        && !concept.sourceIds.length
-        && !conceptRelations.sources.length
-        && !conceptRelations.beliefs.length
-        && !conceptRelations.questions.length
-        && !conceptRelations.drafts.length
-        && !conceptRelations.practices.length
-      );
-    });
-    if (orphanedConcept) {
-      items.push({
-        id: `attention-concept-${orphanedConcept.id}`,
-        title: 'Orphaned concept',
-        detail: orphanedConcept.name,
-        tone: 'warning',
-        icon: 'concept',
-        conceptName: orphanedConcept.name,
-      });
-    }
-
-    const staleInquiry = [...questions]
-      .filter((question) => ['open', 'investigating', 'gathering_evidence', 'under_tension', 'partially_answered', 'reopened'].includes(question.status))
-      .sort((a, b) => Date.parse(a.dateUpdated || a.dateCreated) - Date.parse(b.dateUpdated || b.dateCreated))[0];
-    if (staleInquiry) {
-      const inquiryConcept = concepts.find((concept) => staleInquiry.conceptIds.includes(concept.id));
-      items.push({
-        id: `attention-inquiry-${staleInquiry.id}`,
-        title: 'Stale inquiry',
-        detail: staleInquiry.text,
-        tone: 'notice',
-        icon: 'inquiry',
-        conceptName: inquiryConcept?.name,
-        questionId: staleInquiry.id,
-      });
-    }
-
-    return items.slice(0, 5);
-  }, [concepts, drafts, insights, links, media, onDeleteLink, practices, questions, timeline, vault]);
-
   const disableSharedAutoFiltersForLink = (link: AtlasLinkItem) => {
     if (mode !== 'custom' || !activeMap || link.kind !== 'shared') return;
     const objectTypes = link.objectTypes || [];
@@ -2186,7 +2083,7 @@ export function ConceptAtlas({
           <p className="mt-1 max-w-3xl text-sm leading-5 text-muted-foreground">{atlasSectionMeta[atlasSection].description}</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {atlasSection === 'graph' && (
+          {atlasSection === 'map' && (
             <>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -2205,11 +2102,11 @@ export function ConceptAtlas({
       <div className="z-10 space-y-2 px-8 pb-1">
         <div className="flex flex-wrap items-center gap-2">
           {([
-            ['overview', 'Overview'],
-            ['health', 'Idea Health'],
-            ['tensions', 'Tensions'],
-            ['position', 'Position Canvas'],
-            ['graph', 'Map View'],
+            ['territory', 'Territory View'],
+            ['tensions', 'Tension View'],
+            ['development', 'Development View'],
+            ['path', 'Path View'],
+            ['map', 'Map View'],
           ] as Array<[AtlasSection, string]>).map(([section, label]) => (
             <Button
               key={section}
@@ -2222,7 +2119,7 @@ export function ConceptAtlas({
             </Button>
           ))}
         </div>
-        {atlasSection === 'graph' && (
+        {atlasSection === 'map' && (
         <>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 rounded-full border border-border bg-white p-1 shadow-sm">
@@ -2337,6 +2234,11 @@ export function ConceptAtlas({
             <Stat value={selectedName || 'None'} label="Active" />
           </div>
           <div className="flex items-center justify-end gap-2">
+            {selectedRegion && (
+              <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setAtlasSection('territory')}>
+                {selectedRegion.name}
+              </Button>
+            )}
             <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
               {viewMode === 'core' ? 'Core' : viewMode.replace(/_/g, ' ')}
             </Badge>
@@ -2350,45 +2252,54 @@ export function ConceptAtlas({
       </div>
       )}
 
-      {atlasSection !== 'graph' && !isFullScreen && (
+      {atlasSection !== 'map' && !isFullScreen && (
         <div className="flex-1 overflow-y-auto px-8 pb-6 pt-2">
-          {atlasSection === 'overview' && (
-            <AtlasOverview
-              overview={overviewData}
-              todayPrompt={todayPrompt}
-              attentionItems={attentionItems}
-              onOpenPosition={openPositionCanvas}
-              onOpenQuestion={(id) => onOpenQuestion?.(id)}
+          {atlasSection === 'territory' && (
+            <AtlasTerritoryView
+              cards={atlasTerritoryCards}
+              regions={atlasRegions}
+              selectedRegionId={selectedRegionId}
+              concepts={concepts}
+              positions={vault}
+              practices={practices}
+              questions={questions}
+              drafts={drafts}
+              media={media}
+              onSelectRegion={setSelectedRegionId}
+              onOpenMap={openRegionInMap}
+              onOpenPosition={onOpenPosition}
+              onOpenQuestion={onOpenQuestion}
+              onOpenSource={onOpenSource}
               onOpenConcept={openConceptInGraph}
-              onOpenTensions={() => setAtlasSection('tensions')}
-            />
-          )}
-          {atlasSection === 'health' && (
-            <AtlasHealthTable
-              rows={healthRows}
-              onOpenPosition={openPositionCanvas}
             />
           )}
           {atlasSection === 'tensions' && (
             <AtlasTensionsBoard
-              grouped={groupedTensions}
-              onOpenPosition={openPositionCanvas}
-              onOpenQuestion={(id) => onOpenQuestion?.(id)}
-              onOpenConcept={openConceptInGraph}
+              tensions={atlasSystemTensions}
+              onOpenRegion={openRegionWorkspace}
             />
           )}
-          {atlasSection === 'position' && (
-            <AtlasPositionCanvas
-              row={selectedHealthRow}
-              onOpenConcept={openConceptInGraph}
-              onOpenQuestion={(id) => onOpenQuestion?.(id)}
-              onBackToHealth={() => setAtlasSection('health')}
+          {atlasSection === 'development' && (
+            <AtlasDevelopmentView
+              buckets={atlasDevelopmentBuckets}
+              onOpenRegion={openRegionWorkspace}
+            />
+          )}
+          {atlasSection === 'path' && (
+            <AtlasPathView
+              recommendations={atlasPathRecommendations}
+              onOpenRegion={openRegionWorkspace}
+              onOpenPosition={onOpenPosition}
+              onOpenQuestion={onOpenQuestion}
+              onOpenSource={onOpenSource}
+              onOpenWriting={onOpenWriting}
+              onOpenPractices={onOpenPractices}
             />
           )}
         </div>
       )}
 
-      {atlasSection === 'graph' && (
+      {atlasSection === 'map' && (
       <div className={cn(
         "flex min-h-0 flex-1 gap-4",
         isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-hidden px-8 pb-4"
@@ -2715,7 +2626,7 @@ export function ConceptAtlas({
       </div>
       )}
 
-      {atlasSection === 'graph' && isFullScreen && isPanelOpen && atlasPanel}
+      {atlasSection === 'map' && isFullScreen && isPanelOpen && atlasPanel}
 
       <Dialog open={!!selectedLink} onOpenChange={(open) => !open && setSelectedLink(null)}>
         <DialogContent className="max-w-lg border-none shadow-2xl rounded-2xl">
@@ -2862,7 +2773,7 @@ export function ConceptAtlas({
                     className="cursor-pointer"
                     onClick={() => {
                       setIsPositionsOpen(false);
-                      openPositionCanvas(position.id);
+                      onOpenPosition?.(position.id);
                     }}
                   >
                     <TableCell>
