@@ -3,20 +3,14 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
-  FirebaseClientProvider,
-  initializeFirebase,
-  isFirebaseConfigComplete,
-  missingFirebaseConfigKeys,
-  useCollection,
-  useDoc,
   useFirebase,
-  useUser,
 } from '@/firebase';
-import { LoginPage } from '@/components/Auth/LoginPage';
-import { Shell } from '@/components/Shell';
 import type { MovementMetrics } from '@/components/Shell';
+import { NoesisProviders } from '@/components/app-shell/NoesisProviders';
+import { NoesisShell } from '@/components/app-shell/NoesisShell';
+import { NoesisWorkspaceGate } from '@/components/app-shell/NoesisWorkspaceGate';
 import { ConceptAtlas } from '@/components/Atlas/ConceptAtlas';
 import { ConceptEncyclopedia } from '@/components/Concepts/ConceptEncyclopedia';
 import { MediaLibrary } from '@/components/Library/MediaLibrary';
@@ -30,9 +24,10 @@ import { PracticesWorkspace } from '@/components/Practices/PracticesWorkspace';
 import { ProfilePage } from '@/components/Profile/ProfilePage';
 import { SettingsPage } from '@/components/Settings/SettingsPage';
 import { GoalsPage } from '@/components/Goals/GoalsPage';
-import { Toaster } from '@/components/ui/toaster';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useNoesisWorkspaceData } from '@/hooks/use-noesis-workspace-data';
+import { PageLoadingState } from '@/components/shared/PageState';
 import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
@@ -57,8 +52,6 @@ import {
   DEFAULT_WORKS_SETTINGS,
   DEFAULT_WORKSPACE_PREFERENCES,
   DEFAULT_WORKSPACE_SETTINGS,
-  PROTOTYPE_USER_ID,
-  readexRefs,
   readexSchemaDoc,
 } from '@/lib/firestore-schema';
 import { buildDemoWorkspace, buildReviewExport, REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS, REVIEW_WORKSPACE_UID } from '@/lib/demo-workspace';
@@ -106,12 +99,9 @@ import type {
 import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { Button } from '@/components/ui/button';
-import { RefreshCw, Loader2, Download, FlaskConical } from 'lucide-react';
 import { classifyThinkingChange } from '@/lib/thinkingEvents/classifyThinkingChange';
 import { writeThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
-
-type FirebaseInstances = ReturnType<typeof initializeFirebase>;
+import { parseNoesisRoute, viewToPath, type NoesisView } from '@/lib/noesis-routes';
 
 function ReadexWorkspace({
   user,
@@ -126,130 +116,81 @@ function ReadexWorkspace({
 }) {
   const { db } = useFirebase();
   const { toast } = useToast();
-  const [view, setView] = useState('atlas');
-  const [focusedSourceId, setFocusedSourceId] = useState<string | null>(null);
-  const [focusedPositionId, setFocusedPositionId] = useState<string | null>(null);
-  const [focusedQuestionId, setFocusedQuestionId] = useState<string | null>(null);
+  const pathname = usePathname();
+  const router = useRouter();
   const [goalState, setGoalState] = useState<GoalSettings>(DEFAULT_GOAL_SETTINGS);
   const effectiveUid = uid;
   const isOfflineReviewPreview = reviewMode && !user;
+  const routeState = useMemo(() => parseNoesisRoute(pathname), [pathname]);
+  const activeView = routeState.view;
+  const focusedSourceId = routeState.focusedSourceId || null;
+  const focusedPositionId = routeState.focusedPositionId || null;
+  const focusedQuestionId = routeState.focusedQuestionId || null;
 
-  const refs = useMemo(() => readexRefs(db, effectiveUid), [db, effectiveUid]);
-  const reviewPreviewData = useMemo(
-    () => (isOfflineReviewPreview ? buildDemoWorkspace(effectiveUid) : null),
-    [effectiveUid, isOfflineReviewPreview]
-  );
+  const navigateToView = (view: NoesisView, options?: {
+    conceptId?: string | null;
+    questionId?: string | null;
+    sourceId?: string | null;
+    positionId?: string | null;
+    workId?: string | null;
+    practiceId?: string | null;
+  }) => {
+    router.push(viewToPath(view, {
+      reviewMode,
+      conceptId: options?.conceptId,
+      questionId: options?.questionId,
+      sourceId: options?.sourceId,
+      positionId: options?.positionId,
+      workId: options?.workId,
+      practiceId: options?.practiceId,
+    }));
+  };
 
-  const { data: mediaLive = [], loading: mediaLoadingLive } = useCollection<Media>(isOfflineReviewPreview ? null : refs.media as any);
-  const { data: vaultLive = [], loading: vaultLoadingLive } = useCollection<VaultEntry>(isOfflineReviewPreview ? null : refs.vault as any);
-  const { data: insightsLive = [], loading: insightsLoadingLive } = useCollection<Insight>(isOfflineReviewPreview ? null : refs.insights as any);
-  const { data: conceptsLive = [], loading: conceptsLoadingLive } = useCollection<Concept>(isOfflineReviewPreview ? null : refs.concepts as any);
-  const { data: questionsLive = [], loading: questionsLoadingLive } = useCollection<Question>(isOfflineReviewPreview ? null : refs.questions as any);
-  const { data: timelineLive = [], loading: timelineLoadingLive } = useCollection<TimelineEvent>(isOfflineReviewPreview ? null : refs.timeline as any);
-  const { data: draftsLive = [], loading: draftsLoadingLive } = useCollection<Draft>(isOfflineReviewPreview ? null : refs.drafts as any);
-  const { data: practicesLive = [], loading: practicesLoadingLive } = useCollection<Practice>(isOfflineReviewPreview ? null : refs.practices as any);
-  const { data: atlasMapsLive = [], loading: atlasMapsLoadingLive } = useCollection<AtlasMap>(isOfflineReviewPreview ? null : refs.atlasMaps as any);
-  const { data: linksLive = [], loading: linksLoadingLive } = useCollection<PhilosophicalLink>(isOfflineReviewPreview ? null : refs.links as any);
-  const { data: suggestionsLive = [], loading: suggestionsLoadingLive } = useCollection<AiSuggestion>(isOfflineReviewPreview ? null : refs.suggestions as any);
-  const { data: thinkingEventsLive = [], loading: thinkingEventsLoadingLive } = useCollection<ThinkingEvent>(isOfflineReviewPreview ? null : refs.thinkingEvents as any);
-  const { data: beliefProfilesLive = [], loading: beliefProfilesLoadingLive } = useCollection<BeliefProfile>(isOfflineReviewPreview ? null : refs.beliefProfiles as any);
-  const { data: unknownsLive = [], loading: unknownsLoadingLive } = useCollection<Unknown>(isOfflineReviewPreview ? null : refs.unknowns as any);
-  const { data: thinkingPatternsLive = [], loading: thinkingPatternsLoadingLive } = useCollection<ThinkingPattern>(isOfflineReviewPreview ? null : refs.thinkingPatterns as any);
-  const { data: thinkingMetricsDocLive, loading: thinkingMetricsLoadingLive } = useDoc<ThinkingMetrics>(isOfflineReviewPreview ? null : doc(refs.thinkingMetrics, 'summary') as any);
-  const { data: goalDocLive, loading: goalLoadingLive } = useDoc<GoalSettings>(isOfflineReviewPreview ? null : refs.settingsGoal as any);
-  const { data: legacyPreferencesDocLive, loading: preferencesLoadingLive } = useDoc<UserPreferences>(isOfflineReviewPreview ? null : refs.settingsPreferences as any);
-  const { data: legacyProfileDocLive, loading: legacyProfileLoadingLive } = useDoc<UserProfile>(isOfflineReviewPreview ? null : refs.legacySettingsProfile as any);
-  const { data: workspaceDocLive, loading: workspaceLoadingLive } = useDoc<WorkspaceSettings>(isOfflineReviewPreview ? null : refs.settingsWorkspace as any);
-  const { data: profileMainDocLive, loading: profileMainLoadingLive } = useDoc<UserProfile>(isOfflineReviewPreview ? null : refs.profileMain as any);
-  const { data: profilePrivacyDocLive, loading: profilePrivacyLoadingLive } = useDoc<ProfilePrivacySettings>(isOfflineReviewPreview ? null : refs.profilePrivacy as any);
-  const { data: profileSummaryDocLive, loading: profileSummaryLoadingLive } = useDoc<ProfileMetacognitionSummary>(isOfflineReviewPreview ? null : refs.profileMetacognitionSummary as any);
-  const { data: settingsAccountDocLive, loading: settingsAccountLoadingLive } = useDoc<AccountSettings>(isOfflineReviewPreview ? null : refs.settingsAccount as any);
-  const { data: settingsAppearanceDocLive, loading: settingsAppearanceLoadingLive } = useDoc<AppearanceSettings>(isOfflineReviewPreview ? null : refs.settingsAppearance as any);
-  const { data: settingsWorkspacePrefsDocLive, loading: settingsWorkspacePrefsLoadingLive } = useDoc<WorkspacePreferenceSettings>(isOfflineReviewPreview ? null : refs.settingsWorkspace as any);
-  const { data: settingsAiDocLive, loading: settingsAiLoadingLive } = useDoc<AiSettings>(isOfflineReviewPreview ? null : refs.settingsAi as any);
-  const { data: settingsMetacognitionDocLive, loading: settingsMetacognitionLoadingLive } = useDoc<MetacognitionSettings>(isOfflineReviewPreview ? null : refs.settingsMetacognition as any);
-  const { data: settingsPrivacyDocLive, loading: settingsPrivacyLoadingLive } = useDoc<PrivacySettings>(isOfflineReviewPreview ? null : refs.settingsPrivacy as any);
-  const { data: settingsDataDocLive, loading: settingsDataLoadingLive } = useDoc<DataSettings>(isOfflineReviewPreview ? null : refs.settingsData as any);
-  const { data: settingsSourceIntakeDocLive, loading: settingsSourceIntakeLoadingLive } = useDoc<SourceIntakeSettings>(isOfflineReviewPreview ? null : refs.settingsSourceIntake as any);
-  const { data: settingsWorksDocLive, loading: settingsWorksLoadingLive } = useDoc<WorksSettings>(isOfflineReviewPreview ? null : refs.settingsWorks as any);
-  const { data: settingsAtlasDocLive, loading: settingsAtlasLoadingLive } = useDoc<AtlasSettings>(isOfflineReviewPreview ? null : refs.settingsAtlas as any);
-  const { data: settingsNotificationsDocLive, loading: settingsNotificationsLoadingLive } = useDoc<NotificationSettings>(isOfflineReviewPreview ? null : refs.settingsNotifications as any);
-  const { data: settingsGoalsDocLive, loading: settingsGoalsLoadingLive } = useDoc<GoalPreferenceSettings>(isOfflineReviewPreview ? null : refs.settingsGoals as any);
-  const { data: settingsDeveloperDocLive, loading: settingsDeveloperLoadingLive } = useDoc<DeveloperSettings>(isOfflineReviewPreview ? null : refs.settingsDeveloper as any);
-
-  const media = isOfflineReviewPreview ? (reviewPreviewData?.media || []) : mediaLive;
-  const vault = isOfflineReviewPreview ? (reviewPreviewData?.vault || []) : vaultLive;
-  const insights = isOfflineReviewPreview ? (reviewPreviewData?.insights || []) : insightsLive;
-  const concepts = isOfflineReviewPreview ? (reviewPreviewData?.concepts || []) : conceptsLive;
-  const questions = isOfflineReviewPreview ? (reviewPreviewData?.questions || []) : questionsLive;
-  const timeline = isOfflineReviewPreview ? (reviewPreviewData?.timeline || []) : timelineLive;
-  const drafts = isOfflineReviewPreview ? (reviewPreviewData?.drafts || []) : draftsLive;
-  const practices = isOfflineReviewPreview ? (reviewPreviewData?.practices || []) : practicesLive;
-  const atlasMaps = isOfflineReviewPreview ? (reviewPreviewData?.atlasMaps || []) : atlasMapsLive;
-  const links = isOfflineReviewPreview ? (reviewPreviewData?.links || []) : linksLive;
-  const suggestions = isOfflineReviewPreview ? (reviewPreviewData?.suggestions || []) : suggestionsLive;
-  const thinkingEvents = isOfflineReviewPreview ? (reviewPreviewData?.thinkingEvents || []) : thinkingEventsLive;
-  const beliefProfiles = isOfflineReviewPreview ? (reviewPreviewData?.beliefProfiles || []) : beliefProfilesLive;
-  const unknowns = isOfflineReviewPreview ? (reviewPreviewData?.unknowns || []) : unknownsLive;
-  const thinkingPatterns = isOfflineReviewPreview ? (reviewPreviewData?.thinkingPatterns || []) : thinkingPatternsLive;
-  const thinkingMetricsDoc = isOfflineReviewPreview ? (reviewPreviewData?.thinkingMetrics || null) : thinkingMetricsDocLive;
-  const goalDoc = isOfflineReviewPreview ? (reviewPreviewData?.goal || null) : goalDocLive;
-  const legacyPreferencesDoc = isOfflineReviewPreview ? (reviewPreviewData?.preferences || null) : legacyPreferencesDocLive;
-  const legacyProfileDoc = isOfflineReviewPreview ? (reviewPreviewData?.profile || null) : legacyProfileDocLive;
-  const workspaceDoc = isOfflineReviewPreview ? (reviewPreviewData?.workspace || null) : workspaceDocLive;
-  const profileMainDoc = isOfflineReviewPreview ? (reviewPreviewData?.profile || null) : profileMainDocLive;
-  const profilePrivacyDoc = isOfflineReviewPreview ? (reviewPreviewData?.profilePrivacy || null) : profilePrivacyDocLive;
-  const profileSummaryDoc = isOfflineReviewPreview ? (reviewPreviewData?.profileMetacognitionSummary || null) : profileSummaryDocLive;
-  const settingsAccountDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsAccount || null) : settingsAccountDocLive;
-  const settingsAppearanceDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsAppearance || null) : settingsAppearanceDocLive;
-  const settingsWorkspacePrefsDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsWorkspace || null) : settingsWorkspacePrefsDocLive;
-  const settingsAiDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsAi || null) : settingsAiDocLive;
-  const settingsMetacognitionDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsMetacognition || null) : settingsMetacognitionDocLive;
-  const settingsPrivacyDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsPrivacy || null) : settingsPrivacyDocLive;
-  const settingsDataDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsData || null) : settingsDataDocLive;
-  const settingsSourceIntakeDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsSourceIntake || null) : settingsSourceIntakeDocLive;
-  const settingsWorksDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsWorks || null) : settingsWorksDocLive;
-  const settingsAtlasDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsAtlas || null) : settingsAtlasDocLive;
-  const settingsNotificationsDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsNotifications || null) : settingsNotificationsDocLive;
-  const settingsGoalsDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsGoals || null) : settingsGoalsDocLive;
-  const settingsDeveloperDoc = isOfflineReviewPreview ? (reviewPreviewData?.settingsDeveloper || null) : settingsDeveloperDocLive;
-
-  const mediaLoading = isOfflineReviewPreview ? false : mediaLoadingLive;
-  const vaultLoading = isOfflineReviewPreview ? false : vaultLoadingLive;
-  const insightsLoading = isOfflineReviewPreview ? false : insightsLoadingLive;
-  const conceptsLoading = isOfflineReviewPreview ? false : conceptsLoadingLive;
-  const questionsLoading = isOfflineReviewPreview ? false : questionsLoadingLive;
-  const timelineLoading = isOfflineReviewPreview ? false : timelineLoadingLive;
-  const draftsLoading = isOfflineReviewPreview ? false : draftsLoadingLive;
-  const practicesLoading = isOfflineReviewPreview ? false : practicesLoadingLive;
-  const atlasMapsLoading = isOfflineReviewPreview ? false : atlasMapsLoadingLive;
-  const linksLoading = isOfflineReviewPreview ? false : linksLoadingLive;
-  const suggestionsLoading = isOfflineReviewPreview ? false : suggestionsLoadingLive;
-  const thinkingEventsLoading = isOfflineReviewPreview ? false : thinkingEventsLoadingLive;
-  const beliefProfilesLoading = isOfflineReviewPreview ? false : beliefProfilesLoadingLive;
-  const unknownsLoading = isOfflineReviewPreview ? false : unknownsLoadingLive;
-  const thinkingPatternsLoading = isOfflineReviewPreview ? false : thinkingPatternsLoadingLive;
-  const thinkingMetricsLoading = isOfflineReviewPreview ? false : thinkingMetricsLoadingLive;
-  const goalLoading = isOfflineReviewPreview ? false : goalLoadingLive;
-  const preferencesLoading = isOfflineReviewPreview ? false : preferencesLoadingLive;
-  const legacyProfileLoading = isOfflineReviewPreview ? false : legacyProfileLoadingLive;
-  const workspaceLoading = isOfflineReviewPreview ? false : workspaceLoadingLive;
-  const profileMainLoading = isOfflineReviewPreview ? false : profileMainLoadingLive;
-  const profilePrivacyLoading = isOfflineReviewPreview ? false : profilePrivacyLoadingLive;
-  const profileSummaryLoading = isOfflineReviewPreview ? false : profileSummaryLoadingLive;
-  const settingsAccountLoading = isOfflineReviewPreview ? false : settingsAccountLoadingLive;
-  const settingsAppearanceLoading = isOfflineReviewPreview ? false : settingsAppearanceLoadingLive;
-  const settingsWorkspacePrefsLoading = isOfflineReviewPreview ? false : settingsWorkspacePrefsLoadingLive;
-  const settingsAiLoading = isOfflineReviewPreview ? false : settingsAiLoadingLive;
-  const settingsMetacognitionLoading = isOfflineReviewPreview ? false : settingsMetacognitionLoadingLive;
-  const settingsPrivacyLoading = isOfflineReviewPreview ? false : settingsPrivacyLoadingLive;
-  const settingsDataLoading = isOfflineReviewPreview ? false : settingsDataLoadingLive;
-  const settingsSourceIntakeLoading = isOfflineReviewPreview ? false : settingsSourceIntakeLoadingLive;
-  const settingsWorksLoading = isOfflineReviewPreview ? false : settingsWorksLoadingLive;
-  const settingsAtlasLoading = isOfflineReviewPreview ? false : settingsAtlasLoadingLive;
-  const settingsNotificationsLoading = isOfflineReviewPreview ? false : settingsNotificationsLoadingLive;
-  const settingsGoalsLoading = isOfflineReviewPreview ? false : settingsGoalsLoadingLive;
-  const settingsDeveloperLoading = isOfflineReviewPreview ? false : settingsDeveloperLoadingLive;
+  const {
+    refs,
+    media,
+    vault,
+    insights,
+    concepts,
+    questions,
+    timeline,
+    drafts,
+    practices,
+    atlasMaps,
+    links,
+    suggestions,
+    thinkingEvents,
+    beliefProfiles,
+    unknowns,
+    thinkingPatterns,
+    thinkingMetricsDoc,
+    goalDoc,
+    legacyPreferencesDoc,
+    legacyProfileDoc,
+    workspaceDoc,
+    profileMainDoc,
+    profilePrivacyDoc,
+    profileSummaryDoc,
+    settingsAccountDoc,
+    settingsAppearanceDoc,
+    settingsWorkspacePrefsDoc,
+    settingsAiDoc,
+    settingsMetacognitionDoc,
+    settingsPrivacyDoc,
+    settingsDataDoc,
+    settingsSourceIntakeDoc,
+    settingsWorksDoc,
+    settingsAtlasDoc,
+    settingsNotificationsDoc,
+    settingsGoalsDoc,
+    settingsDeveloperDoc,
+    loading,
+  } = useNoesisWorkspaceData({
+    db,
+    uid: effectiveUid,
+    activeView,
+    isOfflineReviewPreview,
+  });
   
   const goal = { ...DEFAULT_GOAL_SETTINGS, ...(goalDoc || {}) };
   const appearanceSettings: AppearanceSettings = {
@@ -377,42 +318,42 @@ function ReadexWorkspace({
   const [isSeedingReview, setIsSeedingReview] = useState(false);
   const autoSeedAttemptedRef = useRef(false);
   const reviewDataLoading =
-    mediaLoading ||
-    vaultLoading ||
-    insightsLoading ||
-    conceptsLoading ||
-    questionsLoading ||
-    timelineLoading ||
-    draftsLoading ||
-    practicesLoading ||
-    atlasMapsLoading ||
-    linksLoading ||
-    suggestionsLoading ||
-    thinkingEventsLoading ||
-    beliefProfilesLoading ||
-    unknownsLoading ||
-    thinkingPatternsLoading ||
-    thinkingMetricsLoading ||
-    goalLoading ||
-    preferencesLoading ||
-    legacyProfileLoading ||
-    profileMainLoading ||
-    profilePrivacyLoading ||
-    profileSummaryLoading ||
-    workspaceLoading ||
-    settingsAccountLoading ||
-    settingsAppearanceLoading ||
-    settingsWorkspacePrefsLoading ||
-    settingsAiLoading ||
-    settingsMetacognitionLoading ||
-    settingsPrivacyLoading ||
-    settingsDataLoading ||
-    settingsSourceIntakeLoading ||
-    settingsWorksLoading ||
-    settingsAtlasLoading ||
-    settingsNotificationsLoading ||
-    settingsGoalsLoading ||
-    settingsDeveloperLoading;
+    loading.media ||
+    loading.vault ||
+    loading.insights ||
+    loading.concepts ||
+    loading.questions ||
+    loading.timeline ||
+    loading.drafts ||
+    loading.practices ||
+    loading.atlasMaps ||
+    loading.links ||
+    loading.suggestions ||
+    loading.thinkingEvents ||
+    loading.beliefProfiles ||
+    loading.unknowns ||
+    loading.thinkingPatterns ||
+    loading.thinkingMetrics ||
+    loading.goal ||
+    loading.preferences ||
+    loading.legacyProfile ||
+    loading.profileMain ||
+    loading.profilePrivacy ||
+    loading.profileSummary ||
+    loading.workspace ||
+    loading.settingsAccount ||
+    loading.settingsAppearance ||
+    loading.settingsWorkspacePrefs ||
+    loading.settingsAi ||
+    loading.settingsMetacognition ||
+    loading.settingsPrivacy ||
+    loading.settingsData ||
+    loading.settingsSourceIntake ||
+    loading.settingsWorks ||
+    loading.settingsAtlas ||
+    loading.settingsNotifications ||
+    loading.settingsGoals ||
+    loading.settingsDeveloper;
 
   useEffect(() => {
     setGoalState(goal);
@@ -750,14 +691,34 @@ function ReadexWorkspace({
     }));
   };
 
+  const normalizeThinkingEventType = (
+    eventType: NonNullable<ThinkingEvent['eventType']>,
+    entityType?: WriteThinkingEventInput['entityType']
+  ): NonNullable<ThinkingEvent['eventType']> => {
+    if (entityType === 'position') {
+      if (eventType === 'created') return 'position_created';
+      if (eventType === 'revised' || eventType === 'edited') return 'position_revised';
+      if (eventType === 'abandoned') return 'position_abandoned';
+      if (eventType === 'challenged') return 'challenge_added';
+    }
+    if (entityType === 'suggestion') {
+      if (eventType === 'ai_suggestion_generated') return 'suggestion_created';
+      if (eventType === 'ai_suggestion_accepted') return 'suggestion_accepted';
+      if (eventType === 'ai_suggestion_rejected') return 'suggestion_dismissed';
+    }
+    if (entityType === 'link' && eventType === 'linked') return 'link_created';
+    return eventType;
+  };
+
   const createThinkingEvent = (event: Partial<ThinkingEvent> & { entityType?: WriteThinkingEventInput['entityType']; entityId?: string; relatedEntityIds?: WriteThinkingEventInput['relatedEntityIds']; before?: Record<string, any> | null; after?: Record<string, any> | null; origin?: WriteThinkingEventInput['origin']; importance?: WriteThinkingEventInput['importance']; confidenceBefore?: number | null; confidenceAfter?: number | null; epistemicStatus?: WriteThinkingEventInput['epistemicStatus']; sourceActionId?: string | null; idempotencyKey?: string | null; userReason?: string | null; aiReason?: string | null; systemReason?: string | null }) => {
     const entityType = event.entityType || (event.targetType === 'thinking_pattern' ? 'thinkingPattern' : event.targetType === 'unknown' ? 'unknown' : event.targetType === 'suggestion' ? 'suggestion' : event.targetType);
     const entityId = event.entityId || event.targetId;
     if (!metacognitionEnabled || !event.eventType || !entityType || !entityId) return;
+    const normalizedEventType = normalizeThinkingEventType(event.eventType, entityType);
     writeThinkingEvent({
       collection: refs.thinkingEvents as any,
       userId: effectiveUid,
-      eventType: event.eventType,
+      eventType: normalizedEventType,
       entityType,
       entityId,
       relatedEntityIds: event.relatedEntityIds,
@@ -777,6 +738,7 @@ function ReadexWorkspace({
       visibility: event.visibility,
       metadata: {
         ...(event.metadata || {}),
+        legacyEventType: normalizedEventType !== event.eventType ? event.eventType : undefined,
         relatedTargetType: event.relatedTargetType,
         relatedTargetId: event.relatedTargetId,
       },
@@ -977,8 +939,21 @@ function ReadexWorkspace({
   };
 
   const deleteConcept = (id: string) => {
+    const existing = concepts.find((item) => item.id === id);
     const conceptRef = doc(refs.concepts, id);
     deleteDoc(conceptRef).catch(() => emitError(conceptRef.path, 'delete'));
+    if (existing) {
+      createThinkingEvent({
+        eventType: 'abandoned',
+        entityType: 'concept',
+        entityId: id,
+        before: existing,
+        summary: `Deleted concept: ${existing.name}`,
+        origin: 'user',
+        importance: 'medium',
+        sourceActionId: makeActionId(),
+      });
+    }
   };
 
   const addMedia = (data: Partial<Media>) => {
@@ -1043,8 +1018,21 @@ function ReadexWorkspace({
   };
 
   const deleteMedia = (id: string) => {
+    const existing = media.find((item) => item.id === id);
     const mediaRef = doc(refs.media, id);
     deleteDoc(mediaRef).catch(() => emitError(mediaRef.path, 'delete'));
+    if (existing) {
+      createThinkingEvent({
+        eventType: 'abandoned',
+        entityType: 'source',
+        entityId: id,
+        before: existing,
+        summary: `Deleted source: ${existing.title}`,
+        origin: 'user',
+        importance: 'medium',
+        sourceActionId: makeActionId(),
+      });
+    }
   };
 
   const updateAnnotation = (sourceId: string, annotation: Annotation) => {
@@ -1070,8 +1058,22 @@ function ReadexWorkspace({
   const deleteAnnotation = (sourceId: string, annotationId: string) => {
     const source = media.find((item) => item.id === sourceId);
     if (!source) return;
+    const existing = (source.annotations || []).find((item) => item.id === annotationId) || null;
     const annotations = (source.annotations || []).filter((item) => item.id !== annotationId);
     updateMedia({ ...source, annotations, dateUpdated: today() });
+    if (existing) {
+      createThinkingEvent({
+        eventType: 'abandoned',
+        entityType: 'annotation',
+        entityId: annotationId,
+        before: existing,
+        summary: 'Deleted annotation.',
+        origin: 'user',
+        importance: 'low',
+        relatedEntityIds: { sourceIds: [sourceId] },
+        sourceActionId: makeActionId(),
+      });
+    }
   };
 
   const addVaultEntry = (data: Partial<VaultEntry>) => {
@@ -1134,7 +1136,7 @@ function ReadexWorkspace({
     if (previous && (previous.evidenceAgainst || []).length < (entry.evidenceAgainst || []).length) {
       profilePatch.challengedBy = [...(beliefProfiles.find((item) => item.positionId === entry.id)?.challengedBy || []), 'Challenge recorded'];
       profilePatch.lastChallengedAt = today();
-      createThinkingEvent({ eventType: 'challenged', entityType: 'position', entityId: entry.id, before: previous, after: entry, origin: 'user', summary: `Challenge added to ${entry.title}`, importance: 'high', relatedEntityIds: { sourceIds: entry.sourceIds || [] }, sourceActionId: makeActionId(), epistemicStatus: 'challenged' });
+      createThinkingEvent({ eventType: 'challenge_added', entityType: 'position', entityId: entry.id, before: previous, after: entry, origin: 'user', summary: `Challenge added to ${entry.title}`, importance: 'high', relatedEntityIds: { sourceIds: entry.sourceIds || [] }, sourceActionId: makeActionId(), epistemicStatus: 'challenged' });
     }
     if (previous && previous.confidence !== entry.confidence) {
       createThinkingEvent({ eventType: 'confidence_changed', entityType: 'position', entityId: entry.id, before: previous, after: entry, origin: 'user', summary: `Confidence changed for ${entry.title}`, importance: 'medium', confidenceBefore: previous.confidence, confidenceAfter: entry.confidence, sourceActionId: makeActionId() });
@@ -1156,16 +1158,30 @@ function ReadexWorkspace({
     if (entry.status === 'abandoned' && previous?.status !== 'abandoned') {
       profilePatch.abandonedAt = today();
       profilePatch.reviewStatus = 'abandoned';
-      createThinkingEvent({ eventType: 'abandoned', entityType: 'position', entityId: entry.id, before: previous, after: entry, origin: 'user', summary: `Position abandoned: ${entry.title}`, importance: 'major', epistemicStatus: 'abandoned', sourceActionId: makeActionId() });
+      createThinkingEvent({ eventType: 'position_abandoned', entityType: 'position', entityId: entry.id, before: previous, after: entry, origin: 'user', summary: `Position abandoned: ${entry.title}`, importance: 'major', epistemicStatus: 'abandoned', sourceActionId: makeActionId() });
     } else {
-      createThinkingEvent({ eventType: changeClassification.eventType, entityType: 'position', entityId: entry.id, before: previous || null, after: entry, origin: 'user', summary: `${changeClassification.eventType === 'revised' ? 'Position revised' : 'Position edited'}: ${entry.title}`, importance: changeClassification.importance, sourceActionId: makeActionId() });
+      createThinkingEvent({ eventType: changeClassification.eventType, entityType: 'position', entityId: entry.id, before: previous || null, after: entry, origin: 'user', summary: `${changeClassification.eventType === 'position_revised' ? 'Position revised' : 'Position edited'}: ${entry.title}`, importance: changeClassification.importance, sourceActionId: makeActionId() });
     }
     refreshBeliefProfile(entry, profilePatch);
   };
 
   const deleteVaultEntry = (id: string) => {
+    const existing = vault.find((item) => item.id === id);
     const vaultRef = doc(refs.vault, id);
     deleteDoc(vaultRef).catch(() => emitError(vaultRef.path, 'delete'));
+    if (existing) {
+      createThinkingEvent({
+        eventType: 'position_abandoned',
+        entityType: 'position',
+        entityId: id,
+        before: existing,
+        summary: `Deleted position: ${existing.title}`,
+        origin: 'user',
+        importance: 'major',
+        epistemicStatus: 'abandoned',
+        sourceActionId: makeActionId(),
+      });
+    }
   };
 
   const createIdea = (data: { title: string; body: string; tags: string[]; sourceIds: string[]; position?: { title: string; statement: string; description: string; confidence: number }; sourceAnnotationId?: string; sourceWorkId?: string; sourceDocumentId?: string }) => {
@@ -1419,8 +1435,22 @@ function ReadexWorkspace({
   };
 
   const deleteDraft = (id: string) => {
+    const existing = drafts.find((item) => item.id === id);
     const draftRef = doc(refs.drafts, id);
     deleteDoc(draftRef).catch(() => emitError(draftRef.path, 'delete'));
+    if (existing) {
+      createThinkingEvent({
+        eventType: 'abandoned',
+        entityType: 'work',
+        entityId: id,
+        before: existing,
+        summary: `Deleted work: ${existing.title}`,
+        origin: 'user',
+        importance: 'medium',
+        relatedEntityIds: { sourceIds: existing.sourceIds || [], inquiryIds: existing.questionIds || [], positionIds: existing.beliefIds || [] },
+        sourceActionId: makeActionId(),
+      });
+    }
   };
 
   const addPractice = (data: Partial<Practice>) => {
@@ -1493,8 +1523,22 @@ function ReadexWorkspace({
   };
 
   const deletePractice = (id: string) => {
+    const existing = practices.find((item) => item.id === id);
     const practiceRef = doc(refs.practices, id);
     deleteDoc(practiceRef).catch(() => emitError(practiceRef.path, 'delete'));
+    if (existing) {
+      createThinkingEvent({
+        eventType: 'abandoned',
+        entityType: 'practice',
+        entityId: id,
+        before: existing,
+        summary: `Deleted practice: ${existing.title}`,
+        origin: 'user',
+        importance: 'medium',
+        relatedEntityIds: { sourceIds: existing.sourceIds || [], inquiryIds: existing.questionIds || [], positionIds: existing.positionIds || [], workIds: existing.draftIds || [] },
+        sourceActionId: makeActionId(),
+      });
+    }
   };
 
   const highImportanceAtlasLinks = new Set<PhilosophicalLinkType>(['contradicts', 'supports', 'challenges', 'tested_by', 'refines', 'depends_on']);
@@ -1931,8 +1975,35 @@ function ReadexWorkspace({
     positionsWithoutPractice: vault.filter((v) => v.status !== 'rejected' && !practices.some((p) => (p.positionIds || []).includes(v.id))).length,
   };
 
+  const missingFocusedTarget = useMemo(() => {
+    if (reviewDataLoading) return null;
+    if (routeState.focusedConceptId && !concepts.some((item) => item.id === routeState.focusedConceptId)) {
+      return { label: 'concept', id: routeState.focusedConceptId, view: 'concepts' as NoesisView };
+    }
+    if (focusedQuestionId && !questions.some((item) => item.id === focusedQuestionId)) {
+      return { label: 'inquiry', id: focusedQuestionId, view: 'questions' as NoesisView };
+    }
+    if (focusedSourceId && !media.some((item) => item.id === focusedSourceId)) {
+      return { label: 'source', id: focusedSourceId, view: 'library' as NoesisView };
+    }
+    if (focusedPositionId && !vault.some((item) => item.id === focusedPositionId)) {
+      return { label: 'position', id: focusedPositionId, view: 'vault' as NoesisView };
+    }
+    if (routeState.focusedWorkId && !drafts.some((item) => item.id === routeState.focusedWorkId)) {
+      return { label: 'work', id: routeState.focusedWorkId, view: 'writing' as NoesisView };
+    }
+    if (routeState.focusedPracticeId && !practices.some((item) => item.id === routeState.focusedPracticeId)) {
+      return { label: 'practice', id: routeState.focusedPracticeId, view: 'practices' as NoesisView };
+    }
+    return null;
+  }, [concepts, drafts, focusedPositionId, focusedQuestionId, focusedSourceId, media, practices, questions, reviewDataLoading, routeState.focusedConceptId, routeState.focusedPracticeId, routeState.focusedWorkId, vault]);
+
   const renderContent = () => {
-    switch (view) {
+    if (reviewDataLoading) {
+      return <NoesisPageLoading activeView={activeView} />;
+    }
+
+    switch (activeView) {
       case 'atlas':
         return (
           <ConceptAtlas
@@ -1958,22 +2029,19 @@ function ReadexWorkspace({
             onInteractLink={markPhilosophicalLinkInteraction}
             uid={effectiveUid}
             onOpenPosition={(id) => {
-              setFocusedPositionId(id);
-              setView('vault');
+              navigateToView('vault', { positionId: id });
             }}
             onOpenQuestion={(id) => {
-              setFocusedQuestionId(id);
-              setView('questions');
+              navigateToView('questions', { questionId: id });
             }}
             onOpenSource={(id) => {
-              setFocusedSourceId(id);
-              setView('library');
+              navigateToView('library', { sourceId: id });
             }}
             onOpenWriting={() => {
-              setView('writing');
+              navigateToView('writing');
             }}
             onOpenPractices={() => {
-              setView('practices');
+              navigateToView('practices');
             }}
           />
         );
@@ -2011,7 +2079,7 @@ function ReadexWorkspace({
             onCreateIdea={createIdea}
             onDeleteVaultEntry={deleteVaultEntry}
             focusedSourceId={focusedSourceId}
-            onFocusedSourceHandled={() => setFocusedSourceId(null)}
+            onOpenSourceRoute={(sourceId) => navigateToView('library', { sourceId })}
           />
         );
       case 'annotations':
@@ -2024,8 +2092,7 @@ function ReadexWorkspace({
             onUpdateAnnotation={updateAnnotation}
             onDeleteAnnotation={deleteAnnotation}
             onOpenSource={(sourceId) => {
-              setFocusedSourceId(sourceId);
-              setView('library');
+              navigateToView('library', { sourceId });
             }}
             onCreatePosition={createIdea}
             onCreateInquiry={addQuestion}
@@ -2033,14 +2100,16 @@ function ReadexWorkspace({
             onCreateSuggestion={addAiSuggestion}
             onCreateLink={addPhilosophicalLink}
             onNavigate={(nextView, targetId) => {
-              if (nextView === 'vault' && targetId) setFocusedPositionId(targetId);
-              if (nextView === 'questions' && targetId) setFocusedQuestionId(targetId);
-              setView(nextView);
+              navigateToView(nextView as NoesisView, {
+                positionId: nextView === 'vault' ? targetId : null,
+                questionId: nextView === 'questions' ? targetId : null,
+                sourceId: nextView === 'library' ? targetId : null,
+              });
             }}
           />
         );
       case 'source-index':
-        return <SourceIndex media={media} vault={vault} drafts={drafts} practices={practices} onOpenSource={(sourceId) => { setFocusedSourceId(sourceId); setView('library'); }} />;
+        return <SourceIndex media={media} vault={vault} drafts={drafts} practices={practices} onOpenSource={(sourceId) => { navigateToView('library', { sourceId }); }} />;
       case 'goals':
         return <GoalsPage goal={goalState} goalProgress={goalProgress} onSaveGoal={saveGoal} />;
       case 'profile':
@@ -2067,10 +2136,11 @@ function ReadexWorkspace({
             onUpdateUnknown={updateUnknown}
             onUpdateThinkingPattern={updateThinkingPattern}
             onNavigate={(nextView, targetId) => {
-              if (nextView === 'questions' && targetId) setFocusedQuestionId(targetId);
-              if (nextView === 'vault' && targetId) setFocusedPositionId(targetId);
-              if (nextView === 'library' && targetId) setFocusedSourceId(targetId);
-              setView(nextView);
+              navigateToView(nextView as NoesisView, {
+                questionId: nextView === 'questions' ? targetId : null,
+                positionId: nextView === 'vault' ? targetId : null,
+                sourceId: nextView === 'library' ? targetId : null,
+              });
             }}
           />
         );
@@ -2102,31 +2172,29 @@ function ReadexWorkspace({
             onUpdateSuggestion={updateAiSuggestion}
             onCreateSuggestion={addAiSuggestion}
             onOpenSource={(id) => {
-              setFocusedSourceId(id);
-              setView('library');
+              navigateToView('library', { sourceId: id });
             }}
             onOpenQuestion={(id) => {
-              setFocusedQuestionId(id);
-              setView('questions');
+              navigateToView('questions', { questionId: id });
             }}
             onOpenPractice={() => {
-              setView('practices');
+              navigateToView('practices');
             }}
             onOpenWork={() => {
-              setView('writing');
+              navigateToView('writing');
             }}
             focusedEntryId={focusedPositionId}
-            onFocusedEntryHandled={() => setFocusedPositionId(null)}
+            onOpenEntryRoute={(positionId) => navigateToView('vault', { positionId })}
           />
         );
       case 'questions':
-        return <QuestionsWorkspace questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={addQuestion} onUpdateQuestion={updateQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onFocusedQuestionHandled={() => setFocusedQuestionId(null)} />;
+        return <QuestionsWorkspace questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={addQuestion} onUpdateQuestion={updateQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onOpenQuestionRoute={(questionId) => navigateToView('questions', { questionId })} />;
       case 'writing':
-        return <Atelier drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={addConcept} />;
+        return <Atelier drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={routeState.focusedWorkId || null} onOpenDraftRoute={(workId) => navigateToView('writing', { workId })} />;
       case 'evolution':
         return <EvolutionTimeline events={timeline} media={media} thinkingEvents={thinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} />;
       case 'practices':
-        return <PracticesWorkspace practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} />;
+        return <PracticesWorkspace practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={routeState.focusedPracticeId || null} onOpenPracticeRoute={(practiceId) => navigateToView('practices', { practiceId })} />;
       case 'settings':
         return (
           <SettingsPage
@@ -2149,7 +2217,7 @@ function ReadexWorkspace({
             reviewMode={isReviewWorkspace}
             onSaveSection={saveSettingsSection}
             onExportWorkspace={exportWorkspaceData}
-            onOpenProfile={() => setView('profile')}
+            onOpenProfile={() => navigateToView('profile')}
             onRefreshDemoWorkspace={() => seedReviewWorkspace({ force: true })}
             refreshingDemoWorkspace={isSeedingReview}
             profileSummary={{
@@ -2167,11 +2235,11 @@ function ReadexWorkspace({
   };
 
   return (
-    <Shell
-      activeView={view}
-      onViewChange={setView}
-      onOpenProfile={() => setView('profile')}
-      onOpenGoals={() => setView('goals')}
+    <NoesisShell
+      activeView={activeView}
+      onViewChange={(nextView) => navigateToView(nextView as NoesisView)}
+      onOpenProfile={() => navigateToView('profile')}
+      onOpenGoals={() => navigateToView('goals')}
       counts={{
         concepts: concepts.length,
         questions: questions.length,
@@ -2185,176 +2253,90 @@ function ReadexWorkspace({
       goal={goalState}
       goalProgress={goalProgress}
       movement={movement}
-      profile={{
-        displayName: profile.displayName,
-        email: profile.email,
-        photoURL: profile.photoURL,
-        avatarUrl: profile.avatarUrl,
-        role: profile.role,
-      }}
+      profile={profile}
       workspaceMode={workspace.workspaceMode}
+      isReviewWorkspace={isReviewWorkspace}
+      effectiveUid={effectiveUid}
+      canSeedReviewWorkspace={canSeedReviewWorkspace}
+      isSeedingReview={isSeedingReview}
+      seedReviewWorkspace={seedReviewWorkspace}
+      exportReviewArchitecture={exportReviewArchitecture}
+      media={media}
+      questions={questions}
+      vault={vault}
+      drafts={drafts}
+      practices={practices}
+      links={links}
+      suggestionsCount={suggestions.length}
+      user={user}
     >
-      {isReviewWorkspace && (
-        <div className="border-b border-amber-500/15 bg-amber-500/6 px-6 py-2.5">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full bg-amber-500 text-black">Review Workspace</Badge>
-                  <Badge variant="outline" className="rounded-full">Role: demo</Badge>
-                  <Badge variant="outline" className="rounded-full">Scoped to /users/{effectiveUid}</Badge>
-                  <span className="text-sm text-muted-foreground">
-                    Demo environment active with seeded sources, annotations, inquiries, positions, works, practices, and Atlas links.
-                  </span>
-                </div>
-                {!canSeedReviewWorkspace && (
-                  <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
-                    Sign in with <span className="font-code">{REVIEW_ACCOUNT_EMAIL}</span> or use demo mode to refresh the dedicated review dataset.
-                  </p>
-                )}
-                <div className="mt-1 flex flex-wrap gap-2 font-code text-[10px] uppercase tracking-wider text-muted-foreground">
-                  <span>{media.length} sources</span>
-                  <span>{allAnnotations(media).length} annotations</span>
-                  <span>{questions.length} inquiries</span>
-                  <span>{vault.length} positions</span>
-                  <span>{drafts.length} works</span>
-                  <span>{practices.length} practices</span>
-                  <span>{links.length} typed links</span>
-                  <span>{suggestions.length} AI suggestions</span>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" onClick={() => seedReviewWorkspace({ force: true, announce: true })} disabled={isSeedingReview || !canSeedReviewWorkspace} className="h-8 rounded-full bg-card px-3 text-xs">
-                  <FlaskConical className="mr-1.5 size-3.5" />
-                  {isSeedingReview ? 'Refreshing Demo Data' : 'Refresh Demo Workspace'}
-                </Button>
-                <Button onClick={exportReviewArchitecture} className="h-8 rounded-full px-3 text-xs">
-                  <Download className="mr-1.5 size-3.5" /> Export Architecture
-                </Button>
-              </div>
-            </div>
-          </div>
+      {missingFocusedTarget && (
+        <MissingFocusedTargetBanner
+          label={missingFocusedTarget.label}
+          id={missingFocusedTarget.id}
+          onReturn={() => navigateToView(missingFocusedTarget.view)}
+        />
       )}
       {renderContent()}
-      <Toaster />
-    </Shell>
+    </NoesisShell>
   );
 }
 
-function ReadexApp({ reviewMode = false }: { reviewMode?: boolean }) {
-  const pathname = usePathname();
-  const { user, loading } = useUser();
-  const [demoMode, setDemoMode] = useState(false);
-  const routeDemoMode = pathname === '/demo';
-  const allowDemo = reviewMode || process.env.NEXT_PUBLIC_ALLOW_PROTOTYPE_MODE === 'true';
-  const isReviewIdentity = (user?.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
-  const resolvedReviewWorkspaceUid = isReviewIdentity ? (user?.uid || REVIEW_WORKSPACE_UID) : REVIEW_WORKSPACE_UID;
-
-  if (loading) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-background text-foreground">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="size-8 animate-spin text-accent" />
-          <div className="font-code text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Syncing Mind</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user && !demoMode && !routeDemoMode) {
-    return (
-      <>
-        <LoginPage allowDemo={allowDemo} onDemo={() => allowDemo && setDemoMode(true)} />
-        <Toaster />
-      </>
-    );
-  }
-
-  const workspaceUid = (reviewMode || demoMode || routeDemoMode || isReviewIdentity)
-    ? resolvedReviewWorkspaceUid
-    : (user?.uid || PROTOTYPE_USER_ID);
-
+function MissingFocusedTargetBanner({ label, id, onReturn }: { label: string; id: string; onReturn: () => void }) {
   return (
-    <ReadexWorkspace
-      user={user}
-      uid={workspaceUid}
-      reviewMode={reviewMode || demoMode || routeDemoMode || isReviewIdentity}
-      reviewWorkspaceUid={resolvedReviewWorkspaceUid}
-    />
+    <div className="border-b border-amber-500/20 bg-amber-500/10 px-6 py-3">
+      <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="font-code text-[10px] uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">Linked object unavailable</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This route points to a {label} that is missing, deleted, or not readable in this workspace: <span className="font-code">{id}</span>.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onReturn} className="rounded-full bg-card">
+          Return to {label} list
+        </Button>
+      </div>
+    </div>
   );
+}
+
+function NoesisPageLoading({ activeView }: { activeView: NoesisView }) {
+  const label: Record<NoesisView, string> = {
+    atlas: 'Atlas',
+    concepts: 'Concepts',
+    questions: 'Inquiries',
+    library: 'Library',
+    'source-index': 'Source Index',
+    annotations: 'Annotations',
+    vault: 'Positions',
+    writing: 'Works',
+    practices: 'Practices',
+    evolution: 'Evolution',
+    profile: 'Profile',
+    goals: 'Goals',
+    settings: 'Settings',
+  };
+
+  return <PageLoadingState title={`Loading ${label[activeView]}`} />;
 }
 
 function NoesisHome() {
   const pathname = usePathname();
-  const reviewMode = pathname === '/review' || pathname === '/demo';
-  const [mounted, setMounted] = useState(false);
-  const [firebaseInstances, setFirebaseInstances] = useState<FirebaseInstances | null>(null);
-  const [initError, setInitError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted || !isFirebaseConfigComplete) return;
-    try {
-      setFirebaseInstances(initializeFirebase());
-    } catch (error) {
-      setInitError(error instanceof Error ? error.message : 'Firebase initialization failed.');
-    }
-  }, [mounted]);
-
-  if (mounted && !isFirebaseConfigComplete) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-background px-6 text-foreground">
-        <div className="max-w-xl rounded-2xl border border-border/60 bg-card p-8 shadow-sm">
-          <div className="font-code text-[10px] uppercase tracking-[0.22em] text-accent">Firebase setup required</div>
-          <h1 className="mt-3 font-headline text-3xl font-semibold">Noesis needs your Firebase config.</h1>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Add these missing variables to `.env.local`, then restart the dev server.
-          </p>
-          <div className="mt-5 rounded-xl bg-muted/60 p-4 font-code text-xs leading-6 text-muted-foreground">
-            {missingFirebaseConfigKeys.map((key) => <div key={key}>{key}</div>)}
-          </div>
-          <Button variant="outline" onClick={() => window.location.reload()} size="sm" className="mt-6 rounded-full">
-            <RefreshCw className="mr-2 size-3.5" /> Reload Page
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (mounted && initError) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-background px-6 text-foreground">
-        <div className="max-w-xl rounded-2xl border border-destructive/30 bg-card p-8 shadow-sm">
-          <div className="font-code text-[10px] uppercase tracking-[0.22em] text-destructive">Firebase failed to start</div>
-          <h1 className="mt-3 font-headline text-3xl font-semibold">Check your Firebase settings.</h1>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">{initError}</p>
-          <Button variant="outline" onClick={() => window.location.reload()} size="sm" className="mt-6 rounded-full">
-            <RefreshCw className="mr-2 size-3.5" /> Reload Page
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!mounted || !firebaseInstances) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-background text-foreground">
-        <div className="flex flex-col items-center gap-6">
-          <div className="font-code text-[10px] uppercase tracking-[0.2em] text-muted-foreground animate-pulse">Initializing Noesis...</div>
-          <Button variant="outline" onClick={() => window.location.reload()} size="sm" className="rounded-full">
-            <RefreshCw className="size-3.5 mr-2" /> Reload Page
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const reviewMode = pathname === '/review' || pathname.startsWith('/review/') || pathname === '/demo' || pathname.startsWith('/demo/');
 
   return (
-    <FirebaseClientProvider firebaseApp={firebaseInstances.firebaseApp} firestore={firebaseInstances.firestore} auth={firebaseInstances.auth}>
-      <ReadexApp reviewMode={reviewMode} />
-    </FirebaseClientProvider>
+    <NoesisProviders>
+      <NoesisWorkspaceGate reviewMode={reviewMode}>
+        {(workspace) => (
+          <ReadexWorkspace
+            user={workspace.user}
+            uid={workspace.uid}
+            reviewMode={workspace.reviewMode}
+            reviewWorkspaceUid={workspace.reviewWorkspaceUid}
+          />
+        )}
+      </NoesisWorkspaceGate>
+    </NoesisProviders>
   );
 }
 

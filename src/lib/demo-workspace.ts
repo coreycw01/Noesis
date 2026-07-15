@@ -1378,6 +1378,30 @@ export function buildReviewExport(args: {
     metrics: Record<string, number | string>;
   };
 }) {
+  const routeCoverage = [
+    { route: '/atlas', surface: 'Atlas', purpose: 'System-level worldview regions, tensions, development, paths, and map exploration.' },
+    { route: '/concepts', surface: 'Concepts', purpose: 'Philosophical vocabulary index.' },
+    { route: '/concepts/[conceptId]', surface: 'Concept detail', purpose: 'Deep-link focused concept inspection.' },
+    { route: '/inquiries', surface: 'Inquiries', purpose: 'Structured investigations and question workspaces.' },
+    { route: '/inquiries/[inquiryId]', surface: 'Inquiry detail', purpose: 'Deep-link focused inquiry workspace.' },
+    { route: '/library', surface: 'Library', purpose: 'Active source consumption and capture.' },
+    { route: '/library/[sourceId]', surface: 'Source detail', purpose: 'Deep-link focused source thread.' },
+    { route: '/sources', surface: 'Source Index', purpose: 'High-density source catalog.' },
+    { route: '/annotations', surface: 'Annotations', purpose: 'Processing inbox for highlights, thoughts, questions, and claims.' },
+    { route: '/positions', surface: 'Positions', purpose: 'Endorsed claims, evidence, tensions, and belief biographies.' },
+    { route: '/positions/[positionId]', surface: 'Position detail', purpose: 'Deep-link focused position analysis.' },
+    { route: '/works', surface: 'Works', purpose: 'Writing, notes, drawing, recording, and external-doc artifacts.' },
+    { route: '/works/[workId]', surface: 'Work detail', purpose: 'Deep-link focused work editor.' },
+    { route: '/practices', surface: 'Practices', purpose: 'Lived tests, habits, experiments, and observations.' },
+    { route: '/practices/[practiceId]', surface: 'Practice detail', purpose: 'Deep-link focused practice editor.' },
+    { route: '/evolution', surface: 'Evolution', purpose: 'Meaningful intellectual change over time.' },
+    { route: '/profile', surface: 'Profile', purpose: 'Identity, thinking tendencies, unknowns, and public philosophy controls.' },
+    { route: '/goals', surface: 'Goals', purpose: 'Intellectual commitments and progress categories.' },
+    { route: '/settings', surface: 'Settings', purpose: 'App behavior, appearance, AI, privacy, data, and developer controls.' },
+    { route: '/demo', surface: 'Demo mode', purpose: 'Review workspace using seeded demo data.' },
+    { route: '/review', surface: 'Review mode', purpose: 'Review workspace wrapper with architecture export.' },
+  ];
+
   return {
     exportedAt: new Date().toISOString(),
     navigationTree: noesisGuide.sections.map((section) => ({
@@ -1393,6 +1417,15 @@ export function buildReviewExport(args: {
       connectsTo: section.connectsTo,
       importantActions: section.importantActions,
     })),
+    appRouter: {
+      routeCoverage,
+      routeBehavior: [
+        'Browser refresh preserves the active page.',
+        'Back and forward navigation use real URLs instead of local view-only state.',
+        'Detail routes show a recovery banner when the focused object is missing or unreadable.',
+        'Review and demo routes boot the same authenticated shell with review workspace context.',
+      ],
+    },
     firestoreCollections: readexSchemaDoc(args.uid),
     relationships: {
       relationshipFields: noesisGuide.relationshipFields,
@@ -1462,7 +1495,19 @@ export function buildReviewExport(args: {
       'Theme compatibility',
       'Desktop, tablet, and mobile layout',
       'Navigation, search, filters, and permissions',
+      'Command palette navigation',
+      'Route-level loading and error boundaries',
+      'Missing object recovery on detail routes',
+      'Thinking event coverage for create, update, delete, link, suggestion, and metacognition actions',
     ],
+    resilienceModel: {
+      loadingBoundary: 'src/app/loading.tsx',
+      errorBoundary: 'src/app/error.tsx',
+      pageStates: 'src/components/shared/PageState.tsx',
+      filterPrimitive: 'src/components/shared/FilterToolbar.tsx',
+      commandPalette: 'src/components/Shell.tsx',
+      missingObjectRecovery: 'src/app/noesis-home-page.tsx',
+    },
     roadmapSignals: [
       'Thinking style detection',
       'Belief evolution',

@@ -16,6 +16,9 @@ import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilos
 import type { Concept, Draft, Media, PhilosophicalLink, Practice, PracticeStatus, PracticeType, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, normalizeConceptTags, PRACTICE_LABELS, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { PageEmptyState } from '@/components/shared/PageState';
 
 interface PracticesWorkspaceProps {
   practices: Practice[];
@@ -29,6 +32,8 @@ interface PracticesWorkspaceProps {
   onDeletePractice: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
+  focusedPracticeId?: string | null;
+  onOpenPracticeRoute?: (id: string | null) => void;
 }
 
 const practiceTypes: PracticeType[] = ['habit', 'experiment', 'discipline', 'reflection_prompt', 'commitment', 'observation', 'rule', 'challenge'];
@@ -51,7 +56,7 @@ function currentStreak(logDates?: string[]) {
   return streak;
 }
 
-export function PracticesWorkspace({ practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink }: PracticesWorkspaceProps) {
+export function PracticesWorkspace({ practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute }: PracticesWorkspaceProps) {
   const [statusFilter, setStatusFilter] = useState<PracticeStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<PracticeType | 'all'>('all');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -59,11 +64,30 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
   const questionList = useMemo(() => allQuestions(media, questions), [media, questions]);
   const activePractices = practices.filter((practice) => practice.status === 'active' || practice.status === 'planned');
   const filtered = practices.filter((practice) => (statusFilter === 'all' || practice.status === statusFilter) && (typeFilter === 'all' || practice.type === typeFilter));
+  const practiceStats = useMemo(() => ({
+    total: practices.length,
+    active: practices.filter((practice) => practice.status === 'active').length,
+    planned: practices.filter((practice) => practice.status === 'planned').length,
+    testedPositions: new Set(practices.flatMap((practice) => practice.positionIds || [])).size,
+  }), [practices]);
+
+  const clearPracticeFilters = () => {
+    setStatusFilter('all');
+    setTypeFilter('all');
+  };
+
+  const practiceFiltersActive = statusFilter !== 'all' || typeFilter !== 'all';
 
   const openEditor = (practice?: Practice) => {
     setDraft(practice ? { ...practice } : { title: '', description: '', type: 'experiment', status: 'planned', durationDays: 7, startDate: today().slice(0, 10), endDate: '', conceptTags: [] });
     setEditorOpen(true);
   };
+
+  React.useEffect(() => {
+    if (!focusedPracticeId) return;
+    const focused = practices.find((practice) => practice.id === focusedPracticeId);
+    if (focused) openEditor(focused);
+  }, [focusedPracticeId, practices]);
 
   const handleSave = () => {
     if (!draft.title?.trim()) return;
@@ -71,19 +95,26 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
     if (draft.id) onUpdatePractice(payload as Practice);
     else onAddPractice(payload);
     setEditorOpen(false);
+    if (draft.id) onOpenPracticeRoute?.(draft.id);
   };
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
-      <header className="flex justify-between items-center mb-10">
-        <div>
-          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80 leading-none">Practices</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Turn understanding into habits, experiments, disciplines, commitments, and lived tests.</p>
-        </div>
-        <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
-          <Plus className="size-4 mr-1.5" /> NEW PRACTICE
-        </Button>
-      </header>
+      <PageHeader
+        title="Practices"
+        description="Turn understanding into habits, experiments, disciplines, commitments, and lived tests."
+        actions={
+          <>
+            <PracticeStat label="Total" value={practiceStats.total} />
+            <PracticeStat label="Active" value={practiceStats.active} />
+            <PracticeStat label="Planned" value={practiceStats.planned} />
+            <PracticeStat label="Positions Tested" value={practiceStats.testedPositions} />
+            <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
+              <Plus className="size-4 mr-1.5" /> NEW PRACTICE
+            </Button>
+          </>
+        }
+      />
 
       <section className="mb-12">
         <div className="flex items-center gap-2 mb-6">
@@ -92,7 +123,7 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {(activePractices.length ? activePractices : practices.slice(0, 3)).map((practice) => (
-            <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => openEditor(practice)} onDelete={() => onDeletePractice(practice.id)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
+            <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onDelete={() => onDeletePractice(practice.id)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
           ))}
           {!practices.length && (
             <Card className="p-12 border-dashed border-border/60 text-center md:col-span-2 xl:col-span-3 bg-muted/5 rounded-xl shadow-inner">
@@ -105,7 +136,13 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-2.5 mb-8 border-b border-border/30 pb-6">
+      <FilterToolbar
+        resultCount={filtered.length}
+        resultLabel="practices"
+        onClear={clearPracticeFilters}
+        clearDisabled={!practiceFiltersActive}
+        className="mb-8"
+      >
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as PracticeStatus | 'all')}>
           <SelectTrigger className="w-48 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Statuses" /></SelectTrigger>
           <SelectContent>
@@ -120,17 +157,30 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
             {practiceTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{PRACTICE_LABELS[type]}</SelectItem>)}
           </SelectContent>
         </Select>
-      </div>
+      </FilterToolbar>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filtered.map((practice) => (
-          <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => openEditor(practice)} onDelete={() => onDeletePractice(practice.id)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
+          <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onDelete={() => onDeletePractice(practice.id)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
         ))}
+        {filtered.length === 0 && (
+          <div className="md:col-span-2 xl:col-span-3">
+            <PageEmptyState
+              icon={Repeat}
+              title="No practices found"
+              description="Clear filters or create a lived test that connects a position to behavior."
+              action={practiceFiltersActive ? <Button variant="outline" onClick={clearPracticeFilters} className="rounded-full">Clear filters</Button> : <Button onClick={() => openEditor()} className="rounded-full"><Plus className="mr-1.5 size-4" /> New practice</Button>}
+            />
+          </div>
+        )}
       </div>
 
       <PracticeEditor
         open={editorOpen}
-        onOpenChange={setEditorOpen}
+        onOpenChange={(open) => {
+          setEditorOpen(open);
+          if (!open && focusedPracticeId) onOpenPracticeRoute?.(null);
+        }}
         draft={draft}
         setDraft={setDraft}
         concepts={concepts}
@@ -141,6 +191,15 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
         onAddConcept={onAddConcept}
         onSave={handleSave}
       />
+    </div>
+  );
+}
+
+function PracticeStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-border/50 bg-card px-4 py-2 text-right shadow-sm">
+      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
+      <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
     </div>
   );
 }

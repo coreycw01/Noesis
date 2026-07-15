@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, History, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Media, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { PageEmptyState } from '@/components/shared/PageState';
 
 interface EvolutionTimelineProps {
   events: TimelineEvent[];
@@ -136,30 +138,31 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
   const pagedEvents = filteredEvents.slice(safePage * pageSize, safePage * pageSize + pageSize);
   const rangeStart = filteredEvents.length ? safePage * pageSize + 1 : 0;
   const rangeEnd = Math.min(filteredEvents.length, safePage * pageSize + pageSize);
+  const clearEvolutionFilters = () => {
+    setSearch('');
+    setFilter('all');
+  };
+  const evolutionFiltersActive = Boolean(search || filter !== 'all');
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
-      <header className="flex justify-between items-center mb-10">
-        <div>
-          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Evolution</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Trace how your concepts, inquiries, positions, works, and practices change over time.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value) as 5 | 10)}>
-            <SelectTrigger className="h-9 w-40 rounded-full bg-muted/40 font-code text-[10px] uppercase tracking-widest">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="5" className="font-code text-[10px] uppercase">Recent 5</SelectItem>
-              <SelectItem value="10" className="font-code text-[10px] uppercase">Recent 10</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search changes..." className="w-64 pl-9 bg-muted/40 font-code text-[11px] h-9" />
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        title="Evolution"
+        description="Trace meaningful changes in positions, concepts, inquiries, practices, unknowns, and thinking patterns over time."
+        actions={
+          <>
+            <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value) as 5 | 10)}>
+              <SelectTrigger className="h-9 w-40 rounded-full bg-muted/40 font-code text-[10px] uppercase tracking-widest">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5" className="font-code text-[10px] uppercase">Recent 5</SelectItem>
+                <SelectItem value="10" className="font-code text-[10px] uppercase">Recent 10</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
       <div className="mb-8 grid gap-4 md:grid-cols-4">
         <MetricCard label="Beliefs Revised" value={metrics.beliefsRevised} />
@@ -168,7 +171,16 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
         <MetricCard label="Stress Tests Answered" value={metrics.positionsStressTested} />
       </div>
 
-      <div className="mb-10">
+      <FilterToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search changes..."
+        resultCount={filteredEvents.length}
+        resultLabel="events"
+        onClear={clearEvolutionFilters}
+        clearDisabled={!evolutionFiltersActive}
+        className="mb-8"
+      >
         <div className="flex flex-wrap gap-2">
           {FILTER_OPTIONS.map((option) => (
             <button
@@ -183,11 +195,11 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
             </button>
           ))}
         </div>
-      </div>
+      </FilterToolbar>
 
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border/50 bg-white p-4 shadow-sm">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border/50 bg-card p-4 shadow-sm">
         <div>
-          <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Recent Changes</div>
+          <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Meaningful Change Feed</div>
           <p className="mt-1 text-sm italic text-muted-foreground">
             Showing {rangeStart}-{rangeEnd} of {filteredEvents.length} evolution events.
           </p>
@@ -245,10 +257,13 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
         })}
 
         {filteredEvents.length === 0 && (
-          <div className="py-20 text-center opacity-30">
-            <History className="size-16 mx-auto mb-6 text-muted-foreground" />
-            <h2 className="text-2xl font-headline italic mb-2">No evolution recorded</h2>
-            <p className="max-w-xs mx-auto font-body">Once positions are revised, unknowns are named, and tensions are resolved, the memory-of-change layer will appear here.</p>
+          <div className="pl-0">
+            <PageEmptyState
+              icon={History}
+              title="No evolution recorded"
+              description="Once positions are revised, unknowns are named, and tensions are resolved, the memory-of-change layer will appear here."
+              action={evolutionFiltersActive ? <Button variant="outline" onClick={clearEvolutionFilters} className="rounded-full">Clear filters</Button> : undefined}
+            />
           </div>
         )}
       </div>

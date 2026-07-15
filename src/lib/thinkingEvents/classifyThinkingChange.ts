@@ -4,11 +4,11 @@ export function classifyThinkingChange(before?: Partial<VaultEntry> | null, afte
   eventType: ThinkingEventType;
   importance: ThinkingEventImportance;
 } {
-  if (!before) return { eventType: 'created', importance: 'high' };
-  if (!after) return { eventType: 'abandoned', importance: 'high' };
+  if (!before) return { eventType: 'position_created', importance: 'high' };
+  if (!after) return { eventType: 'position_abandoned', importance: 'high' };
 
   if (before.status !== 'abandoned' && after.status === 'abandoned') {
-    return { eventType: 'abandoned', importance: 'major' };
+    return { eventType: 'position_abandoned', importance: 'major' };
   }
 
   if ((before.confidence ?? null) !== (after.confidence ?? null) || (before.confidenceScore ?? null) !== (after.confidenceScore ?? null)) {
@@ -21,7 +21,7 @@ export function classifyThinkingChange(before?: Partial<VaultEntry> | null, afte
     JSON.stringify(before.tags || []) !== JSON.stringify(after.tags || []);
 
   if (meaningFieldsChanged) {
-    return { eventType: 'revised', importance: 'high' };
+    return { eventType: 'position_revised', importance: 'high' };
   }
 
   return { eventType: 'edited', importance: 'low' };

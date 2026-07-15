@@ -2,13 +2,14 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { Download, Copy, Search, ArrowUpDown, ExternalLink, MessageSquare } from 'lucide-react';
+import { Download, Copy, ArrowUpDown, ExternalLink, MessageSquare, Library } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { PageEmptyState } from '@/components/shared/PageState';
 import type { Draft, Media, MediaStatus, MediaType, Practice, VaultEntry } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_TYPES, conceptKey } from '@/lib/readex';
 import { cn } from '@/lib/utils';
@@ -91,34 +92,42 @@ export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: S
     toast({ title: "Bibliography Copied", description: `${filtered.length} citations exported to clipboard.` });
   };
 
+  const clearFilters = () => {
+    setSearch('');
+    setFilterType('all');
+    setFilterStatus('all');
+    setFilterConcept('all');
+    setFilterAnnotations('all');
+  };
+
+  const filtersActive = Boolean(search || filterType !== 'all' || filterStatus !== 'all' || filterConcept !== 'all' || filterAnnotations !== 'all');
+
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
-      <header className="flex justify-between items-center mb-10">
-        <div>
-          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Source Index</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Browse, filter, and manage every source feeding your thinking.</p>
-        </div>
-        <div className="flex items-center gap-3">
+      <PageHeader
+        title="Source Index"
+        description="Browse, filter, and manage every source feeding your thinking."
+        actions={
+          <>
           <Button variant="outline" onClick={copyAllCitations} size="sm" className="h-9 px-6 bg-white border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
             <Copy className="size-4 mr-2" /> COPY BIBLIOGRAPHY
           </Button>
           <Button variant="outline" size="sm" className="h-9 px-6 bg-white border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
             <Download className="size-4 mr-2" /> EXPORT BIBTEX
           </Button>
-        </div>
-      </header>
+          </>
+        }
+      />
 
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-8 bg-white p-4 rounded-xl border border-border/40 shadow-sm">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)} 
-            placeholder="Search registry by title, creator, identifiers, tags..." 
-            className="pl-9 h-10 text-sm rounded-full"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <FilterToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search registry by title, creator, identifiers, tags..."
+        resultCount={filtered.length}
+        resultLabel="sources"
+        onClear={clearFilters}
+        clearDisabled={!filtersActive}
+      >
           <Select value={filterType} onValueChange={(v) => setFilterType(v as MediaType | 'all')}>
             <SelectTrigger className="w-40 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="All Types" /></SelectTrigger>
             <SelectContent>
@@ -148,8 +157,7 @@ export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: S
               <SelectItem value="without" className="font-code text-[10px] uppercase">No Annotations</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-      </div>
+      </FilterToolbar>
 
       <div className="bg-white rounded-xl border border-border/40 shadow-md overflow-hidden">
         <Table>
@@ -232,8 +240,13 @@ export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: S
             })}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="h-48 text-center text-muted-foreground italic">
-                  No registry records matching your query.
+                <TableCell colSpan={8} className="p-8">
+                  <PageEmptyState
+                    icon={Library}
+                    title="No sources match this view"
+                    description="Clear filters or search for a different title, creator, identifier, or concept tag."
+                    action={filtersActive ? <Button variant="outline" onClick={clearFilters} className="rounded-full">Clear filters</Button> : undefined}
+                  />
                 </TableCell>
               </TableRow>
             )}

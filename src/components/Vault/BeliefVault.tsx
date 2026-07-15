@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, ChevronRight, Edit, LayoutGrid, Lightbulb, Loader2, Plus, ShieldCheck, Table2, Trash2, Search, Triangle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ChevronRight, Edit, LayoutGrid, Lightbulb, Loader2, Plus, ShieldCheck, Table2, Trash2, Triangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,9 @@ import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilos
 import { aiClient } from '@/lib/ai-client';
 import { useToast } from '@/hooks/use-toast';
 import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { PageEmptyState } from '@/components/shared/PageState';
 
 interface BeliefVaultProps {
   entries: VaultEntry[];
@@ -54,6 +57,7 @@ interface BeliefVaultProps {
   onOpenWork?: (id: string) => void;
   focusedEntryId?: string | null;
   onFocusedEntryHandled?: () => void;
+  onOpenEntryRoute?: (id: string | null) => void;
 }
 
 const vaultTypes: VaultType[] = ['belief', 'principle', 'mental_model', 'life_rule', 'worldview'];
@@ -64,6 +68,20 @@ const TYPE_LABELS: Record<VaultType, string> = {
   mental_model: 'Mental Model',
   life_rule: 'Life Rule',
   worldview: 'Worldview',
+};
+
+type PositionViewFilter = 'all' | 'current' | 'emerging' | 'under_review' | 'revised' | 'abandoned' | 'tensions' | 'unsupported' | 'recently_changed';
+
+const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
+  all: 'All',
+  current: 'Current',
+  emerging: 'Emerging',
+  under_review: 'Under Review',
+  revised: 'Revised',
+  abandoned: 'Abandoned',
+  tensions: 'Tensions',
+  unsupported: 'Unsupported',
+  recently_changed: 'Recently Changed',
 };
 
 function safePosition(entry: VaultEntry): VaultEntry {
@@ -92,11 +110,12 @@ function safePositionDate(value?: string) {
   return Number.isNaN(date.getTime()) ? new Date().toLocaleDateString() : date.toLocaleDateString();
 }
 
-export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, suggestions, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onCreateIdea, onAddUnknown, onUpdateSuggestion, onCreateSuggestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled }: BeliefVaultProps) {
+export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, suggestions, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onCreateIdea, onAddUnknown, onUpdateSuggestion, onCreateSuggestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled, onOpenEntryRoute }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | VaultType | 'ideas'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | VaultType | 'ideas'>('all');
+  const [viewFilter, setViewFilter] = useState<PositionViewFilter>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'relations' | 'history'>('overview');
   const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'active', tags: [] });
@@ -179,16 +198,54 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const safeEntries = useMemo(() => entries.filter((entry) => entry?.id).map(safePosition), [entries]);
   const selected = safeEntries.find((entry) => entry.id === selectedId) || null;
   const filteredEntries = safeEntries.filter(e => {
-    const typeOk = filter === 'all'
+    const typeOk = typeFilter === 'all'
       ? true
-      : filter === 'ideas'
+      : typeFilter === 'ideas'
         ? e.createdFrom === 'idea'
-        : e.type === filter;
+        : e.type === typeFilter;
+    const hasTension = links.some((link) =>
+      ((link.fromType === 'position' && link.fromId === e.id) || (link.toType === 'position' && link.toId === e.id)) &&
+      ['challenges', 'contradicts'].includes(link.type)
+    );
+    const hasSupport = (e.evidenceFor || []).length > 0 || (e.sourceIds || []).length > 0;
+    const changedAt = new Date(e.dateUpdated || e.dateCreated).getTime();
+    const recentCutoff = Date.now() - 1000 * 60 * 60 * 24 * 30;
+    const viewOk =
+      viewFilter === 'all' ||
+      (viewFilter === 'current' && ['active', 'draft', 'uncertain'].includes(e.status)) ||
+      (viewFilter === 'emerging' && (e.status === 'draft' || e.confidence <= 2)) ||
+      (viewFilter === 'under_review' && ['challenged', 'uncertain', 'questioning'].includes(e.status)) ||
+      (viewFilter === 'revised' && e.status === 'revised') ||
+      (viewFilter === 'abandoned' && ['abandoned', 'rejected'].includes(e.status)) ||
+      (viewFilter === 'tensions' && hasTension) ||
+      (viewFilter === 'unsupported' && !hasSupport) ||
+      (viewFilter === 'recently_changed' && changedAt >= recentCutoff);
     const haystack = `${e.title || ''} ${e.statement || ''} ${e.description || ''}`.toLowerCase();
     const queryOk = !search ||
       haystack.includes(search.toLowerCase());
-    return typeOk && queryOk;
+    return typeOk && viewOk && queryOk;
   });
+
+  const positionStats = useMemo(() => {
+    const tensionCount = safeEntries.filter((entry) => links.some((link) =>
+      ((link.fromType === 'position' && link.fromId === entry.id) || (link.toType === 'position' && link.toId === entry.id)) &&
+      ['challenges', 'contradicts'].includes(link.type)
+    )).length;
+    return {
+      total: safeEntries.length,
+      underReview: safeEntries.filter((entry) => ['challenged', 'uncertain', 'questioning'].includes(entry.status)).length,
+      unsupported: safeEntries.filter((entry) => !(entry.evidenceFor || []).length && !(entry.sourceIds || []).length).length,
+      tensions: tensionCount,
+    };
+  }, [safeEntries, links]);
+
+  const clearPositionFilters = () => {
+    setSearch('');
+    setTypeFilter('all');
+    setViewFilter('all');
+  };
+
+  const positionFiltersActive = Boolean(search || typeFilter !== 'all' || viewFilter !== 'all');
 
   const openEditor = (entry?: VaultEntry) => {
     setDraftEntry(entry ? { ...entry } : { type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'active', tags: [] });
@@ -196,7 +253,10 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   };
 
   useEffect(() => {
-    if (!focusedEntryId) return;
+    if (!focusedEntryId) {
+      setSelectedId(null);
+      return;
+    }
     if (safeEntries.some((entry) => entry.id === focusedEntryId)) {
       setSelectedId(focusedEntryId);
       setDetailTab('overview');
@@ -209,6 +269,17 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     if (draftEntry.id) onUpdateEntry({ ...(draftEntry as VaultEntry), tags: normalizeConceptTags(draftEntry.tags), dateUpdated: today() });
     else onAddEntry({ ...draftEntry, tags: normalizeConceptTags(draftEntry.tags) });
     setEditorOpen(false);
+  };
+
+  const openEntry = (id: string) => {
+    setSelectedId(id);
+    setDetailTab('overview');
+    onOpenEntryRoute?.(id);
+  };
+
+  const closeEntry = () => {
+    setSelectedId(null);
+    onOpenEntryRoute?.(null);
   };
 
   const tensions = useMemo(() => {
@@ -351,10 +422,10 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     return (
       <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-5xl mx-auto w-full font-body">
         <div className="flex items-center justify-between mb-8">
-          <Button variant="ghost" onClick={() => setSelectedId(null)} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full"><ArrowLeft className="size-4 mr-2" /> Positions</Button>
+          <Button variant="ghost" onClick={closeEntry} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full"><ArrowLeft className="size-4 mr-2" /> Positions</Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => openEditor(selected)} className="h-8 bg-white border-border/60 shadow-sm rounded-full"><Edit className="size-4 mr-2" /> Edit</Button>
-            <Button variant="destructive" onClick={() => { onDeleteEntry(selected.id); setSelectedId(null); }} className="h-8 shadow-sm rounded-full"><Trash2 className="size-4 mr-2" /> Delete</Button>
+            <Button variant="destructive" onClick={() => { onDeleteEntry(selected.id); closeEntry(); }} className="h-8 shadow-sm rounded-full"><Trash2 className="size-4 mr-2" /> Delete</Button>
           </div>
         </div>
 
@@ -670,7 +741,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                   )
                   .map((link) => link.type.replace(/_/g, ' '))
                   .join(', '),
-                onClick: () => setSelectedId(entry.id),
+                onClick: () => openEntry(entry.id),
               }))}
             />
             <EntityListPanel
@@ -841,12 +912,59 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
-      <header className="flex justify-between items-center mb-10">
-        <div>
-          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80 leading-none">Positions</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">State what you currently believe, what you are testing, and what evidence supports or challenges each position.</p>
-        </div>
-        <div className="flex items-center gap-3">
+      <PageHeader
+        title="Positions"
+        description="State what you currently believe, what you are testing, and what evidence supports or challenges each position."
+        actions={
+          <>
+            <PositionStat label="Total" value={positionStats.total} />
+            <PositionStat label="Review" value={positionStats.underReview} />
+            <PositionStat label="Unsupported" value={positionStats.unsupported} />
+            <PositionStat label="Tensions" value={positionStats.tensions} />
+            <Button variant="outline" onClick={openIdeaDialog} size="sm" className="bg-white border-border/60 shadow-sm rounded-full h-9 font-bold">
+              <Lightbulb className="size-4 mr-1.5" /> NEW IDEA
+            </Button>
+            <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
+              <Plus className="size-4 mr-1.5" /> NEW POSITION
+            </Button>
+          </>
+        }
+      />
+
+      <FilterToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search positions, principles..."
+        resultCount={filteredEntries.length}
+        resultLabel="positions"
+        onClear={clearPositionFilters}
+        clearDisabled={!positionFiltersActive}
+        className="mb-8"
+      >
+        <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PositionViewFilter)}>
+          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+            <SelectValue placeholder="Position View" />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(POSITION_VIEW_LABELS) as PositionViewFilter[]).map((value) => (
+              <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{POSITION_VIEW_LABELS[value]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as VaultType | 'ideas' | 'all')}>
+          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+            <SelectValue placeholder="Position Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="font-code text-[10px] uppercase">All Types</SelectItem>
+            {vaultTypes.map((type) => (
+              <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{TYPE_LABELS[type]}</SelectItem>
+            ))}
+            <SelectItem value="ideas" className="font-code text-[10px] uppercase">Ideas</SelectItem>
+          </SelectContent>
+        </Select>
+
           <div className="flex rounded-full border border-border/60 bg-card p-1 shadow-sm">
             <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('cards')} className="h-7 rounded-full px-3">
               <LayoutGrid className="size-3.5" /> Cards
@@ -855,18 +973,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               <Table2 className="size-3.5" /> Table
             </Button>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search positions, principles..." className="w-72 pl-9 h-9 rounded-full" />
-          </div>
-          <Button variant="outline" onClick={openIdeaDialog} size="sm" className="bg-white border-border/60 shadow-sm rounded-full h-9 font-bold">
-            <Lightbulb className="size-4 mr-1.5" /> NEW IDEA
-          </Button>
-          <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
-            <Plus className="size-4 mr-1.5" /> NEW POSITION
-          </Button>
-        </div>
-      </header>
+      </FilterToolbar>
 
       {tensions.length > 0 && (
         <div className="mb-8 rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -878,13 +985,13 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             {tensions.map(({ a, b, sharedTags }) => (
               <div key={`${a.id}-${b.id}`} className="rounded-lg border border-border bg-background p-4 shadow-sm">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm font-body">
-                  <button onClick={() => setSelectedId(a.id)} className="font-headline text-base font-bold italic text-foreground hover:text-accent transition-colors focus:outline-none focus:ring-2 focus:ring-ring rounded-sm">
+                  <button onClick={() => openEntry(a.id)} className="font-headline text-base font-bold italic text-foreground hover:text-accent transition-colors focus:outline-none focus:ring-2 focus:ring-ring rounded-sm">
                     {a.title}
                   </button>
                   <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground self-center">shares concept</span>
                   <span className="font-code text-[9px] bg-accent/10 text-accent rounded-full px-2.5 py-1 self-center border border-accent/20 font-bold">{sharedTags[0]}</span>
                   <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground self-center">with</span>
-                  <button onClick={() => setSelectedId(b.id)} className="font-headline text-base font-bold italic text-foreground hover:text-accent transition-colors focus:outline-none focus:ring-2 focus:ring-ring rounded-sm">
+                  <button onClick={() => openEntry(b.id)} className="font-headline text-base font-bold italic text-foreground hover:text-accent transition-colors focus:outline-none focus:ring-2 focus:ring-ring rounded-sm">
                     {b.title}
                   </button>
                 </div>
@@ -895,57 +1002,15 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         </div>
       )}
 
-      <div className="mb-10">
-        <p className="text-xl font-headline italic text-foreground/60 mb-5">Explicit positions, principles, and mental models</p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setFilter('all')}
-            className={cn(
-              "px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.14em] transition-all",
-              filter === 'all' 
-                ? "bg-accent text-white shadow-sm" 
-                : "bg-white text-muted-foreground border border-border/60 shadow-sm hover:text-foreground hover:bg-muted/5"
-            )}
-          >
-            ALL
-          </button>
-          {vaultTypes.map((type) => (
-            <button
-              key={type}
-              onClick={() => setFilter(type)}
-              className={cn(
-                "px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap",
-                filter === type
-                  ? "bg-accent text-white shadow-sm"
-                  : "bg-white text-muted-foreground border border-border/60 shadow-sm hover:text-foreground hover:bg-muted/5"
-              )}
-            >
-              {TYPE_LABELS[type] === 'Belief' ? 'BELIEFS' : TYPE_LABELS[type].toUpperCase() + 'S'}
-            </button>
-          ))}
-          <button
-            onClick={() => setFilter('ideas')}
-            className={cn(
-              "px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap",
-              filter === 'ideas'
-                ? "bg-amber-500 text-white shadow-sm"
-                : "bg-amber-50 text-amber-700 border border-amber-200 shadow-sm hover:bg-amber-100"
-            )}
-          >
-            IDEAS
-          </button>
-        </div>
-      </div>
-
       {viewMode === 'table' ? (
-        <PositionsTable entries={filteredEntries} onOpen={setSelectedId} />
+        <PositionsTable entries={filteredEntries} onOpen={openEntry} />
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredEntries.map((entry) => (
           <Card 
             key={entry.id} 
             className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-5 rounded-xl shadow-md" 
-            onClick={() => setSelectedId(entry.id)}
+            onClick={() => openEntry(entry.id)}
           >
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex-1 min-w-0">
@@ -995,10 +1060,13 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           </Card>
         ))}
         {filteredEntries.length === 0 && (
-          <div className="col-span-full py-20 flex flex-col items-center justify-center text-center opacity-40">
-            <ShieldCheck className="size-20 mb-6 text-muted-foreground" />
-            <h2 className="text-2xl font-headline italic mb-2">No positions found</h2>
-            <p className="max-w-md font-body">Refine your search or turn an idea into something you are willing to examine.</p>
+          <div className="col-span-full">
+            <PageEmptyState
+              icon={ShieldCheck}
+              title="No positions found"
+              description="Refine your search or turn an idea into something you are willing to examine."
+              action={positionFiltersActive ? <Button variant="outline" onClick={clearPositionFilters} className="rounded-full">Clear filters</Button> : undefined}
+            />
           </div>
         )}
       </div>
@@ -1163,6 +1231,15 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function PositionStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-border/50 bg-card px-4 py-2 text-right shadow-sm">
+      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
+      <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
     </div>
   );
 }

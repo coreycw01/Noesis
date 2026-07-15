@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Redo2,
   Save,
-  Search,
   Square,
   Trash2,
   Type,
@@ -42,6 +41,9 @@ import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { escapeTextAsHtml, sanitizeHtml } from '@/lib/sanitize';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { PageEmptyState } from '@/components/shared/PageState';
 
 export type PageViewMode = 'vertical-continuous' | 'vertical-single' | 'horizontal-single';
 export type PageSize = 'letter' | 'a4';
@@ -70,6 +72,8 @@ interface AtelierProps {
   onUpdateDraft: (draft: Draft) => void;
   onDeleteDraft: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
+  focusedDraftId?: string | null;
+  onOpenDraftRoute?: (id: string | null) => void;
 }
 
 const statuses: DraftStatus[] = ['seed', 'drafting', 'revised', 'final'];
@@ -160,7 +164,7 @@ function draftSaveSignature(draft: Draft | null | undefined) {
   );
 }
 
-export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept }: AtelierProps) {
+export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | DraftType | DraftStatus>('all');
   const [workTab, setWorkTab] = useState<WorkTab>('all');
@@ -189,6 +193,16 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
   const activeStoreSignature = useMemo(() => draftSaveSignature(activeFromStore), [activeFromStore]);
   const draftBufferSignature = useMemo(() => draftSaveSignature(draftBuffer), [draftBuffer]);
 
+  useEffect(() => {
+    if (!focusedDraftId) {
+      setActiveId(null);
+      return;
+    }
+    if (drafts.some((draft) => draft.id === focusedDraftId)) {
+      setActiveId(focusedDraftId);
+    }
+  }, [drafts, focusedDraftId]);
+
   const visibleDrafts = drafts
     .filter((draft) => {
       const category = draft.workCategory || workCategoryForDraft(draft.type);
@@ -199,6 +213,21 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
     .filter((draft) => !search || draft.title.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => new Date(b.dateUpdated).getTime() - new Date(a.dateUpdated).getTime());
 
+  const workStats = useMemo(() => ({
+    total: drafts.length,
+    writing: drafts.filter((draft) => (draft.workCategory || workCategoryForDraft(draft.type)) === 'writing').length,
+    notes: drafts.filter((draft) => (draft.workCategory || workCategoryForDraft(draft.type)) === 'notes').length,
+    linkedDocs: drafts.filter((draft) => !!draft.externalDoc).length,
+  }), [drafts]);
+
+  const clearWorkFilters = () => {
+    setSearch('');
+    setWorkTab('all');
+    setFilter('all');
+  };
+
+  const workFiltersActive = Boolean(search || workTab !== 'all' || filter !== 'all');
+
   const updateActive = useCallback((patch: Partial<Draft>) => {
     const base = draftBuffer || activeFromStore;
     if (!base) return;
@@ -208,6 +237,16 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
     setDirty(true);
     setSaveStatus('unsaved');
   }, [activeFromStore, draftBuffer]);
+
+  const openDraft = useCallback((id: string) => {
+    setActiveId(id);
+    onOpenDraftRoute?.(id);
+  }, [onOpenDraftRoute]);
+
+  const closeDraft = useCallback(() => {
+    setActiveId(null);
+    onOpenDraftRoute?.(null);
+  }, [onOpenDraftRoute]);
 
   const saveActive = useCallback((patch?: Partial<Draft>) => {
     if (!active) return null;
@@ -284,7 +323,7 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
     setIsNoteTypeOpen(false);
     setWorkTab(category);
     setFilter('all');
-    setActiveId(created.id);
+    openDraft(created.id);
     toast({
       title: `${DRAFT_LABELS[type]} opened`,
       description:
@@ -440,7 +479,7 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
           <div className="max-w-7xl mx-auto flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <button
-                onClick={() => setActiveId(null)}
+                onClick={closeDraft}
                 className="font-code text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors"
               >
                 <ChevronLeft className="size-4" /> BACK TO WORKS
@@ -501,7 +540,7 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
                     <Download className="size-4 mr-2" /> Export
                   </Button>
                 )}
-                <Button variant="destructive" size="sm" onClick={() => { onDeleteDraft(active.id); setActiveId(null); }} className="h-9 w-9 rounded-full shadow-sm">
+                <Button variant="destructive" size="sm" onClick={() => { onDeleteDraft(active.id); closeDraft(); }} className="h-9 w-9 rounded-full shadow-sm">
                   <Trash2 className="size-4" />
                 </Button>
               </div>
@@ -645,68 +684,62 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
-      <header className="flex justify-between items-start mb-12">
-        <div>
-          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Works</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Develop essays, scripts, field notes, and longer pieces from the ideas gathered across Noesis.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search works..."
-              className="w-72 pl-9 h-9 rounded-full"
-            />
-          </div>
-          <Button onClick={() => setIsWorkTypeOpen(true)} size="sm" className="h-9 px-6 font-code text-[10px] tracking-widest rounded-full uppercase font-bold shadow-sm shadow-accent/20">
-            <Plus className="mr-2 size-4" /> Add Work
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        title="Works"
+        description="Create writing, notes, drawings, and recordings that express the ideas gathered across Noesis."
+        actions={
+          <>
+            <WorkStat label="Total" value={workStats.total} />
+            <WorkStat label="Writing" value={workStats.writing} />
+            <WorkStat label="Notes" value={workStats.notes} />
+            <WorkStat label="Linked Docs" value={workStats.linkedDocs} />
+            <Button onClick={() => setIsWorkTypeOpen(true)} size="sm" className="h-9 px-6 font-code text-[10px] tracking-widest rounded-full uppercase font-bold shadow-sm shadow-accent/20">
+              <Plus className="mr-2 size-4" /> Add Work
+            </Button>
+          </>
+        }
+      />
 
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap gap-2.5">
-          {workTabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => { setWorkTab(tab); setFilter('all'); }}
-              className={cn(
-                'px-6 py-2.5 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.16em] transition-all shadow-sm',
-                workTab === tab
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-white text-muted-foreground border border-border/60 hover:text-foreground hover:bg-muted/5'
-              )}
-            >
-              {tab === 'all' ? 'All' : WORK_CATEGORY_LABELS[tab]}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          {(['all', 'drafting', 'final'] as const).map((val) => (
-            <button
-              key={val}
-              onClick={() => setFilter(val)}
-              className={cn(
-                'px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.16em] transition-all shadow-sm',
-                filter === val
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-white text-muted-foreground border border-border/60 hover:text-foreground hover:bg-muted/5'
-              )}
-            >
-              {val === 'all' ? 'ALL' : val.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      </div>
+      <FilterToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search works..."
+        resultCount={visibleDrafts.length}
+        resultLabel="works"
+        onClear={clearWorkFilters}
+        clearDisabled={!workFiltersActive}
+        className="mb-8"
+      >
+        <Select value={workTab} onValueChange={(value) => { setWorkTab(value as WorkTab); setFilter('all'); }}>
+          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+            <SelectValue placeholder="Work Category" />
+          </SelectTrigger>
+          <SelectContent>
+            {workTabs.map((tab) => (
+              <SelectItem key={tab} value={tab} className="font-code text-[10px] uppercase">
+                {tab === 'all' ? 'All Categories' : WORK_CATEGORY_LABELS[tab]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filter} onValueChange={(value) => setFilter(value as 'all' | DraftType | DraftStatus)}>
+          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="font-code text-[10px] uppercase">All Statuses</SelectItem>
+            <SelectItem value="drafting" className="font-code text-[10px] uppercase">Drafting</SelectItem>
+            <SelectItem value="final" className="font-code text-[10px] uppercase">Final</SelectItem>
+          </SelectContent>
+        </Select>
+      </FilterToolbar>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {visibleDrafts.map((draft) => (
           <Card
             key={draft.id}
             className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-6 rounded-xl shadow-md relative"
-            onClick={() => setActiveId(draft.id)}
+            onClick={() => openDraft(draft.id)}
           >
             <div className="flex justify-between items-start mb-4">
               <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">
@@ -764,6 +797,22 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
           </div>
           <div className="readex-kicker text-muted-foreground font-bold text-[10px]">CREATE WORK</div>
         </Card>
+
+        {visibleDrafts.length === 0 && (
+          <div className="col-span-full">
+            <PageEmptyState
+              icon={PencilLine}
+              title="No works found"
+              description="Clear filters or create a writing, note, drawing, or recording to express what your system is producing."
+              action={
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  {workFiltersActive && <Button variant="outline" onClick={clearWorkFilters} className="rounded-full">Clear filters</Button>}
+                  <Button onClick={() => setIsWorkTypeOpen(true)} className="rounded-full"><Plus className="mr-1.5 size-4" /> Add work</Button>
+                </div>
+              }
+            />
+          </div>
+        )}
       </div>
 
       <Dialog open={isWorkTypeOpen} onOpenChange={setIsWorkTypeOpen}>
@@ -947,6 +996,15 @@ function QuickNoteStudio({
   );
 }
 
+function WorkStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-border/50 bg-card px-4 py-2 text-right shadow-sm">
+      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
+      <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
+    </div>
+  );
+}
+
 function RecordingStudio({
   draft,
   updateActive,
@@ -1122,6 +1180,7 @@ function RecordingStudio({
             </Button>
           </div>
         </Card>
+
       </div>
     </div>
   );

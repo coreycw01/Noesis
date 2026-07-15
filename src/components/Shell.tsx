@@ -18,8 +18,10 @@ import {
   ShieldCheck,
   Edit2,
   ChevronRight,
+  Command,
   Table as TableIcon,
-  Highlighter
+  Highlighter,
+  Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
@@ -28,6 +30,8 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { GoalSettings, MediaType } from '@/lib/types';
 import { MEDIA_LABELS } from '@/lib/readex';
@@ -74,6 +78,8 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState('');
   const navItems = [
     { id: 'atlas', label: 'Atlas', icon: MapIcon, section: 'Mind' },
     { id: 'concepts', label: 'Concepts', icon: BookOpen, section: 'Mind', count: counts.concepts },
@@ -106,6 +112,17 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   useEffect(() => {
     window.localStorage.setItem('noesis:sidebar-collapsed', String(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const sortedActiveGoals = useMemo(() => {
     const categories = [...(goal.goalTypes || [])].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -149,7 +166,26 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   const handleNavChange = (view: string) => {
     onViewChange(view);
     setMobileNavOpen(false);
+    setCommandOpen(false);
+    setCommandQuery('');
   };
+
+  const commandItems = useMemo(() => {
+    const utilities = [
+      { id: 'profile', label: 'Profile', section: 'Utility', description: 'Identity, thinking tendencies, unknowns, and public philosophy.' },
+      { id: 'goals', label: 'Goals', section: 'Utility', description: 'Intellectual commitments and progress categories.' },
+    ];
+    const core = navItems.map((item) => ({
+      id: item.id,
+      label: item.label,
+      section: item.section,
+      description: typeof item.count === 'number' ? `${item.count} item${item.count === 1 ? '' : 's'}` : 'Open page',
+    }));
+    const query = commandQuery.trim().toLowerCase();
+    return [...core, ...utilities]
+      .filter((item) => !query || `${item.label} ${item.section} ${item.description}`.toLowerCase().includes(query))
+      .slice(0, 12);
+  }, [commandQuery, navItems]);
 
   const renderNavButton = (item: typeof navItems[number]) => {
     const button = (
@@ -387,8 +423,59 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
         )}
 
         <main className="flex-1 flex flex-col relative overflow-hidden bg-background min-w-0">
-        {children}
+          <button
+            type="button"
+            onClick={() => setCommandOpen(true)}
+            className="absolute right-5 top-5 z-10 hidden items-center gap-2 rounded-full border border-border/60 bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur transition-colors hover:text-foreground lg:flex"
+            aria-label="Open command palette"
+          >
+            <Command className="size-3.5" />
+            <span className="font-code text-[9px] uppercase tracking-[0.16em]">Ctrl K</span>
+          </button>
+          {children}
         </main>
+
+        <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
+          <DialogContent className="max-w-xl rounded-3xl border-border bg-card p-0 shadow-2xl">
+            <DialogHeader className="border-b border-border px-6 py-5">
+              <DialogTitle className="font-headline text-2xl font-semibold italic">Command Palette</DialogTitle>
+              <DialogDescription>Jump to a page, utility surface, or primary workspace without using the sidebar.</DialogDescription>
+            </DialogHeader>
+            <div className="p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  autoFocus
+                  value={commandQuery}
+                  onChange={(event) => setCommandQuery(event.target.value)}
+                  placeholder="Search Atlas, Positions, Works..."
+                  className="h-11 rounded-full pl-9"
+                />
+              </div>
+              <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto">
+                {commandItems.map((item) => (
+                  <button
+                    key={`${item.section}-${item.id}`}
+                    type="button"
+                    onClick={() => handleNavChange(item.id)}
+                    className="flex w-full items-center justify-between rounded-2xl border border-border bg-background/60 px-4 py-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <span>
+                      <span className="block font-medium text-foreground">{item.label}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">{item.description}</span>
+                    </span>
+                    <span className="rounded-full border border-border px-2.5 py-1 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{item.section}</span>
+                  </button>
+                ))}
+                {!commandItems.length && (
+                  <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                    No matching destinations.
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );

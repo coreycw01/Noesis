@@ -22,6 +22,9 @@ import { useToast } from '@/hooks/use-toast';
 import { sourceResultToMediaPatch, type NormalizedSourceResult } from '@/lib/source-intake';
 import { aiClient } from '@/lib/ai-client';
 import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { PageEmptyState } from '@/components/shared/PageState';
 
 interface MediaLibraryProps {
   media: Media[];
@@ -39,6 +42,7 @@ interface MediaLibraryProps {
   onDeleteVaultEntry: (id: string) => void;
   focusedSourceId?: string | null;
   onFocusedSourceHandled?: () => void;
+  onOpenSourceRoute?: (id: string | null) => void;
 }
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
@@ -84,9 +88,11 @@ export function MediaLibrary({
   onCreateIdea,
   onDeleteVaultEntry,
   focusedSourceId,
-  onFocusedSourceHandled
+  onFocusedSourceHandled,
+  onOpenSourceRoute,
 }: MediaLibraryProps) {
   const [filter, setFilter] = useState<MediaType | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<MediaStatus | 'active' | 'all'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -110,12 +116,31 @@ export function MediaLibrary({
   
   const filtered = useMemo(() => media.filter((item) => {
     const typeOk = filter === 'all' || item.type === filter;
-    const query = `${item.title} ${item.creator} ${(item.tags || []).join(' ')}`.toLowerCase();
-    return typeOk && (!searchQuery || query.includes(searchQuery.toLowerCase()));
-  }), [filter, media, searchQuery]);
+    const activeOk = ['Want to Read', 'Consuming', 'Paused'].includes(item.status);
+    const statusOk = statusFilter === 'all' || (statusFilter === 'active' ? activeOk : item.status === statusFilter);
+    const query = `${item.title} ${item.creator} ${item.description || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
+    return typeOk && statusOk && (!searchQuery || query.includes(searchQuery.toLowerCase()));
+  }), [filter, media, searchQuery, statusFilter]);
+
+  const libraryStats = useMemo(() => ({
+    active: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length,
+    consuming: media.filter((item) => item.status === 'Consuming').length,
+    annotations: media.reduce((sum, item) => sum + (item.annotations?.length || 0), 0),
+  }), [media]);
+
+  const clearLibraryFilters = () => {
+    setSearchQuery('');
+    setFilter('all');
+    setStatusFilter('active');
+  };
+
+  const libraryFiltersActive = Boolean(searchQuery || filter !== 'all' || statusFilter !== 'active');
 
   useEffect(() => {
-    if (!focusedSourceId) return;
+    if (!focusedSourceId) {
+      setSelectedId(null);
+      return;
+    }
     if (media.some((item) => item.id === focusedSourceId)) {
       setSelectedId(focusedSourceId);
       onFocusedSourceHandled?.();
@@ -248,6 +273,16 @@ export function MediaLibrary({
     setCaptureDraft({ ...capture, sessions: capture?.sessions || [] });
   };
 
+  const openSelectedSource = (id: string) => {
+    setSelectedId(id);
+    onOpenSourceRoute?.(id);
+  };
+
+  const closeSelectedSource = () => {
+    setSelectedId(null);
+    onOpenSourceRoute?.(null);
+  };
+
   const addAnnotation = () => {
     if (!selected || !annotationDraft.text.trim()) return;
     const annotation: Annotation = {
@@ -343,7 +378,7 @@ export function MediaLibrary({
       <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <button onClick={() => setSelectedId(null)} className="font-code text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground flex items-center transition-colors">
+            <button onClick={closeSelectedSource} className="font-code text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground flex items-center transition-colors">
               <ArrowLeft className="size-3 mr-2" /> LIBRARY
             </button>
             <span className="font-code text-[11px] uppercase tracking-widest text-primary/30">/</span>
@@ -357,7 +392,7 @@ export function MediaLibrary({
               <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{status}</SelectItem>)}</SelectContent>
             </Select>
             <Button variant="outline" size="sm" onClick={() => openEditor(selected)} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-white rounded-full">EDIT</Button>
-            <Button variant="outline" size="sm" onClick={() => { onDeleteMedia(selected.id); setSelectedId(null); }} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-white rounded-full">DELETE</Button>
+            <Button variant="outline" size="sm" onClick={() => { onDeleteMedia(selected.id); closeSelectedSource(); }} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-white rounded-full">DELETE</Button>
           </div>
         </header>
 
@@ -583,7 +618,7 @@ export function MediaLibrary({
                   <div className="flex justify-between items-center">
                     <div className="flex flex-wrap gap-3">
                       <button 
-                        onClick={() => setSelectedId(selected.id)}
+                        onClick={() => openSelectedSource(selected.id)}
                         className="inline-flex items-center font-code text-[9px] uppercase tracking-widest px-3 py-1 bg-muted/20 border-transparent text-muted-foreground rounded-full font-bold hover:bg-accent/10 hover:text-accent transition-all"
                       >
                         <BookOpen className="size-3 mr-2 opacity-40" />
@@ -628,7 +663,7 @@ export function MediaLibrary({
                 <Card 
                   key={entry.id} 
                   className="group cursor-pointer hover:shadow-xl transition-all border-border/50 bg-white p-6 flex gap-6 shadow-sm rounded-xl"
-                  onClick={() => setSelectedId(selected.id)}
+                  onClick={() => openSelectedSource(selected.id)}
                 >
                   <div className="size-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/50 shadow-sm">
                     <Triangle className="size-5 fill-current rotate-180" />
@@ -742,53 +777,59 @@ export function MediaLibrary({
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
-      <header className="flex justify-between items-center mb-10">
-        <div>
-          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Library</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Capture books, films, articles, lectures, conversations, and other sources before they become understanding.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search title, author, tags..." className="w-72 pl-9 h-9" />
-          </div>
-          <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 h-9 px-6 shadow-md shadow-accent/20 rounded-full font-bold">
-            <Plus className="size-4 mr-1.5" /> ADD MEDIA
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        title="Library"
+        description="Work inside active sources: capture context, annotations, concept tags, sessions, and reflections before they become positions or works."
+        actions={
+          <>
+            <SourceStat label="Active" value={libraryStats.active} />
+            <SourceStat label="Consuming" value={libraryStats.consuming} />
+            <SourceStat label="Annotations" value={libraryStats.annotations} />
+            <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 h-9 px-6 shadow-md shadow-accent/20 rounded-full font-bold">
+              <Plus className="size-4 mr-1.5" /> ADD SOURCE
+            </Button>
+          </>
+        }
+      />
 
-      <div className="flex flex-wrap gap-2.5 mb-12 overflow-x-auto pb-2 scrollbar-hide">
-        <button
-          onClick={() => setFilter('all')}
-          className={cn(
-            "px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.16em] transition-all shadow-sm",
-            filter === 'all' 
-              ? "bg-accent text-white border-accent" 
-              : "bg-white text-muted-foreground border border-border/60 hover:text-foreground hover:bg-muted/5"
-          )}
-        >
-          ALL
-        </button>
-        {MEDIA_TYPES.map((type) => (
-          <button
-            key={type}
-            onClick={() => setFilter(type)}
-            className={cn(
-              "px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.16em] transition-all whitespace-nowrap shadow-sm",
-              filter === type 
-                ? "bg-accent text-white border-accent" 
-                : "bg-white text-muted-foreground border border-border/60 hover:text-foreground hover:bg-muted/5"
-            )}
-          >
-            {MEDIA_LABELS[type] === 'Book' ? 'BOOKS' : MEDIA_LABELS[type].toUpperCase() + 'S'}
-          </button>
-        ))}
-      </div>
+      <FilterToolbar
+        search={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search active sources..."
+        resultCount={filtered.length}
+        resultLabel="sources"
+        onClear={clearLibraryFilters}
+        clearDisabled={!libraryFiltersActive}
+        className="mb-10"
+      >
+        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as MediaStatus | 'active' | 'all')}>
+          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active" className="font-code text-[10px] uppercase">Active Work</SelectItem>
+            <SelectItem value="all" className="font-code text-[10px] uppercase">All Statuses</SelectItem>
+            {statuses.map((status) => (
+              <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{status}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filter} onValueChange={(value) => setFilter(value as MediaType | 'all')}>
+          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+            <SelectValue placeholder="Media Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="font-code text-[10px] uppercase">All Types</SelectItem>
+            {MEDIA_TYPES.map((type) => (
+              <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{MEDIA_LABELS[type]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterToolbar>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-8 gap-y-12">
         {filtered.map((item) => (
-          <Card key={item.id} className="cursor-pointer border-none shadow-none bg-transparent group" onClick={() => setSelectedId(item.id)}>
+          <Card key={item.id} className="cursor-pointer border-none shadow-none bg-transparent group" onClick={() => openSelectedSource(item.id)}>
             <div className="aspect-[2/3] rounded-xl overflow-hidden shadow-sm mb-5 bg-white border border-border/30 group-hover:shadow-2xl group-hover:-translate-y-2 transition-all">
               {item.thumbnailUrl ? (
                 <img src={item.thumbnailUrl} alt={item.title} className="h-full w-full object-cover" />
@@ -830,9 +871,34 @@ export function MediaLibrary({
           </div>
           <div className="readex-kicker text-muted-foreground font-bold text-[10px]">ADD MEDIA</div>
         </Card>
+
+        {filtered.length === 0 && (
+          <div className="col-span-full">
+            <PageEmptyState
+              icon={BookOpen}
+              title="No active sources found"
+              description="Library is for sources you are actively capturing or reflecting on. Clear filters or add a new source to begin."
+              action={
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  {libraryFiltersActive && <Button variant="outline" onClick={clearLibraryFilters} className="rounded-full">Clear filters</Button>}
+                  <Button onClick={() => openEditor()} className="rounded-full"><Plus className="mr-1.5 size-4" /> Add source</Button>
+                </div>
+              }
+            />
+          </div>
+        )}
       </div>
 
       <MediaEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draft} setDraft={setDraft} onSave={saveMedia} />
+    </div>
+  );
+}
+
+function SourceStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-border/50 bg-card px-4 py-2 text-right shadow-sm">
+      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
+      <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
     </div>
   );
 }

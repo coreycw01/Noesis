@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { useToast } from '@/hooks/use-toast';
 import type {
   BeliefProfile,
@@ -193,10 +194,28 @@ export function ProfilePage({
     ['Practices active', String(practices.filter((item) => item.status === 'active').length)],
   ] as const;
 
+  const profileStats = [
+    ['Concepts', concepts.length],
+    ['Positions', positions.length],
+    ['Works', works.length],
+    ['Sources', sources.length],
+  ] as const;
+
   return (
     <div className="flex-1 overflow-y-auto bg-background p-8 pt-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <header className="rounded-3xl border border-border bg-card p-7 shadow-sm">
+        <PageHeader
+          title="Profile"
+          description="Shape the identity, tendencies, unknowns, and public-facing philosophy behind your Noesis workspace."
+          actions={(
+            <Button onClick={saveProfile} disabled={saving === 'profile'} className="rounded-full px-6 font-semibold">
+              <Save className="mr-2 size-4" />
+              {saving === 'profile' ? 'Saving Profile' : 'Save Profile'}
+            </Button>
+          )}
+        />
+
+        <Card className="rounded-3xl border-border bg-card p-7 shadow-sm">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex gap-5">
               <div className="flex size-20 shrink-0 items-center justify-center rounded-3xl border border-border bg-muted/30 text-muted-foreground">
@@ -212,7 +231,7 @@ export function ProfilePage({
                 )}
               </div>
               <div className="max-w-3xl">
-                <div className="font-code text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Profile</div>
+                <div className="font-code text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Thinker identity</div>
                 <h1 className="mt-2 font-headline text-3xl font-semibold italic text-foreground">
                   {profileDraft.displayName || user?.displayName || 'Untitled Thinker'}
                 </h1>
@@ -227,12 +246,13 @@ export function ProfilePage({
                 </div>
               </div>
             </div>
-            <Button onClick={saveProfile} disabled={saving === 'profile'} className="rounded-full px-6 font-semibold">
-              <Save className="mr-2 size-4" />
-              {saving === 'profile' ? 'Saving Profile' : 'Save Profile'}
-            </Button>
+            <div className="grid min-w-[260px] grid-cols-2 gap-3">
+              {profileStats.map(([label, value]) => (
+                <ProfileStat key={label} label={label} value={value} />
+              ))}
+            </div>
           </div>
-        </header>
+        </Card>
 
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <SectionCard title="Overview" description="Identity, focus, and the current season of your thought.">
@@ -471,6 +491,15 @@ function SectionCard({ title, description, children }: { title: string; descript
       </div>
       {children}
     </Card>
+  );
+}
+
+function ProfileStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/60 p-4">
+      <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+      <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">{value}</div>
+    </div>
   );
 }
 

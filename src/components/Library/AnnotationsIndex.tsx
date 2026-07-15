@@ -2,11 +2,12 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { BookOpen, Edit, ExternalLink, GitBranch, Highlighter, Loader2, Quote, Search, Trash2 } from 'lucide-react';
+import { Archive, BookOpen, CheckCircle2, Edit, ExternalLink, GitBranch, Highlighter, Layers3, Loader2, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -14,7 +15,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
 import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
-import type { AiSuggestion, Annotation, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { PageEmptyState } from '@/components/shared/PageState';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import type { AiSuggestion, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -37,7 +42,7 @@ interface AnnotationsIndexProps {
 }
 
 type FlatAnnotation = Annotation & { source: Media };
-type AnnotationFilter = AnnotationType | 'all' | 'unanswered';
+type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered';
 type PreflightMode = 'position' | 'inquiry';
 
 interface PreflightDraft {
@@ -73,9 +78,13 @@ export function AnnotationsIndex({
   const [suggestingId, setSuggestingId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [linkDialog, setLinkDialog] = useState<{ annotation: FlatAnnotation; linkType: 'supports' | 'challenges' } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FlatAnnotation | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const { toast } = useToast();
 
   const annotations = useMemo(() => allAnnotations(media) as FlatAnnotation[], [media]);
+  const annotationKey = (annotation: FlatAnnotation) => `${annotation.source.id}:${annotation.id}`;
+  const annotationStatus = (annotation: Annotation): AnnotationPhilosophyStatus => annotation.philosophyStatus || (annotation.type === 'question' ? 'questioned' : 'raw');
   const filtered = useMemo(() => {
     return annotations
       .filter((annotation) => {
@@ -83,7 +92,9 @@ export function AnnotationsIndex({
           filterType === 'all' ||
           (filterType === 'unanswered'
             ? annotation.type === 'question' && !annotation.answer?.trim()
-            : annotation.type === filterType);
+            : ['highlight', 'thought', 'question', 'connection'].includes(filterType)
+              ? annotation.type === filterType
+              : annotationStatus(annotation) === filterType);
         const conceptOk = filterConcept === 'all' || (annotation.conceptTags || annotation.source.tags || []).map(conceptKey).includes(filterConcept);
         const sourceOk = filterSource === 'all' || annotation.source.id === filterSource;
         const query = `${annotation.text} ${annotation.source.title} ${annotation.source.creator} ${(annotation.conceptTags || annotation.source.tags || []).join(' ')}`.toLowerCase();
@@ -91,6 +102,11 @@ export function AnnotationsIndex({
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [annotations, search, filterType, filterConcept, filterSource]);
+
+  const selectedAnnotations = useMemo(
+    () => annotations.filter((annotation) => selectedKeys.includes(annotationKey(annotation))),
+    [annotations, selectedKeys]
+  );
 
   const allConcepts = useMemo(() => {
     const tags = new Set<string>();
@@ -107,6 +123,11 @@ export function AnnotationsIndex({
     question: annotations.filter((annotation) => annotation.type === 'question').length,
     unanswered: annotations.filter((annotation) => annotation.type === 'question' && !annotation.answer?.trim()).length,
     connection: annotations.filter((annotation) => annotation.type === 'connection').length,
+    raw: annotations.filter((annotation) => annotationStatus(annotation) === 'raw').length,
+    connected: annotations.filter((annotation) => annotationStatus(annotation) === 'connected').length,
+    questioned: annotations.filter((annotation) => annotationStatus(annotation) === 'questioned').length,
+    used_in_position: annotations.filter((annotation) => annotationStatus(annotation) === 'used_in_position').length,
+    archived: annotations.filter((annotation) => annotationStatus(annotation) === 'archived').length,
   }), [annotations]);
 
   const saveEditing = () => {
@@ -236,8 +257,88 @@ export function AnnotationsIndex({
     }
   };
 
+  const toggleSelected = (annotation: FlatAnnotation) => {
+    const key = annotationKey(annotation);
+    setSelectedKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  };
+
+  const toggleVisibleSelection = () => {
+    const visibleKeys = filtered.map(annotationKey);
+    const allVisibleSelected = visibleKeys.length > 0 && visibleKeys.every((key) => selectedKeys.includes(key));
+    setSelectedKeys((current) => {
+      if (allVisibleSelected) return current.filter((key) => !visibleKeys.includes(key));
+      return Array.from(new Set([...current, ...visibleKeys]));
+    });
+  };
+
+  const updateSelectedStatus = (status: AnnotationPhilosophyStatus) => {
+    selectedAnnotations.forEach((selectedAnnotation) => {
+      const { source, ...annotationData } = selectedAnnotation;
+      onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: status });
+    });
+    toast({ title: 'Annotations updated', description: `${selectedAnnotations.length} annotations marked ${status.replace(/_/g, ' ')}.` });
+    setSelectedKeys([]);
+  };
+
+  const createPositionFromSelection = () => {
+    if (!selectedAnnotations.length) return;
+    const sourceIds = Array.from(new Set(selectedAnnotations.map((annotation) => annotation.source.id)));
+    const tags = normalizeConceptTags(selectedAnnotations.flatMap((annotation) => annotation.conceptTags || annotation.source.tags || []));
+    const first = selectedAnnotations[0];
+    const body = selectedAnnotations.map((annotation) => `- ${annotation.text}${annotation.answer ? `\n  Answer: ${annotation.answer}` : ''}`).join('\n\n');
+    const created = onCreatePosition({
+      title: first.text.slice(0, 90),
+      body,
+      tags,
+      sourceIds,
+      sourceAnnotationId: first.id,
+    });
+    selectedAnnotations.forEach((selectedAnnotation) => {
+      const { source, ...annotationData } = selectedAnnotation;
+      onUpdateAnnotation(source.id, {
+        ...annotationData,
+        philosophyStatus: 'used_in_position',
+        linkedPositionIds: Array.from(new Set([...(annotationData.linkedPositionIds || []), created.positionId])),
+        createdPositionId: annotationData.createdPositionId || created.positionId,
+      });
+    });
+    toast({ title: 'Position created from selected annotations.', description: created.title });
+    setSelectedKeys([]);
+    onNavigate?.('vault', created.positionId);
+  };
+
+  const createInquiryFromSelection = () => {
+    if (!selectedAnnotations.length) return;
+    const sourceIds = Array.from(new Set(selectedAnnotations.map((annotation) => annotation.source.id)));
+    const evidenceIds = selectedAnnotations.map((annotation) => annotation.id);
+    const tags = normalizeConceptTags(selectedAnnotations.flatMap((annotation) => annotation.conceptTags || annotation.source.tags || []));
+    const created = onCreateInquiry({
+      text: selectedAnnotations.find((annotation) => annotation.type === 'question')?.text || `What follows from these annotations?\n\n${selectedAnnotations.map((annotation) => `- ${annotation.text}`).join('\n')}`,
+      conceptIds: concepts.filter((concept) => tags.map(conceptKey).includes(conceptKey(concept.name))).map((concept) => concept.id),
+      sourceIds,
+      evidenceIds,
+      type: 'annotation',
+      sourceAnnotationId: selectedAnnotations[0].id,
+    });
+    selectedAnnotations.forEach((selectedAnnotation) => {
+      const { source, ...annotationData } = selectedAnnotation;
+      onUpdateAnnotation(source.id, {
+        ...annotationData,
+        philosophyStatus: 'questioned',
+        createdInquiryId: annotationData.createdInquiryId || created.id,
+      });
+    });
+    toast({ title: 'Inquiry created from selected annotations.', description: created.text.slice(0, 90) });
+    setSelectedKeys([]);
+    onNavigate?.('questions', created.id);
+  };
+
   const filterButtons: { id: AnnotationFilter; label: string; count: number }[] = [
     { id: 'all', label: 'All', count: typeCounts.total },
+    { id: 'raw', label: 'Unprocessed', count: typeCounts.raw },
+    { id: 'connected', label: 'Connected', count: typeCounts.connected },
+    { id: 'used_in_position', label: 'In Positions', count: typeCounts.used_in_position },
+    { id: 'archived', label: 'Archived', count: typeCounts.archived },
     { id: 'highlight', label: 'Highlights', count: typeCounts.highlight },
     { id: 'thought', label: 'Thoughts', count: typeCounts.thought },
     { id: 'question', label: 'Questions', count: typeCounts.question },
@@ -245,19 +346,33 @@ export function AnnotationsIndex({
     { id: 'connection', label: 'Connections', count: typeCounts.connection },
   ];
 
+  const clearFilters = () => {
+    setSearch('');
+    setFilterType('all');
+    setFilterConcept('all');
+    setFilterSource('all');
+  };
+
+  const filtersActive = Boolean(search || filterType !== 'all' || filterConcept !== 'all' || filterSource !== 'all');
+
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
-      <header className="flex justify-between items-center mb-10">
-        <div>
-          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Annotations</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Review and refine captured highlights, thoughts, questions, and connections across all sources.</p>
-        </div>
-        <div className="flex items-center gap-6">
-          <Stat label="Total Excerpts" value={typeCounts.total} />
-        </div>
-      </header>
+      <PageHeader
+        title="Annotations"
+        description="Review and refine captured highlights, thoughts, questions, and connections across all sources."
+        actions={<Stat label="Total Excerpts" value={typeCounts.total} />}
+      />
 
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-10">
+      <FilterToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search excerpt text..."
+        resultCount={filtered.length}
+        resultLabel="annotations"
+        onClear={clearFilters}
+        clearDisabled={!filtersActive}
+        className="mb-10"
+      >
         <div className="flex flex-wrap gap-2">
           {filterButtons.map((button) => (
             <button
@@ -273,7 +388,6 @@ export function AnnotationsIndex({
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
           <Select value={filterSource} onValueChange={setFilterSource}>
             <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Filter by Source" /></SelectTrigger>
             <SelectContent>
@@ -288,20 +402,63 @@ export function AnnotationsIndex({
               {allConcepts.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
             </SelectContent>
           </Select>
-          <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search excerpt text..." className="pl-9 h-10 rounded-full" />
+      </FilterToolbar>
+
+      <section className="mb-8 rounded-2xl border border-border/50 bg-card p-4 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <button onClick={toggleVisibleSelection} className="flex items-center gap-3 text-left">
+            <Checkbox checked={filtered.length > 0 && filtered.every((annotation) => selectedKeys.includes(annotationKey(annotation)))} />
+            <div>
+              <p className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Processing Inbox</p>
+              <p className="text-xs text-muted-foreground">
+                {selectedAnnotations.length ? `${selectedAnnotations.length} selected` : 'Select annotations to tag, archive, or route together.'}
+              </p>
+            </div>
+          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('connected')} className="rounded-full">
+              <CheckCircle2 className="mr-1.5 size-3.5" /> Mark reviewed
+            </Button>
+            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={createInquiryFromSelection} className="rounded-full">
+              <GitBranch className="mr-1.5 size-3.5" /> Create inquiry
+            </Button>
+            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={createPositionFromSelection} className="rounded-full">
+              <Layers3 className="mr-1.5 size-3.5" /> Form position
+            </Button>
+            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('archived')} className="rounded-full">
+              <Archive className="mr-1.5 size-3.5" /> Archive
+            </Button>
+            {selectedAnnotations.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setSelectedKeys([])} className="rounded-full">
+                Clear selection
+              </Button>
+            )}
           </div>
         </div>
-      </div>
+      </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {filtered.map((annotation) => (
-          <Card key={`${annotation.source.id}:${annotation.id}`} className="p-5 bg-white border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all">
+          <Card key={`${annotation.source.id}:${annotation.id}`} className={cn(
+            "p-5 bg-white border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all",
+            selectedKeys.includes(annotationKey(annotation)) && "border-accent/50 ring-2 ring-accent/10"
+          )}>
             <div className="flex justify-between items-start gap-4 mb-4">
-              <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold px-3 py-1">
-                {annotation.type}
-              </Badge>
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={selectedKeys.includes(annotationKey(annotation))}
+                  onCheckedChange={() => toggleSelected(annotation)}
+                  aria-label={`Select annotation from ${annotation.source.title}`}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold px-3 py-1">
+                    {annotation.type}
+                  </Badge>
+                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest rounded-full bg-accent/5 text-accent font-bold">
+                    {annotationStatus(annotation).replace(/_/g, ' ')}
+                  </Badge>
+                </div>
+              </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button variant="ghost" size="icon" className="size-10 rounded-full text-accent hover:text-accent" onClick={() => suggestConsequences(annotation)} disabled={suggestingId === annotation.id} title="Ask Noesis AI">
                   {suggestingId === annotation.id ? <Loader2 className="size-5 animate-spin" /> : <GenerativeAiIcon className="size-8" />}
@@ -312,7 +469,7 @@ export function AnnotationsIndex({
                 <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => onOpenSource(annotation.source.id)} title="Open source thread">
                   <ExternalLink className="size-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="size-8 rounded-full text-destructive hover:text-destructive" onClick={() => onDeleteAnnotation(annotation.source.id, annotation.id)} title="Delete annotation">
+                <Button variant="ghost" size="icon" className="size-8 rounded-full text-destructive hover:text-destructive" onClick={() => setDeleteTarget(annotation)} title="Delete annotation">
                   <Trash2 className="size-3.5" />
                 </Button>
               </div>
@@ -383,13 +540,30 @@ export function AnnotationsIndex({
         ))}
 
         {filtered.length === 0 && (
-          <div className="col-span-full py-32 text-center opacity-30">
-            <Highlighter className="size-16 mx-auto mb-6 text-muted-foreground" />
-            <h3 className="font-headline text-3xl italic">No excerpts found</h3>
-            <p className="font-body text-base mt-3 max-w-sm mx-auto">As you extract text and anchor thoughts in your library, they will aggregate here for synthesis.</p>
+          <div className="col-span-full">
+            <PageEmptyState
+              icon={Highlighter}
+              title="No excerpts found"
+              description="As you extract text and anchor thoughts in your library, they will aggregate here for synthesis."
+              action={filtersActive ? <Button variant="outline" onClick={clearFilters} className="rounded-full">Clear filters</Button> : undefined}
+            />
           </div>
         )}
       </div>
+
+      <ConfirmActionDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete annotation?"
+        description="This removes the annotation from its source thread. Any positions or inquiries already created from it will remain."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          onDeleteAnnotation(deleteTarget.source.id, deleteTarget.id);
+          setDeleteTarget(null);
+        }}
+      />
 
       <Dialog open={!!linkDialog} onOpenChange={(open) => !open && setLinkDialog(null)}>
         <DialogContent className="max-w-lg border-none shadow-2xl rounded-2xl">

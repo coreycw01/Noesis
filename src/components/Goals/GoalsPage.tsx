@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { useToast } from '@/hooks/use-toast';
 import { MEDIA_LABELS, MEDIA_TYPES, today, uid } from '@/lib/readex';
 import type { GoalItem, GoalSettings, GoalType, MediaType } from '@/lib/types';
@@ -59,6 +60,7 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   const [draft, setDraft] = useState<GoalSettings>(goal);
   const [saving, setSaving] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'active' | 'completed' | 'archived' | 'all'>('active');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -73,9 +75,8 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   const goalTypes = useMemo(() => [...(draft.goalTypes || [])].sort((a, b) => a.sortOrder - b.sortOrder), [draft.goalTypes]);
   const activeGoalTypes = goalTypes.filter((type) => !type.archivedAt);
   const goals = useMemo(() => [...(draft.goals || [])].sort((a, b) => a.sortOrder - b.sortOrder), [draft.goals]);
-  const activeGoals = goals.filter((item) => item.status === 'active');
 
-  const enrichedGoals = useMemo(() => activeGoals.map((item) => {
+  const enrichedGoals = useMemo(() => goals.map((item) => {
     const type = goalTypes.find((goalType) => goalType.id === item.typeId);
     const mediaProgress = (type?.mediaTypes || []).reduce((sum, mediaType) => sum + (goalProgress[mediaType] || 0), 0);
     const currentProgress = Math.max(item.currentProgress || 0, mediaProgress);
@@ -87,12 +88,28 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
       targetProgress,
       percent: Math.min(100, (currentProgress / targetProgress) * 100),
     };
-  }), [activeGoals, goalProgress, goalTypes]);
+  }), [goals, goalProgress, goalTypes]);
 
-  const featured = [...enrichedGoals].sort((a, b) => {
+  const visibleGoals = useMemo(
+    () => enrichedGoals.filter((item) => statusFilter === 'all' || item.status === statusFilter),
+    [enrichedGoals, statusFilter]
+  );
+
+  const featured = enrichedGoals.filter((item) => item.status === 'active').sort((a, b) => {
     if (b.percent !== a.percent) return b.percent - a.percent;
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   }).slice(0, 3);
+
+  const goalStats = {
+    active: goals.filter((item) => item.status === 'active').length,
+    completed: goals.filter((item) => item.status === 'completed').length,
+    archived: goals.filter((item) => item.status === 'archived').length,
+    averageProgress: Math.round(
+      enrichedGoals.length
+        ? enrichedGoals.reduce((sum, item) => sum + item.percent, 0) / enrichedGoals.length
+        : 0
+    ),
+  };
 
   const updateGoal = (id: string, patch: Partial<GoalItem>) => {
     setDraft((prev) => ({
@@ -204,14 +221,19 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   return (
     <div className="flex-1 overflow-y-auto bg-background p-8 pt-8">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-10 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Goals</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Define the progress measures that matter to your philosophy, then let the closest goals surface automatically.
-            </p>
-          </div>
-          <div className="flex gap-2">
+        <PageHeader
+          title="Goals"
+          description="Define intellectual commitments across sources, inquiries, positions, works, practices, and reflection without making them primary workspace tabs."
+          meta={(
+            <>
+              <GoalStat label="Active" value={goalStats.active} />
+              <GoalStat label="Completed" value={goalStats.completed} />
+              <GoalStat label="Archived" value={goalStats.archived} />
+              <GoalStat label="Avg Progress" value={`${goalStats.averageProgress}%`} />
+            </>
+          )}
+          actions={(
+            <>
             <Button variant="outline" onClick={addGoalType} className="rounded-full bg-card">
               <Plus className="mr-2 size-4" /> New Goal Category
             </Button>
@@ -221,8 +243,9 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
             <Button onClick={saveGoals} disabled={saving} className="rounded-full px-7 font-bold shadow-md shadow-accent/20">
               <Save className="mr-2 size-4" /> {saving ? 'Saving' : 'Save Goals'}
             </Button>
-          </div>
-        </header>
+            </>
+          )}
+        />
 
         <section className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-3">
           {featured.map((row) => (
@@ -255,8 +278,26 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
               <Input value={draft.label} onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))} className="mt-2 h-11 max-w-xl rounded-full" />
             </div>
 
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-background/50 p-3">
+              <div>
+                <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Commitments</div>
+                <div className="mt-1 text-sm text-muted-foreground">{visibleGoals.length} shown from {goals.length} total goals</div>
+              </div>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+                <SelectTrigger className="w-[180px] rounded-full font-code text-[10px] uppercase">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                  <SelectItem value="all">All goals</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid gap-3">
-              {enrichedGoals.map((row) => (
+              {visibleGoals.map((row) => (
                 <div
                   key={row.id}
                   draggable
@@ -268,8 +309,9 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                   <GripVertical className="size-4 cursor-grab text-muted-foreground/50" />
                   <div>
                     <Input value={row.title} onChange={(event) => updateGoal(row.id, { title: event.target.value })} className="h-9 rounded-full font-headline text-base italic" />
-                    <div className="mt-2 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                      {(row.type?.mediaTypes || []).length ? `Counts: ${(row.type?.mediaTypes || []).map((mediaType) => MEDIA_LABELS[mediaType]).join(', ')}` : 'No media types selected yet'}
+                    <div className="mt-2 flex flex-wrap items-center gap-2 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+                      <span>{(row.type?.mediaTypes || []).length ? `Counts: ${(row.type?.mediaTypes || []).map((mediaType) => MEDIA_LABELS[mediaType]).join(', ')}` : 'No media types selected yet'}</span>
+                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase">{row.status}</Badge>
                     </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-accent" style={{ width: `${row.percent}%` }} />
@@ -334,6 +376,15 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+function GoalStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-full border border-border bg-card px-3 py-1.5">
+      <span className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
+      <span className="ml-2 font-headline text-sm font-semibold italic text-foreground">{value}</span>
     </div>
   );
 }

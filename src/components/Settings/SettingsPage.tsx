@@ -56,7 +56,6 @@ type SettingsState = {
 type SettingsSectionKey = keyof SettingsState;
 type SettingsPanelId =
   | 'account'
-  | 'profile'
   | 'appearance'
   | 'workspace'
   | 'works'
@@ -88,7 +87,6 @@ const SETTINGS_SECTION_STORAGE_KEY = 'noesis:settings-section';
 
 const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: string }> = [
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
-  { id: 'profile', label: 'Profile', description: 'Identity and workspace context.' },
   { id: 'appearance', label: 'Appearance', description: 'Theme, color, density, and display feel.' },
   { id: 'workspace', label: 'Workspace', description: 'Navigation, intake defaults, Atlas, and reminders.' },
   { id: 'works', label: 'Writing Defaults', description: 'Work creation defaults and editor behavior.' },
@@ -197,6 +195,22 @@ export function SettingsPage({
         return (
           <div className="space-y-6">
             <SettingsCard title="Account" description="Authentication, account state, and export controls.">
+              <div className="mb-6 rounded-2xl border border-border bg-background/60 p-4">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Profile lives outside Settings</div>
+                    <div className="mt-2 font-headline text-xl font-semibold italic text-foreground">
+                      {profileSummary?.displayName || user?.displayName || 'Untitled Thinker'}
+                    </div>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                      {profileSummary?.bio || 'Use Profile for identity, public philosophy, thinking tendencies, unknowns, and belief development.'}
+                    </p>
+                  </div>
+                  <Button onClick={onOpenProfile} disabled={!onOpenProfile} variant="outline" className="rounded-full bg-card px-6">
+                    Open Profile
+                  </Button>
+                </div>
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Email">
                   <Input value={drafts.account.authEmail || user?.email || ''} disabled />
@@ -222,35 +236,6 @@ export function SettingsPage({
                 <Button variant="ghost" onClick={() => signOut(auth)} className="rounded-full text-destructive hover:text-destructive">
                   <LogOut className="mr-2 size-4" />
                   Sign Out
-                </Button>
-              </div>
-            </SettingsCard>
-          </div>
-        );
-      case 'profile':
-        return (
-          <div className="space-y-6">
-            <SettingsCard title="Profile" description="Identity belongs near the app title, not buried inside system controls.">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Display Name">
-                  <Input value={profileSummary?.displayName || 'No profile yet'} disabled />
-                </Field>
-                <Field label="Email">
-                  <Input value={profileSummary?.email || user?.email || ''} disabled />
-                </Field>
-                <Field label="Role">
-                  <Input value={profileSummary?.role || 'reader'} disabled />
-                </Field>
-                <Field label="Workspace Mode">
-                  <Input value={profileSummary?.workspaceMode || 'private'} disabled />
-                </Field>
-              </div>
-              <div className="mt-4 rounded-2xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
-                {profileSummary?.bio || 'Use the profile icon near the Noesis title to edit your public-facing identity, bio, learning season, and philosophical self-description.'}
-              </div>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Button onClick={onOpenProfile} disabled={!onOpenProfile} className="rounded-full px-6">
-                  Open Profile
                 </Button>
               </div>
             </SettingsCard>
@@ -385,6 +370,50 @@ export function SettingsPage({
                 <SwitchRow label="Auto-create inquiries from question annotations" checked={drafts.sourceIntake.autoCreateInquiriesFromQuestions} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, autoCreateInquiriesFromQuestions: checked } }))} />
               </div>
               <SaveBar onSave={() => saveSection('sourceIntake')} saving={saving === 'sourceIntake'} />
+            </SettingsCard>
+
+            <SettingsCard title="Goal Preferences" description="Configure how goal reminders and source-counting defaults behave without turning Goals into a system setting.">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Reminder frequency">
+                  <Select value={drafts.goals.goalReminderFrequency} onValueChange={(value) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, goalReminderFrequency: value as GoalPreferenceSettings['goalReminderFrequency'] } }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="off">Off</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Monthly source target">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={String(drafts.goals.defaultMonthlySourceTarget)}
+                    onChange={(event) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, defaultMonthlySourceTarget: Math.max(0, Number(event.target.value) || 0) } }))}
+                  />
+                </Field>
+                <Field label="Default goal categories">
+                  <Input
+                    value={(drafts.goals.defaultGoalCategories || []).join(', ')}
+                    onChange={(event) => setDrafts((prev) => ({
+                      ...prev,
+                      goals: {
+                        ...prev.goals,
+                        defaultGoalCategories: event.target.value.split(',').map((item) => item.trim()).filter(Boolean),
+                      },
+                    }))}
+                    placeholder="Sources, Works, Practices"
+                  />
+                </Field>
+              </div>
+              <div className="mt-5 grid gap-3">
+                <SwitchRow label="Show goals on dashboard" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
+                <SwitchRow label="Include audiobooks in reading goals" checked={drafts.goals.includeAudiobooksInReadingGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includeAudiobooksInReadingGoals: checked } }))} />
+                <SwitchRow label="Include podcasts in learning goals" checked={drafts.goals.includePodcastsInLearningGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includePodcastsInLearningGoals: checked } }))} />
+                <SwitchRow label="Include videos in source goals" checked={drafts.goals.includeVideosInSourceGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includeVideosInSourceGoals: checked } }))} />
+              </div>
+              <SaveBar onSave={() => saveSection('goals')} saving={saving === 'goals'} />
             </SettingsCard>
 
             <SettingsCard title="Atlas & Notifications" description="Map defaults, overlays, and reminder surfaces that support the workspace without taking it over.">
