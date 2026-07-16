@@ -52,6 +52,7 @@ export type PaperColor = 'blank' | 'warm' | 'sepia' | 'dark';
 export type PaperPattern = 'none' | 'notebook' | 'grid' | 'dotted' | 'dotted_grid';
 type WritingTool = 'text' | 'pencil' | 'eraser';
 type WorkRailAnnotation = Annotation & { sourceTitle: string; sourceId: string };
+type WorkFilter = 'all' | DraftType | DraftStatus | 'active_inquiries' | 'awaiting_revision' | 'external_docs';
 type BrowserSpeechRecognitionCtor = new () => {
   continuous: boolean;
   interimResults: boolean;
@@ -80,10 +81,19 @@ interface AtelierProps {
 
 const statuses: DraftStatus[] = ['idea', 'rough', 'seed', 'drafting', 'developing', 'revising', 'revised', 'complete', 'final', 'published', 'archived', 'abandoned'];
 const articulationTypes: DraftType[] = ['essay', 'script', 'field_note', 'manuscript', 'reflection', 'argument', 'source_analysis', 'text_note', 'voice_note', 'talk_to_text', 'drawing_note', 'drawing', 'recording'];
-const workFilters: ('all' | DraftType | DraftStatus)[] = ['all', ...articulationTypes, 'drafting', 'complete', 'published', 'final'];
 const workTabs = ['all', 'writing', 'notes', 'recording', 'drawing'] as const;
 const writingLabels: DraftType[] = ['essay', 'script', 'field_note', 'manuscript', 'reflection', 'argument', 'source_analysis'];
 type WorkTab = (typeof workTabs)[number];
+const workViewFilters: Array<{ id: WorkFilter; label: string }> = [
+  { id: 'all', label: 'All Works' },
+  { id: 'drafting', label: 'Drafting' },
+  { id: 'complete', label: 'Complete' },
+  { id: 'published', label: 'Published' },
+  { id: 'final', label: 'Final' },
+  { id: 'active_inquiries', label: 'Active Inquiries' },
+  { id: 'awaiting_revision', label: 'Awaiting Revision' },
+  { id: 'external_docs', label: 'External Docs' },
+];
 
 const workPurposes: Array<{ id: WorkPurpose; label: string; description: string }> = [
   { id: 'explore', label: 'Explore', description: 'Find what you think by working through the material.' },
@@ -196,7 +206,7 @@ function joinWorkLines(value?: string[]) {
 
 export function Atelier({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | DraftType | DraftStatus>('all');
+  const [filter, setFilter] = useState<WorkFilter>('all');
   const [workTab, setWorkTab] = useState<WorkTab>('all');
   const [search, setSearch] = useState('');
   const [isWorkTypeOpen, setIsWorkTypeOpen] = useState(false);
@@ -239,6 +249,18 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
       const category = draft.workCategory || workCategoryForDraft(draft.type);
       if (workTab !== 'all' && category !== workTab) return false;
       if (filter === 'all') return true;
+      if (filter === 'active_inquiries') {
+        return (draft.questionIds || []).some((questionId) => {
+          const question = questions.find((item) => item.id === questionId);
+          return question && !['resolved', 'answered', 'archived', 'suspended', 'converted', 'no_longer_meaningful'].includes(question.status);
+        });
+      }
+      if (filter === 'awaiting_revision') {
+        return ['rough', 'drafting', 'developing', 'revising', 'revised'].includes(draft.status)
+          || Boolean(draft.argumentSkeleton?.objections?.length)
+          || Boolean(draft.completionReflection?.unresolved);
+      }
+      if (filter === 'external_docs') return Boolean(draft.externalDoc);
       return draft.type === filter || draft.status === filter;
     })
     .filter((draft) => !search || draft.title.toLowerCase().includes(search.toLowerCase()))
@@ -249,6 +271,11 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
     writing: drafts.filter((draft) => (draft.workCategory || workCategoryForDraft(draft.type)) === 'writing').length,
     notes: drafts.filter((draft) => (draft.workCategory || workCategoryForDraft(draft.type)) === 'notes').length,
     linkedDocs: drafts.filter((draft) => !!draft.externalDoc).length,
+    awaitingRevision: drafts.filter((draft) =>
+      ['rough', 'drafting', 'developing', 'revising', 'revised'].includes(draft.status)
+      || Boolean(draft.argumentSkeleton?.objections?.length)
+      || Boolean(draft.completionReflection?.unresolved)
+    ).length,
   }), [drafts]);
 
   const clearWorkFilters = () => {
@@ -876,6 +903,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             <WorkStat label="Total" value={workStats.total} />
             <WorkStat label="Writing" value={workStats.writing} />
             <WorkStat label="Notes" value={workStats.notes} />
+            <WorkStat label="Revise" value={workStats.awaitingRevision} />
             <WorkStat label="Linked Docs" value={workStats.linkedDocs} />
             <Button onClick={() => setIsWorkTypeOpen(true)} size="sm" className="h-9 px-6 font-code text-[10px] tracking-widest rounded-full uppercase font-bold shadow-sm shadow-accent/20">
               <Plus className="mr-2 size-4" /> Add Work
@@ -906,20 +934,29 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             ))}
           </SelectContent>
         </Select>
-        <Select value={filter} onValueChange={(value) => setFilter(value as 'all' | DraftType | DraftStatus)}>
+        <Select value={filter} onValueChange={(value) => setFilter(value as WorkFilter)}>
           <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
-            <SelectValue placeholder="Status" />
+            <SelectValue placeholder="Work View" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-code text-[10px] uppercase">All Statuses</SelectItem>
-            <SelectItem value="drafting" className="font-code text-[10px] uppercase">Drafting</SelectItem>
-            <SelectItem value="final" className="font-code text-[10px] uppercase">Final</SelectItem>
+            {workViewFilters.map((item) => (
+              <SelectItem key={item.id} value={item.id} className="font-code text-[10px] uppercase">{item.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </FilterToolbar>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {visibleDrafts.map((draft) => (
+          (() => {
+            const hasActiveInquiry = (draft.questionIds || []).some((questionId) => {
+              const question = questions.find((item) => item.id === questionId);
+              return question && !['resolved', 'answered', 'archived', 'suspended', 'converted', 'no_longer_meaningful'].includes(question.status);
+            });
+            const needsRevision = ['rough', 'drafting', 'developing', 'revising', 'revised'].includes(draft.status)
+              || Boolean(draft.argumentSkeleton?.objections?.length)
+              || Boolean(draft.completionReflection?.unresolved);
+            return (
           <Card
             key={draft.id}
             className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-6 rounded-xl shadow-md relative"
@@ -938,6 +975,16 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
               </div>
               <div className="flex items-center gap-2">
               {draft.externalDoc && <Cloud className="size-3.5 text-accent" />}
+                {hasActiveInquiry && (
+                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-blue-50 text-blue-700 border-transparent rounded-full font-bold px-2 py-0.5">
+                    Inquiry
+                  </Badge>
+                )}
+                {needsRevision && (
+                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-amber-50 text-amber-700 border-transparent rounded-full font-bold px-2 py-0.5">
+                    Revise
+                  </Badge>
+                )}
                 <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter bg-white shadow-sm border-border/60 rounded-full font-bold px-2 py-0.5">
                   {draft.status}
                 </Badge>
@@ -980,6 +1027,8 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
               </time>
             </div>
           </Card>
+            );
+          })()
         ))}
 
         <Card

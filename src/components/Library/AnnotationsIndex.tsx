@@ -42,7 +42,7 @@ interface AnnotationsIndexProps {
 }
 
 type FlatAnnotation = Annotation & { source: Media };
-type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered';
+type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered' | 'needs_context' | 'potentially_important' | 'recently_promoted';
 type PreflightMode = 'position' | 'inquiry';
 type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'archive';
 type AnnotationProcessingMode = 'single' | 'sweep' | 'cluster' | 'source';
@@ -132,19 +132,46 @@ export function AnnotationsIndex({
   const annotations = useMemo(() => allAnnotations(media) as FlatAnnotation[], [media]);
   const annotationKey = (annotation: FlatAnnotation) => `${annotation.source.id}:${annotation.id}`;
   const annotationStatus = (annotation: Annotation): AnnotationPhilosophyStatus => annotation.philosophyStatus || (annotation.type === 'question' ? 'questioned' : 'raw');
+  const annotationTags = (annotation: FlatAnnotation) => normalizeConceptTags(annotation.conceptTags || annotation.source.tags || []);
+  const needsContext = (annotation: FlatAnnotation) => {
+    const status = annotationStatus(annotation);
+    return !['archived', 'dismissed', 'promoted', 'used_in_position'].includes(status)
+      && (!annotationTags(annotation).length || !annotation.consequenceNote?.trim());
+  };
+  const isPotentiallyImportant = (annotation: FlatAnnotation) => {
+    const status = annotationStatus(annotation);
+    if (['archived', 'dismissed', 'reference_only'].includes(status)) return false;
+    return Boolean(
+      annotation.mattersBeyondSource
+      || ['claim', 'objection', 'definition', 'connection'].includes(annotation.type)
+      || ['evidence', 'claim', 'objection', 'definition'].includes(annotation.consequenceKind || '')
+    );
+  };
+  const isRecentlyPromoted = (annotation: FlatAnnotation) => {
+    const status = annotationStatus(annotation);
+    return Boolean(annotation.createdInquiryId || annotation.createdPositionId || ['promoted', 'used_in_position'].includes(status));
+  };
+
   const filtered = useMemo(() => {
     return annotations
       .filter((annotation) => {
-        const typeOk =
-          filterType === 'all' ||
-          (filterType === 'unanswered'
-            ? annotation.type === 'question' && !annotation.answer?.trim()
-            : ANNOTATION_TYPES.some((option) => option.id === filterType)
-              ? annotation.type === filterType
-              : annotationStatus(annotation) === filterType);
-        const conceptOk = filterConcept === 'all' || (annotation.conceptTags || annotation.source.tags || []).map(conceptKey).includes(filterConcept);
+        let typeOk = true;
+        if (filterType === 'unanswered') {
+          typeOk = annotation.type === 'question' && !annotation.answer?.trim();
+        } else if (filterType === 'needs_context') {
+          typeOk = needsContext(annotation);
+        } else if (filterType === 'potentially_important') {
+          typeOk = isPotentiallyImportant(annotation);
+        } else if (filterType === 'recently_promoted') {
+          typeOk = isRecentlyPromoted(annotation);
+        } else if (filterType !== 'all') {
+          typeOk = ANNOTATION_TYPES.some((option) => option.id === filterType)
+            ? annotation.type === filterType
+            : annotationStatus(annotation) === filterType;
+        }
+        const conceptOk = filterConcept === 'all' || annotationTags(annotation).map(conceptKey).includes(filterConcept);
         const sourceOk = filterSource === 'all' || annotation.source.id === filterSource;
-        const query = `${annotation.text} ${annotation.source.title} ${annotation.source.creator} ${(annotation.conceptTags || annotation.source.tags || []).join(' ')}`.toLowerCase();
+        const query = `${annotation.text} ${annotation.source.title} ${annotation.source.creator} ${annotationTags(annotation).join(' ')}`.toLowerCase();
         return typeOk && conceptOk && sourceOk && (!search || query.includes(search.toLowerCase()));
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -185,24 +212,30 @@ export function AnnotationsIndex({
       filter: 'raw' as AnnotationFilter,
     },
     {
-      label: 'Question Seeds',
-      value: annotations.filter((annotation) => annotation.type === 'question' && !annotation.createdInquiryId).length,
-      description: 'Questions that can become structured inquiries.',
-      filter: 'question' as AnnotationFilter,
+      label: 'Needs Context',
+      value: annotations.filter(needsContext).length,
+      description: 'Fragments missing concept tags or a clear consequence note.',
+      filter: 'needs_context' as AnnotationFilter,
     },
     {
-      label: 'Claim Seeds',
-      value: annotations.filter((annotation) => annotation.type !== 'question' && !annotation.createdPositionId && annotationStatus(annotation) !== 'archived').length,
-      description: 'Highlights, thoughts, and connections that may become positions.',
-      filter: 'all' as AnnotationFilter,
+      label: 'Potentially Important',
+      value: annotations.filter(isPotentiallyImportant).length,
+      description: 'Claims, objections, definitions, evidence, and fragments marked beyond the source.',
+      filter: 'potentially_important' as AnnotationFilter,
     },
     {
-      label: 'Already Routed',
-      value: annotations.filter((annotation) => annotation.createdInquiryId || annotation.createdPositionId || ['used_in_position', 'promoted'].includes(annotationStatus(annotation))).length,
-      description: 'Annotations already promoted into inquiries or positions.',
-      filter: 'used_in_position' as AnnotationFilter,
+      label: 'Recently Promoted',
+      value: annotations.filter(isRecentlyPromoted).length,
+      description: 'Annotations already routed into inquiries, positions, or promoted thinking objects.',
+      filter: 'recently_promoted' as AnnotationFilter,
     },
-  ], [annotations, typeCounts.raw]);
+    {
+      label: 'Archived',
+      value: typeCounts.archived || 0,
+      description: 'Reference material deliberately removed from active processing.',
+      filter: 'archived' as AnnotationFilter,
+    },
+  ], [annotations, typeCounts.raw, typeCounts.archived]);
 
   const updateAnnotationConsequence = (annotation: FlatAnnotation, patch: Partial<Annotation>) => {
     const { source, ...annotationData } = annotation;
@@ -457,6 +490,9 @@ export function AnnotationsIndex({
   const filterButtons: { id: AnnotationFilter; label: string; count: number }[] = [
     { id: 'all', label: 'All', count: typeCounts.total },
     { id: 'raw', label: 'Unprocessed', count: typeCounts.raw || 0 },
+    { id: 'needs_context', label: 'Needs Context', count: annotations.filter(needsContext).length },
+    { id: 'potentially_important', label: 'Important', count: annotations.filter(isPotentiallyImportant).length },
+    { id: 'recently_promoted', label: 'Promoted', count: annotations.filter(isRecentlyPromoted).length },
     { id: 'reviewed', label: 'Reviewed', count: typeCounts.reviewed || 0 },
     { id: 'connected', label: 'Connected', count: typeCounts.connected || 0 },
     { id: 'promoted', label: 'Promoted', count: typeCounts.promoted || 0 },

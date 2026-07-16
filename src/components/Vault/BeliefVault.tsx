@@ -117,7 +117,21 @@ function confidenceLabel(confidence = 3) {
   return 'very strong';
 }
 
-type PositionViewFilter = 'all' | 'current' | 'emerging' | 'under_review' | 'revised' | 'abandoned' | 'tensions' | 'unsupported' | 'recently_changed';
+type PositionViewFilter =
+  | 'all'
+  | 'current'
+  | 'emerging'
+  | 'needs_evidence'
+  | 'needs_opposition'
+  | 'under_review'
+  | 'revised'
+  | 'abandoned'
+  | 'tensions'
+  | 'high_confidence'
+  | 'low_confidence'
+  | 'suspended'
+  | 'unsupported'
+  | 'recently_changed';
 type StressStage = {
   title: string;
   prompt: string;
@@ -128,10 +142,15 @@ const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
   all: 'All',
   current: 'Current',
   emerging: 'Emerging',
+  needs_evidence: 'Needs Evidence',
+  needs_opposition: 'Needs Opposition',
   under_review: 'Under Review',
   revised: 'Revised',
   abandoned: 'Abandoned',
   tensions: 'Tensions',
+  high_confidence: 'High Confidence',
+  low_confidence: 'Low Confidence',
+  suspended: 'Suspended',
   unsupported: 'Unsupported',
   recently_changed: 'Recently Changed',
 };
@@ -175,10 +194,15 @@ function positionListReason(entry: VaultEntry, links: PhilosophicalLink[], viewF
   );
   const hasSupport = (entry.evidenceFor || []).length > 0 || (entry.sourceIds || []).length > 0;
   if (viewFilter === 'emerging') return entry.confidence <= 2 ? 'Low confidence signal: this claim needs evidence before becoming stable.' : 'Draft or early-stage claim.';
+  if (viewFilter === 'needs_evidence') return hasSupport ? 'Evidence exists, but review its quality before raising confidence.' : 'No source or supporting evidence is linked yet.';
+  if (viewFilter === 'needs_opposition') return hasTension || (entry.evidenceAgainst || []).length ? 'Opposition exists; decide whether it weakens, refines, or contradicts the claim.' : 'No serious objection, counterexample, or challenge has been recorded yet.';
   if (viewFilter === 'under_review') return 'This position is uncertain, challenged, or explicitly under review.';
   if (viewFilter === 'revised') return 'This position has revision history and should preserve what changed.';
   if (viewFilter === 'abandoned') return 'This position is no longer current but remains part of the intellectual record.';
   if (viewFilter === 'tensions') return hasTension ? 'A typed challenge or contradiction is connected to this position.' : 'Potential tension with another position.';
+  if (viewFilter === 'high_confidence') return 'High confidence should still show pressure: support, challenge, and falsification conditions.';
+  if (viewFilter === 'low_confidence') return 'Low confidence means this should gather evidence, become an inquiry, or stay provisional.';
+  if (viewFilter === 'suspended') return 'Suspended positions need a reason, review date, or replacement path.';
   if (viewFilter === 'unsupported') return hasSupport ? 'Supported by evidence.' : 'No source or supporting evidence is linked yet.';
   if (viewFilter === 'recently_changed') return `Last changed ${safePositionDate(entry.dateUpdated || entry.dateCreated)}.`;
   if ((entry.evidenceAgainst || []).length === 0 && !hasTension) return 'Next pressure: add a serious objection or counterposition.';
@@ -272,7 +296,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const [typeFilter, setTypeFilter] = useState<'all' | VaultType | 'ideas'>('all');
   const [viewFilter, setViewFilter] = useState<PositionViewFilter>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-  const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'relations' | 'history'>('overview');
+  const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'opposition' | 'relations' | 'history'>('overview');
   const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'active', tags: [] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
   const { toast } = useToast();
@@ -370,10 +394,15 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       viewFilter === 'all' ||
       (viewFilter === 'current' && ['active', 'tentative', 'developing', 'defended', 'draft', 'uncertain'].includes(e.status)) ||
       (viewFilter === 'emerging' && (['draft', 'tentative', 'developing'].includes(e.status) || e.confidence <= 2)) ||
+      (viewFilter === 'needs_evidence' && !hasSupport) ||
+      (viewFilter === 'needs_opposition' && !hasTension && !(e.evidenceAgainst || []).length) ||
       (viewFilter === 'under_review' && ['challenged', 'uncertain', 'questioning', 'contested', 'unstable', 'suspended'].includes(e.status)) ||
       (viewFilter === 'revised' && e.status === 'revised') ||
       (viewFilter === 'abandoned' && ['abandoned', 'rejected', 'replaced'].includes(e.status)) ||
       (viewFilter === 'tensions' && hasTension) ||
+      (viewFilter === 'high_confidence' && e.confidence >= 4) ||
+      (viewFilter === 'low_confidence' && e.confidence <= 2) ||
+      (viewFilter === 'suspended' && e.status === 'suspended') ||
       (viewFilter === 'unsupported' && !hasSupport) ||
       (viewFilter === 'recently_changed' && changedAt >= recentCutoff);
     const haystack = `${e.title || ''} ${e.statement || ''} ${e.description || ''} ${e.positionKind || ''} ${(e.assumptions || []).join(' ')} ${e.falsification || ''} ${(e.consequences || []).join(' ')} ${(e.applications || []).join(' ')}`.toLowerCase();
@@ -508,11 +537,12 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       linkedPractices,
     });
     const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
-    const reviewTabs: Array<{ id: 'overview' | 'evidence' | 'relations' | 'history'; label: string }> = [
-      { id: 'overview', label: 'Overview' },
-      { id: 'evidence', label: 'Evidence' },
-      { id: 'relations', label: 'Relations' },
-      { id: 'history', label: 'History' },
+    const reviewTabs: Array<{ id: 'overview' | 'evidence' | 'opposition' | 'relations' | 'history'; label: string }> = [
+      { id: 'overview', label: 'Claim' },
+      { id: 'evidence', label: 'Grounds' },
+      { id: 'opposition', label: 'Opposition' },
+      { id: 'relations', label: 'Applications' },
+      { id: 'history', label: 'Biography' },
     ];
 
     const createMissingPerspective = async () => {
@@ -1033,6 +1063,47 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               ]}
               empty="No ledger data yet."
             />
+          </div>
+        )}
+
+        {detailTab === 'opposition' && (
+          <div className="space-y-6">
+            <TensionResolutionPanel
+              selected={selected}
+              tensionLinks={tensionLinks}
+              onUpdateEntry={onUpdateEntry}
+              onUpdateLink={onUpdateLink}
+            />
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <EvidencePanel
+                title="Objections and Counterevidence"
+                items={selected.evidenceAgainst || []}
+                onAdd={(text) => onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() })}
+              />
+              <InfoPanel title="Counterposition" items={[counterposition]} empty="No counterposition recorded yet." />
+              <InfoPanel title="Alternative Explanations" items={[
+                'Could the same evidence support a weaker, narrower, or opposite claim?',
+                linkedSources.length ? `Review ${linkedSources.length} linked source(s) for disagreement, not just support.` : 'Add a source that disagrees before raising confidence.',
+              ]} empty="No alternative explanation path yet." />
+              <InfoPanel title="Hidden Assumptions To Pressure" items={positionAssumptions} empty="No assumptions have been written yet." />
+              <InfoPanel title="Falsification Condition" items={selected.falsification ? [selected.falsification] : []} empty="Write what evidence, experience, or result would weaken or overturn this claim." />
+              <EntityListPanel
+                title="Contradictory or Challenging Positions"
+                empty="No typed challenge or contradiction links yet."
+                items={relatedPositions
+                  .filter((entry) => typedLinks.some((link) =>
+                    ['challenges', 'contradicts', 'weakens'].includes(link.type) &&
+                    ((link.fromId === entry.id && link.toId === selected.id) || (link.toId === entry.id && link.fromId === selected.id))
+                  ))
+                  .map((entry) => ({
+                    id: entry.id,
+                    title: entry.title,
+                    meta: 'challenge pressure',
+                    onClick: () => openEntry(entry.id),
+                  }))}
+              />
+            </div>
           </div>
         )}
 
