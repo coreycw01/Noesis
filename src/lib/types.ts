@@ -6,9 +6,10 @@ export type VaultType = 'belief' | 'principle' | 'mental_model' | 'life_rule' | 
 export type EventType = 'created' | 'refined' | 'challenged' | 'revised' | 'expanded' | 'abandoned';
 export type QuestionStatus = 'open' | 'investigating' | 'answered' | 'archived';
 export type DraftType = 'essay' | 'script' | 'field_note' | 'manuscript' | 'reflection' | 'argument' | 'source_analysis' | 'text_note' | 'voice_note' | 'talk_to_text' | 'drawing_note' | 'drawing' | 'recording';
-export type DraftStatus = 'seed' | 'drafting' | 'revised' | 'final';
+export type DraftStatus = 'idea' | 'rough' | 'seed' | 'drafting' | 'developing' | 'revising' | 'revised' | 'complete' | 'final' | 'published' | 'archived' | 'abandoned';
 export type WorkCategory = 'writing' | 'notes' | 'drawing' | 'recording';
 export type WorkMode = 'draft' | 'final';
+export type WorkPurpose = 'explore' | 'explain' | 'persuade' | 'synthesize' | 'reflect' | 'document' | 'teach' | 'challenge' | 'imagine';
 export type RecordingType = 'video' | 'screen';
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type AccentTheme = 'violet' | 'sage' | 'blue' | 'amber' | 'rose' | 'mono';
@@ -22,7 +23,8 @@ export type PracticeType = 'habit' | 'experiment' | 'discipline' | 'reflection_p
 export type PracticeStatus = 'proposed' | 'planned' | 'active' | 'completed' | 'failed' | 'integrated' | 'paused' | 'abandoned';
 export type AnnotationPhilosophyStatus = 'raw' | 'reviewed' | 'connected' | 'questioned' | 'used_in_position' | 'promoted' | 'reference_only' | 'dismissed' | 'archived';
 export type ConceptPhilosophyStatus = 'undefined' | 'emerging' | 'developed' | 'contested' | 'core';
-export type PositionPhilosophyStatus = 'draft' | 'active' | 'uncertain' | 'challenged' | 'revised' | 'rejected';
+export type PositionPhilosophyStatus = 'draft' | 'tentative' | 'developing' | 'defended' | 'active' | 'contested' | 'unstable' | 'uncertain' | 'challenged' | 'suspended' | 'revised' | 'split' | 'abandoned' | 'replaced' | 'rejected';
+export type PositionKind = 'descriptive' | 'normative' | 'interpretive' | 'methodological' | 'personal_principle' | 'worldview_claim' | 'predictive' | 'practical';
 export type PhilosophicalObjectType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'evolution';
 export type PhilosophicalLinkType = 'supports' | 'challenges' | 'coheres' | 'defines' | 'refines' | 'contradicts' | 'exemplifies' | 'inspired_by' | 'tested_by' | 'expressed_in' | 'changed_by' | 'depends_on' | 'explains' | 'explained_by' | 'derived_from' | 'references' | 'replaces' | 'questions' | 'expands' | 'weakens' | 'strengthens';
 export type AtlasMapLinkType = PhilosophicalLinkType | 'examples' | 'causes' | 'questions' | 'practices' | 'relates' | 'custom';
@@ -162,6 +164,12 @@ export interface VaultEntry {
   description: string;
   confidence: number;
   status: PositionPhilosophyStatus | 'questioning' | 'abandoned';
+  positionKind?: PositionKind;
+  confidenceReasoning?: string;
+  assumptions?: string[];
+  falsification?: string;
+  consequences?: string[];
+  applications?: string[];
   tags: string[];
   sourceIds: string[];
   insightIds?: string[];
@@ -262,6 +270,25 @@ export interface Draft {
   status: DraftStatus;
   label?: string;
   workCategory?: WorkCategory;
+  workPurpose?: WorkPurpose;
+  purposeNote?: string;
+  atlasRegion?: string;
+  argumentSkeleton?: {
+    centralClaim?: string;
+    supportingClaims?: string[];
+    evidence?: string[];
+    objections?: string[];
+    responses?: string[];
+    examples?: string[];
+    implications?: string[];
+    conclusion?: string;
+  };
+  completionReflection?: {
+    clarified?: string;
+    positionChanged?: string;
+    unresolved?: string;
+    nextExploration?: string;
+  };
   paperType?: WritingStyle;
   draftContent?: string;
   finalContent?: string;

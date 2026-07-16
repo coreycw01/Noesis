@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { SourceLinker } from '@/components/SourceLinker';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { AiSuggestion, BeliefProfile, Concept, Draft, Media, PhilosophicalLink, Practice, Question, TimelineEvent, Unknown, VaultEntry, VaultType } from '@/lib/types';
+import type { AiSuggestion, BeliefProfile, Concept, Draft, Media, PhilosophicalLink, PositionKind, PositionPhilosophyStatus, Practice, Question, TimelineEvent, Unknown, VaultEntry, VaultType } from '@/lib/types';
 import { normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
@@ -70,6 +70,53 @@ const TYPE_LABELS: Record<VaultType, string> = {
   worldview: 'Worldview',
 };
 
+const positionKinds: Array<{ id: PositionKind; label: string }> = [
+  { id: 'descriptive', label: 'Descriptive' },
+  { id: 'normative', label: 'Normative' },
+  { id: 'interpretive', label: 'Interpretive' },
+  { id: 'methodological', label: 'Methodological' },
+  { id: 'personal_principle', label: 'Personal Principle' },
+  { id: 'worldview_claim', label: 'Worldview Claim' },
+  { id: 'predictive', label: 'Predictive' },
+  { id: 'practical', label: 'Practical' },
+];
+
+const positionStatuses: Array<{ id: PositionPhilosophyStatus | 'questioning'; label: string }> = [
+  { id: 'draft', label: 'Draft' },
+  { id: 'tentative', label: 'Tentative' },
+  { id: 'developing', label: 'Developing' },
+  { id: 'defended', label: 'Defended' },
+  { id: 'active', label: 'Active' },
+  { id: 'contested', label: 'Contested' },
+  { id: 'unstable', label: 'Unstable' },
+  { id: 'questioning', label: 'Questioning' },
+  { id: 'suspended', label: 'Suspended' },
+  { id: 'revised', label: 'Revised' },
+  { id: 'split', label: 'Split' },
+  { id: 'abandoned', label: 'Abandoned' },
+  { id: 'replaced', label: 'Replaced' },
+  { id: 'rejected', label: 'Rejected' },
+];
+
+function splitLines(value?: string) {
+  return (value || '')
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function joinLines(value?: string[]) {
+  return (value || []).join('\n');
+}
+
+function confidenceLabel(confidence = 3) {
+  if (confidence <= 1) return 'tentative';
+  if (confidence === 2) return 'low';
+  if (confidence === 3) return 'moderate';
+  if (confidence === 4) return 'strong';
+  return 'very strong';
+}
+
 type PositionViewFilter = 'all' | 'current' | 'emerging' | 'under_review' | 'revised' | 'abandoned' | 'tensions' | 'unsupported' | 'recently_changed';
 type StressStage = {
   title: string;
@@ -100,6 +147,12 @@ function safePosition(entry: VaultEntry): VaultEntry {
     description: entry.description || entry.statement || '',
     confidence: Number.isFinite(entry.confidence) ? entry.confidence : 3,
     status: entry.status || 'active',
+    positionKind: entry.positionKind || 'interpretive',
+    confidenceReasoning: entry.confidenceReasoning || '',
+    assumptions: entry.assumptions || [],
+    falsification: entry.falsification || '',
+    consequences: entry.consequences || [],
+    applications: entry.applications || [],
     tags: entry.tags || [],
     sourceIds: entry.sourceIds || [],
     evidenceFor: entry.evidenceFor || [],
@@ -315,15 +368,15 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     const recentCutoff = Date.now() - 1000 * 60 * 60 * 24 * 30;
     const viewOk =
       viewFilter === 'all' ||
-      (viewFilter === 'current' && ['active', 'draft', 'uncertain'].includes(e.status)) ||
-      (viewFilter === 'emerging' && (e.status === 'draft' || e.confidence <= 2)) ||
-      (viewFilter === 'under_review' && ['challenged', 'uncertain', 'questioning'].includes(e.status)) ||
+      (viewFilter === 'current' && ['active', 'tentative', 'developing', 'defended', 'draft', 'uncertain'].includes(e.status)) ||
+      (viewFilter === 'emerging' && (['draft', 'tentative', 'developing'].includes(e.status) || e.confidence <= 2)) ||
+      (viewFilter === 'under_review' && ['challenged', 'uncertain', 'questioning', 'contested', 'unstable', 'suspended'].includes(e.status)) ||
       (viewFilter === 'revised' && e.status === 'revised') ||
-      (viewFilter === 'abandoned' && ['abandoned', 'rejected'].includes(e.status)) ||
+      (viewFilter === 'abandoned' && ['abandoned', 'rejected', 'replaced'].includes(e.status)) ||
       (viewFilter === 'tensions' && hasTension) ||
       (viewFilter === 'unsupported' && !hasSupport) ||
       (viewFilter === 'recently_changed' && changedAt >= recentCutoff);
-    const haystack = `${e.title || ''} ${e.statement || ''} ${e.description || ''}`.toLowerCase();
+    const haystack = `${e.title || ''} ${e.statement || ''} ${e.description || ''} ${e.positionKind || ''} ${(e.assumptions || []).join(' ')} ${e.falsification || ''} ${(e.consequences || []).join(' ')} ${(e.applications || []).join(' ')}`.toLowerCase();
     const queryOk = !search ||
       haystack.includes(search.toLowerCase());
     return typeOk && viewOk && queryOk;
@@ -336,7 +389,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     )).length;
     return {
       total: safeEntries.length,
-      underReview: safeEntries.filter((entry) => ['challenged', 'uncertain', 'questioning'].includes(entry.status)).length,
+      underReview: safeEntries.filter((entry) => ['challenged', 'uncertain', 'questioning', 'contested', 'unstable', 'suspended'].includes(entry.status)).length,
       unsupported: safeEntries.filter((entry) => !(entry.evidenceFor || []).length && !(entry.sourceIds || []).length).length,
       tensions: tensionCount,
     };
@@ -351,7 +404,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const positionFiltersActive = Boolean(search || typeFilter !== 'all' || viewFilter !== 'all');
 
   const openEditor = (entry?: VaultEntry) => {
-    setDraftEntry(entry ? { ...entry } : { type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'active', tags: [] });
+    setDraftEntry(entry ? { ...entry } : { type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'tentative', positionKind: 'interpretive', tags: [], assumptions: [], consequences: [], applications: [] });
     setEditorOpen(true);
   };
 
@@ -422,11 +475,12 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     const strongestObjection = tensionLinks[0]?.note || selected.evidenceAgainst?.[0] || 'No direct objection has been articulated yet.';
     const strongestSupport = selected.evidenceFor?.[0] || linkedSources[0]?.title || 'No direct support has been recorded yet.';
     const latestRevision = [...(selected.versionHistory || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-    const positionAssumptions = [
+    const derivedAssumptions = [
       selected.tags.length ? `The concepts ${selected.tags.slice(0, 3).join(', ')} are defined clearly enough to support this claim.` : 'This position needs explicit concepts before its scope is stable.',
       linkedSources.length ? 'The linked sources count as relevant evidence rather than only inspiration.' : 'This position can stand provisionally without a linked source, but remains evidence-light.',
       (selected.evidenceAgainst || []).length || tensionLinks.length ? 'The current objections represent the strongest available pressure.' : 'This position has not yet faced a serious recorded objection.',
     ];
+    const positionAssumptions = (selected.assumptions || []).length ? selected.assumptions || [] : derivedAssumptions;
     const dependencyItems = [
       ...selected.tags.slice(0, 5).map((tag) => `Concept: ${tag}`),
       ...linkedQuestions.slice(0, 3).map((question) => `Inquiry: ${question.text}`),
@@ -435,10 +489,14 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     const counterposition = strongestObjection !== 'No direct objection has been articulated yet.'
       ? strongestObjection
       : `The strongest opposite case has not been written yet. Ask what would make "${selected.title}" false, incomplete, or too narrow.`;
-    const applicationItems = [
+    const applicationItems = (selected.applications || []).length ? selected.applications || [] : [
       linkedPractices.length ? `${linkedPractices.length} practice(s) already test this position.` : 'No lived test is attached yet.',
       linkedDrafts.length ? `${linkedDrafts.length} work(s) express this position.` : 'No essay, note, script, or work expresses this position yet.',
       selected.status === 'revised' ? 'This position has already changed and should preserve its revision path.' : 'If pressure changes the claim, mark a revision instead of silently editing it.',
+    ];
+    const consequenceItems = (selected.consequences || []).length ? selected.consequences || [] : [
+      'No explicit consequences have been written yet.',
+      'Ask what decisions, behaviors, writings, or practices would change if this position were true.',
     ];
     const stressStages = buildStressStages({
       selected,
@@ -562,7 +620,11 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         </div>
 
         <Card className="p-6 mb-6 bg-white border-border/50 shadow-sm rounded-xl">
-          <Badge variant="outline" className="mb-3 font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
+            <div className="mb-3 flex flex-wrap gap-2">
+              <Badge variant="outline" className="font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
+              <Badge variant="outline" className="font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.positionKind || 'interpretive').replace(/_/g, ' ')}</Badge>
+              <Badge variant="secondary" className="font-code uppercase rounded-full bg-accent/10 text-accent">{confidenceLabel(selected.confidence)} confidence</Badge>
+            </div>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="font-headline text-4xl font-bold mb-3">{selected.title}</h1>
@@ -728,10 +790,13 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               </div>
               <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <InfoPanel title="Meaning and Scope" items={[selected.statement, selected.description].filter(Boolean)} empty="No statement or scope has been written yet." />
+                <InfoPanel title="Confidence Reasoning" items={selected.confidenceReasoning ? [selected.confidenceReasoning] : []} empty="No reasoning for this confidence level has been written yet." />
                 <InfoPanel title="Assumptions" items={positionAssumptions} empty="No assumptions derived yet." />
                 <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
                 <InfoPanel title="Counterposition" items={[counterposition]} empty="No counterposition recorded yet." />
                 <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
+                <InfoPanel title="Consequences" items={consequenceItems} empty="No consequences written yet." />
+                <InfoPanel title="Falsification" items={selected.falsification ? [selected.falsification] : []} empty="No falsification condition written yet." />
                 <InfoPanel title="Revision Rule" items={[
                   'If new evidence changes the claim, use revision history instead of overwriting the old position silently.',
                   'If the opposite case is stronger, lower confidence or mark the position challenged before abandoning it.',
@@ -1813,6 +1878,31 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
               </Select>
             </div>
           </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">POSITION KIND</Label>
+              <Select value={draft.positionKind || 'interpretive'} onValueChange={(value) => setDraft((prev) => ({ ...prev, positionKind: value as PositionKind }))}>
+                <SelectTrigger className="h-10 border-border/60 bg-white shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                <SelectContent>{positionKinds.map((kind) => <SelectItem key={kind.id} value={kind.id} className="font-code text-[10px] uppercase">{kind.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">STATE</Label>
+              <Select value={draft.status || 'tentative'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as VaultEntry['status'] }))}>
+                <SelectTrigger className="h-10 border-border/60 bg-white shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                <SelectContent>{positionStatuses.map((status) => <SelectItem key={status.id} value={status.id} className="font-code text-[10px] uppercase">{status.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONFIDENCE</Label>
+              <Select value={String(draft.confidence || 3)} onValueChange={(value) => setDraft((prev) => ({ ...prev, confidence: Number(value) }))}>
+                <SelectTrigger className="h-10 border-border/60 bg-white shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5].map((value) => <SelectItem key={value} value={String(value)} className="font-code text-[10px] uppercase">{value} - {confidenceLabel(value)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div className="space-y-2">
             <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">STATEMENT</Label>
             <Textarea value={draft.statement || ''} onChange={(event) => setDraft((prev) => ({ ...prev, statement: event.target.value, description: prev.description || event.target.value }))} placeholder="The core position in one clear sentence..." className="min-h-[60px] italic text-base" />
@@ -1820,6 +1910,28 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
           <div className="space-y-2">
             <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">DESCRIPTION</Label>
             <Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} placeholder="Elaborate on the reasoning, assumptions, or evidence..." className="min-h-[120px] italic text-base" />
+          </div>
+          <div className="space-y-2">
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONFIDENCE REASONING</Label>
+            <Textarea value={draft.confidenceReasoning || ''} onChange={(event) => setDraft((prev) => ({ ...prev, confidenceReasoning: event.target.value }))} placeholder="Why this confidence level rather than lower or higher?" className="min-h-[80px] italic text-base" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">ASSUMPTIONS</Label>
+              <Textarea value={joinLines(draft.assumptions)} onChange={(event) => setDraft((prev) => ({ ...prev, assumptions: splitLines(event.target.value) }))} placeholder="One load-bearing assumption per line..." className="min-h-[110px] italic text-base" />
+            </div>
+            <div className="space-y-2">
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">FALSIFICATION</Label>
+              <Textarea value={draft.falsification || ''} onChange={(event) => setDraft((prev) => ({ ...prev, falsification: event.target.value }))} placeholder="What would weaken, overturn, or force revision?" className="min-h-[110px] italic text-base" />
+            </div>
+            <div className="space-y-2">
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONSEQUENCES</Label>
+              <Textarea value={joinLines(draft.consequences)} onChange={(event) => setDraft((prev) => ({ ...prev, consequences: splitLines(event.target.value) }))} placeholder="What follows if this is true? One consequence per line..." className="min-h-[110px] italic text-base" />
+            </div>
+            <div className="space-y-2">
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">APPLICATIONS</Label>
+              <Textarea value={joinLines(draft.applications)} onChange={(event) => setDraft((prev) => ({ ...prev, applications: splitLines(event.target.value) }))} placeholder="Where should this affect behavior, writing, practice, or decisions?" className="min-h-[110px] italic text-base" />
+            </div>
           </div>
           <div className="space-y-2">
             <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONCEPT TAGS</Label>

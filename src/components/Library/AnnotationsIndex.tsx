@@ -45,6 +45,51 @@ type FlatAnnotation = Annotation & { source: Media };
 type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered';
 type PreflightMode = 'position' | 'inquiry';
 type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'archive';
+type AnnotationProcessingMode = 'single' | 'sweep' | 'cluster' | 'source';
+type AnnotationConsequenceKind = NonNullable<Annotation['consequenceKind']>;
+
+const ANNOTATION_TYPES: Array<{ id: AnnotationType; label: string }> = [
+  { id: 'highlight', label: 'Highlight' },
+  { id: 'thought', label: 'Thought' },
+  { id: 'question', label: 'Question' },
+  { id: 'claim', label: 'Claim' },
+  { id: 'objection', label: 'Objection' },
+  { id: 'definition', label: 'Definition' },
+  { id: 'example', label: 'Example' },
+  { id: 'connection', label: 'Connection' },
+  { id: 'personal_reflection', label: 'Personal Reflection' },
+  { id: 'observation', label: 'Observation' },
+  { id: 'excerpt', label: 'Excerpt' },
+  { id: 'voice_note', label: 'Voice Note' },
+  { id: 'drawing', label: 'Drawing' },
+  { id: 'image', label: 'Image' },
+];
+
+const ANNOTATION_STATUSES: Array<{ id: AnnotationPhilosophyStatus; label: string }> = [
+  { id: 'raw', label: 'Unprocessed' },
+  { id: 'reviewed', label: 'Reviewed' },
+  { id: 'connected', label: 'Connected' },
+  { id: 'questioned', label: 'Questioned' },
+  { id: 'used_in_position', label: 'In Positions' },
+  { id: 'promoted', label: 'Promoted' },
+  { id: 'reference_only', label: 'Reference Only' },
+  { id: 'dismissed', label: 'Dismissed' },
+  { id: 'archived', label: 'Archived' },
+];
+
+const CONSEQUENCE_KINDS: Array<{ id: AnnotationConsequenceKind; label: string }> = [
+  { id: 'evidence', label: 'Evidence' },
+  { id: 'interpretation', label: 'Interpretation' },
+  { id: 'reaction', label: 'Reaction' },
+  { id: 'question', label: 'Question' },
+  { id: 'definition', label: 'Definition' },
+  { id: 'objection', label: 'Objection' },
+  { id: 'claim', label: 'Claim' },
+];
+
+const annotationLabel = (value: string) => ANNOTATION_TYPES.find((type) => type.id === value)?.label
+  || ANNOTATION_STATUSES.find((status) => status.id === value)?.label
+  || value.replace(/_/g, ' ');
 
 interface PreflightDraft {
   mode: PreflightMode;
@@ -74,6 +119,7 @@ export function AnnotationsIndex({
   const [filterType, setFilterType] = useState<AnnotationFilter>('all');
   const [filterConcept, setFilterConcept] = useState<string>('all');
   const [filterSource, setFilterSource] = useState<string>('all');
+  const [processingMode, setProcessingMode] = useState<AnnotationProcessingMode>('sweep');
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
   const [suggestingId, setSuggestingId] = useState<string | null>(null);
@@ -93,7 +139,7 @@ export function AnnotationsIndex({
           filterType === 'all' ||
           (filterType === 'unanswered'
             ? annotation.type === 'question' && !annotation.answer?.trim()
-            : ['highlight', 'thought', 'question', 'connection'].includes(filterType)
+            : ANNOTATION_TYPES.some((option) => option.id === filterType)
               ? annotation.type === filterType
               : annotationStatus(annotation) === filterType);
         const conceptOk = filterConcept === 'all' || (annotation.conceptTags || annotation.source.tags || []).map(conceptKey).includes(filterConcept);
@@ -117,19 +163,19 @@ export function AnnotationsIndex({
     return Array.from(tags).sort();
   }, [annotations]);
 
-  const typeCounts = useMemo(() => ({
-    total: annotations.length,
-    highlight: annotations.filter((annotation) => annotation.type === 'highlight').length,
-    thought: annotations.filter((annotation) => annotation.type === 'thought').length,
-    question: annotations.filter((annotation) => annotation.type === 'question').length,
-    unanswered: annotations.filter((annotation) => annotation.type === 'question' && !annotation.answer?.trim()).length,
-    connection: annotations.filter((annotation) => annotation.type === 'connection').length,
-    raw: annotations.filter((annotation) => annotationStatus(annotation) === 'raw').length,
-    connected: annotations.filter((annotation) => annotationStatus(annotation) === 'connected').length,
-    questioned: annotations.filter((annotation) => annotationStatus(annotation) === 'questioned').length,
-    used_in_position: annotations.filter((annotation) => annotationStatus(annotation) === 'used_in_position').length,
-    archived: annotations.filter((annotation) => annotationStatus(annotation) === 'archived').length,
-  }), [annotations]);
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      total: annotations.length,
+      unanswered: annotations.filter((annotation) => annotation.type === 'question' && !annotation.answer?.trim()).length,
+    };
+    ANNOTATION_TYPES.forEach((option) => {
+      counts[option.id] = annotations.filter((annotation) => annotation.type === option.id).length;
+    });
+    ANNOTATION_STATUSES.forEach((option) => {
+      counts[option.id] = annotations.filter((annotation) => annotationStatus(annotation) === option.id).length;
+    });
+    return counts;
+  }, [annotations]);
 
   const consequenceLanes = useMemo(() => [
     {
@@ -152,11 +198,20 @@ export function AnnotationsIndex({
     },
     {
       label: 'Already Routed',
-      value: annotations.filter((annotation) => annotation.createdInquiryId || annotation.createdPositionId || annotationStatus(annotation) === 'used_in_position').length,
+      value: annotations.filter((annotation) => annotation.createdInquiryId || annotation.createdPositionId || ['used_in_position', 'promoted'].includes(annotationStatus(annotation))).length,
       description: 'Annotations already promoted into inquiries or positions.',
       filter: 'used_in_position' as AnnotationFilter,
     },
   ], [annotations, typeCounts.raw]);
+
+  const updateAnnotationConsequence = (annotation: FlatAnnotation, patch: Partial<Annotation>) => {
+    const { source, ...annotationData } = annotation;
+    onUpdateAnnotation(source.id, {
+      ...annotationData,
+      ...patch,
+      philosophyStatus: patch.philosophyStatus || annotationData.philosophyStatus || 'reviewed',
+    });
+  };
 
   const saveEditing = () => {
     if (!editing || !editing.text.trim()) return;
@@ -401,15 +456,21 @@ export function AnnotationsIndex({
 
   const filterButtons: { id: AnnotationFilter; label: string; count: number }[] = [
     { id: 'all', label: 'All', count: typeCounts.total },
-    { id: 'raw', label: 'Unprocessed', count: typeCounts.raw },
-    { id: 'connected', label: 'Connected', count: typeCounts.connected },
-    { id: 'used_in_position', label: 'In Positions', count: typeCounts.used_in_position },
-    { id: 'archived', label: 'Archived', count: typeCounts.archived },
-    { id: 'highlight', label: 'Highlights', count: typeCounts.highlight },
-    { id: 'thought', label: 'Thoughts', count: typeCounts.thought },
-    { id: 'question', label: 'Questions', count: typeCounts.question },
+    { id: 'raw', label: 'Unprocessed', count: typeCounts.raw || 0 },
+    { id: 'reviewed', label: 'Reviewed', count: typeCounts.reviewed || 0 },
+    { id: 'connected', label: 'Connected', count: typeCounts.connected || 0 },
+    { id: 'promoted', label: 'Promoted', count: typeCounts.promoted || 0 },
+    { id: 'used_in_position', label: 'In Positions', count: typeCounts.used_in_position || 0 },
+    { id: 'reference_only', label: 'Reference', count: typeCounts.reference_only || 0 },
+    { id: 'dismissed', label: 'Dismissed', count: typeCounts.dismissed || 0 },
+    { id: 'archived', label: 'Archived', count: typeCounts.archived || 0 },
+    { id: 'highlight', label: 'Highlights', count: typeCounts.highlight || 0 },
+    { id: 'claim', label: 'Claims', count: typeCounts.claim || 0 },
+    { id: 'objection', label: 'Objections', count: typeCounts.objection || 0 },
+    { id: 'definition', label: 'Definitions', count: typeCounts.definition || 0 },
+    { id: 'question', label: 'Questions', count: typeCounts.question || 0 },
     { id: 'unanswered', label: 'Unanswered', count: typeCounts.unanswered },
-    { id: 'connection', label: 'Connections', count: typeCounts.connection },
+    { id: 'connection', label: 'Connections', count: typeCounts.connection || 0 },
   ];
 
   const clearFilters = () => {
@@ -439,6 +500,18 @@ export function AnnotationsIndex({
         clearDisabled={!filtersActive}
         className="mb-10"
       >
+        <Select value={processingMode} onValueChange={(value) => setProcessingMode(value as AnnotationProcessingMode)}>
+          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+            <SelectValue placeholder="Processing Mode" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="single" className="font-code text-[10px] uppercase">Single Review</SelectItem>
+            <SelectItem value="sweep" className="font-code text-[10px] uppercase">Sweep Mode</SelectItem>
+            <SelectItem value="cluster" className="font-code text-[10px] uppercase">Cluster Mode</SelectItem>
+            <SelectItem value="source" className="font-code text-[10px] uppercase">Source Mode</SelectItem>
+          </SelectContent>
+        </Select>
+
         <div className="flex flex-wrap gap-2">
           {filterButtons.map((button) => (
             <button
@@ -446,7 +519,7 @@ export function AnnotationsIndex({
               onClick={() => setFilterType(button.id)}
               className={cn(
                 "px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.16em] transition-all shadow-sm",
-                filterType === button.id ? "bg-accent text-white" : "bg-white text-muted-foreground border border-border/60 hover:text-foreground"
+                filterType === button.id ? "bg-accent text-white" : "bg-card text-muted-foreground border border-border/60 hover:text-foreground"
               )}
             >
               {button.label} {button.count}
@@ -501,7 +574,7 @@ export function AnnotationsIndex({
             </div>
           </button>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('connected')} className="rounded-full">
+            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('reviewed')} className="rounded-full">
               <CheckCircle2 className="mr-1.5 size-3.5" /> Mark reviewed
             </Button>
             <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={createInquiryFromSelection} className="rounded-full">
@@ -512,6 +585,9 @@ export function AnnotationsIndex({
             </Button>
             <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('archived')} className="rounded-full">
               <Archive className="mr-1.5 size-3.5" /> Archive
+            </Button>
+            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('reference_only')} className="rounded-full">
+              <Quote className="mr-1.5 size-3.5" /> Reference
             </Button>
             {selectedAnnotations.length > 0 && (
               <Button variant="ghost" size="sm" onClick={() => setSelectedKeys([])} className="rounded-full">
@@ -579,13 +655,13 @@ export function AnnotationsIndex({
               <div>
                 <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Likely Consequence</div>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  {annotation.createdPositionId ? 'Position formed' : annotation.createdInquiryId ? 'Inquiry opened' : annotation.type === 'question' ? 'Open inquiry' : 'Classify or form claim'}
+                  {annotation.consequenceNote || (annotation.createdPositionId ? 'Position formed' : annotation.createdInquiryId ? 'Inquiry opened' : annotation.type === 'question' ? 'Open inquiry' : 'Classify or form claim')}
                 </p>
               </div>
               <div>
                 <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Affects</div>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).slice(0, 2).join(', ') || 'No concept yet'}
+                  {annotation.consequenceKind ? annotationLabel(annotation.consequenceKind) : normalizeConceptTags(annotation.conceptTags || annotation.source.tags).slice(0, 2).join(', ') || 'No concept yet'}
                 </p>
               </div>
             </div>
@@ -618,6 +694,67 @@ export function AnnotationsIndex({
                     </Button>
                   ))}
                 </div>
+              </div>
+              <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_160px_auto] lg:items-center">
+                <Input
+                  defaultValue={annotation.consequenceNote || ''}
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value !== (annotation.consequenceNote || '')) {
+                      updateAnnotationConsequence(annotation, { consequenceNote: value, philosophyStatus: annotationStatus(annotation) === 'raw' ? 'reviewed' : annotationStatus(annotation) });
+                    }
+                  }}
+                  placeholder="What does this suggest, challenge, clarify, or raise?"
+                  className="h-9 rounded-full bg-card text-xs"
+                />
+                <Select
+                  value={annotation.consequenceKind || 'interpretation'}
+                  onValueChange={(value) => updateAnnotationConsequence(annotation, {
+                    consequenceKind: value as AnnotationConsequenceKind,
+                    philosophyStatus: annotationStatus(annotation) === 'raw' ? 'reviewed' : annotationStatus(annotation),
+                  })}
+                >
+                  <SelectTrigger className="h-9 rounded-full bg-card font-code text-[9px] uppercase">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CONSEQUENCE_KINDS.map((kind) => (
+                      <SelectItem key={kind.id} value={kind.id} className="font-code text-[10px] uppercase">{kind.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <button
+                  type="button"
+                  onClick={() => updateAnnotationConsequence(annotation, {
+                    mattersBeyondSource: !annotation.mattersBeyondSource,
+                    philosophyStatus: annotationStatus(annotation) === 'raw' ? 'reviewed' : annotationStatus(annotation),
+                  })}
+                  className={cn(
+                    "h-9 rounded-full border px-3 font-code text-[8px] font-bold uppercase tracking-widest transition-colors",
+                    annotation.mattersBeyondSource ? "border-accent/40 bg-accent/10 text-accent" : "border-border/50 bg-card text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Beyond Source
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {([
+                  ['reviewed', 'Reviewed'],
+                  ['reference_only', 'Reference'],
+                  ['dismissed', 'Dismiss'],
+                  ['archived', 'Archive'],
+                ] as Array<[AnnotationPhilosophyStatus, string]>).map(([status, label]) => (
+                  <Button
+                    key={status}
+                    type="button"
+                    variant={annotationStatus(annotation) === status ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => updateAnnotationConsequence(annotation, { philosophyStatus: status })}
+                    className="h-7 rounded-full px-2.5 font-code text-[8px] uppercase tracking-widest"
+                  >
+                    {label}
+                  </Button>
+                ))}
               </div>
             </div>
 
@@ -764,17 +901,27 @@ export function AnnotationsIndex({
                   <Select value={editing.type} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, type: value as AnnotationType } : prev)}>
                     <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="highlight">Highlight</SelectItem>
-                      <SelectItem value="thought">Thought</SelectItem>
-                      <SelectItem value="question">Question</SelectItem>
-                      <SelectItem value="connection">Connection</SelectItem>
+                      {ANNOTATION_TYPES.map((type) => (
+                        <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Source</Label>
-                  <Input value={editing.source.title} disabled className="rounded-full" />
+                  <Label>Processing State</Label>
+                  <Select value={annotationStatus(editing)} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, philosophyStatus: value as AnnotationPhilosophyStatus } : prev)}>
+                    <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ANNOTATION_STATUSES.map((status) => (
+                        <SelectItem key={status.id} value={status.id}>{status.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Source</Label>
+                <Input value={editing.source.title} disabled className="rounded-full" />
               </div>
               <div className="space-y-2">
                 <Label>Text</Label>
@@ -794,6 +941,40 @@ export function AnnotationsIndex({
                   onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)}
                   onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
                 />
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_190px]">
+                <div className="space-y-2">
+                  <Label>Suggested Consequence</Label>
+                  <Textarea
+                    value={editing.consequenceNote || ''}
+                    onChange={(event) => setEditing((prev) => prev ? { ...prev, consequenceNote: event.target.value } : prev)}
+                    placeholder="What does this suggest, challenge, clarify, or raise?"
+                    className="min-h-[90px]"
+                  />
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Consequence Kind</Label>
+                    <Select value={editing.consequenceKind || 'interpretation'} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, consequenceKind: value as AnnotationConsequenceKind } : prev)}>
+                      <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CONSEQUENCE_KINDS.map((kind) => (
+                          <SelectItem key={kind.id} value={kind.id}>{kind.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditing((prev) => prev ? { ...prev, mattersBeyondSource: !prev.mattersBeyondSource } : prev)}
+                    className={cn(
+                      "w-full rounded-full border px-4 py-2 font-code text-[9px] font-bold uppercase tracking-widest transition-colors",
+                      editing.mattersBeyondSource ? "border-accent/40 bg-accent/10 text-accent" : "border-border/60 bg-card text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Matters Beyond Source
+                  </button>
+                </div>
               </div>
             </div>
           )}

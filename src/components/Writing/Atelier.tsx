@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +37,7 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { FormattingToolbar } from './FormattingToolbar';
 import { DocumentCanvas } from './DocumentCanvas';
 import { PageViewControls } from './PageViewControls';
-import type { Annotation, Concept, Draft, DraftStatus, DraftType, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WritingStyle } from '@/lib/types';
+import type { Annotation, Concept, Draft, DraftStatus, DraftType, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkPurpose, WritingStyle } from '@/lib/types';
 import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, WRITING_STYLES, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -77,12 +78,24 @@ interface AtelierProps {
   onOpenDraftRoute?: (id: string | null) => void;
 }
 
-const statuses: DraftStatus[] = ['seed', 'drafting', 'revised', 'final'];
+const statuses: DraftStatus[] = ['idea', 'rough', 'seed', 'drafting', 'developing', 'revising', 'revised', 'complete', 'final', 'published', 'archived', 'abandoned'];
 const articulationTypes: DraftType[] = ['essay', 'script', 'field_note', 'manuscript', 'reflection', 'argument', 'source_analysis', 'text_note', 'voice_note', 'talk_to_text', 'drawing_note', 'drawing', 'recording'];
-const workFilters: ('all' | DraftType | DraftStatus)[] = ['all', ...articulationTypes, 'drafting', 'final'];
+const workFilters: ('all' | DraftType | DraftStatus)[] = ['all', ...articulationTypes, 'drafting', 'complete', 'published', 'final'];
 const workTabs = ['all', 'writing', 'notes', 'recording', 'drawing'] as const;
 const writingLabels: DraftType[] = ['essay', 'script', 'field_note', 'manuscript', 'reflection', 'argument', 'source_analysis'];
 type WorkTab = (typeof workTabs)[number];
+
+const workPurposes: Array<{ id: WorkPurpose; label: string; description: string }> = [
+  { id: 'explore', label: 'Explore', description: 'Find what you think by working through the material.' },
+  { id: 'explain', label: 'Explain', description: 'Make an idea legible to yourself or someone else.' },
+  { id: 'persuade', label: 'Persuade', description: 'Argue for a position and answer objections.' },
+  { id: 'synthesize', label: 'Synthesize', description: 'Combine sources, concepts, and positions into one artifact.' },
+  { id: 'reflect', label: 'Reflect', description: 'Clarify experience, change, or uncertainty.' },
+  { id: 'document', label: 'Document', description: 'Preserve an observation, recording, sketch, or process.' },
+  { id: 'teach', label: 'Teach', description: 'Turn understanding into a teachable structure.' },
+  { id: 'challenge', label: 'Challenge', description: 'Pressure-test a claim or assumption.' },
+  { id: 'imagine', label: 'Imagine', description: 'Generate a possible world, image, metaphor, or scenario.' },
+];
 
 const providerLabels: Record<ExternalDocProvider, string> = {
   google_docs: 'Google Docs',
@@ -96,6 +109,11 @@ const providerLabels: Record<ExternalDocProvider, string> = {
 const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'title',
   'label',
+  'workPurpose',
+  'purposeNote',
+  'atlasRegion',
+  'argumentSkeleton',
+  'completionReflection',
   'body',
   'draftContent',
   'finalContent',
@@ -165,6 +183,17 @@ function draftSaveSignature(draft: Draft | null | undefined) {
   );
 }
 
+function splitWorkLines(value?: string) {
+  return (value || '')
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function joinWorkLines(value?: string[]) {
+  return (value || []).join('\n');
+}
+
 export function Atelier({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | DraftType | DraftStatus>('all');
@@ -172,6 +201,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   const [search, setSearch] = useState('');
   const [isWorkTypeOpen, setIsWorkTypeOpen] = useState(false);
   const [isNoteTypeOpen, setIsNoteTypeOpen] = useState(false);
+  const [workLauncher, setWorkLauncher] = useState<{ purpose: WorkPurpose; note: string }>({ purpose: 'explore', note: '' });
   const [isDocOpen, setIsDocOpen] = useState(false);
   const [docDraft, setDocDraft] = useState({ title: '', url: '', provider: 'google_docs' as ExternalDocProvider, autoSync: true });
   const [syncingId, setSyncingId] = useState<string | null>(null);
@@ -303,6 +333,8 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
       title: baseTitle,
       type,
       label: DRAFT_LABELS[type],
+      workPurpose: workLauncher.purpose,
+      purposeNote: workLauncher.note,
       body: '',
       draftContent: '',
       finalContent: '',
@@ -611,6 +643,31 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 </div>
               </div>
 
+              <div className="grid gap-3 rounded-xl border border-border/30 bg-card/80 p-4 md:grid-cols-[220px_1fr]">
+                <div className="space-y-2">
+                  <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Purpose</Label>
+                  <Select value={active.workPurpose || 'explore'} onValueChange={(value) => updateActive({ workPurpose: value as WorkPurpose })}>
+                    <SelectTrigger className="h-9 rounded-full border-border/50 bg-background font-code text-[9px] uppercase">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workPurposes.map((purpose) => (
+                        <SelectItem key={purpose.id} value={purpose.id} className="font-code text-[10px] uppercase">{purpose.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">What this work should draw from</Label>
+                  <Input
+                    value={active.purposeNote || ''}
+                    onChange={(event) => updateActive({ purposeNote: event.target.value })}
+                    placeholder="Example: synthesize my attention notes, challenge the agency position, or explain one source clearly..."
+                    className="h-9 rounded-full bg-background text-sm"
+                  />
+                </div>
+              </div>
+
               {showExternalDocControls && active.externalDoc && (
                 <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -681,6 +738,73 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                   </Button>
                 </div>
               )}
+
+              <details className="rounded-xl border border-border/30 bg-card/80 p-4">
+                <summary className="cursor-pointer font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Argument Skeleton and Completion Reflection
+                </summary>
+                <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-xl border border-border/50 bg-background p-4">
+                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Argument Skeleton</div>
+                    <div className="mt-3 grid gap-3">
+                      <Input
+                        value={active.argumentSkeleton?.centralClaim || ''}
+                        onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), centralClaim: event.target.value } })}
+                        placeholder="Central claim this work expresses..."
+                        className="rounded-full"
+                      />
+                      <Textarea
+                        value={joinWorkLines(active.argumentSkeleton?.supportingClaims)}
+                        onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), supportingClaims: splitWorkLines(event.target.value) } })}
+                        placeholder="Supporting claims, one per line..."
+                        className="min-h-[82px]"
+                      />
+                      <Textarea
+                        value={joinWorkLines(active.argumentSkeleton?.objections)}
+                        onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), objections: splitWorkLines(event.target.value) } })}
+                        placeholder="Objections this work must answer, one per line..."
+                        className="min-h-[82px]"
+                      />
+                      <Textarea
+                        value={active.argumentSkeleton?.conclusion || ''}
+                        onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), conclusion: event.target.value } })}
+                        placeholder="Conclusion or unresolved ending..."
+                        className="min-h-[70px]"
+                      />
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-border/50 bg-background p-4">
+                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Completion Reflection</div>
+                    <p className="mt-1 text-xs italic text-muted-foreground">Use this when the work becomes complete, final, or published.</p>
+                    <div className="mt-3 grid gap-3">
+                      <Textarea
+                        value={active.completionReflection?.clarified || ''}
+                        onChange={(event) => updateActive({ completionReflection: { ...(active.completionReflection || {}), clarified: event.target.value } })}
+                        placeholder="What did this work clarify?"
+                        className="min-h-[68px]"
+                      />
+                      <Textarea
+                        value={active.completionReflection?.positionChanged || ''}
+                        onChange={(event) => updateActive({ completionReflection: { ...(active.completionReflection || {}), positionChanged: event.target.value } })}
+                        placeholder="Did any position change?"
+                        className="min-h-[68px]"
+                      />
+                      <Textarea
+                        value={active.completionReflection?.unresolved || ''}
+                        onChange={(event) => updateActive({ completionReflection: { ...(active.completionReflection || {}), unresolved: event.target.value } })}
+                        placeholder="What remains unresolved?"
+                        className="min-h-[68px]"
+                      />
+                      <Textarea
+                        value={active.completionReflection?.nextExploration || ''}
+                        onChange={(event) => updateActive({ completionReflection: { ...(active.completionReflection || {}), nextExploration: event.target.value } })}
+                        placeholder="What should be explored next?"
+                        className="min-h-[68px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </details>
             </div>
           </div>
         </header>
@@ -802,9 +926,16 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             onClick={() => openDraft(draft.id)}
           >
             <div className="flex justify-between items-start mb-4">
-              <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">
-                {DRAFT_LABELS[draft.type]}
-              </span>
+              <div className="grid gap-1">
+                <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">
+                  {DRAFT_LABELS[draft.type]}
+                </span>
+                {draft.workPurpose && (
+                  <span className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">
+                    {draft.workPurpose}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
               {draft.externalDoc && <Cloud className="size-3.5 text-accent" />}
                 <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter bg-white shadow-sm border-border/60 rounded-full font-bold px-2 py-0.5">
@@ -816,6 +947,9 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             <h3 className="font-headline text-2xl font-bold italic leading-tight group-hover:text-accent transition-colors text-primary mb-6">
               {draft.title || 'Untitled Draft'}
             </h3>
+            {draft.purposeNote && (
+              <p className="mb-5 line-clamp-2 text-sm italic leading-6 text-muted-foreground">{draft.purposeNote}</p>
+            )}
 
             <div className="flex flex-wrap gap-1.5 mb-6">
               <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-accent/10 text-accent border-transparent rounded-full font-bold">
@@ -883,8 +1017,33 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
         <DialogContent className="max-w-2xl border-none bg-white shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-headline text-3xl italic">Add Work</DialogTitle>
-            <p className="text-sm italic text-muted-foreground">Choose the workspace you want to open right now.</p>
+            <p className="text-sm italic text-muted-foreground">Choose what you are creating, why it exists, and what thinking it should draw from.</p>
           </DialogHeader>
+          <div className="grid gap-4 rounded-2xl border border-border/50 bg-muted/10 p-4 sm:grid-cols-[180px_1fr]">
+            <div className="space-y-2">
+              <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Purpose</Label>
+              <Select value={workLauncher.purpose} onValueChange={(value) => setWorkLauncher((current) => ({ ...current, purpose: value as WorkPurpose }))}>
+                <SelectTrigger className="rounded-full bg-white font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {workPurposes.map((purpose) => (
+                    <SelectItem key={purpose.id} value={purpose.id} className="font-code text-[10px] uppercase">{purpose.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs italic leading-5 text-muted-foreground">
+                {workPurposes.find((purpose) => purpose.id === workLauncher.purpose)?.description}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Draw from</Label>
+              <Textarea
+                value={workLauncher.note}
+                onChange={(event) => setWorkLauncher((current) => ({ ...current, note: event.target.value }))}
+                placeholder="What concepts, inquiries, positions, sources, or practices should this work draw from?"
+                className="min-h-[96px] bg-white"
+              />
+            </div>
+          </div>
           <div className="grid gap-4 pt-4 sm:grid-cols-2">
             {[
               { title: 'Writing', description: 'Open a long-form writing document.', icon: PencilLine, onClick: () => spawnDraft('essay', 'Untitled Writing') },
@@ -1464,6 +1623,18 @@ function WorkIntellectualRail({
     .filter((question) => !['resolved', 'archived'].includes(question.status))
     .slice(0, 4)
     .map((question) => question.text);
+  const skeletonItems = [
+    active.argumentSkeleton?.centralClaim ? `Claim: ${active.argumentSkeleton.centralClaim}` : '',
+    ...(active.argumentSkeleton?.supportingClaims || []).map((item) => `Support: ${item}`),
+    ...(active.argumentSkeleton?.objections || []).map((item) => `Objection: ${item}`),
+    active.argumentSkeleton?.conclusion ? `Conclusion: ${active.argumentSkeleton.conclusion}` : '',
+  ].filter(Boolean);
+  const reflectionItems = [
+    active.completionReflection?.clarified ? `Clarified: ${active.completionReflection.clarified}` : '',
+    active.completionReflection?.positionChanged ? `Position changed: ${active.completionReflection.positionChanged}` : '',
+    active.completionReflection?.unresolved ? `Unresolved: ${active.completionReflection.unresolved}` : '',
+    active.completionReflection?.nextExploration ? `Next: ${active.completionReflection.nextExploration}` : '',
+  ].filter(Boolean);
 
   return (
     <aside className="hidden min-h-0 overflow-y-auto border-l border-border/40 bg-muted/10 p-4 lg:block">
@@ -1478,10 +1649,23 @@ function WorkIntellectualRail({
               {WORK_CATEGORY_LABELS[category]}
             </Badge>
           </div>
+          <div className="mt-3 rounded-xl border border-border/50 bg-muted/10 p-3">
+            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Purpose</div>
+            <p className="mt-1 text-sm font-medium capitalize text-foreground">{active.workPurpose || 'explore'}</p>
+            <p className="mt-1 text-xs italic leading-5 text-muted-foreground">
+              {active.purposeNote || 'No source question, position, or intention has been named yet.'}
+            </p>
+          </div>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
             Use this rail to keep expression connected to claims, evidence, objections, and raw material.
           </p>
         </Card>
+
+        <RailSection
+          title="Argument Skeleton"
+          empty="No skeleton yet. Add a central claim, support, objections, and conclusion if this work needs structure."
+          items={skeletonItems}
+        />
 
         <RailSection
           title="Claims Expressed"
@@ -1514,6 +1698,12 @@ function WorkIntellectualRail({
           title="Unused Annotations"
           empty="No nearby annotations found from linked sources or concepts."
           items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)}
+        />
+
+        <RailSection
+          title="Completion Reflection"
+          empty="When this work is complete, record what it clarified, what changed, and what remains unresolved."
+          items={reflectionItems}
         />
 
         <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
