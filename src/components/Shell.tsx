@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { GoalSettings, MediaType } from '@/lib/types';
 import { MEDIA_LABELS } from '@/lib/readex';
+import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
 import placeholderData from '@/app/lib/placeholder-images.json';
 
 export interface MovementMetrics {
@@ -43,6 +44,15 @@ export interface MovementMetrics {
   openInquiries: number;
   practicesWithoutPosition: number;
   positionsWithoutPractice: number;
+}
+
+export interface CommandPaletteItem {
+  id: string;
+  label: string;
+  section: string;
+  description: string;
+  view: string;
+  targetId?: string | null;
 }
 
 interface ShellProps {
@@ -72,26 +82,28 @@ interface ShellProps {
     role?: string;
   };
   workspaceMode?: string;
+  commandItems?: CommandPaletteItem[];
+  onCommandSelect?: (item: CommandPaletteItem) => void;
 }
 
-export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpenGoals, counts, goal, goalProgress, movement, profile, workspaceMode }: ShellProps) {
+export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpenGoals, counts, goal, goalProgress, movement, profile, workspaceMode, commandItems: workspaceCommandItems = [], onCommandSelect }: ShellProps) {
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
   const navItems = [
-    { id: 'atlas', label: 'Atlas', icon: MapIcon, section: 'Mind' },
-    { id: 'concepts', label: 'Concepts', icon: BookOpen, section: 'Mind', count: counts.concepts },
-    { id: 'questions', label: 'Inquiries', icon: HelpCircle, section: 'Mind', count: counts.questions },
-    { id: 'library', label: 'Library', icon: Library, section: 'Inputs', count: counts.media },
-    { id: 'source-index', label: 'Source Index', icon: TableIcon, section: 'Inputs', count: counts.media },
-    { id: 'annotations', label: 'Annotations', icon: Highlighter, section: 'Inputs', count: counts.annotations },
-    { id: 'vault', label: 'Positions', icon: ShieldCheck, section: 'Outputs', count: counts.vault },
-    { id: 'writing', label: 'Works', icon: PenTool, section: 'Outputs', count: counts.drafts },
-    { id: 'practices', label: 'Practices', icon: Repeat, section: 'Outputs', count: counts.practices },
-    { id: 'evolution', label: 'Evolution', icon: History, section: 'Outputs', count: counts.timeline },
-    { id: 'settings', label: 'Settings', icon: Settings, section: 'System' },
+    { id: 'atlas', icon: MapIcon },
+    { id: 'concepts', icon: BookOpen, count: counts.concepts },
+    { id: 'questions', icon: HelpCircle, count: counts.questions },
+    { id: 'library', icon: Library, count: counts.media },
+    { id: 'source-index', icon: TableIcon, count: counts.media },
+    { id: 'annotations', icon: Highlighter, count: counts.annotations },
+    { id: 'vault', icon: ShieldCheck, count: counts.vault },
+    { id: 'writing', icon: PenTool, count: counts.drafts },
+    { id: 'practices', icon: Repeat, count: counts.practices },
+    { id: 'evolution', icon: History, count: counts.timeline },
+    { id: 'settings', icon: Settings },
   ];
 
   const logoData = placeholderData.placeholderImages.find(img => img.id === 'app-logo');
@@ -170,24 +182,38 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
     setCommandQuery('');
   };
 
-  const commandItems = useMemo(() => {
+  const commandItems = useMemo<CommandPaletteItem[]>(() => {
     const utilities = [
-      { id: 'profile', label: 'Profile', section: 'Utility', description: 'Identity, thinking tendencies, unknowns, and public philosophy.' },
-      { id: 'goals', label: 'Goals', section: 'Utility', description: 'Intellectual commitments and progress categories.' },
+      { id: 'profile', label: NOESIS_PAGE_BY_VIEW.profile.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.profile.purpose, view: 'profile' },
+      { id: 'goals', label: NOESIS_PAGE_BY_VIEW.goals.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.goals.purpose, view: 'goals' },
     ];
     const core = navItems.map((item) => ({
       id: item.id,
-      label: item.label,
-      section: item.section,
-      description: typeof item.count === 'number' ? `${item.count} item${item.count === 1 ? '' : 's'}` : 'Open page',
+      label: NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].title,
+      section: NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].section,
+      description: typeof item.count === 'number'
+        ? `${NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].purpose} ${item.count} item${item.count === 1 ? '' : 's'}.`
+        : NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].purpose,
+      view: item.id,
     }));
     const query = commandQuery.trim().toLowerCase();
-    return [...core, ...utilities]
+    return [...core, ...utilities, ...workspaceCommandItems]
       .filter((item) => !query || `${item.label} ${item.section} ${item.description}`.toLowerCase().includes(query))
-      .slice(0, 12);
-  }, [commandQuery, navItems]);
+      .slice(0, 18);
+  }, [commandQuery, navItems, workspaceCommandItems]);
+
+  const handleCommandSelect = (item: CommandPaletteItem) => {
+    if (onCommandSelect) {
+      onCommandSelect(item);
+    } else {
+      handleNavChange(item.view);
+    }
+    setCommandOpen(false);
+    setCommandQuery('');
+  };
 
   const renderNavButton = (item: typeof navItems[number]) => {
+    const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
     const button = (
       <button
         onClick={() => handleNavChange(item.id)}
@@ -202,7 +228,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
         <item.icon className={cn('size-4 shrink-0', activeView === item.id ? 'text-white' : 'group-hover:text-accent')} />
         {(!collapsed || isMobile) && (
           <>
-            <span className="text-[13px] font-body font-medium tracking-wide flex-1 text-left">{item.label}</span>
+            <span className="text-[13px] font-body font-medium tracking-wide flex-1 text-left">{page.title}</span>
             {typeof item.count === 'number' && (
               <span className="rounded-full bg-white/[0.06] px-2 py-0.5 font-code text-[9px] text-white/50">{item.count}</span>
             )}
@@ -215,7 +241,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
       return (
         <Tooltip key={item.id}>
           <TooltipTrigger asChild>{button}</TooltipTrigger>
-          <TooltipContent side="right">{item.label}</TooltipContent>
+          <TooltipContent side="right">{page.title}</TooltipContent>
         </Tooltip>
       );
     }
@@ -371,13 +397,13 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
       )}
 
       <nav className="flex-1 overflow-y-auto py-4 scrollbar-hide">
-        {['Mind', 'Inputs', 'Outputs', 'System'].map((section) => (
+        {['Mind', 'Inputs', 'Outputs', 'Utility'].map((section) => (
           <div key={section} className="mb-5">
             {(!collapsed || isMobile) && (
               <h4 className="px-5 mb-1 font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/22 font-bold">{section}</h4>
             )}
             <ul className="space-y-1">
-              {navItems.filter((item) => item.section === section).map((item) => (
+              {navItems.filter((item) => NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].section === section).map((item) => (
                 <li key={item.id}>{renderNavButton(item)}</li>
               ))}
             </ul>
@@ -457,7 +483,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
                   <button
                     key={`${item.section}-${item.id}`}
                     type="button"
-                    onClick={() => handleNavChange(item.id)}
+                    onClick={() => handleCommandSelect(item)}
                     className="flex w-full items-center justify-between rounded-2xl border border-border bg-background/60 px-4 py-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <span>

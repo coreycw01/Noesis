@@ -6,10 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Shell } from '@/components/Shell';
 import type { MovementMetrics } from '@/components/Shell';
+import type { CommandPaletteItem } from '@/components/Shell';
 import { Toaster } from '@/components/ui/toaster';
 import { allAnnotations } from '@/lib/readex';
 import type {
   Draft,
+  Concept,
   GoalSettings,
   Media,
   MediaType,
@@ -50,6 +52,7 @@ interface NoesisShellProps {
   seedReviewWorkspace: (options?: { force?: boolean; announce?: boolean }) => void;
   exportReviewArchitecture: () => void;
   media: Media[];
+  concepts: Concept[];
   questions: Question[];
   vault: VaultEntry[];
   drafts: Draft[];
@@ -57,6 +60,7 @@ interface NoesisShellProps {
   links: PhilosophicalLink[];
   suggestionsCount: number;
   user: User | null;
+  onOpenCommandItem?: (item: CommandPaletteItem) => void;
 }
 
 export function NoesisShell({
@@ -78,13 +82,66 @@ export function NoesisShell({
   seedReviewWorkspace,
   exportReviewArchitecture,
   media,
+  concepts,
   questions,
   vault,
   drafts,
   practices,
   links,
   suggestionsCount,
+  onOpenCommandItem,
 }: NoesisShellProps) {
+  const workspaceCommandItems: CommandPaletteItem[] = [
+    ...concepts.slice(0, 20).map((item) => ({
+      id: `concept-${item.id}`,
+      label: item.name,
+      section: 'Concept',
+      description: item.description || 'Open concept detail.',
+      view: 'concepts',
+      targetId: item.id,
+    })),
+    ...media.slice(0, 20).map((item) => ({
+      id: `source-${item.id}`,
+      label: item.title,
+      section: 'Source',
+      description: item.creator || item.type || 'Open source workspace.',
+      view: 'library',
+      targetId: item.id,
+    })),
+    ...questions.slice(0, 20).map((item) => ({
+      id: `inquiry-${item.id}`,
+      label: item.text,
+      section: 'Inquiry',
+      description: item.status || 'Open inquiry workspace.',
+      view: 'questions',
+      targetId: item.id,
+    })),
+    ...vault.slice(0, 20).map((item) => ({
+      id: `position-${item.id}`,
+      label: item.title || item.statement,
+      section: 'Position',
+      description: item.status || 'Open position workbench.',
+      view: 'vault',
+      targetId: item.id,
+    })),
+    ...drafts.slice(0, 20).map((item) => ({
+      id: `work-${item.id}`,
+      label: item.title,
+      section: 'Work',
+      description: item.type || 'Open work studio.',
+      view: 'writing',
+      targetId: item.id,
+    })),
+    ...practices.slice(0, 20).map((item) => ({
+      id: `practice-${item.id}`,
+      label: item.title,
+      section: 'Practice',
+      description: item.status || 'Open practice field.',
+      view: 'practices',
+      targetId: item.id,
+    })),
+  ];
+
   return (
     <Shell
       activeView={activeView}
@@ -103,6 +160,8 @@ export function NoesisShell({
         role: profile.role,
       }}
       workspaceMode={workspaceMode}
+      commandItems={workspaceCommandItems}
+      onCommandSelect={onOpenCommandItem}
     >
       {isReviewWorkspace && (
         <div className="border-b border-amber-500/15 bg-amber-500/6 px-6 py-2.5">

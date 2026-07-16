@@ -102,6 +102,8 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { classifyThinkingChange } from '@/lib/thinkingEvents/classifyThinkingChange';
 import { writeThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
 import { parseNoesisRoute, viewToPath, type NoesisView } from '@/lib/noesis-routes';
+import { commitWorkspaceMutation } from '@/lib/workspace-mutations';
+import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
 
 function ReadexWorkspace({
   user,
@@ -907,43 +909,61 @@ function ReadexWorkspace({
       philosophyStatus: data.philosophyStatus || (data.description ? 'emerging' : 'undefined'),
       dateCreated: today(),
     };
-    setDoc(conceptRef, payload).catch(() => emitError(conceptRef.path, 'create', payload));
-    createThinkingEvent({
-      eventType: 'created',
-      entityType: 'concept',
-      entityId: payload.id,
-      after: payload,
-      summary: `Created concept: ${payload.name}`,
-      origin: payload.createdFrom === 'manual' ? 'user' : 'system',
-      importance: 'medium',
-      sourceActionId: makeActionId(),
-    });
+    commitWorkspaceMutation({
+      db,
+      ref: conceptRef as any,
+      operation: 'set',
+      data: payload,
+      thinkingEvent: metacognitionEnabled ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
+        eventType: 'created',
+        entityType: 'concept',
+        entityId: payload.id,
+        after: payload,
+        summary: `Created concept: ${payload.name}`,
+        origin: payload.createdFrom === 'manual' ? 'user' : 'system',
+        importance: 'medium',
+        sourceActionId: makeActionId(),
+      } : null,
+    }).catch(() => emitError(conceptRef.path, 'create', payload));
   };
 
   const updateConcept = (concept: Concept) => {
     const conceptRef = doc(refs.concepts, concept.id);
     const previous = concepts.find((item) => item.id === concept.id);
     const nextConcept = { ...concept, dateUpdated: today() };
-    updateDoc(conceptRef, nextConcept as any).catch(() => emitError(conceptRef.path, 'update', concept));
-    createThinkingEvent({
-      eventType: 'edited',
-      entityType: 'concept',
-      entityId: concept.id,
-      before: previous || null,
-      after: nextConcept,
-      summary: `Edited concept: ${concept.name}`,
-      origin: 'user',
-      importance: 'low',
-      sourceActionId: makeActionId(),
-    });
+    commitWorkspaceMutation({
+      db,
+      ref: conceptRef as any,
+      operation: 'update',
+      data: nextConcept,
+      thinkingEvent: metacognitionEnabled ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
+        eventType: 'edited',
+        entityType: 'concept',
+        entityId: concept.id,
+        before: previous || null,
+        after: nextConcept,
+        summary: `Edited concept: ${concept.name}`,
+        origin: 'user',
+        importance: 'low',
+        sourceActionId: makeActionId(),
+      } : null,
+    }).catch(() => emitError(conceptRef.path, 'update', concept));
   };
 
   const deleteConcept = (id: string) => {
     const existing = concepts.find((item) => item.id === id);
     const conceptRef = doc(refs.concepts, id);
-    deleteDoc(conceptRef).catch(() => emitError(conceptRef.path, 'delete'));
-    if (existing) {
-      createThinkingEvent({
+    commitWorkspaceMutation({
+      db,
+      ref: conceptRef as any,
+      operation: 'delete',
+      thinkingEvent: metacognitionEnabled && existing ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
         eventType: 'abandoned',
         entityType: 'concept',
         entityId: id,
@@ -952,8 +972,8 @@ function ReadexWorkspace({
         origin: 'user',
         importance: 'medium',
         sourceActionId: makeActionId(),
-      });
-    }
+      } : null,
+    }).catch(() => emitError(conceptRef.path, 'delete'));
   };
 
   const addMedia = (data: Partial<Media>) => {
@@ -984,18 +1004,25 @@ function ReadexWorkspace({
       dateAdded: today(),
       dateUpdated: today(),
     };
-    setDoc(mediaRef, payload).catch(() => emitError(mediaRef.path, 'create', payload));
+    commitWorkspaceMutation({
+      db,
+      ref: mediaRef as any,
+      operation: 'set',
+      data: payload,
+      thinkingEvent: metacognitionEnabled ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
+        eventType: 'created',
+        entityType: 'source',
+        entityId: payload.id,
+        after: payload,
+        summary: 'Added a new source.',
+        origin: 'user',
+        importance: 'medium',
+        sourceActionId: makeActionId(),
+      } : null,
+    }).catch(() => emitError(mediaRef.path, 'create', payload));
     createTimelineEvent({ entityId: mediaRef.id, entityType: 'media', entityTitle: payload.title, eventType: 'created', reason: 'Source added to Noesis' });
-    createThinkingEvent({
-      eventType: 'created',
-      entityType: 'source',
-      entityId: payload.id,
-      after: payload,
-      summary: 'Added a new source.',
-      origin: 'user',
-      importance: 'medium',
-      sourceActionId: makeActionId(),
-    });
   };
 
   const updateMedia = (item: Media) => {
@@ -1003,26 +1030,37 @@ function ReadexWorkspace({
     const mediaRef = doc(refs.media, item.id);
     const previous = media.find((source) => source.id === item.id);
     const nextItem = { ...item, dateUpdated: today() };
-    updateDoc(mediaRef, nextItem as any).catch(() => emitError(mediaRef.path, 'update', item));
-    createThinkingEvent({
-      eventType: 'edited',
-      entityType: 'source',
-      entityId: item.id,
-      before: previous || null,
-      after: nextItem,
-      summary: 'Updated source capture or metadata.',
-      origin: 'user',
-      importance: 'low',
-      sourceActionId: makeActionId(),
-    });
+    commitWorkspaceMutation({
+      db,
+      ref: mediaRef as any,
+      operation: 'update',
+      data: nextItem,
+      thinkingEvent: metacognitionEnabled ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
+        eventType: 'edited',
+        entityType: 'source',
+        entityId: item.id,
+        before: previous || null,
+        after: nextItem,
+        summary: 'Updated source capture or metadata.',
+        origin: 'user',
+        importance: 'low',
+        sourceActionId: makeActionId(),
+      } : null,
+    }).catch(() => emitError(mediaRef.path, 'update', item));
   };
 
   const deleteMedia = (id: string) => {
     const existing = media.find((item) => item.id === id);
     const mediaRef = doc(refs.media, id);
-    deleteDoc(mediaRef).catch(() => emitError(mediaRef.path, 'delete'));
-    if (existing) {
-      createThinkingEvent({
+    commitWorkspaceMutation({
+      db,
+      ref: mediaRef as any,
+      operation: 'delete',
+      thinkingEvent: metacognitionEnabled && existing ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
         eventType: 'abandoned',
         entityType: 'source',
         entityId: id,
@@ -1031,8 +1069,8 @@ function ReadexWorkspace({
         origin: 'user',
         importance: 'medium',
         sourceActionId: makeActionId(),
-      });
-    }
+      } : null,
+    }).catch(() => emitError(mediaRef.path, 'delete'));
   };
 
   const updateAnnotation = (sourceId: string, annotation: Annotation) => {
@@ -1100,20 +1138,27 @@ function ReadexWorkspace({
       dateCreated: today(),
       dateUpdated: today(),
     };
-    setDoc(vaultRef, payload).catch(() => emitError(vaultRef.path, 'create', payload));
+    commitWorkspaceMutation({
+      db,
+      ref: vaultRef as any,
+      operation: 'set',
+      data: payload,
+      thinkingEvent: metacognitionEnabled ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
+        eventType: 'created',
+        entityType: 'position',
+        entityId: payload.id,
+        after: payload,
+        summary: `Position created: ${payload.title}`,
+        origin: payload.createdFrom === 'manual' ? 'user' : 'system',
+        importance: 'high',
+        relatedEntityIds: { sourceIds: payload.sourceIds, conceptIds: tags.map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[] },
+        sourceActionId: makeActionId(),
+      } : null,
+    }).catch(() => emitError(vaultRef.path, 'create', payload));
     createTimelineEvent({ entityId: vaultRef.id, entityType: 'vault', entityTitle: payload.title, eventType: 'created', reason: 'Position formed', influencedBy: data.sourceIds });
     refreshBeliefProfile(payload as VaultEntry, { originSummary: payload.statement || payload.description });
-    createThinkingEvent({
-      eventType: 'created',
-      entityType: 'position',
-      entityId: payload.id,
-      after: payload,
-      summary: `Position created: ${payload.title}`,
-      origin: payload.createdFrom === 'manual' ? 'user' : 'system',
-      importance: 'high',
-      relatedEntityIds: { sourceIds: payload.sourceIds, conceptIds: tags.map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[] },
-      sourceActionId: makeActionId(),
-    });
     return payload as VaultEntry;
   };
 
@@ -1168,9 +1213,13 @@ function ReadexWorkspace({
   const deleteVaultEntry = (id: string) => {
     const existing = vault.find((item) => item.id === id);
     const vaultRef = doc(refs.vault, id);
-    deleteDoc(vaultRef).catch(() => emitError(vaultRef.path, 'delete'));
-    if (existing) {
-      createThinkingEvent({
+    commitWorkspaceMutation({
+      db,
+      ref: vaultRef as any,
+      operation: 'delete',
+      thinkingEvent: metacognitionEnabled && existing ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
         eventType: 'position_abandoned',
         entityType: 'position',
         entityId: id,
@@ -1180,8 +1229,8 @@ function ReadexWorkspace({
         importance: 'major',
         epistemicStatus: 'abandoned',
         sourceActionId: makeActionId(),
-      });
-    }
+      } : null,
+    }).catch(() => emitError(vaultRef.path, 'delete'));
   };
 
   const createIdea = (data: { title: string; body: string; tags: string[]; sourceIds: string[]; position?: { title: string; statement: string; description: string; confidence: number }; sourceAnnotationId?: string; sourceWorkId?: string; sourceDocumentId?: string }) => {
@@ -1699,24 +1748,31 @@ function ReadexWorkspace({
       dateCreated: today(),
       dateUpdated: today(),
     };
-    setDoc(linkRef, payload).catch(() => emitError(linkRef.path, 'create', payload));
-    createThinkingEvent({
-      eventType: payload.type === 'contradicts' ? 'contradiction_detected' : 'link_created',
-      entityType: 'link',
-      entityId: payload.id,
-      after: payload,
-      relatedEntityIds: {
-        conceptIds: [payload.fromType === 'concept' ? payload.fromId : '', payload.toType === 'concept' ? payload.toId : ''].filter(Boolean),
-        inquiryIds: [payload.fromType === 'inquiry' ? payload.fromId : '', payload.toType === 'inquiry' ? payload.toId : ''].filter(Boolean),
-        positionIds: [payload.fromType === 'position' ? payload.fromId : '', payload.toType === 'position' ? payload.toId : ''].filter(Boolean),
-        linkIds: [payload.id],
-      },
-      summary: `${payload.type.replace(/_/g, ' ')} link created between ${payload.fromLabel || payload.fromId} and ${payload.toLabel || payload.toId}`,
-      origin: payload.createdFrom === 'manual' ? 'user' : payload.createdFrom === 'suggestion' ? 'ai' : 'system',
-      importance: payload.type === 'contradicts' ? 'high' : 'medium',
-      metadata: { method: options?.creationMethod || 'philosophical_link_create', relationshipType: payload.type, sourceId: payload.fromId, targetId: payload.toId },
-      sourceActionId: makeActionId(),
-    });
+    commitWorkspaceMutation({
+      db,
+      ref: linkRef as any,
+      operation: 'set',
+      data: payload,
+      thinkingEvent: metacognitionEnabled ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
+        eventType: payload.type === 'contradicts' ? 'contradiction_detected' : 'link_created',
+        entityType: 'link',
+        entityId: payload.id,
+        after: payload,
+        relatedEntityIds: {
+          conceptIds: [payload.fromType === 'concept' ? payload.fromId : '', payload.toType === 'concept' ? payload.toId : ''].filter(Boolean),
+          inquiryIds: [payload.fromType === 'inquiry' ? payload.fromId : '', payload.toType === 'inquiry' ? payload.toId : ''].filter(Boolean),
+          positionIds: [payload.fromType === 'position' ? payload.fromId : '', payload.toType === 'position' ? payload.toId : ''].filter(Boolean),
+          linkIds: [payload.id],
+        },
+        summary: `${payload.type.replace(/_/g, ' ')} link created between ${payload.fromLabel || payload.fromId} and ${payload.toLabel || payload.toId}`,
+        origin: payload.createdFrom === 'manual' ? 'user' : payload.createdFrom === 'suggestion' ? 'ai' : 'system',
+        importance: payload.type === 'contradicts' ? 'high' : 'medium',
+        metadata: { method: options?.creationMethod || 'philosophical_link_create', relationshipType: payload.type, sourceId: payload.fromId, targetId: payload.toId },
+        sourceActionId: makeActionId(),
+      } : null,
+    }).catch(() => emitError(linkRef.path, 'create', payload));
   };
 
   const addAtlasQuickLink = (data: Partial<PhilosophicalLink>) => addPhilosophicalLink(data, { creationMethod: 'atlas_quick_link' });
@@ -1736,9 +1792,13 @@ function ReadexWorkspace({
   const deletePhilosophicalLink = (id: string, options?: { method?: string }) => {
     const existing = links.find((item) => item.id === id);
     const linkRef = doc(refs.links, id);
-    deleteDoc(linkRef).catch(() => emitError(linkRef.path, 'delete'));
-    if (existing) {
-      createThinkingEvent({
+    commitWorkspaceMutation({
+      db,
+      ref: linkRef as any,
+      operation: 'delete',
+      thinkingEvent: metacognitionEnabled && existing ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
         eventType: 'link_removed',
         entityType: 'link',
         entityId: existing.id,
@@ -1759,8 +1819,8 @@ function ReadexWorkspace({
           targetId: existing.toId,
         },
         sourceActionId: makeActionId(),
-      });
-    }
+      } : null,
+    }).catch(() => emitError(linkRef.path, 'delete'));
   };
 
   const addAiSuggestion = (data: Partial<AiSuggestion>) => {
@@ -2262,6 +2322,7 @@ function ReadexWorkspace({
       seedReviewWorkspace={seedReviewWorkspace}
       exportReviewArchitecture={exportReviewArchitecture}
       media={media}
+      concepts={concepts}
       questions={questions}
       vault={vault}
       drafts={drafts}
@@ -2269,6 +2330,16 @@ function ReadexWorkspace({
       links={links}
       suggestionsCount={suggestions.length}
       user={user}
+      onOpenCommandItem={(item) => {
+        navigateToView(item.view as NoesisView, {
+          conceptId: item.view === 'concepts' ? item.targetId : null,
+          questionId: item.view === 'questions' ? item.targetId : null,
+          sourceId: item.view === 'library' ? item.targetId : null,
+          positionId: item.view === 'vault' ? item.targetId : null,
+          workId: item.view === 'writing' ? item.targetId : null,
+          practiceId: item.view === 'practices' ? item.targetId : null,
+        });
+      }}
     >
       {missingFocusedTarget && (
         <MissingFocusedTargetBanner
@@ -2301,23 +2372,8 @@ function MissingFocusedTargetBanner({ label, id, onReturn }: { label: string; id
 }
 
 function NoesisPageLoading({ activeView }: { activeView: NoesisView }) {
-  const label: Record<NoesisView, string> = {
-    atlas: 'Atlas',
-    concepts: 'Concepts',
-    questions: 'Inquiries',
-    library: 'Library',
-    'source-index': 'Source Index',
-    annotations: 'Annotations',
-    vault: 'Positions',
-    writing: 'Works',
-    practices: 'Practices',
-    evolution: 'Evolution',
-    profile: 'Profile',
-    goals: 'Goals',
-    settings: 'Settings',
-  };
-
-  return <PageLoadingState title={`Loading ${label[activeView]}`} />;
+  const page = NOESIS_PAGE_BY_VIEW[activeView];
+  return <PageLoadingState title={`Loading ${page.title}`} description={page.purpose} />;
 }
 
 function NoesisHome() {
