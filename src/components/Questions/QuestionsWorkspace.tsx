@@ -393,8 +393,24 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   const [probeResponse, setProbeResponse] = useState('');
   const [positionDraft, setPositionDraft] = useState<{ title: string; statement: string; description: string; confidence: number } | null>(null);
   const [selectedBranchLabel, setSelectedBranchLabel] = useState('');
+  const [investigationDraft, setInvestigationDraft] = useState({
+    whyItMatters: question.whyItMatters || '',
+    currentIntuition: question.currentIntuition || '',
+    assumptionsText: (question.assumptions || []).join('\n'),
+    resolutionSummary: question.resolutionSummary || '',
+  });
+  const [candidateDraft, setCandidateDraft] = useState({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  React.useEffect(() => {
+    setInvestigationDraft({
+      whyItMatters: question.whyItMatters || '',
+      currentIntuition: question.currentIntuition || '',
+      assumptionsText: (question.assumptions || []).join('\n'),
+      resolutionSummary: question.resolutionSummary || '',
+    });
+    setCandidateDraft({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
+  }, [question.id, question.whyItMatters, question.currentIntuition, question.assumptions, question.resolutionSummary]);
   const inquiryType = inferInquiryType(question, concepts, sources);
   const branches = investigationBranches(question, concepts, sources, beliefs, drafts);
   const selectedBranch = branches.find((branch) => branch.label === selectedBranchLabel) || null;
@@ -419,7 +435,8 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       ],
     },
   ];
-  const assumptions = [
+  const storedAssumptions = question.assumptions || [];
+  const assumptions = storedAssumptions.length ? storedAssumptions : [
     concepts.length ? `The key terms are stable enough to investigate: ${concepts.slice(0, 3).join(', ')}.` : 'The question needs at least one named concept before its terms are stable.',
     sources.length ? 'The connected sources are relevant enough to count as evidence.' : 'The inquiry can progress without outside evidence for now.',
     question.answer ? 'The provisional answer is worth stress-testing instead of only expanding.' : 'Progress requires a first answer, even if it is rough.',
@@ -430,13 +447,61 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       onAiFeedback('Answer required', 'Write a provisional answer before saving this inquiry.', 'destructive');
       return;
     }
+    if (status === 'resolved' && !investigationDraft.resolutionSummary.trim()) {
+      onAiFeedback('Resolution summary required', 'Add a short resolution summary before closing this inquiry.', 'destructive');
+      return;
+    }
     onUpdateQuestion({
       ...question,
       answer: initialAnswer.trim(),
       status,
+      resolutionSummary: status === 'resolved' ? investigationDraft.resolutionSummary.trim() : question.resolutionSummary || '',
       dateUpdated: today(),
     });
     onAiFeedback(status === 'resolved' ? 'Inquiry resolved.' : 'Provisional answer saved.', status === 'resolved' ? 'The resolution summary is now stored on this inquiry.' : 'You can keep gathering evidence or form a position later.');
+  };
+
+  const saveInvestigationFrame = () => {
+    onUpdateQuestion({
+      ...question,
+      whyItMatters: investigationDraft.whyItMatters.trim(),
+      currentIntuition: investigationDraft.currentIntuition.trim(),
+      assumptions: investigationDraft.assumptionsText.split('\n').map((item) => item.trim()).filter(Boolean),
+      resolutionSummary: investigationDraft.resolutionSummary.trim(),
+      dateUpdated: today(),
+    });
+    onAiFeedback('Investigation frame saved.', 'The inquiry now has clearer stakes, intuition, assumptions, and resolution criteria.');
+  };
+
+  const addCandidateAnswer = () => {
+    if (!candidateDraft.statement.trim()) {
+      onAiFeedback('Candidate answer required', 'Write the candidate answer before adding it.', 'destructive');
+      return;
+    }
+    const nextCandidate = {
+      id: `candidate-${Date.now()}`,
+      statement: candidateDraft.statement.trim(),
+      confidence: candidateDraft.confidence,
+      support: candidateDraft.support.trim(),
+      objection: candidateDraft.objection.trim(),
+      consequence: candidateDraft.consequence.trim(),
+    };
+    onUpdateQuestion({
+      ...question,
+      candidateAnswers: [...(question.candidateAnswers || []), nextCandidate],
+      status: question.status === 'open' ? 'comparing_answers' as Question['status'] : question.status,
+      dateUpdated: today(),
+    });
+    setCandidateDraft({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
+    onAiFeedback('Candidate answer added.', 'You can compare this answer against evidence and objections.');
+  };
+
+  const removeCandidateAnswer = (id: string) => {
+    onUpdateQuestion({
+      ...question,
+      candidateAnswers: (question.candidateAnswers || []).filter((candidate) => candidate.id !== id),
+      dateUpdated: today(),
+    });
   };
 
   const updateInvestigationStatus = (status: Question['status']) => {
@@ -598,6 +663,122 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                   </div>
                 </div>
               ))}
+            </div>
+          </Card>
+
+          <Card className="mb-6 rounded-2xl border border-accent/10 bg-white p-6 shadow-sm">
+            <div className="mb-5">
+              <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">Investigation Frame</div>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">State why this matters, what you currently suspect, what assumptions are active, and what answers are being compared.</p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="readex-kicker">WHY IT MATTERS</Label>
+                <Textarea
+                  value={investigationDraft.whyItMatters}
+                  onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, whyItMatters: event.target.value }))}
+                  placeholder="What personal, practical, or philosophical significance does this question carry?"
+                  className="min-h-[110px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="readex-kicker">CURRENT INTUITION</Label>
+                <Textarea
+                  value={investigationDraft.currentIntuition}
+                  onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, currentIntuition: event.target.value }))}
+                  placeholder="What do you suspect before the investigation is finished?"
+                  className="min-h-[110px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="readex-kicker">ASSUMPTIONS</Label>
+                <Textarea
+                  value={investigationDraft.assumptionsText}
+                  onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, assumptionsText: event.target.value }))}
+                  placeholder="One assumption per line."
+                  className="min-h-[130px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="readex-kicker">RESOLUTION SUMMARY</Label>
+                <Textarea
+                  value={investigationDraft.resolutionSummary}
+                  onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, resolutionSummary: event.target.value }))}
+                  placeholder="What would you say has been provisionally answered, transformed, suspended, or resolved?"
+                  className="min-h-[130px]"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <Button onClick={saveInvestigationFrame} className="rounded-full px-6">
+                Save Investigation Frame
+              </Button>
+            </div>
+
+            <div className="mt-6 rounded-xl border border-border/40 bg-background/70 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">Candidate Answers</div>
+                  <p className="mt-1 text-sm text-muted-foreground">Compare possible answers before turning one into a position.</p>
+                </div>
+                <Badge variant="outline" className="rounded-full">{question.candidateAnswers?.length || 0} saved</Badge>
+              </div>
+
+              {(question.candidateAnswers || []).length > 0 && (
+                <div className="mb-4 grid gap-3">
+                  {(question.candidateAnswers || []).map((candidate) => (
+                    <div key={candidate.id} className="rounded-xl border border-border/40 bg-card p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{candidate.statement}</p>
+                          <div className="mt-2 grid gap-2 text-xs leading-5 text-muted-foreground md:grid-cols-3">
+                            <p><span className="font-semibold text-foreground/70">Support:</span> {candidate.support || 'Not named yet.'}</p>
+                            <p><span className="font-semibold text-foreground/70">Objection:</span> {candidate.objection || 'Not named yet.'}</p>
+                            <p><span className="font-semibold text-foreground/70">Consequence:</span> {candidate.consequence || 'Not named yet.'}</p>
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => removeCandidateAnswer(candidate.id)} className="rounded-full border border-border px-2 py-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground hover:border-destructive/40 hover:text-destructive">
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid gap-3">
+                <Textarea
+                  value={candidateDraft.statement}
+                  onChange={(event) => setCandidateDraft((prev) => ({ ...prev, statement: event.target.value }))}
+                  placeholder="Candidate answer statement"
+                  className="min-h-[80px]"
+                />
+                <div className="grid gap-3 md:grid-cols-3">
+                  <Input value={candidateDraft.support} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, support: event.target.value }))} placeholder="Support" />
+                  <Input value={candidateDraft.objection} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, objection: event.target.value }))} placeholder="Objection" />
+                  <Input value={candidateDraft.consequence} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, consequence: event.target.value }))} placeholder="Consequence" />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Confidence</span>
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setCandidateDraft((prev) => ({ ...prev, confidence: value }))}
+                        className={cn('size-7 rounded-full font-code text-[10px] font-bold', candidateDraft.confidence === value ? 'bg-accent text-white' : 'bg-muted/30 text-muted-foreground')}
+                      >
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+                  <Button type="button" variant="outline" onClick={addCandidateAnswer} disabled={!candidateDraft.statement.trim()} className="rounded-full px-5">
+                    Add Candidate Answer
+                  </Button>
+                </div>
+              </div>
             </div>
           </Card>
 

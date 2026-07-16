@@ -382,7 +382,7 @@ export function MediaLibrary({
       { label: 'After', complete: Boolean(capture.after?.coreArgument || capture.after?.beliefChange || capture.after?.lasting), detail: capture.after?.coreArgument || capture.after?.beliefChange || capture.after?.lasting || 'Record what changed after engaging the source.' },
       { label: 'Consequence', complete: linkedInsights.length > 0 || relatedQuestions.length > 0 || relatedDrafts.length > 0, detail: `${linkedInsights.length} claims · ${relatedQuestions.length} inquiries · ${relatedDrafts.length} works` },
     ];
-    const sourcePurpose = capture.before?.openQuestion || capture.before?.expectation || selected.description || 'This source still needs a clear reason for being studied.';
+    const sourcePurpose = capture.before?.reasonForAdding || capture.before?.openQuestion || capture.before?.expectation || selected.description || 'This source still needs a clear reason for being studied.';
     
     return (
       <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
@@ -506,9 +506,12 @@ export function MediaLibrary({
                 <Plus className="size-2.5" /> BEFORE YOU START
               </h3>
               <div className="bg-muted/5 border border-border/30 rounded-xl overflow-hidden shadow-sm">
+                <CaptureRow label="REASON FOR ADDING" value={capture.before?.reasonForAdding} placeholder="Why did this source enter your system now?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, reasonForAdding: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="PRIOR BELIEFS" value={capture.before?.priorBeliefs} placeholder="What do I already believe about this topic?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, priorBeliefs: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="EXPECTATION" value={capture.before?.expectation} placeholder="What am I hoping this challenges or confirms?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, expectation: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="OPEN QUESTION" value={capture.before?.openQuestion} placeholder="What core problem am I exploring here?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, openQuestion: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="POSITION THAT MAY BE AFFECTED" value={capture.before?.affectedPosition} placeholder="Which current position might this strengthen, weaken, or complicate?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, affectedPosition: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WORTHWHILE IF" value={capture.before?.worthwhileIf} placeholder="What would make this source worth the attention it receives?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, worthwhileIf: val }, sessions: capture.sessions || [] })} />
               </div>
             </section>
 
@@ -598,10 +601,17 @@ export function MediaLibrary({
               </h3>
               <div className="bg-muted/5 border border-border/30 rounded-xl overflow-hidden shadow-sm">
                 <CaptureRow label="CORE ARGUMENT" value={capture.after?.coreArgument} placeholder="The central thesis as understood post-consumption..." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, coreArgument: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="STRONGEST ARGUMENT" value={capture.after?.strongestArgument} placeholder="What was the strongest move this source made?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, strongestArgument: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WEAKEST ARGUMENT" value={capture.after?.weakestArgument} placeholder="Where is the source thinnest, weakest, or least convincing?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, weakestArgument: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="MOST IMPORTANT CONCEPT" value={capture.after?.mostImportantConcept} placeholder="Which concept should change or become clearer because of this?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, mostImportantConcept: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="WHAT HELD UP" value={capture.after?.heldUp} placeholder="Ideas that survived your skepticism" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, heldUp: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="WHAT DIDN'T" value={capture.after?.didntHold} placeholder="Where it was wrong or incomplete" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, didntHold: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="LASTING IDEA" value={capture.after?.lasting} placeholder="What is the one thing you'll take with you?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, lasting: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="BELIEF CHANGE" value={capture.after?.beliefChange} placeholder="How has your perspective shifted?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, beliefChange: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT I REJECT" value={capture.after?.whatIReject} placeholder="What do you explicitly reject or refuse to inherit from this source?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, whatIReject: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT REMAINS UNANSWERED" value={capture.after?.remainsUnanswered} placeholder="What questions survived the source?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, remainsUnanswered: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="IMPLICATIONS" value={capture.after?.implications} placeholder="If this source is right, what follows?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, implications: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="NEXT ACTION" value={capture.after?.nextAction} placeholder="What should happen next: inquiry, claim, practice, work, or source?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, nextAction: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="CROSS-REFERENCES" value={capture.after?.crossRefs} placeholder="Other sources this connects to" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, crossRefs: val }, sessions: capture.sessions || [] })} />
               </div>
             </section>
@@ -807,16 +817,45 @@ export function MediaLibrary({
               <div className="readex-kicker mb-4 opacity-50 font-bold">AFTER-READING REFLECTION</div>
               <div className="grid gap-4 md:grid-cols-2">
                 {[
+                  { label: 'Reason For Adding', value: capture.before?.reasonForAdding },
+                  { label: 'Affected Position', value: capture.before?.affectedPosition },
+                  { label: 'Worthwhile If', value: capture.before?.worthwhileIf },
                   { label: 'Central Claim', value: capture.after?.coreArgument },
+                  { label: 'Strongest Argument', value: capture.after?.strongestArgument },
+                  { label: 'Weakest Argument', value: capture.after?.weakestArgument },
+                  { label: 'Most Important Concept', value: capture.after?.mostImportantConcept },
                   { label: 'What Held Up', value: capture.after?.heldUp },
                   { label: 'What Failed', value: capture.after?.didntHold },
                   { label: 'Lasting Idea', value: capture.after?.lasting },
                   { label: 'Belief Change', value: capture.after?.beliefChange },
+                  { label: 'What I Reject', value: capture.after?.whatIReject },
+                  { label: 'Unanswered', value: capture.after?.remainsUnanswered },
+                  { label: 'Implications', value: capture.after?.implications },
+                  { label: 'Next Action', value: capture.after?.nextAction },
                   { label: 'Cross References', value: capture.after?.crossRefs },
                 ].map((item) => (
                   <div key={item.label} className="rounded-xl border border-border/40 bg-background/70 p-4">
                     <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">{item.label}</div>
                     <p className="text-sm leading-6 text-muted-foreground">{item.value || 'Not reflected yet.'}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <Card className="rounded-xl border border-accent/20 bg-accent/[0.03] p-6 shadow-sm">
+              <div className="readex-kicker mb-3 text-accent/70 font-bold">INTELLECTUAL RECEIPT</div>
+              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                Confirm what this source changed before turning it into a position, inquiry, practice, or work. Noesis should distinguish source claims from what you personally believe.
+              </p>
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'Claim to extract', value: capture.after?.coreArgument || capture.after?.strongestArgument || 'No claim identified yet.' },
+                  { label: 'Concept affected', value: capture.after?.mostImportantConcept || selected.tags?.[0] || 'No concept named yet.' },
+                  { label: 'Question remaining', value: capture.after?.remainsUnanswered || capture.before?.openQuestion || 'No surviving question named yet.' },
+                  { label: 'Next move', value: capture.after?.nextAction || 'Choose an inquiry, claim, practice, or work after reflection.' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border border-accent/15 bg-white p-4">
+                    <div className="font-code text-[8px] uppercase tracking-widest text-accent/70 font-bold">{item.label}</div>
+                    <p className="mt-2 text-sm leading-6 text-foreground/80">{item.value}</p>
                   </div>
                 ))}
               </div>

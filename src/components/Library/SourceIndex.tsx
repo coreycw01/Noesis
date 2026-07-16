@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
-import type { Draft, Media, MediaStatus, MediaType, Practice, VaultEntry } from '@/lib/types';
+import type { Draft, Media, MediaStatus, MediaType, Practice, Question, VaultEntry } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_TYPES, conceptKey } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -20,15 +20,18 @@ interface SourceIndexProps {
   vault: VaultEntry[];
   drafts: Draft[];
   practices: Practice[];
+  questions: Question[];
   onOpenSource: (sourceId: string) => void;
 }
 
-type SortKey = 'creator' | 'dateAdded' | 'title' | 'year';
+type SourceIndexView = 'table' | 'covers' | 'influence' | 'unfinished' | 'recent';
+type SortKey = 'creator' | 'dateAdded' | 'title' | 'year' | 'influence' | 'annotations' | 'connected' | 'progress';
 type AnnotationFilter = 'all' | 'with' | 'without';
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
 
-export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: SourceIndexProps) {
+export function SourceIndex({ media, vault, drafts, practices, questions, onOpenSource }: SourceIndexProps) {
+  const [view, setView] = useState<SourceIndexView>('table');
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<MediaType | 'all'>('all');
   const [filterStatus, setFilterStatus] = useState<MediaStatus | 'all'>('all');
@@ -44,24 +47,76 @@ export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: S
     return Array.from(tags).sort();
   }, [media]);
 
-  const filtered = useMemo(() => {
+  const sourceRows = useMemo(() => {
+    const scoreSourceInfluence = (m: Media) => {
+      const linkedPositions = vault.filter((entry) => (entry.sourceIds || []).includes(m.id)).length;
+      const linkedWorks = drafts.filter((draft) => (draft.sourceIds || []).includes(m.id)).length;
+      const linkedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(m.id)).length;
+      const linkedQuestions = questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(m.id)).length;
+      const annotationScore = Math.min((m.annotations || []).length, 12);
+      const reflectionScore = [
+        m.capture?.after?.beliefChange,
+        m.capture?.after?.coreArgument,
+        m.capture?.after?.remainsUnanswered,
+        m.capture?.after?.nextAction,
+      ].filter(Boolean).length;
+      return annotationScore + linkedPositions * 5 + linkedQuestions * 4 + linkedWorks * 3 + linkedPractices * 4 + reflectionScore * 4;
+    };
+    const connectedCount = (m: Media) =>
+      vault.filter((entry) => (entry.sourceIds || []).includes(m.id)).length +
+      drafts.filter((draft) => (draft.sourceIds || []).includes(m.id)).length +
+      practices.filter((practice) => (practice.sourceIds || []).includes(m.id)).length +
+      questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(m.id)).length;
+    const progressScore = (m: Media) => {
+      if (m.status === 'Finished') return 100;
+      if (m.status === 'Consuming') return 65;
+      if (m.status === 'Paused') return 45;
+      if (m.status === 'Abandoned') return 20;
+      return 10;
+    };
+    const recentCutoff = Date.now() - 1000 * 60 * 60 * 24 * 30;
     return media
       .filter((m) => {
         const typeOk = filterType === 'all' || m.type === filterType;
         const statusOk = filterStatus === 'all' || m.status === filterStatus;
         const conceptOk = filterConcept === 'all' || (m.tags || []).map(conceptKey).includes(filterConcept);
         const annotationOk = filterAnnotations === 'all' || (filterAnnotations === 'with' ? (m.annotations || []).length > 0 : (m.annotations || []).length === 0);
+        const unfinishedOk = view !== 'unfinished' || ['Want to Read', 'Consuming', 'Paused'].includes(m.status);
+        const recentOk = view !== 'recent' || new Date(m.dateAdded || m.dateUpdated || '').getTime() >= recentCutoff;
+        const influenceOk = view !== 'influence' || scoreSourceInfluence(m) > 0;
         const ids = Object.values(m.externalIds || {}).join(' ');
         const query = `${m.title} ${m.creator} ${(m.creators || []).join(' ')} ${m.description || ''} ${m.publisher} ${m.platform} ${m.isbn} ${m.doi} ${m.url} ${m.sourceProvider} ${ids} ${(m.tags || []).join(' ')}`.toLowerCase();
-        return typeOk && statusOk && conceptOk && annotationOk && (!search || query.includes(search.toLowerCase()));
+        return typeOk && statusOk && conceptOk && annotationOk && unfinishedOk && recentOk && influenceOk && (!search || query.includes(search.toLowerCase()));
       })
+      .map((source) => ({
+        source,
+        influence: scoreSourceInfluence(source),
+        connected: connectedCount(source),
+        progress: progressScore(source),
+        linkedPositions: vault.filter((entry) => (entry.sourceIds || []).includes(source.id)).length,
+        linkedWorks: drafts.filter((draft) => (draft.sourceIds || []).includes(source.id)).length,
+        linkedPractices: practices.filter((practice) => (practice.sourceIds || []).includes(source.id)).length,
+        linkedQuestions: questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(source.id)).length,
+      }))
       .sort((a, b) => {
-        const valA = (a[sortKey as keyof Media] as string) || '';
-        const valB = (b[sortKey as keyof Media] as string) || '';
+        const numericSorts: Partial<Record<SortKey, [number, number]>> = {
+          influence: [a.influence, b.influence],
+          annotations: [a.source.annotations?.length || 0, b.source.annotations?.length || 0],
+          connected: [a.connected, b.connected],
+          progress: [a.progress, b.progress],
+        };
+        if (numericSorts[sortKey]) {
+          const [valA, valB] = numericSorts[sortKey]!;
+          return sortOrder === 'asc' ? valA - valB : valB - valA;
+        }
+        const valA = (a.source[sortKey as keyof Media] as string) || '';
+        const valB = (b.source[sortKey as keyof Media] as string) || '';
         if (sortOrder === 'asc') return valA > valB ? 1 : -1;
         return valA < valB ? 1 : -1;
       });
-  }, [media, search, filterType, filterStatus, filterConcept, filterAnnotations, sortKey, sortOrder]);
+  }, [media, search, filterType, filterStatus, filterConcept, filterAnnotations, sortKey, sortOrder, view, vault, drafts, practices, questions]);
+
+  const filtered = sourceRows.map((row) => row.source);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -157,9 +212,66 @@ export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: S
               <SelectItem value="without" className="font-code text-[10px] uppercase">No Annotations</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={view} onValueChange={(v) => setView(v as SourceIndexView)}>
+            <SelectTrigger className="w-40 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="View" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="table" className="font-code text-[10px] uppercase">Table</SelectItem>
+              <SelectItem value="covers" className="font-code text-[10px] uppercase">Covers</SelectItem>
+              <SelectItem value="influence" className="font-code text-[10px] uppercase">Influence</SelectItem>
+              <SelectItem value="unfinished" className="font-code text-[10px] uppercase">Unfinished</SelectItem>
+              <SelectItem value="recent" className="font-code text-[10px] uppercase">Recently Added</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
+            <SelectTrigger className="w-44 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Sort" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dateAdded" className="font-code text-[10px] uppercase">Date Added</SelectItem>
+              <SelectItem value="title" className="font-code text-[10px] uppercase">Title</SelectItem>
+              <SelectItem value="creator" className="font-code text-[10px] uppercase">Creator</SelectItem>
+              <SelectItem value="year" className="font-code text-[10px] uppercase">Year</SelectItem>
+              <SelectItem value="influence" className="font-code text-[10px] uppercase">Influence</SelectItem>
+              <SelectItem value="annotations" className="font-code text-[10px] uppercase">Annotations</SelectItem>
+              <SelectItem value="connected" className="font-code text-[10px] uppercase">Connected</SelectItem>
+              <SelectItem value="progress" className="font-code text-[10px] uppercase">Progress</SelectItem>
+            </SelectContent>
+          </Select>
       </FilterToolbar>
 
-      <div className="bg-white rounded-xl border border-border/40 shadow-md overflow-hidden">
+      <div className="mb-6 grid gap-4 md:grid-cols-4">
+        {[
+          { label: 'Influential', value: sourceRows.filter((row) => row.influence >= 10).length, note: 'linked beyond annotations' },
+          { label: 'Unfinished', value: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length, note: 'still in study flow' },
+          { label: 'Under-integrated', value: sourceRows.filter((row) => row.influence === 0 && (row.source.annotations || []).length > 0).length, note: 'captured but not used' },
+          { label: 'Connected', value: sourceRows.filter((row) => row.connected > 0).length, note: 'feeds objects' },
+        ].map((stat) => (
+          <div key={stat.label} className="rounded-xl border border-border/40 bg-white p-4 shadow-sm">
+            <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
+            <div className="mt-1 font-headline text-2xl font-bold text-accent">{stat.value}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{stat.note}</div>
+          </div>
+        ))}
+      </div>
+
+      {view === 'covers' && (
+        <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {sourceRows.map(({ source: m, influence, connected }) => (
+            <button key={m.id} type="button" onClick={() => onOpenSource(m.id)} className="group rounded-xl border border-border/40 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
+              <div className="mb-4 aspect-[3/4] overflow-hidden rounded-lg border border-border/30 bg-muted/20">
+                {m.thumbnailUrl ? <img src={m.thumbnailUrl} alt={m.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-muted-foreground"><Library className="size-10" /></div>}
+              </div>
+              <div className="font-headline text-xl font-bold italic text-primary group-hover:text-accent">{m.title}</div>
+              <div className="mt-1 text-sm text-muted-foreground">{m.creator || 'Unknown creator'}</div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <Badge variant="outline" className="rounded-full">{m.type}</Badge>
+                <Badge variant="outline" className="rounded-full">{influence} influence</Badge>
+                <Badge variant="outline" className="rounded-full">{connected} links</Badge>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view !== 'covers' && <div className="bg-white rounded-xl border border-border/40 shadow-md overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/5 font-code text-[9px] uppercase tracking-[0.2em] font-bold">
             <TableRow>
@@ -180,11 +292,8 @@ export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: S
             </TableRow>
           </TableHeader>
           <TableBody className="font-body text-[14px]">
-            {filtered.map((m) => {
+            {sourceRows.map(({ source: m, influence, connected, progress, linkedPositions, linkedWorks, linkedPractices, linkedQuestions }) => {
               const health = getSourceHealth(m);
-              const linkedPositions = vault.filter((entry) => (entry.sourceIds || []).includes(m.id)).length;
-              const linkedWorks = drafts.filter((draft) => (draft.sourceIds || []).includes(m.id)).length;
-              const linkedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(m.id)).length;
               return (
                 <TableRow key={m.id} className="hover:bg-muted/5 group transition-colors cursor-pointer" onClick={() => onOpenSource(m.id)}>
                   <TableCell>
@@ -208,19 +317,21 @@ export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: S
                   <TableCell>
                     <div className="flex flex-wrap gap-1.5">
                       <Badge variant="outline" className="text-[8px] bg-white rounded-full"><MessageSquare className="size-3 mr-1" />{(m.annotations || []).length}</Badge>
+                      <Badge variant="outline" className="text-[8px] bg-white rounded-full">{linkedQuestions} inquiries</Badge>
                       <Badge variant="outline" className="text-[8px] bg-white rounded-full">{linkedPositions} positions</Badge>
                       <Badge variant="outline" className="text-[8px] bg-white rounded-full">{linkedWorks} works</Badge>
                       <Badge variant="outline" className="text-[8px] bg-white rounded-full">{linkedPractices} practices</Badge>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" title={`Influence ${influence} · Connected ${connected} · Progress ${progress}%`}>
                       <div className="w-16 h-1 bg-muted rounded-full overflow-hidden">
                         <div 
                           className={cn("h-full transition-all", health > 70 ? "bg-emerald-500" : health > 40 ? "bg-amber-500" : "bg-red-400")} 
                           style={{ width: `${health}%` }} 
                         />
                       </div>
+                      <span className="font-code text-[8px] text-muted-foreground">{influence}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
@@ -238,7 +349,7 @@ export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: S
                 </TableRow>
               );
             })}
-            {filtered.length === 0 && (
+            {sourceRows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="p-8">
                   <PageEmptyState
@@ -252,7 +363,7 @@ export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: S
             )}
           </TableBody>
         </Table>
-      </div>
+      </div>}
     </div>
   );
 }

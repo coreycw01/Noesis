@@ -1367,6 +1367,11 @@ function ReadexWorkspace({
       text: data.text || '',
       status: data.status || 'open',
       answer: data.answer || '',
+      whyItMatters: data.whyItMatters || '',
+      currentIntuition: data.currentIntuition || '',
+      assumptions: data.assumptions || [],
+      candidateAnswers: data.candidateAnswers || [],
+      resolutionSummary: data.resolutionSummary || '',
       evidenceIds: data.evidenceIds || [],
       conceptIds: data.conceptIds || [],
       sourceIds: data.sourceIds || [],
@@ -2147,6 +2152,7 @@ function ReadexWorkspace({
             onUpdateConcept={updateConcept} 
             onDeleteConcept={deleteConcept} 
             onCreateIdea={createIdea}
+            onCreateLink={addPhilosophicalLink}
           />
         );
       case 'library':
@@ -2196,7 +2202,7 @@ function ReadexWorkspace({
           />
         );
       case 'source-index':
-        return <SourceIndex media={media} vault={vault} drafts={drafts} practices={practices} onOpenSource={(sourceId) => { navigateToView('library', { sourceId }); }} />;
+        return <SourceIndex media={media} vault={vault} drafts={drafts} practices={practices} questions={questions} onOpenSource={(sourceId) => { navigateToView('library', { sourceId }); }} />;
       case 'goals':
         return <GoalsPage goal={goalState} goalProgress={goalProgress} onSaveGoal={saveGoal} />;
       case 'profile':

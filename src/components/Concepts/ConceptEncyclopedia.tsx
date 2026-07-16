@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { SourceLinker } from '@/components/SourceLinker';
-import type { Concept, Draft, Insight, Media, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
+import type { Concept, Draft, Insight, Media, PhilosophicalLink, PhilosophicalLinkType, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { aiClient, type ClarityCheckQuestion } from '@/lib/ai-client';
@@ -34,6 +34,7 @@ interface ConceptEncyclopediaProps {
   onUpdateConcept: (concept: Concept) => void;
   onDeleteConcept: (id: string) => void;
   onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
+  onCreateLink?: (data: Partial<PhilosophicalLink>, options?: { creationMethod?: string }) => void;
 }
 
 type ConceptListView = 'all' | 'recent' | 'connected' | 'undefined' | 'contested' | 'transformed' | 'neglected';
@@ -49,6 +50,8 @@ type ConceptListRow = {
 };
 
 type BoundaryAnswer = 'inside' | 'outside' | 'depends';
+type ConceptTensionDecision = Extract<PhilosophicalLinkType, 'coheres' | 'contradicts' | 'refines'>;
+type ConceptListField = 'aliases' | 'notSameAs' | 'examples' | 'counterexamples';
 
 const CONCEPT_LIST_VIEWS: Array<{ id: ConceptListView; label: string; description: string }> = [
   { id: 'all', label: 'All', description: 'Every defined concept in the vocabulary.' },
@@ -62,6 +65,11 @@ const CONCEPT_LIST_VIEWS: Array<{ id: ConceptListView; label: string; descriptio
 
 const RECENT_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
 const NEGLECTED_WINDOW_MS = 1000 * 60 * 60 * 24 * 90;
+const CONCEPT_TENSION_DECISIONS: Array<{ id: ConceptTensionDecision; label: string; description: string }> = [
+  { id: 'coheres', label: 'Coheres', description: 'These positions can stand together.' },
+  { id: 'contradicts', label: 'Contradicts', description: 'These positions oppose each other.' },
+  { id: 'refines', label: 'Refines', description: 'One position clarifies or narrows the other.' },
+];
 
 function dateValue(value?: string) {
   const parsed = Date.parse(value || '');
@@ -76,7 +84,7 @@ function conceptActivityDate(concept: Concept | undefined, events: TimelineEvent
 }
 
 export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
-  const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept, onDeleteConcept, onCreateIdea } = props;
+  const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept, onDeleteConcept, onCreateIdea, onCreateLink } = props;
   const [search, setSearch] = useState('');
   const [listView, setListView] = useState<ConceptListView>('all');
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -94,6 +102,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [showReview, setShowReview] = useState(false);
   const [boundaryAnswers, setBoundaryAnswers] = useState<Record<string, BoundaryAnswer>>({});
   const [boundaryRefinement, setBoundaryRefinement] = useState('');
+  const [tensionDecisions, setTensionDecisions] = useState<Record<string, ConceptTensionDecision>>({});
+  const [isDefinitionEditing, setIsDefinitionEditing] = useState(false);
+  const [definitionDraft, setDefinitionDraft] = useState('');
+  const [conceptListDrafts, setConceptListDrafts] = useState<Record<ConceptListField, string>>({
+    aliases: '',
+    notSameAs: '',
+    examples: '',
+    counterexamples: '',
+  });
   const { toast } = useToast();
   
   const allTerms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
@@ -115,7 +132,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       const isUndefined = !conceptDoc.description?.trim() || conceptDoc.philosophyStatus === 'undefined' || diagnosis.clarity === 'beginning';
       const isContested = conceptDoc.philosophyStatus === 'contested' || diagnosis.tension === 'high' || related.beliefs.some((entry) => entry.status === 'challenged');
       const isTransformed = related.events.some((event) => /transform|revise|definition|changed/i.test(`${event.eventType} ${event.reason || ''}`));
-      const searchText = `${name} ${conceptDoc.description || ''} ${JSON.stringify(related)}`.toLowerCase();
+      const searchText = `${name} ${conceptDoc.description || ''} ${(conceptDoc.aliases || []).join(' ')} ${(conceptDoc.notSameAs || []).join(' ')} ${(conceptDoc.examples || []).join(' ')} ${(conceptDoc.counterexamples || []).join(' ')} ${JSON.stringify(related)}`.toLowerCase();
       const matchesSearch = !search || searchText.includes(search.toLowerCase());
       const matchesView =
         listView === 'all' ||
@@ -211,6 +228,27 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       const current = prev.sourceIds || [];
       const next = current.includes(id) ? current.filter(s => s !== id) : [...current, id];
       return { ...prev, sourceIds: next };
+    });
+  };
+
+  const resolveConceptTension = (conceptName: string, a: VaultEntry, b: VaultEntry, type: ConceptTensionDecision) => {
+    const decisionKey = `${a.id}-${b.id}`;
+    setTensionDecisions((prev) => ({ ...prev, [decisionKey]: type }));
+    onCreateLink?.({
+      fromType: 'position',
+      fromId: a.id,
+      fromLabel: a.title || a.statement,
+      toType: 'position',
+      toId: b.id,
+      toLabel: b.title || b.statement,
+      type,
+      note: `Concept tension review for "${conceptName}": ${a.title || a.statement} ${type.replace(/_/g, ' ')} ${b.title || b.statement}.`,
+      createdFrom: 'manual',
+      acceptedByUser: true,
+    }, { creationMethod: 'concept_tension_resolution' });
+    toast({
+      title: 'Relationship recorded',
+      description: `${type.replace(/_/g, ' ')} link created between these positions.`,
     });
   };
 
@@ -356,7 +394,56 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       toast({ title: 'Boundary note added', description: 'The working definition now records this user-confirmed boundary refinement.' });
     };
 
-    const back = () => { setSelectedName(null); setPositionDrafts([]); };
+    const back = () => { setSelectedName(null); setPositionDrafts([]); setIsDefinitionEditing(false); };
+
+    const startDefinitionEdit = () => {
+      setDefinitionDraft(concept?.description || '');
+      setIsDefinitionEditing(true);
+    };
+
+    const saveInlineDefinition = () => {
+      if (!concept) return;
+      const description = definitionDraft.trim();
+      onUpdateConcept({
+        ...concept,
+        description,
+        philosophyStatus: description ? (concept.philosophyStatus === 'undefined' ? 'emerging' : concept.philosophyStatus) : 'undefined',
+        dateUpdated: new Date().toISOString(),
+      });
+      setIsDefinitionEditing(false);
+      toast({ title: 'Definition updated', description: 'The concept definition was revised in place.' });
+    };
+
+    const updateConceptListField = (field: ConceptListField, nextValues: string[]) => {
+      if (!concept) return;
+      const normalized = Array.from(new Set(nextValues.map((value) => value.trim()).filter(Boolean)));
+      onUpdateConcept({
+        ...concept,
+        [field]: normalized,
+        philosophyStatus: concept.philosophyStatus === 'undefined' && normalized.length ? 'emerging' : concept.philosophyStatus,
+        dateUpdated: new Date().toISOString(),
+      });
+    };
+
+    const addConceptListItem = (field: ConceptListField) => {
+      const value = conceptListDrafts[field]?.trim();
+      if (!concept || !value) return;
+      updateConceptListField(field, [...(concept[field] || []), value]);
+      setConceptListDrafts((prev) => ({ ...prev, [field]: '' }));
+      toast({ title: 'Concept boundary updated', description: `${value} was added to ${selectedName}.` });
+    };
+
+    const removeConceptListItem = (field: ConceptListField, value: string) => {
+      if (!concept) return;
+      updateConceptListField(field, (concept[field] || []).filter((item) => item !== value));
+    };
+
+    const conceptLanguageSections: Array<{ field: ConceptListField; title: string; prompt: string; placeholder: string }> = [
+      { field: 'aliases', title: 'Aliases', prompt: 'Other words or phrases you use for this concept.', placeholder: 'Add alternate wording' },
+      { field: 'notSameAs', title: 'Not The Same As', prompt: 'Neighboring ideas this concept should not collapse into.', placeholder: 'Add distinction' },
+      { field: 'examples', title: 'Examples', prompt: 'Cases that clearly belong inside the concept.', placeholder: 'Add example' },
+      { field: 'counterexamples', title: 'Counterexamples', prompt: 'Cases that test or fall outside the boundary.', placeholder: 'Add counterexample' },
+    ];
 
     return (
       <div className="flex-1 overflow-y-auto font-body">
@@ -383,8 +470,30 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           {/* Title + definition */}
           <div className="mb-8">
             <h1 className="text-[42px] font-headline font-bold italic text-primary leading-none mb-4">{selectedName}</h1>
-            {concept?.description ? (
-              <p className="text-lg text-muted-foreground font-body leading-relaxed max-w-3xl">{concept.description}</p>
+            {isDefinitionEditing ? (
+              <div className="max-w-3xl space-y-3 rounded-xl border border-accent/20 bg-white p-4 shadow-sm">
+                <Textarea
+                  value={definitionDraft}
+                  onChange={(event) => setDefinitionDraft(event.target.value)}
+                  className="min-h-[120px] text-base leading-7"
+                  placeholder="Write the current working definition for this concept."
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={saveInlineDefinition} disabled={!concept} className="h-8 rounded-full px-5">
+                    Save Definition
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setIsDefinitionEditing(false)} className="h-8 rounded-full px-5">
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : concept?.description ? (
+              <div className="max-w-3xl">
+                <p className="text-lg text-muted-foreground font-body leading-relaxed">{concept.description}</p>
+                <Button variant="ghost" size="sm" onClick={startDefinitionEdit} className="mt-2 h-8 rounded-full px-3 text-muted-foreground hover:text-foreground">
+                  <Edit className="mr-2 size-3.5" /> Edit Definition
+                </Button>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground/40 italic font-body">No definition yet — use Edit to anchor this concept.</p>
             )}
@@ -424,7 +533,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <p className="text-sm leading-6 text-muted-foreground">
                   {concept?.description || 'Undefined. Write a provisional definition before treating this concept as stable.'}
                 </p>
-                <Button variant="outline" size="sm" onClick={() => concept && openEditor(concept)} disabled={!concept} className="mt-3 h-8 rounded-full">
+                <Button variant="outline" size="sm" onClick={startDefinitionEdit} disabled={!concept} className="mt-3 h-8 rounded-full">
                   <Edit className="mr-2 size-3.5" /> Edit Definition
                 </Button>
               </div>
@@ -477,6 +586,67 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 ) : (
                   <p className="text-sm leading-6 text-muted-foreground">No neighboring concepts are visible yet. Add aliases, linked sources, or related concepts to define the boundary.</p>
                 )}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-border/40 bg-background/70 p-4">
+              <div className="mb-4">
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">Language & Boundaries</div>
+                <p className="mt-1 text-sm text-muted-foreground">Name aliases, distinctions, examples, and counterexamples so this concept keeps its shape across the app.</p>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {conceptLanguageSections.map((section) => {
+                  const values = concept?.[section.field] || [];
+                  return (
+                    <div key={section.field} className="rounded-xl border border-border/30 bg-card p-3">
+                      <div className="mb-2">
+                        <div className="font-code text-[8px] uppercase tracking-widest text-foreground/60 font-bold">{section.title}</div>
+                        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{section.prompt}</p>
+                      </div>
+                      {values.length ? (
+                        <div className="mb-3 flex flex-wrap gap-1.5">
+                          {values.map((value) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => removeConceptListItem(section.field, value)}
+                              className="rounded-full border border-border/50 bg-background px-2.5 py-1 text-left text-[11px] text-foreground/80 transition-colors hover:border-destructive/40 hover:text-destructive"
+                              title="Remove this item"
+                            >
+                              {value} <span className="ml-1 text-muted-foreground">×</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mb-3 text-xs italic text-muted-foreground/60">No entries yet.</p>
+                      )}
+                      <div className="flex gap-2">
+                        <Input
+                          value={conceptListDrafts[section.field]}
+                          onChange={(event) => setConceptListDrafts((prev) => ({ ...prev, [section.field]: event.target.value }))}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              addConceptListItem(section.field);
+                            }
+                          }}
+                          placeholder={section.placeholder}
+                          className="h-8 rounded-full text-xs"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addConceptListItem(section.field)}
+                          disabled={!concept || !conceptListDrafts[section.field]?.trim()}
+                          className="h-8 shrink-0 rounded-full px-3"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -750,6 +920,42 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                             <p className="text-sm font-headline font-bold italic text-primary">{b.title}</p>
                             <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">"{b.statement}"</p>
                           </div>
+                        </div>
+                        <div className="mt-4 border-t border-amber-100 pt-3">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <p className="font-code text-[8px] uppercase tracking-widest text-amber-700/70 font-bold">Resolve Relationship</p>
+                            {tensionDecisions[`${a.id}-${b.id}`] && (
+                              <span className="rounded-full border border-amber-200 bg-amber-100/70 px-2 py-0.5 font-code text-[8px] uppercase tracking-widest text-amber-800">
+                                {tensionDecisions[`${a.id}-${b.id}`].replace(/_/g, ' ')}
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-3">
+                            {CONCEPT_TENSION_DECISIONS.map((decision) => {
+                              const selected = tensionDecisions[`${a.id}-${b.id}`] === decision.id;
+                              return (
+                                <Button
+                                  key={decision.id}
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => resolveConceptTension(selectedName, a, b, decision.id)}
+                                  className={cn(
+                                    'h-auto justify-start rounded-lg px-3 py-2 text-left whitespace-normal border-amber-100 bg-white text-foreground hover:bg-amber-50',
+                                    selected && 'border-amber-400 bg-amber-100 text-amber-950 shadow-sm'
+                                  )}
+                                >
+                                  <span className="block">
+                                    <span className="block font-code text-[9px] uppercase tracking-widest font-bold">{decision.label}</span>
+                                    <span className="mt-0.5 block text-[11px] normal-case tracking-normal text-muted-foreground">{decision.description}</span>
+                                  </span>
+                                </Button>
+                              );
+                            })}
+                          </div>
+                          <p className="mt-2 text-[11px] text-amber-700/70">
+                            Choosing one creates a typed link, so Atlas and Positions can remember how these claims relate.
+                          </p>
                         </div>
                       </div>
                     ))

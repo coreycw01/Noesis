@@ -1,7 +1,7 @@
 
 export type MediaStatus = 'Want to Read' | 'Consuming' | 'Finished' | 'Paused' | 'Abandoned';
 export type MediaType = 'book' | 'audiobook' | 'podcast' | 'video' | 'movie' | 'article' | 'course' | 'lecture' | 'documentary' | 'interview' | 'conversation' | 'paper' | 'other';
-export type AnnotationType = 'highlight' | 'thought' | 'question' | 'connection';
+export type AnnotationType = 'highlight' | 'thought' | 'question' | 'connection' | 'claim' | 'objection' | 'definition' | 'example' | 'personal_reflection' | 'observation' | 'excerpt' | 'voice_note' | 'drawing' | 'image';
 export type VaultType = 'belief' | 'principle' | 'mental_model' | 'life_rule' | 'worldview';
 export type EventType = 'created' | 'refined' | 'challenged' | 'revised' | 'expanded' | 'abandoned';
 export type QuestionStatus = 'open' | 'investigating' | 'answered' | 'archived';
@@ -20,7 +20,7 @@ export type WorkspaceMode = 'standard' | 'review';
 export type VisibilitySetting = 'private' | 'shared_link' | 'public';
 export type PracticeType = 'habit' | 'experiment' | 'discipline' | 'reflection_prompt' | 'commitment' | 'observation' | 'rule' | 'challenge';
 export type PracticeStatus = 'proposed' | 'planned' | 'active' | 'completed' | 'failed' | 'integrated' | 'paused' | 'abandoned';
-export type AnnotationPhilosophyStatus = 'raw' | 'connected' | 'questioned' | 'used_in_position' | 'archived';
+export type AnnotationPhilosophyStatus = 'raw' | 'reviewed' | 'connected' | 'questioned' | 'used_in_position' | 'promoted' | 'reference_only' | 'dismissed' | 'archived';
 export type ConceptPhilosophyStatus = 'undefined' | 'emerging' | 'developed' | 'contested' | 'core';
 export type PositionPhilosophyStatus = 'draft' | 'active' | 'uncertain' | 'challenged' | 'revised' | 'rejected';
 export type PhilosophicalObjectType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'evolution';
@@ -60,6 +60,9 @@ export interface Annotation {
   answer?: string;
   conceptTags?: string[];
   philosophyStatus?: AnnotationPhilosophyStatus;
+  consequenceNote?: string;
+  consequenceKind?: 'evidence' | 'interpretation' | 'reaction' | 'question' | 'definition' | 'objection' | 'claim';
+  mattersBeyondSource?: boolean;
   createdPositionId?: string;
   createdInquiryId?: string;
   linkedPositionIds?: string[];
@@ -89,13 +92,23 @@ export interface MediaCapture {
     expectation?: string;
     openQuestion?: string;
     openAnswer?: string;
+    reasonForAdding?: string;
+    affectedPosition?: string;
+    worthwhileIf?: string;
   };
   after?: {
     coreArgument?: string;
+    strongestArgument?: string;
+    weakestArgument?: string;
+    mostImportantConcept?: string;
     heldUp?: string;
     didntHold?: string;
     lasting?: string;
     beliefChange?: string;
+    whatIReject?: string;
+    remainsUnanswered?: string;
+    implications?: string;
+    nextAction?: string;
     crossRefs?: string;
   };
   sessions: ReadingSession[];
@@ -186,6 +199,10 @@ export interface Concept {
   id: string;
   name: string;
   description: string;
+  aliases?: string[];
+  notSameAs?: string[];
+  examples?: string[];
+  counterexamples?: string[];
   links: string[];
   sourceIds: string[];
   dateCreated: string;
@@ -201,6 +218,18 @@ export interface Question {
   text: string;
   status: QuestionStatus | 'gathering_evidence' | 'under_tension' | 'partially_answered' | 'resolved' | 'reopened';
   answer?: string;
+  whyItMatters?: string;
+  currentIntuition?: string;
+  assumptions?: string[];
+  candidateAnswers?: Array<{
+    id: string;
+    statement: string;
+    confidence?: number;
+    support?: string;
+    objection?: string;
+    consequence?: string;
+  }>;
+  resolutionSummary?: string;
   evidenceIds: string[];
   conceptIds: string[];
   sourceIds?: string[];
