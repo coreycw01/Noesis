@@ -39,12 +39,15 @@ interface QuestionsWorkspaceProps {
   onOpenQuestionRoute?: (id: string | null) => void;
 }
 
-type FilterType = 'all' | 'active' | 'awaiting_evidence' | 'comparing_answers' | 'enduring' | 'partially_answered' | 'suspended' | 'resolved' | 'annotations';
+type FilterType = 'all' | 'active' | 'awaiting_evidence' | 'needs_assumptions' | 'needs_candidates' | 'ready_to_resolve' | 'comparing_answers' | 'enduring' | 'partially_answered' | 'suspended' | 'resolved' | 'annotations';
 
 const INQUIRY_FILTER_LABELS: Record<FilterType, string> = {
   all: 'All',
   active: 'Active Investigations',
   awaiting_evidence: 'Awaiting Evidence',
+  needs_assumptions: 'Needs Assumptions',
+  needs_candidates: 'Needs Candidate Answers',
+  ready_to_resolve: 'Ready To Resolve',
   comparing_answers: 'Comparing Answers',
   enduring: 'Enduring Questions',
   partially_answered: 'Partially Answered',
@@ -68,6 +71,32 @@ function isInquiryClosed(question: Question) {
   return CLOSED_INQUIRY_STATUSES.has(question.status) || (!!question.answer && question.status === 'resolved');
 }
 
+function inquiryNeedsEvidence(question: Question) {
+  return (question.sourceIds || question.evidenceIds || []).length === 0 && !isInquiryClosed(question);
+}
+
+function inquiryNeedsAssumptions(question: Question) {
+  return (question.assumptions || []).length === 0 && !isInquiryClosed(question);
+}
+
+function inquiryNeedsCandidateAnswers(question: Question) {
+  return (question.candidateAnswers || []).length === 0 && !question.answer?.trim() && !isInquiryClosed(question);
+}
+
+function inquiryReadyToResolve(question: Question) {
+  return Boolean(question.answer?.trim()) && !question.resolutionSummary?.trim() && !isInquiryClosed(question);
+}
+
+function inquiryDiagnosticFlags(question: Question) {
+  const flags: Array<{ id: string; label: string; detail: string; tone: 'urgent' | 'review' | 'growth' }> = [];
+  if (inquiryNeedsAssumptions(question)) flags.push({ id: 'assumptions', label: 'Assumptions', detail: 'Name what the question is taking for granted.', tone: 'review' });
+  if (inquiryNeedsEvidence(question)) flags.push({ id: 'evidence', label: 'Evidence', detail: 'Attach sources, annotations, or examples that bear on this inquiry.', tone: 'urgent' });
+  if (inquiryNeedsCandidateAnswers(question)) flags.push({ id: 'candidates', label: 'Candidate', detail: 'Write at least one possible answer before resolving or forming a position.', tone: 'growth' });
+  if (inquiryReadyToResolve(question)) flags.push({ id: 'resolution', label: 'Summary', detail: 'This has an answer but needs a resolution summary or explicit outcome.', tone: 'review' });
+  if ((question.candidateAnswers || []).length > 1 && question.status !== 'comparing_answers') flags.push({ id: 'compare', label: 'Compare', detail: 'Multiple candidate answers are available; compare support, objections, and consequences.', tone: 'growth' });
+  return flags;
+}
+
 export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onAddVaultEntry, onAddDraft, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
@@ -88,7 +117,10 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
   const filtered = all.filter((question) => {
     let typeOk = true;
     if (filter === 'active') typeOk = ['captured', 'clarifying', 'open', 'investigating', 'reopened', 'under_tension'].includes(question.status) || (!question.answer && !isInquiryClosed(question));
-    if (filter === 'awaiting_evidence') typeOk = question.status === 'gathering_evidence' || ((question.sourceIds || question.evidenceIds || []).length === 0 && !isInquiryClosed(question));
+    if (filter === 'awaiting_evidence') typeOk = question.status === 'gathering_evidence' || inquiryNeedsEvidence(question);
+    if (filter === 'needs_assumptions') typeOk = inquiryNeedsAssumptions(question);
+    if (filter === 'needs_candidates') typeOk = inquiryNeedsCandidateAnswers(question);
+    if (filter === 'ready_to_resolve') typeOk = inquiryReadyToResolve(question);
     if (filter === 'comparing_answers') typeOk = question.status === 'comparing_answers' || (question.candidateAnswers || []).length > 1;
     if (filter === 'enduring') typeOk = question.status === 'enduring';
     if (filter === 'partially_answered') typeOk = question.status === 'partially_answered' || question.status === 'provisionally_answered';
@@ -150,6 +182,9 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
   const openCount = all.filter((q) => ['captured', 'clarifying', 'open', 'investigating', 'reopened', 'under_tension'].includes(q.status) || (!q.answer && !isInquiryClosed(q))).length;
   const investigatingCount = all.filter((q) => q.status === 'investigating' || q.status === 'gathering_evidence' || q.status === 'comparing_answers').length;
   const stalledCount = all.filter((q) => q.status === 'suspended' || q.status === 'enduring' || q.status === 'under_tension' || q.status === 'reopened').length;
+  const needsAssumptionsCount = all.filter(inquiryNeedsAssumptions).length;
+  const needsEvidenceCount = all.filter(inquiryNeedsEvidence).length;
+  const readyToResolveCount = all.filter(inquiryReadyToResolve).length;
   const linkedDraftCount = drafts.filter(d => (d.questionIds || []).length > 0).length;
   const clearInquiryFilters = () => {
     setSearch('');
@@ -174,6 +209,30 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           </>
         }
       />
+
+      <section className="mb-8 grid gap-4 md:grid-cols-3">
+        <InquiryLane
+          label="Needs Assumptions"
+          value={needsAssumptionsCount}
+          description="Questions whose hidden premises have not been named."
+          active={filter === 'needs_assumptions'}
+          onClick={() => setFilter(filter === 'needs_assumptions' ? 'all' : 'needs_assumptions')}
+        />
+        <InquiryLane
+          label="Needs Evidence"
+          value={needsEvidenceCount}
+          description="Open investigations without source or evidence anchors."
+          active={filter === 'awaiting_evidence'}
+          onClick={() => setFilter(filter === 'awaiting_evidence' ? 'all' : 'awaiting_evidence')}
+        />
+        <InquiryLane
+          label="Ready To Resolve"
+          value={readyToResolveCount}
+          description="Inquiries with an answer but no explicit outcome summary."
+          active={filter === 'ready_to_resolve'}
+          onClick={() => setFilter(filter === 'ready_to_resolve' ? 'all' : 'ready_to_resolve')}
+        />
+      </section>
 
       <FilterToolbar
         search={search}
@@ -211,6 +270,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           const branches = investigationBranches(question, conceptNames, sources, relatedBeliefs, relatedDrafts);
           const activeBranches = branches.filter((branch) => branch.state === 'active').length;
           const neededBranches = branches.filter((branch) => branch.state === 'needed').length;
+          const diagnosticFlags = inquiryDiagnosticFlags(question);
 
           return (
             <Card key={question.id} className="border border-accent/20 bg-white/95 p-6 rounded-xl shadow-md">
@@ -266,6 +326,25 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
                   </div>
                 </div>
               </div>
+
+              {diagnosticFlags.length > 0 && (
+                <div className="mb-4 flex flex-wrap gap-1.5">
+                  {diagnosticFlags.slice(0, 4).map((flag) => (
+                    <span
+                      key={flag.id}
+                      title={flag.detail}
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 font-code text-[8px] font-bold uppercase tracking-widest",
+                        flag.tone === 'urgent' ? "border-rose-200 bg-rose-50 text-rose-800" :
+                        flag.tone === 'review' ? "border-amber-200 bg-amber-50 text-amber-800" :
+                        "border-border/40 bg-muted/20 text-muted-foreground"
+                      )}
+                    >
+                      {flag.label}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               <NextPhilosophicalActionPanel
                 compact
@@ -1009,6 +1088,27 @@ function Stat({ label, value }: { label: string; value: number | string }) {
       <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</div>
       <div className="mt-1 text-2xl font-headline font-bold text-accent leading-none">{value}</div>
     </Card>
+  );
+}
+
+function InquiryLane({ label, value, description, active, onClick }: { label: string; value: number; description: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
+        active ? "border-accent/50 bg-accent/10 ring-2 ring-accent/15" : "border-border/50 bg-card"
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-code text-[8px] font-bold uppercase tracking-[0.22em] text-muted-foreground/60">{label}</div>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
+        </div>
+        <div className="font-headline text-3xl font-bold italic leading-none text-primary">{value}</div>
+      </div>
+    </button>
   );
 }
 

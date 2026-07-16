@@ -46,6 +46,33 @@ interface MediaLibraryProps {
 }
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
+type LibraryViewFilter = 'all' | 'continue' | 'awaiting_reflection' | 'inquiry_driven' | 'recently_added' | 'paused_or_abandoned' | 'influential';
+
+const LIBRARY_VIEW_LABELS: Record<LibraryViewFilter, string> = {
+  all: 'All Source Work',
+  continue: 'Continue Consuming',
+  awaiting_reflection: 'Awaiting Reflection',
+  inquiry_driven: 'Inquiry Driven',
+  recently_added: 'Recently Added',
+  paused_or_abandoned: 'Paused / Abandoned',
+  influential: 'Recently Influential',
+};
+
+function sourceNeedsReflection(item: Media) {
+  return item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange;
+}
+
+function sourceIsRecentlyAdded(item: Media) {
+  const date = new Date(item.dateAdded || item.dateUpdated || '').getTime();
+  return Number.isFinite(date) && Date.now() - date <= 1000 * 60 * 60 * 24 * 30;
+}
+
+function sourceInfluenceCount(item: Media, vault: VaultEntry[], drafts: Draft[], practices: Practice[], questions: Question[]) {
+  return vault.filter((entry) => (entry.sourceIds || []).includes(item.id)).length +
+    drafts.filter((draft) => (draft.sourceIds || []).includes(item.id)).length +
+    practices.filter((practice) => (practice.sourceIds || []).includes(item.id)).length +
+    questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id)).length;
+}
 
 function formatDuration(totalSeconds = 0) {
   const seconds = Math.max(0, Math.floor(totalSeconds));
@@ -93,6 +120,7 @@ export function MediaLibrary({
 }: MediaLibraryProps) {
   const [filter, setFilter] = useState<MediaType | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<MediaStatus | 'active' | 'all'>('active');
+  const [viewFilter, setViewFilter] = useState<LibraryViewFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -118,15 +146,27 @@ export function MediaLibrary({
     const typeOk = filter === 'all' || item.type === filter;
     const activeOk = ['Want to Read', 'Consuming', 'Paused'].includes(item.status);
     const statusOk = statusFilter === 'all' || (statusFilter === 'active' ? activeOk : item.status === statusFilter);
+    const inquiryDriven = questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status));
+    const viewOk =
+      viewFilter === 'all' ||
+      (viewFilter === 'continue' && (item.status === 'Consuming' || item.status === 'Paused')) ||
+      (viewFilter === 'awaiting_reflection' && sourceNeedsReflection(item)) ||
+      (viewFilter === 'inquiry_driven' && inquiryDriven) ||
+      (viewFilter === 'recently_added' && sourceIsRecentlyAdded(item)) ||
+      (viewFilter === 'paused_or_abandoned' && (item.status === 'Paused' || item.status === 'Abandoned')) ||
+      (viewFilter === 'influential' && sourceInfluenceCount(item, vault, drafts, practices, questions) > 0);
     const query = `${item.title} ${item.creator} ${item.description || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
-    return typeOk && statusOk && (!searchQuery || query.includes(searchQuery.toLowerCase()));
-  }), [filter, media, searchQuery, statusFilter]);
+    return typeOk && statusOk && viewOk && (!searchQuery || query.includes(searchQuery.toLowerCase()));
+  }), [filter, media, searchQuery, statusFilter, viewFilter, vault, drafts, practices, questions]);
 
   const libraryStats = useMemo(() => ({
     active: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length,
     consuming: media.filter((item) => item.status === 'Consuming').length,
     annotations: media.reduce((sum, item) => sum + (item.annotations?.length || 0), 0),
-  }), [media]);
+    awaitingReflection: media.filter(sourceNeedsReflection).length,
+    inquiryDriven: media.filter((item) => questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status))).length,
+    influential: media.filter((item) => sourceInfluenceCount(item, vault, drafts, practices, questions) > 0).length,
+  }), [media, questions, vault, drafts, practices]);
 
   const readingRoomQueue = useMemo(() => {
     const needsReflection = (item: Media) => item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange;
@@ -150,9 +190,10 @@ export function MediaLibrary({
     setSearchQuery('');
     setFilter('all');
     setStatusFilter('active');
+    setViewFilter('all');
   };
 
-  const libraryFiltersActive = Boolean(searchQuery || filter !== 'all' || statusFilter !== 'active');
+  const libraryFiltersActive = Boolean(searchQuery || filter !== 'all' || statusFilter !== 'active' || viewFilter !== 'all');
 
   useEffect(() => {
     if (!focusedSourceId) {
@@ -1001,6 +1042,30 @@ export function MediaLibrary({
         }
       />
 
+      <section className="mb-8 grid gap-4 md:grid-cols-3">
+        <SourceLane
+          label="Awaiting Reflection"
+          value={libraryStats.awaitingReflection}
+          description="Finished sources that still need after-reading consequences."
+          active={viewFilter === 'awaiting_reflection'}
+          onClick={() => setViewFilter(viewFilter === 'awaiting_reflection' ? 'all' : 'awaiting_reflection')}
+        />
+        <SourceLane
+          label="Inquiry Driven"
+          value={libraryStats.inquiryDriven}
+          description="Sources currently feeding open investigations."
+          active={viewFilter === 'inquiry_driven'}
+          onClick={() => setViewFilter(viewFilter === 'inquiry_driven' ? 'all' : 'inquiry_driven')}
+        />
+        <SourceLane
+          label="Influential"
+          value={libraryStats.influential}
+          description="Sources already linked to positions, works, practices, or inquiries."
+          active={viewFilter === 'influential'}
+          onClick={() => setViewFilter(viewFilter === 'influential' ? 'all' : 'influential')}
+        />
+      </section>
+
       <FilterToolbar
         search={searchQuery}
         onSearchChange={setSearchQuery}
@@ -1011,6 +1076,16 @@ export function MediaLibrary({
         clearDisabled={!libraryFiltersActive}
         className="mb-10"
       >
+        <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as LibraryViewFilter)}>
+          <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+            <SelectValue placeholder="Source Work View" />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(LIBRARY_VIEW_LABELS) as LibraryViewFilter[]).map((value) => (
+              <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{LIBRARY_VIEW_LABELS[value]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as MediaStatus | 'active' | 'all')}>
           <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
             <SelectValue placeholder="Status" />
@@ -1080,7 +1155,11 @@ export function MediaLibrary({
       </section>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-8 gap-y-12">
-        {filtered.map((item) => (
+        {filtered.map((item) => {
+          const needsReflection = sourceNeedsReflection(item);
+          const hasOpenInquiry = questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status));
+          const influence = sourceInfluenceCount(item, vault, drafts, practices, questions);
+          return (
           <Card key={item.id} className="cursor-pointer border-none shadow-none bg-transparent group" onClick={() => openSelectedSource(item.id)}>
             <div className="aspect-[2/3] rounded-xl overflow-hidden shadow-sm mb-5 bg-white border border-border/30 group-hover:shadow-2xl group-hover:-translate-y-2 transition-all">
               {item.thumbnailUrl ? (
@@ -1110,9 +1189,17 @@ export function MediaLibrary({
                   </div>
                 )}
               </div>
+              {(needsReflection || hasOpenInquiry || influence > 0) && (
+                <div className="flex flex-wrap gap-1.5 pt-2">
+                  {needsReflection && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-amber-800">reflect</span>}
+                  {hasOpenInquiry && <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-blue-800">inquiry</span>}
+                  {influence > 0 && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-emerald-800">{influence} links</span>}
+                </div>
+              )}
             </div>
           </Card>
-        ))}
+          );
+        })}
 
         <Card 
           className="aspect-[2/3] rounded-xl border-2 border-dashed border-border/50 bg-white/50 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-white transition-all group shadow-sm hover:shadow-xl hover:-translate-y-2"
@@ -1152,6 +1239,27 @@ function SourceStat({ label, value }: { label: string; value: number | string })
       <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
       <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
     </div>
+  );
+}
+
+function SourceLane({ label, value, description, active, onClick }: { label: string; value: number; description: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
+        active ? "border-accent/50 bg-accent/10 ring-2 ring-accent/15" : "border-border/50 bg-card"
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-code text-[8px] font-bold uppercase tracking-[0.22em] text-muted-foreground/60">{label}</div>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
+        </div>
+        <div className="font-headline text-3xl font-bold italic leading-none text-primary">{value}</div>
+      </div>
+    </button>
   );
 }
 

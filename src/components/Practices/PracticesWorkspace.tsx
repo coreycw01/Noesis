@@ -38,6 +38,16 @@ interface PracticesWorkspaceProps {
 
 const practiceTypes: PracticeType[] = ['experiment', 'habit', 'commitment', 'observation', 'dialogue', 'reflection', 'restraint', 'exposure', 'decision_rule', 'ritual', 'challenge', 'discipline', 'reflection_prompt', 'rule'];
 const statuses: PracticeStatus[] = ['proposed', 'designed', 'planned', 'active', 'completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'paused', 'abandoned'];
+type PracticeViewFilter = 'all' | 'awaiting_log' | 'needs_basis' | 'needs_outcome' | 'testing_positions' | 'recently_concluded';
+
+const practiceViewFilters: Array<{ value: PracticeViewFilter; label: string }> = [
+  { value: 'all', label: 'All Practices' },
+  { value: 'awaiting_log', label: 'Awaiting Log' },
+  { value: 'needs_basis', label: 'Needs Basis' },
+  { value: 'needs_outcome', label: 'Needs Outcome' },
+  { value: 'testing_positions', label: 'Testing Positions' },
+  { value: 'recently_concluded', label: 'Recently Concluded' },
+];
 
 function dateKey(date = new Date()) {
   return date.toISOString().slice(0, 10);
@@ -61,11 +71,35 @@ function practiceLogDates(practice: Practice) {
   return Array.from(new Set([...(practice.logDates || []), ...structuredDates])).sort();
 }
 
+function isPracticeConcluded(practice: Practice) {
+  return ['completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'abandoned'].includes(practice.status);
+}
+
+function hasPracticeBasis(practice: Practice, linkedQuestions: Question[] = [], linkedPositions: VaultEntry[] = []) {
+  return linkedPositions.length > 0 || linkedQuestions.length > 0 || (practice.conceptTags || []).length > 0 || (practice.sourceIds || []).length > 0;
+}
+
+function practiceNeedsOutcome(practice: Practice) {
+  return isPracticeConcluded(practice) && !(practice.conclusion?.whatHappened || practice.observedOutcome || practice.notes)?.trim();
+}
+
+function practiceNeedsLog(practice: Practice) {
+  if (practice.status !== 'active') return false;
+  const logs = practiceLogDates(practice);
+  return logs.length === 0 || !logs.includes(dateKey());
+}
+
+function practiceRecentlyConcluded(practice: Practice) {
+  if (!isPracticeConcluded(practice)) return false;
+  const updated = practice.dateUpdated ? new Date(practice.dateUpdated).getTime() : 0;
+  if (!Number.isFinite(updated) || updated <= 0) return false;
+  return Date.now() - updated <= 1000 * 60 * 60 * 24 * 30;
+}
+
 function practiceExperimentShape(practice: Practice, linkedQuestions: Question[], linkedPositions: VaultEntry[]) {
-  const hasBasis = linkedPositions.length > 0 || linkedQuestions.length > 0 || (practice.conceptTags || []).length > 0 || (practice.sourceIds || []).length > 0;
+  const hasBasis = hasPracticeBasis(practice, linkedQuestions, linkedPositions);
   const logCount = Math.max(practice.logs?.length || 0, practiceLogDates(practice).length);
-  const concluded = ['completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'abandoned'].includes(practice.status);
-  const needsOutcome = concluded && !(practice.conclusion?.whatHappened || practice.observedOutcome || practice.notes)?.trim();
+  const needsOutcome = practiceNeedsOutcome(practice);
   const hypothesis = practice.hypothesis?.trim() || (linkedPositions[0]
     ? `If this is lived seriously, it should test: ${linkedPositions[0].title}`
     : linkedQuestions[0]
@@ -92,24 +126,75 @@ function practiceExperimentShape(practice: Practice, linkedQuestions: Question[]
 export function PracticesWorkspace({ practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute }: PracticesWorkspaceProps) {
   const [statusFilter, setStatusFilter] = useState<PracticeStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<PracticeType | 'all'>('all');
+  const [viewFilter, setViewFilter] = useState<PracticeViewFilter>('all');
+  const [search, setSearch] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<Partial<Practice>>({ title: '', description: '', type: 'experiment', status: 'designed', durationDays: 7, durationMode: 'repeated', conceptTags: [] });
   const questionList = useMemo(() => allQuestions(media, questions), [media, questions]);
   const activePractices = practices.filter((practice) => practice.status === 'active' || practice.status === 'planned' || practice.status === 'designed');
-  const filtered = practices.filter((practice) => (statusFilter === 'all' || practice.status === statusFilter) && (typeFilter === 'all' || practice.type === typeFilter));
+  const practiceState = useMemo(() => {
+    const questionById = new Map(questionList.map((question) => [question.id, question]));
+    const positionById = new Map(positions.map((position) => [position.id, position]));
+    return new Map(practices.map((practice) => {
+      const linkedQuestions = (practice.questionIds || []).map((id) => questionById.get(id)).filter(Boolean) as Question[];
+      const linkedPositions = (practice.positionIds || []).map((id) => positionById.get(id)).filter(Boolean) as VaultEntry[];
+      return [practice.id, {
+        linkedQuestions,
+        linkedPositions,
+        hasBasis: hasPracticeBasis(practice, linkedQuestions, linkedPositions),
+        needsLog: practiceNeedsLog(practice),
+        needsOutcome: practiceNeedsOutcome(practice),
+        recentlyConcluded: practiceRecentlyConcluded(practice),
+      }];
+    }));
+  }, [practices, questionList, positions]);
+  const filtered = practices.filter((practice) => {
+    const state = practiceState.get(practice.id);
+    const haystack = [
+      practice.title,
+      practice.description,
+      practice.intellectualBasis,
+      practice.hypothesis,
+      practice.action,
+      practice.observationMethod,
+      practice.expectedOutcome,
+      practice.observedOutcome,
+      practice.effectOnPosition,
+      ...(practice.conceptTags || []),
+      ...(state?.linkedQuestions || []).map((question) => question.text),
+      ...(state?.linkedPositions || []).map((position) => position.title),
+    ].filter(Boolean).join(' ').toLowerCase();
+    const matchesSearch = !search.trim() || haystack.includes(search.trim().toLowerCase());
+    const matchesView =
+      viewFilter === 'all' ||
+      (viewFilter === 'awaiting_log' && state?.needsLog) ||
+      (viewFilter === 'needs_basis' && !state?.hasBasis) ||
+      (viewFilter === 'needs_outcome' && state?.needsOutcome) ||
+      (viewFilter === 'testing_positions' && (practice.positionIds || []).length > 0) ||
+      (viewFilter === 'recently_concluded' && state?.recentlyConcluded);
+    return matchesSearch && matchesView && (statusFilter === 'all' || practice.status === statusFilter) && (typeFilter === 'all' || practice.type === typeFilter);
+  });
   const practiceStats = useMemo(() => ({
     total: practices.length,
     active: practices.filter((practice) => practice.status === 'active').length,
     planned: practices.filter((practice) => practice.status === 'planned').length,
     testedPositions: new Set(practices.flatMap((practice) => practice.positionIds || [])).size,
-  }), [practices]);
+    awaitingLog: practices.filter((practice) => practiceNeedsLog(practice)).length,
+    needsOutcome: practices.filter((practice) => practiceNeedsOutcome(practice)).length,
+    needsBasis: practices.filter((practice) => {
+      const state = practiceState.get(practice.id);
+      return state ? !state.hasBasis : !hasPracticeBasis(practice);
+    }).length,
+  }), [practices, practiceState]);
 
   const clearPracticeFilters = () => {
     setStatusFilter('all');
     setTypeFilter('all');
+    setViewFilter('all');
+    setSearch('');
   };
 
-  const practiceFiltersActive = statusFilter !== 'all' || typeFilter !== 'all';
+  const practiceFiltersActive = statusFilter !== 'all' || typeFilter !== 'all' || viewFilter !== 'all' || Boolean(search.trim());
 
   const openEditor = (practice?: Practice) => {
     setDraft(practice ? { ...practice } : { title: '', description: '', type: 'experiment', status: 'designed', durationDays: 7, durationMode: 'repeated', startDate: today().slice(0, 10), endDate: '', conceptTags: [] });
@@ -149,6 +234,37 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
         }
       />
 
+      <section className="mb-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <PracticeLane
+          label="Awaiting Log"
+          value={practiceStats.awaitingLog}
+          description="Active tests that need lived evidence today."
+          active={viewFilter === 'awaiting_log'}
+          onClick={() => setViewFilter(viewFilter === 'awaiting_log' ? 'all' : 'awaiting_log')}
+        />
+        <PracticeLane
+          label="Needs Basis"
+          value={practiceStats.needsBasis}
+          description="Practices not yet tied to an idea, inquiry, source, or position."
+          active={viewFilter === 'needs_basis'}
+          onClick={() => setViewFilter(viewFilter === 'needs_basis' ? 'all' : 'needs_basis')}
+        />
+        <PracticeLane
+          label="Needs Outcome"
+          value={practiceStats.needsOutcome}
+          description="Finished practices missing a theory-versus-reality review."
+          active={viewFilter === 'needs_outcome'}
+          onClick={() => setViewFilter(viewFilter === 'needs_outcome' ? 'all' : 'needs_outcome')}
+        />
+        <PracticeLane
+          label="Testing Positions"
+          value={practices.filter((practice) => (practice.positionIds || []).length > 0).length}
+          description="Behavioral loops currently pressuring explicit positions."
+          active={viewFilter === 'testing_positions'}
+          onClick={() => setViewFilter(viewFilter === 'testing_positions' ? 'all' : 'testing_positions')}
+        />
+      </section>
+
       <section className="mb-12">
         <div className="flex items-center gap-2 mb-6">
           <Repeat className="size-4 text-accent" />
@@ -170,12 +286,23 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
       </section>
 
       <FilterToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search practices, hypotheses, outcomes..."
+        searchLabel="Search practices"
         resultCount={filtered.length}
         resultLabel="practices"
+        activeFilterCount={[statusFilter !== 'all', typeFilter !== 'all', viewFilter !== 'all', Boolean(search.trim())].filter(Boolean).length}
         onClear={clearPracticeFilters}
         clearDisabled={!practiceFiltersActive}
         className="mb-8"
       >
+        <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PracticeViewFilter)}>
+          <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Views" /></SelectTrigger>
+          <SelectContent>
+            {practiceViewFilters.map((filter) => <SelectItem key={filter.value} value={filter.value} className="font-code text-[9px] uppercase">{filter.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as PracticeStatus | 'all')}>
           <SelectTrigger className="w-48 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Statuses" /></SelectTrigger>
           <SelectContent>
@@ -237,6 +364,27 @@ function PracticeStat({ label, value }: { label: string; value: number | string 
   );
 }
 
+function PracticeLane({ label, value, description, active, onClick }: { label: string; value: number; description: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
+        active ? "border-accent/50 bg-accent/10 ring-2 ring-accent/15" : "border-border/50 bg-card"
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-code text-[8px] font-bold uppercase tracking-[0.22em] text-muted-foreground/60">{label}</div>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
+        </div>
+        <div className="font-headline text-3xl font-bold italic leading-none text-primary group-hover:text-accent">{value}</div>
+      </div>
+    </button>
+  );
+}
+
 function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpdatePractice, onCreateLink }: {
   practice: Practice;
   questions: Question[];
@@ -254,6 +402,8 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   const hasLoggedToday = logDates.includes(todayKey);
   const streak = currentStreak(logDates);
   const experimentShape = practiceExperimentShape(practice, linkedQuestions, linkedPositions);
+  const needsLog = practiceNeedsLog(practice);
+  const recentlyConcluded = practiceRecentlyConcluded(practice);
   const [reviewOpen, setReviewOpen] = useState(experimentShape.needsOutcome);
   const [logOpen, setLogOpen] = useState(false);
   const [logDraft, setLogDraft] = useState<Partial<PracticeLog>>({ date: todayKey, actionCompleted: true, confidence: 3 });
@@ -312,6 +462,10 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
           <div className="flex flex-wrap gap-2 mb-2">
             <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5 shadow-sm">{PRACTICE_LABELS[practice.type]}</Badge>
             <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-border/60 bg-white shadow-sm rounded-full font-bold px-2.5 py-0.5 shadow-sm">{practice.status}</Badge>
+            {needsLog && <Badge className="font-code text-[8px] uppercase tracking-widest bg-emerald-100 text-emerald-900 hover:bg-emerald-100 rounded-full font-bold px-2.5 py-0.5">log due</Badge>}
+            {experimentShape.needsOutcome && <Badge className="font-code text-[8px] uppercase tracking-widest bg-amber-100 text-amber-950 hover:bg-amber-100 rounded-full font-bold px-2.5 py-0.5">needs outcome</Badge>}
+            {!experimentShape.hasBasis && <Badge className="font-code text-[8px] uppercase tracking-widest bg-rose-100 text-rose-950 hover:bg-rose-100 rounded-full font-bold px-2.5 py-0.5">needs basis</Badge>}
+            {recentlyConcluded && <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-accent/30 bg-accent/5 text-accent rounded-full font-bold px-2.5 py-0.5">recent result</Badge>}
           </div>
           <h3 className="font-headline text-xl font-bold italic leading-tight group-hover:text-accent transition-colors text-primary truncate">{practice.title}</h3>
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, History } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -29,7 +29,13 @@ type EvolutionFilter =
   | 'patterns'
   | 'questions'
   | 'replacements'
-  | 'links';
+  | 'links'
+  | 'positions'
+  | 'concepts'
+  | 'inquiries'
+  | 'works'
+  | 'practices'
+  | 'sources';
 
 type EvolutionView = 'turning_points' | 'timeline' | 'belief_rivers' | 'periods' | 'before_after';
 
@@ -63,6 +69,12 @@ const FILTER_OPTIONS: Array<{ value: EvolutionFilter; label: string }> = [
   { value: 'questions', label: 'Questions' },
   { value: 'replacements', label: 'Replacements' },
   { value: 'links', label: 'Links' },
+  { value: 'positions', label: 'Positions' },
+  { value: 'concepts', label: 'Concepts' },
+  { value: 'inquiries', label: 'Inquiries' },
+  { value: 'works', label: 'Works' },
+  { value: 'practices', label: 'Practices' },
+  { value: 'sources', label: 'Sources' },
 ];
 
 const VIEW_OPTIONS: Array<{ value: EvolutionView; label: string; description: string }> = [
@@ -244,12 +256,31 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
 
   const filteredEvents = useMemo(() => {
     return displayEvents.filter((event) => {
-      const filterOk = filter === 'all' || event.filter === filter;
+      const filterOk = filter === 'all' ||
+        event.filter === filter ||
+        (filter === 'positions' && targetTypeMatches(event, ['position', 'vault'])) ||
+        (filter === 'concepts' && targetTypeMatches(event, ['concept'])) ||
+        (filter === 'inquiries' && targetTypeMatches(event, ['question', 'inquiry'])) ||
+        (filter === 'works' && targetTypeMatches(event, ['work', 'draft'])) ||
+        (filter === 'practices' && targetTypeMatches(event, ['practice'])) ||
+        (filter === 'sources' && targetTypeMatches(event, ['source', 'media']));
       const haystack = `${event.title} ${event.detail} ${event.chips.join(' ')}`.toLowerCase();
       const queryOk = !search || haystack.includes(search.toLowerCase());
       return filterOk && queryOk;
     });
   }, [displayEvents, filter, search]);
+
+  const eventCoverage = useMemo(() => {
+    const thinkingCount = displayEvents.filter((event) => event.kind === 'thinking').length;
+    const legacyCount = displayEvents.filter((event) => event.kind === 'timeline').length;
+    const interpretedCount = displayEvents.length - legacyCount;
+    const coverageLevel = thinkingCount === 0
+      ? 'limited'
+      : thinkingCount >= legacyCount
+        ? 'strong'
+        : 'mixed';
+    return { thinkingCount, legacyCount, interpretedCount, coverageLevel };
+  }, [displayEvents]);
 
   const turningPoints = useMemo(() => {
     return displayEvents.filter((event) => {
@@ -385,6 +416,28 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
         <MetricCard label="Unknowns Resolved" value={metrics.unknownsResolved} />
         <MetricCard label="Stress Tests Answered" value={metrics.positionsStressTested} />
       </div>
+
+      <section className={cn(
+        "mb-8 rounded-2xl border p-4 shadow-sm",
+        eventCoverage.coverageLevel === 'strong' ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/80"
+      )}>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="flex gap-3">
+            <AlertTriangle className={cn("mt-0.5 size-4 shrink-0", eventCoverage.coverageLevel === 'strong' ? "text-emerald-700" : "text-amber-700")} />
+            <div>
+              <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Recorded History Coverage</div>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                This view reflects recorded meaningful actions. Thinking events are strongest evidence; legacy timeline records are shown as context when event coverage is incomplete.
+              </p>
+            </div>
+          </div>
+          <div className="grid min-w-[260px] grid-cols-3 gap-2">
+            <MiniEvolutionStat label="Events" value={eventCoverage.thinkingCount} />
+            <MiniEvolutionStat label="Timeline" value={eventCoverage.legacyCount} />
+            <MiniEvolutionStat label="Interpreted" value={eventCoverage.interpretedCount} />
+          </div>
+        </div>
+      </section>
 
       <div className="mb-8 grid gap-3 lg:grid-cols-5">
         {VIEW_OPTIONS.map((option) => (

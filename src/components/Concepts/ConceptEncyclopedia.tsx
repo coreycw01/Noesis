@@ -48,11 +48,18 @@ type ConceptListRow = {
   lastActiveAt: number;
   why: string;
   possibleDuplicates: string[];
+  repairFlags: ConceptRepairFlag[];
 };
 
 type BoundaryAnswer = 'inside' | 'outside' | 'depends';
 type ConceptTensionDecision = Extract<PhilosophicalLinkType, 'coheres' | 'contradicts' | 'refines'>;
 type ConceptListField = 'aliases' | 'notSameAs' | 'examples' | 'counterexamples';
+type ConceptRepairFlag = {
+  id: 'define' | 'boundaries' | 'examples' | 'evidence' | 'opposition' | 'practice' | 'drift' | 'duplicate' | 'neglected';
+  label: string;
+  detail: string;
+  tone: 'urgent' | 'review' | 'growth' | 'stable';
+};
 
 const CONCEPT_LIST_VIEWS: Array<{ id: ConceptListView; label: string; description: string }> = [
   { id: 'all', label: 'All', description: 'Every defined concept in the vocabulary.' },
@@ -112,6 +119,52 @@ function possibleDuplicateConcepts(concept: Concept | undefined, name: string, c
     .map((candidate) => candidate.name);
 }
 
+function conceptRepairFlags({
+  concept,
+  related,
+  diagnosis,
+  connectionCount,
+  lastActiveAt,
+  possibleDuplicates,
+}: {
+  concept: Concept | undefined;
+  related: ReturnType<typeof conceptRelated>;
+  diagnosis: ReturnType<typeof computeConceptDiagnosis>;
+  connectionCount: number;
+  lastActiveAt: number;
+  possibleDuplicates: string[];
+}): ConceptRepairFlag[] {
+  const flags: ConceptRepairFlag[] = [];
+  if (!concept?.description?.trim() || concept.philosophyStatus === 'undefined' || diagnosis.clarity === 'beginning') {
+    flags.push({ id: 'define', label: 'Define', detail: 'Write a provisional working definition before this concept carries more weight.', tone: 'urgent' });
+  }
+  if (!(concept?.notSameAs || []).length || !(concept?.counterexamples || []).length) {
+    flags.push({ id: 'boundaries', label: 'Boundary', detail: 'Add distinctions or counterexamples so neighboring ideas do not collapse together.', tone: 'review' });
+  }
+  if (!(concept?.examples || []).length) {
+    flags.push({ id: 'examples', label: 'Examples', detail: 'Add clear cases that belong inside the concept.', tone: 'growth' });
+  }
+  if (related.sources.length + related.annotations.length === 0) {
+    flags.push({ id: 'evidence', label: 'Evidence', detail: 'Anchor the concept in at least one source, annotation, or captured example.', tone: 'urgent' });
+  }
+  if (related.beliefs.length > 1 && diagnosis.tension === 'high') {
+    flags.push({ id: 'opposition', label: 'Tension', detail: 'Review whether positions using this concept cohere, contradict, or refine each other.', tone: 'review' });
+  }
+  if (!related.practices.length && related.beliefs.length > 0) {
+    flags.push({ id: 'practice', label: 'Untested', detail: 'Link a practice if this concept should change behavior or lived judgment.', tone: 'growth' });
+  }
+  if (diagnosis.evolving && !(related.events || []).some((event) => /definition|boundary|concept/i.test(`${event.eventType} ${event.reason || ''}`))) {
+    flags.push({ id: 'drift', label: 'Drift', detail: 'Recent use changed; record what shifted in the definition.', tone: 'review' });
+  }
+  if (possibleDuplicates.length > 0) {
+    flags.push({ id: 'duplicate', label: 'Overlap', detail: `Compare with ${possibleDuplicates.slice(0, 2).join(', ')} before merging or separating.`, tone: 'review' });
+  }
+  if (connectionCount > 0 && lastActiveAt > 0 && lastActiveAt < Date.now() - NEGLECTED_WINDOW_MS) {
+    flags.push({ id: 'neglected', label: 'Neglected', detail: 'This concept has links but has not moved recently.', tone: 'growth' });
+  }
+  return flags;
+}
+
 export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept, onDeleteConcept, onCreateIdea, onCreateLink } = props;
   const [search, setSearch] = useState('');
@@ -162,6 +215,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       const isContested = conceptDoc.philosophyStatus === 'contested' || diagnosis.tension === 'high' || related.beliefs.some((entry) => entry.status === 'challenged');
       const isTransformed = related.events.some((event) => /transform|revise|definition|changed/i.test(`${event.eventType} ${event.reason || ''}`));
       const possibleDuplicates = possibleDuplicateConcepts(conceptDoc, name, concepts);
+      const repairFlags = conceptRepairFlags({ concept: conceptDoc, related, diagnosis, connectionCount, lastActiveAt, possibleDuplicates });
       const searchText = `${name} ${conceptDoc.description || ''} ${(conceptDoc.aliases || []).join(' ')} ${(conceptDoc.notSameAs || []).join(' ')} ${(conceptDoc.examples || []).join(' ')} ${(conceptDoc.counterexamples || []).join(' ')} ${JSON.stringify(related)}`.toLowerCase();
       const matchesSearch = !search || searchText.includes(search.toLowerCase());
       const matchesView =
@@ -184,7 +238,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       if (listView === 'transformed') why = 'Has revision or transformation signals in its history.';
       if (listView === 'neglected') why = 'Has meaningful links but little recent movement.';
 
-      return { name, concept: conceptDoc, related, diagnosis, connectionCount, lastActiveAt, why, possibleDuplicates };
+      return { name, concept: conceptDoc, related, diagnosis, connectionCount, lastActiveAt, why, possibleDuplicates, repairFlags };
     })
     .filter((row): row is ConceptListRow => Boolean(row))
     .sort((a, b) => {
@@ -414,6 +468,14 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           ? 'Your answers suggest the current boundary is usable, but examples and counterexamples would make it stronger.'
           : 'Classify edge cases to see whether the definition is too wide, too narrow, or condition-dependent.';
     const driftEvents = sortedEvents.filter((event) => /concept|definition|revise|transform|changed/i.test(`${event.eventType} ${event.reason || ''}`));
+    const detailRepairFlags = conceptRepairFlags({
+      concept,
+      related: r,
+      diagnosis,
+      connectionCount: r.sources.length + r.annotations.length + r.questions.length + r.beliefs.length + r.drafts.length + r.practices.length,
+      lastActiveAt: conceptActivityDate(concept, r.events),
+      possibleDuplicates: possibleDuplicateConcepts(concept, selectedName, concepts),
+    });
     const saveBoundaryRefinement = () => {
       if (!concept || !boundaryRefinement.trim()) return;
       const trimmed = boundaryRefinement.trim();
@@ -558,6 +620,33 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <p className="mt-1 text-sm text-muted-foreground">Definition, boundary, usage, and dependency signals for this idea.</p>
               </div>
               <Badge variant="outline" className="rounded-full">{diagnosis.level}</Badge>
+            </div>
+
+            <div className="mb-4 rounded-xl border border-accent/20 bg-accent/5 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="font-code text-[9px] uppercase tracking-widest text-accent/80 font-bold">Definition Diagnostics</div>
+                  <p className="mt-1 text-sm text-muted-foreground">Concrete repairs that make this concept easier to use consistently.</p>
+                </div>
+                <Badge variant="outline" className="rounded-full">{detailRepairFlags.length || 1} signal{detailRepairFlags.length === 1 ? '' : 's'}</Badge>
+              </div>
+              {detailRepairFlags.length ? (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {detailRepairFlags.slice(0, 6).map((flag) => (
+                    <div key={flag.id} className={cn(
+                      "rounded-xl border px-3 py-2",
+                      flag.tone === 'urgent' ? "border-rose-200 bg-rose-50 text-rose-950" :
+                      flag.tone === 'review' ? "border-amber-200 bg-amber-50 text-amber-950" :
+                      "border-border/40 bg-card text-foreground"
+                    )}>
+                      <div className="font-code text-[8px] uppercase tracking-widest font-bold">{flag.label}</div>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{flag.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm italic text-muted-foreground">No major repair signal is visible. Keep using the concept and record definition changes when its meaning shifts.</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1184,6 +1273,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         <Stat value={allAnnotations(media).length} label="Annotations" sub="Tagged excerpts" />
         <Stat value={vault.length + drafts.length + (practices?.length || 0)} label="Outputs" sub="Positions, works, practices" />
         <Stat value={conceptRows.filter((row) => row.possibleDuplicates.length).length} label="Overlap" sub="Potential duplicate concepts" />
+        <Stat value={conceptRows.filter((row) => row.repairFlags.length).length} label="Needs Work" sub="Definition repair signals" />
       </div>
 
       <div className="mb-6 rounded-2xl border border-border/60 bg-card/70 p-4 shadow-sm">
@@ -1220,7 +1310,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {conceptRows.map(({ name, concept, related, diagnosis: diag, connectionCount, why, possibleDuplicates }) => {
+        {conceptRows.map(({ name, concept, related, diagnosis: diag, connectionCount, why, possibleDuplicates, repairFlags }) => {
 
           return (
             <Card
@@ -1283,6 +1373,25 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   <p className="mt-1 text-xs leading-5 text-amber-800">
                     Compare with {possibleDuplicates.join(', ')} before merging or treating these as separate ideas.
                   </p>
+                </div>
+              )}
+
+              {repairFlags.length > 0 && (
+                <div className="mb-4 flex flex-wrap gap-1.5">
+                  {repairFlags.slice(0, 4).map((flag) => (
+                    <span
+                      key={flag.id}
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 font-code text-[8px] font-bold uppercase tracking-widest",
+                        flag.tone === 'urgent' ? "border-rose-200 bg-rose-50 text-rose-800" :
+                        flag.tone === 'review' ? "border-amber-200 bg-amber-50 text-amber-800" :
+                        "border-border/40 bg-muted/20 text-muted-foreground"
+                      )}
+                      title={flag.detail}
+                    >
+                      {flag.label}
+                    </span>
+                  ))}
                 </div>
               )}
 
