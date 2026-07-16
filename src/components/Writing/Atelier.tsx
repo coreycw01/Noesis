@@ -36,7 +36,7 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { FormattingToolbar } from './FormattingToolbar';
 import { DocumentCanvas } from './DocumentCanvas';
 import { PageViewControls } from './PageViewControls';
-import type { Concept, Draft, DraftStatus, DraftType, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WritingStyle } from '@/lib/types';
+import type { Annotation, Concept, Draft, DraftStatus, DraftType, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WritingStyle } from '@/lib/types';
 import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, WRITING_STYLES, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -50,6 +50,7 @@ export type PageSize = 'letter' | 'a4';
 export type PaperColor = 'blank' | 'warm' | 'sepia' | 'dark';
 export type PaperPattern = 'none' | 'notebook' | 'grid' | 'dotted' | 'dotted_grid';
 type WritingTool = 'text' | 'pencil' | 'eraser';
+type WorkRailAnnotation = Annotation & { sourceTitle: string; sourceId: string };
 type BrowserSpeechRecognitionCtor = new () => {
   continuous: boolean;
   interimResults: boolean;
@@ -164,7 +165,7 @@ function draftSaveSignature(draft: Draft | null | undefined) {
   );
 }
 
-export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
+export function Atelier({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | DraftType | DraftStatus>('all');
   const [workTab, setWorkTab] = useState<WorkTab>('all');
@@ -471,6 +472,54 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
   const activeTypeLabel = active ? DRAFT_LABELS[active.type] : '';
   const showPaperControls = !!active && activeCategory === 'writing';
   const showExternalDocControls = !!active && activeCategory === 'writing';
+  const activeSources = useMemo(() => {
+    if (!active) return [];
+    return media.filter((source) => (active.sourceIds || []).includes(source.id));
+  }, [active, media]);
+  const activePositions = useMemo(() => {
+    if (!active) return [];
+    return vault.filter((position) => (active.beliefIds || []).includes(position.id));
+  }, [active, vault]);
+  const activeInquiries = useMemo(() => {
+    if (!active) return [];
+    return questions.filter((question) => (active.questionIds || []).includes(question.id));
+  }, [active, questions]);
+  const workConcepts = useMemo(() => normalizeConceptTags(active?.conceptTags || []), [active?.conceptTags]);
+  const unusedAnnotations = useMemo(() => {
+    if (!active) return [];
+    const linkedSourceIds = new Set(active.sourceIds || []);
+    const activeConceptKeys = new Set(workConcepts.map((tag) => tag.toLowerCase()));
+    return media
+      .filter((source) => linkedSourceIds.has(source.id) || (source.tags || []).some((tag) => activeConceptKeys.has(tag.toLowerCase())))
+      .flatMap((source) => (source.annotations || []).map((annotation) => ({ ...annotation, sourceTitle: source.title, sourceId: source.id })))
+      .filter((annotation) => {
+        const text = annotation.text || '';
+        if (!text.trim()) return false;
+        const annotationConcepts = normalizeConceptTags(annotation.conceptTags || []);
+        return annotationConcepts.length === 0 || annotationConcepts.some((tag) => activeConceptKeys.has(tag.toLowerCase()));
+      })
+      .slice(0, 6);
+  }, [active, media, workConcepts]);
+  const coherenceSignals = useMemo(() => {
+    if (!active) return [];
+    const signals: Array<{ label: string; tone: 'support' | 'warning' | 'neutral'; detail: string }> = [];
+    if (!activePositions.length) {
+      signals.push({ label: 'No linked position', tone: 'warning', detail: 'This work may express claims that are not connected to Positions yet.' });
+    }
+    if (activePositions.some((position) => (position.evidenceAgainst || []).length > 0)) {
+      signals.push({ label: 'Objection present', tone: 'warning', detail: 'At least one linked position has recorded opposition. Address it in the work.' });
+    }
+    if (!activeSources.length && activeCategory === 'writing') {
+      signals.push({ label: 'No sources linked', tone: 'warning', detail: 'Long-form work should show what evidence or source material supports it.' });
+    }
+    if (!workConcepts.length) {
+      signals.push({ label: 'No concepts linked', tone: 'neutral', detail: 'Add concepts so this artifact can reconnect to the rest of Noesis.' });
+    }
+    if (active.status === 'final' && (activePositions.length || activeSources.length)) {
+      signals.push({ label: 'Ready to review', tone: 'support', detail: 'This work has linked material and can be checked for coherence.' });
+    }
+    return signals.slice(0, 5);
+  }, [active, activeCategory, activePositions, activeSources, workConcepts]);
 
   if (active) {
     return (
@@ -636,37 +685,48 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
           </div>
         </header>
 
-        <div className="flex-1 overflow-hidden relative">
-          {activeCategory === 'writing' ? (
-            <>
-              <FormattingToolbar saveStatus={saveStatus} />
-              <DocumentCanvas
-                content={activeContent}
-                onContentChange={handleUpdateContent}
-                viewMode={viewMode}
-                pageSize={pageSize}
-                paperColor={paperColor}
-                paperPattern={paperPattern}
-                writingStyle={active.writingStyle || writingDefaults.writingStyle}
-                title={active.title}
-                overlayData={active.writingOverlayData || ''}
-                onOverlayChange={(overlayData) => updateActive({ writingOverlayData: overlayData })}
-                overlayTool={writingTool}
-                overlayColor={writingStrokeColor}
-                overlayBrushSize={writingStrokeSize}
-              />
-            </>
-          ) : active.type === 'recording' ? (
-            <RecordingStudio draft={active} updateActive={updateActive} />
-          ) : active.type === 'voice_note' ? (
-            <RecordingStudio draft={active} updateActive={updateActive} audioOnly />
-          ) : active.type === 'drawing' ? (
-            <DrawingStudio draft={active} updateActive={updateActive} />
-          ) : active.type === 'drawing_note' ? (
-            <DrawingStudio draft={active} updateActive={updateActive} compact />
-          ) : (
-            <QuickNoteStudio draft={active} updateActive={updateActive} />
-          )}
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="relative min-h-0 overflow-hidden">
+            {activeCategory === 'writing' ? (
+              <>
+                <FormattingToolbar saveStatus={saveStatus} />
+                <DocumentCanvas
+                  content={activeContent}
+                  onContentChange={handleUpdateContent}
+                  viewMode={viewMode}
+                  pageSize={pageSize}
+                  paperColor={paperColor}
+                  paperPattern={paperPattern}
+                  writingStyle={active.writingStyle || writingDefaults.writingStyle}
+                  title={active.title}
+                  overlayData={active.writingOverlayData || ''}
+                  onOverlayChange={(overlayData) => updateActive({ writingOverlayData: overlayData })}
+                  overlayTool={writingTool}
+                  overlayColor={writingStrokeColor}
+                  overlayBrushSize={writingStrokeSize}
+                />
+              </>
+            ) : active.type === 'recording' ? (
+              <RecordingStudio draft={active} updateActive={updateActive} />
+            ) : active.type === 'voice_note' ? (
+              <RecordingStudio draft={active} updateActive={updateActive} audioOnly />
+            ) : active.type === 'drawing' ? (
+              <DrawingStudio draft={active} updateActive={updateActive} />
+            ) : active.type === 'drawing_note' ? (
+              <DrawingStudio draft={active} updateActive={updateActive} compact />
+            ) : (
+              <QuickNoteStudio draft={active} updateActive={updateActive} />
+            )}
+          </div>
+          <WorkIntellectualRail
+            active={active}
+            sources={activeSources}
+            positions={activePositions}
+            inquiries={activeInquiries}
+            concepts={workConcepts}
+            annotations={unusedAnnotations}
+            coherenceSignals={coherenceSignals}
+          />
         </div>
 
         {showExternalDocControls && (
@@ -1370,6 +1430,159 @@ function DrawingStudio({
         </Card>
       </div>
     </div>
+  );
+}
+
+function WorkIntellectualRail({
+  active,
+  sources,
+  positions,
+  inquiries,
+  concepts,
+  annotations,
+  coherenceSignals,
+}: {
+  active: Draft;
+  sources: Media[];
+  positions: VaultEntry[];
+  inquiries: Question[];
+  concepts: string[];
+  annotations: WorkRailAnnotation[];
+  coherenceSignals: Array<{ label: string; tone: 'support' | 'warning' | 'neutral'; detail: string }>;
+}) {
+  const category = active.workCategory || workCategoryForDraft(active.type);
+  const supportingMaterial = [
+    ...sources.slice(0, 4).map((source) => `${source.title}${source.creator ? ` - ${source.creator}` : ''}`),
+    ...positions.flatMap((position) => position.evidenceFor || []).slice(0, 3),
+  ];
+  const objections = [
+    ...positions.flatMap((position) => position.evidenceAgainst || []),
+    ...positions.filter((position) => ['challenged', 'uncertain', 'revised'].includes(position.status)).map((position) => `${position.title} is currently ${position.status}.`),
+  ].slice(0, 5);
+  const relatedClaims = positions.slice(0, 5).map((position) => position.statement || position.title);
+  const unresolvedInquiries = inquiries
+    .filter((question) => !['resolved', 'archived'].includes(question.status))
+    .slice(0, 4)
+    .map((question) => question.text);
+
+  return (
+    <aside className="hidden min-h-0 overflow-y-auto border-l border-border/40 bg-muted/10 p-4 lg:block">
+      <div className="space-y-4">
+        <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Intellectual Rail</div>
+              <h3 className="mt-1 font-headline text-xl font-bold italic">What this work is carrying</h3>
+            </div>
+            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+              {WORK_CATEGORY_LABELS[category]}
+            </Badge>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            Use this rail to keep expression connected to claims, evidence, objections, and raw material.
+          </p>
+        </Card>
+
+        <RailSection
+          title="Claims Expressed"
+          empty="No linked positions yet. Link a Position when this work starts arguing for something."
+          items={relatedClaims}
+        />
+        <RailSection
+          title="Supporting Material"
+          empty="No linked sources or supporting evidence yet."
+          items={supportingMaterial}
+        />
+        <RailSection
+          title="Unresolved Objections"
+          empty="No objections are attached to the linked positions yet."
+          items={objections}
+          tone="warning"
+        />
+        <RailSection
+          title="Relevant Concepts"
+          empty="No concepts linked yet."
+          items={concepts}
+          compact
+        />
+        <RailSection
+          title="Open Inquiries"
+          empty="No inquiries are linked to this work."
+          items={unresolvedInquiries}
+        />
+        <RailSection
+          title="Unused Annotations"
+          empty="No nearby annotations found from linked sources or concepts."
+          items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)}
+        />
+
+        <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
+          <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Coherence Review</div>
+          <div className="mt-3 space-y-3">
+            {coherenceSignals.length ? coherenceSignals.map((signal) => (
+              <div
+                key={`${signal.label}:${signal.detail}`}
+                className={cn(
+                  'rounded-xl border p-3',
+                  signal.tone === 'warning' && 'border-amber-300/50 bg-amber-50 text-amber-950',
+                  signal.tone === 'support' && 'border-emerald-300/50 bg-emerald-50 text-emerald-950',
+                  signal.tone === 'neutral' && 'border-border/60 bg-muted/10 text-foreground'
+                )}
+              >
+                <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] opacity-70">{signal.label}</div>
+                <p className="mt-1 text-sm leading-5">{signal.detail}</p>
+              </div>
+            )) : (
+              <p className="text-sm italic leading-6 text-muted-foreground">No coherence warnings yet. Add linked claims, concepts, sources, or inquiries to make the review sharper.</p>
+            )}
+          </div>
+        </Card>
+      </div>
+    </aside>
+  );
+}
+
+function RailSection({
+  title,
+  items,
+  empty,
+  tone = 'neutral',
+  compact,
+}: {
+  title: string;
+  items: string[];
+  empty: string;
+  tone?: 'neutral' | 'warning';
+  compact?: boolean;
+}) {
+  return (
+    <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+        <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{items.length}</Badge>
+      </div>
+      {items.length ? (
+        <div className={cn('mt-3', compact ? 'flex flex-wrap gap-2' : 'space-y-2')}>
+          {items.map((item, index) => compact ? (
+            <Badge key={`${item}:${index}`} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+              {item}
+            </Badge>
+          ) : (
+            <div
+              key={`${item}:${index}`}
+              className={cn(
+                'rounded-xl border px-3 py-2 text-sm leading-5',
+                tone === 'warning' ? 'border-amber-300/40 bg-amber-50/70 text-amber-950' : 'border-border/50 bg-muted/10 text-foreground'
+              )}
+            >
+              {item}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-sm italic leading-6 text-muted-foreground">{empty}</p>
+      )}
+    </Card>
   );
 }
 

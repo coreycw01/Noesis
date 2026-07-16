@@ -30,6 +30,7 @@ import type {
   UserProfile,
   VaultEntry,
   Practice,
+  ThinkingPatternUserResponse,
 } from '@/lib/types';
 
 interface ProfilePageProps {
@@ -84,6 +85,7 @@ export function ProfilePage({
   const [profileDraft, setProfileDraft] = useState<UserProfile>(profile);
   const [privacyDraft, setPrivacyDraft] = useState<ProfilePrivacySettings>(privacy);
   const [unknownDraft, setUnknownDraft] = useState({ title: '', description: '' });
+  const [patternResponseDrafts, setPatternResponseDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<'profile' | 'privacy' | null>(null);
 
   useEffect(() => setProfileDraft(profile), [profile]);
@@ -196,6 +198,26 @@ export function ProfilePage({
       questionIds: [],
     });
     setUnknownDraft({ title: '', description: '' });
+  };
+
+  const respondToPattern = (pattern: ThinkingPattern, response: ThinkingPatternUserResponse, note?: string) => {
+    const status = response === 'confirmed' || response === 'partially_agree'
+      ? 'acknowledged'
+      : response === 'outdated'
+        ? 'outdated'
+        : response === 'rejected'
+          ? 'dismissed'
+          : pattern.status;
+    onUpdateThinkingPattern({
+      ...pattern,
+      status,
+      userResponse: response,
+      userResponseNote: note?.trim() || pattern.userResponseNote,
+      userRespondedAt: new Date().toISOString(),
+      dateUpdated: new Date().toISOString(),
+    });
+    if (note) setPatternResponseDrafts((prev) => ({ ...prev, [pattern.patternId]: '' }));
+    toast({ title: 'Profile observation updated', description: 'Noesis will treat this tendency as a reviewable observation, not a fixed identity label.' });
   };
 
   const trendCards = [
@@ -394,9 +416,42 @@ export function ProfilePage({
                       </div>
                     </div>
                     {pattern.evidence.length > 0 && <ul className="mt-3 space-y-1 text-sm text-muted-foreground">{pattern.evidence.map((evidence) => <li key={evidence}>- {evidence}</li>)}</ul>}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" className="rounded-full" onClick={() => onUpdateThinkingPattern({ ...pattern, status: 'acknowledged' })}>Acknowledge</Button>
-                      <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateThinkingPattern({ ...pattern, status: 'dismissed' })}>Dismiss</Button>
+                    {pattern.userResponse && (
+                      <div className="mt-3 rounded-xl border border-border/50 bg-card p-3 text-sm">
+                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Your Response</div>
+                        <p className="mt-1 capitalize text-foreground">{pattern.userResponse.replace(/_/g, ' ')}</p>
+                        {pattern.userResponseNote && <p className="mt-2 italic leading-6 text-muted-foreground">{pattern.userResponseNote}</p>}
+                      </div>
+                    )}
+                    <div className="mt-4 rounded-2xl border border-border/50 bg-card p-4">
+                      <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Challenge My Profile</div>
+                      <p className="mt-2 text-xs italic leading-5 text-muted-foreground">
+                        Treat this as a provisional observation. Confirm it, qualify it, reject it, ask for more evidence, or mark it outdated.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" className="rounded-full" onClick={() => respondToPattern(pattern, 'confirmed')}>Confirm</Button>
+                        <Button variant="outline" size="sm" className="rounded-full" onClick={() => respondToPattern(pattern, 'partially_agree')}>Partially Agree</Button>
+                        <Button variant="ghost" size="sm" className="rounded-full" onClick={() => respondToPattern(pattern, 'needs_more_evidence')}>Request Evidence</Button>
+                        <Button variant="ghost" size="sm" className="rounded-full" onClick={() => respondToPattern(pattern, 'outdated')}>Outdated</Button>
+                        <Button variant="ghost" size="sm" className="rounded-full text-destructive hover:text-destructive" onClick={() => respondToPattern(pattern, 'rejected')}>Reject</Button>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
+                        <Input
+                          value={patternResponseDrafts[pattern.patternId] || ''}
+                          onChange={(event) => setPatternResponseDrafts((prev) => ({ ...prev, [pattern.patternId]: event.target.value }))}
+                          placeholder="Offer an alternative explanation..."
+                          className="h-9 rounded-full text-sm"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full"
+                          onClick={() => respondToPattern(pattern, 'alternative_explanation', patternResponseDrafts[pattern.patternId])}
+                          disabled={!patternResponseDrafts[pattern.patternId]?.trim()}
+                        >
+                          Save Alternative
+                        </Button>
+                      </div>
                     </div>
                   </Card>
                 ))}

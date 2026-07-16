@@ -93,11 +93,72 @@ function questNextStep(item: GoalItem & { percent?: number }, type?: GoalType) {
   return 'Review whether the current path still serves the desired intellectual change.';
 }
 
+function defaultQuestMilestones(item: GoalItem, type?: GoalType) {
+  const questType = questTypeForGoal(item, type);
+  if (questType === 'source consumption') return [
+    'Name the question or position this source work should affect.',
+    'Choose the next source and state why it matters.',
+    'Capture useful annotations while studying.',
+    'Write a reflection on what changed or resisted change.',
+    'Connect the source to at least one inquiry, concept, position, work, or practice.',
+  ];
+  if (questType === 'concept clarification') return [
+    'Write a provisional working definition.',
+    'List neighboring concepts and likely confusions.',
+    'Run a boundary test with edge cases.',
+    'Revise the definition after evidence or use cases.',
+    'Use the concept in an inquiry, position, or work.',
+  ];
+  if (questType === 'inquiry development') return [
+    'Clarify the central question and why it matters.',
+    'Identify assumptions behind the question.',
+    'Collect evidence for at least two possible answers.',
+    'Compare candidate answers and objections.',
+    'Write a provisional conclusion or transform the inquiry.',
+  ];
+  if (questType === 'position review') return [
+    'State the position in its strongest form.',
+    'Add supporting evidence.',
+    'Add the strongest objection or counterposition.',
+    'Complete a stress test.',
+    'Revise, keep, challenge, or abandon the position with a note.',
+  ];
+  if (questType === 'writing output') return [
+    'Choose the claim, question, or concept the work expresses.',
+    'Build an argument skeleton.',
+    'Draft the first complete version.',
+    'Run a coherence review.',
+    'Publish, archive, or revise with a reflection on what changed.',
+  ];
+  if (questType === 'practice completion') return [
+    'Choose the idea or position being tested.',
+    'Define the hypothesis and observation method.',
+    'Perform the practice long enough to gather evidence.',
+    'Complete a theory-versus-reality review.',
+    'Update the linked position, inquiry, or unknown.',
+  ];
+  if (questType === 'reflection cadence') return [
+    'Choose a review rhythm.',
+    'Collect the meaningful changes from the period.',
+    'Name what remains unclear.',
+    'Decide whether priorities should change.',
+    'Record a review note.',
+  ];
+  return [
+    'Name the desired change.',
+    'Define evidence of progress.',
+    'Create the first concrete step.',
+    'Review what changed.',
+    'Transform, continue, complete, or abandon the quest.',
+  ];
+}
+
 export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   const [draft, setDraft] = useState<GoalSettings>(goal);
   const [saving, setSaving] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'active' | 'completed' | 'archived' | 'all'>('active');
+  const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -248,6 +309,30 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
     }));
   };
 
+  const updateMilestone = (goalId: string, index: number, value: string) => {
+    const target = goals.find((item) => item.id === goalId);
+    if (!target) return;
+    const milestones = [...(target.milestones || [])];
+    milestones[index] = value;
+    updateGoal(goalId, { milestones });
+  };
+
+  const adoptQuestPath = (item: GoalItem & { type?: GoalType }) => {
+    updateGoal(item.id, { milestones: defaultQuestMilestones(item, item.type) });
+    toast({ title: 'Quest path added', description: 'Milestones now define how this goal becomes intellectual development.' });
+  };
+
+  const addGoalReview = (item: GoalItem) => {
+    const text = reviewDrafts[item.id]?.trim();
+    if (!text) return;
+    updateGoal(item.id, {
+      reviewNotes: [...(item.reviewNotes || []), `${today()}: ${text}`],
+      lastReviewAt: today(),
+    });
+    setReviewDrafts((prev) => ({ ...prev, [item.id]: '' }));
+    toast({ title: 'Goal review recorded', description: 'The review now shows what changed, what remains unclear, and whether the path still fits.' });
+  };
+
   const saveGoals = async () => {
     const trimmedLabel = draft.label.trim();
     if (!trimmedLabel) {
@@ -395,6 +480,78 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                     <div className="mt-3 rounded-xl border border-border/50 bg-card p-3 text-[12px] italic text-muted-foreground">
                       <span className="font-code text-[8px] uppercase tracking-widest not-italic text-muted-foreground/70">Next review cue: </span>
                       {questNextStep(row, row.type)}
+                    </div>
+                    <div className="mt-3 rounded-xl border border-border/50 bg-card p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Quest Path</div>
+                          <p className="mt-1 text-xs italic text-muted-foreground">Milestones should describe transformation, not just task completion.</p>
+                        </div>
+                        {!(row.milestones || []).length && (
+                          <Button variant="outline" size="sm" onClick={() => adoptQuestPath(row)} className="h-8 rounded-full bg-background">
+                            Adopt Path
+                          </Button>
+                        )}
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {((row.milestones || []).length ? row.milestones || [] : defaultQuestMilestones(row, row.type)).map((milestone, index) => (
+                          <div key={`${row.id}:milestone:${index}`} className="grid gap-2 sm:grid-cols-[24px_1fr]">
+                            <div className={cn(
+                              'mt-2 flex size-6 items-center justify-center rounded-full border font-code text-[9px] font-bold',
+                              (row.currentProgress || 0) > index ? 'border-accent bg-accent text-white' : 'border-border bg-background text-muted-foreground'
+                            )}>
+                              {index + 1}
+                            </div>
+                            {(row.milestones || []).length ? (
+                              <Input
+                                value={milestone}
+                                onChange={(event) => updateMilestone(row.id, index, event.target.value)}
+                                className="h-9 rounded-full text-xs italic"
+                              />
+                            ) : (
+                              <div className="rounded-xl border border-border/40 bg-background px-3 py-2 text-xs italic leading-5 text-muted-foreground">
+                                {milestone}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-3 rounded-xl border border-border/50 bg-card p-3">
+                      <div className="font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Goal Review</div>
+                      <div className="mt-2 grid gap-2 md:grid-cols-2">
+                        <div className="rounded-xl border border-border/40 bg-background p-3 text-xs leading-5 text-muted-foreground">
+                          <p><span className="font-semibold text-foreground">Ask:</span> what progress occurred?</p>
+                          <p><span className="font-semibold text-foreground">Ask:</span> what changed?</p>
+                          <p><span className="font-semibold text-foreground">Ask:</span> what remains unclear?</p>
+                          <p><span className="font-semibold text-foreground">Ask:</span> should the path change?</p>
+                        </div>
+                        <div>
+                          <Textarea
+                            value={reviewDrafts[row.id] || ''}
+                            onChange={(event) => setReviewDrafts((prev) => ({ ...prev, [row.id]: event.target.value }))}
+                            className="min-h-24 text-xs italic"
+                            placeholder="Write the review: progress, change, remaining uncertainty, and whether this quest should continue or transform."
+                          />
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+                              {row.lastReviewAt ? `Last reviewed ${new Date(row.lastReviewAt).toLocaleDateString()}` : 'No review yet'}
+                            </span>
+                            <Button size="sm" onClick={() => addGoalReview(row)} className="h-8 rounded-full">
+                              Save Review
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      {!!row.reviewNotes?.length && (
+                        <div className="mt-3 space-y-2 border-t border-border/40 pt-3">
+                          {row.reviewNotes.slice(-2).map((note) => (
+                            <div key={note} className="rounded-xl border border-border/40 bg-background px-3 py-2 text-xs italic leading-5 text-muted-foreground">
+                              {note}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <Select value={row.typeId} onValueChange={(value) => updateGoal(row.id, { typeId: value })}>

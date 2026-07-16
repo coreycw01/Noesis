@@ -71,6 +71,11 @@ const TYPE_LABELS: Record<VaultType, string> = {
 };
 
 type PositionViewFilter = 'all' | 'current' | 'emerging' | 'under_review' | 'revised' | 'abandoned' | 'tensions' | 'unsupported' | 'recently_changed';
+type StressStage = {
+  title: string;
+  prompt: string;
+  signal: string;
+};
 
 const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
   all: 'All',
@@ -128,6 +133,85 @@ function positionListReason(entry: VaultEntry, links: PhilosophicalLink[], viewF
   return 'Current belief-workbench item: support, challenge, express, or test it.';
 }
 
+function buildStressStages({
+  selected,
+  assumptions,
+  strongestSupport,
+  strongestObjection,
+  counterposition,
+  linkedSources,
+  linkedPractices,
+}: {
+  selected: VaultEntry;
+  assumptions: string[];
+  strongestSupport: string;
+  strongestObjection: string;
+  counterposition: string;
+  linkedSources: Media[];
+  linkedPractices: Practice[];
+}): StressStage[] {
+  const claim = selected.statement || selected.description || selected.title;
+  const sourceSignal = linkedSources.length
+    ? `${linkedSources.length} source(s) currently support or contextualize this claim.`
+    : 'No source evidence is linked yet.';
+  const practiceSignal = linkedPractices.length
+    ? `${linkedPractices.length} practice(s) currently test this position.`
+    : 'No lived test is linked yet.';
+
+  return [
+    {
+      title: 'Clarify the claim',
+      prompt: `Restate this position in one precise sentence: "${claim}"`,
+      signal: 'A position cannot be tested until its exact claim is clear.',
+    },
+    {
+      title: 'State strongest version',
+      prompt: 'What is the fairest, strongest version of this claim before anyone attacks it?',
+      signal: strongestSupport,
+    },
+    {
+      title: 'Identify assumptions',
+      prompt: `Which assumption is most load-bearing: ${assumptions.join(' ')}`,
+      signal: assumptions[0] || 'No assumptions have been derived yet.',
+    },
+    {
+      title: 'Present strongest objection',
+      prompt: 'What is the strongest objection from someone intelligent who rejects this?',
+      signal: strongestObjection,
+    },
+    {
+      title: 'Consider counterexample',
+      prompt: 'Name one concrete case where this position may fail, become too narrow, or mislead action.',
+      signal: counterposition,
+    },
+    {
+      title: 'Compare alternative explanation',
+      prompt: 'What alternative explanation could account for the same evidence without accepting this position?',
+      signal: sourceSignal,
+    },
+    {
+      title: 'Identify missing evidence',
+      prompt: 'What evidence would make this position meaningfully stronger or meaningfully weaker?',
+      signal: sourceSignal,
+    },
+    {
+      title: 'Define falsification condition',
+      prompt: 'What would need to happen for you to reduce confidence or abandon this position?',
+      signal: `Current confidence: ${selected.confidence || 3}/5.`,
+    },
+    {
+      title: 'Examine practical consequences',
+      prompt: 'If you lived as if this were true for a week, what would change in behavior?',
+      signal: practiceSignal,
+    },
+    {
+      title: 'Decide outcome',
+      prompt: 'After this pressure test, should the position stay active, be revised, be challenged, or be abandoned?',
+      signal: `Current status: ${selected.status || 'active'}.`,
+    },
+  ];
+}
+
 export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, suggestions, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onCreateIdea, onAddUnknown, onUpdateSuggestion, onCreateSuggestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled, onOpenEntryRoute }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -149,6 +233,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const [isGenerating, setIsGenerating] = useState(false);
   const [stressTests, setStressTests] = useState<Array<{ kind: string; question: string }>>([]);
   const [stressAnswer, setStressAnswer] = useState('');
+  const [stressStageIndex, setStressStageIndex] = useState(0);
 
   const openIdeaDialog = () => {
     setIdeaDraft({ title: '', body: '' });
@@ -355,6 +440,16 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       linkedDrafts.length ? `${linkedDrafts.length} work(s) express this position.` : 'No essay, note, script, or work expresses this position yet.',
       selected.status === 'revised' ? 'This position has already changed and should preserve its revision path.' : 'If pressure changes the claim, mark a revision instead of silently editing it.',
     ];
+    const stressStages = buildStressStages({
+      selected,
+      assumptions: positionAssumptions,
+      strongestSupport,
+      strongestObjection,
+      counterposition,
+      linkedSources,
+      linkedPractices,
+    });
+    const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
     const reviewTabs: Array<{ id: 'overview' | 'evidence' | 'relations' | 'history'; label: string }> = [
       { id: 'overview', label: 'Overview' },
       { id: 'evidence', label: 'Evidence' },
@@ -442,12 +537,13 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
     const saveStressAnswer = () => {
       if (!stressAnswer.trim()) return;
+      const stageTitle = selectedStressStage?.title || 'Stress test';
       onUpdateEntry({
         ...selected,
         testingCount: (selected.testingCount || 0) + 1,
         versionHistory: [
           ...(selected.versionHistory || []),
-          { date: today(), eventType: 'challenged', description: `Stress test answered: ${stressAnswer.trim()}` },
+          { date: today(), eventType: 'challenged', description: `Stress test answered (${stageTitle}): ${stressAnswer.trim()}` },
         ],
         dateUpdated: today(),
       });
@@ -680,6 +776,96 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 </div>
               </Card>
             </div>
+
+            <Card className="mb-6 rounded-xl border-border/50 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Stress-Test Mode</div>
+                  <h3 className="mt-1 font-headline text-2xl font-bold italic">Pressure-test the claim before revising it</h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                    Move through the stages in order. AI may suggest pressure, but the user decides whether this position survives, weakens, changes, or should be abandoned.
+                  </p>
+                </div>
+                <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                  Stage {Math.min(stressStageIndex + 1, stressStages.length)} / {stressStages.length}
+                </Badge>
+              </div>
+
+              <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                {stressStages.map((stage, index) => (
+                  <button
+                    key={stage.title}
+                    type="button"
+                    onClick={() => setStressStageIndex(index)}
+                    className={cn(
+                      'rounded-xl border p-3 text-left transition-colors',
+                      stressStageIndex === index
+                        ? 'border-accent bg-accent/10 text-foreground shadow-sm'
+                        : 'border-border/60 bg-muted/10 text-muted-foreground hover:border-accent/50 hover:bg-accent/5'
+                    )}
+                  >
+                    <div className="font-code text-[8px] uppercase tracking-[0.18em]">Step {index + 1}</div>
+                    <div className="mt-1 text-sm font-semibold">{stage.title}</div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
+                  <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Current Prompt</div>
+                  <p className="mt-2 text-base font-medium leading-7 text-foreground">{selectedStressStage.prompt}</p>
+                  <div className="mt-4 rounded-lg border border-border/50 bg-card p-3">
+                    <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Existing Signal</div>
+                    <p className="mt-1 text-sm italic leading-6 text-muted-foreground">{selectedStressStage.signal}</p>
+                  </div>
+                  {stressStageIndex === stressStages.length - 1 && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full"
+                        onClick={() => onUpdateEntry({ ...selected, status: 'challenged', dateUpdated: today() })}
+                      >
+                        Mark Challenged
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full"
+                        onClick={() => onUpdateEntry({
+                          ...selected,
+                          status: 'revised',
+                          versionHistory: [
+                            ...(selected.versionHistory || []),
+                            { date: today(), eventType: 'revised', description: 'Marked revised after stress-test outcome review.' },
+                          ],
+                          dateUpdated: today(),
+                        })}
+                      >
+                        Mark Revised
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-border/60 bg-card p-4">
+                  <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">
+                    Answer this stage
+                  </Label>
+                  <Textarea
+                    value={stressAnswer}
+                    onChange={(event) => setStressAnswer(event.target.value)}
+                    className="mt-2 min-h-[150px]"
+                    placeholder="Record the pressure, the evidence that would matter, and what this should do to confidence or wording."
+                  />
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs italic text-muted-foreground">
+                      Saved answers are added to the belief biography as a challenge event.
+                    </p>
+                    <Button size="sm" className="rounded-full" onClick={saveStressAnswer}>Record Stage Answer</Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
 
             <div className="mb-6">
               <NextPhilosophicalActionPanel

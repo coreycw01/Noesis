@@ -38,6 +38,7 @@ export type AiSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'ignored'
 export type ThinkingEventType = 'created' | 'edited' | 'revised' | 'challenged' | 'supported' | 'abandoned' | 'resolved' | 'linked' | 'unlinked' | 'link_removed' | 'tested' | 'synthesized' | 'confidence_changed' | 'evidence_added' | 'evidence_removed' | 'contradiction_detected' | 'contradiction_resolved' | 'unknown_created' | 'unknown_resolved' | 'question_created' | 'question_resolved' | 'position_formed' | 'practice_created' | 'source_distilled' | 'annotation_created' | 'ai_suggestion_generated' | 'ai_suggestion_accepted' | 'ai_suggestion_rejected' | 'position_created' | 'position_revised' | 'position_replaced' | 'position_abandoned' | 'question_promoted' | 'link_created' | 'suggestion_created' | 'suggestion_accepted' | 'suggestion_dismissed' | 'thinking_pattern_inferred' | 'thinking_pattern_acknowledged' | 'thinking_pattern_dismissed' | 'stress_test_generated' | 'stress_test_answered' | 'assumption_added' | 'assumption_challenged' | 'challenge_added';
 export type ThinkingPatternType = 'evidence_style' | 'reasoning_style' | 'questioning_style' | 'source_bias' | 'conceptual_gap' | 'revision_pattern' | 'contradiction_pattern' | 'certainty_pattern';
 export type ThinkingPatternStatus = 'pending' | 'acknowledged' | 'dismissed' | 'outdated';
+export type ThinkingPatternUserResponse = 'confirmed' | 'partially_agree' | 'rejected' | 'needs_more_evidence' | 'alternative_explanation' | 'outdated';
 export type UnknownStatus = 'active' | 'exploring' | 'resolved' | 'archived';
 export type UnknownImportance = 'low' | 'medium' | 'high';
 export type BeliefProfileReviewStatus = 'current' | 'needs_review' | 'outdated' | 'abandoned';
@@ -422,6 +423,9 @@ export interface ThinkingPattern {
   timespan: string;
   trendDirection: 'increasing' | 'decreasing' | 'stable' | 'unclear';
   status: ThinkingPatternStatus;
+  userResponse?: ThinkingPatternUserResponse;
+  userResponseNote?: string;
+  userRespondedAt?: string;
   createdFrom: 'ai' | 'system';
   dateCreated: string;
   dateUpdated: string;
@@ -480,6 +484,8 @@ export interface GoalItem {
   milestones?: string[];
   obstacles?: string;
   reviewCadence?: 'weekly' | 'monthly' | 'seasonal' | 'custom';
+  reviewNotes?: string[];
+  lastReviewAt?: string;
   linkedObjectLabels?: string[];
   createdAt: string;
   updatedAt: string;

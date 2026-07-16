@@ -34,6 +34,7 @@ type EvolutionFilter =
 type DisplayEvent = {
   id: string;
   kind: 'thinking' | 'timeline' | 'unknown' | 'pattern';
+  targetType: string;
   title: string;
   detail: string;
   date: string;
@@ -146,16 +147,34 @@ function displayEventMeaning(event: DisplayEvent) {
   return { turningPoint, trigger, significance };
 }
 
+function dateInputValue(value?: string) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
+  return date.toISOString().slice(0, 10);
+}
+
+function eventTime(value: string) {
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function targetTypeMatches(event: DisplayEvent, types: string[]) {
+  const target = event.targetType.toLowerCase();
+  return types.some((type) => target === type || target.includes(type));
+}
+
 export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thinkingPatterns, metrics }: EvolutionTimelineProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
   const [pageSize, setPageSize] = useState<5 | 10>(5);
   const [page, setPage] = useState(0);
+  const [scrubberDate, setScrubberDate] = useState(() => dateInputValue(new Date().toISOString()));
 
   const displayEvents = useMemo<DisplayEvent[]>(() => {
     const fromThinking = thinkingEvents.map((event) => ({
       id: event.eventId,
       kind: 'thinking' as const,
+      targetType: event.targetType,
       title: event.summary,
       detail: typeof event.metadata === 'object' && event.metadata ? JSON.stringify(event.metadata) : `${event.targetType} · ${event.sourceType}`,
       date: event.createdAt,
@@ -168,6 +187,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
     const fromTimeline = events.map((event) => ({
       id: event.id,
       kind: 'timeline' as const,
+      targetType: event.entityType,
       title: event.entityTitle,
       detail: event.reason,
       date: event.date,
@@ -179,6 +199,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
     const fromUnknowns = unknowns.map((item) => ({
       id: item.unknownId,
       kind: 'unknown' as const,
+      targetType: 'unknown',
       title: item.title,
       detail: item.resolutionSummary || item.description || 'Unknown recorded in the system.',
       date: item.resolvedAt || item.dateUpdated || item.dateCreated,
@@ -190,6 +211,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
     const fromPatterns = thinkingPatterns.map((pattern) => ({
       id: pattern.patternId,
       kind: 'pattern' as const,
+      targetType: 'thinking_pattern',
       title: pattern.label,
       detail: pattern.description,
       date: pattern.dateUpdated || pattern.dateCreated,
@@ -210,6 +232,34 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
       return filterOk && queryOk;
     });
   }, [displayEvents, filter, search]);
+  const scrubberSummary = useMemo(() => {
+    const selectedEnd = new Date(`${scrubberDate}T23:59:59`).getTime();
+    const throughDate = displayEvents.filter((event) => eventTime(event.date) <= selectedEnd);
+    const afterDate = displayEvents.filter((event) => eventTime(event.date) > selectedEnd);
+    const activePositionEvents = throughDate.filter((event) =>
+      targetTypeMatches(event, ['position', 'vault']) &&
+      !event.chips.join(' ').toLowerCase().includes('abandoned') &&
+      !event.chips.join(' ').toLowerCase().includes('replaced')
+    );
+    const conceptEvents = throughDate.filter((event) => targetTypeMatches(event, ['concept']));
+    const inquiryEvents = throughDate.filter((event) =>
+      targetTypeMatches(event, ['question', 'inquiry']) &&
+      !event.chips.join(' ').toLowerCase().includes('resolved')
+    );
+    const atlasEvents = throughDate.filter((event) =>
+      targetTypeMatches(event, ['link', 'relationship', 'pattern', 'unknown']) ||
+      ['links', 'contradictions', 'patterns', 'unknowns'].includes(event.filter)
+    );
+    return {
+      throughDate,
+      afterDate,
+      activePositionEvents,
+      conceptEvents,
+      inquiryEvents,
+      atlasEvents,
+      currentDifferences: afterDate.slice(0, 4),
+    };
+  }, [displayEvents, scrubberDate]);
 
   useEffect(() => {
     setPage(0);
@@ -251,6 +301,67 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
         <MetricCard label="Contradictions Resolved" value={metrics.contradictionsResolved} />
         <MetricCard label="Unknowns Resolved" value={metrics.unknownsResolved} />
         <MetricCard label="Stress Tests Answered" value={metrics.positionsStressTested} />
+      </div>
+
+      <div className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Time Scrubber</div>
+            <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Recorded thought at a selected date</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              This is a recorded-state reconstruction from thinking events, unknowns, patterns, and timeline entries. It reflects what Noesis has evidence for, not everything you may have thought.
+            </p>
+          </div>
+          <input
+            type="date"
+            value={scrubberDate}
+            onChange={(event) => setScrubberDate(event.target.value)}
+            className="h-10 rounded-full border border-border/60 bg-background px-4 font-code text-[10px] uppercase tracking-widest text-foreground shadow-sm"
+          />
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ScrubberCard
+            label="Active Positions Then"
+            value={scrubberSummary.activePositionEvents.length}
+            items={scrubberSummary.activePositionEvents.slice(0, 3).map((event) => event.title)}
+            empty="No position events recorded by this date."
+          />
+          <ScrubberCard
+            label="Concept Definitions Then"
+            value={scrubberSummary.conceptEvents.length}
+            items={scrubberSummary.conceptEvents.slice(0, 3).map((event) => event.title)}
+            empty="No concept changes recorded by this date."
+          />
+          <ScrubberCard
+            label="Unresolved Inquiries Then"
+            value={scrubberSummary.inquiryEvents.length}
+            items={scrubberSummary.inquiryEvents.slice(0, 3).map((event) => event.title)}
+            empty="No inquiry events recorded by this date."
+          />
+          <ScrubberCard
+            label="Atlas Structure Then"
+            value={scrubberSummary.atlasEvents.length}
+            items={scrubberSummary.atlasEvents.slice(0, 3).map((event) => event.title)}
+            empty="No relationship, unknown, or pattern events yet."
+          />
+        </div>
+
+        <div className="mt-4 rounded-xl border border-border/50 bg-muted/10 p-4">
+          <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Current Differences Since Then</div>
+          {scrubberSummary.currentDifferences.length ? (
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {scrubberSummary.currentDifferences.map((event) => (
+                <div key={event.id} className="rounded-xl border border-border/50 bg-background px-3 py-2">
+                  <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">{event.targetType.replace(/_/g, ' ')}</div>
+                  <p className="mt-1 text-sm font-medium text-foreground">{event.title}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm italic text-muted-foreground">No later recorded changes. Move the date earlier to compare against newer events.</p>
+          )}
+        </div>
       </div>
 
       <FilterToolbar
@@ -398,6 +509,28 @@ function MetricCard({ label, value }: { label: string; value: number }) {
     <div className="rounded-xl border border-border/50 bg-white p-4 shadow-sm">
       <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
       <div className="mt-2 font-headline text-3xl font-bold italic text-primary">{value}</div>
+    </div>
+  );
+}
+
+function ScrubberCard({ label, value, items, empty }: { label: string; value: number; items: string[]; empty: string }) {
+  return (
+    <div className="rounded-xl border border-border/50 bg-background p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+        <div className="font-headline text-2xl font-bold italic text-primary">{value}</div>
+      </div>
+      {items.length ? (
+        <div className="mt-3 space-y-2">
+          {items.map((item) => (
+            <div key={item} className="line-clamp-2 rounded-lg border border-border/40 bg-muted/10 px-3 py-2 text-sm italic leading-5 text-muted-foreground">
+              {item}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-sm italic leading-6 text-muted-foreground">{empty}</p>
+      )}
     </div>
   );
 }
