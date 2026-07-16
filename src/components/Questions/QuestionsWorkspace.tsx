@@ -39,17 +39,34 @@ interface QuestionsWorkspaceProps {
   onOpenQuestionRoute?: (id: string | null) => void;
 }
 
-type FilterType = 'all' | 'open' | 'investigating' | 'stalled' | 'partially_answered' | 'resolved' | 'annotations';
+type FilterType = 'all' | 'active' | 'awaiting_evidence' | 'comparing_answers' | 'enduring' | 'partially_answered' | 'suspended' | 'resolved' | 'annotations';
 
 const INQUIRY_FILTER_LABELS: Record<FilterType, string> = {
   all: 'All',
-  open: 'Open',
-  investigating: 'Investigating',
-  stalled: 'Stalled',
+  active: 'Active Investigations',
+  awaiting_evidence: 'Awaiting Evidence',
+  comparing_answers: 'Comparing Answers',
+  enduring: 'Enduring Questions',
   partially_answered: 'Partially Answered',
+  suspended: 'Suspended',
   resolved: 'Resolved',
   annotations: 'From Annotations',
 };
+
+const RESOLUTION_OPTIONS: Array<{ status: Question['status']; label: string; description: string }> = [
+  { status: 'provisionally_answered', label: 'Provisionally Answered', description: 'The answer is useful, but still open to revision.' },
+  { status: 'suspended', label: 'Suspend', description: 'Not enough evidence or attention to proceed right now.' },
+  { status: 'enduring', label: 'Enduring Question', description: 'Keep this alive as a long-term question rather than closing it.' },
+  { status: 'converted', label: 'Converted', description: 'The inquiry has become a position, work, or another object.' },
+  { status: 'no_longer_meaningful', label: 'No Longer Meaningful', description: 'The question no longer frames the issue well.' },
+  { status: 'resolved', label: 'Resolved', description: 'A resolution summary exists and the current investigation can close.' },
+];
+
+const CLOSED_INQUIRY_STATUSES = new Set<Question['status']>(['answered', 'resolved', 'archived', 'converted', 'no_longer_meaningful']);
+
+function isInquiryClosed(question: Question) {
+  return CLOSED_INQUIRY_STATUSES.has(question.status) || (!!question.answer && question.status === 'resolved');
+}
 
 export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onAddVaultEntry, onAddDraft, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
@@ -70,11 +87,13 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
   }, [focusedQuestionId, onFocusedQuestionHandled]);
   const filtered = all.filter((question) => {
     let typeOk = true;
-    if (filter === 'open') typeOk = question.status === 'open' || (!question.answer && !['resolved', 'answered', 'archived'].includes(question.status));
-    if (filter === 'investigating') typeOk = question.status === 'investigating' || question.status === 'gathering_evidence';
-    if (filter === 'stalled') typeOk = question.status === 'under_tension' || question.status === 'reopened';
-    if (filter === 'partially_answered') typeOk = question.status === 'partially_answered';
-    if (filter === 'resolved') typeOk = question.status === 'resolved' || question.status === 'answered' || !!question.answer;
+    if (filter === 'active') typeOk = ['captured', 'clarifying', 'open', 'investigating', 'reopened', 'under_tension'].includes(question.status) || (!question.answer && !isInquiryClosed(question));
+    if (filter === 'awaiting_evidence') typeOk = question.status === 'gathering_evidence' || ((question.sourceIds || question.evidenceIds || []).length === 0 && !isInquiryClosed(question));
+    if (filter === 'comparing_answers') typeOk = question.status === 'comparing_answers' || (question.candidateAnswers || []).length > 1;
+    if (filter === 'enduring') typeOk = question.status === 'enduring';
+    if (filter === 'partially_answered') typeOk = question.status === 'partially_answered' || question.status === 'provisionally_answered';
+    if (filter === 'suspended') typeOk = question.status === 'suspended' || question.status === 'archived';
+    if (filter === 'resolved') typeOk = isInquiryClosed(question) || question.status === 'provisionally_answered';
     if (filter === 'annotations') typeOk = question.type === 'annotation';
     return typeOk && (!search || question.text.toLowerCase().includes(search.toLowerCase()) || (question.answer || '').toLowerCase().includes(search.toLowerCase()));
   });
@@ -92,7 +111,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
 
   const createQuestion = () => {
     if (!newQuestion.text.trim()) return;
-    const created = onAddQuestion({ text: newQuestion.text.trim(), status: 'open', sourceIds: newQuestion.sourceIds, evidenceIds: newQuestion.sourceIds });
+    const created = onAddQuestion({ text: newQuestion.text.trim(), status: 'captured', sourceIds: newQuestion.sourceIds, evidenceIds: newQuestion.sourceIds });
     setNewQuestion({ text: '', sourceIds: [] });
     setIsAddOpen(false);
     openQuestion(created.id);
@@ -127,10 +146,10 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
     );
   }
 
-  const answered = all.filter((q) => !!q.answer).length;
-  const openCount = all.filter((q) => q.status === 'open' || (!q.answer && !['resolved', 'answered', 'archived'].includes(q.status))).length;
-  const investigatingCount = all.filter((q) => q.status === 'investigating' || q.status === 'gathering_evidence').length;
-  const stalledCount = all.filter((q) => q.status === 'under_tension' || q.status === 'reopened').length;
+  const answered = all.filter((q) => !!q.answer || q.status === 'provisionally_answered').length;
+  const openCount = all.filter((q) => ['captured', 'clarifying', 'open', 'investigating', 'reopened', 'under_tension'].includes(q.status) || (!q.answer && !isInquiryClosed(q))).length;
+  const investigatingCount = all.filter((q) => q.status === 'investigating' || q.status === 'gathering_evidence' || q.status === 'comparing_answers').length;
+  const stalledCount = all.filter((q) => q.status === 'suspended' || q.status === 'enduring' || q.status === 'under_tension' || q.status === 'reopened').length;
   const linkedDraftCount = drafts.filter(d => (d.questionIds || []).length > 0).length;
   const clearInquiryFilters = () => {
     setSearch('');
@@ -202,9 +221,9 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
                   </Badge>
                   <span className={cn(
                     "font-code text-[8px] font-bold uppercase tracking-widest",
-                    question.answer || ['answered', 'resolved'].includes(question.status) ? "text-emerald-600/60" : "text-accent/60"
+                    isInquiryClosed(question) || question.status === 'provisionally_answered' ? "text-emerald-600/60" : "text-accent/60"
                   )}>
-                    {question.answer || ['answered', 'resolved'].includes(question.status) ? 'RESOLVED' : question.status.replace(/_/g, ' ')}
+                    {question.status.replace(/_/g, ' ')}
                   </span>
                   {(question.beliefIds || []).length > 0 && (
                     <span className="font-code text-[8px] font-bold uppercase tracking-widest text-emerald-600/80">· POSITION FORMED</span>
@@ -260,11 +279,11 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
                     onClick: () => openQuestion(question.id),
                   },
                   {
-                    label: 'Mark Resolved',
-                    disabled: !!question.answer,
+                    label: question.answer ? 'Review Resolution' : 'Write Answer',
+                    disabled: question.id.startsWith('open:') || question.id.startsWith('annotation:'),
                     onClick: () => {
                       if (!question.id.startsWith('open:') && !question.id.startsWith('annotation:')) {
-                        onUpdateQuestion({ ...question, status: 'resolved', answer: question.answer || 'Resolved from current evidence.', dateUpdated: today() } as Question);
+                        onUpdateQuestion({ ...question, status: question.answer ? 'provisionally_answered' : 'partially_answered', dateUpdated: today() });
                       }
                     },
                   },
@@ -442,23 +461,24 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
     question.answer ? 'The provisional answer is worth stress-testing instead of only expanding.' : 'Progress requires a first answer, even if it is rough.',
   ];
 
-  const saveProvisionalAnswer = (status: Question['status'] = 'partially_answered') => {
+  const saveProvisionalAnswer = (status: Question['status'] = 'provisionally_answered') => {
     if (!initialAnswer.trim()) {
       onAiFeedback('Answer required', 'Write a provisional answer before saving this inquiry.', 'destructive');
       return;
     }
-    if (status === 'resolved' && !investigationDraft.resolutionSummary.trim()) {
-      onAiFeedback('Resolution summary required', 'Add a short resolution summary before closing this inquiry.', 'destructive');
+    const requiresSummary = ['resolved', 'suspended', 'converted', 'no_longer_meaningful'].includes(status);
+    if (requiresSummary && !investigationDraft.resolutionSummary.trim()) {
+      onAiFeedback('Resolution summary required', 'Add a short resolution summary before choosing this inquiry outcome.', 'destructive');
       return;
     }
     onUpdateQuestion({
       ...question,
       answer: initialAnswer.trim(),
       status,
-      resolutionSummary: status === 'resolved' ? investigationDraft.resolutionSummary.trim() : question.resolutionSummary || '',
+      resolutionSummary: requiresSummary || investigationDraft.resolutionSummary.trim() ? investigationDraft.resolutionSummary.trim() : question.resolutionSummary || '',
       dateUpdated: today(),
     });
-    onAiFeedback(status === 'resolved' ? 'Inquiry resolved.' : 'Provisional answer saved.', status === 'resolved' ? 'The resolution summary is now stored on this inquiry.' : 'You can keep gathering evidence or form a position later.');
+    onAiFeedback(status === 'resolved' ? 'Inquiry resolved.' : 'Inquiry outcome saved.', status === 'resolved' ? 'The resolution summary is now stored on this inquiry.' : `Marked as ${status.replace(/_/g, ' ')} without pretending the question is fully closed.`);
   };
 
   const saveInvestigationFrame = () => {
@@ -801,20 +821,12 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
               {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex flex-wrap gap-3">
                 <Button
-                  onClick={() => saveProvisionalAnswer('partially_answered')}
+                  onClick={() => saveProvisionalAnswer('provisionally_answered')}
                   disabled={!initialAnswer.trim()}
                   variant="outline"
                   className="h-12 rounded-full px-6 font-bold"
                 >
                   Save Provisional Answer
-                </Button>
-                <Button
-                  onClick={() => saveProvisionalAnswer('resolved')}
-                  disabled={!initialAnswer.trim()}
-                  variant="outline"
-                  className="h-12 rounded-full px-6 font-bold"
-                >
-                  Resolve Inquiry
                 </Button>
                 <Button
                   onClick={startDialogue}
@@ -824,6 +836,34 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                   {isLoading ? <Loader2 className="size-4 mr-2 animate-spin" /> : <MessageCircle className="size-4 mr-2" />}
                   BEGIN DIALOGUE
                 </Button>
+              </div>
+
+              <div className="rounded-2xl border border-border/50 bg-background/70 p-4">
+                <div className="mb-3">
+                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">Resolution Options</div>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    Avoid a false binary. Choose the outcome that honestly describes this investigation.
+                  </p>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {RESOLUTION_OPTIONS.map((option) => (
+                    <button
+                      key={option.status}
+                      type="button"
+                      onClick={() => saveProvisionalAnswer(option.status)}
+                      disabled={!initialAnswer.trim()}
+                      className={cn(
+                        'rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                        question.status === option.status
+                          ? 'border-accent bg-accent/10'
+                          : 'border-border bg-card hover:border-accent/40 hover:bg-accent/5'
+                      )}
+                    >
+                      <div className="font-code text-[9px] uppercase tracking-widest text-foreground/70 font-bold">{option.label}</div>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
             </Card>
           )}
@@ -946,7 +986,10 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
             <Badge variant="outline" className="mb-4 rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{question.status.replace(/_/g, ' ')}</Badge>
             <div className="grid gap-2">
               <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('gathering_evidence')} className="justify-start rounded-full">Gathering evidence</Button>
+              <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('comparing_answers')} className="justify-start rounded-full">Comparing answers</Button>
               <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('under_tension')} className="justify-start rounded-full">Under tension</Button>
+              <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('suspended')} className="justify-start rounded-full">Suspend</Button>
+              <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('enduring')} className="justify-start rounded-full">Enduring question</Button>
               <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('reopened')} className="justify-start rounded-full">Reopen</Button>
             </div>
           </Card>

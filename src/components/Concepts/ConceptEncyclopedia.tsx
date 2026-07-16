@@ -37,7 +37,7 @@ interface ConceptEncyclopediaProps {
   onCreateLink?: (data: Partial<PhilosophicalLink>, options?: { creationMethod?: string }) => void;
 }
 
-type ConceptListView = 'all' | 'recent' | 'connected' | 'undefined' | 'contested' | 'transformed' | 'neglected';
+type ConceptListView = 'all' | 'recent' | 'connected' | 'undefined' | 'contested' | 'duplicates' | 'transformed' | 'neglected';
 
 type ConceptListRow = {
   name: string;
@@ -47,6 +47,7 @@ type ConceptListRow = {
   connectionCount: number;
   lastActiveAt: number;
   why: string;
+  possibleDuplicates: string[];
 };
 
 type BoundaryAnswer = 'inside' | 'outside' | 'depends';
@@ -59,6 +60,7 @@ const CONCEPT_LIST_VIEWS: Array<{ id: ConceptListView; label: string; descriptio
   { id: 'connected', label: 'Most Connected', description: 'Concepts carrying the most sources, positions, works, or practices.' },
   { id: 'undefined', label: 'Undefined', description: 'Concepts that need a working definition or boundary.' },
   { id: 'contested', label: 'Contested', description: 'Concepts under tension, challenge, or contradictory usage.' },
+  { id: 'duplicates', label: 'Possible Duplicates', description: 'Concepts whose names, aliases, or boundaries overlap and may need distinction or merge review.' },
   { id: 'transformed', label: 'Transformed', description: 'Concepts whose meaning has changed or stabilized through revision.' },
   { id: 'neglected', label: 'Neglected', description: 'Concepts with meaningful links but little recent movement.' },
 ];
@@ -81,6 +83,33 @@ function conceptActivityDate(concept: Concept | undefined, events: TimelineEvent
     dateValue(concept?.dateUpdated || concept?.dateCreated),
     ...events.map((event) => dateValue(event.date))
   );
+}
+
+function conceptFingerprint(concept: Concept | undefined, name: string) {
+  return Array.from(new Set([
+    name,
+    ...(concept?.aliases || []),
+    ...(concept?.notSameAs || []),
+  ]
+    .flatMap((value) => conceptKey(value).toLowerCase().split(/\s+/))
+    .filter((token) => token.length > 3)));
+}
+
+function possibleDuplicateConcepts(concept: Concept | undefined, name: string, concepts: Concept[]) {
+  const ownTerms = new Set(conceptFingerprint(concept, name));
+  if (!ownTerms.size) return [];
+  return concepts
+    .filter((candidate) => candidate.id !== concept?.id)
+    .map((candidate) => {
+      const candidateTerms = conceptFingerprint(candidate, candidate.name);
+      const overlap = candidateTerms.filter((term) => ownTerms.has(term)).length;
+      const aliasHit = (candidate.aliases || []).some((alias) => conceptKey(alias) === conceptKey(name)) || (concept?.aliases || []).some((alias) => conceptKey(alias) === conceptKey(candidate.name));
+      return { name: candidate.name, score: overlap + (aliasHit ? 3 : 0) };
+    })
+    .filter((candidate) => candidate.score >= 2)
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, 4)
+    .map((candidate) => candidate.name);
 }
 
 export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
@@ -132,6 +161,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       const isUndefined = !conceptDoc.description?.trim() || conceptDoc.philosophyStatus === 'undefined' || diagnosis.clarity === 'beginning';
       const isContested = conceptDoc.philosophyStatus === 'contested' || diagnosis.tension === 'high' || related.beliefs.some((entry) => entry.status === 'challenged');
       const isTransformed = related.events.some((event) => /transform|revise|definition|changed/i.test(`${event.eventType} ${event.reason || ''}`));
+      const possibleDuplicates = possibleDuplicateConcepts(conceptDoc, name, concepts);
       const searchText = `${name} ${conceptDoc.description || ''} ${(conceptDoc.aliases || []).join(' ')} ${(conceptDoc.notSameAs || []).join(' ')} ${(conceptDoc.examples || []).join(' ')} ${(conceptDoc.counterexamples || []).join(' ')} ${JSON.stringify(related)}`.toLowerCase();
       const matchesSearch = !search || searchText.includes(search.toLowerCase());
       const matchesView =
@@ -140,6 +170,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         (listView === 'connected' && connectionCount > 0) ||
         (listView === 'undefined' && isUndefined) ||
         (listView === 'contested' && isContested) ||
+        (listView === 'duplicates' && possibleDuplicates.length > 0) ||
         (listView === 'transformed' && isTransformed) ||
         (listView === 'neglected' && isNeglected);
       if (!matchesSearch || !matchesView) return null;
@@ -149,16 +180,18 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       if (listView === 'connected') why = `${connectionCount} linked object${connectionCount === 1 ? '' : 's'} depend on this concept.`;
       if (listView === 'undefined') why = 'Needs a clearer working definition or boundary test.';
       if (listView === 'contested') why = 'Shows tension, challenge, or inconsistent usage.';
+      if (listView === 'duplicates') why = `Possible overlap with ${possibleDuplicates.join(', ')}. Distinguish, alias, or merge manually.`;
       if (listView === 'transformed') why = 'Has revision or transformation signals in its history.';
       if (listView === 'neglected') why = 'Has meaningful links but little recent movement.';
 
-      return { name, concept: conceptDoc, related, diagnosis, connectionCount, lastActiveAt, why };
+      return { name, concept: conceptDoc, related, diagnosis, connectionCount, lastActiveAt, why, possibleDuplicates };
     })
     .filter((row): row is ConceptListRow => Boolean(row))
     .sort((a, b) => {
       if (listView === 'recent' || listView === 'transformed') return b.lastActiveAt - a.lastActiveAt;
       if (listView === 'connected') return b.connectionCount - a.connectionCount;
       if (listView === 'neglected') return a.lastActiveAt - b.lastActiveAt;
+      if (listView === 'duplicates') return b.possibleDuplicates.length - a.possibleDuplicates.length || a.name.localeCompare(b.name);
       return a.name.localeCompare(b.name);
     });
   }, [allTerms, search, listView, concepts, media, insights, vault, drafts, practices, questions, timeline]);
@@ -1132,7 +1165,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       <header className="flex justify-between items-center mb-10">
         <div>
           <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Concepts</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Build the encyclopedia of recurring ideas that organize your thinking.</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Build the vocabulary lab for definitions, boundaries, consistency, and conceptual drift.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -1150,6 +1183,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         <Stat value={media.length} label="Sources" sub="Input library" />
         <Stat value={allAnnotations(media).length} label="Annotations" sub="Tagged excerpts" />
         <Stat value={vault.length + drafts.length + (practices?.length || 0)} label="Outputs" sub="Positions, works, practices" />
+        <Stat value={conceptRows.filter((row) => row.possibleDuplicates.length).length} label="Overlap" sub="Potential duplicate concepts" />
       </div>
 
       <div className="mb-6 rounded-2xl border border-border/60 bg-card/70 p-4 shadow-sm">
@@ -1186,7 +1220,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {conceptRows.map(({ name, concept, related, diagnosis: diag, connectionCount, why }) => {
+        {conceptRows.map(({ name, concept, related, diagnosis: diag, connectionCount, why, possibleDuplicates }) => {
 
           return (
             <Card
@@ -1227,6 +1261,34 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
               <div className="mb-4 rounded-xl border border-border/50 bg-background/70 px-3 py-2 text-xs leading-5 text-muted-foreground">
                 <span className="font-medium text-foreground/70">Why shown:</span> {why}
+              </div>
+
+              <div className="mb-4 grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Clarity', value: diag.clarity },
+                  { label: 'Evidence', value: diag.evidence },
+                  { label: 'Tension', value: diag.tension },
+                  { label: 'Practice', value: diag.embodiment },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-lg border border-border/40 bg-background/60 px-2.5 py-2">
+                    <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground/50">{item.label}</div>
+                    <div className="mt-0.5 font-code text-[8px] uppercase tracking-widest text-foreground/70">{item.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {possibleDuplicates.length > 0 && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  <div className="font-code text-[8px] uppercase tracking-widest text-amber-700 font-bold">Duplicate Review</div>
+                  <p className="mt-1 text-xs leading-5 text-amber-800">
+                    Compare with {possibleDuplicates.join(', ')} before merging or treating these as separate ideas.
+                  </p>
+                </div>
+              )}
+
+              <div className="mb-4 rounded-xl border border-accent/20 bg-accent/5 px-3 py-2">
+                <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">Next Boundary Move</div>
+                <p className="mt-1 text-xs leading-5 text-foreground/75">{diag.suggestedNextAction}</p>
               </div>
 
               <div className="flex flex-wrap gap-1.5 border-t border-border/30 pt-4">

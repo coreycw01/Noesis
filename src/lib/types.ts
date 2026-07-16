@@ -4,7 +4,24 @@ export type MediaType = 'book' | 'audiobook' | 'podcast' | 'video' | 'movie' | '
 export type AnnotationType = 'highlight' | 'thought' | 'question' | 'connection' | 'claim' | 'objection' | 'definition' | 'example' | 'personal_reflection' | 'observation' | 'excerpt' | 'voice_note' | 'drawing' | 'image';
 export type VaultType = 'belief' | 'principle' | 'mental_model' | 'life_rule' | 'worldview';
 export type EventType = 'created' | 'refined' | 'challenged' | 'revised' | 'expanded' | 'abandoned';
-export type QuestionStatus = 'open' | 'investigating' | 'answered' | 'archived';
+export type QuestionStatus =
+  | 'captured'
+  | 'clarifying'
+  | 'open'
+  | 'investigating'
+  | 'gathering_evidence'
+  | 'comparing_answers'
+  | 'under_tension'
+  | 'partially_answered'
+  | 'provisionally_answered'
+  | 'answered'
+  | 'resolved'
+  | 'reopened'
+  | 'suspended'
+  | 'enduring'
+  | 'converted'
+  | 'archived'
+  | 'no_longer_meaningful';
 export type DraftType = 'essay' | 'script' | 'field_note' | 'manuscript' | 'reflection' | 'argument' | 'source_analysis' | 'text_note' | 'voice_note' | 'talk_to_text' | 'drawing_note' | 'drawing' | 'recording';
 export type DraftStatus = 'idea' | 'rough' | 'seed' | 'drafting' | 'developing' | 'revising' | 'revised' | 'complete' | 'final' | 'published' | 'archived' | 'abandoned';
 export type WorkCategory = 'writing' | 'notes' | 'drawing' | 'recording';

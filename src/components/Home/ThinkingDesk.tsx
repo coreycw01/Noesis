@@ -3,16 +3,19 @@
 import React, { useMemo, useState } from 'react';
 import {
   ArrowRight,
+  AlertTriangle,
   BookOpen,
   Brain,
   ClipboardCheck,
   Compass,
+  GitBranch,
   HelpCircle,
   Lightbulb,
   PenTool,
   Repeat,
   ShieldCheck,
   Sparkles,
+  Target,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -53,6 +56,14 @@ type DeskItem = HomeTarget & {
 
 type HomeMode = 'continue' | 'challenge' | 'unfinished' | 'recent' | 'neglected' | 'rediscover';
 
+type PulseObservation = HomeTarget & {
+  id: string;
+  title: string;
+  observation: string;
+  evidence: string;
+  tone: 'pressure' | 'balance' | 'movement';
+};
+
 const HOME_MODES: Array<{ id: HomeMode; label: string; description: string }> = [
   { id: 'continue', label: 'Continue', description: 'Return to the strongest next action.' },
   { id: 'challenge', label: 'Challenge Me', description: 'Find claims that need opposition.' },
@@ -86,9 +97,27 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function practiceLogDates(practice: Practice) {
+  const structured = (practice.logs || []).filter((log) => log.actionCompleted).map((log) => log.date.slice(0, 10));
+  return Array.from(new Set([...(practice.logDates || []), ...structured])).sort();
+}
+
 function firstName(profile: UserProfile) {
   const label = profile.displayName || profile.email || 'there';
   return label.split(/\s+/)[0] || 'there';
+}
+
+function targetFromEvent(event: ThinkingEvent | TimelineEvent): HomeTarget | null {
+  const entityType = 'entityType' in event ? event.entityType : '';
+  const entityId = 'entityId' in event ? event.entityId : '';
+  if (!entityId) return null;
+  if (entityType === 'vault' || entityType === 'position') return { view: 'vault', targetId: entityId };
+  if (entityType === 'question' || entityType === 'inquiry') return { view: 'questions', targetId: entityId };
+  if (entityType === 'media' || entityType === 'source') return { view: 'library', targetId: entityId };
+  if (entityType === 'draft' || entityType === 'work') return { view: 'writing', targetId: entityId };
+  if (entityType === 'practice') return { view: 'practices', targetId: entityId };
+  if (entityType === 'concept') return { view: 'concepts', targetId: entityId };
+  return null;
 }
 
 export function ThinkingDesk({
@@ -169,7 +198,7 @@ export function ThinkingDesk({
         } as DeskItem));
 
     const addPracticeLogs = (priority = 76) => practices
-      .filter((item) => item.status === 'active' && !(item.logDates || []).includes(todayKey()))
+      .filter((item) => item.status === 'active' && !practiceLogDates(item).includes(todayKey()))
       .forEach((item) => items.push({
           id: `practice-${item.id}`,
           label: item.title,
@@ -183,12 +212,14 @@ export function ThinkingDesk({
         } as DeskItem));
 
     const addOpenWorks = (priority = 68) => works
-      .filter((item) => item.status !== 'final' && ((item.beliefIds || []).length > 0 || (item.questionIds || []).length > 0))
+      .filter((item) => item.status !== 'final' && ((item.beliefIds || []).length > 0 || (item.questionIds || []).length > 0 || (item.argumentSkeleton?.objections || []).length === 0))
       .forEach((item) => items.push({
           id: `work-${item.id}`,
           label: item.title,
           eyebrow: 'Work still forming',
-          reason: 'This work is linked to live ideas but has not reached a final state.',
+          reason: (item.argumentSkeleton?.objections || []).length === 0
+            ? 'This work has not recorded a serious objection or counter-pressure yet.'
+            : 'This work is linked to live ideas but has not reached a final state.',
           action: 'Continue work',
           priority,
           icon: PenTool,
@@ -306,6 +337,14 @@ export function ThinkingDesk({
   }, [concepts, inquiries, media, mode, positions, practices, works]);
 
   const provocation = useMemo(() => {
+    const untested = positions.find((position) => position.status !== 'abandoned' && !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
+    if (untested && provocationAngle === 0) {
+      return {
+        question: `What would it look like to test "${untested.title || untested.statement}" in behavior this week?`,
+        target: { view: 'practices' as NoesisView },
+        evidence: 'Based on a position with no linked practice or lived test.',
+      };
+    }
     const angles = [
       {
         question: 'Which idea in your system deserves to be tested in practice instead of only refined in thought?',
@@ -340,23 +379,90 @@ export function ThinkingDesk({
       };
     }
     return angles[provocationAngle % angles.length];
-  }, [inquiries, positions, provocationAngle]);
+  }, [inquiries, positions, practices, provocationAngle]);
 
-  const pulse = useMemo(() => {
+  const pulseObservations = useMemo<PulseObservation[]>(() => {
+    const rawAnnotations = annotations.filter((item) => !item.philosophyStatus || item.philosophyStatus === 'raw');
+    const unsupportedPositions = positions.filter((item) => item.status !== 'abandoned' && (item.sourceIds || []).length === 0 && (item.evidenceFor || []).length === 0);
+    const untestedPositions = positions.filter((position) => position.status !== 'abandoned' && !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
+    const openInquiries = inquiries.filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status));
+    const finishedUnreflectedSources = media.filter((item) => item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange);
+    const observations: PulseObservation[] = [];
+
     if (positions.length > inquiries.length + 2) {
-      return 'You have more stated positions than active inquiries. This may be a good moment to add opposition or reopen a question.';
+      observations.push({
+        id: 'positions-ahead-of-inquiries',
+        title: 'Judgment is ahead of questioning',
+        observation: 'You have more stated positions than active inquiries. This may be a good moment to add opposition or reopen a question.',
+        evidence: `${positions.length} positions vs ${inquiries.length} inquiries`,
+        tone: 'pressure',
+        view: 'vault',
+      });
     }
-    if (annotations.filter((item) => !item.philosophyStatus || item.philosophyStatus === 'raw').length > 4) {
-      return 'Your capture layer is growing faster than your interpretation layer. Several annotations are still waiting to become concepts, inquiries, or evidence.';
+    if (rawAnnotations.length > 4) {
+      observations.push({
+        id: 'raw-annotations',
+        title: 'Capture is outrunning interpretation',
+        observation: 'Several annotations are still waiting to become concepts, inquiries, positions, or evidence.',
+        evidence: `${rawAnnotations.length} raw annotations across ${new Set(rawAnnotations.map((item) => item.source.id)).size} sources`,
+        tone: 'pressure',
+        view: 'annotations',
+      });
     }
     if (practices.length < Math.max(1, Math.floor(positions.length / 4))) {
-      return 'Your belief layer is ahead of your testing layer. A position may be ready to become a practice.';
+      observations.push({
+        id: 'beliefs-ahead-of-tests',
+        title: 'Belief is ahead of testing',
+        observation: 'Your belief layer is ahead of your testing layer. A position may be ready to become a practice.',
+        evidence: `${untestedPositions.length} positions have no linked practice`,
+        tone: 'balance',
+        view: 'practices',
+      });
+    }
+    if (finishedUnreflectedSources.length) {
+      observations.push({
+        id: 'finished-sources',
+        title: 'Sources need after-reading judgment',
+        observation: 'Some finished sources still need reflection before they can change the rest of the system.',
+        evidence: `${finishedUnreflectedSources.length} finished sources without a core argument or belief-change note`,
+        tone: 'pressure',
+        view: 'library',
+        targetId: finishedUnreflectedSources[0]?.id,
+      });
+    }
+    if (openInquiries.length) {
+      observations.push({
+        id: 'open-inquiries',
+        title: 'Questions are still live',
+        observation: 'Your inquiry layer has unresolved questions that could become evidence requests, definitions, or positions.',
+        evidence: `${openInquiries.length} open inquiries without a working answer`,
+        tone: 'movement',
+        view: 'questions',
+        targetId: openInquiries[0]?.id,
+      });
     }
     if (thinkingEvents.length) {
-      return 'Recent activity shows meaningful movement. Evolution can now explain what changed instead of only listing what happened.';
+      observations.push({
+        id: 'meaningful-events',
+        title: 'There is traceable movement',
+        observation: 'Recent activity shows meaningful movement. Evolution can now explain what changed instead of only listing what happened.',
+        evidence: `${thinkingEvents.length} thinking events recorded`,
+        tone: 'movement',
+        view: 'evolution',
+      });
     }
-    return 'Noesis becomes more useful as sources, questions, positions, works, and practices begin to affect each other.';
-  }, [annotations, inquiries.length, positions.length, practices.length, thinkingEvents.length]);
+    if (!observations.length) {
+      observations.push({
+        id: 'first-links',
+        title: 'Build the chain',
+        observation: 'Noesis becomes more useful as sources, questions, positions, works, and practices begin to affect each other.',
+        evidence: `${links.length} relationships currently recorded`,
+        tone: 'balance',
+        view: 'atlas',
+      });
+    }
+    return observations.slice(0, 3);
+  }, [annotations, inquiries, links.length, media, positions, practices, thinkingEvents.length]);
 
   const recentMovement = useMemo(() => {
     const events = thinkingEvents.length
@@ -369,6 +475,7 @@ export function ThinkingDesk({
             title: item.summary,
             meta: item.eventType.replace(/_/g, ' '),
             date: item.createdAt,
+            target: targetFromEvent(item),
           }))
       : timeline
           .slice()
@@ -379,6 +486,7 @@ export function ThinkingDesk({
             title: `${item.entityTitle}: ${item.reason || item.eventType}`,
             meta: item.eventType,
             date: item.date,
+            target: targetFromEvent(item),
           }));
     return events;
   }, [thinkingEvents, timeline]);
@@ -403,6 +511,11 @@ export function ThinkingDesk({
       label: 'Untested positions',
       value: positions.filter((position) => position.status !== 'abandoned' && !practices.some((practice) => (practice.positionIds || []).includes(position.id))).length,
       target: { view: 'practices' as NoesisView },
+    },
+    {
+      label: 'Finished sources needing reflection',
+      value: media.filter((item) => item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange).length,
+      target: { view: 'library' as NoesisView },
     },
   ];
 
@@ -576,11 +689,35 @@ export function ThinkingDesk({
 
         <aside className="space-y-5">
           <Card className="rounded-2xl border-border bg-card p-5">
-            <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Intellectual Pulse</div>
-            <p className="mt-3 text-sm leading-7 text-muted-foreground">{pulse}</p>
-            <Button variant="outline" size="sm" onClick={() => onNavigate({ view: 'evolution' })} className="mt-4 rounded-full">
-              Open Evolution
-            </Button>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Intellectual Pulse</div>
+                <p className="mt-1 text-xs text-muted-foreground">Evidence-backed signals, not stats for their own sake.</p>
+              </div>
+              <Target className="size-4 text-accent" />
+            </div>
+            <div className="space-y-3">
+              {pulseObservations.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => onNavigate({ view: item.view, targetId: item.targetId })}
+                  className="w-full rounded-2xl border border-border bg-background/60 p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl ${
+                      item.tone === 'pressure' ? 'bg-destructive/10 text-destructive' : item.tone === 'movement' ? 'bg-accent/10 text-accent' : 'bg-muted text-muted-foreground'
+                    }`}>
+                      {item.tone === 'pressure' ? <AlertTriangle className="size-4" /> : item.tone === 'movement' ? <GitBranch className="size-4" /> : <ClipboardCheck className="size-4" />}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-foreground/85">{item.title}</div>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.observation}</p>
+                      <div className="mt-2 font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{item.evidence}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </Card>
 
           <Card className="rounded-2xl border-border bg-card p-5">
@@ -603,10 +740,16 @@ export function ThinkingDesk({
             <div className="mb-3 font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Recent Movement</div>
             <div className="space-y-3">
               {recentMovement.length ? recentMovement.map((item) => (
-                <div key={item.id} className="rounded-xl border border-border bg-background/60 p-3">
+                <button
+                  key={item.id}
+                  type="button"
+                  disabled={!item.target}
+                  onClick={() => item.target && onNavigate(item.target)}
+                  className="w-full rounded-xl border border-border bg-background/60 p-3 text-left transition-colors enabled:hover:border-accent/40 enabled:hover:bg-accent/5 disabled:cursor-default"
+                >
                   <div className="text-sm font-medium text-foreground/80">{item.title}</div>
                   <div className="mt-1 font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">{item.meta}</div>
-                </div>
+                </button>
               )) : (
                 <p className="text-sm leading-6 text-muted-foreground">Meaningful changes will appear here after positions, inquiries, concepts, works, or practices move.</p>
               )}

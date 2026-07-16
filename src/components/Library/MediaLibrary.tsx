@@ -128,6 +128,24 @@ export function MediaLibrary({
     annotations: media.reduce((sum, item) => sum + (item.annotations?.length || 0), 0),
   }), [media]);
 
+  const readingRoomQueue = useMemo(() => {
+    const needsReflection = (item: Media) => item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange;
+    const hasActiveQuestion = (item: Media) => questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status));
+    return {
+      continueConsuming: media
+        .filter((item) => item.status === 'Consuming' || item.status === 'Paused')
+        .sort((a, b) => new Date(b.dateUpdated || b.dateAdded).getTime() - new Date(a.dateUpdated || a.dateAdded).getTime())
+        .slice(0, 3),
+      awaitingReflection: media.filter(needsReflection).slice(0, 3),
+      inquiryDriven: media.filter(hasActiveQuestion).slice(0, 3),
+      recentlyAdded: media
+        .slice()
+        .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime())
+        .slice(0, 3),
+      pausedOrAbandoned: media.filter((item) => item.status === 'Paused' || item.status === 'Abandoned').slice(0, 3),
+    };
+  }, [media, questions]);
+
   const clearLibraryFilters = () => {
     setSearchQuery('');
     setFilter('all');
@@ -494,6 +512,42 @@ export function MediaLibrary({
                 </div>
               </Card>
             </div>
+
+            <Card className="rounded-xl border border-accent/20 bg-accent/[0.03] p-6 shadow-sm">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="readex-kicker text-accent/70 font-bold">INTELLECTUAL RECEIPT PREVIEW</div>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                    Before this source becomes a position, work, inquiry, or practice, confirm what it actually changed. Source claims are not automatically your beliefs.
+                  </p>
+                </div>
+                <Badge variant={capture.after?.coreArgument || capture.after?.beliefChange ? 'secondary' : 'outline'} className="rounded-full">
+                  {capture.after?.coreArgument || capture.after?.beliefChange ? 'ready to process' : 'needs reflection'}
+                </Badge>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'Claim extracted', value: capture.after?.coreArgument || capture.after?.strongestArgument || 'No claim identified yet.' },
+                  { label: 'Concept affected', value: capture.after?.mostImportantConcept || selected.tags?.[0] || 'No concept named yet.' },
+                  { label: 'Inquiry opened', value: capture.after?.remainsUnanswered || capture.before?.openQuestion || 'No surviving question named yet.' },
+                  { label: 'Next action', value: capture.after?.nextAction || 'Choose whether this should become a claim, inquiry, practice, work, or only a reference.' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border border-accent/15 bg-white p-4">
+                    <div className="font-code text-[8px] uppercase tracking-widest text-accent/70 font-bold">{item.label}</div>
+                    <p className="mt-2 text-sm leading-6 text-foreground/80">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="rounded-full bg-white text-accent border-accent/20">
+                  {isDistilling ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
+                  Extract Claims
+                </Button>
+                <Button variant="outline" onClick={() => setInsightOpen(true)} className="rounded-full bg-white">
+                  Create Claim
+                </Button>
+              </div>
+            </Card>
           </TabsContent>
 
           <TabsContent value="capture" className="space-y-16">
@@ -981,6 +1035,49 @@ export function MediaLibrary({
           </SelectContent>
         </Select>
       </FilterToolbar>
+
+      <section className="mb-10 rounded-2xl border border-border/50 bg-card/70 p-5 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Reading Room Queue</div>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Library prioritizes source engagement: continue, reflect, or follow a source into an inquiry.
+            </p>
+          </div>
+          <Badge variant="outline" className="rounded-full">{media.length} total sources</Badge>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {[
+            { label: 'Continue Consuming', items: readingRoomQueue.continueConsuming, empty: 'No active sessions waiting.' },
+            { label: 'Awaiting Reflection', items: readingRoomQueue.awaitingReflection, empty: 'No finished sources need reflection.' },
+            { label: 'Inquiry Driven', items: readingRoomQueue.inquiryDriven, empty: 'No sources tied to active inquiries.' },
+            { label: 'Recently Added', items: readingRoomQueue.recentlyAdded, empty: 'Add a source to start.' },
+            { label: 'Paused / Abandoned', items: readingRoomQueue.pausedOrAbandoned, empty: 'No paused source threads.' },
+          ].map((column) => (
+            <div key={column.label} className="rounded-xl border border-border/40 bg-background/70 p-3">
+              <div className="mb-3 font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">{column.label}</div>
+              <div className="space-y-2">
+                {column.items.length ? column.items.map((item) => (
+                  <button
+                    key={`${column.label}-${item.id}`}
+                    type="button"
+                    onClick={() => openSelectedSource(item.id)}
+                    className="w-full rounded-lg border border-border/40 bg-card px-3 py-2 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+                  >
+                    <div className="line-clamp-2 text-sm font-medium leading-5 text-foreground/85">{item.title}</div>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="truncate text-xs text-muted-foreground">{item.creator || MEDIA_LABELS[item.type]}</span>
+                      <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{item.status}</span>
+                    </div>
+                  </button>
+                )) : (
+                  <p className="rounded-lg border border-dashed border-border/40 bg-card/60 px-3 py-3 text-xs leading-5 text-muted-foreground">{column.empty}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-8 gap-y-12">
         {filtered.map((item) => (

@@ -24,7 +24,7 @@ interface SourceIndexProps {
   onOpenSource: (sourceId: string) => void;
 }
 
-type SourceIndexView = 'table' | 'covers' | 'influence' | 'unfinished' | 'recent';
+type SourceIndexView = 'table' | 'covers' | 'timeline' | 'influence' | 'domains' | 'unfinished' | 'recent';
 type SortKey = 'creator' | 'dateAdded' | 'title' | 'year' | 'influence' | 'annotations' | 'connected' | 'progress';
 type AnnotationFilter = 'all' | 'with' | 'without';
 
@@ -117,6 +117,67 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
   }, [media, search, filterType, filterStatus, filterConcept, filterAnnotations, sortKey, sortOrder, view, vault, drafts, practices, questions]);
 
   const filtered = sourceRows.map((row) => row.source);
+
+  const domainRows = useMemo(() => {
+    const map = new Map<string, {
+      name: string;
+      sources: number;
+      annotations: number;
+      positions: number;
+      works: number;
+      practices: number;
+      questions: number;
+      influence: number;
+      sourceIds: string[];
+    }>();
+    sourceRows.forEach((row) => {
+      const tags = row.source.tags?.length ? row.source.tags : ['Unsorted'];
+      tags.forEach((tag) => {
+        const key = conceptKey(tag);
+        const current = map.get(key) || {
+          name: key,
+          sources: 0,
+          annotations: 0,
+          positions: 0,
+          works: 0,
+          practices: 0,
+          questions: 0,
+          influence: 0,
+          sourceIds: [],
+        };
+        current.sources += 1;
+        current.annotations += row.source.annotations?.length || 0;
+        current.positions += row.linkedPositions;
+        current.works += row.linkedWorks;
+        current.practices += row.linkedPractices;
+        current.questions += row.linkedQuestions;
+        current.influence += row.influence;
+        current.sourceIds.push(row.source.id);
+        map.set(key, current);
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => b.influence - a.influence || b.sources - a.sources || a.name.localeCompare(b.name));
+  }, [sourceRows]);
+
+  const timelineRows = useMemo(() => {
+    const map = new Map<string, typeof sourceRows>();
+    sourceRows.forEach((row) => {
+      const date = row.source.dateAdded || row.source.dateUpdated || '';
+      const parsed = new Date(date);
+      const key = Number.isFinite(parsed.getTime())
+        ? `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`
+        : 'Undated';
+      map.set(key, [...(map.get(key) || []), row]);
+    });
+    return Array.from(map.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([period, rows]) => ({
+        period,
+        rows: rows.sort((a, b) => new Date(b.source.dateAdded || b.source.dateUpdated || '').getTime() - new Date(a.source.dateAdded || a.source.dateUpdated || '').getTime()),
+        influence: rows.reduce((sum, row) => sum + row.influence, 0),
+        annotations: rows.reduce((sum, row) => sum + (row.source.annotations?.length || 0), 0),
+      }));
+  }, [sourceRows]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -217,7 +278,9 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             <SelectContent>
               <SelectItem value="table" className="font-code text-[10px] uppercase">Table</SelectItem>
               <SelectItem value="covers" className="font-code text-[10px] uppercase">Covers</SelectItem>
+              <SelectItem value="timeline" className="font-code text-[10px] uppercase">Timeline</SelectItem>
               <SelectItem value="influence" className="font-code text-[10px] uppercase">Influence</SelectItem>
+              <SelectItem value="domains" className="font-code text-[10px] uppercase">Domains</SelectItem>
               <SelectItem value="unfinished" className="font-code text-[10px] uppercase">Unfinished</SelectItem>
               <SelectItem value="recent" className="font-code text-[10px] uppercase">Recently Added</SelectItem>
             </SelectContent>
@@ -271,7 +334,109 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         </div>
       )}
 
-      {view !== 'covers' && <div className="bg-white rounded-xl border border-border/40 shadow-md overflow-hidden">
+      {view === 'domains' && (
+        <div className="mb-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {domainRows.map((domain) => (
+            <button
+              key={domain.name}
+              type="button"
+              onClick={() => {
+                setFilterConcept(domain.name);
+                setView('table');
+              }}
+              className="rounded-xl border border-border/40 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-1 hover:border-accent/40 hover:shadow-md"
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Domain</div>
+                  <h3 className="mt-1 font-headline text-2xl font-bold italic text-primary">{domain.name}</h3>
+                </div>
+                <Badge variant="outline" className="rounded-full">{domain.sources} sources</Badge>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  ['Influence', domain.influence],
+                  ['Notes', domain.annotations],
+                  ['Inquiries', domain.questions],
+                  ['Positions', domain.positions],
+                  ['Works', domain.works],
+                  ['Practices', domain.practices],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-border/40 bg-background/70 px-3 py-2">
+                    <div className="font-headline text-lg font-bold text-accent">{value}</div>
+                    <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">{label}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                Opens the table filtered to this domain so Source Index stays retrieval-focused.
+              </p>
+            </button>
+          ))}
+          {domainRows.length === 0 && (
+            <div className="col-span-full">
+              <PageEmptyState
+                icon={Library}
+                title="No source domains yet"
+                description="Add concept tags to sources so the catalog can group them by intellectual territory."
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {view === 'timeline' && (
+        <div className="mb-8 space-y-6">
+          {timelineRows.map((period) => (
+            <section key={period.period} className="rounded-xl border border-border/40 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Added Period</div>
+                  <h3 className="mt-1 font-headline text-2xl font-bold italic text-primary">{period.period}</h3>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="rounded-full">{period.rows.length} sources</Badge>
+                  <Badge variant="outline" className="rounded-full">{period.annotations} annotations</Badge>
+                  <Badge variant="outline" className="rounded-full">{period.influence} influence</Badge>
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {period.rows.map(({ source, influence, connected }) => (
+                  <button
+                    key={source.id}
+                    type="button"
+                    onClick={() => onOpenSource(source.id)}
+                    className="rounded-lg border border-border/40 bg-background/70 px-4 py-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground/85">{source.title}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{source.creator || MEDIA_LABELS[source.type]}</div>
+                      </div>
+                      <Badge variant="outline" className="shrink-0 rounded-full">{source.status}</Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      <Badge variant="secondary" className="rounded-full text-[8px]">{influence} influence</Badge>
+                      <Badge variant="secondary" className="rounded-full text-[8px]">{connected} links</Badge>
+                      <Badge variant="secondary" className="rounded-full text-[8px]">{source.annotations?.length || 0} notes</Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+          {timelineRows.length === 0 && (
+            <PageEmptyState
+              icon={Library}
+              title="No timeline results"
+              description="Clear filters or add dated sources to see when material entered your system."
+              action={filtersActive ? <Button variant="outline" onClick={clearFilters} className="rounded-full">Clear filters</Button> : undefined}
+            />
+          )}
+        </div>
+      )}
+
+      {!['covers', 'domains', 'timeline'].includes(view) && <div className="bg-white rounded-xl border border-border/40 shadow-md overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/5 font-code text-[9px] uppercase tracking-[0.2em] font-bold">
             <TableRow>
