@@ -185,6 +185,13 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
         {filtered.map((question) => {
           const sources = media.filter(m => (question.sourceIds || []).includes(m.id));
           const draftLinks = drafts.filter(d => (d.questionIds || []).includes(question.id)).length;
+          const conceptNames = question.conceptIds || sources.flatMap((item) => item.tags || []);
+          const relatedBeliefs = vault.filter((entry) => (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => (question.sourceIds || []).includes(id)));
+          const relatedDrafts = drafts.filter((draft) => (draft.questionIds || []).includes(question.id));
+          const inquiryType = inferInquiryType(question, conceptNames, sources);
+          const branches = investigationBranches(question, conceptNames, sources, relatedBeliefs, relatedDrafts);
+          const activeBranches = branches.filter((branch) => branch.state === 'active').length;
+          const neededBranches = branches.filter((branch) => branch.state === 'needed').length;
 
           return (
             <Card key={question.id} className="border border-accent/20 bg-white/95 p-6 rounded-xl shadow-md">
@@ -218,6 +225,27 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
                 ) : (
                   <span>Synthesized from various internal connections</span>
                 )}
+              </div>
+
+              <div className="mb-4 rounded-xl border border-border/50 bg-background/70 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Investigation Shape</span>
+                  <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{inquiryType}</Badge>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border border-border/40 bg-card px-2 py-2">
+                    <div className="font-headline text-lg font-bold text-accent">{activeBranches}</div>
+                    <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">active</div>
+                  </div>
+                  <div className="rounded-lg border border-border/40 bg-card px-2 py-2">
+                    <div className="font-headline text-lg font-bold text-emerald-600">{branches.length - activeBranches - neededBranches}</div>
+                    <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">available</div>
+                  </div>
+                  <div className="rounded-lg border border-border/40 bg-card px-2 py-2">
+                    <div className="font-headline text-lg font-bold text-amber-600">{neededBranches}</div>
+                    <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">needed</div>
+                  </div>
+                </div>
               </div>
 
               <NextPhilosophicalActionPanel
@@ -286,6 +314,49 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
 
 type DialogPhase = 'write' | 'probing' | 'ready';
 
+function inferInquiryType(question: Question, concepts: string[], sources: Media[]) {
+  const text = question.text.toLowerCase();
+  if (/\bshould\b|\bought\b|\bright\b|\bwrong\b|\bmoral\b|\bethic/.test(text)) return 'normative';
+  if (/\bmean\b|\bdefinition\b|\bwhat is\b|\bconcept\b/.test(text)) return 'conceptual';
+  if (/\bhow do i\b|\bpractice\b|\bact\b|\bapply\b/.test(text)) return 'practical';
+  if (/\bwho am i\b|\bmeaning\b|\bdeath\b|\bpurpose\b|\bexist/.test(text)) return 'existential';
+  if (sources.length > 0 && concepts.length > 0) return 'mixed';
+  return 'open';
+}
+
+function investigationBranches(question: Question, concepts: string[], sources: Media[], beliefs: VaultEntry[], drafts: Draft[]) {
+  const branches = [
+    {
+      label: 'Clarify Terms',
+      state: concepts.length ? 'available' : 'needed',
+      detail: concepts.length ? `Grounded in ${concepts.slice(0, 3).join(', ')}.` : 'No active concepts are attached yet.',
+    },
+    {
+      label: 'Gather Evidence',
+      state: sources.length ? 'active' : 'needed',
+      detail: sources.length ? `${sources.length} source${sources.length === 1 ? '' : 's'} connected.` : 'Attach a source or annotation that bears on the question.',
+    },
+    {
+      label: 'Compare Answers',
+      state: beliefs.length > 1 ? 'active' : beliefs.length === 1 ? 'available' : 'needed',
+      detail: beliefs.length ? `${beliefs.length} related position${beliefs.length === 1 ? '' : 's'} can be compared.` : 'No candidate position has formed yet.',
+    },
+    {
+      label: 'Express / Test',
+      state: drafts.length ? 'active' : question.answer ? 'available' : 'needed',
+      detail: drafts.length ? `${drafts.length} linked work${drafts.length === 1 ? '' : 's'} developing the answer.` : 'A work or practice can test the answer once it becomes clearer.',
+    },
+  ];
+  if (question.answer) {
+    branches.push({
+      label: 'Resolution Review',
+      state: question.status === 'resolved' ? 'active' : 'available',
+      detail: question.status === 'resolved' ? 'This inquiry has a stored resolution summary.' : 'Review whether the provisional answer is strong enough to resolve.',
+    });
+  }
+  return branches;
+}
+
 function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onFormPositionFromInquiry, onAiFeedback }: {
   question: Question;
   sources: Media[];
@@ -306,6 +377,34 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   const [positionDraft, setPositionDraft] = useState<{ title: string; statement: string; description: string; confidence: number } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inquiryType = inferInquiryType(question, concepts, sources);
+  const branches = investigationBranches(question, concepts, sources, beliefs, drafts);
+  const evidenceLanes = [
+    {
+      label: 'Supports candidate answer',
+      items: [
+        ...sources.slice(0, 4).map((source) => source.title),
+        ...beliefs.filter((belief) => (belief.evidenceFor || []).length > 0).slice(0, 3).map((belief) => belief.title),
+      ],
+    },
+    {
+      label: 'Challenges candidate answer',
+      items: beliefs.filter((belief) => (belief.evidenceAgainst || []).length > 0 || belief.status === 'challenged').slice(0, 4).map((belief) => belief.title),
+    },
+    {
+      label: 'Unresolved / needs verification',
+      items: [
+        ...(!question.answer ? ['No provisional answer has been written yet.'] : []),
+        ...(sources.length === 0 ? ['No evidence source is linked yet.'] : []),
+        ...(beliefs.length === 0 ? ['No candidate position has formed from this inquiry.'] : []),
+      ],
+    },
+  ];
+  const assumptions = [
+    concepts.length ? `The key terms are stable enough to investigate: ${concepts.slice(0, 3).join(', ')}.` : 'The question needs at least one named concept before its terms are stable.',
+    sources.length ? 'The connected sources are relevant enough to count as evidence.' : 'The inquiry can progress without outside evidence for now.',
+    question.answer ? 'The provisional answer is worth stress-testing instead of only expanding.' : 'Progress requires a first answer, even if it is rough.',
+  ];
 
   const saveProvisionalAnswer = (status: Question['status'] = 'partially_answered') => {
     if (!initialAnswer.trim()) {
@@ -398,6 +497,63 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       </Button>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-10">
         <div>
+          <Card className="mb-6 rounded-2xl border border-accent/10 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">Investigation Chamber</div>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Clarify the question, expose assumptions, choose a branch, and only resolve when the answer has evidence.</p>
+              </div>
+              <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{inquiryType}</Badge>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-3 font-bold">Branches</div>
+                <div className="grid gap-2">
+                  {branches.map((branch) => (
+                    <div key={branch.label} className="rounded-lg border border-border/30 bg-card px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-medium text-foreground/80">{branch.label}</div>
+                        <span className={cn(
+                          'rounded-full px-2 py-0.5 font-code text-[8px] uppercase tracking-widest',
+                          branch.state === 'active' ? 'bg-accent/10 text-accent' : branch.state === 'available' ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'
+                        )}>{branch.state}</span>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{branch.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-3 font-bold">Assumptions to Watch</div>
+                <ul className="space-y-2">
+                  {assumptions.map((assumption) => (
+                    <li key={assumption} className="flex gap-2 text-sm leading-5 text-muted-foreground">
+                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent" />
+                      {assumption}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {evidenceLanes.map((lane) => (
+                <div key={lane.label} className="rounded-xl border border-border/40 bg-background/70 p-4">
+                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">{lane.label}</div>
+                  <div className="space-y-2">
+                    {lane.items.length ? lane.items.slice(0, 4).map((item) => (
+                      <div key={item} className="rounded-lg border border-border/30 bg-card px-3 py-2 text-xs leading-5 text-muted-foreground">{item}</div>
+                    )) : (
+                      <p className="text-xs leading-5 text-muted-foreground">No items in this lane yet.</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
           {phase === 'write' && (
             <Card className="p-10 bg-white border border-accent/10 shadow-md rounded-2xl space-y-6">
               <Badge variant="outline" className="font-code text-[10px] uppercase tracking-widest bg-muted/20 border-border/30 rounded-full px-4 py-1 font-bold">

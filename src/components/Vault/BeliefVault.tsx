@@ -110,6 +110,24 @@ function safePositionDate(value?: string) {
   return Number.isNaN(date.getTime()) ? new Date().toLocaleDateString() : date.toLocaleDateString();
 }
 
+function positionListReason(entry: VaultEntry, links: PhilosophicalLink[], viewFilter: PositionViewFilter) {
+  const hasTension = links.some((link) =>
+    ((link.fromType === 'position' && link.fromId === entry.id) || (link.toType === 'position' && link.toId === entry.id)) &&
+    ['challenges', 'contradicts'].includes(link.type)
+  );
+  const hasSupport = (entry.evidenceFor || []).length > 0 || (entry.sourceIds || []).length > 0;
+  if (viewFilter === 'emerging') return entry.confidence <= 2 ? 'Low confidence signal: this claim needs evidence before becoming stable.' : 'Draft or early-stage claim.';
+  if (viewFilter === 'under_review') return 'This position is uncertain, challenged, or explicitly under review.';
+  if (viewFilter === 'revised') return 'This position has revision history and should preserve what changed.';
+  if (viewFilter === 'abandoned') return 'This position is no longer current but remains part of the intellectual record.';
+  if (viewFilter === 'tensions') return hasTension ? 'A typed challenge or contradiction is connected to this position.' : 'Potential tension with another position.';
+  if (viewFilter === 'unsupported') return hasSupport ? 'Supported by evidence.' : 'No source or supporting evidence is linked yet.';
+  if (viewFilter === 'recently_changed') return `Last changed ${safePositionDate(entry.dateUpdated || entry.dateCreated)}.`;
+  if ((entry.evidenceAgainst || []).length === 0 && !hasTension) return 'Next pressure: add a serious objection or counterposition.';
+  if (!hasSupport) return 'Next pressure: add evidence or a source that actually supports this.';
+  return 'Current belief-workbench item: support, challenge, express, or test it.';
+}
+
 export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, suggestions, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onCreateIdea, onAddUnknown, onUpdateSuggestion, onCreateSuggestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled, onOpenEntryRoute }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -319,6 +337,24 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     const strongestObjection = tensionLinks[0]?.note || selected.evidenceAgainst?.[0] || 'No direct objection has been articulated yet.';
     const strongestSupport = selected.evidenceFor?.[0] || linkedSources[0]?.title || 'No direct support has been recorded yet.';
     const latestRevision = [...(selected.versionHistory || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    const positionAssumptions = [
+      selected.tags.length ? `The concepts ${selected.tags.slice(0, 3).join(', ')} are defined clearly enough to support this claim.` : 'This position needs explicit concepts before its scope is stable.',
+      linkedSources.length ? 'The linked sources count as relevant evidence rather than only inspiration.' : 'This position can stand provisionally without a linked source, but remains evidence-light.',
+      (selected.evidenceAgainst || []).length || tensionLinks.length ? 'The current objections represent the strongest available pressure.' : 'This position has not yet faced a serious recorded objection.',
+    ];
+    const dependencyItems = [
+      ...selected.tags.slice(0, 5).map((tag) => `Concept: ${tag}`),
+      ...linkedQuestions.slice(0, 3).map((question) => `Inquiry: ${question.text}`),
+      ...linkedSources.slice(0, 3).map((source) => `Source: ${source.title}`),
+    ];
+    const counterposition = strongestObjection !== 'No direct objection has been articulated yet.'
+      ? strongestObjection
+      : `The strongest opposite case has not been written yet. Ask what would make "${selected.title}" false, incomplete, or too narrow.`;
+    const applicationItems = [
+      linkedPractices.length ? `${linkedPractices.length} practice(s) already test this position.` : 'No lived test is attached yet.',
+      linkedDrafts.length ? `${linkedDrafts.length} work(s) express this position.` : 'No essay, note, script, or work expresses this position yet.',
+      selected.status === 'revised' ? 'This position has already changed and should preserve its revision path.' : 'If pressure changes the claim, mark a revision instead of silently editing it.',
+    ];
     const reviewTabs: Array<{ id: 'overview' | 'evidence' | 'relations' | 'history'; label: string }> = [
       { id: 'overview', label: 'Overview' },
       { id: 'evidence', label: 'Evidence' },
@@ -583,6 +619,29 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               onUpdateEntry={onUpdateEntry}
               onUpdateLink={onUpdateLink}
             />
+
+            <Card className="mb-6 rounded-xl border-border/50 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Position Anatomy</div>
+                  <h3 className="mt-1 font-headline text-2xl font-bold italic">Scope, assumptions, opposition, and application</h3>
+                </div>
+                <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                  {selected.confidence}/5 confidence
+                </Badge>
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <InfoPanel title="Meaning and Scope" items={[selected.statement, selected.description].filter(Boolean)} empty="No statement or scope has been written yet." />
+                <InfoPanel title="Assumptions" items={positionAssumptions} empty="No assumptions derived yet." />
+                <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
+                <InfoPanel title="Counterposition" items={[counterposition]} empty="No counterposition recorded yet." />
+                <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
+                <InfoPanel title="Revision Rule" items={[
+                  'If new evidence changes the claim, use revision history instead of overwriting the old position silently.',
+                  'If the opposite case is stronger, lower confidence or mark the position challenged before abandoning it.',
+                ]} empty="No revision rule." />
+              </div>
+            </Card>
 
             <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr]">
               <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
@@ -1029,6 +1088,10 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             <p className="text-[13px] leading-relaxed text-muted-foreground font-body line-clamp-2 italic mb-6">
               {entry.statement || entry.description}
             </p>
+
+            <div className="mb-4 rounded-xl border border-border/40 bg-background/70 px-3 py-2 text-xs leading-5 text-muted-foreground">
+              <span className="font-medium text-foreground/70">Workbench note:</span> {positionListReason(entry, links, viewFilter)}
+            </div>
 
             <div className="flex items-center gap-5 pt-4 border-t border-border/30">
               <div className="flex gap-1.5">

@@ -373,6 +373,16 @@ export function MediaLibrary({
   if (selected) {
     const linkedInsights = vault.filter((entry) => (entry.sourceIds || []).includes(selected.id));
     const capture = captureDraft || selected.capture || { sessions: [] };
+    const relatedQuestions = questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(selected.id));
+    const relatedDrafts = drafts.filter((draft) => (draft.sourceIds || []).includes(selected.id));
+    const relatedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(selected.id));
+    const captureMilestones = [
+      { label: 'Reason', complete: Boolean(capture.before?.openQuestion || capture.before?.expectation || capture.before?.priorBeliefs), detail: capture.before?.openQuestion || capture.before?.expectation || capture.before?.priorBeliefs || 'Explain why this source entered the system.' },
+      { label: 'During', complete: (selected.annotations || []).length > 0 || (capture.sessions || []).length > 0, detail: `${selected.annotations?.length || 0} annotations · ${capture.sessions?.length || 0} sessions` },
+      { label: 'After', complete: Boolean(capture.after?.coreArgument || capture.after?.beliefChange || capture.after?.lasting), detail: capture.after?.coreArgument || capture.after?.beliefChange || capture.after?.lasting || 'Record what changed after engaging the source.' },
+      { label: 'Consequence', complete: linkedInsights.length > 0 || relatedQuestions.length > 0 || relatedDrafts.length > 0, detail: `${linkedInsights.length} claims · ${relatedQuestions.length} inquiries · ${relatedDrafts.length} works` },
+    ];
+    const sourcePurpose = capture.before?.openQuestion || capture.before?.expectation || selected.description || 'This source still needs a clear reason for being studied.';
     
     return (
       <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
@@ -432,13 +442,59 @@ export function MediaLibrary({
           </div>
         </div>
 
-        <Tabs defaultValue="capture" className="w-full">
+        <Tabs defaultValue="overview" className="w-full">
           <TabsList className="bg-transparent border-b border-border/50 rounded-none h-14 w-full justify-start gap-10 p-0 mb-10">
+            <TabsTrigger value="overview" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">OVERVIEW</TabsTrigger>
             <TabsTrigger value="capture" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CAPTURE</TabsTrigger>
             <TabsTrigger value="annotations" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">ANNOTATIONS</TabsTrigger>
-            <TabsTrigger value="insights" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">POSITIONS</TabsTrigger>
-            <TabsTrigger value="connections" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">LINKS</TabsTrigger>
+            <TabsTrigger value="concepts" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CONCEPTS</TabsTrigger>
+            <TabsTrigger value="insights" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CLAIMS</TabsTrigger>
+            <TabsTrigger value="connections" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CONNECTIONS</TabsTrigger>
+            <TabsTrigger value="reflection" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">REFLECTION</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="overview" className="space-y-8">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+              <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
+                <div className="readex-kicker mb-3 opacity-50 font-bold">SOURCE PURPOSE</div>
+                <p className="font-headline text-2xl italic leading-snug text-primary/90">{sourcePurpose}</p>
+                <div className="mt-6 grid gap-3 md:grid-cols-2">
+                  {captureMilestones.map((milestone) => (
+                    <div key={milestone.label} className="rounded-xl border border-border/40 bg-background/70 p-4">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">{milestone.label}</span>
+                        <Badge variant={milestone.complete ? 'secondary' : 'outline'} className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                          {milestone.complete ? 'started' : 'empty'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm leading-6 text-muted-foreground">{milestone.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
+                <div className="readex-kicker mb-4 opacity-50 font-bold">HANDOFFS</div>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Annotations', value: selected.annotations?.length || 0, note: 'captured meaning' },
+                    { label: 'Inquiries', value: relatedQuestions.length, note: 'questions raised' },
+                    { label: 'Claims', value: linkedInsights.length, note: 'positions influenced' },
+                    { label: 'Works', value: relatedDrafts.length, note: 'expression paths' },
+                    { label: 'Practices', value: relatedPractices.length, note: 'lived tests' },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between rounded-xl border border-border/40 bg-background/70 px-4 py-3">
+                      <div>
+                        <div className="text-sm font-semibold text-foreground/80">{item.label}</div>
+                        <div className="text-xs text-muted-foreground">{item.note}</div>
+                      </div>
+                      <span className="font-headline text-xl font-bold text-accent">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          </TabsContent>
 
           <TabsContent value="capture" className="space-y-16">
             <p className="font-body text-sm text-muted-foreground italic mb-10">
@@ -554,7 +610,7 @@ export function MediaLibrary({
               <Button onClick={() => updateSelected({ capture })} className="bg-accent px-10 h-11 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">SAVE CAPTURE</Button>
               <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="h-11 px-10 font-code text-[11px] tracking-widest uppercase text-accent border-accent/20 shadow-sm bg-white rounded-full font-bold">
                 {isDistilling ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
-                DISTILL POSITION
+                EXTRACT CLAIMS
               </Button>
             </div>
           </TabsContent>
@@ -602,10 +658,41 @@ export function MediaLibrary({
             </div>
           </TabsContent>
 
+          <TabsContent value="concepts" className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {(selected.tags || []).map((tag) => {
+                const concept = concepts.find((item) => conceptKey(item.name) === conceptKey(tag));
+                const related = conceptRelated(tag, { media, insights: [], vault, drafts, practices, questions, timeline });
+                return (
+                  <Card key={tag} className="rounded-xl border border-border/40 bg-white p-5 shadow-sm">
+                    <div className="readex-kicker mb-2 opacity-50 font-bold">CONCEPT</div>
+                    <button onClick={() => setConceptPopupName(tag)} className="text-left font-headline text-2xl font-bold italic text-primary hover:text-accent transition-colors">
+                      {tag}
+                    </button>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground line-clamp-3">
+                      {concept?.description || 'No working definition yet. Use Concepts to define the boundary of this idea.'}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Badge variant="outline" className="rounded-full">{related.sources.length} sources</Badge>
+                      <Badge variant="outline" className="rounded-full">{related.beliefs.length} claims</Badge>
+                      <Badge variant="outline" className="rounded-full">{related.questions.length} inquiries</Badge>
+                    </div>
+                  </Card>
+                );
+              })}
+              {(selected.tags || []).length === 0 && (
+                <div className="col-span-full rounded-xl border border-dashed border-border/50 bg-white p-12 text-center">
+                  <p className="font-headline text-2xl italic text-primary/50">No concepts attached yet.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Add source concepts from Edit so this source can feed the encyclopedia and Atlas.</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
           <TabsContent value="insights" className="space-y-10">
             <div className="flex justify-between items-center">
-              <h3 className="readex-kicker opacity-50 uppercase font-bold text-[11px]">{linkedInsights.length} POSITIONS ANCHORED HERE</h3>
-              <Button onClick={() => setInsightOpen(true)} size="sm" className="bg-accent h-10 px-6 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">+ NEW POSITION</Button>
+              <h3 className="readex-kicker opacity-50 uppercase font-bold text-[11px]">{linkedInsights.length} CLAIMS EXTRACTED FROM THIS SOURCE</h3>
+              <Button onClick={() => setInsightOpen(true)} size="sm" className="bg-accent h-10 px-6 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">+ NEW CLAIM</Button>
             </div>
 
             <div className="space-y-5">
@@ -649,15 +736,15 @@ export function MediaLibrary({
 
               {linkedInsights.length === 0 && (
                 <div className="py-24 text-center opacity-30 bg-white rounded-xl border border-dashed border-border/50 shadow-sm">
-                  <p className="font-headline text-2xl italic mb-3">No positions archived yet.</p>
-                  <p className="font-body text-base">Turn your annotations into explicit positions using the "New Position" action.</p>
+                  <p className="font-headline text-2xl italic mb-3">No claims extracted yet.</p>
+                  <p className="font-body text-base">Turn source evidence into explicit claims only when the source actually changes judgment.</p>
                 </div>
               )}
             </div>
           </TabsContent>
 
           <TabsContent value="connections" className="space-y-10">
-            <h3 className="readex-kicker opacity-50 uppercase font-bold text-[11px]">POSITIONS LINKED TO THIS SOURCE</h3>
+            <h3 className="readex-kicker opacity-50 uppercase font-bold text-[11px]">OBJECTS LINKED TO THIS SOURCE</h3>
             <div className="space-y-5">
               {linkedInsights.map((entry) => (
                 <Card 
@@ -712,6 +799,35 @@ export function MediaLibrary({
                   <p className="font-body text-base">Create a position or link one to this source to see it here.</p>
                 </div>
               )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="reflection" className="space-y-8">
+            <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
+              <div className="readex-kicker mb-4 opacity-50 font-bold">AFTER-READING REFLECTION</div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {[
+                  { label: 'Central Claim', value: capture.after?.coreArgument },
+                  { label: 'What Held Up', value: capture.after?.heldUp },
+                  { label: 'What Failed', value: capture.after?.didntHold },
+                  { label: 'Lasting Idea', value: capture.after?.lasting },
+                  { label: 'Belief Change', value: capture.after?.beliefChange },
+                  { label: 'Cross References', value: capture.after?.crossRefs },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border border-border/40 bg-background/70 p-4">
+                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">{item.label}</div>
+                    <p className="text-sm leading-6 text-muted-foreground">{item.value || 'Not reflected yet.'}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" onClick={() => updateSelected({ capture })} className="rounded-full bg-white">Save Reflection</Button>
+              <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="rounded-full bg-white text-accent border-accent/20">
+                {isDistilling ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
+                Extract Claims
+              </Button>
+              <Button onClick={() => setInsightOpen(true)} className="rounded-full">Create Claim</Button>
             </div>
           </TabsContent>
         </Tabs>

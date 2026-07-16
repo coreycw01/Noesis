@@ -130,6 +130,33 @@ export function AnnotationsIndex({
     archived: annotations.filter((annotation) => annotationStatus(annotation) === 'archived').length,
   }), [annotations]);
 
+  const consequenceLanes = useMemo(() => [
+    {
+      label: 'Unprocessed',
+      value: typeCounts.raw,
+      description: 'Captured meaning that still needs classification or a next step.',
+      filter: 'raw' as AnnotationFilter,
+    },
+    {
+      label: 'Question Seeds',
+      value: annotations.filter((annotation) => annotation.type === 'question' && !annotation.createdInquiryId).length,
+      description: 'Questions that can become structured inquiries.',
+      filter: 'question' as AnnotationFilter,
+    },
+    {
+      label: 'Claim Seeds',
+      value: annotations.filter((annotation) => annotation.type !== 'question' && !annotation.createdPositionId && annotationStatus(annotation) !== 'archived').length,
+      description: 'Highlights, thoughts, and connections that may become positions.',
+      filter: 'all' as AnnotationFilter,
+    },
+    {
+      label: 'Already Routed',
+      value: annotations.filter((annotation) => annotation.createdInquiryId || annotation.createdPositionId || annotationStatus(annotation) === 'used_in_position').length,
+      description: 'Annotations already promoted into inquiries or positions.',
+      filter: 'used_in_position' as AnnotationFilter,
+    },
+  ], [annotations, typeCounts.raw]);
+
   const saveEditing = () => {
     if (!editing || !editing.text.trim()) return;
     const { source, ...annotation } = editing;
@@ -404,6 +431,25 @@ export function AnnotationsIndex({
           </Select>
       </FilterToolbar>
 
+      <section className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {consequenceLanes.map((lane) => (
+          <button
+            key={lane.label}
+            type="button"
+            onClick={() => setFilterType(lane.filter)}
+            className="rounded-2xl border border-border/50 bg-card p-4 text-left shadow-sm transition-colors hover:border-accent/40 hover:bg-accent/5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{lane.label}</div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">{lane.description}</p>
+              </div>
+              <span className="font-headline text-2xl font-bold text-accent">{lane.value}</span>
+            </div>
+          </button>
+        ))}
+      </section>
+
       <section className="mb-8 rounded-2xl border border-border/50 bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <button onClick={toggleVisibleSelection} className="flex items-center gap-3 text-left">
@@ -484,6 +530,25 @@ export function AnnotationsIndex({
               {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).map((tag) => (
                 <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-wider rounded-full bg-muted/20 text-muted-foreground font-bold">{tag}</Badge>
               ))}
+            </div>
+
+            <div className="mb-3 grid gap-2 rounded-xl border border-border/40 bg-background/70 p-3 sm:grid-cols-3">
+              <div>
+                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Original Context</div>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{annotation.context || annotation.source.title}</p>
+              </div>
+              <div>
+                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Likely Consequence</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {annotation.createdPositionId ? 'Position formed' : annotation.createdInquiryId ? 'Inquiry opened' : annotation.type === 'question' ? 'Open inquiry' : 'Classify or form claim'}
+                </p>
+              </div>
+              <div>
+                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Affects</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).slice(0, 2).join(', ') || 'No concept yet'}
+                </p>
+              </div>
             </div>
 
             <NextPhilosophicalActionPanel

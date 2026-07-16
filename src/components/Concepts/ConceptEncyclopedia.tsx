@@ -36,9 +36,47 @@ interface ConceptEncyclopediaProps {
   onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
 }
 
+type ConceptListView = 'all' | 'recent' | 'connected' | 'undefined' | 'contested' | 'transformed' | 'neglected';
+
+type ConceptListRow = {
+  name: string;
+  concept: Concept;
+  related: ReturnType<typeof conceptRelated>;
+  diagnosis: ReturnType<typeof computeConceptDiagnosis>;
+  connectionCount: number;
+  lastActiveAt: number;
+  why: string;
+};
+
+const CONCEPT_LIST_VIEWS: Array<{ id: ConceptListView; label: string; description: string }> = [
+  { id: 'all', label: 'All', description: 'Every defined concept in the vocabulary.' },
+  { id: 'recent', label: 'Recently Active', description: 'Concepts with recent timeline movement or updated definitions.' },
+  { id: 'connected', label: 'Most Connected', description: 'Concepts carrying the most sources, positions, works, or practices.' },
+  { id: 'undefined', label: 'Undefined', description: 'Concepts that need a working definition or boundary.' },
+  { id: 'contested', label: 'Contested', description: 'Concepts under tension, challenge, or contradictory usage.' },
+  { id: 'transformed', label: 'Transformed', description: 'Concepts whose meaning has changed or stabilized through revision.' },
+  { id: 'neglected', label: 'Neglected', description: 'Concepts with meaningful links but little recent movement.' },
+];
+
+const RECENT_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
+const NEGLECTED_WINDOW_MS = 1000 * 60 * 60 * 24 * 90;
+
+function dateValue(value?: string) {
+  const parsed = Date.parse(value || '');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function conceptActivityDate(concept: Concept | undefined, events: TimelineEvent[]) {
+  return Math.max(
+    dateValue(concept?.dateUpdated || concept?.dateCreated),
+    ...events.map((event) => dateValue(event.date))
+  );
+}
+
 export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept, onDeleteConcept, onCreateIdea } = props;
   const [search, setSearch] = useState('');
+  const [listView, setListView] = useState<ConceptListView>('all');
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [editing, setEditing] = useState<Concept | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -57,16 +95,52 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const allTerms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
   const selectedRelated = useMemo(() => selectedName ? conceptRelated(selectedName, { media, insights, vault, drafts, practices, questions, timeline }) : null, [selectedName, media, insights, vault, drafts, practices, questions, timeline]);
   
-  const filteredTerms = useMemo(() => {
-    return allTerms.filter((name) => {
+  const conceptRows = useMemo<ConceptListRow[]>(() => {
+    return allTerms
+      .map((name) => {
       const isUnsorted = conceptKey(name) === conceptKey(UNSORTED_CONCEPT);
-      if (isUnsorted) return false;
+      if (isUnsorted) return null;
       const conceptDoc = concepts.find(c => conceptKey(c.name) === conceptKey(name));
-      if (!conceptDoc) return false;
+      if (!conceptDoc) return null;
       const related = conceptRelated(name, { media, insights, vault, drafts, practices, questions, timeline });
-      return !search || `${name} ${JSON.stringify(related)}`.toLowerCase().includes(search.toLowerCase());
+      const diagnosis = computeConceptDiagnosis(name, related, conceptDoc.description);
+      const connectionCount = related.sources.length + related.annotations.length + related.questions.length + related.beliefs.length + related.drafts.length + related.practices.length;
+      const lastActiveAt = conceptActivityDate(conceptDoc, related.events);
+      const isRecent = lastActiveAt > Date.now() - RECENT_WINDOW_MS;
+      const isNeglected = connectionCount > 0 && lastActiveAt > 0 && lastActiveAt < Date.now() - NEGLECTED_WINDOW_MS;
+      const isUndefined = !conceptDoc.description?.trim() || conceptDoc.philosophyStatus === 'undefined' || diagnosis.clarity === 'beginning';
+      const isContested = conceptDoc.philosophyStatus === 'contested' || diagnosis.tension === 'high' || related.beliefs.some((entry) => entry.status === 'challenged');
+      const isTransformed = related.events.some((event) => /transform|revise|definition|changed/i.test(`${event.eventType} ${event.reason || ''}`));
+      const searchText = `${name} ${conceptDoc.description || ''} ${JSON.stringify(related)}`.toLowerCase();
+      const matchesSearch = !search || searchText.includes(search.toLowerCase());
+      const matchesView =
+        listView === 'all' ||
+        (listView === 'recent' && isRecent) ||
+        (listView === 'connected' && connectionCount > 0) ||
+        (listView === 'undefined' && isUndefined) ||
+        (listView === 'contested' && isContested) ||
+        (listView === 'transformed' && isTransformed) ||
+        (listView === 'neglected' && isNeglected);
+      if (!matchesSearch || !matchesView) return null;
+
+      let why = 'Part of the current concept vocabulary.';
+      if (listView === 'recent') why = lastActiveAt ? `Last moved ${new Date(lastActiveAt).toLocaleDateString()}.` : 'Recently updated definition or linked event.';
+      if (listView === 'connected') why = `${connectionCount} linked object${connectionCount === 1 ? '' : 's'} depend on this concept.`;
+      if (listView === 'undefined') why = 'Needs a clearer working definition or boundary test.';
+      if (listView === 'contested') why = 'Shows tension, challenge, or inconsistent usage.';
+      if (listView === 'transformed') why = 'Has revision or transformation signals in its history.';
+      if (listView === 'neglected') why = 'Has meaningful links but little recent movement.';
+
+      return { name, concept: conceptDoc, related, diagnosis, connectionCount, lastActiveAt, why };
+    })
+    .filter((row): row is ConceptListRow => Boolean(row))
+    .sort((a, b) => {
+      if (listView === 'recent' || listView === 'transformed') return b.lastActiveAt - a.lastActiveAt;
+      if (listView === 'connected') return b.connectionCount - a.connectionCount;
+      if (listView === 'neglected') return a.lastActiveAt - b.lastActiveAt;
+      return a.name.localeCompare(b.name);
     });
-  }, [allTerms, search, concepts, media, insights, vault, drafts, practices, questions, timeline]);
+  }, [allTerms, search, listView, concepts, media, insights, vault, drafts, practices, questions, timeline]);
 
   const openEditor = (concept?: Concept) => {
     if (concept) {
@@ -214,6 +288,30 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     const concept = concepts.find((c) => conceptKey(c.name) === conceptKey(selectedName));
     const sortedEvents = [...r.events].sort((a, b) => b.date.localeCompare(a.date));
     const diagnosis = computeConceptDiagnosis(selectedName, r, concept?.description);
+    const linkedConceptNames = Array.from(new Set([
+      ...(concept?.links || []),
+      ...diagnosis.areasToReview,
+      ...r.annotations.flatMap((annotation) => annotation.conceptTags || annotation.source.tags || []),
+      ...r.beliefs.flatMap((belief) => belief.tags || []),
+      ...r.drafts.flatMap((draft) => draft.conceptTags || []),
+      ...r.practices.flatMap((practice) => practice.conceptTags || []),
+    ]
+      .filter((name) => conceptKey(name) && conceptKey(name) !== conceptKey(selectedName))))
+      .slice(0, 10);
+    const usageRows = [
+      { label: 'Annotations', value: r.annotations.length, note: 'raw language and captured meaning' },
+      { label: 'Inquiries', value: r.questions.length, note: 'questions that depend on this idea' },
+      { label: 'Positions', value: r.beliefs.length, note: 'claims using this concept as judgment' },
+      { label: 'Works', value: r.drafts.length, note: 'places where the idea is expressed' },
+      { label: 'Practices', value: r.practices.length, note: 'lived tests connected to the idea' },
+    ];
+    const boundarySignals = [
+      concept?.description ? 'Current definition exists, but should be tested against edge cases.' : 'No stable definition yet.',
+      r.beliefs.length > 1 ? 'Multiple positions use this concept, so scope may need tightening.' : 'Few formal claims depend on it yet.',
+      diagnosis.tension === 'high' ? 'Related positions or inquiries suggest inconsistent usage.' : 'No strong inconsistency signal yet.',
+      r.practices.length ? 'At least one practice tests how the idea behaves in life.' : 'No lived boundary test is attached yet.',
+    ];
+    const driftEvents = sortedEvents.filter((event) => /concept|definition|revise|transform|changed/i.test(`${event.eventType} ${event.reason || ''}`));
 
     const back = () => { setSelectedName(null); setPositionDrafts([]); };
 
@@ -265,6 +363,95 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</span>
               </div>
             ))}
+          </div>
+
+          {/* Concept Anatomy */}
+          <div className="rounded-xl border border-border/30 bg-white shadow-sm p-6 mb-10">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Concept Anatomy</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Definition, boundary, usage, and dependency signals for this idea.</p>
+              </div>
+              <Badge variant="outline" className="rounded-full">{diagnosis.level}</Badge>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Working Definition</div>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {concept?.description || 'Undefined. Write a provisional definition before treating this concept as stable.'}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => concept && openEditor(concept)} disabled={!concept} className="mt-3 h-8 rounded-full">
+                  <Edit className="mr-2 size-3.5" /> Edit Definition
+                </Button>
+              </div>
+
+              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Boundary Signals</div>
+                <ul className="space-y-2">
+                  {boundarySignals.map((signal) => (
+                    <li key={signal} className="flex gap-2 text-sm leading-5 text-muted-foreground">
+                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent" />
+                      {signal}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Usage Map</div>
+                <div className="grid gap-2">
+                  {usageRows.map((row) => (
+                    <div key={row.label} className="flex items-center justify-between gap-3 rounded-lg border border-border/30 bg-card px-3 py-2">
+                      <div>
+                        <div className="text-sm font-medium text-foreground/80">{row.label}</div>
+                        <div className="text-xs text-muted-foreground">{row.note}</div>
+                      </div>
+                      <span className="font-headline text-lg font-bold text-accent">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Dependencies & Neighbors</div>
+                {linkedConceptNames.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {linkedConceptNames.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => {
+                          setSelectedName(name);
+                          setPositionDrafts([]);
+                        }}
+                        className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm leading-6 text-muted-foreground">No neighboring concepts are visible yet. Add aliases, linked sources, or related concepts to define the boundary.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-border/40 bg-background/70 p-4">
+              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Concept Drift</div>
+              {driftEvents.length ? (
+                <div className="grid gap-2">
+                  {driftEvents.slice(0, 4).map((event) => (
+                    <div key={event.id} className="rounded-lg border border-border/30 bg-card px-3 py-2">
+                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">{event.date} · {event.eventType.replace(/_/g, ' ')}</div>
+                      <div className="mt-1 text-sm text-foreground/80">{event.reason || event.entityTitle}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm leading-6 text-muted-foreground">No definition-change events are recorded yet. Future definition revisions should appear here as concept history.</p>
+              )}
+            </div>
           </div>
 
           {/* Growth Diagnosis */}
@@ -640,11 +827,41 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         <Stat value={vault.length + drafts.length + (practices?.length || 0)} label="Outputs" sub="Positions, works, practices" />
       </div>
 
+      <div className="mb-6 rounded-2xl border border-border/60 bg-card/70 p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Concept Views</div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {CONCEPT_LIST_VIEWS.find((item) => item.id === listView)?.description}
+            </p>
+          </div>
+          <Badge variant="outline" className="rounded-full">{conceptRows.length} shown</Badge>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {CONCEPT_LIST_VIEWS.map((view) => {
+            const active = listView === view.id;
+            return (
+              <button
+                key={view.id}
+                type="button"
+                onClick={() => setListView(view.id)}
+                title={view.description}
+                className={cn(
+                  'rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-[0.14em] transition-colors',
+                  active
+                    ? 'border-accent bg-accent text-accent-foreground'
+                    : 'border-border bg-background/70 text-muted-foreground hover:border-accent/40 hover:text-foreground'
+                )}
+              >
+                {view.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredTerms.map((name) => {
-          const related = conceptRelated(name, { media, insights: [], vault, drafts, practices, questions, timeline });
-          const concept = concepts.find((item) => conceptKey(item.name) === conceptKey(name));
-          const diag = computeConceptDiagnosis(name, related, concept?.description);
+        {conceptRows.map(({ name, concept, related, diagnosis: diag, connectionCount, why }) => {
 
           return (
             <Card
@@ -670,7 +887,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                       {diag.level}
                     </span>
                     <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">
-                      {related.sources.length + related.beliefs.length + related.drafts.length} links
+                      {connectionCount} links
                     </span>
                   </div>
                 </div>
@@ -683,6 +900,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 {concept?.description || 'Inspect linked sources, positions, works, inquiries, and practices.'}
               </p>
 
+              <div className="mb-4 rounded-xl border border-border/50 bg-background/70 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                <span className="font-medium text-foreground/70">Why shown:</span> {why}
+              </div>
+
               <div className="flex flex-wrap gap-1.5 border-t border-border/30 pt-4">
                 <Badge variant="outline" className="text-[8px] font-code uppercase tracking-tighter bg-muted/10 border-transparent rounded-full px-2.5 py-0.5 font-bold shadow-sm">{related.sources.length} SOURCES</Badge>
                 <Badge variant="outline" className="text-[8px] font-code uppercase tracking-tighter bg-muted/10 border-transparent rounded-full px-2.5 py-0.5 font-bold shadow-sm">{related.beliefs.length} POSITIONS</Badge>
@@ -692,11 +913,11 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           );
         })}
 
-        {filteredTerms.length === 0 && (
+        {conceptRows.length === 0 && (
           <div className="col-span-full py-24 text-center opacity-40">
             <BookOpen className="size-16 mx-auto mb-6" />
             <h3 className="text-2xl font-headline italic">No concepts discovered</h3>
-            <p className="text-sm font-body mt-2">Refine your search or add new intellectual artifacts to the vault.</p>
+            <p className="text-sm font-body mt-2">Refine your search, change the concept view, or add new intellectual artifacts to the vault.</p>
           </div>
         )}
       </div>
