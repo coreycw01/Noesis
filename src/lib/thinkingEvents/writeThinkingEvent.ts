@@ -9,7 +9,9 @@ type RelatedEntityIds = NonNullable<ThinkingEvent['relatedEntityIds']>;
 export interface WriteThinkingEventInput {
   collection: CollectionReference<any>;
   userId: string;
+  actorId?: string;
   eventType: ThinkingEventType;
+  actionType?: ThinkingEventType;
   entityType: ThinkingEventEntityType;
   entityId: string;
   relatedEntityIds?: RelatedEntityIds;
@@ -49,6 +51,10 @@ function buildObjectDiff(before?: Record<string, any> | null, after?: Record<str
   return Object.keys(diff).length ? diff : null;
 }
 
+function changedFieldsFromDiff(diff: Record<string, any> | null) {
+  return diff ? Object.keys(diff).sort() : [];
+}
+
 function toLegacyTargetType(entityType: ThinkingEventEntityType): ThinkingEvent['targetType'] {
   if (entityType === 'source') return 'source';
   if (entityType === 'annotation') return 'annotation';
@@ -74,17 +80,22 @@ export function makeThinkingEventPayload(input: WriteThinkingEventInput) {
   const eventRef = doc(input.collection, eventId);
   const before = sanitizeEventSnapshot(input.before);
   const after = sanitizeEventSnapshot(input.after);
+  const diff = buildObjectDiff(before, after);
   const payload: ThinkingEvent = {
     id: eventRef.id,
     eventId: eventRef.id,
     userId: input.userId,
+    schemaVersion: 2,
+    actorId: input.actorId || input.userId,
     eventType: input.eventType,
+    actionType: input.actionType || input.eventType,
     entityType: input.entityType,
     entityId: input.entityId,
     relatedEntityIds: input.relatedEntityIds || {},
     before,
     after,
-    diff: buildObjectDiff(before, after),
+    diff,
+    changedFields: changedFieldsFromDiff(diff),
     targetType: toLegacyTargetType(input.entityType),
     targetId: input.entityId,
     sourceType: input.origin,

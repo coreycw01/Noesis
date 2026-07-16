@@ -54,12 +54,14 @@ export interface CommandPaletteItem {
   description: string;
   view: string;
   targetId?: string | null;
+  objectType?: string;
   kind?: 'navigation' | 'object' | 'create';
   currentState?: string;
   summary?: string;
   connectedConcepts?: string[];
   relatedObjects?: string[];
   lastChangedAt?: string;
+  matchedBecause?: string;
   quickActionLabel?: string;
   quickActions?: Array<{
     label: string;
@@ -70,6 +72,61 @@ export interface CommandPaletteItem {
 
 const RECENT_COMMAND_ITEMS_KEY = 'noesis:recent-command-items';
 const MAX_RECENT_COMMAND_ITEMS = 8;
+
+const normalizePreviewType = (item: CommandPaletteItem | null) => {
+  if (!item) return 'Object';
+  if (item.objectType) return item.objectType;
+  if (item.kind === 'create') return 'Creation Action';
+  if (item.kind === 'navigation') return 'Workspace';
+  return item.section || 'Object';
+};
+
+const normalizePreviewState = (item: CommandPaletteItem | null) => {
+  if (!item) return 'Orientation';
+  if (item.currentState) return item.currentState;
+  if (item.kind === 'create') return 'Ready to create';
+  if (item.kind === 'navigation') return item.view === 'settings' ? 'App behavior' : 'Workspace overview';
+  if (item.targetId) return 'Preview only';
+  return 'Available';
+};
+
+const normalizePreviewSummary = (item: CommandPaletteItem | null) => {
+  if (!item) return 'Preview this object before opening the full workspace.';
+  return item.summary || item.description || 'Preview this object before opening the full workspace.';
+};
+
+const normalizeMatchedReason = (item: CommandPaletteItem | null) => {
+  if (!item) return 'Opened from a navigation or search result.';
+  if (item.matchedBecause) return item.matchedBecause;
+  if (item.kind === 'create') return 'This action starts one of the core Noesis workflows.';
+  if (item.kind === 'navigation') return 'This workspace matches the selected page or command.';
+  if (item.targetId) return 'This object matched your command search or a recent object shortcut.';
+  return 'Opened from the command palette.';
+};
+
+const defaultQuickActionsFor = (item: CommandPaletteItem | null) => {
+  if (!item) return [];
+  if (item.quickActions?.length) return item.quickActions;
+  if (item.kind === 'object' || item.targetId) {
+    return [
+      {
+        label: `Open in ${item.section || 'Workspace'}`,
+        view: item.view,
+        targetId: item.targetId,
+      },
+    ];
+  }
+  if (item.kind === 'create') {
+    return [
+      {
+        label: item.quickActionLabel || 'Start this workflow',
+        view: item.view,
+        targetId: item.targetId,
+      },
+    ];
+  }
+  return [];
+};
 
 interface ShellProps {
   children: React.ReactNode;
@@ -220,18 +277,19 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
       description: item.description || `Open ${item.label}`,
       kind: item.kind || 'object',
     }));
-    const utilities = [
+    const utilities: CommandPaletteItem[] = [
       { id: 'profile', label: NOESIS_PAGE_BY_VIEW.profile.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.profile.purpose, view: 'profile', kind: 'navigation' as const },
       { id: 'goals', label: NOESIS_PAGE_BY_VIEW.goals.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.goals.purpose, view: 'goals', kind: 'navigation' as const },
     ];
-    const creation = [
+    const creation: CommandPaletteItem[] = [
       { id: 'create-source', label: 'Add Source', section: 'Create', description: 'Open Library to capture a book, article, video, paper, or other source.', view: 'library', kind: 'create' as const },
+      { id: 'capture-annotation', label: 'Capture Annotation', section: 'Create', description: 'Open Annotations to process a highlight, thought, question, objection, definition, example, or connection.', view: 'annotations', kind: 'create' as const, objectType: 'Raw Capture', currentState: 'Ready to capture', matchedBecause: 'Capture is the bridge from encountering material to interpreting it inside Noesis.' },
       { id: 'create-inquiry', label: 'Create Inquiry', section: 'Create', description: 'Open Inquiries to start a structured investigation.', view: 'questions', kind: 'create' as const },
       { id: 'create-position', label: 'Create Position', section: 'Create', description: 'Open Positions to state or draft a belief for testing.', view: 'vault', kind: 'create' as const },
       { id: 'create-work', label: 'Create Work', section: 'Create', description: 'Open Works to start writing, notes, drawing, or recording.', view: 'writing', kind: 'create' as const },
       { id: 'start-practice', label: 'Start Practice', section: 'Create', description: 'Open Practices to turn an idea into a lived test.', view: 'practices', kind: 'create' as const },
     ];
-    const core = navItems.map((item) => ({
+    const core: CommandPaletteItem[] = navItems.map((item) => ({
       id: item.id,
       label: NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].title,
       section: NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].section,
@@ -243,7 +301,20 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
     }));
     const query = commandQuery.trim().toLowerCase();
     return [...recent, ...creation, ...core, ...utilities, ...workspaceCommandItems]
-      .filter((item) => !query || `${item.label} ${item.section} ${item.description}`.toLowerCase().includes(query))
+      .filter((item) => {
+        const searchable = [
+          item.label,
+          item.section,
+          item.description,
+          item.summary,
+          item.objectType,
+          item.currentState,
+          item.matchedBecause,
+          ...(item.connectedConcepts || []),
+          ...(item.relatedObjects || []),
+        ].filter(Boolean).join(' ');
+        return !query || searchable.toLowerCase().includes(query);
+      })
       .slice(0, 18);
   }, [commandQuery, navItems, recentCommandItems, workspaceCommandItems]);
 
@@ -289,6 +360,12 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
     }
     setPreviewItem(null);
   };
+
+  const previewType = normalizePreviewType(previewItem);
+  const previewState = normalizePreviewState(previewItem);
+  const previewSummary = normalizePreviewSummary(previewItem);
+  const previewMatchedReason = normalizeMatchedReason(previewItem);
+  const previewQuickActions = defaultQuickActionsFor(previewItem);
 
   const renderNavButton = (item: typeof navItems[number]) => {
     const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
@@ -564,9 +641,19 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
                     onClick={() => handleCommandSelect(item)}
                     className="flex w-full items-center justify-between rounded-2xl border border-border bg-background/60 px-4 py-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <span>
+                    <span className="min-w-0 pr-3">
                       <span className="block font-medium text-foreground">{item.label}</span>
                       <span className="mt-1 block text-xs text-muted-foreground">{item.description}</span>
+                      {(commandQuery.trim() && (item.matchedBecause || item.connectedConcepts?.length || item.relatedObjects?.length)) ? (
+                        <span className="mt-2 block rounded-xl bg-accent/5 px-3 py-2 text-[11px] leading-5 text-muted-foreground">
+                          <span className="font-code text-[8px] uppercase tracking-[0.16em] text-accent">Matched Because </span>
+                          {item.matchedBecause || (
+                            item.connectedConcepts?.length
+                              ? `It is connected to ${item.connectedConcepts.slice(0, 3).join(', ')}.`
+                              : `It has related context: ${item.relatedObjects?.slice(0, 2).join(', ')}.`
+                          )}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="rounded-full border border-border px-2.5 py-1 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{item.section}</span>
                   </button>
@@ -586,29 +673,34 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
             <SheetHeader className="border-b border-border px-6 py-5 text-left">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-border px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
-                  {previewItem?.section || 'Object'}
+                  {previewType}
                 </span>
-                {previewItem?.currentState && (
-                  <span className="rounded-full bg-accent/10 px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-accent">
-                    {previewItem.currentState}
-                  </span>
-                )}
+                <span className="rounded-full bg-accent/10 px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-accent">
+                  {previewState}
+                </span>
               </div>
               <SheetTitle className="font-headline text-2xl font-semibold italic leading-tight text-foreground/85">
                 {previewItem?.label || 'Object Preview'}
               </SheetTitle>
               <SheetDescription className="text-sm leading-6">
-                {previewItem?.summary || previewItem?.description || 'Preview this object before opening the full workspace.'}
+                {previewSummary}
               </SheetDescription>
             </SheetHeader>
 
             <div className="flex-1 overflow-y-auto px-6 py-5">
               <div className="space-y-5">
                 <section className="rounded-2xl border border-border bg-background/60 p-4">
-                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Current State</div>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {previewItem?.description || 'No additional summary has been recorded for this object yet.'}
-                  </p>
+                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Orientation</div>
+                  <div className="mt-3 grid gap-3 text-sm leading-6">
+                    <div>
+                      <div className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">Current State</div>
+                      <p className="mt-1 text-muted-foreground">{previewState}</p>
+                    </div>
+                    <div>
+                      <div className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">Why This Appeared</div>
+                      <p className="mt-1 text-muted-foreground">{previewMatchedReason}</p>
+                    </div>
+                  </div>
                 </section>
 
                 <section className="rounded-2xl border border-border bg-background/60 p-4">
@@ -622,7 +714,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">No concept connections are visible from the command index yet.</p>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">No concept connections are available in this preview. Open the full page to inspect its complete relationship context.</p>
                   )}
                 </section>
 
@@ -637,7 +729,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">No relationship counts are visible from the command index yet.</p>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">No related objects are indexed for this preview yet. Relationship panels on the full page may contain more detail.</p>
                   )}
                 </section>
 
@@ -648,21 +740,24 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
                   </p>
                 </section>
 
-                {previewItem?.quickActions?.length ? (
+                {previewQuickActions.length ? (
                   <section className="rounded-2xl border border-border bg-background/60 p-4">
                     <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Quick Actions</div>
                     <div className="mt-3 grid gap-2">
-                      {previewItem.quickActions.map((action) => (
+                      {previewQuickActions.map((action) => (
                         <Button
                           key={`${action.view}-${action.targetId || action.label}`}
                           variant="outline"
                           className="justify-between rounded-xl"
-                          onClick={() => openPreviewItem({
-                            ...previewItem,
-                            view: action.view,
-                            targetId: action.targetId,
-                            quickActionLabel: action.label,
-                          })}
+                          onClick={() => {
+                            if (!previewItem) return;
+                            openPreviewItem({
+                              ...previewItem,
+                              view: action.view,
+                              targetId: action.targetId,
+                              quickActionLabel: action.label,
+                            });
+                          }}
                         >
                           {action.label}
                           <ChevronRight className="size-4" />

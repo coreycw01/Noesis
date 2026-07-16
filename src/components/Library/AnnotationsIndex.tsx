@@ -44,6 +44,7 @@ interface AnnotationsIndexProps {
 type FlatAnnotation = Annotation & { source: Media };
 type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered';
 type PreflightMode = 'position' | 'inquiry';
+type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'archive';
 
 interface PreflightDraft {
   mode: PreflightMode;
@@ -307,6 +308,44 @@ export function AnnotationsIndex({
     setSelectedKeys([]);
   };
 
+  const runConsequenceAction = (annotation: FlatAnnotation, action: ConsequenceAction) => {
+    const { source, ...annotationData } = annotation;
+    if (action === 'clarifies') {
+      onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'connected' });
+      toast({ title: 'Annotation marked as conceptual clarification.', description: 'It stays in the inbox as reviewed concept material.' });
+      return;
+    }
+    if (action === 'raises_question') {
+      openPreflight(annotation, 'inquiry');
+      return;
+    }
+    if (action === 'supports_claim') {
+      if (positions.length) {
+        setLinkDialog({ annotation, linkType: 'supports' });
+      } else {
+        openPreflight(annotation, 'position');
+      }
+      return;
+    }
+    if (action === 'challenges_claim') {
+      if (positions.length) {
+        setLinkDialog({ annotation, linkType: 'challenges' });
+      } else {
+        openPreflight(annotation, 'inquiry');
+      }
+      return;
+    }
+    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'archived' });
+    toast({ title: 'Annotation archived.', description: 'It will no longer appear in active processing views.' });
+  };
+
+  const consequenceQuestion = (annotation: FlatAnnotation) => {
+    if (annotation.type === 'question') return 'What question does this raise?';
+    if (annotation.type === 'connection') return 'What relationship does this reveal?';
+    if (annotation.type === 'highlight') return 'What claim or concept does this clarify?';
+    return 'What does this thought affect?';
+  };
+
   const createPositionFromSelection = () => {
     if (!selectedAnnotations.length) return;
     const sourceIds = Array.from(new Set(selectedAnnotations.map((annotation) => annotation.source.id)));
@@ -548,6 +587,37 @@ export function AnnotationsIndex({
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).slice(0, 2).join(', ') || 'No concept yet'}
                 </p>
+              </div>
+            </div>
+
+            <div className="mb-3 rounded-xl border border-accent/15 bg-accent/5 p-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">Consequence Sweep</div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {consequenceQuestion(annotation)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {([
+                    ['clarifies', 'Clarifies'],
+                    ['raises_question', 'Question'],
+                    ['supports_claim', 'Supports'],
+                    ['challenges_claim', 'Challenges'],
+                    ['archive', 'Archive'],
+                  ] as Array<[ConsequenceAction, string]>).map(([action, label]) => (
+                    <Button
+                      key={action}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => runConsequenceAction(annotation, action)}
+                      className="h-7 rounded-full bg-card px-2.5 font-code text-[8px] uppercase tracking-widest"
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
 

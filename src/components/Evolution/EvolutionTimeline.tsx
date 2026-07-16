@@ -45,6 +45,7 @@ type DisplayEvent = {
   significance?: string;
   beforeLabel?: string;
   afterLabel?: string;
+  changedFields?: string[];
 };
 
 const FILTER_OPTIONS: Array<{ value: EvolutionFilter; label: string }> = [
@@ -159,7 +160,8 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
       detail: typeof event.metadata === 'object' && event.metadata ? JSON.stringify(event.metadata) : `${event.targetType} · ${event.sourceType}`,
       date: event.createdAt,
       filter: mapThinkingEventToFilter(event.eventType),
-      chips: [event.eventType.replace(/_/g, ' '), event.sourceType, event.targetType],
+      chips: [event.actionType?.replace(/_/g, ' ') || event.eventType.replace(/_/g, ' '), event.sourceType, event.targetType],
+      changedFields: event.changedFields,
       ...thinkingEventMeaning(event),
     }));
 
@@ -341,6 +343,18 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
                       </div>
                     </div>
                   )}
+                  {event.changedFields?.length ? (
+                    <div className="md:col-span-3 border-t border-border/40 pt-3">
+                      <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Changed Fields</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {event.changedFields.slice(0, 10).map((field) => (
+                          <Badge key={field} variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                            {field.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 {influencedSources.length > 0 && (

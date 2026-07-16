@@ -2401,7 +2401,14 @@ function MissingFocusedTargetBanner({ label, id, onReturn }: { label: string; id
 
 function NoesisPageLoading({ activeView }: { activeView: NoesisView }) {
   const page = NOESIS_PAGE_BY_VIEW[activeView];
-  return <PageLoadingState title={`Loading ${page.title}`} description={page.purpose} />;
+  const loadingLayout =
+    activeView === 'home' ? 'desk'
+      : activeView === 'atlas' ? 'map'
+        : activeView === 'writing' ? 'studio'
+          : activeView === 'evolution' ? 'timeline'
+            : ['library', 'vault', 'questions', 'practices', 'concepts'].includes(activeView) ? 'detail'
+              : 'list';
+  return <PageLoadingState title={`Loading ${page.title}`} description={page.purpose} loadingLayout={loadingLayout} />;
 }
 
 function NoesisHome() {

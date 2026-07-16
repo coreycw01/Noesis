@@ -16,6 +16,7 @@ interface PageStateProps {
   whyItMatters?: string;
   firstAction?: string;
   filterCause?: string;
+  loadingLayout?: 'desk' | 'map' | 'list' | 'detail' | 'studio' | 'timeline';
 }
 
 interface PageErrorStateProps extends PageStateProps {
@@ -46,15 +47,21 @@ export function PageEmptyState({ title, description, icon: Icon = Search, action
   );
 }
 
-export function PageLoadingState({ title, description = 'Syncing the data this page needs.', className }: Omit<PageStateProps, 'icon' | 'action'>) {
+export function PageLoadingState({ title, description = 'Syncing the data this page needs.', className, loadingLayout = 'list' }: Omit<PageStateProps, 'icon' | 'action'>) {
   return (
-    <div className={cn('flex min-h-[60vh] flex-1 items-center justify-center p-8', className)}>
-      <div className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-10 py-8 text-center shadow-sm">
-        <Loader2 className="size-7 animate-spin text-accent" />
-        <div>
-          <div className="font-code text-[10px] uppercase tracking-[0.22em] text-muted-foreground">{title}</div>
-          <p className="mt-2 max-w-xs text-sm leading-6 text-muted-foreground">{description}</p>
+    <div className={cn('min-h-[60vh] flex-1 p-8', className)} aria-busy="true" aria-live="polite">
+      <div className="mx-auto w-full max-w-7xl">
+        <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 font-code text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin text-accent" />
+              {title}
+            </div>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{description}</p>
+          </div>
+          <div className="hidden h-9 w-40 rounded-full bg-muted/40 sm:block" />
         </div>
+        <LoadingSkeleton layout={loadingLayout} />
       </div>
     </div>
   );
@@ -99,4 +106,116 @@ function StateDetail({ label, value }: { label: string; value: string }) {
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{value}</p>
     </div>
   );
+}
+
+function LoadingSkeleton({ layout }: { layout: NonNullable<PageStateProps['loadingLayout']> }) {
+  if (layout === 'map') {
+    return (
+      <div className="grid min-h-[520px] gap-4 lg:grid-cols-[1fr_320px]">
+        <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card p-6">
+          <SkeletonPulse className="absolute left-[12%] top-[18%] h-16 w-36 rounded-2xl" />
+          <SkeletonPulse className="absolute left-[42%] top-[28%] h-16 w-40 rounded-2xl" />
+          <SkeletonPulse className="absolute right-[10%] top-[14%] h-16 w-32 rounded-2xl" />
+          <SkeletonPulse className="absolute bottom-[20%] left-[28%] h-16 w-44 rounded-2xl" />
+          <SkeletonPulse className="absolute bottom-[14%] right-[18%] h-16 w-36 rounded-2xl" />
+          <div className="absolute inset-x-16 top-1/2 h-px bg-border/60" />
+          <div className="absolute bottom-8 left-8 h-9 w-48 rounded-full bg-muted/40" />
+        </div>
+        <div className="rounded-3xl border border-border/60 bg-card p-5">
+          <SkeletonPulse className="h-5 w-28 rounded-full" />
+          <SkeletonPulse className="mt-5 h-24 rounded-2xl" />
+          <SkeletonPulse className="mt-4 h-24 rounded-2xl" />
+          <SkeletonPulse className="mt-4 h-16 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (layout === 'studio') {
+    return (
+      <div className="grid gap-4 lg:grid-cols-[260px_1fr_300px]">
+        <SkeletonPanel rows={5} />
+        <div className="min-h-[520px] rounded-3xl border border-border/60 bg-card p-6">
+          <SkeletonPulse className="h-10 w-2/3 rounded-xl" />
+          <SkeletonPulse className="mt-6 h-8 w-full rounded-xl" />
+          <SkeletonPulse className="mt-4 h-8 w-5/6 rounded-xl" />
+          <SkeletonPulse className="mt-4 h-64 w-full rounded-2xl" />
+        </div>
+        <SkeletonPanel rows={4} />
+      </div>
+    );
+  }
+
+  if (layout === 'timeline') {
+    return (
+      <div className="space-y-8 border-l border-border/60 pl-8">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className="relative rounded-3xl border border-border/60 bg-card p-5">
+            <span className="absolute -left-[37px] top-7 size-3 rounded-full bg-accent/40" />
+            <SkeletonPulse className="h-4 w-40 rounded-full" />
+            <SkeletonPulse className="mt-4 h-7 w-2/3 rounded-xl" />
+            <SkeletonPulse className="mt-3 h-20 rounded-2xl" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (layout === 'desk') {
+    return (
+      <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+        <div className="rounded-3xl border border-border/60 bg-card p-6">
+          <SkeletonPulse className="h-7 w-64 rounded-xl" />
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <SkeletonPulse className="h-36 rounded-2xl" />
+            <SkeletonPulse className="h-36 rounded-2xl" />
+            <SkeletonPulse className="h-36 rounded-2xl" />
+          </div>
+        </div>
+        <SkeletonPanel rows={5} />
+      </div>
+    );
+  }
+
+  if (layout === 'detail') {
+    return (
+      <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+        <div className="rounded-3xl border border-border/60 bg-card p-6">
+          <SkeletonPulse className="h-8 w-2/3 rounded-xl" />
+          <SkeletonPulse className="mt-5 h-28 rounded-2xl" />
+          <SkeletonPulse className="mt-4 h-28 rounded-2xl" />
+          <SkeletonPulse className="mt-4 h-20 rounded-2xl" />
+        </div>
+        <SkeletonPanel rows={5} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {[0, 1, 2, 3, 4, 5].map((item) => (
+        <div key={item} className="rounded-3xl border border-border/60 bg-card p-5">
+          <SkeletonPulse className="h-5 w-32 rounded-full" />
+          <SkeletonPulse className="mt-4 h-8 w-4/5 rounded-xl" />
+          <SkeletonPulse className="mt-4 h-20 rounded-2xl" />
+          <SkeletonPulse className="mt-4 h-4 w-1/2 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkeletonPanel({ rows }: { rows: number }) {
+  return (
+    <div className="rounded-3xl border border-border/60 bg-card p-5">
+      <SkeletonPulse className="h-5 w-32 rounded-full" />
+      {Array.from({ length: rows }).map((_, index) => (
+        <SkeletonPulse key={index} className="mt-4 h-14 rounded-2xl" />
+      ))}
+    </div>
+  );
+}
+
+function SkeletonPulse({ className }: { className?: string }) {
+  return <div className={cn('animate-pulse bg-muted/55', className)} />;
 }

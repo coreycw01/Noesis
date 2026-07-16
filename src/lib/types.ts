@@ -329,7 +329,10 @@ export interface ThinkingEvent {
   id: string;
   eventId: string;
   userId: string;
+  schemaVersion?: number;
+  actorId?: string;
   eventType: ThinkingEventType;
+  actionType?: ThinkingEventType;
   entityType: ThinkingEventEntityType;
   entityId: string;
   relatedEntityIds?: {
@@ -347,6 +350,7 @@ export interface ThinkingEvent {
   before?: Record<string, any> | null;
   after?: Record<string, any> | null;
   diff?: Record<string, any> | null;
+  changedFields?: string[];
   targetType: PhilosophicalObjectType | 'unknown' | 'suggestion' | 'thinking_pattern';
   targetId: string;
   relatedTargetType?: PhilosophicalObjectType | 'unknown' | 'suggestion' | 'thinking_pattern';

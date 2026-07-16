@@ -249,8 +249,20 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   const hasLoggedToday = logDates.includes(todayKey);
   const streak = currentStreak(logDates);
   const experimentShape = practiceExperimentShape(practice, linkedQuestions, linkedPositions);
+  const [reviewOpen, setReviewOpen] = useState(experimentShape.needsOutcome);
+  const [reviewDraft, setReviewDraft] = useState(practice.notes || '');
   const setStatus = (status: PracticeStatus) => onUpdatePractice({ ...practice, status, dateUpdated: today() });
   const logToday = () => onUpdatePractice({ ...practice, logDates: Array.from(new Set([...logDates, todayKey])), dateUpdated: today() });
+  const saveConclusionReview = (status: PracticeStatus = 'completed') => {
+    if (!reviewDraft.trim()) return;
+    onUpdatePractice({
+      ...practice,
+      status,
+      notes: reviewDraft.trim(),
+      dateUpdated: today(),
+    });
+    setReviewOpen(false);
+  };
   return (
     <Card className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-5 rounded-xl shadow-md">
       <div className="flex items-start justify-between gap-4 mb-4">
@@ -335,13 +347,13 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
               label: 'Complete',
               tone: 'support',
               disabled: practice.status === 'completed',
-              onClick: () => setStatus('completed'),
+              onClick: () => setReviewOpen(true),
             },
             {
               label: 'Failed',
               tone: 'challenge',
               disabled: practice.status === 'failed',
-              onClick: () => setStatus('failed'),
+              onClick: () => setReviewOpen(true),
             },
             {
               label: 'Link Test',
@@ -361,6 +373,45 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
           ]}
         />
       </div>
+
+      {reviewOpen && (
+        <div className="mt-5 rounded-xl border border-accent/20 bg-accent/5 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Conclusion Review</div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Compare theory versus reality before this practice changes what you believe.
+              </p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setReviewOpen(false)} className="h-7 rounded-full px-2.5 font-code text-[8px] uppercase">Hide</Button>
+          </div>
+          <div className="mt-3 grid gap-2 text-[11px] leading-5 text-muted-foreground sm:grid-cols-2">
+            <div className="rounded-lg border border-border/30 bg-card p-3">Was the practice performed as intended?</div>
+            <div className="rounded-lg border border-border/30 bg-card p-3">What happened that you did not expect?</div>
+            <div className="rounded-lg border border-border/30 bg-card p-3">Was the hypothesis supported, weakened, or complicated?</div>
+            <div className="rounded-lg border border-border/30 bg-card p-3">What alternative explanation exists?</div>
+            <div className="rounded-lg border border-border/30 bg-card p-3">What changed intellectually?</div>
+            <div className="rounded-lg border border-border/30 bg-card p-3">Should this continue, revise, integrate, or stop?</div>
+          </div>
+          <Textarea
+            value={reviewDraft}
+            onChange={(event) => setReviewDraft(event.target.value)}
+            placeholder="Theory vs. reality: what did this practice reveal, and what should change because of it?"
+            className="mt-3 min-h-28 rounded-xl bg-white"
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => saveConclusionReview('completed')} disabled={!reviewDraft.trim()} className="h-8 rounded-full">
+              Save as Completed
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => saveConclusionReview('failed')} disabled={!reviewDraft.trim()} className="h-8 rounded-full bg-card">
+              Save as Failed Productively
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => saveConclusionReview('integrated')} disabled={!reviewDraft.trim()} className="h-8 rounded-full bg-card">
+              Save as Integrated
+            </Button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

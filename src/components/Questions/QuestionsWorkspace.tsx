@@ -357,6 +357,23 @@ function investigationBranches(question: Question, concepts: string[], sources: 
   return branches;
 }
 
+function branchStatus(label: string): Question['status'] {
+  if (label === 'Gather Evidence') return 'gathering_evidence';
+  if (label === 'Compare Answers') return 'under_tension';
+  if (label === 'Express / Test') return 'partially_answered';
+  if (label === 'Resolution Review') return 'partially_answered';
+  return 'investigating';
+}
+
+function branchNextStep(label: string) {
+  if (label === 'Clarify Terms') return 'Define the key concepts and name the assumptions hidden in the wording.';
+  if (label === 'Gather Evidence') return 'Attach sources, annotations, or examples that could support or weaken a candidate answer.';
+  if (label === 'Compare Answers') return 'Write at least two candidate answers and compare what each explains or fails to explain.';
+  if (label === 'Express / Test') return 'Turn the provisional answer into a work, position, or practice so it can be examined.';
+  if (label === 'Resolution Review') return 'Decide whether the answer should be provisional, suspended, transformed, or resolved.';
+  return 'Choose the next concrete investigation move.';
+}
+
 function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onFormPositionFromInquiry, onAiFeedback }: {
   question: Question;
   sources: Media[];
@@ -375,10 +392,12 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   const [currentFocus, setCurrentFocus] = useState('');
   const [probeResponse, setProbeResponse] = useState('');
   const [positionDraft, setPositionDraft] = useState<{ title: string; statement: string; description: string; confidence: number } | null>(null);
+  const [selectedBranchLabel, setSelectedBranchLabel] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inquiryType = inferInquiryType(question, concepts, sources);
   const branches = investigationBranches(question, concepts, sources, beliefs, drafts);
+  const selectedBranch = branches.find((branch) => branch.label === selectedBranchLabel) || null;
   const evidenceLanes = [
     {
       label: 'Supports candidate answer',
@@ -423,6 +442,13 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   const updateInvestigationStatus = (status: Question['status']) => {
     onUpdateQuestion({ ...question, status, dateUpdated: today() });
     onAiFeedback('Inquiry status updated.', `Marked as ${status.replace(/_/g, ' ')}.`);
+  };
+
+  const chooseBranch = (branch: ReturnType<typeof investigationBranches>[number]) => {
+    setSelectedBranchLabel(branch.label);
+    const status = branchStatus(branch.label);
+    onUpdateQuestion({ ...question, status, dateUpdated: today() });
+    onAiFeedback('Investigation branch selected.', `${branch.label}: ${branchNextStep(branch.label)}`);
   };
 
   const startDialogue = async () => {
@@ -511,7 +537,10 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                 <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-3 font-bold">Branches</div>
                 <div className="grid gap-2">
                   {branches.map((branch) => (
-                    <div key={branch.label} className="rounded-lg border border-border/30 bg-card px-3 py-2">
+                    <div key={branch.label} className={cn(
+                      'rounded-lg border bg-card px-3 py-2 transition-colors',
+                      selectedBranch?.label === branch.label ? 'border-accent/50 bg-accent/5' : 'border-border/30'
+                    )}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-sm font-medium text-foreground/80">{branch.label}</div>
                         <span className={cn(
@@ -520,9 +549,27 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                         )}>{branch.state}</span>
                       </div>
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">{branch.detail}</p>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[11px] leading-5 text-muted-foreground">{branchNextStep(branch.label)}</p>
+                        <Button
+                          size="sm"
+                          variant={selectedBranch?.label === branch.label ? 'default' : 'outline'}
+                          onClick={() => chooseBranch(branch)}
+                          className="h-7 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
+                        >
+                          {selectedBranch?.label === branch.label ? 'Chosen' : 'Choose'}
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
+                {selectedBranch && (
+                  <div className="mt-3 rounded-xl border border-accent/20 bg-accent/5 p-3">
+                    <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">Active Investigation Branch</div>
+                    <p className="mt-1 text-sm font-medium text-foreground">{selectedBranch.label}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{branchNextStep(selectedBranch.label)}</p>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-xl border border-border/40 bg-background/70 p-4">

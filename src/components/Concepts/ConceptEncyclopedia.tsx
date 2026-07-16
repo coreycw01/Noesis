@@ -48,6 +48,8 @@ type ConceptListRow = {
   why: string;
 };
 
+type BoundaryAnswer = 'inside' | 'outside' | 'depends';
+
 const CONCEPT_LIST_VIEWS: Array<{ id: ConceptListView; label: string; description: string }> = [
   { id: 'all', label: 'All', description: 'Every defined concept in the vocabulary.' },
   { id: 'recent', label: 'Recently Active', description: 'Concepts with recent timeline movement or updated definitions.' },
@@ -90,6 +92,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [clarityAnswers, setClarityAnswers] = useState<Array<{ dimension: string; isClosest: boolean; feedback: string }>>([]);
   const [isLoadingCheck, setIsLoadingCheck] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [boundaryAnswers, setBoundaryAnswers] = useState<Record<string, BoundaryAnswer>>({});
+  const [boundaryRefinement, setBoundaryRefinement] = useState('');
   const { toast } = useToast();
   
   const allTerms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
@@ -311,7 +315,46 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       diagnosis.tension === 'high' ? 'Related positions or inquiries suggest inconsistent usage.' : 'No strong inconsistency signal yet.',
       r.practices.length ? 'At least one practice tests how the idea behaves in life.' : 'No lived boundary test is attached yet.',
     ];
+    const boundaryCases = Array.from(new Set([
+      `A source uses ${selectedName} as a synonym for ${linkedConceptNames[0] || 'a neighboring idea'}.`,
+      `A position depends on ${selectedName}, but only as a feeling or intuition rather than a clear claim.`,
+      r.practices.length
+        ? `A practice tries to test ${selectedName} through behavior instead of argument.`
+        : `Someone claims ${selectedName} matters, but no lived test or practice is attached.`,
+      r.annotations.length
+        ? `An annotation uses ${selectedName} as a reaction to a passage rather than a defined idea.`
+        : `A note mentions ${selectedName}, but gives no example, counterexample, or boundary.`,
+      r.questions.length
+        ? `An inquiry asks whether ${selectedName} changes when pressure, desire, or uncertainty enters.`
+        : `A question could be formed from ${selectedName}, but the question has not been made explicit.`,
+    ])).slice(0, 5);
+    const boundaryKey = (boundaryCase: string) => `${conceptKey(selectedName)}:${boundaryCase}`;
+    const answeredBoundaryCount = boundaryCases.filter((boundaryCase) => boundaryAnswers[boundaryKey(boundaryCase)]).length;
+    const boundaryAnswerCounts = boundaryCases.reduce((acc, boundaryCase) => {
+      const answer = boundaryAnswers[boundaryKey(boundaryCase)];
+      if (answer) acc[answer] += 1;
+      return acc;
+    }, { inside: 0, outside: 0, depends: 0 } as Record<BoundaryAnswer, number>);
+    const boundarySuggestion = boundaryAnswerCounts.depends > boundaryAnswerCounts.inside
+      ? 'Your answers suggest this concept needs conditions: when does it apply, and what must be true first?'
+      : boundaryAnswerCounts.outside > boundaryAnswerCounts.inside
+        ? 'Your answers suggest the boundary may be too wide. Name what this concept is not.'
+        : answeredBoundaryCount
+          ? 'Your answers suggest the current boundary is usable, but examples and counterexamples would make it stronger.'
+          : 'Classify edge cases to see whether the definition is too wide, too narrow, or condition-dependent.';
     const driftEvents = sortedEvents.filter((event) => /concept|definition|revise|transform|changed/i.test(`${event.eventType} ${event.reason || ''}`));
+    const saveBoundaryRefinement = () => {
+      if (!concept || !boundaryRefinement.trim()) return;
+      const trimmed = boundaryRefinement.trim();
+      const existingDefinition = concept.description?.trim() || '';
+      onUpdateConcept({
+        ...concept,
+        description: `${existingDefinition}${existingDefinition ? '\n\n' : ''}Boundary note: ${trimmed}`,
+        philosophyStatus: concept.philosophyStatus === 'undefined' ? 'emerging' : concept.philosophyStatus,
+      });
+      setBoundaryRefinement('');
+      toast({ title: 'Boundary note added', description: 'The working definition now records this user-confirmed boundary refinement.' });
+    };
 
     const back = () => { setSelectedName(null); setPositionDrafts([]); };
 
@@ -451,6 +494,82 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               ) : (
                 <p className="text-sm leading-6 text-muted-foreground">No definition-change events are recorded yet. Future definition revisions should appear here as concept history.</p>
               )}
+            </div>
+          </div>
+
+          {/* Boundary Test */}
+          <div className="rounded-xl border border-border/30 bg-white shadow-sm p-6 mb-10">
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Boundary Test</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Classify edge cases so this concept becomes clearer without letting AI or the app decide the definition for you.
+                </p>
+              </div>
+              <Badge variant="outline" className="w-fit rounded-full">
+                {answeredBoundaryCount}/{boundaryCases.length} classified
+              </Badge>
+            </div>
+
+            <div className="grid gap-3">
+              {boundaryCases.map((boundaryCase, index) => {
+                const key = boundaryKey(boundaryCase);
+                const selected = boundaryAnswers[key];
+                return (
+                  <div key={boundaryCase} className="rounded-xl border border-border/40 bg-background/70 p-4">
+                    <div className="flex gap-3">
+                      <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/10 font-code text-[10px] font-bold text-accent">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm leading-6 text-foreground/80">{boundaryCase}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {([
+                            ['inside', 'Inside'],
+                            ['outside', 'Outside'],
+                            ['depends', 'Depends'],
+                          ] as Array<[BoundaryAnswer, string]>).map(([value, label]) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setBoundaryAnswers((prev) => ({ ...prev, [key]: value }))}
+                              className={cn(
+                                'rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-widest transition-colors',
+                                selected === value
+                                  ? 'border-accent bg-accent text-white'
+                                  : 'border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground'
+                              )}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 rounded-xl border border-accent/20 bg-accent/5 p-4">
+              <div className="font-code text-[9px] uppercase tracking-widest text-accent font-bold">Refinement Prompt</div>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{boundarySuggestion}</p>
+              <div className="mt-4 grid gap-3">
+                <Textarea
+                  value={boundaryRefinement}
+                  onChange={(event) => setBoundaryRefinement(event.target.value)}
+                  placeholder={`Example: ${selectedName} includes..., but it does not include...`}
+                  className="min-h-24 rounded-xl"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Saving appends a user-written boundary note to the working definition and records the concept update through the normal concept flow.
+                  </p>
+                  <Button onClick={saveBoundaryRefinement} disabled={!concept || !boundaryRefinement.trim()} className="rounded-full">
+                    Save Boundary Note
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
 

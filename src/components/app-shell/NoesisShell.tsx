@@ -24,6 +24,7 @@ import type {
 } from '@/lib/types';
 import { Download, FlaskConical } from 'lucide-react';
 import { REVIEW_ACCOUNT_EMAIL } from '@/lib/demo-workspace';
+import { deriveAtlasRegions } from '@/components/Atlas/atlas-diagnostics';
 
 interface NoesisShellProps {
   children: React.ReactNode;
@@ -94,7 +95,45 @@ export function NoesisShell({
   suggestionsCount,
   onOpenCommandItem,
 }: NoesisShellProps) {
+  const atlasRegions = React.useMemo(() => deriveAtlasRegions({
+    concepts,
+    media,
+    vault,
+    practices,
+    questions,
+    drafts,
+    links,
+    timeline: [],
+    thinkingEvents: [],
+  }), [concepts, drafts, links, media, practices, questions, vault]);
+
   const workspaceCommandItems: CommandPaletteItem[] = [
+    ...atlasRegions.slice(0, 12).map((region) => ({
+      id: `atlas-region-${region.id}`,
+      label: region.name,
+      section: 'Atlas Region',
+      description: region.description || 'Open Atlas to inspect this worldview territory.',
+      view: 'atlas',
+      targetId: region.id,
+      objectType: 'Interpretive Territory',
+      kind: 'object' as const,
+      currentState: region.maturityStatus,
+      summary: `${region.name} contains ${region.activePositionsCount} positions, ${region.openInquiryCount} open inquiries, ${region.practiceCount} practices, and ${region.tensionCount} tensions.`,
+      matchedBecause: 'Atlas regions are derived from connected concepts, positions, inquiries, sources, works, practices, and typed links.',
+      connectedConcepts: region.dominantConcepts,
+      relatedObjects: [
+        `${region.sourceCount} sources`,
+        `${region.annotationCount} annotations`,
+        `${region.recentActivityCount} recent changes`,
+        `${region.labels.length ? region.labels.map((label) => label.replace(/-/g, ' ')).join(', ') : 'no diagnostic labels'}`,
+      ],
+      lastChangedAt: region.lastActiveAt,
+      quickActionLabel: 'Open Atlas',
+      quickActions: [
+        { label: 'Open Atlas Territory View', view: 'atlas' },
+        { label: 'Open Map View', view: 'atlas' },
+      ],
+    })),
     ...concepts.slice(0, 20).map((item) => ({
       id: `concept-${item.id}`,
       label: item.name,
@@ -102,9 +141,11 @@ export function NoesisShell({
       description: item.description || 'Open concept detail.',
       view: 'concepts',
       targetId: item.id,
+      objectType: 'Interpretive Object',
       kind: 'object' as const,
       currentState: item.philosophyStatus || 'concept',
       summary: item.description || 'A concept in the user vocabulary.',
+      matchedBecause: 'Concepts organize recurring meaning across sources, inquiries, positions, works, and practices.',
       connectedConcepts: item.links || [],
       relatedObjects: [
         `${item.sourceIds?.length || 0} sources`,
@@ -124,9 +165,11 @@ export function NoesisShell({
       description: item.creator || item.type || 'Open source workspace.',
       view: 'library',
       targetId: item.id,
+      objectType: 'Raw Input',
       kind: 'object' as const,
       currentState: item.status,
       summary: item.description || item.capture?.after?.coreArgument || item.capture?.before?.openQuestion || 'A source feeding the thinking system.',
+      matchedBecause: 'Sources are encounters that can become annotations, concepts, inquiries, and positions.',
       connectedConcepts: item.tags || [],
       relatedObjects: [
         `${item.annotations?.length || 0} annotations`,
@@ -147,9 +190,11 @@ export function NoesisShell({
       description: `${item.type} from ${item.source.title}`,
       view: 'annotations',
       targetId: item.id,
+      objectType: 'Raw Capture',
       kind: 'object' as const,
       currentState: item.philosophyStatus || 'raw',
       summary: item.context || item.answer || item.text,
+      matchedBecause: 'Annotations are captures waiting to be interpreted, questioned, connected, or judged.',
       connectedConcepts: item.conceptTags || item.source.tags || [],
       relatedObjects: [
         `Source: ${item.source.title}`,
@@ -170,9 +215,11 @@ export function NoesisShell({
       description: item.status || 'Open inquiry workspace.',
       view: 'questions',
       targetId: item.id,
+      objectType: 'Interpretive Object',
       kind: 'object' as const,
       currentState: item.status,
       summary: item.answer || 'An open investigation in the system.',
+      matchedBecause: 'Inquiries structure uncertainty and can mature into positions, works, practices, or unknowns.',
       connectedConcepts: item.conceptIds?.map((conceptId) => concepts.find((concept) => concept.id === conceptId)?.name || conceptId) || [],
       relatedObjects: [
         `${item.sourceIds?.length || 0} sources`,
@@ -193,9 +240,11 @@ export function NoesisShell({
       description: item.status || 'Open position workbench.',
       view: 'vault',
       targetId: item.id,
+      objectType: 'Judgment Object',
       kind: 'object' as const,
       currentState: item.status,
       summary: item.statement || item.description || 'A current position in the belief workbench.',
+      matchedBecause: 'Positions are user-owned judgments that need evidence, objections, confidence, and revision history.',
       connectedConcepts: item.tags || [],
       relatedObjects: [
         `${item.sourceIds?.length || 0} sources`,
@@ -217,9 +266,11 @@ export function NoesisShell({
       description: item.type || 'Open work studio.',
       view: 'writing',
       targetId: item.id,
+      objectType: 'Expression Object',
       kind: 'object' as const,
       currentState: item.status,
       summary: item.body || item.draftContent || 'A work expressing or developing thought.',
+      matchedBecause: 'Works express, clarify, and expose tensions inside positions, inquiries, and concepts.',
       connectedConcepts: item.conceptTags || [],
       relatedObjects: [
         `${item.sourceIds?.length || 0} sources`,
@@ -240,9 +291,11 @@ export function NoesisShell({
       description: item.status || 'Open practice field.',
       view: 'practices',
       targetId: item.id,
+      objectType: 'Experiment Object',
       kind: 'object' as const,
       currentState: item.status,
       summary: item.description || item.notes || 'A lived test connected to thought.',
+      matchedBecause: 'Practices test whether an idea survives contact with lived behavior and observation.',
       connectedConcepts: item.conceptTags || [],
       relatedObjects: [
         `${item.positionIds?.length || 0} positions tested`,
@@ -263,9 +316,11 @@ export function NoesisShell({
       description: item.domain || item.importance || 'Open unknown.',
       view: 'profile',
       targetId: item.unknownId,
+      objectType: 'Metacognitive Object',
       kind: 'object' as const,
       currentState: item.status,
       summary: item.description || 'A known area of uncertainty in the thinking system.',
+      matchedBecause: 'Unknowns make ignorance explicit so it can guide research, questions, and revision.',
       connectedConcepts: item.conceptTags || [],
       relatedObjects: [
         `${item.sourceIds?.length || 0} sources`,
