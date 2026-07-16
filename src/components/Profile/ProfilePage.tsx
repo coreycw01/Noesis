@@ -2,7 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { Brain, Globe, Lightbulb, Save, Sparkles, UserCircle2 } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { Brain, Globe, Lightbulb, LogOut, Save, Sparkles, UserCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import type {
   BeliefProfile,
@@ -76,6 +79,7 @@ export function ProfilePage({
   onUpdateThinkingPattern,
   onNavigate,
 }: ProfilePageProps) {
+  const auth = useAuth();
   const { toast } = useToast();
   const [profileDraft, setProfileDraft] = useState<UserProfile>(profile);
   const [privacyDraft, setPrivacyDraft] = useState<ProfilePrivacySettings>(privacy);
@@ -167,6 +171,15 @@ export function ProfilePage({
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      toast({ title: 'Signed out', description: 'Your Noesis workspace is closed on this device.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Sign out failed', description: 'Noesis could not sign you out right now.' });
+    }
+  };
+
   const addUnknown = () => {
     if (!unknownDraft.title.trim()) return;
     onAddUnknown({
@@ -208,10 +221,16 @@ export function ProfilePage({
           title="Profile"
           description="Shape the identity, tendencies, unknowns, and public-facing philosophy behind your Noesis workspace."
           actions={(
-            <Button onClick={saveProfile} disabled={saving === 'profile'} className="rounded-full px-6 font-semibold">
-              <Save className="mr-2 size-4" />
-              {saving === 'profile' ? 'Saving Profile' : 'Save Profile'}
-            </Button>
+            <>
+              <Button variant="outline" onClick={handleSignOut} className="rounded-full bg-card px-6 font-semibold text-destructive hover:text-destructive">
+                <LogOut className="mr-2 size-4" />
+                Sign Out
+              </Button>
+              <Button onClick={saveProfile} disabled={saving === 'profile'} className="rounded-full px-6 font-semibold">
+                <Save className="mr-2 size-4" />
+                {saving === 'profile' ? 'Saving Profile' : 'Save Profile'}
+              </Button>
+            </>
           )}
         />
 
@@ -254,229 +273,195 @@ export function ProfilePage({
           </div>
         </Card>
 
-        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <SectionCard title="Overview" description="Identity, focus, and the current season of your thought.">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Display Name">
-                <Input value={profileDraft.displayName || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, displayName: event.target.value }))} />
-              </Field>
-              <Field label="Email">
-                <Input value={profileDraft.email || user?.email || ''} disabled />
-              </Field>
-              <Field label="Avatar URL">
-                <Input value={profileDraft.avatarUrl || profileDraft.photoURL || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, avatarUrl: event.target.value, photoURL: event.target.value }))} placeholder="https://..." />
-              </Field>
-              <Field label="Learning Season">
-                <Input value={profileDraft.learningSeason || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, learningSeason: event.target.value }))} placeholder="ex. Belief revision and discipline" />
-              </Field>
-              <Field label="Intellectual Focus">
-                <TagEditor
-                  value={profileDraft.intellectualFocus || []}
-                  onChange={(value) => setProfileDraft((prev) => ({ ...prev, intellectualFocus: value }))}
-                  placeholder="philosophy, theology, psychology"
-                />
-              </Field>
-              <Field label="Current Themes">
-                <TagEditor
-                  value={profileDraft.currentThemes || []}
-                  onChange={(value) => setProfileDraft((prev) => ({ ...prev, currentThemes: value }))}
-                  placeholder="identity, meaning, discipline"
-                />
-              </Field>
-              <Field label="Disciplines">
-                <TagEditor
-                  value={profileDraft.disciplines || []}
-                  onChange={(value) => setProfileDraft((prev) => ({ ...prev, disciplines: value }))}
-                  placeholder="ethics, political theory, phenomenology"
-                />
-              </Field>
-            </div>
-            <Field label="Bio">
-              <Textarea
-                value={profileDraft.bio || ''}
-                onChange={(event) => setProfileDraft((prev) => ({ ...prev, bio: event.target.value }))}
-                className="min-h-[130px]"
-                placeholder="What kind of thinker are you trying to become?"
-              />
-            </Field>
-          </SectionCard>
+        <Tabs defaultValue="identity" className="space-y-6">
+          <TabsList className="h-auto w-full flex-wrap justify-start rounded-2xl border border-border bg-card p-2">
+            <TabsTrigger value="identity" className="rounded-xl">Identity</TabsTrigger>
+            <TabsTrigger value="connections" className="rounded-xl">Connections</TabsTrigger>
+            <TabsTrigger value="metacognition" className="rounded-xl">Metacognition</TabsTrigger>
+            <TabsTrigger value="unknowns" className="rounded-xl">Unknowns</TabsTrigger>
+            <TabsTrigger value="public" className="rounded-xl">Public View</TabsTrigger>
+          </TabsList>
 
-          <SectionCard title="Cognition Metrics" description="Reflective indicators of how your thinking is moving, not productivity vanity.">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {trendCards.map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-border bg-background/60 p-4">
-                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
-                  <div className="mt-2 font-headline text-3xl font-semibold italic text-foreground">{value}</div>
+          <TabsContent value="identity" className="mt-0 space-y-6">
+            <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <SectionCard title="Overview" description="Identity, focus, and the current season of your thought.">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Display Name">
+                    <Input value={profileDraft.displayName || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, displayName: event.target.value }))} />
+                  </Field>
+                  <Field label="Email">
+                    <Input value={profileDraft.email || user?.email || ''} disabled />
+                  </Field>
+                  <Field label="Avatar URL">
+                    <Input value={profileDraft.avatarUrl || profileDraft.photoURL || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, avatarUrl: event.target.value, photoURL: event.target.value }))} placeholder="https://..." />
+                  </Field>
+                  <Field label="Learning Season">
+                    <Input value={profileDraft.learningSeason || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, learningSeason: event.target.value }))} placeholder="ex. Belief revision and discipline" />
+                  </Field>
+                  <Field label="Intellectual Focus">
+                    <TagEditor value={profileDraft.intellectualFocus || []} onChange={(value) => setProfileDraft((prev) => ({ ...prev, intellectualFocus: value }))} placeholder="philosophy, theology, psychology" />
+                  </Field>
+                  <Field label="Current Themes">
+                    <TagEditor value={profileDraft.currentThemes || []} onChange={(value) => setProfileDraft((prev) => ({ ...prev, currentThemes: value }))} placeholder="identity, meaning, discipline" />
+                  </Field>
+                  <Field label="Disciplines">
+                    <TagEditor value={profileDraft.disciplines || []} onChange={(value) => setProfileDraft((prev) => ({ ...prev, disciplines: value }))} placeholder="ethics, political theory, phenomenology" />
+                  </Field>
                 </div>
-              ))}
-            </div>
-          </SectionCard>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <SectionCard title="Intellectual Identity" description="A grounded snapshot of the ideas, sources, and positions shaping you right now.">
-            <div className="grid gap-5">
-              <LinkGroup title="Core recurring concepts" empty="No concepts yet." onOpenAll={() => onNavigate('concepts')}>
-                {conceptLeaders.map((concept) => (
-                  <MiniLink key={concept.id} label={concept.name} meta={`${concept.links.length} links`} onClick={() => onNavigate('concepts', concept.id)} />
-                ))}
-              </LinkGroup>
-              <LinkGroup title="Most active positions" empty="No active positions yet." onOpenAll={() => onNavigate('vault')}>
-                {activePositions.map((position) => (
-                  <MiniLink key={position.id} label={position.title} meta={position.type} onClick={() => onNavigate('vault', position.id)} />
-                ))}
-              </LinkGroup>
-              <LinkGroup title="Most revised positions" empty="No revised positions yet." onOpenAll={() => onNavigate('vault')}>
-                {revisedPositions.map((position) => (
-                  <MiniLink key={position.id} label={position.title} meta="recently revised" onClick={() => onNavigate('vault', position.id)} />
-                ))}
-              </LinkGroup>
-              <LinkGroup title="Most challenged beliefs" empty="No challenged beliefs yet." onOpenAll={() => onNavigate('vault')}>
-                {challengedBeliefs.map((position) => (
-                  <MiniLink key={position.id} label={position.title} meta="under pressure" onClick={() => onNavigate('vault', position.id)} />
-                ))}
-              </LinkGroup>
-              <LinkGroup title="Major sources shaping you" empty="No sources yet." onOpenAll={() => onNavigate('source-index')}>
-                {sourceLeaders.map((source) => (
-                  <MiniLink key={source.id} label={source.title} meta={source.type} onClick={() => onNavigate('library', source.id)} />
-                ))}
-              </LinkGroup>
-              <LinkGroup title="Current unresolved inquiries" empty="No open inquiries yet." onOpenAll={() => onNavigate('questions')}>
-                {openInquiries.map((inquiry) => (
-                  <MiniLink key={inquiry.id} label={inquiry.text} meta={inquiry.status} onClick={() => onNavigate('questions', inquiry.id)} />
-                ))}
-              </LinkGroup>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Belief Biography" description="How your positions have been formed, pressured, revised, and replaced over time.">
-            <div className="space-y-3">
-              {recentBeliefEvents.length ? recentBeliefEvents.map((event) => (
-                <div key={event.id} className="rounded-2xl border border-border bg-background/60 p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{event.eventType.replaceAll('_', ' ')}</Badge>
-                    <span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span>
-                  </div>
-                  <div className="mt-2 font-medium text-foreground">{event.summary}</div>
-                  {flattenRelatedEntityIds(event.relatedEntityIds).length ? (
-                    <p className="mt-2 text-sm text-muted-foreground">Related objects: {flattenRelatedEntityIds(event.relatedEntityIds).join(', ')}</p>
-                  ) : null}
-                </div>
-              )) : (
-                <EmptyCopy text="No position history yet. Once beliefs are created and revised, their biography will collect here." />
-              )}
-            </div>
-          </SectionCard>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-          <SectionCard title="Thinking Patterns" description="Provisional tendencies grounded in stored evidence, not fixed identity labels.">
-            <div className="space-y-3">
-              {(thinkingPatterns.length ? thinkingPatterns : []).map((pattern) => (
-                <Card key={pattern.patternId} className="rounded-2xl border-border bg-background/60 p-4 shadow-none">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-headline text-xl font-semibold italic">{pattern.label}</h3>
-                    <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                      {Math.round(pattern.confidence * 100)}% confidence
-                    </Badge>
-                    <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                      {pattern.status}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{pattern.description}</p>
-                  {pattern.evidence.length > 0 && (
-                    <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
-                      {pattern.evidence.map((evidence) => <li key={evidence}>- {evidence}</li>)}
-                    </ul>
-                  )}
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => onUpdateThinkingPattern({ ...pattern, status: 'acknowledged' })}>
-                      Acknowledge
-                    </Button>
-                    <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateThinkingPattern({ ...pattern, status: 'dismissed' })}>
-                      Dismiss
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-              {!thinkingPatterns.length && <EmptyCopy text="No thinking patterns inferred yet. As the workspace gathers more positions, questions, and revisions, Noesis will be able to reflect clearer tendencies back to you." />}
-            </div>
-            <div className="mt-5 rounded-2xl border border-dashed border-border bg-muted/15 p-4">
-              <div className="flex items-center gap-2 font-medium text-foreground">
-                <Brain className="size-4 text-accent" />
-                Summary snapshot
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(summary.topThinkingPatterns || []).slice(0, 6).map((item) => <Badge key={item} className="rounded-full">{item}</Badge>)}
-                {!summary.topThinkingPatterns?.length && <span className="text-sm text-muted-foreground">No stored summary yet.</span>}
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Unknowns and Knowledge Gaps" description="A serious thinking system should be able to name what it still does not understand.">
-            <div className="grid gap-3">
-              <Input value={unknownDraft.title} onChange={(event) => setUnknownDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Name an unresolved gap" />
-              <Textarea value={unknownDraft.description} onChange={(event) => setUnknownDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[90px]" placeholder="Why does this gap matter?" />
-              <div className="flex justify-end">
-                <Button onClick={addUnknown} className="rounded-full">
-                  <Lightbulb className="mr-2 size-4" />
-                  Add Unknown
-                </Button>
-              </div>
-            </div>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <StatusList
-                title={`Open (${openUnknowns.length})`}
-                items={openUnknowns}
-                actionLabel="Mark resolved"
-                onAction={(item) => onUpdateUnknown({ ...item, status: 'resolved', resolvedAt: new Date().toISOString() })}
-              />
-              <StatusList title={`Resolved (${resolvedUnknowns.length})`} items={resolvedUnknowns} />
-            </div>
-          </SectionCard>
-        </div>
-
-        <SectionCard title="Public Philosophy View" description="Prepare a future-facing public layer without exposing anything by default.">
-          <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
-            <div className="rounded-2xl border border-border bg-background/60 p-5">
-              <div className="flex items-center gap-2 font-medium text-foreground">
-                <Globe className="size-4 text-accent" />
-                Sharing controls
-              </div>
-              <div className="mt-4 space-y-4">
-                <Field label="Share slug">
-                  <Input value={privacyDraft.shareSlug || ''} onChange={(event) => setPrivacyDraft((prev) => ({ ...prev, shareSlug: event.target.value }))} placeholder="your-public-noesis" />
+                <Field label="Bio">
+                  <Textarea value={profileDraft.bio || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, bio: event.target.value }))} className="min-h-[130px]" placeholder="What kind of thinker are you trying to become?" />
                 </Field>
-                <SwitchRow label="Enable public profile shell" checked={privacyDraft.publicProfileEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicProfileEnabled: checked }))} />
-                <SwitchRow label="Allow public concepts" checked={privacyDraft.publicConceptsEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicConceptsEnabled: checked }))} />
-                <SwitchRow label="Allow public positions" checked={privacyDraft.publicPositionsEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicPositionsEnabled: checked }))} />
-                <SwitchRow label="Allow public works" checked={privacyDraft.publicWorksEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicWorksEnabled: checked }))} />
-                <SwitchRow label="Allow public practices" checked={privacyDraft.publicPracticesEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicPracticesEnabled: checked }))} />
-                <SwitchRow label="Allow public source list" checked={privacyDraft.publicSourcesEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicSourcesEnabled: checked }))} />
-                <SwitchRow label="Allow public belief biography" checked={privacyDraft.publicBeliefBiographyEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicBeliefBiographyEnabled: checked }))} />
-              </div>
-              <div className="mt-5 flex justify-end">
-                <Button onClick={savePrivacy} disabled={saving === 'privacy'} className="rounded-full px-6 font-semibold">
-                  <Save className="mr-2 size-4" />
-                  {saving === 'privacy' ? 'Saving Privacy' : 'Save Public View'}
-                </Button>
-              </div>
-            </div>
+              </SectionCard>
 
-            <div className="rounded-2xl border border-dashed border-border bg-muted/15 p-5">
-              <div className="flex items-center gap-2 font-medium text-foreground">
-                <Sparkles className="size-4 text-accent" />
-                Preview rules
-              </div>
-              <ul className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground">
-                <li>- Default visibility stays private until you explicitly share.</li>
-                <li>- Public profile content should emerge from your real objects, not a separate marketing layer.</li>
-                <li>- Hidden notes, annotations, and metacognition remain excluded unless you choose otherwise.</li>
-                <li>- The public layer is future-ready, but nothing is exposed automatically.</li>
-              </ul>
+              <SectionCard title="Cognition Metrics" description="Reflective indicators of how your thinking is moving, not productivity vanity.">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {trendCards.map(([label, value]) => (
+                    <div key={label} className="rounded-2xl border border-border bg-background/60 p-4">
+                      <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+                      <div className="mt-2 font-headline text-3xl font-semibold italic text-foreground">{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
             </div>
-          </div>
-        </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="connections" className="mt-0 grid gap-6 lg:grid-cols-2">
+            <SectionCard title="Intellectual Identity" description="A grounded snapshot of the ideas, sources, and positions shaping you right now.">
+              <div className="grid gap-5">
+                <LinkGroup title="Core recurring concepts" empty="No concepts yet." onOpenAll={() => onNavigate('concepts')}>
+                  {conceptLeaders.map((concept) => <MiniLink key={concept.id} label={concept.name} meta={`${concept.links.length} links`} onClick={() => onNavigate('concepts', concept.id)} />)}
+                </LinkGroup>
+                <LinkGroup title="Most active positions" empty="No active positions yet." onOpenAll={() => onNavigate('vault')}>
+                  {activePositions.map((position) => <MiniLink key={position.id} label={position.title} meta={position.type} onClick={() => onNavigate('vault', position.id)} />)}
+                </LinkGroup>
+                <LinkGroup title="Most revised positions" empty="No revised positions yet." onOpenAll={() => onNavigate('vault')}>
+                  {revisedPositions.map((position) => <MiniLink key={position.id} label={position.title} meta="recently revised" onClick={() => onNavigate('vault', position.id)} />)}
+                </LinkGroup>
+                <LinkGroup title="Most challenged beliefs" empty="No challenged beliefs yet." onOpenAll={() => onNavigate('vault')}>
+                  {challengedBeliefs.map((position) => <MiniLink key={position.id} label={position.title} meta="under pressure" onClick={() => onNavigate('vault', position.id)} />)}
+                </LinkGroup>
+                <LinkGroup title="Major sources shaping you" empty="No sources yet." onOpenAll={() => onNavigate('source-index')}>
+                  {sourceLeaders.map((source) => <MiniLink key={source.id} label={source.title} meta={source.type} onClick={() => onNavigate('library', source.id)} />)}
+                </LinkGroup>
+                <LinkGroup title="Current unresolved inquiries" empty="No open inquiries yet." onOpenAll={() => onNavigate('questions')}>
+                  {openInquiries.map((inquiry) => <MiniLink key={inquiry.id} label={inquiry.text} meta={inquiry.status} onClick={() => onNavigate('questions', inquiry.id)} />)}
+                </LinkGroup>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Belief Biography" description="How your positions have been formed, pressured, revised, and replaced over time.">
+              <div className="space-y-3">
+                {recentBeliefEvents.length ? recentBeliefEvents.map((event) => (
+                  <div key={event.id} className="rounded-2xl border border-border bg-background/60 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{event.eventType.replaceAll('_', ' ')}</Badge>
+                      <span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span>
+                    </div>
+                    <div className="mt-2 font-medium text-foreground">{event.summary}</div>
+                    {flattenRelatedEntityIds(event.relatedEntityIds).length ? <p className="mt-2 text-sm text-muted-foreground">Related objects: {flattenRelatedEntityIds(event.relatedEntityIds).join(', ')}</p> : null}
+                  </div>
+                )) : <EmptyCopy text="No position history yet. Once beliefs are created and revised, their biography will collect here." />}
+              </div>
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="metacognition" className="mt-0">
+            <SectionCard title="Thinking Patterns" description="Provisional tendencies grounded in stored evidence, not fixed identity labels.">
+              <div className="space-y-3">
+                {thinkingPatterns.map((pattern) => (
+                  <Card key={pattern.patternId} className="rounded-2xl border-border bg-background/60 p-4 shadow-none">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-headline text-xl font-semibold italic">{pattern.label}</h3>
+                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(pattern.confidence * 100)}% confidence</Badge>
+                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{pattern.status}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{pattern.description}</p>
+                    {pattern.evidence.length > 0 && <ul className="mt-3 space-y-1 text-sm text-muted-foreground">{pattern.evidence.map((evidence) => <li key={evidence}>- {evidence}</li>)}</ul>}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" className="rounded-full" onClick={() => onUpdateThinkingPattern({ ...pattern, status: 'acknowledged' })}>Acknowledge</Button>
+                      <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateThinkingPattern({ ...pattern, status: 'dismissed' })}>Dismiss</Button>
+                    </div>
+                  </Card>
+                ))}
+                {!thinkingPatterns.length && <EmptyCopy text="No thinking patterns inferred yet. As the workspace gathers more positions, questions, and revisions, Noesis will be able to reflect clearer tendencies back to you." />}
+              </div>
+              <div className="mt-5 rounded-2xl border border-dashed border-border bg-muted/15 p-4">
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <Brain className="size-4 text-accent" />
+                  Summary snapshot
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(summary.topThinkingPatterns || []).slice(0, 6).map((item) => <Badge key={item} className="rounded-full">{item}</Badge>)}
+                  {!summary.topThinkingPatterns?.length && <span className="text-sm text-muted-foreground">No stored summary yet.</span>}
+                </div>
+              </div>
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="unknowns" className="mt-0">
+            <SectionCard title="Unknowns and Knowledge Gaps" description="A serious thinking system should be able to name what it still does not understand.">
+              <div className="grid gap-3">
+                <Input value={unknownDraft.title} onChange={(event) => setUnknownDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Name an unresolved gap" />
+                <Textarea value={unknownDraft.description} onChange={(event) => setUnknownDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[90px]" placeholder="Why does this gap matter?" />
+                <div className="flex justify-end">
+                  <Button onClick={addUnknown} className="rounded-full">
+                    <Lightbulb className="mr-2 size-4" />
+                    Add Unknown
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <StatusList title={`Open (${openUnknowns.length})`} items={openUnknowns} actionLabel="Mark resolved" onAction={(item) => onUpdateUnknown({ ...item, status: 'resolved', resolvedAt: new Date().toISOString() })} />
+                <StatusList title={`Resolved (${resolvedUnknowns.length})`} items={resolvedUnknowns} />
+              </div>
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="public" className="mt-0">
+            <SectionCard title="Public Philosophy View" description="Prepare a future-facing public layer without exposing anything by default.">
+              <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
+                <div className="rounded-2xl border border-border bg-background/60 p-5">
+                  <div className="flex items-center gap-2 font-medium text-foreground">
+                    <Globe className="size-4 text-accent" />
+                    Sharing controls
+                  </div>
+                  <div className="mt-4 space-y-4">
+                    <Field label="Share slug">
+                      <Input value={privacyDraft.shareSlug || ''} onChange={(event) => setPrivacyDraft((prev) => ({ ...prev, shareSlug: event.target.value }))} placeholder="your-public-noesis" />
+                    </Field>
+                    <SwitchRow label="Enable public profile shell" checked={privacyDraft.publicProfileEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicProfileEnabled: checked }))} />
+                    <SwitchRow label="Allow public concepts" checked={privacyDraft.publicConceptsEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicConceptsEnabled: checked }))} />
+                    <SwitchRow label="Allow public positions" checked={privacyDraft.publicPositionsEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicPositionsEnabled: checked }))} />
+                    <SwitchRow label="Allow public works" checked={privacyDraft.publicWorksEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicWorksEnabled: checked }))} />
+                    <SwitchRow label="Allow public practices" checked={privacyDraft.publicPracticesEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicPracticesEnabled: checked }))} />
+                    <SwitchRow label="Allow public source list" checked={privacyDraft.publicSourcesEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicSourcesEnabled: checked }))} />
+                    <SwitchRow label="Allow public belief biography" checked={privacyDraft.publicBeliefBiographyEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicBeliefBiographyEnabled: checked }))} />
+                  </div>
+                  <div className="mt-5 flex justify-end">
+                    <Button onClick={savePrivacy} disabled={saving === 'privacy'} className="rounded-full px-6 font-semibold">
+                      <Save className="mr-2 size-4" />
+                      {saving === 'privacy' ? 'Saving Privacy' : 'Save Public View'}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-dashed border-border bg-muted/15 p-5">
+                  <div className="flex items-center gap-2 font-medium text-foreground">
+                    <Sparkles className="size-4 text-accent" />
+                    Preview rules
+                  </div>
+                  <ul className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground">
+                    <li>- Default visibility stays private until you explicitly share.</li>
+                    <li>- Public profile content should emerge from your real objects, not a separate marketing layer.</li>
+                    <li>- Hidden notes, annotations, and metacognition remain excluded unless you choose otherwise.</li>
+                    <li>- The public layer is future-ready, but nothing is exposed automatically.</li>
+                  </ul>
+                </div>
+              </div>
+            </SectionCard>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
