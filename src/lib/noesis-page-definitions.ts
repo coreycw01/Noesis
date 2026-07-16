@@ -11,6 +11,14 @@ export interface NoesisPageDefinition {
 
 export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
   {
+    view: 'home',
+    route: '/home',
+    title: 'Home',
+    purpose: 'Surface what deserves intellectual attention now and guide the next meaningful action.',
+    section: 'Mind',
+    signatureExperience: 'A Thinking Desk for unfinished edges, provocations, recent movement, and quiet signals.',
+  },
+  {
     view: 'atlas',
     route: '/atlas',
     title: 'Atlas',

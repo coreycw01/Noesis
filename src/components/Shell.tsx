@@ -21,6 +21,7 @@ import {
   Command,
   Table as TableIcon,
   Highlighter,
+  Home,
   Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -28,7 +29,7 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -53,7 +54,22 @@ export interface CommandPaletteItem {
   description: string;
   view: string;
   targetId?: string | null;
+  kind?: 'navigation' | 'object' | 'create';
+  currentState?: string;
+  summary?: string;
+  connectedConcepts?: string[];
+  relatedObjects?: string[];
+  lastChangedAt?: string;
+  quickActionLabel?: string;
+  quickActions?: Array<{
+    label: string;
+    view: string;
+    targetId?: string | null;
+  }>;
 }
+
+const RECENT_COMMAND_ITEMS_KEY = 'noesis:recent-command-items';
+const MAX_RECENT_COMMAND_ITEMS = 8;
 
 interface ShellProps {
   children: React.ReactNode;
@@ -92,7 +108,10 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
+  const [previewItem, setPreviewItem] = useState<CommandPaletteItem | null>(null);
+  const [recentCommandItems, setRecentCommandItems] = useState<CommandPaletteItem[]>([]);
   const navItems = [
+    { id: 'home', icon: Home },
     { id: 'atlas', icon: MapIcon },
     { id: 'concepts', icon: BookOpen, count: counts.concepts },
     { id: 'questions', icon: HelpCircle, count: counts.questions },
@@ -119,6 +138,17 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   useEffect(() => {
     const saved = window.localStorage.getItem('noesis:sidebar-collapsed');
     if (saved) setCollapsed(saved === 'true');
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(RECENT_COMMAND_ITEMS_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as CommandPaletteItem[];
+      if (Array.isArray(parsed)) setRecentCommandItems(parsed.slice(0, MAX_RECENT_COMMAND_ITEMS));
+    } catch {
+      setRecentCommandItems([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -183,9 +213,23 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   };
 
   const commandItems = useMemo<CommandPaletteItem[]>(() => {
+    const recent = recentCommandItems.map((item) => ({
+      ...item,
+      id: `recent-${item.id}`,
+      section: 'Recent',
+      description: item.description || `Open ${item.label}`,
+      kind: item.kind || 'object',
+    }));
     const utilities = [
-      { id: 'profile', label: NOESIS_PAGE_BY_VIEW.profile.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.profile.purpose, view: 'profile' },
-      { id: 'goals', label: NOESIS_PAGE_BY_VIEW.goals.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.goals.purpose, view: 'goals' },
+      { id: 'profile', label: NOESIS_PAGE_BY_VIEW.profile.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.profile.purpose, view: 'profile', kind: 'navigation' as const },
+      { id: 'goals', label: NOESIS_PAGE_BY_VIEW.goals.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.goals.purpose, view: 'goals', kind: 'navigation' as const },
+    ];
+    const creation = [
+      { id: 'create-source', label: 'Add Source', section: 'Create', description: 'Open Library to capture a book, article, video, paper, or other source.', view: 'library', kind: 'create' as const },
+      { id: 'create-inquiry', label: 'Create Inquiry', section: 'Create', description: 'Open Inquiries to start a structured investigation.', view: 'questions', kind: 'create' as const },
+      { id: 'create-position', label: 'Create Position', section: 'Create', description: 'Open Positions to state or draft a belief for testing.', view: 'vault', kind: 'create' as const },
+      { id: 'create-work', label: 'Create Work', section: 'Create', description: 'Open Works to start writing, notes, drawing, or recording.', view: 'writing', kind: 'create' as const },
+      { id: 'start-practice', label: 'Start Practice', section: 'Create', description: 'Open Practices to turn an idea into a lived test.', view: 'practices', kind: 'create' as const },
     ];
     const core = navItems.map((item) => ({
       id: item.id,
@@ -195,14 +239,38 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
         ? `${NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].purpose} ${item.count} item${item.count === 1 ? '' : 's'}.`
         : NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].purpose,
       view: item.id,
+      kind: 'navigation' as const,
     }));
     const query = commandQuery.trim().toLowerCase();
-    return [...core, ...utilities, ...workspaceCommandItems]
+    return [...recent, ...creation, ...core, ...utilities, ...workspaceCommandItems]
       .filter((item) => !query || `${item.label} ${item.section} ${item.description}`.toLowerCase().includes(query))
       .slice(0, 18);
-  }, [commandQuery, navItems, workspaceCommandItems]);
+  }, [commandQuery, navItems, recentCommandItems, workspaceCommandItems]);
+
+  const rememberCommandItem = (item: CommandPaletteItem) => {
+    if (!item.targetId || item.kind !== 'object') return;
+    setRecentCommandItems((current) => {
+      const cleanId = item.id.replace(/^recent-/, '');
+      const nextItem = { ...item, id: cleanId, section: item.section === 'Recent' ? 'Object' : item.section };
+      const next = [nextItem, ...current.filter((entry) => entry.targetId !== item.targetId || entry.view !== item.view)]
+        .slice(0, MAX_RECENT_COMMAND_ITEMS);
+      try {
+        window.localStorage.setItem(RECENT_COMMAND_ITEMS_KEY, JSON.stringify(next));
+      } catch {
+        // Recent items are a convenience layer; navigation should never depend on storage.
+      }
+      return next;
+    });
+  };
 
   const handleCommandSelect = (item: CommandPaletteItem) => {
+    if (item.kind === 'object' || item.targetId) {
+      rememberCommandItem(item);
+      setPreviewItem(item);
+      setCommandOpen(false);
+      setCommandQuery('');
+      return;
+    }
     if (onCommandSelect) {
       onCommandSelect(item);
     } else {
@@ -210,6 +278,16 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
     }
     setCommandOpen(false);
     setCommandQuery('');
+  };
+
+  const openPreviewItem = (item: CommandPaletteItem) => {
+    rememberCommandItem(item);
+    if (onCommandSelect) {
+      onCommandSelect(item);
+    } else {
+      handleNavChange(item.view);
+    }
+    setPreviewItem(null);
   };
 
   const renderNavButton = (item: typeof navItems[number]) => {
@@ -502,6 +580,111 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
             </div>
           </DialogContent>
         </Dialog>
+
+        <Sheet open={Boolean(previewItem)} onOpenChange={(open) => !open && setPreviewItem(null)}>
+          <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden border-l border-border bg-card p-0 sm:max-w-md">
+            <SheetHeader className="border-b border-border px-6 py-5 text-left">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-border px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+                  {previewItem?.section || 'Object'}
+                </span>
+                {previewItem?.currentState && (
+                  <span className="rounded-full bg-accent/10 px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-accent">
+                    {previewItem.currentState}
+                  </span>
+                )}
+              </div>
+              <SheetTitle className="font-headline text-2xl font-semibold italic leading-tight text-foreground/85">
+                {previewItem?.label || 'Object Preview'}
+              </SheetTitle>
+              <SheetDescription className="text-sm leading-6">
+                {previewItem?.summary || previewItem?.description || 'Preview this object before opening the full workspace.'}
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <div className="space-y-5">
+                <section className="rounded-2xl border border-border bg-background/60 p-4">
+                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Current State</div>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    {previewItem?.description || 'No additional summary has been recorded for this object yet.'}
+                  </p>
+                </section>
+
+                <section className="rounded-2xl border border-border bg-background/60 p-4">
+                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Connected Concepts</div>
+                  {previewItem?.connectedConcepts?.length ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {previewItem.connectedConcepts.slice(0, 8).map((concept) => (
+                        <span key={concept} className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground">
+                          {concept}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">No concept connections are visible from the command index yet.</p>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-border bg-background/60 p-4">
+                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Related Objects</div>
+                  {previewItem?.relatedObjects?.length ? (
+                    <div className="mt-3 grid gap-2">
+                      {previewItem.relatedObjects.map((related) => (
+                        <div key={related} className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+                          {related}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">No relationship counts are visible from the command index yet.</p>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-border bg-background/60 p-4">
+                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Last Meaningful Change</div>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    {previewItem?.lastChangedAt || 'No change date available.'}
+                  </p>
+                </section>
+
+                {previewItem?.quickActions?.length ? (
+                  <section className="rounded-2xl border border-border bg-background/60 p-4">
+                    <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Quick Actions</div>
+                    <div className="mt-3 grid gap-2">
+                      {previewItem.quickActions.map((action) => (
+                        <Button
+                          key={`${action.view}-${action.targetId || action.label}`}
+                          variant="outline"
+                          className="justify-between rounded-xl"
+                          onClick={() => openPreviewItem({
+                            ...previewItem,
+                            view: action.view,
+                            targetId: action.targetId,
+                            quickActionLabel: action.label,
+                          })}
+                        >
+                          {action.label}
+                          <ChevronRight className="size-4" />
+                        </Button>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="border-t border-border p-4">
+              <Button
+                className="w-full rounded-full"
+                onClick={() => previewItem && openPreviewItem(previewItem)}
+              >
+                {previewItem?.quickActionLabel || 'Open Full Page'}
+                <ChevronRight className="ml-2 size-4" />
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </TooltipProvider>
   );

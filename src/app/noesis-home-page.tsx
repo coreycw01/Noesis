@@ -24,6 +24,7 @@ import { PracticesWorkspace } from '@/components/Practices/PracticesWorkspace';
 import { ProfilePage } from '@/components/Profile/ProfilePage';
 import { SettingsPage } from '@/components/Settings/SettingsPage';
 import { GoalsPage } from '@/components/Goals/GoalsPage';
+import { ThinkingDesk } from '@/components/Home/ThinkingDesk';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useNoesisWorkspaceData } from '@/hooks/use-noesis-workspace-data';
@@ -2064,6 +2065,32 @@ function ReadexWorkspace({
     }
 
     switch (activeView) {
+      case 'home':
+        return (
+          <ThinkingDesk
+            profile={profile}
+            concepts={concepts}
+            media={media}
+            inquiries={questions}
+            positions={vault}
+            works={drafts}
+            practices={practices}
+            timeline={timeline}
+            thinkingEvents={thinkingEvents}
+            unknowns={unknowns}
+            links={links}
+            onNavigate={(target) => {
+              navigateToView(target.view, {
+                conceptId: target.view === 'concepts' ? target.targetId : null,
+                questionId: target.view === 'questions' ? target.targetId : null,
+                sourceId: target.view === 'library' ? target.targetId : null,
+                positionId: target.view === 'vault' ? target.targetId : null,
+                workId: target.view === 'writing' ? target.targetId : null,
+                practiceId: target.view === 'practices' ? target.targetId : null,
+              });
+            }}
+          />
+        );
       case 'atlas':
         return (
           <ConceptAtlas
@@ -2327,6 +2354,7 @@ function ReadexWorkspace({
       vault={vault}
       drafts={drafts}
       practices={practices}
+      unknowns={unknowns}
       links={links}
       suggestionsCount={suggestions.length}
       user={user}

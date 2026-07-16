@@ -1,4 +1,5 @@
 export type NoesisView =
+  | 'home'
   | 'atlas'
   | 'concepts'
   | 'questions'
@@ -37,6 +38,10 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
     : ['', parts[0], parts[1]];
 
   switch (maybeSection) {
+    case undefined:
+    case '':
+    case 'home':
+      return { view: 'home' };
     case 'atlas':
       return { view: 'atlas' };
     case 'concepts':
@@ -64,7 +69,7 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
     case 'settings':
       return { view: 'settings' };
     default:
-      return { view: 'atlas' };
+      return { view: 'home' };
   }
 }
 
@@ -79,6 +84,8 @@ export function viewToPath(view: NoesisView, options?: {
 }) {
   const prefix = options?.reviewMode ? '/demo' : '';
   switch (view) {
+    case 'home':
+      return `${prefix}/home`;
     case 'atlas':
       return `${prefix}/atlas`;
     case 'concepts':
@@ -106,6 +113,6 @@ export function viewToPath(view: NoesisView, options?: {
     case 'settings':
       return `${prefix}/settings`;
     default:
-      return `${prefix}/atlas`;
+      return `${prefix}/home`;
   }
 }

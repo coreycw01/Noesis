@@ -61,20 +61,20 @@ export function useNoesisWorkspaceData({
     [uid, isOfflineReviewPreview]
   );
 
-  const needsMedia = ['atlas', 'concepts', 'library', 'source-index', 'annotations', 'vault', 'questions', 'writing', 'evolution', 'practices', 'goals', 'profile'].includes(activeView);
-  const needsVault = ['atlas', 'concepts', 'library', 'source-index', 'annotations', 'vault', 'questions', 'writing', 'practices', 'profile'].includes(activeView);
+  const needsMedia = ['home', 'atlas', 'concepts', 'library', 'source-index', 'annotations', 'vault', 'questions', 'writing', 'evolution', 'practices', 'goals', 'profile'].includes(activeView);
+  const needsVault = ['home', 'atlas', 'concepts', 'library', 'source-index', 'annotations', 'vault', 'questions', 'writing', 'practices', 'profile'].includes(activeView);
   const needsInsights = ['atlas', 'concepts'].includes(activeView);
-  const needsConcepts = ['atlas', 'concepts', 'library', 'annotations', 'vault', 'questions', 'writing', 'practices', 'profile'].includes(activeView);
-  const needsQuestions = ['atlas', 'concepts', 'library', 'annotations', 'vault', 'questions', 'practices', 'profile'].includes(activeView);
-  const needsTimeline = ['atlas', 'concepts', 'library', 'vault', 'evolution'].includes(activeView);
-  const needsDrafts = ['atlas', 'concepts', 'source-index', 'vault', 'questions', 'writing', 'practices', 'profile'].includes(activeView);
-  const needsPractices = ['atlas', 'concepts', 'source-index', 'library', 'vault', 'writing', 'practices', 'profile'].includes(activeView);
+  const needsConcepts = ['home', 'atlas', 'concepts', 'library', 'annotations', 'vault', 'questions', 'writing', 'practices', 'profile'].includes(activeView);
+  const needsQuestions = ['home', 'atlas', 'concepts', 'library', 'annotations', 'vault', 'questions', 'practices', 'profile'].includes(activeView);
+  const needsTimeline = ['home', 'atlas', 'concepts', 'library', 'vault', 'evolution'].includes(activeView);
+  const needsDrafts = ['home', 'atlas', 'concepts', 'source-index', 'vault', 'questions', 'writing', 'practices', 'profile'].includes(activeView);
+  const needsPractices = ['home', 'atlas', 'concepts', 'source-index', 'library', 'vault', 'writing', 'practices', 'profile'].includes(activeView);
   const needsAtlasMaps = activeView === 'atlas';
-  const needsLinks = ['atlas', 'vault'].includes(activeView);
+  const needsLinks = ['home', 'atlas', 'vault'].includes(activeView);
   const needsSuggestions = ['vault'].includes(activeView);
-  const needsThinkingEvents = ['atlas', 'evolution', 'profile'].includes(activeView);
+  const needsThinkingEvents = ['home', 'atlas', 'evolution', 'profile'].includes(activeView);
   const needsBeliefProfiles = ['vault', 'profile'].includes(activeView);
-  const needsUnknowns = ['atlas', 'vault', 'evolution', 'profile'].includes(activeView);
+  const needsUnknowns = ['home', 'atlas', 'vault', 'evolution', 'profile'].includes(activeView);
   const needsThinkingPatterns = ['evolution', 'profile'].includes(activeView);
   const needsThinkingMetrics = ['evolution', 'profile'].includes(activeView);
   const needsGoalDoc = ['goals'].includes(activeView);

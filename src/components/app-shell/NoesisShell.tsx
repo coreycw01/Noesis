@@ -18,6 +18,7 @@ import type {
   PhilosophicalLink,
   Practice,
   Question,
+  Unknown,
   UserProfile,
   VaultEntry,
 } from '@/lib/types';
@@ -57,6 +58,7 @@ interface NoesisShellProps {
   vault: VaultEntry[];
   drafts: Draft[];
   practices: Practice[];
+  unknowns: Unknown[];
   links: PhilosophicalLink[];
   suggestionsCount: number;
   user: User | null;
@@ -87,6 +89,7 @@ export function NoesisShell({
   vault,
   drafts,
   practices,
+  unknowns,
   links,
   suggestionsCount,
   onOpenCommandItem,
@@ -99,6 +102,20 @@ export function NoesisShell({
       description: item.description || 'Open concept detail.',
       view: 'concepts',
       targetId: item.id,
+      kind: 'object' as const,
+      currentState: item.philosophyStatus || 'concept',
+      summary: item.description || 'A concept in the user vocabulary.',
+      connectedConcepts: item.links || [],
+      relatedObjects: [
+        `${item.sourceIds?.length || 0} sources`,
+        `${item.links?.length || 0} related concepts`,
+      ],
+      lastChangedAt: item.dateUpdated || item.dateCreated,
+      quickActionLabel: 'Open Concept',
+      quickActions: [
+        { label: 'Open Concepts', view: 'concepts', targetId: item.id },
+        { label: 'Explore Atlas', view: 'atlas' },
+      ],
     })),
     ...media.slice(0, 20).map((item) => ({
       id: `source-${item.id}`,
@@ -107,6 +124,44 @@ export function NoesisShell({
       description: item.creator || item.type || 'Open source workspace.',
       view: 'library',
       targetId: item.id,
+      kind: 'object' as const,
+      currentState: item.status,
+      summary: item.description || item.capture?.after?.coreArgument || item.capture?.before?.openQuestion || 'A source feeding the thinking system.',
+      connectedConcepts: item.tags || [],
+      relatedObjects: [
+        `${item.annotations?.length || 0} annotations`,
+        `${vault.filter((position) => (position.sourceIds || []).includes(item.id)).length} positions influenced`,
+        `${drafts.filter((draft) => (draft.sourceIds || []).includes(item.id)).length} works linked`,
+      ],
+      lastChangedAt: item.dateUpdated || item.dateAdded,
+      quickActionLabel: 'Open Source',
+      quickActions: [
+        { label: 'Open Library', view: 'library', targetId: item.id },
+        { label: 'Process Annotations', view: 'annotations' },
+      ],
+    })),
+    ...allAnnotations(media).slice(0, 25).map((item) => ({
+      id: `annotation-${item.source.id}-${item.id}`,
+      label: item.text,
+      section: 'Annotation',
+      description: `${item.type} from ${item.source.title}`,
+      view: 'annotations',
+      targetId: item.id,
+      kind: 'object' as const,
+      currentState: item.philosophyStatus || 'raw',
+      summary: item.context || item.answer || item.text,
+      connectedConcepts: item.conceptTags || item.source.tags || [],
+      relatedObjects: [
+        `Source: ${item.source.title}`,
+        item.createdInquiryId ? 'Created inquiry' : 'No inquiry created',
+        item.createdPositionId ? 'Created position' : `${item.linkedPositionIds?.length || 0} linked positions`,
+      ],
+      lastChangedAt: item.date,
+      quickActionLabel: 'Open Annotations',
+      quickActions: [
+        { label: 'Process Annotation', view: 'annotations' },
+        { label: 'Open Parent Source', view: 'library', targetId: item.source.id },
+      ],
     })),
     ...questions.slice(0, 20).map((item) => ({
       id: `inquiry-${item.id}`,
@@ -115,6 +170,21 @@ export function NoesisShell({
       description: item.status || 'Open inquiry workspace.',
       view: 'questions',
       targetId: item.id,
+      kind: 'object' as const,
+      currentState: item.status,
+      summary: item.answer || 'An open investigation in the system.',
+      connectedConcepts: item.conceptIds?.map((conceptId) => concepts.find((concept) => concept.id === conceptId)?.name || conceptId) || [],
+      relatedObjects: [
+        `${item.sourceIds?.length || 0} sources`,
+        `${item.beliefIds?.length || 0} positions`,
+        `${item.draftIds?.length || 0} works`,
+      ],
+      lastChangedAt: item.dateUpdated || item.dateCreated,
+      quickActionLabel: 'Open Inquiry',
+      quickActions: [
+        { label: 'Investigate', view: 'questions', targetId: item.id },
+        { label: 'Open Positions', view: 'vault' },
+      ],
     })),
     ...vault.slice(0, 20).map((item) => ({
       id: `position-${item.id}`,
@@ -123,6 +193,22 @@ export function NoesisShell({
       description: item.status || 'Open position workbench.',
       view: 'vault',
       targetId: item.id,
+      kind: 'object' as const,
+      currentState: item.status,
+      summary: item.statement || item.description || 'A current position in the belief workbench.',
+      connectedConcepts: item.tags || [],
+      relatedObjects: [
+        `${item.sourceIds?.length || 0} sources`,
+        `${(item.evidenceFor || []).length} supports`,
+        `${(item.evidenceAgainst || []).length} challenges`,
+        `${practices.filter((practice) => (practice.positionIds || []).includes(item.id)).length} practices`,
+      ],
+      lastChangedAt: item.dateUpdated || item.dateCreated,
+      quickActionLabel: 'Open Position',
+      quickActions: [
+        { label: 'Open Position', view: 'vault', targetId: item.id },
+        { label: 'View Evolution', view: 'evolution' },
+      ],
     })),
     ...drafts.slice(0, 20).map((item) => ({
       id: `work-${item.id}`,
@@ -131,6 +217,21 @@ export function NoesisShell({
       description: item.type || 'Open work studio.',
       view: 'writing',
       targetId: item.id,
+      kind: 'object' as const,
+      currentState: item.status,
+      summary: item.body || item.draftContent || 'A work expressing or developing thought.',
+      connectedConcepts: item.conceptTags || [],
+      relatedObjects: [
+        `${item.sourceIds?.length || 0} sources`,
+        `${item.questionIds?.length || 0} inquiries`,
+        `${item.beliefIds?.length || 0} positions`,
+      ],
+      lastChangedAt: item.dateUpdated || item.dateCreated,
+      quickActionLabel: 'Open Work',
+      quickActions: [
+        { label: 'Open Work', view: 'writing', targetId: item.id },
+        { label: 'Open Positions', view: 'vault' },
+      ],
     })),
     ...practices.slice(0, 20).map((item) => ({
       id: `practice-${item.id}`,
@@ -139,6 +240,44 @@ export function NoesisShell({
       description: item.status || 'Open practice field.',
       view: 'practices',
       targetId: item.id,
+      kind: 'object' as const,
+      currentState: item.status,
+      summary: item.description || item.notes || 'A lived test connected to thought.',
+      connectedConcepts: item.conceptTags || [],
+      relatedObjects: [
+        `${item.positionIds?.length || 0} positions tested`,
+        `${item.questionIds?.length || 0} inquiries`,
+        `${item.logDates?.length || 0} logs`,
+      ],
+      lastChangedAt: item.dateUpdated || item.dateCreated,
+      quickActionLabel: 'Open Practice',
+      quickActions: [
+        { label: 'Open Practice', view: 'practices', targetId: item.id },
+        { label: 'Open Positions', view: 'vault' },
+      ],
+    })),
+    ...unknowns.slice(0, 20).map((item) => ({
+      id: `unknown-${item.unknownId}`,
+      label: item.title,
+      section: 'Unknown',
+      description: item.domain || item.importance || 'Open unknown.',
+      view: 'profile',
+      targetId: item.unknownId,
+      kind: 'object' as const,
+      currentState: item.status,
+      summary: item.description || 'A known area of uncertainty in the thinking system.',
+      connectedConcepts: item.conceptTags || [],
+      relatedObjects: [
+        `${item.sourceIds?.length || 0} sources`,
+        `${item.positionIds?.length || 0} positions`,
+        `${item.inquiryIds?.length || 0} inquiries`,
+      ],
+      lastChangedAt: item.dateUpdated || item.dateCreated,
+      quickActionLabel: 'Open Profile',
+      quickActions: [
+        { label: 'Open Profile', view: 'profile' },
+        { label: 'Open Inquiries', view: 'questions' },
+      ],
     })),
   ];
 
