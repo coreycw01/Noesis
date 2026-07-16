@@ -419,6 +419,9 @@ export function ThinkingDesk({
           icon={Compass}
           title="Start with one real thought"
           description="Add a source, ask a question, or state something you currently believe. Home will begin prioritizing the next intellectual action after that."
+          belongsHere="Unfinished sources, inquiries, positions, works, practices, and changes that deserve attention now."
+          whyItMatters="Home is the thinking desk. It cannot prioritize your philosophy until the system has at least one real object to work from."
+          firstAction="Add one source, ask one inquiry, or state one position. The rest of the workspace can grow from that."
           action={(
             <div className="flex flex-wrap justify-center gap-3">
               <Button onClick={() => onNavigate({ view: 'library' })}>Add Source</Button>

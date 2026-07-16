@@ -882,20 +882,45 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                   ))}
                   {positionSuggestions.slice(0, 6).map((suggestion) => (
                     <div key={suggestion.id} className="rounded-xl border border-border/60 bg-background p-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{suggestion.suggestionType.replace(/_/g, ' ')}</Badge>
-                        {typeof suggestion.confidence === 'number' && (
-                          <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(suggestion.confidence * 100)}% confidence</Badge>
-                        )}
-                      </div>
-                      <h4 className="mt-2 font-headline text-lg font-bold italic">{suggestion.title}</h4>
-                      {suggestion.description && <p className="mt-1 text-sm text-muted-foreground">{suggestion.description}</p>}
-                      {suggestion.reasoning && <p className="mt-2 text-sm italic text-foreground/80">{suggestion.reasoning}</p>}
-                      {!!suggestion.evidence?.length && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {suggestion.evidence.map((item) => <Badge key={item} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item}</Badge>)}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{suggestion.suggestionType.replace(/_/g, ' ')}</Badge>
+                          <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{suggestion.status}</Badge>
+                          {typeof suggestion.confidence === 'number' && (
+                            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(suggestion.confidence * 100)}% confidence</Badge>
+                          )}
                         </div>
-                      )}
+                        <Badge variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                          AI suggests · user decides
+                        </Badge>
+                      </div>
+                      <div className="mt-3 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+                        <div>
+                          <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Suggestion</div>
+                          <h4 className="mt-1 font-headline text-lg font-bold italic">{suggestion.title}</h4>
+                          {suggestion.description && <p className="mt-1 text-sm text-muted-foreground">{suggestion.description}</p>}
+                        </div>
+                        <div className="rounded-xl border border-border/50 bg-card p-3">
+                          <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Affected Object</div>
+                          <p className="mt-1 text-sm font-medium text-foreground">{suggestion.targetLabel || selected.title}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="rounded-xl border border-border/50 bg-card p-3">
+                          <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Reason</div>
+                          <p className="mt-1 text-sm italic leading-6 text-muted-foreground">{suggestion.reasoning || 'No explicit reasoning was stored with this suggestion.'}</p>
+                        </div>
+                        <div className="rounded-xl border border-border/50 bg-card p-3">
+                          <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Evidence Used</div>
+                          {!!suggestion.evidence?.length ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {suggestion.evidence.map((item) => <Badge key={item} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item}</Badge>)}
+                            </div>
+                          ) : (
+                            <p className="mt-1 text-sm italic text-muted-foreground">No evidence list stored. Treat this as low-trust until reviewed.</p>
+                          )}
+                        </div>
+                      </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {suggestion.status === 'pending' && (
                           <>
@@ -931,11 +956,42 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                             >
                               Accept
                             </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-full"
+                              onClick={() => {
+                                if (suggestion.suggestionType === 'missing_question') {
+                                  onAddQuestion({
+                                    text: suggestion.title,
+                                    status: 'open',
+                                    beliefIds: [selected.id],
+                                    conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
+                                    evidenceIds: [],
+                                    sourceIds: selected.sourceIds || [],
+                                  });
+                                }
+                                onUpdateSuggestion({ ...suggestion, status: 'accepted', dateUpdated: new Date().toISOString() });
+                              }}
+                            >
+                              Edit into inquiry
+                            </Button>
                             <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateSuggestion({ ...suggestion, status: 'dismissed', dateUpdated: new Date().toISOString() })}>
-                              Dismiss
+                              Reject
+                            </Button>
+                            <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateSuggestion({ ...suggestion, status: 'ignored', dateUpdated: new Date().toISOString() })}>
+                              Ignore
                             </Button>
                           </>
                         )}
+                        <details className="w-full rounded-xl border border-border/50 bg-muted/10 p-3 text-sm text-muted-foreground">
+                          <summary className="cursor-pointer font-medium text-foreground">Explain this suggestion</summary>
+                          <div className="mt-2 space-y-2 leading-6">
+                            <p><span className="font-medium text-foreground">Type:</span> {suggestion.suggestionType.replace(/_/g, ' ')}</p>
+                            <p><span className="font-medium text-foreground">Confidence:</span> {typeof suggestion.confidence === 'number' ? `${Math.round(suggestion.confidence * 100)}%` : 'not scored'}</p>
+                            <p><span className="font-medium text-foreground">Rule:</span> Accepting should create or route a reviewable object. It should not silently rewrite this position.</p>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   ))}
@@ -1128,6 +1184,10 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               icon={ShieldCheck}
               title="No positions found"
               description="Refine your search or turn an idea into something you are willing to examine."
+              belongsHere="Positions are explicit claims, principles, mental models, worldview statements, and life rules you are willing to support or challenge."
+              whyItMatters="Noesis needs positions to distinguish stored ideas from judgments you are actively testing."
+              firstAction="Create one provisional position from an annotation, inquiry, source reflection, or direct claim."
+              filterCause={positionFiltersActive ? 'Current view, search, or filters may be hiding positions.' : undefined}
               action={positionFiltersActive ? <Button variant="outline" onClick={clearPositionFilters} className="rounded-full">Clear filters</Button> : undefined}
             />
           </div>

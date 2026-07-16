@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Edit, Plus, Repeat, Trash2 } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Edit, Plus, Repeat, Target, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +54,34 @@ function currentStreak(logDates?: string[]) {
     cursor.setDate(cursor.getDate() - 1);
   }
   return streak;
+}
+
+function practiceExperimentShape(practice: Practice, linkedQuestions: Question[], linkedPositions: VaultEntry[]) {
+  const hasBasis = linkedPositions.length > 0 || linkedQuestions.length > 0 || (practice.conceptTags || []).length > 0 || (practice.sourceIds || []).length > 0;
+  const logCount = (practice.logDates || []).length;
+  const concluded = ['completed', 'failed', 'integrated', 'abandoned'].includes(practice.status);
+  const needsOutcome = concluded && !practice.notes?.trim();
+  const hypothesis = linkedPositions[0]
+    ? `If this is lived seriously, it should test: ${linkedPositions[0].title}`
+    : linkedQuestions[0]
+      ? `This practice should produce evidence for: ${linkedQuestions[0].text}`
+      : 'State the position, inquiry, or concept this behavior is meant to test.';
+  const observation = logCount
+    ? `${logCount} logged observation${logCount === 1 ? '' : 's'} available for review.`
+    : 'No observations logged yet. A practice becomes evidence only after contact with reality.';
+  const nextStep = needsOutcome
+    ? 'Write the conclusion review: what happened, what changed, and whether the tested idea survived.'
+    : !hasBasis
+      ? 'Link the practice to a position, inquiry, source, or concept so it has an intellectual basis.'
+      : logCount === 0 && practice.status === 'active'
+        ? 'Log the first result so this stops being an intention and becomes evidence.'
+        : practice.status === 'planned' || practice.status === 'proposed'
+          ? 'Activate the practice when the method and observation criteria are clear.'
+          : practice.status === 'active'
+            ? 'Keep logging observations until a pattern is visible.'
+            : 'Compare expected outcome with observed outcome and update the related thinking.';
+
+  return { hypothesis, observation, nextStep, needsOutcome, hasBasis, logCount };
 }
 
 export function PracticesWorkspace({ practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute }: PracticesWorkspaceProps) {
@@ -220,6 +248,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   const logDates = Array.from(new Set(practice.logDates || [])).sort();
   const hasLoggedToday = logDates.includes(todayKey);
   const streak = currentStreak(logDates);
+  const experimentShape = practiceExperimentShape(practice, linkedQuestions, linkedPositions);
   const setStatus = (status: PracticeStatus) => onUpdatePractice({ ...practice, status, dateUpdated: today() });
   const logToday = () => onUpdatePractice({ ...practice, logDates: Array.from(new Set([...logDates, todayKey])), dateUpdated: today() });
   return (
@@ -247,6 +276,34 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
         <MiniStat label="STREAK" value={`${streak}d`} />
         <MiniStat label="INQUIRIES" value={linkedQuestions.length} />
         <MiniStat label="POSITIONS" value={linkedPositions.length} />
+      </div>
+
+      <div className="mb-5 rounded-xl border border-border/40 bg-muted/10 p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Target className="size-3.5 text-accent" />
+            <span className="font-code text-[8px] uppercase tracking-[0.22em] text-muted-foreground font-bold">Field Experiment</span>
+          </div>
+          <Badge variant={experimentShape.hasBasis ? 'outline' : 'secondary'} className="font-code text-[8px] uppercase tracking-widest rounded-full">
+            {experimentShape.hasBasis ? 'basis linked' : 'needs basis'}
+          </Badge>
+        </div>
+        <div className="grid gap-3 text-[12px] leading-relaxed">
+          <div>
+            <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Hypothesis</div>
+            <p className="text-primary/80 italic line-clamp-2">{experimentShape.hypothesis}</p>
+          </div>
+          <div>
+            <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Observation</div>
+            <p className="text-muted-foreground italic line-clamp-2">{experimentShape.observation}</p>
+          </div>
+          <div className={cn("rounded-lg border p-3", experimentShape.needsOutcome ? "border-amber-300 bg-amber-50 text-amber-950" : "border-border/30 bg-white/70")}>
+            <div className="flex items-start gap-2">
+              <ClipboardList className="mt-0.5 size-3.5 shrink-0 text-accent" />
+              <p className="text-[11px] leading-relaxed font-medium">{experimentShape.nextStep}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-1.5 pt-4 border-t border-border/30">
@@ -336,6 +393,15 @@ function PracticeEditor({ open, onOpenChange, draft, setDraft, concepts, media, 
         <div className="p-8">
           <DialogHeader className="mb-8"><DialogTitle className="font-headline text-3xl italic">{draft.id ? 'Refine Practice' : 'Initiate Practice'}</DialogTitle></DialogHeader>
           <div className="space-y-8">
+            <div className="rounded-2xl border border-accent/20 bg-accent/5 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Target className="size-4 text-accent" />
+                <h3 className="font-headline text-xl italic font-bold text-primary">Field Experiment Design</h3>
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground italic">
+                A practice should name the idea being tested, the action required, the observation method, and the conclusion that would matter later.
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <Field label="PRACTICE TITLE"><Input value={draft.title || ''} onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))} className="italic text-base rounded-full" /></Field>
               <Field label="DURATION (DAYS)"><Input type="number" min={0} value={draft.durationDays || 0} onChange={(event) => setDraft((prev) => ({ ...prev, durationDays: Math.max(0, Number(event.target.value) || 0) }))} className="font-code rounded-full" /></Field>
@@ -354,9 +420,9 @@ function PracticeEditor({ open, onOpenChange, draft, setDraft, concepts, media, 
               <Field label="START DATE"><Input type="date" value={draft.startDate || ''} onChange={(event) => setDraft((prev) => ({ ...prev, startDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
               <Field label="END DATE (EXPECTED)"><Input type="date" value={draft.endDate || ''} onChange={(event) => setDraft((prev) => ({ ...prev, endDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
             </div>
-            <Field label="CORE REQUIREMENT / CHALLENGE"><Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[120px] italic text-base" placeholder="What does this practice ask you to do or refrain from doing?" /></Field>
-            <Field label="OBSERVATIONS AND REFLECTIONS"><Textarea value={draft.notes || ''} onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))} className="min-h-[140px] italic text-base" placeholder="Record qualitative shifts in understanding or behavior..." /></Field>
-            <Field label="CONCEPT TAGS"><ConceptTagPicker concepts={concepts} value={draft.conceptTags || []} onChange={(conceptTags) => setDraft((prev) => ({ ...prev, conceptTags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></Field>
+            <Field label="HYPOTHESIS / CORE REQUIREMENT"><Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[120px] italic text-base" placeholder="If I do this practice, what do I expect it to reveal, strengthen, challenge, or change?" /></Field>
+            <Field label="OBSERVATION METHOD / CONCLUSION REVIEW"><Textarea value={draft.notes || ''} onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))} className="min-h-[140px] italic text-base" placeholder="How will you know what happened? Afterward, record what happened, alternative explanations, and what changed intellectually." /></Field>
+            <Field label="CONCEPTS TESTED"><ConceptTagPicker concepts={concepts} value={draft.conceptTags || []} onChange={(conceptTags) => setDraft((prev) => ({ ...prev, conceptTags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></Field>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <LinkGrid title="Linked Sources" items={media.map((item) => ({ id: item.id, label: item.title }))} selected={draft.sourceIds || []} onChange={(sourceIds) => setDraft((prev) => ({ ...prev, sourceIds }))} />

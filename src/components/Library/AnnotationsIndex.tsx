@@ -717,7 +717,7 @@ export function AnnotationsIndex({
                 </div>
               )}
               <div className="space-y-2">
-                <Label>Concept Tags</Label>
+                <Label>Concepts</Label>
                 <ConceptTagPicker
                   concepts={concepts}
                   value={editing.conceptTags || editing.source.tags || []}
@@ -772,7 +772,7 @@ export function AnnotationsIndex({
               )}
 
               <div className="space-y-2">
-                <Label>Concept Tags</Label>
+                <Label>Concepts</Label>
                 <ConceptTagPicker
                   concepts={concepts}
                   value={preflight.tags}

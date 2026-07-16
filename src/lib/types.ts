@@ -470,6 +470,13 @@ export interface GoalItem {
   targetProgress: number;
   sortOrder: number;
   status: 'active' | 'completed' | 'archived';
+  purpose?: string;
+  evidenceOfProgress?: string;
+  completionCriteria?: string;
+  milestones?: string[];
+  obstacles?: string;
+  reviewCadence?: 'weekly' | 'monthly' | 'seasonal' | 'custom';
+  linkedObjectLabels?: string[];
   createdAt: string;
   updatedAt: string;
 }

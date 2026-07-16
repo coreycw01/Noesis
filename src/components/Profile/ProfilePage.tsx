@@ -276,9 +276,10 @@ export function ProfilePage({
         <Tabs defaultValue="identity" className="space-y-6">
           <TabsList className="h-auto w-full flex-wrap justify-start rounded-2xl border border-border bg-card p-2">
             <TabsTrigger value="identity" className="rounded-xl">Identity</TabsTrigger>
-            <TabsTrigger value="connections" className="rounded-xl">Connections</TabsTrigger>
-            <TabsTrigger value="metacognition" className="rounded-xl">Metacognition</TabsTrigger>
+            <TabsTrigger value="connections" className="rounded-xl">Intellectual Portrait</TabsTrigger>
+            <TabsTrigger value="metacognition" className="rounded-xl">Tendencies</TabsTrigger>
             <TabsTrigger value="unknowns" className="rounded-xl">Unknowns</TabsTrigger>
+            <TabsTrigger value="missing" className="rounded-xl">Missing Perspectives</TabsTrigger>
             <TabsTrigger value="public" className="rounded-xl">Public View</TabsTrigger>
           </TabsList>
 
@@ -372,11 +373,26 @@ export function ProfilePage({
                 {thinkingPatterns.map((pattern) => (
                   <Card key={pattern.patternId} className="rounded-2xl border-border bg-background/60 p-4 shadow-none">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-headline text-xl font-semibold italic">{pattern.label}</h3>
+                      <h3 className="font-headline text-xl font-semibold italic">Recent evidence suggests: {pattern.label}</h3>
                       <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(pattern.confidence * 100)}% confidence</Badge>
                       <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{pattern.status}</Badge>
+                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{pattern.timespan}</Badge>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{pattern.description}</p>
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      <div className="rounded-xl border border-border/50 bg-card p-3">
+                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Sample Size</div>
+                        <div className="mt-1 font-headline text-2xl font-semibold italic">{pattern.evidence.length}</div>
+                      </div>
+                      <div className="rounded-xl border border-border/50 bg-card p-3">
+                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Trend</div>
+                        <div className="mt-1 text-sm font-medium capitalize">{pattern.trendDirection}</div>
+                      </div>
+                      <div className="rounded-xl border border-border/50 bg-card p-3">
+                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Alternative Reading</div>
+                        <div className="mt-1 text-xs italic text-muted-foreground">This may reflect the available records more than your full thinking.</div>
+                      </div>
+                    </div>
                     {pattern.evidence.length > 0 && <ul className="mt-3 space-y-1 text-sm text-muted-foreground">{pattern.evidence.map((evidence) => <li key={evidence}>- {evidence}</li>)}</ul>}
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button variant="outline" size="sm" className="rounded-full" onClick={() => onUpdateThinkingPattern({ ...pattern, status: 'acknowledged' })}>Acknowledge</Button>
@@ -414,6 +430,17 @@ export function ProfilePage({
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <StatusList title={`Open (${openUnknowns.length})`} items={openUnknowns} actionLabel="Mark resolved" onAction={(item) => onUpdateUnknown({ ...item, status: 'resolved', resolvedAt: new Date().toISOString() })} />
                 <StatusList title={`Resolved (${resolvedUnknowns.length})`} items={resolvedUnknowns} />
+              </div>
+            </SectionCard>
+          </TabsContent>
+
+          <TabsContent value="missing" className="mt-0">
+            <SectionCard title="Missing Perspectives" description="Possible absent lenses from your current record. These are prompts for review, not judgments about you.">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <PerspectiveList title="Unresolved tensions" items={summary.unresolvedTensions} empty="No unresolved tensions summarized yet." />
+                <PerspectiveList title="Current unknowns" items={summary.currentUnknowns} empty="No current unknowns summarized yet." />
+                <PerspectiveList title="Strongest beliefs to test" items={summary.strongestBeliefs} empty="No strongest-belief summary yet." />
+                <PerspectiveList title="Weakest beliefs needing support" items={summary.weakestBeliefs} empty="No weak-belief summary yet." />
               </div>
             </SectionCard>
           </TabsContent>
@@ -561,6 +588,24 @@ function StatusList({
           </div>
         )) : <EmptyCopy text="Nothing here yet." compact />}
       </div>
+    </div>
+  );
+}
+
+function PerspectiveList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/60 p-4">
+      <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+      <div className="mt-3 space-y-2">
+        {items.length ? items.map((item) => (
+          <div key={item} className="rounded-xl border border-border/50 bg-card p-3 text-sm italic leading-6 text-muted-foreground">
+            {item}
+          </div>
+        )) : <EmptyCopy text={empty} compact />}
+      </div>
+      <p className="mt-3 text-[11px] italic leading-5 text-muted-foreground">
+        Review this against actual evidence before promoting it into an inquiry, position, or practice.
+      </p>
     </div>
   );
 }

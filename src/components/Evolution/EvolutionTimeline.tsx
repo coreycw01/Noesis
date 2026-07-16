@@ -40,6 +40,11 @@ type DisplayEvent = {
   filter: EvolutionFilter;
   chips: string[];
   sourceIds?: string[];
+  turningPoint?: string;
+  trigger?: string;
+  significance?: string;
+  beforeLabel?: string;
+  afterLabel?: string;
 };
 
 const FILTER_OPTIONS: Array<{ value: EvolutionFilter; label: string }> = [
@@ -66,6 +71,80 @@ function mapThinkingEventToFilter(eventType: ThinkingEvent['eventType']): Evolut
   return 'all';
 }
 
+function summarizeSnapshot(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const preferred = record.title || record.statement || record.status || record.confidence || record.summary || record.description;
+    if (preferred) return String(preferred);
+    const keys = Object.keys(record).slice(0, 3);
+    if (keys.length) return keys.map((key) => `${key}: ${summarizeSnapshot(record[key]) || 'changed'}`).join(' · ');
+  }
+  return undefined;
+}
+
+function thinkingEventMeaning(event: ThinkingEvent): Pick<DisplayEvent, 'turningPoint' | 'trigger' | 'significance' | 'beforeLabel' | 'afterLabel'> {
+  const eventText = event.eventType.replace(/_/g, ' ');
+  const turningPoint = event.importance === 'major'
+    ? 'Major Turning Point'
+    : event.eventType.includes('revised') || event.eventType === 'confidence_changed'
+      ? 'Revision'
+      : event.eventType.includes('resolved')
+        ? 'Resolution'
+        : event.eventType.includes('abandoned') || event.eventType.includes('replaced')
+          ? 'Abandonment / Replacement'
+          : event.eventType.includes('challenge') || event.eventType.includes('contradiction')
+            ? 'Challenge'
+            : event.eventType.includes('created')
+              ? 'Origin'
+              : 'Meaningful Change';
+  const trigger = event.userReason || event.aiReason || event.systemReason || event.metadata?.reason || `${event.sourceType} recorded ${eventText}`;
+  const significance = event.diff
+    ? `Changed fields: ${Object.keys(event.diff).slice(0, 4).join(', ')}`
+    : event.confidenceBefore != null || event.confidenceAfter != null
+      ? `Confidence moved from ${event.confidenceBefore ?? 'unknown'} to ${event.confidenceAfter ?? 'unknown'}.`
+      : event.epistemicStatus
+        ? `Epistemic status: ${event.epistemicStatus.replace(/_/g, ' ')}.`
+        : 'Recorded because this action may affect the user’s intellectual biography.';
+
+  return {
+    turningPoint,
+    trigger: String(trigger),
+    significance,
+    beforeLabel: summarizeSnapshot(event.before),
+    afterLabel: summarizeSnapshot(event.after),
+  };
+}
+
+function displayEventMeaning(event: DisplayEvent) {
+  const joined = event.chips.join(' ').toLowerCase();
+  const turningPoint = event.turningPoint || (
+    joined.includes('revised') || joined.includes('confidence') ? 'Revision' :
+    joined.includes('resolved') ? 'Resolution' :
+    joined.includes('unknown') ? 'Known Unknown' :
+    joined.includes('contradiction') || joined.includes('challenge') ? 'Challenge' :
+    joined.includes('created') ? 'Origin' :
+    event.kind === 'pattern' ? 'Pattern Observation' :
+    'Meaningful Change'
+  );
+  const trigger = event.trigger || (event.kind === 'thinking'
+    ? 'Recorded through the thinking-event layer.'
+    : event.kind === 'timeline'
+      ? 'Legacy timeline record.'
+      : event.kind === 'unknown'
+        ? 'A gap in understanding entered the system.'
+        : 'A provisional thinking pattern was recorded.');
+  const significance = event.significance || (event.kind === 'timeline'
+    ? 'This may be meaningful, but thinking events provide stronger evidence when available.'
+    : event.kind === 'pattern'
+      ? 'Treat this as provisional until reviewed, acknowledged, or dismissed.'
+      : 'This item is part of the user’s recorded intellectual biography.');
+
+  return { turningPoint, trigger, significance };
+}
+
 export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thinkingPatterns, metrics }: EvolutionTimelineProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
@@ -81,6 +160,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
       date: event.createdAt,
       filter: mapThinkingEventToFilter(event.eventType),
       chips: [event.eventType.replace(/_/g, ' '), event.sourceType, event.targetType],
+      ...thinkingEventMeaning(event),
     }));
 
     const fromTimeline = events.map((event) => ({
@@ -220,6 +300,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
       <div className="relative pl-8 space-y-12 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[1px] before:bg-border/60">
         {pagedEvents.map((event, idx) => {
           const influencedSources = media.filter((item) => (event.sourceIds || []).includes(item.id));
+          const meaning = displayEventMeaning(event);
           return (
             <div key={event.id} className="relative animate-fade-in-up" style={{ animationDelay: `${idx * 0.05}s` }}>
               <div className="absolute -left-[32px] top-1.5 size-2 rounded-full bg-accent ring-4 ring-background z-10" />
@@ -234,6 +315,33 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
 
                 <h3 className="font-headline font-bold text-2xl text-primary leading-tight">{event.title}</h3>
                 <p className="font-body italic text-[16px] text-muted-foreground leading-relaxed max-w-3xl">{event.detail}</p>
+
+                <div className="mt-4 grid gap-3 rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:grid-cols-3">
+                  <div>
+                    <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Turning Point</div>
+                    <p className="mt-1 text-sm font-semibold text-primary">{meaning.turningPoint}</p>
+                  </div>
+                  <div>
+                    <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Trigger</div>
+                    <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{meaning.trigger}</p>
+                  </div>
+                  <div>
+                    <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Why It Matters</div>
+                    <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{meaning.significance}</p>
+                  </div>
+                  {(event.beforeLabel || event.afterLabel) && (
+                    <div className="md:col-span-3 grid gap-3 border-t border-border/40 pt-3 md:grid-cols-2">
+                      <div className="rounded-xl bg-muted/20 p-3">
+                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Before</div>
+                        <p className="mt-1 text-sm italic text-muted-foreground">{event.beforeLabel || 'Previous state not recorded.'}</p>
+                      </div>
+                      <div className="rounded-xl bg-accent/5 p-3">
+                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">After</div>
+                        <p className="mt-1 text-sm italic text-primary/80">{event.afterLabel || 'Current state not recorded.'}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {influencedSources.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2">

@@ -58,9 +58,14 @@ type SettingsPanelId =
   | 'account'
   | 'appearance'
   | 'workspace'
+  | 'capture'
   | 'works'
+  | 'notifications'
   | 'ai'
+  | 'experimental'
   | 'data'
+  | 'integrations'
+  | 'terminology'
   | 'privacy'
   | 'help';
 
@@ -88,11 +93,16 @@ const SETTINGS_SECTION_STORAGE_KEY = 'noesis:settings-section';
 const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: string }> = [
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
   { id: 'appearance', label: 'Appearance', description: 'Theme, color, density, and display feel.' },
-  { id: 'workspace', label: 'Workspace', description: 'Navigation, intake defaults, Atlas, and reminders.' },
+  { id: 'workspace', label: 'Workspace', description: 'Navigation and general working behavior.' },
+  { id: 'capture', label: 'Capture Defaults', description: 'Source intake, annotations, and quick capture behavior.' },
   { id: 'works', label: 'Writing Defaults', description: 'Work creation defaults and editor behavior.' },
+  { id: 'notifications', label: 'Notifications', description: 'Review reminders and intellectual follow-up prompts.' },
   { id: 'ai', label: 'AI Preferences', description: 'Suggestion, analysis, and metacognition controls.' },
-  { id: 'data', label: 'Data & Demo Workspace', description: 'Export, review data, and demo refresh tools.' },
+  { id: 'experimental', label: 'Experimental Features', description: 'Metacognition, biographies, unknowns, and advanced relations.' },
   { id: 'privacy', label: 'Privacy & Permissions', description: 'Visibility and sharing defaults.' },
+  { id: 'data', label: 'Privacy & Data', description: 'Export, review data, storage, and demo refresh tools.' },
+  { id: 'integrations', label: 'Integrations', description: 'External docs, capture, storage, and provider readiness.' },
+  { id: 'terminology', label: 'Terminology', description: 'Clarify Noesis language without changing internal schema.' },
   { id: 'help', label: 'Help / Usage Guide', description: 'How the Noesis hierarchy fits together.' },
 ];
 
@@ -464,6 +474,66 @@ export function SettingsPage({
             </SettingsCard>
           </div>
         );
+      case 'capture':
+        return (
+          <div className="space-y-6">
+            <SettingsCard title="Capture Defaults" description="Defaults for source intake, annotations, metadata lookup, and quick capture behavior.">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Default media type">
+                  <Select value={drafts.sourceIntake.defaultMediaType} onValueChange={(value) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, defaultMediaType: value as MediaType } }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {mediaTypes.map((type) => <SelectItem key={type} value={type}>{MEDIA_LABELS[type]}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Default annotation type">
+                  <Select value={drafts.sourceIntake.defaultAnnotationType} onValueChange={(value) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, defaultAnnotationType: value as SourceIntakeSettings['defaultAnnotationType'] } }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="highlight">Highlight</SelectItem>
+                      <SelectItem value="thought">Thought</SelectItem>
+                      <SelectItem value="question">Question</SelectItem>
+                      <SelectItem value="connection">Connection</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Default source status">
+                  <Select value={drafts.workspace.defaultSourceStatus} onValueChange={(value) => setDrafts((prev) => ({ ...prev, workspace: { ...prev.workspace, defaultSourceStatus: value as WorkspacePreferenceSettings['defaultSourceStatus'] } }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Want to Read">Want to Read</SelectItem>
+                      <SelectItem value="Consuming">Consuming</SelectItem>
+                      <SelectItem value="Finished">Finished</SelectItem>
+                      <SelectItem value="Paused">Paused</SelectItem>
+                      <SelectItem value="Abandoned">Abandoned</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+              <div className="mt-5 grid gap-3">
+                <SwitchRow label="Enable ISBN lookup" checked={drafts.sourceIntake.enableIsbnLookup} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, enableIsbnLookup: checked } }))} />
+                <SwitchRow label="Enable DOI lookup" checked={drafts.sourceIntake.enableDoiLookup} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, enableDoiLookup: checked } }))} />
+                <SwitchRow label="Enable article metadata fetch" checked={drafts.sourceIntake.enableArticleMetadataFetch} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, enableArticleMetadataFetch: checked } }))} />
+                <SwitchRow label="Auto-create concepts from annotations" checked={drafts.sourceIntake.autoCreateConceptsFromAnnotations} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, autoCreateConceptsFromAnnotations: checked } }))} />
+                <SwitchRow label="Auto-create inquiries from question annotations" checked={drafts.sourceIntake.autoCreateInquiriesFromQuestions} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, autoCreateInquiriesFromQuestions: checked } }))} />
+              </div>
+              <div className="mt-5 rounded-2xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
+                Voice transcription, automatic timestamps, and browser capture are integration-dependent. They are listed here as capture behavior requirements, but Noesis will not show fake toggles until the provider is connected.
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button onClick={() => saveSection('sourceIntake')} disabled={saving === 'sourceIntake'} className="rounded-full px-6">
+                  <Save className="mr-2 size-4" />
+                  {saving === 'sourceIntake' ? 'Saving Capture' : 'Save Capture Defaults'}
+                </Button>
+                <Button variant="outline" onClick={() => saveSection('workspace')} disabled={saving === 'workspace'} className="rounded-full bg-card px-6">
+                  <Save className="mr-2 size-4" />
+                  {saving === 'workspace' ? 'Saving Source Status' : 'Save Source Status'}
+                </Button>
+              </div>
+            </SettingsCard>
+          </div>
+        );
       case 'works':
         return (
           <div className="space-y-6">
@@ -512,6 +582,33 @@ export function SettingsPage({
                 <SwitchRow label="Show AI panel" checked={drafts.works.showAiPanel} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, works: { ...prev.works, showAiPanel: checked } }))} />
               </div>
               <SaveBar onSave={() => saveSection('works')} saving={saving === 'works'} />
+            </SettingsCard>
+          </div>
+        );
+      case 'notifications':
+        return (
+          <div className="space-y-6">
+            <SettingsCard title="Notifications" description="Reminders should return attention to unfinished thinking, not create noise.">
+              <div className="grid gap-3">
+                <SwitchRow label="Daily review reminders" checked={drafts.notifications.dailyReviewReminders} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, dailyReviewReminders: checked } }))} />
+                <SwitchRow label="Weekly evolution summary" checked={drafts.notifications.weeklyEvolutionSummary} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, weeklyEvolutionSummary: checked } }))} />
+                <SwitchRow label="Practice log reminders" checked={drafts.notifications.practiceReminders} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, practiceReminders: checked } }))} />
+                <SwitchRow label="Unknown follow-up reminders" checked={drafts.notifications.unknownFollowUpReminders} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, unknownFollowUpReminders: checked } }))} />
+                <SwitchRow label="Goal reviews" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
+              </div>
+              <div className="mt-5 rounded-2xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
+                Source reflection, unresolved contradiction, and weekly review reminders should be generated from recorded objects. If a reminder cannot point to a real object, it should not appear.
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button onClick={() => saveSection('notifications')} disabled={saving === 'notifications'} className="rounded-full px-6">
+                  <Save className="mr-2 size-4" />
+                  {saving === 'notifications' ? 'Saving Notifications' : 'Save Notifications'}
+                </Button>
+                <Button variant="outline" onClick={() => saveSection('goals')} disabled={saving === 'goals'} className="rounded-full bg-card px-6">
+                  <Save className="mr-2 size-4" />
+                  {saving === 'goals' ? 'Saving Goal Reviews' : 'Save Goal Reviews'}
+                </Button>
+              </div>
             </SettingsCard>
           </div>
         );
@@ -568,6 +665,38 @@ export function SettingsPage({
                 <SwitchRow label="Show metacognition on profile" checked={drafts.metacognition.showMetacognitionPanelsOnProfile} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, showMetacognitionPanelsOnProfile: checked } }))} />
               </div>
               <SaveBar onSave={() => saveSection('metacognition')} saving={saving === 'metacognition'} />
+            </SettingsCard>
+          </div>
+        );
+      case 'experimental':
+        return (
+          <div className="space-y-6">
+            <SettingsCard title="Experimental Features" description="Enable reflective systems only when their limitations are visible and their outputs remain reviewable.">
+              <div className="grid gap-3">
+                <SwitchRow label="Metacognition layer" checked={drafts.metacognition.enableMetacognitionFeatures} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableMetacognitionFeatures: checked } }))} />
+                <SwitchRow label="Thinking events logging" checked={drafts.metacognition.enableThinkingEventsLogging} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableThinkingEventsLogging: checked } }))} />
+                <SwitchRow label="Belief biographies" checked={drafts.metacognition.enableBeliefBiographies} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableBeliefBiographies: checked } }))} />
+                <SwitchRow label="Unknowns tracking" checked={drafts.metacognition.enableUnknownsTracking} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableUnknownsTracking: checked } }))} />
+                <SwitchRow label="Thinking pattern detection" checked={drafts.metacognition.enableThinkingPatternDetection} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableThinkingPatternDetection: checked } }))} />
+                <SwitchRow label="Cognition metrics" checked={drafts.metacognition.enableCognitionMetrics} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableCognitionMetrics: checked } }))} />
+                <SwitchRow label="Advanced Atlas relation overlays" checked={drafts.atlas.showContradictionLinks} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, atlas: { ...prev.atlas, showContradictionLinks: checked } }))} />
+              </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                <LimitationCard title="Evidence required" body="Noesis should not display thinking patterns when the event sample is too small or disconnected from actual user actions." />
+                <LimitationCard title="Suggestion-only AI" body="AI may propose patterns, missing perspectives, or tensions, but the user must accept, edit, dismiss, or ignore every meaningful claim." />
+                <LimitationCard title="Reversible defaults" body="Experimental surfaces must be safe to disable without breaking Positions, Atlas, Evolution, Profile, or demo data." />
+                <LimitationCard title="No identity labels" body="The app should say recent evidence suggests a tendency, never that the user is a fixed kind of thinker." />
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button onClick={() => saveSection('metacognition')} disabled={saving === 'metacognition'} className="rounded-full px-6">
+                  <Save className="mr-2 size-4" />
+                  {saving === 'metacognition' ? 'Saving Experiments' : 'Save Experimental Features'}
+                </Button>
+                <Button variant="outline" onClick={() => saveSection('atlas')} disabled={saving === 'atlas'} className="rounded-full bg-card px-6">
+                  <Save className="mr-2 size-4" />
+                  {saving === 'atlas' ? 'Saving Atlas' : 'Save Atlas Overlays'}
+                </Button>
+              </div>
             </SettingsCard>
           </div>
         );
@@ -631,6 +760,49 @@ export function SettingsPage({
             )}
           </div>
         );
+      case 'integrations':
+        return (
+          <div className="space-y-6">
+            <SettingsCard title="Integrations" description="External systems must be connected deliberately and never simulated with fake switches.">
+              <div className="grid gap-4 md:grid-cols-2">
+                <IntegrationCard title="External documents" status={drafts.works.externalDocSyncEnabled ? 'Configured in Works defaults' : 'Available when enabled'} body="Works can store external document links and sync status. Private Google Docs require OAuth before true automatic updates." />
+                <IntegrationCard title="Source metadata providers" status="Server routes available" body="Books, papers, movies, and URL metadata should resolve through provider APIs, while manual entry remains the fallback." />
+                <IntegrationCard title="Cloud storage" status="Needs storage policy" body="Recordings, drawings, and imported files should use a storage provider before large artifacts leave local draft fields." />
+                <IntegrationCard title="Calendar and reminders" status="Not connected" body="Practice logs, goal reviews, and inquiry reminders need a calendar/notification provider before they can trigger outside the app." />
+                <IntegrationCard title="Browser capture" status="Not connected" body="Web clipping and source context capture should wait for a browser capture integration rather than pretending URLs are enough." />
+                <IntegrationCard title="Transcription provider" status="Not connected" body="Voice notes and recordings need an explicit transcription provider before automatic transcripts can be offered." />
+              </div>
+              <SaveBar onSave={() => saveSection('works')} saving={saving === 'works'} />
+            </SettingsCard>
+          </div>
+        );
+      case 'terminology':
+        return (
+          <div className="space-y-6">
+            <SettingsCard title="Terminology" description="Clarify Noesis language while keeping the internal schema stable.">
+              <div className="rounded-2xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
+                Limited renaming should be treated as a presentation layer. Internal collections like <span className="font-code">vault</span>, <span className="font-code">questions</span>, and <span className="font-code">drafts</span> remain stable so migrations do not break existing data.
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <ClassificationCard title="Concepts" body="Ideas with intellectual meaning: autonomy, justice, identity, consciousness, obligation. Concepts affect definitions, Atlas, AI analysis, and metacognition." />
+                <ClassificationCard title="Domains" body="Broad philosophical territory: ethics, epistemology, metaphysics, philosophy of mind, religion, aesthetics, and social philosophy." />
+                <ClassificationCard title="Facets" body="Object characteristics: source type, annotation role, inquiry kind, position maturity, work format, practice outcome, confidence, or status." />
+                <ClassificationCard title="Labels" body="Temporary workflow organization: review next week, video idea, class project, private, priority. Labels should not shape worldview conclusions." />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <TerminologyCard term="Positions" alt="Beliefs / Claims" body="Judgment objects the user currently holds, tests, revises, or abandons." />
+                <TerminologyCard term="Inquiries" alt="Questions" body="Structured investigations that preserve uncertainty until an answer has evidence." />
+                <TerminologyCard term="Works" alt="Writing / Artifacts" body="Outputs where philosophy becomes essays, notes, drawings, recordings, or linked documents." />
+                <TerminologyCard term="Practices" alt="Experiments" body="Lived tests that reveal whether a position can survive behavior." />
+                <TerminologyCard term="Concepts" alt="Vocabulary" body="The organizing language of the user’s thinking, with definitions and boundaries." />
+                <TerminologyCard term="Evolution" alt="History" body="Meaningful intellectual change, not generic app activity." />
+              </div>
+              <div className="rounded-2xl border border-dashed border-border bg-muted/15 p-4 text-sm italic leading-6 text-muted-foreground">
+                Custom renaming is intentionally not editable yet. It should only ship once every page can reflect terminology consistently across navigation, command palette, object previews, AI prompts, and exports.
+              </div>
+            </SettingsCard>
+          </div>
+        );
       case 'privacy':
         return (
           <div className="space-y-6">
@@ -667,6 +839,22 @@ export function SettingsPage({
                 <p className="mt-2">
                   Sources feed annotations. Annotations become concepts or inquiries. Concepts and evidence support positions. Positions become works, practices, and change over time in Evolution.
                 </p>
+              </div>
+              <div className="rounded-2xl border border-border bg-background/60 p-4">
+                <div className="font-medium text-foreground">Cross-page handoffs</div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  These are the intended routes through the system. A page should hand work to the next page without duplicating that page’s main job.
+                </p>
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {noesisGuide.workflows.slice(0, 10).map((workflow) => (
+                    <div key={workflow.id} className="rounded-xl border border-border/60 bg-card p-3">
+                      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{workflow.label}</div>
+                      <ol className="mt-2 space-y-1 text-sm leading-6 text-muted-foreground">
+                        {workflow.steps.slice(0, 4).map((step, index) => <li key={step}>{index + 1}. {step}</li>)}
+                      </ol>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="grid gap-4 lg:grid-cols-2">
                 {helpSections.map((section) => (
@@ -788,6 +976,48 @@ function SaveBar({ onSave, saving }: { onSave: () => void; saving: boolean }) {
         <Save className="mr-2 size-4" />
         {saving ? 'Saving' : 'Save Section'}
       </Button>
+    </div>
+  );
+}
+
+function LimitationCard({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/60 p-4">
+      <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
+    </div>
+  );
+}
+
+function IntegrationCard({ title, status, body }: { title: string; status: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-headline text-lg font-semibold italic text-foreground">{title}</div>
+        <span className="rounded-full border border-border bg-card px-2.5 py-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">{status}</span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{body}</p>
+    </div>
+  );
+}
+
+function TerminologyCard({ term, alt, body }: { term: string; alt: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/60 p-4">
+      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">User-facing term</div>
+      <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{term}</div>
+      <div className="mt-3 rounded-xl bg-muted/25 p-3 text-xs italic text-muted-foreground">Possible language: {alt}</div>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{body}</p>
+    </div>
+  );
+}
+
+function ClassificationCard({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
+      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">Classification system</div>
+      <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{title}</div>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{body}</p>
     </div>
   );
 }

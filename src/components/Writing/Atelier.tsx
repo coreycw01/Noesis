@@ -804,6 +804,10 @@ export function Atelier({ drafts, concepts, writingDefaults, onAddDraft, onUpdat
               icon={PencilLine}
               title="No works found"
               description="Clear filters or create a writing, note, drawing, or recording to express what your system is producing."
+              belongsHere="Essays, notes, recordings, drawings, external documents, and other artifacts where your philosophy becomes expression."
+              whyItMatters="Works reveal ambiguity and force ideas to become shareable, revisable artifacts."
+              firstAction="Create the smallest useful artifact: a note if the idea is raw, a writing draft if it needs structure, or a drawing/recording if words are not enough."
+              filterCause={workFiltersActive ? 'Current filters may be hiding existing works.' : undefined}
               action={
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   {workFiltersActive && <Button variant="outline" onClick={clearWorkFilters} className="rounded-full">Clear filters</Button>}

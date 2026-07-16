@@ -269,7 +269,8 @@ export const noesisGuide = {
     },
   ] satisfies GuideObject[],
   relationshipFields: [
-    'tags',
+    'conceptTags',
+    'labels',
     'annotations',
     'sourceIds',
     'conceptIds',
@@ -285,6 +286,26 @@ export const noesisGuide = {
     'manualLinks',
   ],
   workflows: [
+    {
+      id: 'source-to-annotation',
+      label: 'Source to Annotation',
+      steps: [
+        'Start in Library and open a source thread.',
+        'Capture a highlight, thought, question, or connection inside the source.',
+        'Attach concepts when the passage clarifies meaning.',
+        'The annotation becomes processable in the Annotations inbox.',
+      ],
+    },
+    {
+      id: 'annotation-to-concept',
+      label: 'Annotation to Concept',
+      steps: [
+        'Start in Annotations or a source detail thread.',
+        'Identify the concept being defined, clarified, exemplified, or contested.',
+        'Attach an existing concept or create a new one from the concept picker.',
+        'The concept page can now show this annotation as usage evidence.',
+      ],
+    },
     {
       id: 'create-work',
       label: 'Create a Work',
@@ -316,6 +337,74 @@ export const noesisGuide = {
         'Review the preflight text and confirm.',
         'Noesis creates a position and stores the annotation as its source annotation.',
         'You can reopen it later from Positions or from the annotation itself.',
+      ],
+    },
+    {
+      id: 'inquiry-to-position',
+      label: 'Inquiry to Position',
+      steps: [
+        'Start in Inquiries.',
+        'Work through evidence, assumptions, and a provisional answer.',
+        'Use Form Position only when the answer is strong enough to become a claim.',
+        'Noesis keeps the inquiry as origin context so the position remains traceable.',
+      ],
+    },
+    {
+      id: 'position-to-work',
+      label: 'Position to Work',
+      steps: [
+        'Start in Positions.',
+        'Open or create a Work when a claim needs expression, argument, or synthesis.',
+        'Link the position to the work so writing can reveal ambiguity or contradiction.',
+        'Revisions in the work should feed back into the position when they matter.',
+      ],
+    },
+    {
+      id: 'position-to-practice',
+      label: 'Position to Practice',
+      steps: [
+        'Start in Positions or Practices.',
+        'Create a practice that tests the position in lived behavior.',
+        'Define hypothesis, method, observation criteria, and duration.',
+        'The practice becomes evidence for whether the position survives reality.',
+      ],
+    },
+    {
+      id: 'practice-to-position',
+      label: 'Practice to Position',
+      steps: [
+        'Start in Practices.',
+        'Log observations from the field experiment.',
+        'Conclude the practice by comparing theory and reality.',
+        'Strengthen, weaken, qualify, or revise the linked position if the result matters.',
+      ],
+    },
+    {
+      id: 'work-to-position',
+      label: 'Work to Position',
+      steps: [
+        'Start in Works.',
+        'Draft or revise an artifact linked to a position.',
+        'Notice contradictions, ambiguity, missing evidence, or clearer wording.',
+        'Return to Positions to revise the claim rather than letting the work drift separately.',
+      ],
+    },
+    {
+      id: 'thinking-event-to-evolution',
+      label: 'Thinking Event to Evolution',
+      steps: [
+        'Create a meaningful intellectual change: revise, challenge, resolve, abandon, test, or synthesize.',
+        'Noesis records a thinking event when the action matters.',
+        'Evolution turns that record into intellectual biography instead of generic activity.',
+      ],
+    },
+    {
+      id: 'evolution-to-atlas',
+      label: 'Evolution to Atlas',
+      steps: [
+        'Review meaningful change in Evolution.',
+        'Atlas absorbs accumulated changes as region activity, tensions, maturity, and structure.',
+        'Use Atlas to see how the worldview is taking shape at the territory level.',
       ],
     },
     {

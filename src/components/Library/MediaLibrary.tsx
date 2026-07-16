@@ -1300,7 +1300,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                 </div>
 
                 <div className="space-y-4">
-                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONCEPT TAGS</Label>
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONCEPTS</Label>
                   <div className="flex flex-wrap gap-2">
                     {(draft.tags || []).map(tag => (
                       <Badge key={tag} variant="secondary" className="px-4 py-1.5 font-code text-[9px] uppercase tracking-widest rounded-full border-border/60 bg-white shadow-sm font-bold">
@@ -1311,7 +1311,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   </div>
                   <div className="flex gap-3">
                     <Input 
-                      placeholder="New concept tag..." 
+                      placeholder="Add concept vocabulary..." 
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && addTag()}

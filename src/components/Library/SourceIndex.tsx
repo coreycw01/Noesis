@@ -122,7 +122,7 @@ export function SourceIndex({ media, vault, drafts, practices, onOpenSource }: S
       <FilterToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search registry by title, creator, identifiers, tags..."
+        searchPlaceholder="Search registry by title, creator, identifiers, concepts..."
         resultCount={filtered.length}
         resultLabel="sources"
         onClear={clearFilters}

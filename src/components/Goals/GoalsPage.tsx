@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Archive, GripVertical, Plus, Save, Target, Trash2 } from 'lucide-react';
+import { Archive, Compass, GripVertical, Plus, Save, Target, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,11 +9,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useToast } from '@/hooks/use-toast';
 import { MEDIA_LABELS, MEDIA_TYPES, today, uid } from '@/lib/readex';
 import type { GoalItem, GoalSettings, GoalType, MediaType } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+const QUEST_TYPES = [
+  'source consumption',
+  'concept clarification',
+  'inquiry development',
+  'position review',
+  'writing output',
+  'practice completion',
+  'reflection cadence',
+  'custom transformation',
+];
 
 interface GoalsPageProps {
   goal: GoalSettings;
@@ -50,10 +62,35 @@ function defaultGoalsFromLegacy(goal: GoalSettings, types: GoalType[], progress:
       targetProgress,
       sortOrder: index,
       status: 'active' as const,
+      purpose: `Develop intentional progress around ${type.name.toLowerCase()}.`,
+      evidenceOfProgress: 'Recorded material, notes, reflections, or linked objects show movement.',
+      completionCriteria: `Reach ${targetProgress} meaningful completions and write a short review.`,
+      reviewCadence: 'weekly',
       createdAt: today(),
       updatedAt: today(),
     };
   });
+}
+
+function questTypeForGoal(item: GoalItem, type?: GoalType) {
+  const name = `${type?.name || item.title}`.toLowerCase();
+  if (name.includes('source') || name.includes('book') || name.includes('article') || name.includes('video')) return 'source consumption';
+  if (name.includes('concept') || name.includes('understand')) return 'concept clarification';
+  if (name.includes('question') || name.includes('inquiry')) return 'inquiry development';
+  if (name.includes('position') || name.includes('belief')) return 'position review';
+  if (name.includes('work') || name.includes('writing') || name.includes('essay')) return 'writing output';
+  if (name.includes('practice') || name.includes('habit') || name.includes('experiment')) return 'practice completion';
+  if (name.includes('reflect')) return 'reflection cadence';
+  return 'custom transformation';
+}
+
+function questNextStep(item: GoalItem & { percent?: number }, type?: GoalType) {
+  if (!item.purpose?.trim()) return 'Name why this goal matters before counting progress.';
+  if (!item.completionCriteria?.trim()) return 'Define what would count as complete evidence.';
+  if (!item.evidenceOfProgress?.trim()) return 'Define what evidence will prove real movement.';
+  if ((item.percent || 0) >= 100 || item.status === 'completed') return 'Write a review: what changed, what remains unclear, and whether the goal should transform.';
+  if ((item.currentProgress || 0) === 0) return `Begin the first ${questTypeForGoal(item, type)} action.`;
+  return 'Review whether the current path still serves the desired intellectual change.';
 }
 
 export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
@@ -137,7 +174,21 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
       ],
       goals: [
         ...(prev.goals || []),
-        { id: uid(), title: name, typeId, currentProgress: 0, targetProgress: 1, sortOrder: goals.length, status: 'active', createdAt: now, updatedAt: now },
+        {
+          id: uid(),
+          title: name,
+          typeId,
+          currentProgress: 0,
+          targetProgress: 1,
+          sortOrder: goals.length,
+          status: 'active',
+          purpose: `Use this quest to deliberately develop ${name.toLowerCase()}.`,
+          evidenceOfProgress: 'Add linked material, reflections, or completed steps that show genuine movement.',
+          completionCriteria: 'Define the concrete evidence that would make this goal complete.',
+          reviewCadence: 'weekly',
+          createdAt: now,
+          updatedAt: now,
+        },
       ],
     }));
   };
@@ -164,7 +215,21 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
       ...prev,
       goals: [
         ...(prev.goals || []),
-        { id: uid(), title: activeGoalTypes.find((type) => type.id === typeId)?.name || 'New Goal Category', typeId, currentProgress: 0, targetProgress: 1, sortOrder: goals.length, status: 'active', createdAt: now, updatedAt: now },
+        {
+          id: uid(),
+          title: activeGoalTypes.find((type) => type.id === typeId)?.name || 'New Goal Category',
+          typeId,
+          currentProgress: 0,
+          targetProgress: 1,
+          sortOrder: goals.length,
+          status: 'active',
+          purpose: 'Name the desired intellectual change this quest is meant to produce.',
+          evidenceOfProgress: 'Describe what evidence will show real progress, not just activity.',
+          completionCriteria: 'Describe what would make this quest complete enough to review.',
+          reviewCadence: 'weekly',
+          createdAt: now,
+          updatedAt: now,
+        },
       ],
     }));
   };
@@ -252,16 +317,20 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
             <Card key={row.id} className="rounded-xl border-accent/20 bg-card p-5 shadow-sm">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Closest To Complete</div>
+                  <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{questTypeForGoal(row, row.type)}</div>
                   <h2 className="mt-1 font-headline text-2xl font-bold italic">{row.title}</h2>
                 </div>
-                <Target className="size-5 text-accent" />
+                <Compass className="size-5 text-accent" />
               </div>
+              <p className="mb-4 line-clamp-2 text-sm italic text-muted-foreground">{row.purpose || 'No desired change stated yet.'}</p>
               <div className="mb-3 flex items-end justify-between">
                 <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{Math.round(row.percent)}%</span>
                 <span className="font-headline text-3xl font-bold italic">{row.currentProgress}/{row.targetProgress}</span>
               </div>
               <Progress value={row.percent} className="h-2" />
+              <div className="mt-4 rounded-xl border border-border/50 bg-background/50 p-3 text-[12px] italic leading-relaxed text-muted-foreground">
+                {questNextStep(row, row.type)}
+              </div>
             </Card>
           ))}
           {!featured.length && (
@@ -304,17 +373,28 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                   onDragStart={() => setDraggedId(row.id)}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={() => draggedId && reorderGoal(draggedId, row.id)}
-                  className="grid grid-cols-[auto_1.3fr_180px_110px_auto] items-center gap-3 rounded-xl border border-border bg-background/50 p-3 transition-colors hover:border-accent/30"
+                  className="grid gap-3 rounded-xl border border-border bg-background/50 p-3 transition-colors hover:border-accent/30 xl:grid-cols-[auto_1.4fr_180px_90px_90px_150px_auto]"
                 >
                   <GripVertical className="size-4 cursor-grab text-muted-foreground/50" />
                   <div>
                     <Input value={row.title} onChange={(event) => updateGoal(row.id, { title: event.target.value })} className="h-9 rounded-full font-headline text-base italic" />
                     <div className="mt-2 flex flex-wrap items-center gap-2 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+                      <span>{questTypeForGoal(row, row.type)}</span>
                       <span>{(row.type?.mediaTypes || []).length ? `Counts: ${(row.type?.mediaTypes || []).map((mediaType) => MEDIA_LABELS[mediaType]).join(', ')}` : 'No media types selected yet'}</span>
                       <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase">{row.status}</Badge>
                     </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-accent" style={{ width: `${row.percent}%` }} />
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <Textarea value={row.purpose || ''} onChange={(event) => updateGoal(row.id, { purpose: event.target.value })} className="min-h-20 text-xs italic" placeholder="Why does this quest matter?" />
+                      <Textarea value={row.completionCriteria || ''} onChange={(event) => updateGoal(row.id, { completionCriteria: event.target.value })} className="min-h-20 text-xs italic" placeholder="What evidence would make this complete?" />
+                      <Textarea value={row.evidenceOfProgress || ''} onChange={(event) => updateGoal(row.id, { evidenceOfProgress: event.target.value })} className="min-h-20 text-xs italic" placeholder="What counts as real progress?" />
+                      <Textarea value={row.obstacles || ''} onChange={(event) => updateGoal(row.id, { obstacles: event.target.value })} className="min-h-20 text-xs italic" placeholder="What obstacle or uncertainty should the next review address?" />
+                    </div>
+                    <div className="mt-3 rounded-xl border border-border/50 bg-card p-3 text-[12px] italic text-muted-foreground">
+                      <span className="font-code text-[8px] uppercase tracking-widest not-italic text-muted-foreground/70">Next review cue: </span>
+                      {questNextStep(row, row.type)}
                     </div>
                   </div>
                   <Select value={row.typeId} onValueChange={(value) => updateGoal(row.id, { typeId: value })}>
@@ -327,6 +407,15 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                     {row.currentProgress}
                   </div>
                   <Input type="number" min={1} value={row.targetProgress} onChange={(event) => updateGoal(row.id, { targetProgress: Math.max(1, Number(event.target.value) || 1) })} className="h-9 rounded-full text-right font-code text-xs" />
+                  <Select value={row.reviewCadence || 'weekly'} onValueChange={(value) => updateGoal(row.id, { reviewCadence: value as GoalItem['reviewCadence'] })}>
+                    <SelectTrigger className="h-9 rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="seasonal">Seasonal</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button variant="ghost" size="icon" onClick={() => updateGoal(row.id, { status: 'archived' })} className="rounded-full text-muted-foreground hover:text-destructive">
                     <Archive className="size-4" />
                   </Button>
@@ -338,6 +427,16 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
           <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
             <h2 className="font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Goal Categories</h2>
             <p className="mt-2 text-xs italic text-muted-foreground">A goal category is a custom bucket like Books or Articles. Included media types determine what gets counted.</p>
+            <div className="mt-4 rounded-xl border border-border/50 bg-background/50 p-3">
+              <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Quest Types</div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {QUEST_TYPES.map((type) => (
+                  <Badge key={type} variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-tighter">
+                    {type}
+                  </Badge>
+                ))}
+              </div>
+            </div>
             <div className="mt-5 space-y-3">
               {goalTypes.map((type) => (
                 <div key={type.id} className={cn('rounded-xl border p-3', type.archivedAt ? 'bg-muted/20 opacity-55' : 'bg-background/50')}>
