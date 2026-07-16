@@ -69,6 +69,12 @@ type SettingsPanelId =
   | 'privacy'
   | 'help';
 
+type SettingsImpact = {
+  current: string;
+  affects: string[];
+  limitations: string[];
+};
+
 interface SettingsPageProps {
   user: User | null;
   settings: SettingsState;
@@ -105,6 +111,90 @@ const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: 
   { id: 'terminology', label: 'Terminology', description: 'Clarify Noesis language without changing internal schema.' },
   { id: 'help', label: 'Help / Usage Guide', description: 'How the Noesis hierarchy fits together.' },
 ];
+
+const PANEL_SECTION_MAP: Record<SettingsPanelId, SettingsSectionKey[]> = {
+  account: ['account', 'data'],
+  appearance: ['appearance'],
+  workspace: ['workspace'],
+  capture: ['sourceIntake', 'workspace'],
+  works: ['works'],
+  notifications: ['notifications', 'goals'],
+  ai: ['ai', 'metacognition'],
+  experimental: ['metacognition', 'atlas'],
+  data: ['data', 'developer'],
+  integrations: ['works', 'sourceIntake', 'data'],
+  terminology: ['workspace'],
+  privacy: ['privacy'],
+  help: [],
+};
+
+const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
+  account: {
+    current: 'Controls sign-in actions, password reset, account export, and the handoff to the separate Profile surface.',
+    affects: ['Authentication controls', 'Workspace export actions', 'Profile access from the utility area'],
+    limitations: ['Profile identity and philosophical portrait editing belongs on Profile, not Settings.'],
+  },
+  appearance: {
+    current: 'Changes theme mode and accent immediately for preview, then persists those choices when saved.',
+    affects: ['Light, dark, and system mode', 'Accent theme tokens', 'Sidebar default and page description visibility'],
+    limitations: ['Some older surfaces may still contain hard-coded colors until each page is fully tokenized.'],
+  },
+  workspace: {
+    current: 'Sets navigation defaults, source creation behavior, deletion confirmation, review prompts, goal reminders, and Atlas defaults.',
+    affects: ['Default landing and post-source routes', 'Default source status and sort order', 'Goal reminder behavior', 'Atlas and notification defaults'],
+    limitations: ['Route-level page ownership is still being phased in, so a few older mounted surfaces may read these defaults later than newer routes.'],
+  },
+  capture: {
+    current: 'Defines the default source and annotation shape before capture becomes interpretation.',
+    affects: ['Default media type', 'Default annotation type', 'Metadata lookup toggles', 'Automatic concept and inquiry creation preferences'],
+    limitations: ['Voice transcription, browser capture, and some provider automations require connected integrations before they become live controls.'],
+  },
+  works: {
+    current: 'Defines how new Works open, save, and display their creation surface.',
+    affects: ['Default work type', 'Default paper style', 'Editor feel', 'Autosave interval', 'External document sync visibility'],
+    limitations: ['Private external document auto-sync still requires provider authentication; Noesis can store linked document metadata now.'],
+  },
+  notifications: {
+    current: 'Controls reminder surfaces that should point back to real unfinished intellectual objects.',
+    affects: ['Daily review prompts', 'Weekly evolution summaries', 'Practice reminders', 'Unknown follow-up reminders', 'Goal review visibility'],
+    limitations: ['Notifications should not fire unless they can identify the associated source, position, inquiry, practice, or unknown.'],
+  },
+  ai: {
+    current: 'Configures the suggestion layer while preserving the rule that AI proposes and the user decides.',
+    affects: ['AI provider and model preference', 'Reasoning depth', 'Workspace memory scope', 'Question, tension, and concept-link suggestions', 'Metacognition feature gates'],
+    limitations: ['AI settings do not add billing or provider credits. Provider failures should remain visible and recoverable.'],
+  },
+  experimental: {
+    current: 'Turns reflective systems on or off behind feature gates so unstable intelligence never masquerades as truth.',
+    affects: ['Thinking event visibility', 'Belief biographies', 'Unknowns tracking', 'Thinking pattern detection', 'Advanced Atlas overlays'],
+    limitations: ['Every metacognitive claim must remain evidence-backed, dismissible, and safe to disable.'],
+  },
+  data: {
+    current: 'Manages export, import/reset permissions, and review-demo workspace refresh behavior.',
+    affects: ['Workspace export actions', 'Import/reset availability', 'Demo refresh behavior', 'Developer review diagnostics'],
+    limitations: ['Firestore rules must allow the active user to write their own path before demo refresh can persist.'],
+  },
+  integrations: {
+    current: 'Explains external systems that need real provider connections instead of placeholder switches.',
+    affects: ['External document expectations', 'Source metadata readiness', 'Storage planning', 'Calendar or reminder future work'],
+    limitations: ['These cards are intentionally informational until OAuth, storage, or provider keys are connected server-side.'],
+  },
+  terminology: {
+    current: 'Documents user-facing language without changing existing Firestore collection names.',
+    affects: ['Conceptual clarity for Positions, Inquiries, Works, and Sources', 'Future migration planning'],
+    limitations: ['Custom renaming is not editable until navigation, exports, command palette, and AI prompts can stay consistent.'],
+  },
+  privacy: {
+    current: 'Sets default visibility and permission posture for objects that may later support sharing.',
+    affects: ['Default object visibility', 'Review export inclusion', 'Public profile and anonymized analytics preferences'],
+    limitations: ['Sharing must stay private-by-default until explicit share routes and rules are implemented.'],
+  },
+  help: {
+    current: 'Explains the Noesis hierarchy and workflow without saving app behavior.',
+    affects: ['User orientation only'],
+    limitations: ['This guide is descriptive; it does not mutate data or settings.'],
+  },
+};
 
 export function SettingsPage({
   user,
@@ -197,6 +287,10 @@ export function SettingsPage({
   };
 
   const currentPanel = SETTINGS_PANELS.find((panel) => panel.id === activePanel) || SETTINGS_PANELS[0];
+  const activeImpact = useMemo(
+    () => buildSettingsImpact(activePanel, settings, drafts),
+    [activePanel, settings, drafts]
+  );
   const helpSections = noesisGuide.sections.filter((section) => !['profile', 'goals'].includes(section.id));
 
   const renderPanel = () => {
@@ -940,11 +1034,100 @@ export function SettingsPage({
               <div className="font-headline text-xl font-semibold italic text-foreground">{currentPanel.label}</div>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">{currentPanel.description}</p>
             </div>
+            <BehaviorPreview impact={activeImpact} />
             {renderPanel()}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function buildSettingsImpact(panel: SettingsPanelId, saved: SettingsState, drafts: SettingsState) {
+  const sections = PANEL_SECTION_MAP[panel];
+  const changedSections = sections.filter((section) => JSON.stringify(saved[section]) !== JSON.stringify(drafts[section]));
+  return {
+    ...SETTINGS_IMPACT_COPY[panel],
+    sections,
+    changedSections,
+  };
+}
+
+function BehaviorPreview({
+  impact,
+}: {
+  impact: SettingsImpact & { sections: SettingsSectionKey[]; changedSections: SettingsSectionKey[] };
+}) {
+  const hasChanges = impact.changedSections.length > 0;
+  return (
+    <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Behavior preview</div>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{impact.current}</p>
+        </div>
+        <div className={`w-fit rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-[0.18em] ${
+          hasChanges
+            ? 'border-accent/40 bg-accent/10 text-accent'
+            : 'border-border bg-muted/20 text-muted-foreground'
+        }`}>
+          {hasChanges ? `${impact.changedSections.length} unsaved` : 'Saved'}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.55fr)]">
+        <div className="rounded-2xl border border-border bg-background/60 p-4">
+          <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">After save this affects</div>
+          <ul className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
+            {impact.affects.map((item) => (
+              <li key={item} className="flex gap-2">
+                <span className="mt-2 size-1.5 rounded-full bg-accent" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-background/60 p-4">
+          <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Saved sections</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {impact.sections.length > 0 ? (
+              impact.sections.map((section) => {
+                const changed = impact.changedSections.includes(section);
+                return (
+                  <span
+                    key={section}
+                    className={`rounded-full border px-2.5 py-1 font-code text-[8px] uppercase tracking-widest ${
+                      changed
+                        ? 'border-accent/40 bg-accent/10 text-accent'
+                        : 'border-border bg-card text-muted-foreground'
+                    }`}
+                  >
+                    {sectionLabel(section)}
+                  </span>
+                );
+              })
+            ) : (
+              <span className="text-sm text-muted-foreground">No saved settings. This section is guidance only.</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {impact.limitations.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-dashed border-border bg-muted/15 p-4">
+          <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Limits and safeguards</div>
+          <ul className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
+            {impact.limitations.map((item) => (
+              <li key={item} className="flex gap-2">
+                <span className="mt-2 size-1.5 rounded-full bg-muted-foreground/60" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Card>
   );
 }
 

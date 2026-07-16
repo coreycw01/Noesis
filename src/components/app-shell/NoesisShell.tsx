@@ -26,6 +26,16 @@ import { Download, FlaskConical } from 'lucide-react';
 import { REVIEW_ACCOUNT_EMAIL } from '@/lib/demo-workspace';
 import { deriveAtlasRegions } from '@/components/Atlas/atlas-diagnostics';
 
+function timeValue(value?: string | null) {
+  if (!value) return 0;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function daysAgo(days: number) {
+  return Date.now() - days * 24 * 60 * 60 * 1000;
+}
+
 interface NoesisShellProps {
   children: React.ReactNode;
   activeView: string;
@@ -107,7 +117,245 @@ export function NoesisShell({
     thinkingEvents: [],
   }), [concepts, drafts, links, media, practices, questions, vault]);
 
+  const attentionCommandItems = React.useMemo<CommandPaletteItem[]>(() => {
+    const annotations = allAnnotations(media);
+    const unprocessedAnnotations = annotations.filter((item) => {
+      const status = item.philosophyStatus || 'raw';
+      return ['raw', 'connected'].includes(status) && !item.createdInquiryId && !item.createdPositionId;
+    });
+    const unsupportedPositions = vault.filter((item) => (item.evidenceFor || []).length === 0 && (item.sourceIds || []).length === 0);
+    const unchallengedPositions = vault.filter((item) => (item.evidenceAgainst || []).length === 0 && item.status !== 'abandoned');
+    const untestedPositions = vault.filter((item) => !practices.some((practice) => (practice.positionIds || []).includes(item.id)) && item.status !== 'abandoned');
+    const unresolvedInquiries = questions.filter((item) => !['resolved', 'answered', 'archived', 'abandoned', 'suspended'].includes(item.status || '') && !item.answer?.trim());
+    const staleConcepts = concepts.filter((item) => {
+      const lastActive = timeValue(item.dateUpdated || item.dateCreated);
+      return lastActive > 0 && lastActive < daysAgo(180);
+    });
+    const unfinishedWorks = drafts.filter((item) => !['final', 'complete', 'published', 'archived'].includes(item.status || ''));
+    const activePracticesNeedingLogs = practices.filter((item) => {
+      if (!['active', 'planned', 'proposed'].includes(item.status || '')) return false;
+      const lastLog = Math.max(...(item.logDates || []).map((date) => timeValue(date)), 0);
+      return lastLog === 0 || lastLog < daysAgo(7);
+    });
+
+    const items: CommandPaletteItem[] = [];
+
+    if (unprocessedAnnotations.length) {
+      items.push({
+        id: 'next-process-annotations',
+        label: `Process ${unprocessedAnnotations.length} unprocessed annotation${unprocessedAnnotations.length === 1 ? '' : 's'}`,
+        section: 'Next Action',
+        description: 'Open the annotation inbox and turn raw captures into concepts, inquiries, challenges, or positions.',
+        view: 'annotations',
+        targetId: unprocessedAnnotations[0].id,
+        objectType: 'Processing Queue',
+        kind: 'object',
+        intellectualStage: 'Interpret',
+        hierarchyLevel: 'Raw',
+        activityClass: 'meaningful',
+        currentState: 'Needs interpretation',
+        summary: `${unprocessedAnnotations.length} captures are still waiting for judgment or connection.`,
+        matchedBecause: 'Noesis should move thought from capture into interpretation instead of leaving raw highlights inert.',
+        connectedConcepts: unprocessedAnnotations.flatMap((item) => item.conceptTags || []).slice(0, 6),
+        relatedObjects: unprocessedAnnotations.slice(0, 4).map((item) => `${item.type}: ${item.text.slice(0, 72)}`),
+        lastChangedAt: unprocessedAnnotations[0].date,
+        thinkingEventHint: 'Processing these annotations can create concept, inquiry, position, support, or challenge events when promoted.',
+        aliases: ['show annotations that challenge', 'process highlights', 'raw captures', 'unprocessed annotations', 'turn annotation into idea'],
+        quickActionLabel: 'Open Annotation Inbox',
+        quickActions: [{ label: 'Open Annotation Inbox', view: 'annotations' }],
+      });
+    }
+
+    unsupportedPositions.slice(0, 3).forEach((position) => {
+      items.push({
+        id: `next-evidence-${position.id}`,
+        label: `Add evidence to: ${position.title || position.statement}`,
+        section: 'Next Action',
+        description: 'This position has no direct supporting sources or evidence yet.',
+        view: 'vault',
+        targetId: position.id,
+        objectType: 'Position Action',
+        kind: 'object',
+        intellectualStage: 'Judge',
+        hierarchyLevel: 'Judgment',
+        activityClass: 'meaningful',
+        currentState: 'Unsupported',
+        summary: position.statement || position.description || 'A position needs supporting evidence before it can become stable.',
+        matchedBecause: 'Positions should not look mature until evidence is attached.',
+        connectedConcepts: position.tags || [],
+        relatedObjects: [`${(position.evidenceFor || []).length} supports`, `${(position.sourceIds || []).length} linked sources`],
+        lastChangedAt: position.dateUpdated || position.dateCreated,
+        thinkingEventHint: 'Adding evidence should create an evidence_added thinking event for this position.',
+        aliases: ['unsupported position', 'add evidence', 'needs support', 'weak evidence', 'position without sources'],
+        quickActionLabel: 'Open Position',
+        quickActions: [{ label: 'Open Position', view: 'vault', targetId: position.id }],
+      });
+    });
+
+    unchallengedPositions.slice(0, 3).forEach((position) => {
+      items.push({
+        id: `next-challenge-${position.id}`,
+        label: `Challenge position: ${position.title || position.statement}`,
+        section: 'Next Action',
+        description: 'This position has no recorded challenge or opposing evidence.',
+        view: 'vault',
+        targetId: position.id,
+        objectType: 'Position Action',
+        kind: 'object',
+        intellectualStage: 'Revise',
+        hierarchyLevel: 'Judgment',
+        activityClass: 'meaningful',
+        currentState: 'Under-challenged',
+        summary: position.statement || position.description || 'A position needs opposition before confidence means much.',
+        matchedBecause: 'Noesis should surface positions that have not been seriously challenged.',
+        connectedConcepts: position.tags || [],
+        relatedObjects: [`${(position.evidenceAgainst || []).length} challenges`, `${position.confidence ?? 'unknown'} confidence`],
+        lastChangedAt: position.dateUpdated || position.dateCreated,
+        thinkingEventHint: 'Adding a challenge, objection, or confidence change should create challenge/confidence thinking events.',
+        aliases: ['challenge position', 'opposing evidence', 'stress test belief', 'under challenged', 'find objection'],
+        quickActionLabel: 'Stress-Test Position',
+        quickActions: [{ label: 'Open Stress-Test', view: 'vault', targetId: position.id }],
+      });
+    });
+
+    untestedPositions.slice(0, 3).forEach((position) => {
+      items.push({
+        id: `next-test-${position.id}`,
+        label: `Create a practice for: ${position.title || position.statement}`,
+        section: 'Next Action',
+        description: 'This position is not connected to a lived test yet.',
+        view: 'practices',
+        targetId: null,
+        objectType: 'Practice Action',
+        kind: 'object',
+        intellectualStage: 'Test',
+        hierarchyLevel: 'Expression',
+        activityClass: 'meaningful',
+        currentState: 'Untested',
+        summary: position.statement || position.description || 'A claim becomes more serious when it can be tested in behavior.',
+        matchedBecause: 'Practices close the loop between thought and life.',
+        connectedConcepts: position.tags || [],
+        relatedObjects: [`Position: ${position.title || position.statement}`, 'No linked practice found'],
+        lastChangedAt: position.dateUpdated || position.dateCreated,
+        thinkingEventHint: 'Creating a practice that tests this position should record a practice_created or tested thinking event.',
+        aliases: ['untested belief', 'test position', 'create practice', 'lived experiment', 'practice for belief'],
+        quickActionLabel: 'Open Practices',
+        quickActions: [
+          { label: 'Open Practices', view: 'practices' },
+          { label: 'Open Position First', view: 'vault', targetId: position.id },
+        ],
+      });
+    });
+
+    unresolvedInquiries.slice(0, 3).forEach((inquiry) => {
+      items.push({
+        id: `next-inquiry-${inquiry.id}`,
+        label: `Advance inquiry: ${inquiry.text}`,
+        section: 'Next Action',
+        description: 'This inquiry needs evidence, a working answer, or a resolution summary.',
+        view: 'questions',
+        targetId: inquiry.id,
+        objectType: 'Inquiry Action',
+        kind: 'object',
+        intellectualStage: 'Question',
+        hierarchyLevel: 'Interpretive',
+        activityClass: 'meaningful',
+        currentState: inquiry.status || 'Open',
+        summary: inquiry.answer || 'An open question still needs investigation.',
+        matchedBecause: 'Open inquiries are unfinished intellectual pressure points.',
+        connectedConcepts: inquiry.conceptIds?.map((conceptId) => concepts.find((concept) => concept.id === conceptId)?.name || conceptId) || [],
+        relatedObjects: [`${inquiry.sourceIds?.length || 0} sources`, `${inquiry.beliefIds?.length || 0} positions`],
+        lastChangedAt: inquiry.dateUpdated || inquiry.dateCreated,
+        thinkingEventHint: 'Reframing, resolving, or promoting this inquiry should create question or position events.',
+        aliases: ['open question', 'unanswered question', 'advance inquiry', 'working answer', 'resolve inquiry'],
+        quickActionLabel: 'Open Inquiry',
+        quickActions: [{ label: 'Open Inquiry', view: 'questions', targetId: inquiry.id }],
+      });
+    });
+
+    staleConcepts.slice(0, 3).forEach((concept) => {
+      items.push({
+        id: `next-stale-concept-${concept.id}`,
+        label: `Revisit old concept: ${concept.name}`,
+        section: 'Next Action',
+        description: 'This idea has not been revisited in roughly six months.',
+        view: 'concepts',
+        targetId: concept.id,
+        objectType: 'Concept Action',
+        kind: 'object',
+        intellectualStage: 'Revise',
+        hierarchyLevel: 'Interpretive',
+        activityClass: 'meaningful',
+        currentState: concept.philosophyStatus || 'Stale',
+        summary: concept.description || 'A concept may need a clearer definition or updated boundary.',
+        matchedBecause: 'This matches the command idea: find ideas I have not revisited in six months.',
+        connectedConcepts: concept.links || [],
+        relatedObjects: [`${concept.sourceIds?.length || 0} sources`, `${concept.links?.length || 0} related concepts`],
+        lastChangedAt: concept.dateUpdated || concept.dateCreated,
+        thinkingEventHint: 'Redefining or materially relinking this concept should create a concept-definition thinking event.',
+        aliases: ['not revisited', 'six months', 'old idea', 'stale concept', 'neglected concept'],
+        quickActionLabel: 'Open Concept',
+        quickActions: [{ label: 'Open Concept', view: 'concepts', targetId: concept.id }],
+      });
+    });
+
+    unfinishedWorks.slice(0, 3).forEach((work) => {
+      items.push({
+        id: `next-work-${work.id}`,
+        label: `Continue work: ${work.title}`,
+        section: 'Next Action',
+        description: 'This work is still in progress and may contain unresolved claims.',
+        view: 'writing',
+        targetId: work.id,
+        objectType: 'Work Action',
+        kind: 'object',
+        intellectualStage: 'Express',
+        hierarchyLevel: 'Expression',
+        activityClass: 'meaningful',
+        currentState: work.status || 'Draft',
+        summary: work.body || work.draftContent || 'A work in progress.',
+        matchedBecause: 'The command bar should help continue unfinished expression, not just open pages.',
+        connectedConcepts: work.conceptTags || [],
+        relatedObjects: [`${work.beliefIds?.length || 0} positions`, `${work.questionIds?.length || 0} inquiries`],
+        lastChangedAt: work.dateUpdated || work.dateCreated,
+        thinkingEventHint: 'Substantial revision, synthesis, or completion of this work should create a thinking event.',
+        aliases: ['continue essay', 'unfinished essay', 'continue writing', 'draft in progress', 'unfinished work'],
+        quickActionLabel: 'Open Work',
+        quickActions: [{ label: 'Open Work', view: 'writing', targetId: work.id }],
+      });
+    });
+
+    activePracticesNeedingLogs.slice(0, 3).forEach((practice) => {
+      items.push({
+        id: `next-practice-log-${practice.id}`,
+        label: `Log practice result: ${practice.title}`,
+        section: 'Next Action',
+        description: 'This practice needs a recent observation or outcome log.',
+        view: 'practices',
+        targetId: practice.id,
+        objectType: 'Practice Action',
+        kind: 'object',
+        intellectualStage: 'Test',
+        hierarchyLevel: 'Expression',
+        activityClass: 'meaningful',
+        currentState: practice.status || 'Active',
+        summary: practice.description || practice.notes || 'A practice awaiting evidence from life.',
+        matchedBecause: 'Practices should test positions through logged consequences, not just streaks.',
+        connectedConcepts: practice.conceptTags || [],
+        relatedObjects: [`${practice.positionIds?.length || 0} positions tested`, `${practice.logDates?.length || 0} logs`],
+        lastChangedAt: practice.dateUpdated || practice.dateCreated,
+        thinkingEventHint: 'Logging a result that affects a position or inquiry should create a tested/practice event.',
+        aliases: ['log practice', 'practice result', 'needs observation', 'streak log', 'test outcome'],
+        quickActionLabel: 'Open Practice',
+        quickActions: [{ label: 'Open Practice', view: 'practices', targetId: practice.id }],
+      });
+    });
+
+    return items.slice(0, 16);
+  }, [concepts, drafts, media, practices, questions, vault]);
+
   const workspaceCommandItems: CommandPaletteItem[] = [
+    ...attentionCommandItems,
     ...atlasRegions.slice(0, 12).map((region) => ({
       id: `atlas-region-${region.id}`,
       label: region.name,
@@ -117,6 +365,10 @@ export function NoesisShell({
       targetId: region.id,
       objectType: 'Interpretive Territory',
       kind: 'object' as const,
+      intellectualStage: 'Understand' as const,
+      hierarchyLevel: 'Interpretive' as const,
+      activityClass: 'orientation' as const,
+      thinkingEventHint: 'Opening a region is orientation. Creating links, resolving tensions, or revising related objects should create the meaningful event.',
       currentState: region.maturityStatus,
       summary: `${region.name} contains ${region.activePositionsCount} positions, ${region.openInquiryCount} open inquiries, ${region.practiceCount} practices, and ${region.tensionCount} tensions.`,
       matchedBecause: 'Atlas regions are derived from connected concepts, positions, inquiries, sources, works, practices, and typed links.',
@@ -143,6 +395,10 @@ export function NoesisShell({
       targetId: item.id,
       objectType: 'Interpretive Object',
       kind: 'object' as const,
+      intellectualStage: 'Interpret' as const,
+      hierarchyLevel: 'Interpretive' as const,
+      activityClass: 'orientation' as const,
+      thinkingEventHint: 'Previewing a concept is orientation. Defining, redefining, merging, splitting, or materially linking it should create the thinking event.',
       currentState: item.philosophyStatus || 'concept',
       summary: item.description || 'A concept in the user vocabulary.',
       matchedBecause: 'Concepts organize recurring meaning across sources, inquiries, positions, works, and practices.',
@@ -167,6 +423,10 @@ export function NoesisShell({
       targetId: item.id,
       objectType: 'Raw Input',
       kind: 'object' as const,
+      intellectualStage: 'Encounter' as const,
+      hierarchyLevel: 'Raw' as const,
+      activityClass: 'orientation' as const,
+      thinkingEventHint: 'Opening a source is orientation. Completing reflection, distilling a claim, or creating annotations from it should record intellectual development.',
       currentState: item.status,
       summary: item.description || item.capture?.after?.coreArgument || item.capture?.before?.openQuestion || 'A source feeding the thinking system.',
       matchedBecause: 'Sources are encounters that can become annotations, concepts, inquiries, and positions.',
@@ -192,6 +452,10 @@ export function NoesisShell({
       targetId: item.id,
       objectType: 'Raw Capture',
       kind: 'object' as const,
+      intellectualStage: 'Capture' as const,
+      hierarchyLevel: 'Raw' as const,
+      activityClass: 'orientation' as const,
+      thinkingEventHint: 'Previewing an annotation is orientation. Promoting it into a concept, inquiry, challenge, or position is the meaningful event.',
       currentState: item.philosophyStatus || 'raw',
       summary: item.context || item.answer || item.text,
       matchedBecause: 'Annotations are captures waiting to be interpreted, questioned, connected, or judged.',
@@ -217,6 +481,10 @@ export function NoesisShell({
       targetId: item.id,
       objectType: 'Interpretive Object',
       kind: 'object' as const,
+      intellectualStage: 'Question' as const,
+      hierarchyLevel: 'Interpretive' as const,
+      activityClass: 'orientation' as const,
+      thinkingEventHint: 'Opening an inquiry is orientation. Revising the question, adding assumptions, resolving it, or forming a position from it should create history.',
       currentState: item.status,
       summary: item.answer || 'An open investigation in the system.',
       matchedBecause: 'Inquiries structure uncertainty and can mature into positions, works, practices, or unknowns.',
@@ -242,6 +510,10 @@ export function NoesisShell({
       targetId: item.id,
       objectType: 'Judgment Object',
       kind: 'object' as const,
+      intellectualStage: 'Judge' as const,
+      hierarchyLevel: 'Judgment' as const,
+      activityClass: 'orientation' as const,
+      thinkingEventHint: 'Previewing a position is orientation. Support, challenge, confidence, stress-test, abandonment, and revision actions should create events.',
       currentState: item.status,
       summary: item.statement || item.description || 'A current position in the belief workbench.',
       matchedBecause: 'Positions are user-owned judgments that need evidence, objections, confidence, and revision history.',
@@ -268,6 +540,10 @@ export function NoesisShell({
       targetId: item.id,
       objectType: 'Expression Object',
       kind: 'object' as const,
+      intellectualStage: 'Express' as const,
+      hierarchyLevel: 'Expression' as const,
+      activityClass: 'orientation' as const,
+      thinkingEventHint: 'Opening a work is orientation. Completing, substantially revising, or synthesizing linked ideas should record a thinking event.',
       currentState: item.status,
       summary: item.body || item.draftContent || 'A work expressing or developing thought.',
       matchedBecause: 'Works express, clarify, and expose tensions inside positions, inquiries, and concepts.',
@@ -293,6 +569,10 @@ export function NoesisShell({
       targetId: item.id,
       objectType: 'Experiment Object',
       kind: 'object' as const,
+      intellectualStage: 'Test' as const,
+      hierarchyLevel: 'Expression' as const,
+      activityClass: 'orientation' as const,
+      thinkingEventHint: 'Opening a practice is orientation. Starting, concluding, or logging an outcome that affects a belief should create history.',
       currentState: item.status,
       summary: item.description || item.notes || 'A lived test connected to thought.',
       matchedBecause: 'Practices test whether an idea survives contact with lived behavior and observation.',
@@ -318,6 +598,10 @@ export function NoesisShell({
       targetId: item.unknownId,
       objectType: 'Metacognitive Object',
       kind: 'object' as const,
+      intellectualStage: 'Understand' as const,
+      hierarchyLevel: 'Historical' as const,
+      activityClass: 'orientation' as const,
+      thinkingEventHint: 'Previewing an unknown is orientation. Creating, investigating, or resolving an unknown should create a thinking event.',
       currentState: item.status,
       summary: item.description || 'A known area of uncertainty in the thinking system.',
       matchedBecause: 'Unknowns make ignorance explicit so it can guide research, questions, and revision.',

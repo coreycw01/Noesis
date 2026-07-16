@@ -56,6 +56,11 @@ export interface CommandPaletteItem {
   targetId?: string | null;
   objectType?: string;
   kind?: 'navigation' | 'object' | 'create';
+  intellectualStage?: 'Encounter' | 'Capture' | 'Interpret' | 'Question' | 'Judge' | 'Express' | 'Test' | 'Revise' | 'Understand' | 'Navigate' | 'Configure';
+  hierarchyLevel?: 'Raw' | 'Interpretive' | 'Judgment' | 'Expression' | 'Historical' | 'Utility';
+  activityClass?: 'meaningful' | 'orientation' | 'non_meaningful';
+  thinkingEventHint?: string;
+  aliases?: string[];
   currentState?: string;
   summary?: string;
   connectedConcepts?: string[];
@@ -72,12 +77,32 @@ export interface CommandPaletteItem {
 
 const RECENT_COMMAND_ITEMS_KEY = 'noesis:recent-command-items';
 const MAX_RECENT_COMMAND_ITEMS = 8;
+const STRUCTURED_COMMAND_EXAMPLES = [
+  'create inquiry',
+  'open position',
+  'challenge autonomy',
+  'continue essay',
+  'start practice',
+];
+const NOESIS_STAGE_ORDER = ['Encounter', 'Capture', 'Interpret', 'Question', 'Judge', 'Express', 'Test', 'Revise', 'Understand'] as const;
+const STAGE_DESCRIPTIONS: Record<(typeof NOESIS_STAGE_ORDER)[number], string> = {
+  Encounter: 'A source, capture, or object enters the system.',
+  Capture: 'A highlight, thought, question, or connection is preserved.',
+  Interpret: 'Meaning is organized into concepts and relationships.',
+  Question: 'Uncertainty becomes an inquiry or unknown.',
+  Judge: 'A position is stated, challenged, and given confidence.',
+  Express: 'Thought becomes a work, note, recording, drawing, or draft.',
+  Test: 'A practice or experiment checks whether the idea holds in life.',
+  Revise: 'Evidence, tension, or practice changes the object.',
+  Understand: 'Evolution, profile, and Atlas show what changed.',
+};
 
 const normalizePreviewType = (item: CommandPaletteItem | null) => {
   if (!item) return 'Object';
   if (item.objectType) return item.objectType;
   if (item.kind === 'create') return 'Creation Action';
   if (item.kind === 'navigation') return 'Workspace';
+  if (item.hierarchyLevel) return `${item.hierarchyLevel} Object`;
   return item.section || 'Object';
 };
 
@@ -104,6 +129,22 @@ const normalizeMatchedReason = (item: CommandPaletteItem | null) => {
   return 'Opened from the command palette.';
 };
 
+const normalizeActivityClass = (item: CommandPaletteItem | null) => {
+  if (!item) return 'orientation';
+  if (item.activityClass) return item.activityClass;
+  if (item.kind === 'create') return 'meaningful';
+  if (item.kind === 'navigation') return 'non_meaningful';
+  return 'orientation';
+};
+
+const normalizeThinkingEventHint = (item: CommandPaletteItem | null) => {
+  if (!item) return 'Previewing an item is orientation only. It should not create a thinking event.';
+  if (item.thinkingEventHint) return item.thinkingEventHint;
+  if (item.kind === 'create') return 'Creating the object from its workspace should create a thinking event when the object is saved.';
+  if (item.kind === 'navigation') return 'Opening or sorting a page is navigation only. It should not create a thinking event.';
+  return 'Opening this preview is orientation only. Meaningful edits, links, revisions, tests, or resolutions happen on the full page.';
+};
+
 const defaultQuickActionsFor = (item: CommandPaletteItem | null) => {
   if (!item) return [];
   if (item.quickActions?.length) return item.quickActions;
@@ -126,6 +167,21 @@ const defaultQuickActionsFor = (item: CommandPaletteItem | null) => {
     ];
   }
   return [];
+};
+
+const thoughtPathFor = (item: CommandPaletteItem | null) => {
+  if (!item?.intellectualStage || item.intellectualStage === 'Navigate' || item.intellectualStage === 'Configure') {
+    return [];
+  }
+  const activeIndex = NOESIS_STAGE_ORDER.indexOf(item.intellectualStage);
+  if (activeIndex < 0) return [];
+  const start = Math.max(0, activeIndex - 2);
+  const end = Math.min(NOESIS_STAGE_ORDER.length, activeIndex + 3);
+  return NOESIS_STAGE_ORDER.slice(start, end).map((stage) => ({
+    stage,
+    active: stage === item.intellectualStage,
+    description: STAGE_DESCRIPTIONS[stage],
+  }));
 };
 
 interface ShellProps {
@@ -278,16 +334,16 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
       kind: item.kind || 'object',
     }));
     const utilities: CommandPaletteItem[] = [
-      { id: 'profile', label: NOESIS_PAGE_BY_VIEW.profile.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.profile.purpose, view: 'profile', kind: 'navigation' as const },
-      { id: 'goals', label: NOESIS_PAGE_BY_VIEW.goals.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.goals.purpose, view: 'goals', kind: 'navigation' as const },
+      { id: 'profile', label: NOESIS_PAGE_BY_VIEW.profile.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.profile.purpose, view: 'profile', kind: 'navigation' as const, intellectualStage: 'Understand', hierarchyLevel: 'Utility', activityClass: 'non_meaningful' as const },
+      { id: 'goals', label: NOESIS_PAGE_BY_VIEW.goals.title, section: 'Utility', description: NOESIS_PAGE_BY_VIEW.goals.purpose, view: 'goals', kind: 'navigation' as const, intellectualStage: 'Test', hierarchyLevel: 'Utility', activityClass: 'non_meaningful' as const },
     ];
     const creation: CommandPaletteItem[] = [
-      { id: 'create-source', label: 'Add Source', section: 'Create', description: 'Open Library to capture a book, article, video, paper, or other source.', view: 'library', kind: 'create' as const },
-      { id: 'capture-annotation', label: 'Capture Annotation', section: 'Create', description: 'Open Annotations to process a highlight, thought, question, objection, definition, example, or connection.', view: 'annotations', kind: 'create' as const, objectType: 'Raw Capture', currentState: 'Ready to capture', matchedBecause: 'Capture is the bridge from encountering material to interpreting it inside Noesis.' },
-      { id: 'create-inquiry', label: 'Create Inquiry', section: 'Create', description: 'Open Inquiries to start a structured investigation.', view: 'questions', kind: 'create' as const },
-      { id: 'create-position', label: 'Create Position', section: 'Create', description: 'Open Positions to state or draft a belief for testing.', view: 'vault', kind: 'create' as const },
-      { id: 'create-work', label: 'Create Work', section: 'Create', description: 'Open Works to start writing, notes, drawing, or recording.', view: 'writing', kind: 'create' as const },
-      { id: 'start-practice', label: 'Start Practice', section: 'Create', description: 'Open Practices to turn an idea into a lived test.', view: 'practices', kind: 'create' as const },
+      { id: 'create-source', label: 'Add Source', section: 'Create', description: 'Open Library to capture a book, article, video, paper, or other source.', view: 'library', kind: 'create' as const, intellectualStage: 'Encounter', hierarchyLevel: 'Raw', objectType: 'Source', activityClass: 'meaningful' as const, thinkingEventHint: 'Saving a new source should record a source-created thinking event when it becomes part of the workspace.', aliases: ['add book', 'add article', 'add paper', 'capture source', 'study source', 'new source'] },
+      { id: 'capture-annotation', label: 'Capture Annotation', section: 'Create', description: 'Open Annotations to process a highlight, thought, question, objection, definition, example, or connection.', view: 'annotations', kind: 'create' as const, objectType: 'Raw Capture', hierarchyLevel: 'Raw', intellectualStage: 'Capture', currentState: 'Ready to capture', matchedBecause: 'Capture is the bridge from encountering material to interpreting it inside Noesis.', activityClass: 'meaningful' as const, thinkingEventHint: 'Saving a new annotation should record capture; promoting it into an inquiry, concept, or position should record the later intellectual step.', aliases: ['new highlight', 'capture thought', 'save quote', 'process highlight', 'show annotations that challenge'] },
+      { id: 'create-inquiry', label: 'Create Inquiry', section: 'Create', description: 'Open Inquiries to start a structured investigation.', view: 'questions', kind: 'create' as const, intellectualStage: 'Question', hierarchyLevel: 'Interpretive', objectType: 'Inquiry', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating or resolving an inquiry should create a thinking event because uncertainty changed state.', aliases: ['create question', 'ask question', 'create an inquiry about', 'investigate', 'unknown question'] },
+      { id: 'create-position', label: 'Create Position', section: 'Create', description: 'Open Positions to state or draft a belief for testing.', view: 'vault', kind: 'create' as const, intellectualStage: 'Judge', hierarchyLevel: 'Judgment', objectType: 'Position', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, revising, challenging, supporting, or changing confidence on a position should create a thinking event.', aliases: ['create belief', 'state claim', 'open my position', 'draft position', 'judge idea'] },
+      { id: 'create-work', label: 'Create Work', section: 'Create', description: 'Open Works to start writing, notes, drawing, or recording.', view: 'writing', kind: 'create' as const, intellectualStage: 'Express', hierarchyLevel: 'Expression', objectType: 'Work', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating a work can be ordinary drafting; completing or substantially revising it should create a thinking event.', aliases: ['write essay', 'continue essay', 'unfinished essay', 'start note', 'record idea', 'draw idea'] },
+      { id: 'start-practice', label: 'Start Practice', section: 'Create', description: 'Open Practices to turn an idea into a lived test.', view: 'practices', kind: 'create' as const, intellectualStage: 'Test', hierarchyLevel: 'Expression', objectType: 'Practice', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, concluding, or logging a practice result that changes a belief should create a thinking event.', aliases: ['start experiment', 'test belief', 'behavioral commitment', 'lived test', 'practice result'] },
     ];
     const core: CommandPaletteItem[] = navItems.map((item) => ({
       id: item.id,
@@ -298,6 +354,9 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
         : NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].purpose,
       view: item.id,
       kind: 'navigation' as const,
+      intellectualStage: item.id === 'settings' ? 'Configure' as const : 'Navigate' as const,
+      hierarchyLevel: 'Utility' as const,
+      activityClass: 'non_meaningful' as const,
     }));
     const query = commandQuery.trim().toLowerCase();
     return [...recent, ...creation, ...core, ...utilities, ...workspaceCommandItems]
@@ -310,6 +369,11 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
           item.objectType,
           item.currentState,
           item.matchedBecause,
+          item.intellectualStage,
+          item.hierarchyLevel,
+          item.activityClass,
+          item.thinkingEventHint,
+          ...(item.aliases || []),
           ...(item.connectedConcepts || []),
           ...(item.relatedObjects || []),
         ].filter(Boolean).join(' ');
@@ -366,6 +430,9 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   const previewSummary = normalizePreviewSummary(previewItem);
   const previewMatchedReason = normalizeMatchedReason(previewItem);
   const previewQuickActions = defaultQuickActionsFor(previewItem);
+  const previewThoughtPath = thoughtPathFor(previewItem);
+  const previewActivityClass = normalizeActivityClass(previewItem);
+  const previewThinkingEventHint = normalizeThinkingEventHint(previewItem);
 
   const renderNavButton = (item: typeof navItems[number]) => {
     const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
@@ -620,7 +687,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
           <DialogContent className="max-w-xl rounded-3xl border-border bg-card p-0 shadow-2xl">
             <DialogHeader className="border-b border-border px-6 py-5">
               <DialogTitle className="font-headline text-2xl font-semibold italic">Command Palette</DialogTitle>
-              <DialogDescription>Jump to a page, utility surface, or primary workspace without using the sidebar.</DialogDescription>
+              <DialogDescription>Search objects, jump to workspaces, or start structured Noesis actions. This is navigation and creation, not unrestricted AI chat.</DialogDescription>
             </DialogHeader>
             <div className="p-4">
               <div className="relative">
@@ -633,6 +700,18 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
                   className="h-11 rounded-full pl-9"
                 />
               </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {STRUCTURED_COMMAND_EXAMPLES.map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => setCommandQuery(example)}
+                    className="rounded-full border border-border bg-background/60 px-3 py-1 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
               <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto">
                 {commandItems.map((item) => (
                   <button
@@ -644,6 +723,20 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
                     <span className="min-w-0 pr-3">
                       <span className="block font-medium text-foreground">{item.label}</span>
                       <span className="mt-1 block text-xs text-muted-foreground">{item.description}</span>
+                      {(item.intellectualStage || item.hierarchyLevel) ? (
+                        <span className="mt-2 flex flex-wrap gap-1.5">
+                          {item.intellectualStage && (
+                            <span className="rounded-full bg-accent/10 px-2 py-0.5 font-code text-[8px] uppercase tracking-[0.16em] text-accent">
+                              {item.intellectualStage}
+                            </span>
+                          )}
+                          {item.hierarchyLevel && (
+                            <span className="rounded-full border border-border px-2 py-0.5 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">
+                              {item.hierarchyLevel}
+                            </span>
+                          )}
+                        </span>
+                      ) : null}
                       {(commandQuery.trim() && (item.matchedBecause || item.connectedConcepts?.length || item.relatedObjects?.length)) ? (
                         <span className="mt-2 block rounded-xl bg-accent/5 px-3 py-2 text-[11px] leading-5 text-muted-foreground">
                           <span className="font-code text-[8px] uppercase tracking-[0.16em] text-accent">Matched Because </span>
@@ -678,6 +771,20 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
                 <span className="rounded-full bg-accent/10 px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-accent">
                   {previewState}
                 </span>
+                {previewItem?.intellectualStage && (
+                  <span className="rounded-full border border-accent/30 bg-accent/5 px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-accent">
+                    {previewItem.intellectualStage}
+                  </span>
+                )}
+                <span className={`rounded-full border px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] ${
+                  previewActivityClass === 'meaningful'
+                    ? 'border-accent/40 bg-accent/10 text-accent'
+                    : previewActivityClass === 'non_meaningful'
+                      ? 'border-border bg-muted/20 text-muted-foreground'
+                      : 'border-border bg-card text-muted-foreground'
+                }`}>
+                  {previewActivityClass === 'meaningful' ? 'Meaningful' : previewActivityClass === 'non_meaningful' ? 'Navigation' : 'Orientation'}
+                </span>
               </div>
               <SheetTitle className="font-headline text-2xl font-semibold italic leading-tight text-foreground/85">
                 {previewItem?.label || 'Object Preview'}
@@ -700,8 +807,66 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
                       <div className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">Why This Appeared</div>
                       <p className="mt-1 text-muted-foreground">{previewMatchedReason}</p>
                     </div>
+                    {(previewItem?.intellectualStage || previewItem?.hierarchyLevel) && (
+                      <div>
+                        <div className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">Noesis Stage</div>
+                        <p className="mt-1 text-muted-foreground">
+                          {previewItem?.intellectualStage || 'Navigate'}
+                          {previewItem?.hierarchyLevel ? ` - ${previewItem.hierarchyLevel} layer` : ''}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </section>
+
+                <section className="rounded-2xl border border-border bg-background/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Activity Rule</div>
+                    <span className={`rounded-full px-2.5 py-1 font-code text-[8px] uppercase tracking-[0.16em] ${
+                      previewActivityClass === 'meaningful'
+                        ? 'bg-accent/10 text-accent'
+                        : 'bg-muted/25 text-muted-foreground'
+                    }`}>
+                      {previewActivityClass === 'meaningful'
+                        ? 'Can create thinking event'
+                        : previewActivityClass === 'non_meaningful'
+                          ? 'No thinking event'
+                          : 'Preview only'}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">{previewThinkingEventHint}</p>
+                </section>
+
+                {previewThoughtPath.length ? (
+                  <section className="rounded-2xl border border-border bg-background/60 p-4">
+                    <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Thought Path</div>
+                    <div className="mt-3 space-y-2">
+                      {previewThoughtPath.map((step, index) => (
+                        <div key={step.stage} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className={`grid size-6 place-items-center rounded-full border font-code text-[8px] ${
+                              step.active
+                                ? 'border-accent bg-accent text-accent-foreground'
+                                : 'border-border bg-card text-muted-foreground'
+                            }`}>
+                              {index + 1}
+                            </div>
+                            {index < previewThoughtPath.length - 1 && <div className="h-6 w-px bg-border" />}
+                          </div>
+                          <div className="min-w-0 pb-2">
+                            <div className={`font-code text-[9px] uppercase tracking-[0.16em] ${step.active ? 'text-accent' : 'text-muted-foreground'}`}>
+                              {step.stage}
+                            </div>
+                            <p className="mt-1 text-sm leading-5 text-muted-foreground">{step.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 rounded-xl bg-muted/20 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                      This preview orients the object in the Noesis flow. Full editing still belongs on the object page.
+                    </p>
+                  </section>
+                ) : null}
 
                 <section className="rounded-2xl border border-border bg-background/60 p-4">
                   <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Connected Concepts</div>
