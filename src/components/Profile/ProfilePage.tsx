@@ -229,6 +229,74 @@ export function ProfilePage({
     ['Practices active', String(practices.filter((item) => item.status === 'active').length)],
   ] as const;
 
+  const mirrorDiagnostics = useMemo(() => {
+    const evidenceEvents = thinkingEvents.filter((event) => ['evidence_added', 'supported', 'source_distilled', 'annotation_created'].includes(event.eventType));
+    const challengeEvents = thinkingEvents.filter((event) => ['challenged', 'challenge_added', 'contradiction_detected', 'assumption_challenged'].includes(event.eventType));
+    const revisionEvents = thinkingEvents.filter((event) => ['revised', 'position_revised', 'confidence_changed', 'stress_test_answered'].includes(event.eventType));
+    const positionPracticeLinks = positions.filter((position) => practices.some((practice) => (practice.positionIds || []).includes(position.id)));
+    const unsupportedPositions = positions.filter((position) => (position.evidenceFor || []).length === 0 && (position.sourceIds || []).length === 0 && position.status !== 'rejected');
+    const sufficientEventSpread = thinkingEvents.length >= 8 && new Set(thinkingEvents.map((event) => event.entityType)).size >= 3;
+    const dateTimes = thinkingEvents.map((event) => new Date(event.createdAt).getTime()).filter((time) => !Number.isNaN(time));
+    const firstDate = dateTimes.length ? new Date(Math.min(...dateTimes)) : null;
+    const lastDate = dateTimes.length ? new Date(Math.max(...dateTimes)) : null;
+    const dateRange = firstDate && lastDate ? `${formatDate(firstDate.toISOString())} - ${formatDate(lastDate.toISOString())}` : 'Not enough event history';
+
+    const strengths = [
+      revisionEvents.length >= 2 ? {
+        title: 'Willingness to revise',
+        evidence: `${revisionEvents.length} revision or confidence-change events are recorded.`,
+        confidence: revisionEvents.length >= 5 ? 'high' : 'moderate',
+      } : null,
+      challengeEvents.length >= 2 ? {
+        title: 'Seeks opposition before closure',
+        evidence: `${challengeEvents.length} challenge, contradiction, or assumption-pressure events are recorded.`,
+        confidence: challengeEvents.length >= 5 ? 'high' : 'moderate',
+      } : null,
+      positionPracticeLinks.length >= 2 ? {
+        title: 'Practical experimentation',
+        evidence: `${positionPracticeLinks.length} positions are connected to practices.`,
+        confidence: positionPracticeLinks.length >= 4 ? 'high' : 'moderate',
+      } : null,
+      conceptLeaders.length >= 4 ? {
+        title: 'Conceptual organization',
+        evidence: `${conceptLeaders.length} recurring concepts have enough links to shape the workspace.`,
+        confidence: 'moderate',
+      } : null,
+    ].filter(Boolean) as Array<{ title: string; evidence: string; confidence: string }>;
+
+    const vulnerabilities = [
+      unsupportedPositions.length >= 2 ? {
+        title: 'Positions may be outrunning evidence',
+        evidence: `${unsupportedPositions.length} positions have no direct support recorded yet.`,
+        confidence: unsupportedPositions.length >= 5 ? 'high' : 'moderate',
+      } : null,
+      openInquiries.length > activePositions.length ? {
+        title: 'Questions may be accumulating faster than judgments',
+        evidence: `${openInquiries.length} open inquiries versus ${activePositions.length} active positions are visible.`,
+        confidence: 'moderate',
+      } : null,
+      sources.length > 0 && works.length === 0 ? {
+        title: 'Source accumulation without expression',
+        evidence: `${sources.length} sources are present, but no works are recorded.`,
+        confidence: 'moderate',
+      } : null,
+      positions.length > 0 && positionPracticeLinks.length === 0 ? {
+        title: 'Abstraction without lived testing',
+        evidence: `${positions.length} positions exist, but none are linked to practices yet.`,
+        confidence: 'moderate',
+      } : null,
+    ].filter(Boolean) as Array<{ title: string; evidence: string; confidence: string }>;
+
+    return {
+      sufficientEventSpread,
+      eventCount: thinkingEvents.length,
+      objectFamilies: new Set(thinkingEvents.map((event) => event.entityType)).size,
+      dateRange,
+      strengths,
+      vulnerabilities,
+    };
+  }, [activePositions.length, conceptLeaders.length, openInquiries.length, positions, practices, sources.length, thinkingEvents, works.length]);
+
   const profileStats = [
     ['Concepts', concepts.length],
     ['Positions', positions.length],
@@ -391,6 +459,25 @@ export function ProfilePage({
 
           <TabsContent value="metacognition" className="mt-0">
             <SectionCard title="Thinking Patterns" description="Provisional tendencies grounded in stored evidence, not fixed identity labels.">
+              <div className="mb-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-2xl border border-border bg-background/60 p-4">
+                  <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Evidence Threshold</div>
+                  <h3 className="mt-2 font-headline text-xl font-semibold italic text-foreground">
+                    {mirrorDiagnostics.sufficientEventSpread ? 'Enough recorded variety for cautious reflection' : 'Limited evidence: treat every pattern lightly'}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Profile observations are based on {mirrorDiagnostics.eventCount} thinking events across {mirrorDiagnostics.objectFamilies} object families.
+                    Date range: {mirrorDiagnostics.dateRange}.
+                  </p>
+                  <div className="mt-3 rounded-xl border border-border/50 bg-card p-3 text-xs italic leading-5 text-muted-foreground">
+                    Noesis should say “recent evidence suggests,” never “you are.” Low-data observations should invite reflection, not define identity.
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <MirrorList title="Possible Strengths" items={mirrorDiagnostics.strengths} empty="No evidence-backed strengths yet. More revised positions, challenges, practices, and concept work will make this clearer." />
+                  <MirrorList title="Possible Vulnerabilities" items={mirrorDiagnostics.vulnerabilities} empty="No evidence-backed vulnerabilities yet. Noesis should not invent concerns without recorded evidence." />
+                </div>
+              </div>
               <div className="space-y-3">
                 {thinkingPatterns.map((pattern) => (
                   <Card key={pattern.patternId} className="rounded-2xl border-border bg-background/60 p-4 shadow-none">
@@ -661,6 +748,25 @@ function PerspectiveList({ title, items, empty }: { title: string; items: string
       <p className="mt-3 text-[11px] italic leading-5 text-muted-foreground">
         Review this against actual evidence before promoting it into an inquiry, position, or practice.
       </p>
+    </div>
+  );
+}
+
+function MirrorList({ title, items, empty }: { title: string; items: Array<{ title: string; evidence: string; confidence: string }>; empty: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/60 p-4">
+      <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+      <div className="mt-3 space-y-2">
+        {items.length ? items.map((item) => (
+          <div key={item.title} className="rounded-xl border border-border/50 bg-card p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="font-medium text-foreground">{item.title}</div>
+              <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item.confidence}</Badge>
+            </div>
+            <p className="mt-2 text-xs italic leading-5 text-muted-foreground">{item.evidence}</p>
+          </div>
+        )) : <EmptyCopy text={empty} compact />}
+      </div>
     </div>
   );
 }

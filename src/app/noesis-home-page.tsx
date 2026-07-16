@@ -1532,12 +1532,26 @@ function ReadexWorkspace({
       durationDays: data.durationDays || 7,
       startDate: data.startDate || today().slice(0, 10),
       endDate: data.endDate || '',
+      intellectualBasis: data.intellectualBasis || '',
+      hypothesis: data.hypothesis || '',
+      action: data.action || '',
+      context: data.context || '',
+      durationMode: data.durationMode || 'repeated',
+      observationMethod: data.observationMethod || '',
+      expectedOutcome: data.expectedOutcome || '',
+      observedOutcome: data.observedOutcome || '',
+      interpretation: data.interpretation || '',
+      effectOnPosition: data.effectOnPosition || '',
+      alternativeExplanation: data.alternativeExplanation || '',
+      conclusion: data.conclusion || {},
       conceptTags: tags,
       sourceIds: data.sourceIds || [],
       questionIds: data.questionIds || [],
       positionIds: data.positionIds || [],
       draftIds: data.draftIds || [],
       notes: data.notes || '',
+      logs: data.logs || [],
+      logDates: data.logDates || [],
       dateCreated: today(),
       dateUpdated: today(),
     };
@@ -1567,22 +1581,23 @@ function ReadexWorkspace({
         entityId: practice.id,
         entityType: 'practice',
         entityTitle: practice.title,
-        eventType: practice.status === 'failed' ? 'challenged' : practice.status === 'abandoned' ? 'abandoned' : 'refined',
+        eventType: practice.status === 'failed' || practice.status === 'failed_productively' ? 'challenged' : practice.status === 'abandoned' ? 'abandoned' : 'refined',
         reason: `Practice moved from ${previous.status} to ${practice.status}`,
         influencedBy: [...(practice.sourceIds || []), ...(practice.positionIds || [])],
       });
     }
-    const previousLogs = previous?.logDates?.length || 0;
-    const nextLogs = practice.logDates?.length || 0;
+    const previousLogs = Math.max(previous?.logDates?.length || 0, previous?.logs?.length || 0);
+    const nextLogs = Math.max(practice.logDates?.length || 0, practice.logs?.length || 0);
+    const concluded = ['completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'abandoned'].includes(practice.status);
     createThinkingEvent({
-      eventType: nextLogs > previousLogs ? 'tested' : 'edited',
+      eventType: nextLogs > previousLogs || concluded && previous?.status !== practice.status ? 'tested' : 'edited',
       entityType: 'practice',
       entityId: practice.id,
       before: previous || null,
       after: nextPractice,
-      summary: nextLogs > previousLogs ? `Logged a practice test connected to ${practice.title}` : `Updated practice: ${practice.title}`,
+      summary: nextLogs > previousLogs ? `Logged a practice test connected to ${practice.title}` : concluded && previous?.status !== practice.status ? `Concluded practice: ${practice.title}` : `Updated practice: ${practice.title}`,
       origin: 'user',
-      importance: nextLogs > previousLogs ? 'high' : 'low',
+      importance: nextLogs > previousLogs || concluded ? 'high' : 'low',
       relatedEntityIds: { positionIds: practice.positionIds || [], inquiryIds: practice.questionIds || [], workIds: practice.draftIds || [] },
       sourceActionId: makeActionId(),
     });

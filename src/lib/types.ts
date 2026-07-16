@@ -19,8 +19,8 @@ export type ExternalDocSyncStatus = 'connected' | 'syncing' | 'synced' | 'error'
 export type UserRole = 'user' | 'tester' | 'demo' | 'admin';
 export type WorkspaceMode = 'standard' | 'review';
 export type VisibilitySetting = 'private' | 'shared_link' | 'public';
-export type PracticeType = 'habit' | 'experiment' | 'discipline' | 'reflection_prompt' | 'commitment' | 'observation' | 'rule' | 'challenge';
-export type PracticeStatus = 'proposed' | 'planned' | 'active' | 'completed' | 'failed' | 'integrated' | 'paused' | 'abandoned';
+export type PracticeType = 'habit' | 'experiment' | 'discipline' | 'reflection_prompt' | 'commitment' | 'observation' | 'rule' | 'challenge' | 'dialogue' | 'reflection' | 'restraint' | 'exposure' | 'decision_rule' | 'ritual';
+export type PracticeStatus = 'proposed' | 'designed' | 'planned' | 'active' | 'completed' | 'concluded' | 'failed' | 'failed_productively' | 'integrated' | 'paused' | 'abandoned';
 export type AnnotationPhilosophyStatus = 'raw' | 'reviewed' | 'connected' | 'questioned' | 'used_in_position' | 'promoted' | 'reference_only' | 'dismissed' | 'archived';
 export type ConceptPhilosophyStatus = 'undefined' | 'emerging' | 'developed' | 'contested' | 'core';
 export type PositionPhilosophyStatus = 'draft' | 'tentative' | 'developing' | 'defended' | 'active' | 'contested' | 'unstable' | 'uncertain' | 'challenged' | 'suspended' | 'revised' | 'split' | 'abandoned' | 'replaced' | 'rejected';
@@ -331,15 +331,47 @@ export interface Practice {
   durationDays: number;
   startDate: string;
   endDate: string;
+  intellectualBasis?: string;
+  hypothesis?: string;
+  action?: string;
+  context?: string;
+  durationMode?: 'one_time' | 'repeated' | 'open_ended';
+  observationMethod?: string;
+  expectedOutcome?: string;
+  observedOutcome?: string;
+  interpretation?: string;
+  effectOnPosition?: string;
+  alternativeExplanation?: string;
+  conclusion?: {
+    performedAsIntended?: string;
+    whatHappened?: string;
+    hypothesisSupported?: string;
+    alternativeExplanation?: string;
+    intellectualChange?: string;
+    shouldContinue?: string;
+  };
   conceptTags: string[];
   sourceIds: string[];
   questionIds: string[];
   positionIds: string[];
   draftIds: string[];
   notes: string;
+  logs?: PracticeLog[];
   logDates?: string[];
   dateCreated: string;
   dateUpdated: string;
+}
+
+export interface PracticeLog {
+  id: string;
+  date: string;
+  actionCompleted: boolean;
+  context?: string;
+  outcome?: string;
+  observations?: string;
+  unexpectedResult?: string;
+  confidence?: number;
+  mediaIds?: string[];
 }
 
 export interface PhilosophicalLink {
@@ -526,16 +558,22 @@ export interface GoalType {
   archivedAt?: string;
 }
 
+export type IntellectualGoalKind = 'consumption' | 'understanding' | 'inquiry' | 'position' | 'expression' | 'practice' | 'transformation' | 'reflection' | 'custom';
+export type IntellectualGoalStatus = 'planned' | 'active' | 'stalled' | 'under_review' | 'completed' | 'abandoned' | 'transformed' | 'archived';
+
 export interface GoalItem {
   id: string;
   title: string;
   typeId: string;
+  goalKind?: IntellectualGoalKind;
   currentProgress: number;
   targetProgress: number;
   sortOrder: number;
-  status: 'active' | 'completed' | 'archived';
+  status: IntellectualGoalStatus;
   purpose?: string;
+  reason?: string;
   evidenceOfProgress?: string;
+  evidence?: string;
   completionCriteria?: string;
   milestones?: string[];
   obstacles?: string;
@@ -543,6 +581,14 @@ export interface GoalItem {
   reviewNotes?: string[];
   lastReviewAt?: string;
   linkedObjectLabels?: string[];
+  relatedObjectIds?: {
+    sourceIds?: string[];
+    conceptIds?: string[];
+    inquiryIds?: string[];
+    positionIds?: string[];
+    workIds?: string[];
+    practiceIds?: string[];
+  };
   createdAt: string;
   updatedAt: string;
 }

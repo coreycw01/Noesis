@@ -13,19 +13,22 @@ import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useToast } from '@/hooks/use-toast';
 import { MEDIA_LABELS, MEDIA_TYPES, today, uid } from '@/lib/readex';
-import type { GoalItem, GoalSettings, GoalType, MediaType } from '@/lib/types';
+import type { GoalItem, GoalSettings, GoalType, IntellectualGoalKind, IntellectualGoalStatus, MediaType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-const QUEST_TYPES = [
-  'source consumption',
-  'concept clarification',
-  'inquiry development',
-  'position review',
-  'writing output',
-  'practice completion',
-  'reflection cadence',
-  'custom transformation',
+const QUEST_KIND_OPTIONS: Array<{ value: IntellectualGoalKind; label: string; description: string }> = [
+  { value: 'consumption', label: 'Consumption', description: 'Complete and reflect on sources.' },
+  { value: 'understanding', label: 'Understanding', description: 'Develop command of a concept or field.' },
+  { value: 'inquiry', label: 'Inquiry', description: 'Move a question toward clarity.' },
+  { value: 'position', label: 'Position', description: 'Develop, test, or revise a belief.' },
+  { value: 'expression', label: 'Expression', description: 'Create a work.' },
+  { value: 'practice', label: 'Practice', description: 'Apply or test an idea.' },
+  { value: 'transformation', label: 'Transformation', description: 'Pursue a broader change in thinking or conduct.' },
+  { value: 'reflection', label: 'Reflection', description: 'Maintain a review cadence.' },
+  { value: 'custom', label: 'Custom', description: 'Define a personal intellectual quest.' },
 ];
+
+const GOAL_STATUS_OPTIONS: IntellectualGoalStatus[] = ['planned', 'active', 'stalled', 'under_review', 'completed', 'abandoned', 'transformed', 'archived'];
 
 interface GoalsPageProps {
   goal: GoalSettings;
@@ -48,7 +51,7 @@ function defaultTypesFromLegacy(goal: GoalSettings): GoalType[] {
 
 function defaultGoalsFromLegacy(goal: GoalSettings, types: GoalType[], progress: Partial<Record<MediaType, number>>): GoalItem[] {
   if (goal.goals?.length) {
-    return goal.goals.map((item, index) => ({ ...item, sortOrder: item.sortOrder ?? index }));
+    return goal.goals.map((item, index) => ({ ...item, goalKind: item.goalKind || questKindForGoal(item, types.find((type) => type.id === item.typeId)), sortOrder: item.sortOrder ?? index }));
   }
   return types.map((type, index) => {
     const mediaTypes = type.mediaTypes?.length ? type.mediaTypes : [];
@@ -58,6 +61,7 @@ function defaultGoalsFromLegacy(goal: GoalSettings, types: GoalType[], progress:
       id: `${type.id}-goal`,
       title: type.name,
       typeId: type.id,
+      goalKind: questKindForGoal({ title: type.name } as GoalItem, type),
       currentProgress,
       targetProgress,
       sortOrder: index,
@@ -72,16 +76,22 @@ function defaultGoalsFromLegacy(goal: GoalSettings, types: GoalType[], progress:
   });
 }
 
-function questTypeForGoal(item: GoalItem, type?: GoalType) {
+function questKindForGoal(item: Pick<GoalItem, 'title' | 'goalKind'>, type?: GoalType): IntellectualGoalKind {
+  if (item.goalKind) return item.goalKind;
   const name = `${type?.name || item.title}`.toLowerCase();
-  if (name.includes('source') || name.includes('book') || name.includes('article') || name.includes('video')) return 'source consumption';
-  if (name.includes('concept') || name.includes('understand')) return 'concept clarification';
-  if (name.includes('question') || name.includes('inquiry')) return 'inquiry development';
-  if (name.includes('position') || name.includes('belief')) return 'position review';
-  if (name.includes('work') || name.includes('writing') || name.includes('essay')) return 'writing output';
-  if (name.includes('practice') || name.includes('habit') || name.includes('experiment')) return 'practice completion';
-  if (name.includes('reflect')) return 'reflection cadence';
-  return 'custom transformation';
+  if (name.includes('source') || name.includes('book') || name.includes('article') || name.includes('video')) return 'consumption';
+  if (name.includes('concept') || name.includes('understand')) return 'understanding';
+  if (name.includes('question') || name.includes('inquiry')) return 'inquiry';
+  if (name.includes('position') || name.includes('belief')) return 'position';
+  if (name.includes('work') || name.includes('writing') || name.includes('essay')) return 'expression';
+  if (name.includes('practice') || name.includes('habit') || name.includes('experiment')) return 'practice';
+  if (name.includes('reflect')) return 'reflection';
+  return 'transformation';
+}
+
+function questTypeForGoal(item: GoalItem, type?: GoalType) {
+  const kind = questKindForGoal(item, type);
+  return QUEST_KIND_OPTIONS.find((option) => option.value === kind)?.label || 'Custom';
 }
 
 function questNextStep(item: GoalItem & { percent?: number }, type?: GoalType) {
@@ -94,50 +104,50 @@ function questNextStep(item: GoalItem & { percent?: number }, type?: GoalType) {
 }
 
 function defaultQuestMilestones(item: GoalItem, type?: GoalType) {
-  const questType = questTypeForGoal(item, type);
-  if (questType === 'source consumption') return [
+  const questType = questKindForGoal(item, type);
+  if (questType === 'consumption') return [
     'Name the question or position this source work should affect.',
     'Choose the next source and state why it matters.',
     'Capture useful annotations while studying.',
     'Write a reflection on what changed or resisted change.',
     'Connect the source to at least one inquiry, concept, position, work, or practice.',
   ];
-  if (questType === 'concept clarification') return [
+  if (questType === 'understanding') return [
     'Write a provisional working definition.',
     'List neighboring concepts and likely confusions.',
     'Run a boundary test with edge cases.',
     'Revise the definition after evidence or use cases.',
     'Use the concept in an inquiry, position, or work.',
   ];
-  if (questType === 'inquiry development') return [
+  if (questType === 'inquiry') return [
     'Clarify the central question and why it matters.',
     'Identify assumptions behind the question.',
     'Collect evidence for at least two possible answers.',
     'Compare candidate answers and objections.',
     'Write a provisional conclusion or transform the inquiry.',
   ];
-  if (questType === 'position review') return [
+  if (questType === 'position') return [
     'State the position in its strongest form.',
     'Add supporting evidence.',
     'Add the strongest objection or counterposition.',
     'Complete a stress test.',
     'Revise, keep, challenge, or abandon the position with a note.',
   ];
-  if (questType === 'writing output') return [
+  if (questType === 'expression') return [
     'Choose the claim, question, or concept the work expresses.',
     'Build an argument skeleton.',
     'Draft the first complete version.',
     'Run a coherence review.',
     'Publish, archive, or revise with a reflection on what changed.',
   ];
-  if (questType === 'practice completion') return [
+  if (questType === 'practice') return [
     'Choose the idea or position being tested.',
     'Define the hypothesis and observation method.',
     'Perform the practice long enough to gather evidence.',
     'Complete a theory-versus-reality review.',
     'Update the linked position, inquiry, or unknown.',
   ];
-  if (questType === 'reflection cadence') return [
+  if (questType === 'reflection') return [
     'Choose a review rhythm.',
     'Collect the meaningful changes from the period.',
     'Name what remains unclear.',
@@ -157,7 +167,7 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   const [draft, setDraft] = useState<GoalSettings>(goal);
   const [saving, setSaving] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'active' | 'completed' | 'archived' | 'all'>('active');
+  const [statusFilter, setStatusFilter] = useState<IntellectualGoalStatus | 'all'>('active');
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
@@ -199,9 +209,11 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   }).slice(0, 3);
 
   const goalStats = {
+    planned: goals.filter((item) => item.status === 'planned').length,
     active: goals.filter((item) => item.status === 'active').length,
+    underReview: goals.filter((item) => item.status === 'under_review').length,
     completed: goals.filter((item) => item.status === 'completed').length,
-    archived: goals.filter((item) => item.status === 'archived').length,
+    transformed: goals.filter((item) => item.status === 'transformed').length,
     averageProgress: Math.round(
       enrichedGoals.length
         ? enrichedGoals.reduce((sum, item) => sum + item.percent, 0) / enrichedGoals.length
@@ -243,6 +255,7 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
           targetProgress: 1,
           sortOrder: goals.length,
           status: 'active',
+          goalKind: 'transformation',
           purpose: `Use this quest to deliberately develop ${name.toLowerCase()}.`,
           evidenceOfProgress: 'Add linked material, reflections, or completed steps that show genuine movement.',
           completionCriteria: 'Define the concrete evidence that would make this goal complete.',
@@ -284,6 +297,7 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
           targetProgress: 1,
           sortOrder: goals.length,
           status: 'active',
+          goalKind: activeGoalTypes.find((type) => type.id === typeId) ? questKindForGoal({ title: activeGoalTypes.find((type) => type.id === typeId)?.name || '' } as GoalItem, activeGoalTypes.find((type) => type.id === typeId)) : 'custom',
           purpose: 'Name the desired intellectual change this quest is meant to produce.',
           evidenceOfProgress: 'Describe what evidence will show real progress, not just activity.',
           completionCriteria: 'Describe what would make this quest complete enough to review.',
@@ -377,8 +391,8 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
           meta={(
             <>
               <GoalStat label="Active" value={goalStats.active} />
+              <GoalStat label="Under Review" value={goalStats.underReview} />
               <GoalStat label="Completed" value={goalStats.completed} />
-              <GoalStat label="Archived" value={goalStats.archived} />
               <GoalStat label="Avg Progress" value={`${goalStats.averageProgress}%`} />
             </>
           )}
@@ -442,8 +456,13 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="planned">Planned</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="stalled">Stalled</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="abandoned">Abandoned</SelectItem>
+                  <SelectItem value="transformed">Transformed</SelectItem>
                   <SelectItem value="archived">Archived</SelectItem>
                   <SelectItem value="all">All goals</SelectItem>
                 </SelectContent>
@@ -473,9 +492,17 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                     </div>
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                       <Textarea value={row.purpose || ''} onChange={(event) => updateGoal(row.id, { purpose: event.target.value })} className="min-h-20 text-xs italic" placeholder="Why does this quest matter?" />
+                      <Textarea value={row.reason || ''} onChange={(event) => updateGoal(row.id, { reason: event.target.value })} className="min-h-20 text-xs italic" placeholder="Why is this worth pursuing now?" />
                       <Textarea value={row.completionCriteria || ''} onChange={(event) => updateGoal(row.id, { completionCriteria: event.target.value })} className="min-h-20 text-xs italic" placeholder="What evidence would make this complete?" />
                       <Textarea value={row.evidenceOfProgress || ''} onChange={(event) => updateGoal(row.id, { evidenceOfProgress: event.target.value })} className="min-h-20 text-xs italic" placeholder="What counts as real progress?" />
+                      <Textarea value={row.evidence || ''} onChange={(event) => updateGoal(row.id, { evidence: event.target.value })} className="min-h-20 text-xs italic" placeholder="What evidence has already accumulated?" />
                       <Textarea value={row.obstacles || ''} onChange={(event) => updateGoal(row.id, { obstacles: event.target.value })} className="min-h-20 text-xs italic" placeholder="What obstacle or uncertainty should the next review address?" />
+                      <Textarea
+                        value={(row.linkedObjectLabels || []).join('\n')}
+                        onChange={(event) => updateGoal(row.id, { linkedObjectLabels: event.target.value.split('\n').map((item) => item.trim()).filter(Boolean) })}
+                        className="min-h-20 text-xs italic md:col-span-2"
+                        placeholder="Linked objects, one per line: inquiry, position, source, work, practice, concept..."
+                      />
                     </div>
                     <div className="mt-3 rounded-xl border border-border/50 bg-card p-3 text-[12px] italic text-muted-foreground">
                       <span className="font-code text-[8px] uppercase tracking-widest not-italic text-muted-foreground/70">Next review cue: </span>
@@ -554,12 +581,20 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                       )}
                     </div>
                   </div>
-                  <Select value={row.typeId} onValueChange={(value) => updateGoal(row.id, { typeId: value })}>
-                    <SelectTrigger className="h-9 rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {activeGoalTypes.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-2">
+                    <Select value={row.typeId} onValueChange={(value) => updateGoal(row.id, { typeId: value, goalKind: questKindForGoal(row, activeGoalTypes.find((type) => type.id === value)) })}>
+                      <SelectTrigger className="h-9 rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {activeGoalTypes.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={row.goalKind || questKindForGoal(row, row.type)} onValueChange={(value) => updateGoal(row.id, { goalKind: value as IntellectualGoalKind })}>
+                      <SelectTrigger className="h-9 rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {QUEST_KIND_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="h-9 rounded-full border border-border bg-card px-4 font-code text-xs flex items-center justify-end">
                     {row.currentProgress}
                   </div>
@@ -573,9 +608,17 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                       <SelectItem value="custom">Custom</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button variant="ghost" size="icon" onClick={() => updateGoal(row.id, { status: 'archived' })} className="rounded-full text-muted-foreground hover:text-destructive">
-                    <Archive className="size-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Select value={row.status} onValueChange={(value) => updateGoal(row.id, { status: value as IntellectualGoalStatus })}>
+                      <SelectTrigger className="h-9 w-[150px] rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {GOAL_STATUS_OPTIONS.map((status) => <SelectItem key={status} value={status}>{status.replace(/_/g, ' ')}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="ghost" size="icon" onClick={() => updateGoal(row.id, { status: 'archived' })} className="rounded-full text-muted-foreground hover:text-destructive">
+                      <Archive className="size-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -587,9 +630,9 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
             <div className="mt-4 rounded-xl border border-border/50 bg-background/50 p-3">
               <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Quest Types</div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {QUEST_TYPES.map((type) => (
-                  <Badge key={type} variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-tighter">
-                    {type}
+                {QUEST_KIND_OPTIONS.map((type) => (
+                  <Badge key={type.value} variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-tighter" title={type.description}>
+                    {type.label}
                   </Badge>
                 ))}
               </div>

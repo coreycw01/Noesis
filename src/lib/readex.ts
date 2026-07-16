@@ -104,6 +104,12 @@ export const PRACTICE_LABELS = {
   observation: 'Observation',
   rule: 'Rule',
   challenge: 'Challenge',
+  dialogue: 'Dialogue',
+  reflection: 'Reflection',
+  restraint: 'Restraint',
+  exposure: 'Exposure',
+  decision_rule: 'Decision Rule',
+  ritual: 'Ritual',
 };
 
 export function uid() {

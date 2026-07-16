@@ -31,15 +31,19 @@ type EvolutionFilter =
   | 'replacements'
   | 'links';
 
+type EvolutionView = 'turning_points' | 'timeline' | 'belief_rivers' | 'periods' | 'before_after';
+
 type DisplayEvent = {
   id: string;
   kind: 'thinking' | 'timeline' | 'unknown' | 'pattern';
+  targetId: string;
   targetType: string;
   title: string;
   detail: string;
   date: string;
   filter: EvolutionFilter;
   chips: string[];
+  importance?: string;
   sourceIds?: string[];
   turningPoint?: string;
   trigger?: string;
@@ -59,6 +63,14 @@ const FILTER_OPTIONS: Array<{ value: EvolutionFilter; label: string }> = [
   { value: 'questions', label: 'Questions' },
   { value: 'replacements', label: 'Replacements' },
   { value: 'links', label: 'Links' },
+];
+
+const VIEW_OPTIONS: Array<{ value: EvolutionView; label: string; description: string }> = [
+  { value: 'turning_points', label: 'Turning Points', description: 'Major revisions, discoveries, abandonments, and resolutions.' },
+  { value: 'timeline', label: 'Timeline', description: 'Chronological meaningful events, paged for review.' },
+  { value: 'belief_rivers', label: 'Belief Rivers', description: 'Follow positions through origin, challenge, revision, and current state.' },
+  { value: 'periods', label: 'Periods', description: 'Group events into emerging intellectual chapters.' },
+  { value: 'before_after', label: 'Before / After', description: 'Use a date scrubber to compare recorded thought across time.' },
 ];
 
 function mapThinkingEventToFilter(eventType: ThinkingEvent['eventType']): EvolutionFilter {
@@ -164,6 +176,7 @@ function targetTypeMatches(event: DisplayEvent, types: string[]) {
 }
 
 export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thinkingPatterns, metrics }: EvolutionTimelineProps) {
+  const [view, setView] = useState<EvolutionView>('turning_points');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
   const [pageSize, setPageSize] = useState<5 | 10>(5);
@@ -174,12 +187,14 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
     const fromThinking = thinkingEvents.map((event) => ({
       id: event.eventId,
       kind: 'thinking' as const,
+      targetId: event.targetId,
       targetType: event.targetType,
       title: event.summary,
       detail: typeof event.metadata === 'object' && event.metadata ? JSON.stringify(event.metadata) : `${event.targetType} · ${event.sourceType}`,
       date: event.createdAt,
       filter: mapThinkingEventToFilter(event.eventType),
       chips: [event.actionType?.replace(/_/g, ' ') || event.eventType.replace(/_/g, ' '), event.sourceType, event.targetType],
+      importance: event.importance,
       changedFields: event.changedFields,
       ...thinkingEventMeaning(event),
     }));
@@ -187,6 +202,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
     const fromTimeline = events.map((event) => ({
       id: event.id,
       kind: 'timeline' as const,
+      targetId: event.entityId,
       targetType: event.entityType,
       title: event.entityTitle,
       detail: event.reason,
@@ -199,6 +215,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
     const fromUnknowns = unknowns.map((item) => ({
       id: item.unknownId,
       kind: 'unknown' as const,
+      targetId: item.unknownId,
       targetType: 'unknown',
       title: item.title,
       detail: item.resolutionSummary || item.description || 'Unknown recorded in the system.',
@@ -211,6 +228,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
     const fromPatterns = thinkingPatterns.map((pattern) => ({
       id: pattern.patternId,
       kind: 'pattern' as const,
+      targetId: pattern.patternId,
       targetType: 'thinking_pattern',
       title: pattern.label,
       detail: pattern.description,
@@ -232,6 +250,71 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
       return filterOk && queryOk;
     });
   }, [displayEvents, filter, search]);
+
+  const turningPoints = useMemo(() => {
+    return displayEvents.filter((event) => {
+      const text = `${event.turningPoint || ''} ${event.chips.join(' ')} ${event.title}`.toLowerCase();
+      return event.importance === 'major' ||
+        event.importance === 'high' ||
+        ['belief_revisions', 'confidence', 'unknowns', 'contradictions', 'replacements'].includes(event.filter) ||
+        text.includes('revised') ||
+        text.includes('resolved') ||
+        text.includes('abandoned') ||
+        text.includes('challenge') ||
+        text.includes('contradiction');
+    }).slice(0, 8);
+  }, [displayEvents]);
+
+  const beliefRivers = useMemo(() => {
+    const grouped = new Map<string, DisplayEvent[]>();
+    displayEvents
+      .filter((event) => targetTypeMatches(event, ['position', 'vault']))
+      .forEach((event) => {
+        const key = event.targetId || event.title;
+        grouped.set(key, [...(grouped.get(key) || []), event]);
+      });
+    return Array.from(grouped.entries())
+      .map(([id, items]) => {
+        const sorted = [...items].sort((a, b) => eventTime(a.date) - eventTime(b.date));
+        const latest = sorted[sorted.length - 1];
+        const challenges = sorted.filter((event) => `${event.chips.join(' ')} ${event.turningPoint || ''}`.toLowerCase().includes('challenge'));
+        const revisions = sorted.filter((event) => `${event.chips.join(' ')} ${event.turningPoint || ''}`.toLowerCase().includes('revis'));
+        const confidenceMoves = sorted.filter((event) => event.filter === 'confidence');
+        return {
+          id,
+          title: latest?.title || id,
+          origin: sorted[0],
+          latest,
+          events: sorted,
+          challenges,
+          revisions,
+          confidenceMoves,
+        };
+      })
+      .sort((a, b) => eventTime(b.latest.date) - eventTime(a.latest.date))
+      .slice(0, 6);
+  }, [displayEvents]);
+
+  const periods = useMemo(() => {
+    const grouped = new Map<string, DisplayEvent[]>();
+    displayEvents.forEach((event) => {
+      const date = new Date(event.date);
+      const key = Number.isNaN(date.getTime()) ? 'Undated' : date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      grouped.set(key, [...(grouped.get(key) || []), event]);
+    });
+    return Array.from(grouped.entries()).map(([label, items]) => {
+      const sorted = [...items].sort((a, b) => eventTime(b.date) - eventTime(a.date));
+      const revisionCount = sorted.filter((event) => event.filter === 'belief_revisions' || event.filter === 'confidence').length;
+      const uncertaintyCount = sorted.filter((event) => event.filter === 'unknowns' || event.filter === 'questions').length;
+      const structureCount = sorted.filter((event) => event.filter === 'links' || event.filter === 'contradictions' || event.filter === 'patterns').length;
+      const tone = revisionCount >= uncertaintyCount && revisionCount >= structureCount
+        ? 'Worldview reconstruction'
+        : uncertaintyCount >= structureCount
+          ? 'Uncertainty and inquiry'
+          : 'Structural integration';
+      return { label, items: sorted, revisionCount, uncertaintyCount, structureCount, tone };
+    }).sort((a, b) => eventTime(b.items[0]?.date || '') - eventTime(a.items[0]?.date || '')).slice(0, 8);
+  }, [displayEvents]);
   const scrubberSummary = useMemo(() => {
     const selectedEnd = new Date(`${scrubberDate}T23:59:59`).getTime();
     const throughDate = displayEvents.filter((event) => eventTime(event.date) <= selectedEnd);
@@ -303,6 +386,117 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
         <MetricCard label="Stress Tests Answered" value={metrics.positionsStressTested} />
       </div>
 
+      <div className="mb-8 grid gap-3 lg:grid-cols-5">
+        {VIEW_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => setView(option.value)}
+            className={cn(
+              'rounded-2xl border p-4 text-left transition-all',
+              view === option.value ? 'border-accent bg-accent/10 shadow-sm' : 'border-border/50 bg-card hover:border-accent/40'
+            )}
+          >
+            <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{option.label}</div>
+            <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{option.description}</p>
+          </button>
+        ))}
+      </div>
+
+      {view === 'turning_points' && (
+        <section className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+          <div className="mb-5">
+            <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Turning Points</div>
+            <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">The moments that changed the system</h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {turningPoints.length ? turningPoints.map((event) => {
+              const meaning = displayEventMeaning(event);
+              return (
+                <div key={event.id} className="rounded-2xl border border-border/50 bg-background p-4">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{meaning.turningPoint}</Badge>
+                    <Badge variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{event.targetType.replace(/_/g, ' ')}</Badge>
+                  </div>
+                  <h3 className="mt-3 font-headline text-xl font-bold italic leading-tight text-primary">{event.title}</h3>
+                  <p className="mt-2 line-clamp-3 text-sm italic leading-6 text-muted-foreground">{meaning.significance}</p>
+                  <div className="mt-4 rounded-xl bg-muted/20 p-3">
+                    <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Trigger</div>
+                    <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{meaning.trigger}</p>
+                  </div>
+                </div>
+              );
+            }) : (
+              <PageEmptyState icon={History} title="No turning points yet" description="Major revisions, abandonments, resolutions, and challenges will appear here once recorded." />
+            )}
+          </div>
+        </section>
+      )}
+
+      {view === 'belief_rivers' && (
+        <section className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+          <div className="mb-5">
+            <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Belief Rivers</div>
+            <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Follow positions through time</h2>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {beliefRivers.length ? beliefRivers.map((river) => (
+              <div key={river.id} className="rounded-2xl border border-border/50 bg-background p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="font-headline text-xl font-bold italic text-primary">{river.title}</h3>
+                  <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{river.events.length} events</Badge>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                  <MiniEvolutionStat label="Origin" value={river.origin ? new Date(river.origin.date).toLocaleDateString() : 'None'} />
+                  <MiniEvolutionStat label="Revisions" value={river.revisions.length} />
+                  <MiniEvolutionStat label="Challenges" value={river.challenges.length} />
+                  <MiniEvolutionStat label="Confidence" value={river.confidenceMoves.length} />
+                </div>
+                <div className="mt-4 space-y-2">
+                  {river.events.slice(-4).map((event) => (
+                    <div key={event.id} className="rounded-xl border border-border/40 bg-muted/10 px-3 py-2">
+                      <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">{event.chips[0]}</div>
+                      <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{event.title}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )) : (
+              <PageEmptyState icon={History} title="No belief rivers yet" description="Create, revise, challenge, or abandon positions to build a visible belief biography." />
+            )}
+          </div>
+        </section>
+      )}
+
+      {view === 'periods' && (
+        <section className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+          <div className="mb-5">
+            <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Periods</div>
+            <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Emerging intellectual chapters</h2>
+            <p className="mt-2 text-sm italic text-muted-foreground">These are provisional groupings from recorded events. Noesis should propose periods, not finalize them for you.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {periods.map((period) => (
+              <div key={period.label} className="rounded-2xl border border-border/50 bg-background p-4">
+                <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{period.label}</div>
+                <h3 className="mt-2 font-headline text-xl font-bold italic text-primary">{period.tone}</h3>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <MiniEvolutionStat label="Revision" value={period.revisionCount} />
+                  <MiniEvolutionStat label="Inquiry" value={period.uncertaintyCount} />
+                  <MiniEvolutionStat label="Structure" value={period.structureCount} />
+                </div>
+                <div className="mt-4 space-y-2">
+                  {period.items.slice(0, 3).map((event) => (
+                    <p key={event.id} className="line-clamp-2 rounded-xl bg-muted/10 px-3 py-2 text-sm italic text-muted-foreground">{event.title}</p>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {view === 'before_after' && (
       <div className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -363,7 +557,10 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
           )}
         </div>
       </div>
+      )}
 
+      {view === 'timeline' && (
+      <>
       <FilterToolbar
         search={search}
         onSearchChange={setSearch}
@@ -500,6 +697,8 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -509,6 +708,15 @@ function MetricCard({ label, value }: { label: string; value: number }) {
     <div className="rounded-xl border border-border/50 bg-white p-4 shadow-sm">
       <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
       <div className="mt-2 font-headline text-3xl font-bold italic text-primary">{value}</div>
+    </div>
+  );
+}
+
+function MiniEvolutionStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-border/40 bg-muted/10 p-3 text-center">
+      <div className="font-headline text-lg font-bold italic leading-none text-primary">{value}</div>
+      <div className="mt-1 font-code text-[7px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
     </div>
   );
 }
