@@ -24,6 +24,8 @@ import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today }
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { aiClient } from '@/lib/ai-client';
+import { noesisUserError } from '@/lib/user-facing-errors';
+import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 
 interface AnnotationsIndexProps {
   media: Media[];
@@ -129,6 +131,40 @@ export function AnnotationsIndex({
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const { toast } = useToast();
 
+  const previewSource = (source: Media, annotation?: FlatAnnotation) => {
+    openNoesisObjectPreview({
+      id: `annotation-source-${source.id}`,
+      label: source.title,
+      section: 'Source',
+      description: source.creator || source.type || 'Open source workspace.',
+      view: 'library',
+      targetId: source.id,
+      targetType: 'source',
+      objectType: 'Raw Input',
+      kind: 'object',
+      intellectualStage: 'Encounter',
+      hierarchyLevel: 'Raw',
+      currentState: source.status,
+      summary: source.description || source.capture?.after?.coreArgument || source.capture?.before?.openQuestion || annotation?.context || 'The parent source for this annotation.',
+      matchedBecause: annotation
+        ? `This is the parent source for the annotation: "${annotation.text.slice(0, 110)}${annotation.text.length > 110 ? '...' : ''}".`
+        : 'This source appears in the annotation processing inbox.',
+      connectedConcepts: annotation?.conceptTags || source.tags || [],
+      relatedObjects: [
+        `${source.annotations?.length || 0} annotations`,
+        annotation ? `Annotation type: ${annotation.type}` : 'Open source context',
+        annotation?.philosophyStatus ? `Processing state: ${annotation.philosophyStatus.replace(/_/g, ' ')}` : 'Processing state unknown',
+      ],
+      lastChangedAt: source.dateUpdated || source.dateAdded || annotation?.date,
+      quickActionLabel: 'Open Source',
+      quickActions: [
+        { label: 'Open Source Workspace', view: 'library', targetId: source.id, targetType: 'source' },
+        { label: 'Return to Annotations', view: 'annotations' },
+      ],
+      thinkingEventHint: 'Previewing a source is orientation. Completing reflection, distilling a claim, or creating annotations should record intellectual development.',
+    });
+  };
+
   const annotations = useMemo(() => allAnnotations(media) as FlatAnnotation[], [media]);
   const annotationKey = (annotation: FlatAnnotation) => `${annotation.source.id}:${annotation.id}`;
   const annotationStatus = (annotation: Annotation): AnnotationPhilosophyStatus => annotation.philosophyStatus || (annotation.type === 'question' ? 'questioned' : 'raw');
@@ -167,6 +203,53 @@ export function AnnotationsIndex({
   const isRecentlyPromoted = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
     return Boolean(annotation.createdInquiryId || annotation.createdPositionId || ['promoted', 'used_in_position'].includes(status));
+  };
+  const annotationProcessingQuality = (annotation: FlatAnnotation) => {
+    const status = annotationStatus(annotation);
+    const tags = annotationTags(annotation);
+    const missing: string[] = [];
+    let score = 0;
+
+    if (tags.length) score += 1;
+    else missing.push('concept tag');
+
+    if (annotation.context?.trim()) score += 1;
+    else missing.push('source context');
+
+    if (annotation.consequenceNote?.trim()) score += 1;
+    else missing.push('consequence note');
+
+    if (annotation.consequenceKind) score += 1;
+    else missing.push('consequence type');
+
+    if (
+      ['reviewed', 'connected', 'questioned', 'used_in_position', 'promoted', 'reference_only', 'archived', 'dismissed'].includes(status)
+      || annotation.createdInquiryId
+      || annotation.createdPositionId
+    ) score += 1;
+    else missing.push('processing status');
+
+    if (needsSupportDirection(annotation)) {
+      missing.push('support/challenge direction');
+    } else {
+      score += 1;
+    }
+
+    const label = score >= 6
+      ? 'processed'
+      : score >= 4
+        ? 'needs refinement'
+        : score >= 2
+          ? 'needs processing'
+          : 'raw capture';
+
+    const nextStep = missing[0]
+      ? `Add ${missing[0]}`
+      : annotation.createdPositionId || annotation.createdInquiryId
+        ? 'Review destination object'
+        : 'Ready for synthesis';
+
+    return { score, missing, label, nextStep };
   };
 
   const filtered = useMemo(() => {
@@ -263,6 +346,12 @@ export function AnnotationsIndex({
       value: annotations.filter(isRecentlyPromoted).length,
       description: 'Annotations already routed into inquiries, positions, or promoted thinking objects.',
       filter: 'recently_promoted' as AnnotationFilter,
+    },
+    {
+      label: 'Fully Processed',
+      value: annotations.filter((annotation) => annotationProcessingQuality(annotation).score >= 6).length,
+      description: 'Captures with tags, context, consequence, direction, and a clear processing state.',
+      filter: 'all' as AnnotationFilter,
     },
     {
       label: 'Archived',
@@ -401,7 +490,7 @@ export function AnnotationsIndex({
       toast({
         variant: 'destructive',
         title: 'Suggestion Failed',
-        description: error instanceof Error ? error.message : 'The assistant could not read this annotation right now.',
+        description: noesisUserError(error, 'The assistant could not read this annotation right now.'),
       });
     } finally {
       setSuggestingId(null);
@@ -673,7 +762,9 @@ export function AnnotationsIndex({
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {filtered.map((annotation) => (
+        {filtered.map((annotation) => {
+          const quality = annotationProcessingQuality(annotation);
+          return (
           <Card key={`${annotation.source.id}:${annotation.id}`} className={cn(
             "p-5 bg-white border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all",
             selectedKeys.includes(annotationKey(annotation)) && "border-accent/50 ring-2 ring-accent/10"
@@ -707,6 +798,16 @@ export function AnnotationsIndex({
                       evidence ready
                     </Badge>
                   )}
+                  <Badge variant="outline" className={cn(
+                    "font-code text-[8px] uppercase tracking-widest rounded-full font-bold",
+                    quality.score >= 6
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : quality.score >= 4
+                        ? "border-blue-200 bg-blue-50 text-blue-800"
+                        : "border-amber-200 bg-amber-50 text-amber-800"
+                  )}>
+                    {quality.label}
+                  </Badge>
                 </div>
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -716,7 +817,7 @@ export function AnnotationsIndex({
                 <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => setEditing(annotation)} title="Edit annotation">
                   <Edit className="size-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => onOpenSource(annotation.source.id)} title="Open source thread">
+                <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => previewSource(annotation.source, annotation)} title="Preview source thread">
                   <ExternalLink className="size-3.5" />
                 </Button>
                 <Button variant="ghost" size="icon" className="size-8 rounded-full text-destructive hover:text-destructive" onClick={() => setDeleteTarget(annotation)} title="Delete annotation">
@@ -752,6 +853,29 @@ export function AnnotationsIndex({
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   {annotation.consequenceKind ? annotationLabel(annotation.consequenceKind) : normalizeConceptTags(annotation.conceptTags || annotation.source.tags).slice(0, 2).join(', ') || 'No concept yet'}
                 </p>
+              </div>
+            </div>
+
+            <div className="mb-3 rounded-xl border border-border/40 bg-muted/10 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Processing Readiness</div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {quality.score}/6 complete. Next: {quality.nextStep}.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {quality.missing.slice(0, 4).map((gap) => (
+                    <Badge key={gap} variant="outline" className="rounded-full border-border/50 bg-card font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+                      {gap}
+                    </Badge>
+                  ))}
+                  {!quality.missing.length && (
+                    <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 font-code text-[8px] uppercase tracking-widest text-emerald-800">
+                      ready
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -882,7 +1006,7 @@ export function AnnotationsIndex({
             />
 
             <div className="flex items-center justify-between gap-4 pt-4 border-t border-border/20 mt-4">
-              <button onClick={() => onOpenSource(annotation.source.id)} className="flex min-w-0 items-center gap-3 text-left">
+              <button onClick={() => previewSource(annotation.source, annotation)} className="flex min-w-0 items-center gap-3 text-left">
                 <div className="size-8 rounded-lg bg-accent/5 flex items-center justify-center shrink-0 border border-accent/10">
                   <BookOpen className="size-4 text-accent/40" />
                 </div>
@@ -898,7 +1022,8 @@ export function AnnotationsIndex({
               </div>
             </div>
           </Card>
-        ))}
+          );
+        })}
 
         {filtered.length === 0 && (
           <div className="col-span-full">

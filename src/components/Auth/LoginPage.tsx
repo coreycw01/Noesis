@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { noesisUserError } from '@/lib/user-facing-errors';
 import placeholderData from '@/app/lib/placeholder-images.json';
 
 interface LoginPageProps {
@@ -32,6 +33,10 @@ function authMessage(error: unknown) {
   if (code.includes('auth/invalid-credential')) return 'Email or password was not recognized.';
   if (code.includes('auth/email-already-in-use')) return 'That email already has a Noesis account.';
   if (code.includes('auth/weak-password')) return 'Use at least 6 characters for your password.';
+  if (code.includes('auth/invalid-email')) return 'Enter a valid email address.';
+  if (code.includes('auth/missing-password')) return 'Enter your password before continuing.';
+  if (code.includes('auth/too-many-requests')) return 'Firebase temporarily blocked this sign-in attempt after too many tries. Wait a bit, then try again.';
+  if (code.includes('auth/network-request-failed')) return 'Noesis could not reach Firebase Auth. Check your connection and try again.';
   if (code.includes('auth/popup-closed-by-user')) return 'Google sign-in was closed before it finished.';
   if (code.includes('auth/operation-not-allowed')) return 'This sign-in method is not enabled in Firebase Auth. Please enable it in your Firebase Console.';
   if (code.includes('auth/user-not-found')) return 'No account found with this email.';
@@ -39,7 +44,7 @@ function authMessage(error: unknown) {
   if (code.includes('auth/unauthorized-domain')) {
     return `DOMAIN_ERROR: ${hostname}`;
   }
-  return 'Authentication failed. Check your details or Firebase configuration and try again.';
+  return noesisUserError(error, 'Authentication failed. Check your details or Firebase configuration and try again.');
 }
 
 export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {

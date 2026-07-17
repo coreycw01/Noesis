@@ -24,6 +24,27 @@ export interface NoesisRouteState {
   focusedPracticeId?: string | null;
 }
 
+export type NoesisRouteTargetType = 'concept' | 'inquiry' | 'source' | 'position' | 'work' | 'practice';
+
+export interface NoesisRouteTarget {
+  type: NoesisRouteTargetType;
+  id: string;
+  view: NoesisView;
+}
+
+export const NOESIS_ROUTE_TARGET_LABELS: Record<NoesisRouteTargetType, {
+  singular: string;
+  plural: string;
+  owner: string;
+}> = {
+  concept: { singular: 'concept', plural: 'concepts', owner: 'Concepts' },
+  inquiry: { singular: 'inquiry', plural: 'inquiries', owner: 'Inquiries' },
+  source: { singular: 'source', plural: 'sources', owner: 'Library' },
+  position: { singular: 'position', plural: 'positions', owner: 'Positions' },
+  work: { singular: 'work', plural: 'works', owner: 'Works' },
+  practice: { singular: 'practice', plural: 'practices', owner: 'Practices' },
+};
+
 function normalizePathname(pathname: string) {
   if (!pathname) return '/';
   const clean = pathname.replace(/\/+$/, '');
@@ -115,4 +136,67 @@ export function viewToPath(view: NoesisView, options?: {
     default:
       return `${prefix}/home`;
   }
+}
+
+export function getNoesisRouteTarget(routeState: NoesisRouteState): NoesisRouteTarget | null {
+  if (routeState.focusedConceptId) {
+    return { type: 'concept', id: routeState.focusedConceptId, view: 'concepts' };
+  }
+  if (routeState.focusedQuestionId) {
+    return { type: 'inquiry', id: routeState.focusedQuestionId, view: 'questions' };
+  }
+  if (routeState.focusedSourceId) {
+    return { type: 'source', id: routeState.focusedSourceId, view: 'library' };
+  }
+  if (routeState.focusedPositionId) {
+    return { type: 'position', id: routeState.focusedPositionId, view: 'vault' };
+  }
+  if (routeState.focusedWorkId) {
+    return { type: 'work', id: routeState.focusedWorkId, view: 'writing' };
+  }
+  if (routeState.focusedPracticeId) {
+    return { type: 'practice', id: routeState.focusedPracticeId, view: 'practices' };
+  }
+  return null;
+}
+
+export function focusedIdForNoesisView(routeState: NoesisRouteState, view: NoesisView = routeState.view) {
+  switch (view) {
+    case 'concepts':
+      return routeState.focusedConceptId || null;
+    case 'questions':
+      return routeState.focusedQuestionId || null;
+    case 'library':
+      return routeState.focusedSourceId || null;
+    case 'vault':
+      return routeState.focusedPositionId || null;
+    case 'writing':
+      return routeState.focusedWorkId || null;
+    case 'practices':
+      return routeState.focusedPracticeId || null;
+    default:
+      return null;
+  }
+}
+
+export function viewOptionsForNoesisRouteTarget(target: NoesisRouteTarget) {
+  return {
+    conceptId: target.type === 'concept' ? target.id : null,
+    questionId: target.type === 'inquiry' ? target.id : null,
+    sourceId: target.type === 'source' ? target.id : null,
+    positionId: target.type === 'position' ? target.id : null,
+    workId: target.type === 'work' ? target.id : null,
+    practiceId: target.type === 'practice' ? target.id : null,
+  };
+}
+
+export function labelForNoesisRouteTarget(type: NoesisRouteTargetType) {
+  return NOESIS_ROUTE_TARGET_LABELS[type];
+}
+
+export function pathForNoesisRouteTarget(target: NoesisRouteTarget, options?: { reviewMode?: boolean }) {
+  return viewToPath(target.view, {
+    reviewMode: options?.reviewMode,
+    ...viewOptionsForNoesisRouteTarget(target),
+  });
 }

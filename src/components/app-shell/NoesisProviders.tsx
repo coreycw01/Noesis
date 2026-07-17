@@ -9,6 +9,7 @@ import {
 } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import { noesisUserError } from '@/lib/user-facing-errors';
 
 type FirebaseInstances = ReturnType<typeof initializeFirebase>;
 
@@ -26,7 +27,7 @@ export function NoesisProviders({ children }: { children: React.ReactNode }) {
     try {
       setFirebaseInstances(initializeFirebase());
     } catch (error) {
-      setInitError(error instanceof Error ? error.message : 'Firebase initialization failed.');
+      setInitError(noesisUserError(error, 'Firebase initialization failed. Check the public Firebase environment variables and restart the app.'));
     }
   }, [mounted]);
 

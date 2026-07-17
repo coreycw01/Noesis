@@ -21,6 +21,7 @@ interface CommitWorkspaceMutationInput<T extends DocumentData = DocumentData> {
   data?: Partial<T> | T;
   setOptions?: SetOptions;
   thinkingEvent?: WriteThinkingEventInput | null;
+  thinkingEvents?: WriteThinkingEventInput[];
 }
 
 export async function commitWorkspaceMutation<T extends DocumentData = DocumentData>({
@@ -30,8 +31,14 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
   data,
   setOptions,
   thinkingEvent,
+  thinkingEvents,
 }: CommitWorkspaceMutationInput<T>) {
-  if (!thinkingEvent) {
+  const eventQueue = [
+    ...(thinkingEvent ? [thinkingEvent] : []),
+    ...(thinkingEvents || []),
+  ];
+
+  if (!eventQueue.length) {
     if (operation === 'delete') return deleteDoc(ref);
     if (operation === 'update') return updateDoc(ref, data as any);
     return setDoc(ref, data as any, setOptions as any);
@@ -45,6 +52,6 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
   } else {
     batch.set(ref, data as any, setOptions as any);
   }
-  queueThinkingEvent(batch, thinkingEvent);
+  eventQueue.forEach((event) => queueThinkingEvent(batch, event));
   return batch.commit();
 }

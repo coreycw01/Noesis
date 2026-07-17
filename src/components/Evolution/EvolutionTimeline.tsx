@@ -37,7 +37,7 @@ type EvolutionFilter =
   | 'practices'
   | 'sources';
 
-type EvolutionView = 'turning_points' | 'timeline' | 'belief_rivers' | 'periods' | 'before_after';
+type EvolutionView = 'turning_points' | 'timeline' | 'belief_rivers' | 'periods' | 'before_after' | 'change_map';
 
 type DisplayEvent = {
   id: string;
@@ -83,6 +83,7 @@ const VIEW_OPTIONS: Array<{ value: EvolutionView; label: string; description: st
   { value: 'belief_rivers', label: 'Belief Rivers', description: 'Follow positions through origin, challenge, revision, and current state.' },
   { value: 'periods', label: 'Periods', description: 'Group events into emerging intellectual chapters.' },
   { value: 'before_after', label: 'Before / After', description: 'Use a date scrubber to compare recorded thought across time.' },
+  { value: 'change_map', label: 'Change Map', description: 'See which areas gained, weakened, fractured, or stabilized.' },
 ];
 
 function mapThinkingEventToFilter(eventType: ThinkingEvent['eventType']): EvolutionFilter {
@@ -182,9 +183,64 @@ function eventTime(value: string) {
   return Number.isNaN(time) ? 0 : time;
 }
 
+function eventEvidenceQuality(event: DisplayEvent) {
+  const hasBeforeAfter = Boolean(event.beforeLabel || event.afterLabel || event.changedFields?.length);
+
+  if (event.kind === 'thinking' && hasBeforeAfter) {
+    return {
+      label: 'Event-backed change',
+      detail: 'This change has a thinking event plus before/after or changed-field evidence.',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    };
+  }
+
+  if (event.kind === 'thinking') {
+    return {
+      label: 'Event-backed',
+      detail: 'This came from the thinkingEvents layer and is stronger evidence than legacy activity.',
+      className: 'border-blue-200 bg-blue-50 text-blue-800',
+    };
+  }
+
+  if (event.kind === 'unknown' || event.kind === 'pattern') {
+    return {
+      label: 'Provisional interpretation',
+      detail: 'This is useful for reflection, but should remain reviewable and revisable.',
+      className: 'border-violet-200 bg-violet-50 text-violet-800',
+    };
+  }
+
+  return {
+    label: 'Legacy context',
+    detail: 'This is older timeline context. Prefer thinkingEvents for reliable before/after history.',
+    className: 'border-amber-200 bg-amber-50 text-amber-800',
+  };
+}
+
 function targetTypeMatches(event: DisplayEvent, types: string[]) {
   const target = event.targetType.toLowerCase();
   return types.some((type) => target === type || target.includes(type));
+}
+
+function changeAreaForEvent(event: DisplayEvent) {
+  if (targetTypeMatches(event, ['position', 'vault'])) return 'Positions';
+  if (targetTypeMatches(event, ['concept'])) return 'Concepts';
+  if (targetTypeMatches(event, ['question', 'inquiry'])) return 'Inquiries';
+  if (targetTypeMatches(event, ['practice'])) return 'Practices';
+  if (targetTypeMatches(event, ['work', 'draft'])) return 'Works';
+  if (targetTypeMatches(event, ['source', 'media'])) return 'Sources';
+  if (targetTypeMatches(event, ['unknown'])) return 'Unknowns';
+  if (targetTypeMatches(event, ['thinking_pattern', 'pattern'])) return 'Patterns';
+  if (event.filter === 'links' || targetTypeMatches(event, ['link', 'relationship'])) return 'Relationships';
+  return 'System';
+}
+
+function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'fractured' | 'stabilized' {
+  const text = `${event.filter} ${event.chips.join(' ')} ${event.turningPoint || ''} ${event.title}`.toLowerCase();
+  if (text.includes('contradiction') || text.includes('challenge') || text.includes('tension')) return 'fractured';
+  if (text.includes('abandoned') || text.includes('replaced') || text.includes('weaken') || text.includes('dismissed')) return 'weakened';
+  if (text.includes('resolved') || text.includes('acknowledged') || text.includes('stress test') || text.includes('stabilized')) return 'stabilized';
+  return 'gained';
 }
 
 export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thinkingPatterns, metrics }: EvolutionTimelineProps) {
@@ -273,13 +329,15 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
   const eventCoverage = useMemo(() => {
     const thinkingCount = displayEvents.filter((event) => event.kind === 'thinking').length;
     const legacyCount = displayEvents.filter((event) => event.kind === 'timeline').length;
+    const provisionalCount = displayEvents.filter((event) => event.kind === 'unknown' || event.kind === 'pattern').length;
+    const beforeAfterCount = displayEvents.filter((event) => event.beforeLabel || event.afterLabel || event.changedFields?.length).length;
     const interpretedCount = displayEvents.length - legacyCount;
     const coverageLevel = thinkingCount === 0
       ? 'limited'
       : thinkingCount >= legacyCount
         ? 'strong'
         : 'mixed';
-    return { thinkingCount, legacyCount, interpretedCount, coverageLevel };
+    return { thinkingCount, legacyCount, interpretedCount, provisionalCount, beforeAfterCount, coverageLevel };
   }, [displayEvents]);
 
   const turningPoints = useMemo(() => {
@@ -346,6 +404,35 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
       return { label, items: sorted, revisionCount, uncertaintyCount, structureCount, tone };
     }).sort((a, b) => eventTime(b.items[0]?.date || '') - eventTime(a.items[0]?.date || '')).slice(0, 8);
   }, [displayEvents]);
+
+  const changeMap = useMemo(() => {
+    const grouped = new Map<string, DisplayEvent[]>();
+    displayEvents.forEach((event) => {
+      const area = changeAreaForEvent(event);
+      grouped.set(area, [...(grouped.get(area) || []), event]);
+    });
+
+    return Array.from(grouped.entries())
+      .map(([area, items]) => {
+        const movements = items.reduce(
+          (counts, event) => {
+            counts[changeMovementForEvent(event)] += 1;
+            return counts;
+          },
+          { gained: 0, weakened: 0, fractured: 0, stabilized: 0 }
+        );
+        const latest = [...items].sort((a, b) => eventTime(b.date) - eventTime(a.date))[0];
+        const dominant = (Object.entries(movements).sort((a, b) => b[1] - a[1])[0]?.[0] || 'gained') as keyof typeof movements;
+        const status =
+          dominant === 'fractured' ? 'fractured' :
+          dominant === 'weakened' ? 'weakened' :
+          dominant === 'stabilized' ? 'stabilized' :
+          'gained';
+        return { area, items, movements, latest, status };
+      })
+      .sort((a, b) => b.items.length - a.items.length);
+  }, [displayEvents]);
+
   const scrubberSummary = useMemo(() => {
     const selectedEnd = new Date(`${scrubberDate}T23:59:59`).getTime();
     const throughDate = displayEvents.filter((event) => eventTime(event.date) <= selectedEnd);
@@ -389,6 +476,10 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
     setFilter('all');
   };
   const evolutionFiltersActive = Boolean(search || filter !== 'all');
+  const activeEvolutionFilterLabels = [
+    search.trim() ? `Search: ${search.trim()}` : null,
+    filter !== 'all' ? `Change type: ${FILTER_OPTIONS.find((option) => option.value === filter)?.label || filter.replace(/_/g, ' ')}` : null,
+  ].filter(Boolean) as string[];
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
@@ -431,10 +522,12 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
               </p>
             </div>
           </div>
-          <div className="grid min-w-[260px] grid-cols-3 gap-2">
+          <div className="grid min-w-[320px] grid-cols-2 gap-2 lg:grid-cols-5">
             <MiniEvolutionStat label="Events" value={eventCoverage.thinkingCount} />
             <MiniEvolutionStat label="Timeline" value={eventCoverage.legacyCount} />
             <MiniEvolutionStat label="Interpreted" value={eventCoverage.interpretedCount} />
+            <MiniEvolutionStat label="Before/After" value={eventCoverage.beforeAfterCount} />
+            <MiniEvolutionStat label="Provisional" value={eventCoverage.provisionalCount} />
           </div>
         </div>
       </section>
@@ -612,6 +705,69 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
       </div>
       )}
 
+      {view === 'change_map' && (
+        <section className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+          <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Change Map</div>
+              <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Where the system is moving</h2>
+              <p className="mt-2 max-w-3xl text-sm italic leading-6 text-muted-foreground">
+                This groups recorded events by area and movement. It shows evidence-backed direction, not a final diagnosis of your thinking.
+              </p>
+            </div>
+            <Badge variant="outline" className="w-fit rounded-full font-code text-[8px] uppercase tracking-widest">
+              {changeMap.length} areas with recorded movement
+            </Badge>
+          </div>
+
+          {changeMap.length ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {changeMap.map((area) => {
+                const statusClass =
+                  area.status === 'fractured' ? 'border-rose-200 bg-rose-50/80' :
+                  area.status === 'weakened' ? 'border-amber-200 bg-amber-50/80' :
+                  area.status === 'stabilized' ? 'border-emerald-200 bg-emerald-50/80' :
+                  'border-blue-200 bg-blue-50/80';
+                return (
+                  <div key={area.area} className={cn('rounded-2xl border p-4', statusClass)}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">System Area</div>
+                        <h3 className="mt-1 font-headline text-xl font-bold italic text-primary">{area.area}</h3>
+                      </div>
+                      <Badge variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                        {area.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-4 grid grid-cols-4 gap-2">
+                      <MiniEvolutionStat label="Gained" value={area.movements.gained} />
+                      <MiniEvolutionStat label="Weakened" value={area.movements.weakened} />
+                      <MiniEvolutionStat label="Fractured" value={area.movements.fractured} />
+                      <MiniEvolutionStat label="Stabilized" value={area.movements.stabilized} />
+                    </div>
+                    <div className="mt-4 rounded-xl border border-white/60 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10">
+                      <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Latest Evidence</div>
+                      {area.latest ? (
+                        <>
+                          <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{area.latest.title}</p>
+                          <p className="mt-1 text-xs italic text-muted-foreground">
+                            {new Date(area.latest.date).toLocaleDateString()} · {area.latest.kind === 'thinking' ? 'thinking event' : area.latest.kind}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="mt-1 text-sm italic text-muted-foreground">No latest event recorded.</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <PageEmptyState icon={History} title="No change map yet" description="Recorded thinking events will reveal which areas gained, weakened, fractured, or stabilized." />
+          )}
+        </section>
+      )}
+
       {view === 'timeline' && (
       <>
       <FilterToolbar
@@ -620,6 +776,8 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
         searchPlaceholder="Search changes..."
         resultCount={filteredEvents.length}
         resultLabel="events"
+        sortLabel="Newest meaningful changes first"
+        activeFilterLabels={activeEvolutionFilterLabels}
         onClear={clearEvolutionFilters}
         clearDisabled={!evolutionFiltersActive}
         className="mb-8"
@@ -664,11 +822,15 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
         {pagedEvents.map((event, idx) => {
           const influencedSources = media.filter((item) => (event.sourceIds || []).includes(item.id));
           const meaning = displayEventMeaning(event);
+          const evidence = eventEvidenceQuality(event);
           return (
             <div key={event.id} className="relative animate-fade-in-up" style={{ animationDelay: `${idx * 0.05}s` }}>
               <div className="absolute -left-[32px] top-1.5 size-2 rounded-full bg-accent ring-4 ring-background z-10" />
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={cn("rounded-full border font-code text-[8px] uppercase tracking-widest", evidence.className)}>
+                    {evidence.label}
+                  </Badge>
                   {event.chips.map((chip) => (
                     <Badge key={chip} variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
                       {chip}
@@ -680,6 +842,10 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
                 <p className="font-body italic text-[16px] text-muted-foreground leading-relaxed max-w-3xl">{event.detail}</p>
 
                 <div className="mt-4 grid gap-3 rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:grid-cols-3">
+                  <div className="md:col-span-3 rounded-xl border border-border/40 bg-muted/10 p-3">
+                    <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Evidence Quality</div>
+                    <p className="mt-1 text-sm italic text-muted-foreground">{evidence.detail}</p>
+                  </div>
                   <div>
                     <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Turning Point</div>
                     <p className="mt-1 text-sm font-semibold text-primary">{meaning.turningPoint}</p>

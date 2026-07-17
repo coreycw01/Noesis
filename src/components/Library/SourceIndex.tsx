@@ -14,6 +14,7 @@ import type { Draft, Media, MediaStatus, MediaType, Practice, Question, VaultEnt
 import { MEDIA_LABELS, MEDIA_TYPES, conceptKey } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 
 interface SourceIndexProps {
   media: Media[];
@@ -56,6 +57,51 @@ function sourceCatalogHealth(m: Media) {
   return Math.min(score, 100);
 }
 
+function sourceCatalogState(m: Media) {
+  const gaps = sourceMetadataGaps(m);
+  const health = sourceCatalogHealth(m);
+  const annotations = m.annotations?.length || 0;
+  const unfinished = ['Want to Read', 'Consuming', 'Paused'].includes(m.status);
+
+  if (gaps.length >= 4) {
+    return {
+      label: 'needs cataloging',
+      nextAction: `Add ${gaps[0]} metadata`,
+      tone: 'urgent' as const,
+    };
+  }
+
+  if (annotations === 0) {
+    return {
+      label: 'uncaptured',
+      nextAction: 'Open in Library and add annotations',
+      tone: 'review' as const,
+    };
+  }
+
+  if (unfinished) {
+    return {
+      label: 'in progress',
+      nextAction: 'Continue source session',
+      tone: 'growth' as const,
+    };
+  }
+
+  if (health >= 80) {
+    return {
+      label: 'cataloged',
+      nextAction: 'Use as evidence or citation',
+      tone: 'stable' as const,
+    };
+  }
+
+  return {
+    label: 'needs cleanup',
+    nextAction: gaps[0] ? `Add ${gaps[0]}` : 'Review catalog record',
+    tone: 'review' as const,
+  };
+}
+
 export function SourceIndex({ media, vault, drafts, practices, questions, onOpenSource }: SourceIndexProps) {
   const [view, setView] = useState<SourceIndexView>('table');
   const [search, setSearch] = useState('');
@@ -67,6 +113,45 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
   const [sortKey, setSortKey] = useState<SortKey>('dateAdded');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const { toast } = useToast();
+
+  const previewSource = (source: Media) => {
+    const linkedPositions = vault.filter((entry) => (entry.sourceIds || []).includes(source.id)).length;
+    const linkedWorks = drafts.filter((draft) => (draft.sourceIds || []).includes(source.id)).length;
+    const linkedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(source.id)).length;
+    const linkedQuestions = questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(source.id)).length;
+    const catalogState = sourceCatalogState(source);
+    openNoesisObjectPreview({
+      id: `source-index-${source.id}`,
+      label: source.title,
+      section: 'Source',
+      description: source.creator || source.type || 'Open source workspace.',
+      view: 'library',
+      targetId: source.id,
+      targetType: 'source',
+      objectType: 'Raw Input',
+      kind: 'object',
+      intellectualStage: 'Encounter',
+      hierarchyLevel: 'Raw',
+      currentState: source.status,
+      summary: source.description || source.capture?.after?.coreArgument || source.capture?.before?.openQuestion || 'A source feeding the thinking system.',
+      matchedBecause: `Source Index matched this catalog record. Catalog state: ${catalogState.label}; next: ${catalogState.nextAction}.`,
+      connectedConcepts: source.tags || [],
+      relatedObjects: [
+        `${source.annotations?.length || 0} annotations`,
+        `${linkedQuestions} inquiries`,
+        `${linkedPositions} positions`,
+        `${linkedWorks} works`,
+        `${linkedPractices} practices`,
+      ],
+      lastChangedAt: source.dateUpdated || source.dateAdded,
+      quickActionLabel: 'Open Source',
+      quickActions: [
+        { label: 'Open Source Workspace', view: 'library', targetId: source.id, targetType: 'source' },
+        { label: 'Process Annotations', view: 'annotations' },
+      ],
+      thinkingEventHint: 'Previewing a source is orientation. Completing reflection, distilling a claim, or creating annotations should record intellectual development.',
+    });
+  };
 
   const allConcepts = useMemo(() => {
     const tags = new Set<string>();
@@ -130,6 +215,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         progress: progressScore(source),
         metadataGaps: sourceMetadataGaps(source),
         health: sourceCatalogHealth(source),
+        catalogState: sourceCatalogState(source),
         linkedPositions: vault.filter((entry) => (entry.sourceIds || []).includes(source.id)).length,
         linkedWorks: drafts.filter((draft) => (draft.sourceIds || []).includes(source.id)).length,
         linkedPractices: practices.filter((practice) => (practice.sourceIds || []).includes(source.id)).length,
@@ -246,6 +332,25 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
   };
 
   const filtersActive = Boolean(search || filterType !== 'all' || filterStatus !== 'all' || filterConcept !== 'all' || filterAnnotations !== 'all' || catalogFilter !== 'all');
+  const activeFilterLabels = [
+    search ? `Search: ${search}` : null,
+    filterType !== 'all' ? `Type: ${MEDIA_LABELS[filterType]}` : null,
+    filterStatus !== 'all' ? `Status: ${filterStatus}` : null,
+    filterConcept !== 'all' ? `Concept: ${filterConcept}` : null,
+    filterAnnotations !== 'all' ? `Annotations: ${filterAnnotations === 'with' ? 'has annotations' : 'none yet'}` : null,
+    catalogFilter !== 'all' ? `Catalog: ${catalogFilter.replace(/_/g, ' ')}` : null,
+    view !== 'table' ? `View: ${view}` : null,
+  ].filter(Boolean) as string[];
+  const sortLabels: Record<SortKey, string> = {
+    creator: 'creator',
+    dateAdded: 'date added',
+    title: 'title',
+    year: 'year',
+    influence: 'influence',
+    annotations: 'annotations',
+    connected: 'connections',
+    progress: 'progress',
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
@@ -270,6 +375,8 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         searchPlaceholder="Search registry by title, creator, identifiers, concepts..."
         resultCount={filtered.length}
         resultLabel="sources"
+        sortLabel={`${sortLabels[sortKey]} ${sortOrder}`}
+        activeFilterLabels={activeFilterLabels}
         onClear={clearFilters}
         clearDisabled={!filtersActive}
       >
@@ -345,6 +452,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           { label: 'Unfinished', value: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length, note: 'still in study flow', filter: 'unfinished' as CatalogFilter },
           { label: 'No Annotations', value: media.filter((item) => !(item.annotations || []).length).length, note: 'cataloged but not processed', filter: 'no_annotations' as CatalogFilter },
           { label: 'High Influence', value: sourceRows.filter((row) => row.influence >= HIGH_INFLUENCE_SCORE).length, note: 'feeding many objects', filter: 'high_influence' as CatalogFilter },
+          { label: 'Ready To Cite', value: sourceRows.filter((row) => row.catalogState.label === 'cataloged').length, note: 'clean catalog records', filter: 'all' as CatalogFilter },
         ].map((stat) => (
           <button
             key={stat.label}
@@ -364,8 +472,8 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
 
       {view === 'covers' && (
         <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {sourceRows.map(({ source: m, influence, connected }) => (
-            <button key={m.id} type="button" onClick={() => onOpenSource(m.id)} className="group rounded-xl border border-border/40 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
+          {sourceRows.map(({ source: m, influence, connected, catalogState }) => (
+            <button key={m.id} type="button" onClick={() => previewSource(m)} className="group rounded-xl border border-border/40 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
               <div className="mb-4 aspect-[3/4] overflow-hidden rounded-lg border border-border/30 bg-muted/20">
                 {m.thumbnailUrl ? <img src={m.thumbnailUrl} alt={m.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-muted-foreground"><Library className="size-10" /></div>}
               </div>
@@ -375,6 +483,12 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                 <Badge variant="outline" className="rounded-full">{m.type}</Badge>
                 <Badge variant="outline" className="rounded-full">{influence} influence</Badge>
                 <Badge variant="outline" className="rounded-full">{connected} links</Badge>
+              </div>
+              <div className="mt-4 rounded-xl border border-border/40 bg-background/70 px-3 py-2">
+                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Catalog State</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {catalogState.label}. Next: {catalogState.nextAction}.
+                </p>
               </div>
             </button>
           ))}
@@ -452,7 +566,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                   <button
                     key={source.id}
                     type="button"
-                    onClick={() => onOpenSource(source.id)}
+                    onClick={() => previewSource(source)}
                     className="rounded-lg border border-border/40 bg-background/70 px-4 py-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -504,9 +618,9 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             </TableRow>
           </TableHeader>
           <TableBody className="font-body text-[14px]">
-            {sourceRows.map(({ source: m, influence, connected, progress, metadataGaps, health, linkedPositions, linkedWorks, linkedPractices, linkedQuestions }) => {
+            {sourceRows.map(({ source: m, influence, connected, progress, metadataGaps, health, catalogState, linkedPositions, linkedWorks, linkedPractices, linkedQuestions }) => {
               return (
-                <TableRow key={m.id} className="hover:bg-muted/5 group transition-colors cursor-pointer" onClick={() => onOpenSource(m.id)}>
+                <TableRow key={m.id} className="hover:bg-muted/5 group transition-colors cursor-pointer" onClick={() => previewSource(m)}>
                   <TableCell>
                     <div className="font-semibold italic text-primary/90">{m.title}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
@@ -563,6 +677,18 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                         />
                       </div>
                       <span className="font-code text-[8px] text-muted-foreground">{influence}</span>
+                    </div>
+                    <Badge variant="outline" className={cn(
+                      "mt-2 rounded-full font-code text-[8px] uppercase tracking-widest",
+                      catalogState.tone === 'stable' ? "border-emerald-200 bg-emerald-50 text-emerald-800" :
+                      catalogState.tone === 'urgent' ? "border-rose-200 bg-rose-50 text-rose-800" :
+                      catalogState.tone === 'growth' ? "border-blue-200 bg-blue-50 text-blue-800" :
+                      "border-amber-200 bg-amber-50 text-amber-800"
+                    )}>
+                      {catalogState.label}
+                    </Badge>
+                    <div className="mt-1 max-w-[170px] text-[10px] leading-4 text-muted-foreground">
+                      {catalogState.nextAction}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">

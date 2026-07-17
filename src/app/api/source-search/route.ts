@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { MediaType } from '@/lib/types';
 import { MEDIA_TYPES } from '@/lib/readex';
 import { searchSources } from '@/lib/server/source-providers';
+import { noesisUserError } from '@/lib/user-facing-errors';
 
 export const runtime = 'nodejs';
 
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ results });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Source search failed.', results: [] },
+      { error: noesisUserError(error, 'Source search failed. You can still add this source manually.'), results: [] },
       { status: 500 },
     );
   }

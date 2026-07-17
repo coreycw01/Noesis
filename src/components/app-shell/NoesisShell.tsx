@@ -25,6 +25,8 @@ import type {
 import { Download, FlaskConical } from 'lucide-react';
 import { REVIEW_ACCOUNT_EMAIL } from '@/lib/demo-workspace';
 import { deriveAtlasRegions } from '@/components/Atlas/atlas-diagnostics';
+import { useNoesisRoute } from '@/lib/noesis-route-context';
+import { NOESIS_DATA_REQUIREMENT_LABELS } from '@/lib/noesis-page-definitions';
 
 function timeValue(value?: string | null) {
   if (!value) return 0;
@@ -105,6 +107,8 @@ export function NoesisShell({
   suggestionsCount,
   onOpenCommandItem,
 }: NoesisShellProps) {
+  const { activePage, dataRequirements, isDetailRoute, routeTarget } = useNoesisRoute();
+  const routeRequirementLabels = dataRequirements.map((key) => NOESIS_DATA_REQUIREMENT_LABELS[key] || key);
   const atlasRegions = React.useMemo(() => deriveAtlasRegions({
     concepts,
     media,
@@ -174,6 +178,7 @@ export function NoesisShell({
         description: 'This position has no direct supporting sources or evidence yet.',
         view: 'vault',
         targetId: position.id,
+        targetType: 'position' as const,
         objectType: 'Position Action',
         kind: 'object',
         intellectualStage: 'Judge',
@@ -188,7 +193,7 @@ export function NoesisShell({
         thinkingEventHint: 'Adding evidence should create an evidence_added thinking event for this position.',
         aliases: ['unsupported position', 'add evidence', 'needs support', 'weak evidence', 'position without sources'],
         quickActionLabel: 'Open Position',
-        quickActions: [{ label: 'Open Position', view: 'vault', targetId: position.id }],
+        quickActions: [{ label: 'Open Position', view: 'vault', targetId: position.id, targetType: 'position' as const }],
       });
     });
 
@@ -200,6 +205,7 @@ export function NoesisShell({
         description: 'This position has no recorded challenge or opposing evidence.',
         view: 'vault',
         targetId: position.id,
+        targetType: 'position' as const,
         objectType: 'Position Action',
         kind: 'object',
         intellectualStage: 'Revise',
@@ -214,7 +220,7 @@ export function NoesisShell({
         thinkingEventHint: 'Adding a challenge, objection, or confidence change should create challenge/confidence thinking events.',
         aliases: ['challenge position', 'opposing evidence', 'stress test belief', 'under challenged', 'find objection'],
         quickActionLabel: 'Stress-Test Position',
-        quickActions: [{ label: 'Open Stress-Test', view: 'vault', targetId: position.id }],
+        quickActions: [{ label: 'Open Stress-Test', view: 'vault', targetId: position.id, targetType: 'position' as const }],
       });
     });
 
@@ -242,7 +248,7 @@ export function NoesisShell({
         quickActionLabel: 'Open Practices',
         quickActions: [
           { label: 'Open Practices', view: 'practices' },
-          { label: 'Open Position First', view: 'vault', targetId: position.id },
+          { label: 'Open Position First', view: 'vault', targetId: position.id, targetType: 'position' as const },
         ],
       });
     });
@@ -255,6 +261,7 @@ export function NoesisShell({
         description: 'This inquiry needs evidence, a working answer, or a resolution summary.',
         view: 'questions',
         targetId: inquiry.id,
+        targetType: 'inquiry' as const,
         objectType: 'Inquiry Action',
         kind: 'object',
         intellectualStage: 'Question',
@@ -269,7 +276,7 @@ export function NoesisShell({
         thinkingEventHint: 'Reframing, resolving, or promoting this inquiry should create question or position events.',
         aliases: ['open question', 'unanswered question', 'advance inquiry', 'working answer', 'resolve inquiry'],
         quickActionLabel: 'Open Inquiry',
-        quickActions: [{ label: 'Open Inquiry', view: 'questions', targetId: inquiry.id }],
+        quickActions: [{ label: 'Open Inquiry', view: 'questions', targetId: inquiry.id, targetType: 'inquiry' as const }],
       });
     });
 
@@ -281,6 +288,7 @@ export function NoesisShell({
         description: 'This idea has not been revisited in roughly six months.',
         view: 'concepts',
         targetId: concept.id,
+        targetType: 'concept' as const,
         objectType: 'Concept Action',
         kind: 'object',
         intellectualStage: 'Revise',
@@ -295,7 +303,7 @@ export function NoesisShell({
         thinkingEventHint: 'Redefining or materially relinking this concept should create a concept-definition thinking event.',
         aliases: ['not revisited', 'six months', 'old idea', 'stale concept', 'neglected concept'],
         quickActionLabel: 'Open Concept',
-        quickActions: [{ label: 'Open Concept', view: 'concepts', targetId: concept.id }],
+        quickActions: [{ label: 'Open Concept', view: 'concepts', targetId: concept.id, targetType: 'concept' as const }],
       });
     });
 
@@ -307,6 +315,7 @@ export function NoesisShell({
         description: 'This work is still in progress and may contain unresolved claims.',
         view: 'writing',
         targetId: work.id,
+        targetType: 'work' as const,
         objectType: 'Work Action',
         kind: 'object',
         intellectualStage: 'Express',
@@ -321,7 +330,7 @@ export function NoesisShell({
         thinkingEventHint: 'Substantial revision, synthesis, or completion of this work should create a thinking event.',
         aliases: ['continue essay', 'unfinished essay', 'continue writing', 'draft in progress', 'unfinished work'],
         quickActionLabel: 'Open Work',
-        quickActions: [{ label: 'Open Work', view: 'writing', targetId: work.id }],
+        quickActions: [{ label: 'Open Work', view: 'writing', targetId: work.id, targetType: 'work' as const }],
       });
     });
 
@@ -333,6 +342,7 @@ export function NoesisShell({
         description: 'This practice needs a recent observation or outcome log.',
         view: 'practices',
         targetId: practice.id,
+        targetType: 'practice' as const,
         objectType: 'Practice Action',
         kind: 'object',
         intellectualStage: 'Test',
@@ -347,7 +357,7 @@ export function NoesisShell({
         thinkingEventHint: 'Logging a result that affects a position or inquiry should create a tested/practice event.',
         aliases: ['log practice', 'practice result', 'needs observation', 'streak log', 'test outcome'],
         quickActionLabel: 'Open Practice',
-        quickActions: [{ label: 'Open Practice', view: 'practices', targetId: practice.id }],
+        quickActions: [{ label: 'Open Practice', view: 'practices', targetId: practice.id, targetType: 'practice' as const }],
       });
     });
 
@@ -393,6 +403,7 @@ export function NoesisShell({
       description: item.description || 'Open concept detail.',
       view: 'concepts',
       targetId: item.id,
+      targetType: 'concept' as const,
       objectType: 'Interpretive Object',
       kind: 'object' as const,
       intellectualStage: 'Interpret' as const,
@@ -410,7 +421,7 @@ export function NoesisShell({
       lastChangedAt: item.dateUpdated || item.dateCreated,
       quickActionLabel: 'Open Concept',
       quickActions: [
-        { label: 'Open Concepts', view: 'concepts', targetId: item.id },
+        { label: 'Open Concepts', view: 'concepts', targetId: item.id, targetType: 'concept' as const },
         { label: 'Explore Atlas', view: 'atlas' },
       ],
     })),
@@ -421,6 +432,7 @@ export function NoesisShell({
       description: item.creator || item.type || 'Open source workspace.',
       view: 'library',
       targetId: item.id,
+      targetType: 'source' as const,
       objectType: 'Raw Input',
       kind: 'object' as const,
       intellectualStage: 'Encounter' as const,
@@ -439,7 +451,7 @@ export function NoesisShell({
       lastChangedAt: item.dateUpdated || item.dateAdded,
       quickActionLabel: 'Open Source',
       quickActions: [
-        { label: 'Open Library', view: 'library', targetId: item.id },
+        { label: 'Open Library', view: 'library', targetId: item.id, targetType: 'source' as const },
         { label: 'Process Annotations', view: 'annotations' },
       ],
     })),
@@ -469,7 +481,7 @@ export function NoesisShell({
       quickActionLabel: 'Open Annotations',
       quickActions: [
         { label: 'Process Annotation', view: 'annotations' },
-        { label: 'Open Parent Source', view: 'library', targetId: item.source.id },
+        { label: 'Open Parent Source', view: 'library', targetId: item.source.id, targetType: 'source' as const },
       ],
     })),
     ...questions.slice(0, 20).map((item) => ({
@@ -479,6 +491,7 @@ export function NoesisShell({
       description: item.status || 'Open inquiry workspace.',
       view: 'questions',
       targetId: item.id,
+      targetType: 'inquiry' as const,
       objectType: 'Interpretive Object',
       kind: 'object' as const,
       intellectualStage: 'Question' as const,
@@ -497,7 +510,7 @@ export function NoesisShell({
       lastChangedAt: item.dateUpdated || item.dateCreated,
       quickActionLabel: 'Open Inquiry',
       quickActions: [
-        { label: 'Investigate', view: 'questions', targetId: item.id },
+        { label: 'Investigate', view: 'questions', targetId: item.id, targetType: 'inquiry' as const },
         { label: 'Open Positions', view: 'vault' },
       ],
     })),
@@ -508,6 +521,7 @@ export function NoesisShell({
       description: item.status || 'Open position workbench.',
       view: 'vault',
       targetId: item.id,
+      targetType: 'position' as const,
       objectType: 'Judgment Object',
       kind: 'object' as const,
       intellectualStage: 'Judge' as const,
@@ -527,7 +541,7 @@ export function NoesisShell({
       lastChangedAt: item.dateUpdated || item.dateCreated,
       quickActionLabel: 'Open Position',
       quickActions: [
-        { label: 'Open Position', view: 'vault', targetId: item.id },
+        { label: 'Open Position', view: 'vault', targetId: item.id, targetType: 'position' as const },
         { label: 'View Evolution', view: 'evolution' },
       ],
     })),
@@ -538,6 +552,7 @@ export function NoesisShell({
       description: item.type || 'Open work studio.',
       view: 'writing',
       targetId: item.id,
+      targetType: 'work' as const,
       objectType: 'Expression Object',
       kind: 'object' as const,
       intellectualStage: 'Express' as const,
@@ -556,7 +571,7 @@ export function NoesisShell({
       lastChangedAt: item.dateUpdated || item.dateCreated,
       quickActionLabel: 'Open Work',
       quickActions: [
-        { label: 'Open Work', view: 'writing', targetId: item.id },
+        { label: 'Open Work', view: 'writing', targetId: item.id, targetType: 'work' as const },
         { label: 'Open Positions', view: 'vault' },
       ],
     })),
@@ -567,6 +582,7 @@ export function NoesisShell({
       description: item.status || 'Open practice field.',
       view: 'practices',
       targetId: item.id,
+      targetType: 'practice' as const,
       objectType: 'Experiment Object',
       kind: 'object' as const,
       intellectualStage: 'Test' as const,
@@ -585,7 +601,7 @@ export function NoesisShell({
       lastChangedAt: item.dateUpdated || item.dateCreated,
       quickActionLabel: 'Open Practice',
       quickActions: [
-        { label: 'Open Practice', view: 'practices', targetId: item.id },
+        { label: 'Open Practice', view: 'practices', targetId: item.id, targetType: 'practice' as const },
         { label: 'Open Positions', view: 'vault' },
       ],
     })),
@@ -648,6 +664,12 @@ export function NoesisShell({
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="rounded-full bg-amber-500 text-black">Review Workspace</Badge>
                 <Badge variant="outline" className="rounded-full">Role: demo</Badge>
+                <Badge variant="outline" className="rounded-full">
+                  Route: {activePage.title}{isDetailRoute && routeTarget ? ` / ${routeTarget.type}` : ''}
+                </Badge>
+                <Badge variant="outline" className="rounded-full">
+                  Loads: {routeRequirementLabels.slice(0, 3).join(', ')}{routeRequirementLabels.length > 3 ? ` +${routeRequirementLabels.length - 3}` : ''}
+                </Badge>
                 <Badge variant="outline" className="rounded-full">Scoped to /users/{effectiveUid}</Badge>
                 <span className="text-sm text-muted-foreground">
                   Demo environment active with seeded sources, annotations, inquiries, positions, works, practices, and Atlas links.

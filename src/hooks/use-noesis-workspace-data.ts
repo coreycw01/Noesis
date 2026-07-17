@@ -5,6 +5,13 @@ import { doc } from 'firebase/firestore';
 import { useCollection, useDoc } from '@/firebase';
 import { readexRefs } from '@/lib/firestore-schema';
 import { buildDemoWorkspace } from '@/lib/demo-workspace';
+import {
+  NOESIS_SHELL_SUMMARY_REQUIREMENTS,
+  dataRequirementsForNoesisRoute,
+  routeNeedsData,
+  shellNeedsSummaryData,
+  type NoesisWorkspaceDataKey,
+} from '@/lib/noesis-page-definitions';
 import type {
   AccountSettings,
   AiSuggestion,
@@ -42,47 +49,50 @@ import type {
   WorkspacePreferenceSettings,
   WorkspaceSettings,
 } from '@/lib/types';
-import type { NoesisView } from '@/lib/noesis-routes';
+import type { NoesisRouteState, NoesisView } from '@/lib/noesis-routes';
 
 export function useNoesisWorkspaceData({
   db,
   uid,
   activeView,
+  routeState,
   isOfflineReviewPreview,
 }: {
   db: any;
   uid: string;
   activeView: NoesisView;
+  routeState?: NoesisRouteState;
   isOfflineReviewPreview: boolean;
 }) {
   const refs = useMemo(() => readexRefs(db, uid), [db, uid]);
+  const effectiveRouteState = routeState || { view: activeView };
   const reviewPreviewData = useMemo(
     () => (isOfflineReviewPreview ? buildDemoWorkspace(uid) : null),
     [uid, isOfflineReviewPreview]
   );
 
-  const needsMedia = ['home', 'atlas', 'concepts', 'library', 'source-index', 'annotations', 'vault', 'questions', 'writing', 'evolution', 'practices', 'goals', 'profile'].includes(activeView);
-  const needsVault = ['home', 'atlas', 'concepts', 'library', 'source-index', 'annotations', 'vault', 'questions', 'writing', 'practices', 'profile'].includes(activeView);
-  const needsInsights = ['atlas', 'concepts'].includes(activeView);
-  const needsConcepts = ['home', 'atlas', 'concepts', 'library', 'annotations', 'vault', 'questions', 'writing', 'practices', 'profile'].includes(activeView);
-  const needsQuestions = ['home', 'atlas', 'concepts', 'library', 'annotations', 'vault', 'questions', 'practices', 'profile'].includes(activeView);
-  const needsTimeline = ['home', 'atlas', 'concepts', 'library', 'vault', 'evolution'].includes(activeView);
-  const needsDrafts = ['home', 'atlas', 'concepts', 'source-index', 'vault', 'questions', 'writing', 'practices', 'profile'].includes(activeView);
-  const needsPractices = ['home', 'atlas', 'concepts', 'source-index', 'library', 'vault', 'writing', 'practices', 'profile'].includes(activeView);
-  const needsAtlasMaps = activeView === 'atlas';
-  const needsLinks = ['home', 'atlas', 'vault'].includes(activeView);
-  const needsSuggestions = ['vault'].includes(activeView);
-  const needsThinkingEvents = ['home', 'atlas', 'evolution', 'profile'].includes(activeView);
-  const needsBeliefProfiles = ['vault', 'profile'].includes(activeView);
-  const needsUnknowns = ['home', 'atlas', 'vault', 'evolution', 'profile'].includes(activeView);
-  const needsThinkingPatterns = ['evolution', 'profile'].includes(activeView);
-  const needsThinkingMetrics = ['evolution', 'profile'].includes(activeView);
-  const needsGoalDoc = ['goals'].includes(activeView);
-  const needsPreferencesDoc = ['writing', 'settings'].includes(activeView);
-  const needsLegacyProfileDoc = ['profile', 'settings'].includes(activeView);
-  const needsProfileDocs = ['profile'].includes(activeView);
-  const needsAllSettings = ['settings'].includes(activeView);
-  const needsWorkspaceDoc = activeView === 'settings' || activeView === 'profile';
+  const needsMedia = routeNeedsData(effectiveRouteState, 'media') || shellNeedsSummaryData('media');
+  const needsVault = routeNeedsData(effectiveRouteState, 'vault') || shellNeedsSummaryData('vault');
+  const needsInsights = routeNeedsData(effectiveRouteState, 'insights');
+  const needsConcepts = routeNeedsData(effectiveRouteState, 'concepts') || shellNeedsSummaryData('concepts');
+  const needsQuestions = routeNeedsData(effectiveRouteState, 'questions') || shellNeedsSummaryData('questions');
+  const needsTimeline = routeNeedsData(effectiveRouteState, 'timeline') || shellNeedsSummaryData('timeline');
+  const needsDrafts = routeNeedsData(effectiveRouteState, 'drafts') || shellNeedsSummaryData('drafts');
+  const needsPractices = routeNeedsData(effectiveRouteState, 'practices') || shellNeedsSummaryData('practices');
+  const needsAtlasMaps = routeNeedsData(effectiveRouteState, 'atlasMaps');
+  const needsLinks = routeNeedsData(effectiveRouteState, 'links');
+  const needsSuggestions = routeNeedsData(effectiveRouteState, 'suggestions');
+  const needsThinkingEvents = routeNeedsData(effectiveRouteState, 'thinkingEvents');
+  const needsBeliefProfiles = routeNeedsData(effectiveRouteState, 'beliefProfiles');
+  const needsUnknowns = routeNeedsData(effectiveRouteState, 'unknowns');
+  const needsThinkingPatterns = routeNeedsData(effectiveRouteState, 'thinkingPatterns');
+  const needsThinkingMetrics = routeNeedsData(effectiveRouteState, 'thinkingMetrics');
+  const needsGoalDoc = routeNeedsData(effectiveRouteState, 'goal') || shellNeedsSummaryData('goal');
+  const needsPreferencesDoc = routeNeedsData(effectiveRouteState, 'preferences');
+  const needsLegacyProfileDoc = routeNeedsData(effectiveRouteState, 'legacyProfile') || shellNeedsSummaryData('legacyProfile');
+  const needsProfileDocs = routeNeedsData(effectiveRouteState, 'profileDocs');
+  const needsAllSettings = routeNeedsData(effectiveRouteState, 'allSettings');
+  const needsWorkspaceDoc = routeNeedsData(effectiveRouteState, 'workspace') || shellNeedsSummaryData('workspace');
 
   const { data: mediaLive = [], loading: mediaLoadingLive } = useCollection<Media>(isOfflineReviewPreview || !needsMedia ? null : refs.media as any);
   const { data: vaultLive = [], loading: vaultLoadingLive } = useCollection<VaultEntry>(isOfflineReviewPreview || !needsVault ? null : refs.vault as any);
@@ -120,6 +130,47 @@ export function useNoesisWorkspaceData({
   const { data: settingsNotificationsDocLive, loading: settingsNotificationsLoadingLive } = useDoc<NotificationSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsNotifications as any);
   const { data: settingsGoalsDocLive, loading: settingsGoalsLoadingLive } = useDoc<GoalPreferenceSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsGoals as any);
   const { data: settingsDeveloperDocLive, loading: settingsDeveloperLoadingLive } = useDoc<DeveloperSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsDeveloper as any);
+  const settingsLoading = settingsAccountLoadingLive ||
+    settingsAppearanceLoadingLive ||
+    settingsWorkspacePrefsLoadingLive ||
+    settingsAiLoadingLive ||
+    settingsMetacognitionLoadingLive ||
+    settingsPrivacyLoadingLive ||
+    settingsDataLoadingLive ||
+    settingsSourceIntakeLoadingLive ||
+    settingsWorksLoadingLive ||
+    settingsAtlasLoadingLive ||
+    settingsNotificationsLoadingLive ||
+    settingsGoalsLoadingLive ||
+    settingsDeveloperLoadingLive;
+  const profileDocsLoading = profileMainLoadingLive || profilePrivacyLoadingLive || profileSummaryLoadingLive;
+  const requirementLoading: Record<NoesisWorkspaceDataKey, boolean> = {
+    media: isOfflineReviewPreview ? false : mediaLoadingLive,
+    vault: isOfflineReviewPreview ? false : vaultLoadingLive,
+    insights: isOfflineReviewPreview ? false : insightsLoadingLive,
+    concepts: isOfflineReviewPreview ? false : conceptsLoadingLive,
+    questions: isOfflineReviewPreview ? false : questionsLoadingLive,
+    timeline: isOfflineReviewPreview ? false : timelineLoadingLive,
+    drafts: isOfflineReviewPreview ? false : draftsLoadingLive,
+    practices: isOfflineReviewPreview ? false : practicesLoadingLive,
+    atlasMaps: isOfflineReviewPreview ? false : atlasMapsLoadingLive,
+    links: isOfflineReviewPreview ? false : linksLoadingLive,
+    suggestions: isOfflineReviewPreview ? false : suggestionsLoadingLive,
+    thinkingEvents: isOfflineReviewPreview ? false : thinkingEventsLoadingLive,
+    beliefProfiles: isOfflineReviewPreview ? false : beliefProfilesLoadingLive,
+    unknowns: isOfflineReviewPreview ? false : unknownsLoadingLive,
+    thinkingPatterns: isOfflineReviewPreview ? false : thinkingPatternsLoadingLive,
+    thinkingMetrics: isOfflineReviewPreview ? false : thinkingMetricsLoadingLive,
+    goal: isOfflineReviewPreview ? false : goalLoadingLive,
+    preferences: isOfflineReviewPreview ? false : preferencesLoadingLive,
+    legacyProfile: isOfflineReviewPreview ? false : legacyProfileLoadingLive,
+    workspace: isOfflineReviewPreview ? false : workspaceLoadingLive,
+    profileDocs: isOfflineReviewPreview ? false : profileDocsLoading,
+    allSettings: isOfflineReviewPreview ? false : settingsLoading,
+  };
+  const activePageRequirements = dataRequirementsForNoesisRoute(effectiveRouteState);
+  const pageLoading = activePageRequirements.some((key) => requirementLoading[key]);
+  const shellLoading = NOESIS_SHELL_SUMMARY_REQUIREMENTS.some((key) => requirementLoading[key]);
 
   return {
     refs,
@@ -196,6 +247,11 @@ export function useNoesisWorkspaceData({
       settingsNotifications: isOfflineReviewPreview ? false : settingsNotificationsLoadingLive,
       settingsGoals: isOfflineReviewPreview ? false : settingsGoalsLoadingLive,
       settingsDeveloper: isOfflineReviewPreview ? false : settingsDeveloperLoadingLive,
+      page: pageLoading,
+      shell: shellLoading,
+      requirements: requirementLoading,
+      activePageRequirements,
+      shellRequirements: NOESIS_SHELL_SUMMARY_REQUIREMENTS,
     },
   };
 }

@@ -377,6 +377,18 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
     updateGoal(goalId, { milestones });
   };
 
+  const addMilestone = (goalId: string) => {
+    const target = goals.find((item) => item.id === goalId);
+    if (!target) return;
+    updateGoal(goalId, { milestones: [...(target.milestones || []), ''] });
+  };
+
+  const removeMilestone = (goalId: string, index: number) => {
+    const target = goals.find((item) => item.id === goalId);
+    if (!target) return;
+    updateGoal(goalId, { milestones: (target.milestones || []).filter((_, itemIndex) => itemIndex !== index) });
+  };
+
   const adoptQuestPath = (item: GoalItem & { type?: GoalType }) => {
     updateGoal(item.id, { milestones: defaultQuestMilestones(item, item.type) });
     toast({ title: 'Quest path added', description: 'Milestones now define how this goal becomes intellectual development.' });
@@ -631,10 +643,15 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                             Adopt Path
                           </Button>
                         )}
+                        {!!(row.milestones || []).length && (
+                          <Button variant="outline" size="sm" onClick={() => addMilestone(row.id)} className="h-8 rounded-full bg-background">
+                            <Plus className="mr-1 size-3" /> Step
+                          </Button>
+                        )}
                       </div>
                       <div className="mt-3 space-y-2">
                         {((row.milestones || []).length ? row.milestones || [] : defaultQuestMilestones(row, row.type)).map((milestone, index) => (
-                          <div key={`${row.id}:milestone:${index}`} className="grid gap-2 sm:grid-cols-[24px_1fr]">
+                          <div key={`${row.id}:milestone:${index}`} className="grid gap-2 sm:grid-cols-[24px_1fr_auto]">
                             <div className={cn(
                               'mt-2 flex size-6 items-center justify-center rounded-full border font-code text-[9px] font-bold',
                               (row.currentProgress || 0) > index ? 'border-accent bg-accent text-white' : 'border-border bg-background text-muted-foreground'
@@ -652,6 +669,17 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                                 {milestone}
                               </div>
                             )}
+                            {(row.milestones || []).length ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeMilestone(row.id, index)}
+                                className="size-9 rounded-full text-muted-foreground hover:text-destructive"
+                                aria-label={`Remove milestone ${index + 1}`}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            ) : null}
                           </div>
                         ))}
                       </div>
@@ -707,9 +735,14 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="h-9 rounded-full border border-border bg-card px-4 font-code text-xs flex items-center justify-end">
-                    {row.currentProgress}
-                  </div>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={row.currentProgress}
+                    onChange={(event) => updateGoal(row.id, { currentProgress: Math.max(0, Number(event.target.value) || 0) })}
+                    className="h-9 rounded-full text-right font-code text-xs"
+                    aria-label={`${row.title} current progress`}
+                  />
                   <Input type="number" min={1} value={row.targetProgress} onChange={(event) => updateGoal(row.id, { targetProgress: Math.max(1, Number(event.target.value) || 1) })} className="h-9 rounded-full text-right font-code text-xs" />
                   <Select value={row.reviewCadence || 'weekly'} onValueChange={(value) => updateGoal(row.id, { reviewCadence: value as GoalItem['reviewCadence'] })}>
                     <SelectTrigger className="h-9 rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>

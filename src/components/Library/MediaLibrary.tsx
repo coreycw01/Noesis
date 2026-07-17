@@ -25,6 +25,8 @@ import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { noesisUserError } from '@/lib/user-facing-errors';
 
 interface MediaLibraryProps {
   media: Media[];
@@ -46,11 +48,14 @@ interface MediaLibraryProps {
 }
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
-type LibraryViewFilter = 'all' | 'continue' | 'awaiting_reflection' | 'inquiry_driven' | 'recently_added' | 'paused_or_abandoned' | 'influential';
+type LibraryViewFilter = 'all' | 'continue' | 'needs_intent' | 'needs_session' | 'needs_annotations' | 'awaiting_reflection' | 'inquiry_driven' | 'recently_added' | 'paused_or_abandoned' | 'influential';
 
 const LIBRARY_VIEW_LABELS: Record<LibraryViewFilter, string> = {
   all: 'All Source Work',
   continue: 'Continue Consuming',
+  needs_intent: 'Needs Intent',
+  needs_session: 'Needs Session',
+  needs_annotations: 'Needs Annotations',
   awaiting_reflection: 'Awaiting Reflection',
   inquiry_driven: 'Inquiry Driven',
   recently_added: 'Recently Added',
@@ -60,6 +65,26 @@ const LIBRARY_VIEW_LABELS: Record<LibraryViewFilter, string> = {
 
 function sourceNeedsReflection(item: Media) {
   return item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange;
+}
+
+function sourceWorkGaps(item: Media) {
+  const gaps: string[] = [];
+  if (!item.capture?.before?.reasonForAdding && !item.capture?.before?.openQuestion && !item.capture?.before?.affectedPosition) gaps.push('intent');
+  if (['Consuming', 'Paused', 'Finished'].includes(item.status) && !(item.capture?.sessions || []).length) gaps.push('session');
+  if (!(item.annotations || []).length) gaps.push('annotations');
+  if (sourceNeedsReflection(item)) gaps.push('reflection');
+  if (item.status === 'Finished' && !item.capture?.after?.nextAction) gaps.push('next action');
+  return gaps;
+}
+
+function sourceNextAction(item: Media) {
+  const gaps = sourceWorkGaps(item);
+  if (gaps.includes('intent')) return 'Write why this source entered the system and what it might challenge.';
+  if (gaps.includes('session')) return 'Start or record a consumption session so progress is not just a status label.';
+  if (gaps.includes('annotations')) return 'Capture at least one highlight, thought, question, claim, or connection.';
+  if (gaps.includes('reflection')) return 'Finish the post-source reflection: core argument and belief change.';
+  if (gaps.includes('next action')) return 'Name what should happen next: inquiry, position, work, practice, or follow-up source.';
+  return 'Continue using this source as evidence, context, or pressure for other objects.';
 }
 
 function sourceIsRecentlyAdded(item: Media) {
@@ -131,6 +156,7 @@ export function MediaLibrary({
   const [insightOpen, setInsightOpen] = useState(false);
   const [insightDraft, setInsightDraft] = useState({ title: '', body: '', tags: [] as string[] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'source'; item: Media } | { type: 'claim'; item: VaultEntry } | null>(null);
   const { toast } = useToast();
 
   const selected = media.find((item) => item.id === selectedId) || null;
@@ -150,6 +176,9 @@ export function MediaLibrary({
     const viewOk =
       viewFilter === 'all' ||
       (viewFilter === 'continue' && (item.status === 'Consuming' || item.status === 'Paused')) ||
+      (viewFilter === 'needs_intent' && sourceWorkGaps(item).includes('intent')) ||
+      (viewFilter === 'needs_session' && sourceWorkGaps(item).includes('session')) ||
+      (viewFilter === 'needs_annotations' && sourceWorkGaps(item).includes('annotations')) ||
       (viewFilter === 'awaiting_reflection' && sourceNeedsReflection(item)) ||
       (viewFilter === 'inquiry_driven' && inquiryDriven) ||
       (viewFilter === 'recently_added' && sourceIsRecentlyAdded(item)) ||
@@ -163,6 +192,9 @@ export function MediaLibrary({
     active: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length,
     consuming: media.filter((item) => item.status === 'Consuming').length,
     annotations: media.reduce((sum, item) => sum + (item.annotations?.length || 0), 0),
+    needsIntent: media.filter((item) => sourceWorkGaps(item).includes('intent')).length,
+    needsSession: media.filter((item) => sourceWorkGaps(item).includes('session')).length,
+    needsAnnotations: media.filter((item) => sourceWorkGaps(item).includes('annotations')).length,
     awaitingReflection: media.filter(sourceNeedsReflection).length,
     inquiryDriven: media.filter((item) => questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status))).length,
     influential: media.filter((item) => sourceInfluenceCount(item, vault, drafts, practices, questions) > 0).length,
@@ -375,7 +407,7 @@ export function MediaLibrary({
       toast({
         variant: "destructive",
         title: "Distillation Failed",
-        description: error instanceof Error ? error.message : "The AI was unable to synthesize a claim at this time.",
+        description: noesisUserError(error, "The AI was unable to synthesize a claim at this time."),
       });
     } finally {
       setIsDistilling(false);
@@ -411,7 +443,7 @@ export function MediaLibrary({
       toast({
         variant: "destructive",
         title: "Generation Failed",
-        description: error instanceof Error ? error.message : "AI reflective questions could not be created.",
+        description: noesisUserError(error, "AI reflective questions could not be created."),
       });
     } finally {
       setIsGeneratingQuestions(false);
@@ -435,6 +467,7 @@ export function MediaLibrary({
     const relatedQuestions = questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(selected.id));
     const relatedDrafts = drafts.filter((draft) => (draft.sourceIds || []).includes(selected.id));
     const relatedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(selected.id));
+    const isRoutedSource = focusedSourceId === selected.id;
     const captureMilestones = [
       { label: 'Reason', complete: Boolean(capture.before?.openQuestion || capture.before?.expectation || capture.before?.priorBeliefs), detail: capture.before?.openQuestion || capture.before?.expectation || capture.before?.priorBeliefs || 'Explain why this source entered the system.' },
       { label: 'During', complete: (selected.annotations || []).length > 0 || (capture.sessions || []).length > 0, detail: `${selected.annotations?.length || 0} annotations · ${capture.sessions?.length || 0} sessions` },
@@ -461,9 +494,23 @@ export function MediaLibrary({
               <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{status}</SelectItem>)}</SelectContent>
             </Select>
             <Button variant="outline" size="sm" onClick={() => openEditor(selected)} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-white rounded-full">EDIT</Button>
-            <Button variant="outline" size="sm" onClick={() => { onDeleteMedia(selected.id); closeSelectedSource(); }} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-white rounded-full">DELETE</Button>
+            <Button variant="outline" size="sm" onClick={() => setDeleteTarget({ type: 'source', item: selected })} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-white rounded-full">DELETE</Button>
           </div>
         </header>
+
+        {isRoutedSource && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
+            <div>
+              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Library Detail Route</div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                This source is opened directly from the URL. Refresh and browser history keep the source thread in focus.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={closeSelectedSource} className="rounded-full bg-background">
+              Return to Library
+            </Button>
+          </div>
+        )}
 
         <div className="bg-white border border-border/50 rounded-xl p-8 mb-10 flex gap-10 shadow-sm">
           <div className="size-56 bg-accent/5 rounded-lg shrink-0 flex items-center justify-center border border-border/30 overflow-hidden shadow-inner">
@@ -829,7 +876,7 @@ export function MediaLibrary({
                     <div className="flex items-center gap-6">
                       <time className="font-code text-[10px] text-muted-foreground/40 font-bold">{new Date(insight.dateCreated).toLocaleDateString()}</time>
                       <button 
-                        onClick={() => onDeleteVaultEntry(insight.id)}
+                        onClick={() => setDeleteTarget({ type: 'claim', item: insight })}
                         className="font-code text-[10px] uppercase tracking-widest text-muted-foreground/40 hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 font-bold"
                       >
                         DELETE
@@ -1021,6 +1068,31 @@ export function MediaLibrary({
             <DialogFooter className="pt-6"><Button onClick={saveInsight} className="rounded-full px-10 h-11 font-bold">Archive Insight</Button></DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <ConfirmActionDialog
+          open={Boolean(deleteTarget)}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
+          title={deleteTarget?.type === 'source' ? 'Delete source?' : 'Delete extracted claim?'}
+          description={
+            deleteTarget?.type === 'source'
+              ? `This removes "${deleteTarget.item.title}" from Library. Annotations and source-specific capture notes on this source will be deleted with it.`
+              : `This removes "${deleteTarget?.item.title || 'this claim'}" from Positions. The parent source will remain.`
+          }
+          confirmLabel={deleteTarget?.type === 'source' ? 'Delete Source' : 'Delete Claim'}
+          destructive
+          onConfirm={() => {
+            if (!deleteTarget) return;
+            if (deleteTarget.type === 'source') {
+              onDeleteMedia(deleteTarget.item.id);
+              if (selectedId === deleteTarget.item.id) closeSelectedSource();
+            } else {
+              onDeleteVaultEntry(deleteTarget.item.id);
+            }
+            setDeleteTarget(null);
+          }}
+        />
       </div>
     );
   }
@@ -1042,7 +1114,28 @@ export function MediaLibrary({
         }
       />
 
-      <section className="mb-8 grid gap-4 md:grid-cols-3">
+      <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <SourceLane
+          label="Needs Intent"
+          value={libraryStats.needsIntent}
+          description="Sources without why-this-matters capture context."
+          active={viewFilter === 'needs_intent'}
+          onClick={() => setViewFilter(viewFilter === 'needs_intent' ? 'all' : 'needs_intent')}
+        />
+        <SourceLane
+          label="Needs Session"
+          value={libraryStats.needsSession}
+          description="In-progress or finished sources without session evidence."
+          active={viewFilter === 'needs_session'}
+          onClick={() => setViewFilter(viewFilter === 'needs_session' ? 'all' : 'needs_session')}
+        />
+        <SourceLane
+          label="Needs Notes"
+          value={libraryStats.needsAnnotations}
+          description="Sources cataloged but not yet intellectually captured."
+          active={viewFilter === 'needs_annotations'}
+          onClick={() => setViewFilter(viewFilter === 'needs_annotations' ? 'all' : 'needs_annotations')}
+        />
         <SourceLane
           label="Awaiting Reflection"
           value={libraryStats.awaitingReflection}
@@ -1159,6 +1252,7 @@ export function MediaLibrary({
           const needsReflection = sourceNeedsReflection(item);
           const hasOpenInquiry = questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status));
           const influence = sourceInfluenceCount(item, vault, drafts, practices, questions);
+          const gaps = sourceWorkGaps(item);
           return (
           <Card key={item.id} className="cursor-pointer border-none shadow-none bg-transparent group" onClick={() => openSelectedSource(item.id)}>
             <div className="aspect-[2/3] rounded-xl overflow-hidden shadow-sm mb-5 bg-white border border-border/30 group-hover:shadow-2xl group-hover:-translate-y-2 transition-all">
@@ -1178,6 +1272,13 @@ export function MediaLibrary({
                 {item.title}
               </h3>
               <p className="readex-kicker text-muted-foreground truncate text-[9px] font-bold tracking-widest">{item.creator.toUpperCase()}</p>
+              <div className="rounded-xl border border-border/40 bg-muted/10 p-3">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Next source action</span>
+                  {!!gaps.length && <Badge variant="secondary" className="rounded-full font-code text-[7px] uppercase tracking-widest">{gaps.length} gaps</Badge>}
+                </div>
+                <p className="line-clamp-2 text-xs italic leading-5 text-muted-foreground">{sourceNextAction(item)}</p>
+              </div>
               <div className="flex items-center justify-between pt-3">
                 <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-white border-border/60 shadow-sm rounded-full font-bold">
                   {item.status}
@@ -1191,6 +1292,7 @@ export function MediaLibrary({
               </div>
               {(needsReflection || hasOpenInquiry || influence > 0) && (
                 <div className="flex flex-wrap gap-1.5 pt-2">
+                  {gaps.slice(0, 2).map((gap) => <span key={gap} className="rounded-full border border-accent/20 bg-accent/5 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-accent">{gap}</span>)}
                   {needsReflection && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-amber-800">reflect</span>}
                   {hasOpenInquiry && <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-blue-800">inquiry</span>}
                   {influence > 0 && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-emerald-800">{influence} links</span>}
@@ -1344,7 +1446,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
         throw new Error(data.error || "Could not read metadata from URL.");
       }
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Import Failed", description: error.message || "Noesis could not archive this URL automatically." });
+      toast({ variant: "destructive", title: "Import Failed", description: noesisUserError(error, "Noesis could not archive this URL automatically.") });
     } finally {
       setIsImporting(false);
     }

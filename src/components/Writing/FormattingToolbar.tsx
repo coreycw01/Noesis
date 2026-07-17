@@ -25,6 +25,7 @@ import {
   Type,
   Underline,
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 interface FormattingToolbarProps {
@@ -42,6 +43,7 @@ type SpeechRecognitionCtor = new () => {
 };
 
 export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
+  const { toast } = useToast();
   const [textColor, setTextColor] = useState('#31241d');
   const [highlightColor, setHighlightColor] = useState('#fef3c7');
   const [listening, setListening] = useState(false);
@@ -96,7 +98,11 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
   const toggleTalkToText = () => {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition as SpeechRecognitionCtor | undefined;
     if (!Recognition) {
-      window.alert('Talk to Text is not supported in this browser.');
+      toast({
+        variant: 'destructive',
+        title: 'Talk to Text unavailable',
+        description: 'This browser does not support speech recognition. You can still type or record audio in Works.',
+      });
       return;
     }
     if (listening && recognitionRef.current) {

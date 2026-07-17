@@ -25,6 +25,9 @@ import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { noesisUserError } from '@/lib/user-facing-errors';
+import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 
 interface BeliefVaultProps {
   entries: VaultEntry[];
@@ -123,14 +126,17 @@ type PositionViewFilter =
   | 'emerging'
   | 'needs_evidence'
   | 'needs_opposition'
+  | 'needs_practice'
   | 'under_review'
   | 'revised'
   | 'abandoned'
   | 'tensions'
   | 'high_confidence'
   | 'low_confidence'
+  | 'overconfident'
   | 'suspended'
   | 'unsupported'
+  | 'stale'
   | 'recently_changed';
 type StressStage = {
   title: string;
@@ -144,14 +150,17 @@ const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
   emerging: 'Emerging',
   needs_evidence: 'Needs Evidence',
   needs_opposition: 'Needs Opposition',
+  needs_practice: 'Needs Practice',
   under_review: 'Under Review',
   revised: 'Revised',
   abandoned: 'Abandoned',
   tensions: 'Tensions',
   high_confidence: 'High Confidence',
   low_confidence: 'Low Confidence',
+  overconfident: 'Overconfident',
   suspended: 'Suspended',
   unsupported: 'Unsupported',
+  stale: 'Stale',
   recently_changed: 'Recently Changed',
 };
 
@@ -208,6 +217,82 @@ function positionListReason(entry: VaultEntry, links: PhilosophicalLink[], viewF
   if ((entry.evidenceAgainst || []).length === 0 && !hasTension) return 'Next pressure: add a serious objection or counterposition.';
   if (!hasSupport) return 'Next pressure: add evidence or a source that actually supports this.';
   return 'Current belief-workbench item: support, challenge, express, or test it.';
+}
+
+type PositionDiagnostic = {
+  supportCount: number;
+  challengeCount: number;
+  practiceCount: number;
+  assumptionCount: number;
+  daysSinceUpdate: number;
+  label: string;
+  nextAction: string;
+  flags: string[];
+};
+
+function daysSince(value?: string) {
+  const date = value ? new Date(value).getTime() : 0;
+  if (!date || Number.isNaN(date)) return 999;
+  return Math.max(0, Math.floor((Date.now() - date) / (1000 * 60 * 60 * 24)));
+}
+
+function diagnosePosition(entry: VaultEntry, links: PhilosophicalLink[], practices: Practice[]): PositionDiagnostic {
+  const typedLinks = links.filter((link) =>
+    (link.fromType === 'position' && link.fromId === entry.id) ||
+    (link.toType === 'position' && link.toId === entry.id)
+  );
+  const supportLinks = typedLinks.filter((link) => ['supports', 'coheres', 'strengthens', 'expressed_in', 'tested_by'].includes(link.type)).length;
+  const challengeLinks = typedLinks.filter((link) => ['challenges', 'contradicts', 'weakens', 'questions'].includes(link.type)).length;
+  const supportCount = (entry.evidenceFor || []).length + (entry.sourceIds || []).length + supportLinks;
+  const challengeCount = (entry.evidenceAgainst || []).length + challengeLinks;
+  const practiceCount = practices.filter((practice) => (practice.positionIds || []).includes(entry.id)).length;
+  const assumptionCount = (entry.assumptions || []).length;
+  const updatedAge = daysSince(entry.dateUpdated || entry.dateCreated);
+  const flags: string[] = [];
+
+  if (supportCount === 0) flags.push('unsupported');
+  if (challengeCount === 0) flags.push('under-challenged');
+  if (practiceCount === 0 && !['abandoned', 'rejected', 'replaced'].includes(entry.status)) flags.push('untested');
+  if (assumptionCount === 0) flags.push('assumptions missing');
+  if ((entry.confidence || 3) >= 4 && challengeCount === 0) flags.push('overconfident');
+  if (updatedAge > 90 && !['abandoned', 'rejected', 'replaced'].includes(entry.status)) flags.push('stale');
+  if (['challenged', 'contested', 'unstable', 'questioning'].includes(entry.status)) flags.push('under pressure');
+
+  let label = 'balanced';
+  let nextAction = 'Review the claim, then decide whether it should be tested, revised, or expressed.';
+  if (supportCount === 0) {
+    label = 'needs evidence';
+    nextAction = 'Add a source, annotation, or reason that directly supports the position.';
+  } else if (challengeCount === 0 && (entry.confidence || 3) >= 4) {
+    label = 'overconfident';
+    nextAction = 'Add a serious objection before raising or keeping high confidence.';
+  } else if (challengeCount === 0) {
+    label = 'under-challenged';
+    nextAction = 'Write the strongest opposing case or link a challenging position.';
+  } else if (practiceCount === 0) {
+    label = 'untested';
+    nextAction = 'Create a practice or lived experiment that would test this position.';
+  } else if (updatedAge > 90) {
+    label = 'stale';
+    nextAction = 'Revisit the wording, confidence, and evidence after a long quiet period.';
+  } else if (assumptionCount === 0) {
+    label = 'needs assumptions';
+    nextAction = 'Name the assumptions this position depends on.';
+  } else if (challengeCount > supportCount) {
+    label = 'under pressure';
+    nextAction = 'Revise, narrow, suspend, or answer the strongest challenge.';
+  }
+
+  return {
+    supportCount,
+    challengeCount,
+    practiceCount,
+    assumptionCount,
+    daysSinceUpdate: updatedAge,
+    label,
+    nextAction,
+    flags,
+  };
 }
 
 function buildStressStages({
@@ -299,6 +384,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'opposition' | 'relations' | 'history'>('overview');
   const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'active', tags: [] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VaultEntry | null>(null);
   const { toast } = useToast();
 
   // Idea pipeline state
@@ -329,7 +415,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       setIdeaStep(2);
       toast({ title: 'Inquiries generated.', description: 'AI produced three clarifying questions for this idea.' });
     } catch (error) {
-      toast({ variant: 'destructive', title: 'AI Unavailable', description: error instanceof Error ? error.message : 'Could not generate questions. Try again.' });
+      toast({ variant: 'destructive', title: 'AI Unavailable', description: noesisUserError(error, 'Could not generate questions. Try again.') });
     } finally {
       setIsGenerating(false);
     }
@@ -351,7 +437,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       setIdeaStep(3);
       toast({ title: 'Position draft ready.', description: 'AI formed a draft position from your idea and answers.' });
     } catch (error) {
-      toast({ variant: 'destructive', title: 'AI Unavailable', description: error instanceof Error ? error.message : 'Could not form position. Try again.' });
+      toast({ variant: 'destructive', title: 'AI Unavailable', description: noesisUserError(error, 'Could not form position. Try again.') });
     } finally {
       setIsGenerating(false);
     }
@@ -376,8 +462,14 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   };
 
   const safeEntries = useMemo(() => entries.filter((entry) => entry?.id).map(safePosition), [entries]);
+  const positionDiagnostics = useMemo(() => {
+    const map = new Map<string, PositionDiagnostic>();
+    safeEntries.forEach((entry) => map.set(entry.id, diagnosePosition(entry, links, practices)));
+    return map;
+  }, [safeEntries, links, practices]);
   const selected = safeEntries.find((entry) => entry.id === selectedId) || null;
   const filteredEntries = safeEntries.filter(e => {
+    const diagnostic = positionDiagnostics.get(e.id) || diagnosePosition(e, links, practices);
     const typeOk = typeFilter === 'all'
       ? true
       : typeFilter === 'ideas'
@@ -396,14 +488,17 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       (viewFilter === 'emerging' && (['draft', 'tentative', 'developing'].includes(e.status) || e.confidence <= 2)) ||
       (viewFilter === 'needs_evidence' && !hasSupport) ||
       (viewFilter === 'needs_opposition' && !hasTension && !(e.evidenceAgainst || []).length) ||
+      (viewFilter === 'needs_practice' && diagnostic.practiceCount === 0 && !['abandoned', 'rejected', 'replaced'].includes(e.status)) ||
       (viewFilter === 'under_review' && ['challenged', 'uncertain', 'questioning', 'contested', 'unstable', 'suspended'].includes(e.status)) ||
       (viewFilter === 'revised' && e.status === 'revised') ||
       (viewFilter === 'abandoned' && ['abandoned', 'rejected', 'replaced'].includes(e.status)) ||
       (viewFilter === 'tensions' && hasTension) ||
       (viewFilter === 'high_confidence' && e.confidence >= 4) ||
       (viewFilter === 'low_confidence' && e.confidence <= 2) ||
+      (viewFilter === 'overconfident' && diagnostic.flags.includes('overconfident')) ||
       (viewFilter === 'suspended' && e.status === 'suspended') ||
       (viewFilter === 'unsupported' && !hasSupport) ||
+      (viewFilter === 'stale' && diagnostic.flags.includes('stale')) ||
       (viewFilter === 'recently_changed' && changedAt >= recentCutoff);
     const haystack = `${e.title || ''} ${e.statement || ''} ${e.description || ''} ${e.positionKind || ''} ${(e.assumptions || []).join(' ')} ${e.falsification || ''} ${(e.consequences || []).join(' ')} ${(e.applications || []).join(' ')}`.toLowerCase();
     const queryOk = !search ||
@@ -420,9 +515,12 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       total: safeEntries.length,
       underReview: safeEntries.filter((entry) => ['challenged', 'uncertain', 'questioning', 'contested', 'unstable', 'suspended'].includes(entry.status)).length,
       unsupported: safeEntries.filter((entry) => !(entry.evidenceFor || []).length && !(entry.sourceIds || []).length).length,
+      needsPractice: safeEntries.filter((entry) => positionDiagnostics.get(entry.id)?.flags.includes('untested')).length,
+      overconfident: safeEntries.filter((entry) => positionDiagnostics.get(entry.id)?.flags.includes('overconfident')).length,
+      stale: safeEntries.filter((entry) => positionDiagnostics.get(entry.id)?.flags.includes('stale')).length,
       tensions: tensionCount,
     };
-  }, [safeEntries, links]);
+  }, [safeEntries, links, positionDiagnostics]);
 
   const clearPositionFilters = () => {
     setSearch('');
@@ -431,6 +529,12 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   };
 
   const positionFiltersActive = Boolean(search || typeFilter !== 'all' || viewFilter !== 'all');
+  const activeFilterLabels = [
+    search ? `Search: ${search}` : null,
+    viewFilter !== 'all' ? `View: ${POSITION_VIEW_LABELS[viewFilter]}` : null,
+    typeFilter !== 'all' ? `Type: ${typeFilter === 'ideas' ? 'Ideas' : TYPE_LABELS[typeFilter as VaultType]}` : null,
+    viewMode !== 'cards' ? `Layout: ${viewMode}` : null,
+  ].filter(Boolean) as string[];
 
   const openEditor = (entry?: VaultEntry) => {
     setDraftEntry(entry ? { ...entry } : { type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'tentative', positionKind: 'interpretive', tags: [], assumptions: [], consequences: [], applications: [] });
@@ -527,6 +631,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       'No explicit consequences have been written yet.',
       'Ask what decisions, behaviors, writings, or practices would change if this position were true.',
     ];
+    const isRoutedEntry = focusedEntryId === selected.id;
     const stressStages = buildStressStages({
       selected,
       assumptions: positionAssumptions,
@@ -544,6 +649,118 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       { id: 'relations', label: 'Applications' },
       { id: 'history', label: 'Biography' },
     ];
+
+    const previewSource = (source: Media) => {
+      openNoesisObjectPreview({
+        id: `position-source-${source.id}`,
+        label: source.title,
+        section: 'Source',
+        description: source.creator || source.type || 'Open source workspace.',
+        view: 'library',
+        targetId: source.id,
+        targetType: 'source',
+        objectType: 'Raw Input',
+        kind: 'object',
+        intellectualStage: 'Encounter',
+        hierarchyLevel: 'Raw',
+        currentState: source.status,
+        summary: source.description || source.capture?.after?.coreArgument || source.capture?.before?.openQuestion || 'A source linked to this position.',
+        matchedBecause: `This source is attached as evidence or context for "${selected.title}".`,
+        connectedConcepts: source.tags || selected.tags || [],
+        relatedObjects: [`Position: ${selected.title}`, `${source.annotations?.length || 0} annotations`],
+        lastChangedAt: source.dateUpdated || source.dateAdded,
+        quickActionLabel: 'Open Source',
+        quickActions: [
+          { label: 'Open Source Workspace', view: 'library', targetId: source.id, targetType: 'source' },
+          { label: 'Return to Position', view: 'vault', targetId: selected.id, targetType: 'position' },
+        ],
+        thinkingEventHint: 'Previewing a source is orientation. Completing source reflection, distilling a claim, or creating annotations should create intellectual history.',
+      });
+    };
+
+    const previewInquiry = (question: Question) => {
+      openNoesisObjectPreview({
+        id: `position-inquiry-${question.id}`,
+        label: question.text,
+        section: 'Inquiry',
+        description: question.status || 'Open inquiry workspace.',
+        view: 'questions',
+        targetId: question.id,
+        targetType: 'inquiry',
+        objectType: 'Interpretive Object',
+        kind: 'object',
+        intellectualStage: 'Question',
+        hierarchyLevel: 'Interpretive',
+        currentState: question.status,
+        summary: question.answer || 'An inquiry linked to this position.',
+        matchedBecause: `This inquiry gives uncertainty, origin, or pressure to "${selected.title}".`,
+        connectedConcepts: selected.tags || [],
+        relatedObjects: [`Position: ${selected.title}`, `${question.sourceIds?.length || 0} sources`, `${question.draftIds?.length || 0} works`],
+        lastChangedAt: question.dateUpdated || question.dateCreated,
+        quickActionLabel: 'Open Inquiry',
+        quickActions: [
+          { label: 'Open Investigation', view: 'questions', targetId: question.id, targetType: 'inquiry' },
+          { label: 'Return to Position', view: 'vault', targetId: selected.id, targetType: 'position' },
+        ],
+        thinkingEventHint: 'Previewing an inquiry is orientation. Reformulating, adding assumptions, resolving, or promoting it should create history.',
+      });
+    };
+
+    const previewWork = (draft: Draft) => {
+      openNoesisObjectPreview({
+        id: `position-work-${draft.id}`,
+        label: draft.title,
+        section: 'Work',
+        description: `${draft.type.replace(/_/g, ' ')} - ${draft.status}`,
+        view: 'writing',
+        targetId: draft.id,
+        targetType: 'work',
+        objectType: 'Expression Object',
+        kind: 'object',
+        intellectualStage: 'Express',
+        hierarchyLevel: 'Expression',
+        currentState: draft.status,
+        summary: draft.body || draft.draftContent || 'A work expressing this position.',
+        matchedBecause: `This work expresses, tests, or clarifies "${selected.title}".`,
+        connectedConcepts: draft.conceptTags || selected.tags || [],
+        relatedObjects: [`Position: ${selected.title}`, `${draft.sourceIds?.length || 0} linked sources`, `${draft.questionIds?.length || 0} linked inquiries`],
+        lastChangedAt: draft.dateUpdated || draft.dateCreated,
+        quickActionLabel: 'Open Work',
+        quickActions: [
+          { label: 'Open Work Studio', view: 'writing', targetId: draft.id, targetType: 'work' },
+          { label: 'Return to Position', view: 'vault', targetId: selected.id, targetType: 'position' },
+        ],
+        thinkingEventHint: 'Previewing a work is orientation. Completing, substantially revising, or synthesizing linked ideas should create a thinking event.',
+      });
+    };
+
+    const previewPractice = (practice: Practice) => {
+      openNoesisObjectPreview({
+        id: `position-practice-${practice.id}`,
+        label: practice.title,
+        section: 'Practice',
+        description: `${practice.type.replace(/_/g, ' ')} - ${practice.status}`,
+        view: 'practices',
+        targetId: practice.id,
+        targetType: 'practice',
+        objectType: 'Experiment Object',
+        kind: 'object',
+        intellectualStage: 'Test',
+        hierarchyLevel: 'Expression',
+        currentState: practice.status,
+        summary: practice.description || practice.notes || 'A lived test attached to this position.',
+        matchedBecause: `This practice tests whether "${selected.title}" survives lived application.`,
+        connectedConcepts: practice.conceptTags || selected.tags || [],
+        relatedObjects: [`Position: ${selected.title}`, `${practice.logDates?.length || 0} logs`, `${practice.questionIds?.length || 0} inquiries`],
+        lastChangedAt: practice.dateUpdated || practice.dateCreated,
+        quickActionLabel: 'Open Practice',
+        quickActions: [
+          { label: 'Open Practice Field', view: 'practices', targetId: practice.id, targetType: 'practice' },
+          { label: 'Return to Position', view: 'vault', targetId: selected.id, targetType: 'position' },
+        ],
+        thinkingEventHint: 'Previewing a practice is orientation. Starting, concluding, or logging an outcome that changes a belief should create history.',
+      });
+    };
 
     const createMissingPerspective = async () => {
       try {
@@ -568,7 +785,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         }));
         toast({ title: 'Missing perspectives suggested', description: 'Review the possible lenses below before accepting any of them.' });
       } catch (error) {
-        toast({ variant: 'destructive', title: 'AI Unavailable', description: error instanceof Error ? error.message : 'Noesis could not suggest perspectives right now.' });
+        toast({ variant: 'destructive', title: 'AI Unavailable', description: noesisUserError(error, 'Noesis could not suggest perspectives right now.') });
       }
     };
 
@@ -594,7 +811,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         }));
         toast({ title: 'Missing questions suggested', description: 'Use them to open new inquiries where the map is thin.' });
       } catch (error) {
-        toast({ variant: 'destructive', title: 'AI Unavailable', description: error instanceof Error ? error.message : 'Noesis could not detect missing questions right now.' });
+        toast({ variant: 'destructive', title: 'AI Unavailable', description: noesisUserError(error, 'Noesis could not detect missing questions right now.') });
       }
     };
 
@@ -619,7 +836,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         }));
         toast({ title: 'Stress tests generated', description: 'Answer one prompt to pressure-test the position instead of just polishing it.' });
       } catch (error) {
-        toast({ variant: 'destructive', title: 'AI Unavailable', description: error instanceof Error ? error.message : 'Noesis could not generate stress tests right now.' });
+        toast({ variant: 'destructive', title: 'AI Unavailable', description: noesisUserError(error, 'Noesis could not generate stress tests right now.') });
       }
     };
 
@@ -645,9 +862,23 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           <Button variant="ghost" onClick={closeEntry} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full"><ArrowLeft className="size-4 mr-2" /> Positions</Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => openEditor(selected)} className="h-8 bg-white border-border/60 shadow-sm rounded-full"><Edit className="size-4 mr-2" /> Edit</Button>
-            <Button variant="destructive" onClick={() => { onDeleteEntry(selected.id); closeEntry(); }} className="h-8 shadow-sm rounded-full"><Trash2 className="size-4 mr-2" /> Delete</Button>
+            <Button variant="destructive" onClick={() => setDeleteTarget(selected)} className="h-8 shadow-sm rounded-full"><Trash2 className="size-4 mr-2" /> Delete</Button>
           </div>
         </div>
+
+        {isRoutedEntry && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
+            <div>
+              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Positions Detail Route</div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                This position is opened directly from the URL. Refresh and browser history keep this belief workbench item in focus.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={closeEntry} className="rounded-full bg-background">
+              Return to Positions
+            </Button>
+          </div>
+        )}
 
         <Card className="p-6 mb-6 bg-white border-border/50 shadow-sm rounded-xl">
             <div className="mb-3 flex flex-wrap gap-2">
@@ -1051,7 +1282,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 id: item.id,
                 title: item.title,
                 meta: `${item.type} ${item.creator ? `• ${item.creator}` : ''}`.trim(),
-                onClick: onOpenSource ? () => onOpenSource(item.id) : undefined,
+                onClick: () => previewSource(item),
               }))}
             />
             <InfoPanel
@@ -1132,7 +1363,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 id: item.id,
                 title: item.text,
                 meta: item.status,
-                onClick: onOpenQuestion ? () => onOpenQuestion(item.id) : undefined,
+                onClick: () => previewInquiry(item),
               }))}
             />
             <EntityListPanel
@@ -1142,7 +1373,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 id: item.id,
                 title: item.title,
                 meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`,
-                onClick: onOpenWork ? () => onOpenWork(item.id) : undefined,
+                onClick: () => previewWork(item),
               }))}
             />
             <EntityListPanel
@@ -1152,7 +1383,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 id: item.id,
                 title: item.title,
                 meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`,
-                onClick: onOpenPractice ? () => onOpenPractice(item.id) : undefined,
+                onClick: () => previewPractice(item),
               }))}
             />
           </div>
@@ -1355,9 +1586,12 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         actions={
           <>
             <PositionStat label="Total" value={positionStats.total} />
-            <PositionStat label="Review" value={positionStats.underReview} />
-            <PositionStat label="Unsupported" value={positionStats.unsupported} />
-            <PositionStat label="Tensions" value={positionStats.tensions} />
+            <PositionStat label="Review" value={positionStats.underReview} active={viewFilter === 'under_review'} onClick={() => setViewFilter('under_review')} />
+            <PositionStat label="Unsupported" value={positionStats.unsupported} active={viewFilter === 'unsupported'} onClick={() => setViewFilter('unsupported')} />
+            <PositionStat label="Untested" value={positionStats.needsPractice} active={viewFilter === 'needs_practice'} onClick={() => setViewFilter('needs_practice')} />
+            <PositionStat label="Overconfident" value={positionStats.overconfident} active={viewFilter === 'overconfident'} onClick={() => setViewFilter('overconfident')} />
+            <PositionStat label="Stale" value={positionStats.stale} active={viewFilter === 'stale'} onClick={() => setViewFilter('stale')} />
+            <PositionStat label="Tensions" value={positionStats.tensions} active={viewFilter === 'tensions'} onClick={() => setViewFilter('tensions')} />
             <Button variant="outline" onClick={openIdeaDialog} size="sm" className="bg-white border-border/60 shadow-sm rounded-full h-9 font-bold">
               <Lightbulb className="size-4 mr-1.5" /> NEW IDEA
             </Button>
@@ -1374,6 +1608,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         searchPlaceholder="Search positions, principles..."
         resultCount={filteredEntries.length}
         resultLabel="positions"
+        activeFilterLabels={activeFilterLabels}
         onClear={clearPositionFilters}
         clearDisabled={!positionFiltersActive}
         className="mb-8"
@@ -1440,15 +1675,17 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       )}
 
       {viewMode === 'table' ? (
-        <PositionsTable entries={filteredEntries} onOpen={openEntry} />
+        <PositionsTable entries={filteredEntries} diagnostics={positionDiagnostics} links={links} practices={practices} onOpen={openEntry} />
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredEntries.map((entry) => (
-          <Card 
-            key={entry.id} 
-            className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-5 rounded-xl shadow-md" 
-            onClick={() => openEntry(entry.id)}
-          >
+        {filteredEntries.map((entry) => {
+          const diagnostic = positionDiagnostics.get(entry.id) || diagnosePosition(entry, links, practices);
+          return (
+            <Card 
+              key={entry.id} 
+              className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-5 rounded-xl shadow-md" 
+              onClick={() => openEntry(entry.id)}
+            >
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex-1 min-w-0">
                 <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 mb-1 font-bold">
@@ -1469,6 +1706,21 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
             <div className="mb-4 rounded-xl border border-border/40 bg-background/70 px-3 py-2 text-xs leading-5 text-muted-foreground">
               <span className="font-medium text-foreground/70">Workbench note:</span> {positionListReason(entry, links, viewFilter)}
+            </div>
+
+            <div className="mb-4 rounded-xl border border-border/40 bg-muted/10 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{diagnostic.label}</Badge>
+                <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{diagnostic.daysSinceUpdate}d since review</span>
+              </div>
+              <p className="text-xs italic leading-5 text-muted-foreground">{diagnostic.nextAction}</p>
+              {!!diagnostic.flags.length && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {diagnostic.flags.slice(0, 3).map((flag) => (
+                    <span key={flag} className="rounded-full bg-accent/10 px-2 py-0.5 font-code text-[8px] uppercase tracking-widest text-accent">{flag}</span>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-5 pt-4 border-t border-border/30">
@@ -1499,7 +1751,8 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               </div>
             </div>
           </Card>
-        ))}
+          );
+        })}
         {filteredEntries.length === 0 && (
           <div className="col-span-full">
             <PageEmptyState
@@ -1676,16 +1929,41 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           )}
         </DialogContent>
       </Dialog>
+      <ConfirmActionDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete position?"
+        description={`This removes "${deleteTarget?.title || 'this position'}" from Positions. Related sources, works, practices, and Evolution history will remain.`}
+        confirmLabel="Delete Position"
+        destructive
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          onDeleteEntry(deleteTarget.id);
+          if (selectedId === deleteTarget.id) closeEntry();
+          setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }
 
-function PositionStat({ label, value }: { label: string; value: number | string }) {
+function PositionStat({ label, value, active, onClick }: { label: string; value: number | string; active?: boolean; onClick?: () => void }) {
+  const Comp = onClick ? 'button' : 'div';
   return (
-    <div className="rounded-xl border border-border/50 bg-card px-4 py-2 text-right shadow-sm">
+    <Comp
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={cn(
+        'rounded-xl border border-border/50 bg-card px-4 py-2 text-right shadow-sm transition-all',
+        onClick && 'hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md',
+        active && 'border-accent/50 bg-accent/10 text-accent'
+      )}
+    >
       <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
       <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
-    </div>
+    </Comp>
   );
 }
 
@@ -1760,7 +2038,19 @@ function TensionResolutionPanel({
   );
 }
 
-function PositionsTable({ entries, onOpen }: { entries: VaultEntry[]; onOpen: (id: string) => void }) {
+function PositionsTable({
+  entries,
+  diagnostics,
+  links,
+  practices,
+  onOpen,
+}: {
+  entries: VaultEntry[];
+  diagnostics: Map<string, PositionDiagnostic>;
+  links: PhilosophicalLink[];
+  practices: Practice[];
+  onOpen: (id: string) => void;
+}) {
   if (!entries.length) {
     return (
       <div className="py-20 flex flex-col items-center justify-center text-center opacity-40">
@@ -1781,12 +2071,16 @@ function PositionsTable({ entries, onOpen }: { entries: VaultEntry[]; onOpen: (i
               <TableHead>Kind</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Confidence</TableHead>
-              <TableHead>Sources</TableHead>
+              <TableHead>Pressure</TableHead>
+              <TableHead>Health</TableHead>
+              <TableHead>Next Action</TableHead>
               <TableHead>Updated</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {entries.map((entry) => (
+            {entries.map((entry) => {
+              const diagnostic = diagnostics.get(entry.id) || diagnosePosition(entry, links, practices);
+              return (
               <TableRow key={entry.id} className="cursor-pointer" onClick={() => onOpen(entry.id)}>
                 <TableCell>
                   <div className="font-headline text-base font-semibold italic">{entry.title}</div>
@@ -1801,10 +2095,22 @@ function PositionsTable({ entries, onOpen }: { entries: VaultEntry[]; onOpen: (i
                     ))}
                   </div>
                 </TableCell>
-                <TableCell className="font-code text-xs">{(entry.sourceIds || []).length}</TableCell>
+                <TableCell className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {diagnostic.supportCount} support / {diagnostic.challengeCount} challenge / {diagnostic.practiceCount} tests
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{diagnostic.label}</Badge>
+                    {diagnostic.flags.slice(0, 2).map((flag) => (
+                      <Badge key={flag} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{flag}</Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell className="max-w-[260px] text-xs italic leading-5 text-muted-foreground">{diagnostic.nextAction}</TableCell>
                 <TableCell className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{safePositionDate(entry.dateUpdated || entry.dateCreated)}</TableCell>
               </TableRow>
-            ))}
+              );
+            })}
           </TableBody>
         </Table>
       </Card>
@@ -1820,9 +2126,17 @@ function PositionsTable({ entries, onOpen }: { entries: VaultEntry[]; onOpen: (i
               <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge>
             </div>
             <p className="mt-2 line-clamp-2 text-sm italic text-muted-foreground">{entry.statement || entry.description}</p>
+            <div className="mt-3 rounded-lg border border-border/50 bg-muted/10 p-3">
+              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+                {(diagnostics.get(entry.id) || diagnosePosition(entry, links, practices)).label}
+              </Badge>
+              <p className="mt-2 text-xs italic leading-5 text-muted-foreground">
+                {(diagnostics.get(entry.id) || diagnosePosition(entry, links, practices)).nextAction}
+              </p>
+            </div>
             <div className="mt-4 flex justify-between font-code text-[9px] uppercase tracking-widest text-muted-foreground">
               <span>{entry.confidence}/5 confidence</span>
-              <span>{(entry.sourceIds || []).length} sources</span>
+              <span>{(diagnostics.get(entry.id) || diagnosePosition(entry, links, practices)).supportCount} support</span>
             </div>
           </button>
         ))}

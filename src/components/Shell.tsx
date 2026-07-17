@@ -37,6 +37,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import type { GoalSettings, MediaType } from '@/lib/types';
 import { MEDIA_LABELS } from '@/lib/readex';
 import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
+import type { NoesisRouteTargetType } from '@/lib/noesis-routes';
+import { NOESIS_OBJECT_PREVIEW_EVENT, type NoesisObjectPreviewItem } from '@/lib/noesis-object-preview';
 import placeholderData from '@/app/lib/placeholder-images.json';
 
 export interface MovementMetrics {
@@ -54,6 +56,7 @@ export interface CommandPaletteItem {
   description: string;
   view: string;
   targetId?: string | null;
+  targetType?: NoesisRouteTargetType;
   objectType?: string;
   kind?: 'navigation' | 'object' | 'create';
   intellectualStage?: 'Encounter' | 'Capture' | 'Interpret' | 'Question' | 'Judge' | 'Express' | 'Test' | 'Revise' | 'Understand' | 'Navigate' | 'Configure';
@@ -72,6 +75,7 @@ export interface CommandPaletteItem {
     label: string;
     view: string;
     targetId?: string | null;
+    targetType?: NoesisRouteTargetType;
   }>;
 }
 
@@ -154,6 +158,7 @@ const defaultQuickActionsFor = (item: CommandPaletteItem | null) => {
         label: `Open in ${item.section || 'Workspace'}`,
         view: item.view,
         targetId: item.targetId,
+        targetType: item.targetType,
       },
     ];
   }
@@ -163,6 +168,7 @@ const defaultQuickActionsFor = (item: CommandPaletteItem | null) => {
         label: item.quickActionLabel || 'Start this workflow',
         view: item.view,
         targetId: item.targetId,
+        targetType: item.targetType,
       },
     ];
   }
@@ -277,6 +283,20 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const onPreviewObject = (event: Event) => {
+      const detail = (event as CustomEvent<NoesisObjectPreviewItem>).detail;
+      if (!detail?.id || !detail.label || !detail.view) return;
+      setPreviewItem({
+        ...detail,
+        kind: detail.kind || 'object',
+        activityClass: detail.activityClass || 'orientation',
+      });
+    };
+    window.addEventListener(NOESIS_OBJECT_PREVIEW_EVENT, onPreviewObject);
+    return () => window.removeEventListener(NOESIS_OBJECT_PREVIEW_EVENT, onPreviewObject);
   }, []);
 
   const sortedActiveGoals = useMemo(() => {
@@ -920,6 +940,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
                               ...previewItem,
                               view: action.view,
                               targetId: action.targetId,
+                              targetType: action.targetType,
                               quickActionLabel: action.label,
                             });
                           }}

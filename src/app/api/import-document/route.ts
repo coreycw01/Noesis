@@ -1,5 +1,6 @@
 
 import { NextResponse } from 'next/server';
+import { noesisUserError } from '@/lib/user-facing-errors';
 import { Buffer } from 'node:buffer';
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
@@ -160,6 +161,6 @@ export async function POST(request: Request) {
       importedAt: new Date().toISOString(),
     });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to import that document URL.' }, { status: 500 });
+    return NextResponse.json({ error: noesisUserError(error, 'Unable to import that document URL. Make sure it is public or published, then try again.') }, { status: 500 });
   }
 }

@@ -45,6 +45,7 @@ import { escapeTextAsHtml, sanitizeHtml } from '@/lib/sanitize';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 
 export type PageViewMode = 'vertical-continuous' | 'vertical-single' | 'horizontal-single';
 export type PageSize = 'letter' | 'a4';
@@ -52,7 +53,7 @@ export type PaperColor = 'blank' | 'warm' | 'sepia' | 'dark';
 export type PaperPattern = 'none' | 'notebook' | 'grid' | 'dotted' | 'dotted_grid';
 type WritingTool = 'text' | 'pencil' | 'eraser';
 type WorkRailAnnotation = Annotation & { sourceTitle: string; sourceId: string };
-type WorkFilter = 'all' | DraftType | DraftStatus | 'active_inquiries' | 'awaiting_revision' | 'external_docs';
+type WorkFilter = 'all' | DraftType | DraftStatus | 'active_inquiries' | 'awaiting_revision' | 'needs_sources' | 'needs_positions' | 'needs_structure' | 'unresolved' | 'external_docs';
 type BrowserSpeechRecognitionCtor = new () => {
   continuous: boolean;
   interimResults: boolean;
@@ -92,6 +93,10 @@ const workViewFilters: Array<{ id: WorkFilter; label: string }> = [
   { id: 'final', label: 'Final' },
   { id: 'active_inquiries', label: 'Active Inquiries' },
   { id: 'awaiting_revision', label: 'Awaiting Revision' },
+  { id: 'needs_sources', label: 'Needs Sources' },
+  { id: 'needs_positions', label: 'Needs Positions' },
+  { id: 'needs_structure', label: 'Needs Structure' },
+  { id: 'unresolved', label: 'Unresolved' },
   { id: 'external_docs', label: 'External Docs' },
 ];
 
@@ -204,6 +209,64 @@ function joinWorkLines(value?: string[]) {
   return (value || []).join('\n');
 }
 
+function isWritingWork(draft: Draft) {
+  return (draft.workCategory || workCategoryForDraft(draft.type)) === 'writing';
+}
+
+function workReadiness(draft: Draft, questions: Question[]) {
+  const category = draft.workCategory || workCategoryForDraft(draft.type);
+  const linkedActiveInquiry = (draft.questionIds || []).some((questionId) => {
+    const question = questions.find((item) => item.id === questionId);
+    return question && !['resolved', 'answered', 'archived', 'suspended', 'converted', 'no_longer_meaningful'].includes(question.status);
+  });
+  const structureParts = [
+    draft.argumentSkeleton?.centralClaim,
+    ...(draft.argumentSkeleton?.supportingClaims || []),
+    ...(draft.argumentSkeleton?.objections || []),
+    draft.argumentSkeleton?.conclusion,
+  ].filter((item) => item && String(item).trim());
+  const gaps: string[] = [];
+  if (!draft.purposeNote?.trim()) gaps.push('purpose');
+  if (isWritingWork(draft) && !(draft.sourceIds || []).length) gaps.push('sources');
+  if (['essay', 'argument', 'manuscript', 'source_analysis'].includes(draft.type) && !(draft.beliefIds || []).length) gaps.push('positions');
+  if (isWritingWork(draft) && structureParts.length === 0) gaps.push('argument structure');
+  if (linkedActiveInquiry && !draft.completionReflection?.unresolved?.trim()) gaps.push('unresolved question');
+
+  let label = 'ready to develop';
+  let nextAction = 'Keep drafting, then record what changed or remains unresolved before marking it final.';
+  if (gaps.includes('purpose')) {
+    label = 'needs purpose';
+    nextAction = 'Name what this work should draw from and what job it should do.';
+  } else if (gaps.includes('sources')) {
+    label = 'needs sources';
+    nextAction = 'Link source material or annotations so this work has evidence, not just momentum.';
+  } else if (gaps.includes('positions')) {
+    label = 'needs position';
+    nextAction = 'Link the position this work expresses, challenges, or revises.';
+  } else if (gaps.includes('argument structure')) {
+    label = 'needs structure';
+    nextAction = 'Add a central claim, supporting claims, objections, or conclusion.';
+  } else if (gaps.includes('unresolved question')) {
+    label = 'unresolved';
+    nextAction = 'Record what question remains open or what this work still cannot answer.';
+  } else if (draft.completionReflection?.unresolved?.trim()) {
+    label = 'awaiting revision';
+    nextAction = 'Resolve, narrow, or preserve the unresolved thread before finalizing.';
+  } else if (draft.status === 'final' || draft.status === 'published') {
+    label = 'ready to review';
+    nextAction = 'Review coherence against linked positions, sources, and objections.';
+  }
+
+  return {
+    category,
+    linkedActiveInquiry,
+    structureCount: structureParts.length,
+    gaps,
+    label,
+    nextAction,
+  };
+}
+
 export function Atelier({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<WorkFilter>('all');
@@ -217,6 +280,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [draftBuffer, setDraftBuffer] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Draft | null>(null);
 
   const [viewMode, setViewMode] = useState<PageViewMode>('vertical-continuous');
   const [pageSize, setPageSize] = useState<PageSize>('letter');
@@ -247,6 +311,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   const visibleDrafts = drafts
     .filter((draft) => {
       const category = draft.workCategory || workCategoryForDraft(draft.type);
+      const readiness = workReadiness(draft, questions);
       if (workTab !== 'all' && category !== workTab) return false;
       if (filter === 'all') return true;
       if (filter === 'active_inquiries') {
@@ -260,6 +325,10 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
           || Boolean(draft.argumentSkeleton?.objections?.length)
           || Boolean(draft.completionReflection?.unresolved);
       }
+      if (filter === 'needs_sources') return readiness.gaps.includes('sources');
+      if (filter === 'needs_positions') return readiness.gaps.includes('positions');
+      if (filter === 'needs_structure') return readiness.gaps.includes('argument structure');
+      if (filter === 'unresolved') return Boolean(draft.completionReflection?.unresolved?.trim()) || readiness.gaps.includes('unresolved question');
       if (filter === 'external_docs') return Boolean(draft.externalDoc);
       return draft.type === filter || draft.status === filter;
     })
@@ -276,7 +345,11 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
       || Boolean(draft.argumentSkeleton?.objections?.length)
       || Boolean(draft.completionReflection?.unresolved)
     ).length,
-  }), [drafts]);
+    needsSources: drafts.filter((draft) => workReadiness(draft, questions).gaps.includes('sources')).length,
+    needsPositions: drafts.filter((draft) => workReadiness(draft, questions).gaps.includes('positions')).length,
+    needsStructure: drafts.filter((draft) => workReadiness(draft, questions).gaps.includes('argument structure')).length,
+    unresolved: drafts.filter((draft) => Boolean(draft.completionReflection?.unresolved?.trim()) || workReadiness(draft, questions).gaps.includes('unresolved question')).length,
+  }), [drafts, questions]);
 
   const clearWorkFilters = () => {
     setSearch('');
@@ -285,6 +358,14 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   };
 
   const workFiltersActive = Boolean(search || workTab !== 'all' || filter !== 'all');
+  const workFilterLabel = workViewFilters.find((item) => item.id === filter)?.label
+    || DRAFT_LABELS[filter as DraftType]
+    || filter.replace(/_/g, ' ');
+  const activeWorkFilterLabels = [
+    search ? `Search: ${search}` : null,
+    workTab !== 'all' ? `Category: ${WORK_CATEGORY_LABELS[workTab]}` : null,
+    filter !== 'all' ? `View: ${workFilterLabel}` : null,
+  ].filter(Boolean) as string[];
 
   const updateActive = useCallback((patch: Partial<Draft>) => {
     const base = draftBuffer || activeFromStore;
@@ -529,6 +610,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
     : '';
 
   const activeTypeLabel = active ? DRAFT_LABELS[active.type] : '';
+  const isRoutedDraft = Boolean(active && focusedDraftId === active.id);
   const showPaperControls = !!active && activeCategory === 'writing';
   const showExternalDocControls = !!active && activeCategory === 'writing';
   const activeSources = useMemo(() => {
@@ -648,11 +730,25 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                     <Download className="size-4 mr-2" /> Export
                   </Button>
                 )}
-                <Button variant="destructive" size="sm" onClick={() => { onDeleteDraft(active.id); closeDraft(); }} className="h-9 w-9 rounded-full shadow-sm">
+                <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(active)} className="h-9 w-9 rounded-full shadow-sm">
                   <Trash2 className="size-4" />
                 </Button>
               </div>
             </div>
+
+            {isRoutedDraft && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
+                <div>
+                  <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Works Detail Route</div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    This workspace is opened directly from the URL. Browser refresh and back/forward keep this work in focus.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={closeDraft} className="rounded-full bg-background">
+                  Return to Works index
+                </Button>
+              </div>
+            )}
 
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-4">
@@ -889,6 +985,22 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             onConnect={connectExternalDoc}
           />
         )}
+        <ConfirmActionDialog
+          open={Boolean(deleteTarget)}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
+          title="Delete work?"
+          description={`This removes "${deleteTarget?.title || 'this work'}" from Works. Linked sources, inquiries, positions, practices, and Evolution history will remain.`}
+          confirmLabel="Delete Work"
+          destructive
+          onConfirm={() => {
+            if (!deleteTarget) return;
+            onDeleteDraft(deleteTarget.id);
+            if (activeId === deleteTarget.id) closeDraft();
+            setDeleteTarget(null);
+          }}
+        />
       </div>
     );
   }
@@ -918,6 +1030,8 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
         searchPlaceholder="Search works..."
         resultCount={visibleDrafts.length}
         resultLabel="works"
+        sortLabel="Updated newest first"
+        activeFilterLabels={activeWorkFilterLabels}
         onClear={clearWorkFilters}
         clearDisabled={!workFiltersActive}
         className="mb-8"
@@ -946,6 +1060,37 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
         </Select>
       </FilterToolbar>
 
+      <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <WorkLane
+          label="Needs Sources"
+          value={workStats.needsSources}
+          description="Writing that needs evidence or source material before it matures."
+          active={filter === 'needs_sources'}
+          onClick={() => setFilter(filter === 'needs_sources' ? 'all' : 'needs_sources')}
+        />
+        <WorkLane
+          label="Needs Positions"
+          value={workStats.needsPositions}
+          description="Argumentative works not yet linked to the claims they express."
+          active={filter === 'needs_positions'}
+          onClick={() => setFilter(filter === 'needs_positions' ? 'all' : 'needs_positions')}
+        />
+        <WorkLane
+          label="Needs Structure"
+          value={workStats.needsStructure}
+          description="Works missing a central claim, support, objection, or conclusion."
+          active={filter === 'needs_structure'}
+          onClick={() => setFilter(filter === 'needs_structure' ? 'all' : 'needs_structure')}
+        />
+        <WorkLane
+          label="Unresolved"
+          value={workStats.unresolved}
+          description="Drafts carrying an open question or unresolved ending."
+          active={filter === 'unresolved'}
+          onClick={() => setFilter(filter === 'unresolved' ? 'all' : 'unresolved')}
+        />
+      </section>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {visibleDrafts.map((draft) => (
           (() => {
@@ -956,6 +1101,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             const needsRevision = ['rough', 'drafting', 'developing', 'revising', 'revised'].includes(draft.status)
               || Boolean(draft.argumentSkeleton?.objections?.length)
               || Boolean(draft.completionReflection?.unresolved);
+            const readiness = workReadiness(draft, questions);
             return (
           <Card
             key={draft.id}
@@ -985,6 +1131,11 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                     Revise
                   </Badge>
                 )}
+                {!!readiness.gaps.length && (
+                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-rose-50 text-rose-700 border-transparent rounded-full font-bold px-2 py-0.5">
+                    {readiness.gaps.length} gaps
+                  </Badge>
+                )}
                 <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter bg-white shadow-sm border-border/60 rounded-full font-bold px-2 py-0.5">
                   {draft.status}
                 </Badge>
@@ -997,6 +1148,21 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             {draft.purposeNote && (
               <p className="mb-5 line-clamp-2 text-sm italic leading-6 text-muted-foreground">{draft.purposeNote}</p>
             )}
+
+            <div className="mb-5 rounded-xl border border-border/40 bg-muted/10 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{readiness.label}</Badge>
+                <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{readiness.structureCount} structure</span>
+              </div>
+              <p className="text-xs italic leading-5 text-muted-foreground">{readiness.nextAction}</p>
+              {!!readiness.gaps.length && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {readiness.gaps.slice(0, 3).map((gap) => (
+                    <span key={gap} className="rounded-full bg-accent/10 px-2 py-0.5 font-code text-[8px] uppercase tracking-widest text-accent">{gap}</span>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="flex flex-wrap gap-1.5 mb-6">
               <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-accent/10 text-accent border-transparent rounded-full font-bold">
@@ -1274,6 +1440,27 @@ function WorkStat({ label, value }: { label: string; value: number | string }) {
       <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
       <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
     </div>
+  );
+}
+
+function WorkLane({ label, value, description, active, onClick }: { label: string; value: number; description: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'group rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
+        active ? 'border-accent/50 bg-accent/10 ring-2 ring-accent/15' : 'border-border/50 bg-card'
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-code text-[8px] font-bold uppercase tracking-[0.22em] text-muted-foreground/60">{label}</div>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
+        </div>
+        <div className="font-headline text-3xl font-bold italic leading-none text-primary group-hover:text-accent">{value}</div>
+      </div>
+    </button>
   );
 }
 

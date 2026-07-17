@@ -15,6 +15,7 @@ import {
   suggestAnnotationConsequences,
   suggestPositionDrafts,
 } from '@/ai/flows/philosophy-suggestions';
+import { noesisUserError } from '@/lib/user-facing-errors';
 
 export const runtime = 'nodejs';
 
@@ -125,8 +126,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ result });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'AI request failed. Please try again.';
-    const status = /api key|configured/i.test(message) ? 503 : 500;
+    const rawMessage = error instanceof Error ? error.message : 'AI request failed. Please try again.';
+    const message = noesisUserError(error, 'The AI request failed. Your workspace data was not changed; try again when the provider is available.');
+    const status = /api key|configured|credential|quota|resource_exhausted|429/i.test(rawMessage) ? 503 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

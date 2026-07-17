@@ -17,6 +17,7 @@ interface PageStateProps {
   firstAction?: string;
   filterCause?: string;
   loadingLayout?: 'desk' | 'map' | 'list' | 'detail' | 'studio' | 'timeline';
+  loadingDetails?: string[];
 }
 
 interface PageErrorStateProps extends PageStateProps {
@@ -47,7 +48,7 @@ export function PageEmptyState({ title, description, icon: Icon = Search, action
   );
 }
 
-export function PageLoadingState({ title, description = 'Syncing the data this page needs.', className, loadingLayout = 'list' }: Omit<PageStateProps, 'icon' | 'action'>) {
+export function PageLoadingState({ title, description = 'Syncing the data this page needs.', className, loadingLayout = 'list', loadingDetails }: Omit<PageStateProps, 'icon' | 'action'>) {
   return (
     <div className={cn('min-h-[60vh] flex-1 p-8', className)} aria-busy="true" aria-live="polite">
       <div className="mx-auto w-full max-w-7xl">
@@ -58,6 +59,15 @@ export function PageLoadingState({ title, description = 'Syncing the data this p
               {title}
             </div>
             <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{description}</p>
+            {loadingDetails?.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {loadingDetails.map((detail) => (
+                  <span key={detail} className="rounded-full border border-border/60 bg-background/70 px-2.5 py-1 font-code text-[8px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                    {detail}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
           <div className="hidden h-9 w-40 rounded-full bg-muted/40 sm:block" />
         </div>

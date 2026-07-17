@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import type { AtlasRegionLabel, AtlasRegionViewModel, AtlasTerritoryCard } from './atlas-diagnostics';
 import { regionActionDisplay, regionLabelDisplay } from './atlas-diagnostics';
 import type { Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
+import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 
 interface AtlasTerritoryViewProps {
   cards: AtlasTerritoryCard[];
@@ -59,6 +60,134 @@ export function AtlasTerritoryView({
   const regionWorks = drafts.filter((item) => selectedRegion?.workIds.includes(item.id));
   const regionSources = media.filter((item) => selectedRegion?.sourceIds.includes(item.id));
   const regionConcepts = concepts.filter((item) => selectedRegion?.conceptIds.includes(item.id));
+
+  const previewConcept = (name: string) => {
+    const concept = concepts.find((item) => item.name.toLowerCase() === name.toLowerCase());
+    openNoesisObjectPreview({
+      id: `atlas-concept-${concept?.id || name}`,
+      label: name,
+      section: 'Concept',
+      description: concept?.description || 'Open this concept from the Atlas territory.',
+      view: 'concepts',
+      targetId: concept?.id || null,
+      targetType: concept?.id ? 'concept' : undefined,
+      objectType: 'Interpretive Object',
+      kind: 'object',
+      intellectualStage: 'Interpret',
+      hierarchyLevel: 'Interpretive',
+      currentState: concept?.philosophyStatus || 'concept',
+      summary: concept?.description || 'A dominant concept shaping this territory.',
+      matchedBecause: `This concept is one of the dominant terms in ${selectedRegion?.name || 'the selected territory'}.`,
+      connectedConcepts: concept?.links || selectedRegion?.dominantConcepts || [],
+      relatedObjects: [
+        `${regionPositions.length} regional positions`,
+        `${regionQuestions.length} regional inquiries`,
+        `${regionSources.length} regional sources`,
+      ],
+      lastChangedAt: concept?.dateUpdated || concept?.dateCreated || selectedRegion?.lastActiveAt,
+      quickActionLabel: 'Open Concept',
+      quickActions: [
+        { label: 'Open Concept', view: 'concepts', targetId: concept?.id || null, targetType: concept?.id ? 'concept' : undefined },
+        { label: 'Open Territory Map', view: 'atlas' },
+      ],
+      thinkingEventHint: 'Previewing a concept is orientation. Redefining, merging, splitting, or materially relinking it should create the thinking event.',
+    });
+  };
+
+  const previewPosition = (position: VaultEntry) => {
+    openNoesisObjectPreview({
+      id: `atlas-position-${position.id}`,
+      label: position.title || position.statement,
+      section: 'Position',
+      description: position.status || 'Open position workbench.',
+      view: 'vault',
+      targetId: position.id,
+      targetType: 'position',
+      objectType: 'Judgment Object',
+      kind: 'object',
+      intellectualStage: 'Judge',
+      hierarchyLevel: 'Judgment',
+      currentState: position.status,
+      summary: position.statement || position.description || 'A position shaping this territory.',
+      matchedBecause: `This position belongs to the ${selectedRegion?.name || 'selected'} territory through concepts, evidence, or links.`,
+      connectedConcepts: position.tags || selectedRegion?.dominantConcepts || [],
+      relatedObjects: [
+        `${position.sourceIds?.length || 0} linked sources`,
+        `${(position.evidenceFor || []).length} supports`,
+        `${(position.evidenceAgainst || []).length} challenges`,
+      ],
+      lastChangedAt: position.dateUpdated || position.dateCreated || selectedRegion?.lastActiveAt,
+      quickActionLabel: 'Open Position',
+      quickActions: [
+        { label: 'Open Position Workbench', view: 'vault', targetId: position.id, targetType: 'position' },
+        { label: 'Open Region Map', view: 'atlas' },
+      ],
+      thinkingEventHint: 'Previewing a position is orientation. Support, challenge, confidence changes, stress tests, abandonment, and revision should create events.',
+    });
+  };
+
+  const previewInquiry = (question: Question) => {
+    openNoesisObjectPreview({
+      id: `atlas-inquiry-${question.id}`,
+      label: question.text,
+      section: 'Inquiry',
+      description: question.status || 'Open inquiry workspace.',
+      view: 'questions',
+      targetId: question.id,
+      targetType: 'inquiry',
+      objectType: 'Interpretive Object',
+      kind: 'object',
+      intellectualStage: 'Question',
+      hierarchyLevel: 'Interpretive',
+      currentState: question.status,
+      summary: question.answer || 'An unresolved question in this territory.',
+      matchedBecause: `This inquiry contributes uncertainty inside ${selectedRegion?.name || 'the selected territory'}.`,
+      connectedConcepts: selectedRegion?.dominantConcepts || [],
+      relatedObjects: [
+        `${question.sourceIds?.length || 0} linked sources`,
+        `${question.beliefIds?.length || 0} linked positions`,
+        `${question.draftIds?.length || 0} linked works`,
+      ],
+      lastChangedAt: question.dateUpdated || question.dateCreated || selectedRegion?.lastActiveAt,
+      quickActionLabel: 'Open Inquiry',
+      quickActions: [
+        { label: 'Open Investigation', view: 'questions', targetId: question.id, targetType: 'inquiry' },
+        { label: 'Open Region Map', view: 'atlas' },
+      ],
+      thinkingEventHint: 'Previewing an inquiry is orientation. Reformulating, adding assumptions, resolving, or promoting it should create history.',
+    });
+  };
+
+  const previewSource = (source: Media) => {
+    openNoesisObjectPreview({
+      id: `atlas-source-${source.id}`,
+      label: source.title,
+      section: 'Source',
+      description: source.creator || source.type || 'Open source workspace.',
+      view: 'library',
+      targetId: source.id,
+      targetType: 'source',
+      objectType: 'Raw Input',
+      kind: 'object',
+      intellectualStage: 'Encounter',
+      hierarchyLevel: 'Raw',
+      currentState: source.status,
+      summary: source.description || source.capture?.after?.coreArgument || source.capture?.before?.openQuestion || 'A source feeding this territory.',
+      matchedBecause: `This source anchors ${selectedRegion?.name || 'the selected territory'} through concepts, annotations, or positions.`,
+      connectedConcepts: source.tags || selectedRegion?.dominantConcepts || [],
+      relatedObjects: [
+        `${source.annotations?.length || 0} annotations`,
+        `${regionPositions.filter((position) => (position.sourceIds || []).includes(source.id)).length} regional positions influenced`,
+      ],
+      lastChangedAt: source.dateUpdated || source.dateAdded || selectedRegion?.lastActiveAt,
+      quickActionLabel: 'Open Source',
+      quickActions: [
+        { label: 'Open Source Workspace', view: 'library', targetId: source.id, targetType: 'source' },
+        { label: 'Process Annotations', view: 'annotations' },
+      ],
+      thinkingEventHint: 'Previewing a source is orientation. Completing reflection, distilling a claim, or creating annotations should record intellectual development.',
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -147,7 +276,7 @@ export function AtlasTerritoryView({
                   <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Dominant concepts</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {selectedRegion.dominantConcepts.length ? selectedRegion.dominantConcepts.map((name) => (
-                      <button key={name} type="button" onClick={() => onOpenConcept?.(name)} className="rounded-full border border-border/60 bg-card px-3 py-1 font-code text-[10px] uppercase tracking-widest text-foreground transition-colors hover:border-accent hover:text-accent">
+                      <button key={name} type="button" onClick={() => previewConcept(name)} className="rounded-full border border-border/60 bg-card px-3 py-1 font-code text-[10px] uppercase tracking-widest text-foreground transition-colors hover:border-accent hover:text-accent">
                         {name}
                       </button>
                     )) : <span className="text-sm italic text-muted-foreground">No dominant concepts yet.</span>}
@@ -172,7 +301,7 @@ export function AtlasTerritoryView({
                     <h4 className="font-headline text-lg font-semibold italic text-foreground">Positions</h4>
                   </div>
                   {regionPositions.slice(0, 3).map((position) => (
-                    <button key={position.id} type="button" onClick={() => onOpenPosition?.(position.id)} className="block w-full rounded-2xl border border-border/60 bg-muted/15 p-3 text-left transition-colors hover:border-accent/40">
+                    <button key={position.id} type="button" onClick={() => previewPosition(position)} className="block w-full rounded-2xl border border-border/60 bg-muted/15 p-3 text-left transition-colors hover:border-accent/40">
                       <div className="font-headline text-base font-semibold italic text-foreground">{position.title}</div>
                       <div className="line-clamp-2 text-sm text-muted-foreground">{position.statement || position.description}</div>
                     </button>
@@ -184,7 +313,7 @@ export function AtlasTerritoryView({
                     <h4 className="font-headline text-lg font-semibold italic text-foreground">Open Inquiries</h4>
                   </div>
                   {regionQuestions.slice(0, 3).map((question) => (
-                    <button key={question.id} type="button" onClick={() => onOpenQuestion?.(question.id)} className="block w-full rounded-2xl border border-border/60 bg-muted/15 p-3 text-left transition-colors hover:border-accent/40">
+                    <button key={question.id} type="button" onClick={() => previewInquiry(question)} className="block w-full rounded-2xl border border-border/60 bg-muted/15 p-3 text-left transition-colors hover:border-accent/40">
                       <div className="font-headline text-base font-semibold italic text-foreground">{question.text}</div>
                       <div className="text-sm text-muted-foreground">{question.answer || 'Still unresolved.'}</div>
                     </button>
@@ -224,7 +353,7 @@ export function AtlasTerritoryView({
                   </div>
                   <div className="space-y-2">
                     {regionSources.slice(0, 3).map((source) => (
-                      <button key={source.id} type="button" onClick={() => onOpenSource?.(source.id)} className="block text-left text-sm text-muted-foreground transition-colors hover:text-accent">
+                      <button key={source.id} type="button" onClick={() => previewSource(source)} className="block text-left text-sm text-muted-foreground transition-colors hover:text-accent">
                         {source.title}
                       </button>
                     ))}

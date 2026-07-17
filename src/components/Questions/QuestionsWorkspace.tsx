@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
+import { noesisUserError } from '@/lib/user-facing-errors';
 
 interface QuestionsWorkspaceProps {
   questions: Question[];
@@ -39,11 +40,12 @@ interface QuestionsWorkspaceProps {
   onOpenQuestionRoute?: (id: string | null) => void;
 }
 
-type FilterType = 'all' | 'active' | 'awaiting_evidence' | 'needs_assumptions' | 'needs_candidates' | 'ready_to_resolve' | 'comparing_answers' | 'enduring' | 'partially_answered' | 'suspended' | 'resolved' | 'annotations';
+type FilterType = 'all' | 'active' | 'needs_frame' | 'awaiting_evidence' | 'needs_assumptions' | 'needs_candidates' | 'ready_to_resolve' | 'comparing_answers' | 'enduring' | 'partially_answered' | 'suspended' | 'resolved' | 'annotations';
 
 const INQUIRY_FILTER_LABELS: Record<FilterType, string> = {
   all: 'All',
   active: 'Active Investigations',
+  needs_frame: 'Needs Frame',
   awaiting_evidence: 'Awaiting Evidence',
   needs_assumptions: 'Needs Assumptions',
   needs_candidates: 'Needs Candidate Answers',
@@ -87,8 +89,24 @@ function inquiryReadyToResolve(question: Question) {
   return Boolean(question.answer?.trim()) && !question.resolutionSummary?.trim() && !isInquiryClosed(question);
 }
 
+function inquiryFrameGaps(question: Question) {
+  const gaps: string[] = [];
+  if (!question.whyItMatters?.trim()) gaps.push('stakes');
+  if (!question.currentIntuition?.trim() && !question.answer?.trim()) gaps.push('intuition');
+  if (inquiryNeedsAssumptions(question)) gaps.push('assumptions');
+  if (inquiryNeedsEvidence(question)) gaps.push('evidence');
+  if (inquiryNeedsCandidateAnswers(question)) gaps.push('candidate answer');
+  if (question.answer?.trim() && !question.resolutionSummary?.trim()) gaps.push('resolution summary');
+  return gaps;
+}
+
+function inquiryReadinessScore(question: Question) {
+  return Math.max(0, 6 - inquiryFrameGaps(question).length);
+}
+
 function inquiryDiagnosticFlags(question: Question) {
   const flags: Array<{ id: string; label: string; detail: string; tone: 'urgent' | 'review' | 'growth' }> = [];
+  if (!question.whyItMatters?.trim()) flags.push({ id: 'stakes', label: 'Stakes', detail: 'Explain why this question matters before treating it as a serious investigation.', tone: 'review' });
   if (inquiryNeedsAssumptions(question)) flags.push({ id: 'assumptions', label: 'Assumptions', detail: 'Name what the question is taking for granted.', tone: 'review' });
   if (inquiryNeedsEvidence(question)) flags.push({ id: 'evidence', label: 'Evidence', detail: 'Attach sources, annotations, or examples that bear on this inquiry.', tone: 'urgent' });
   if (inquiryNeedsCandidateAnswers(question)) flags.push({ id: 'candidates', label: 'Candidate', detail: 'Write at least one possible answer before resolving or forming a position.', tone: 'growth' });
@@ -117,6 +135,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
   const filtered = all.filter((question) => {
     let typeOk = true;
     if (filter === 'active') typeOk = ['captured', 'clarifying', 'open', 'investigating', 'reopened', 'under_tension'].includes(question.status) || (!question.answer && !isInquiryClosed(question));
+    if (filter === 'needs_frame') typeOk = inquiryFrameGaps(question).length > 0 && !isInquiryClosed(question);
     if (filter === 'awaiting_evidence') typeOk = question.status === 'gathering_evidence' || inquiryNeedsEvidence(question);
     if (filter === 'needs_assumptions') typeOk = inquiryNeedsAssumptions(question);
     if (filter === 'needs_candidates') typeOk = inquiryNeedsCandidateAnswers(question);
@@ -174,6 +193,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           onUpdateQuestion={onUpdateQuestion}
           onFormPositionFromInquiry={onFormPositionFromInquiry}
           onAiFeedback={(title, description, variant) => toast({ title, description, ...(variant ? { variant } : {}) })}
+          routeOwned={focusedQuestionId === selected.id}
         />
     );
   }
@@ -182,6 +202,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
   const openCount = all.filter((q) => ['captured', 'clarifying', 'open', 'investigating', 'reopened', 'under_tension'].includes(q.status) || (!q.answer && !isInquiryClosed(q))).length;
   const investigatingCount = all.filter((q) => q.status === 'investigating' || q.status === 'gathering_evidence' || q.status === 'comparing_answers').length;
   const stalledCount = all.filter((q) => q.status === 'suspended' || q.status === 'enduring' || q.status === 'under_tension' || q.status === 'reopened').length;
+  const needsFrameCount = all.filter((q) => inquiryFrameGaps(q).length > 0 && !isInquiryClosed(q)).length;
   const needsAssumptionsCount = all.filter(inquiryNeedsAssumptions).length;
   const needsEvidenceCount = all.filter(inquiryNeedsEvidence).length;
   const readyToResolveCount = all.filter(inquiryReadyToResolve).length;
@@ -191,6 +212,10 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
     setFilter('all');
   };
   const inquiryFiltersActive = Boolean(search || filter !== 'all');
+  const activeFilterLabels = [
+    search ? `Search: ${search}` : null,
+    filter !== 'all' ? `View: ${INQUIRY_FILTER_LABELS[filter]}` : null,
+  ].filter(Boolean) as string[];
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
@@ -210,7 +235,14 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
         }
       />
 
-      <section className="mb-8 grid gap-4 md:grid-cols-3">
+      <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <InquiryLane
+          label="Needs Frame"
+          value={needsFrameCount}
+          description="Questions missing stakes, intuition, assumptions, or resolution criteria."
+          active={filter === 'needs_frame'}
+          onClick={() => setFilter(filter === 'needs_frame' ? 'all' : 'needs_frame')}
+        />
         <InquiryLane
           label="Needs Assumptions"
           value={needsAssumptionsCount}
@@ -240,6 +272,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
         searchPlaceholder="Search inquiries, answers, evidence..."
         resultCount={filtered.length}
         resultLabel="inquiries"
+        activeFilterLabels={activeFilterLabels}
         onClear={clearInquiryFilters}
         clearDisabled={!inquiryFiltersActive}
         className="mb-8"
@@ -271,6 +304,8 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           const activeBranches = branches.filter((branch) => branch.state === 'active').length;
           const neededBranches = branches.filter((branch) => branch.state === 'needed').length;
           const diagnosticFlags = inquiryDiagnosticFlags(question);
+          const frameGaps = inquiryFrameGaps(question);
+          const readinessScore = inquiryReadinessScore(question);
 
           return (
             <Card key={question.id} className="border border-accent/20 bg-white/95 p-6 rounded-xl shadow-md">
@@ -309,7 +344,10 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
               <div className="mb-4 rounded-xl border border-border/50 bg-background/70 p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Investigation Shape</span>
-                  <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{inquiryType}</Badge>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{inquiryType}</Badge>
+                    <Badge variant={readinessScore >= 5 ? 'outline' : 'secondary'} className="rounded-full font-code text-[8px] uppercase tracking-widest">readiness {readinessScore}/6</Badge>
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg border border-border/40 bg-card px-2 py-2">
@@ -325,6 +363,11 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
                     <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">needed</div>
                   </div>
                 </div>
+                {!!frameGaps.length && (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
+                    <span className="font-code text-[8px] uppercase tracking-widest">Frame gaps:</span> {frameGaps.slice(0, 4).join(', ')}
+                  </div>
+                )}
               </div>
 
               {diagnosticFlags.length > 0 && (
@@ -472,7 +515,7 @@ function branchNextStep(label: string) {
   return 'Choose the next concrete investigation move.';
 }
 
-function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onFormPositionFromInquiry, onAiFeedback }: {
+function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onFormPositionFromInquiry, onAiFeedback, routeOwned = false }: {
   question: Question;
   sources: Media[];
   concepts: string[];
@@ -482,6 +525,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   onUpdateQuestion: (question: Question) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   onAiFeedback: (title: string, description: string, variant?: 'default' | 'destructive') => void;
+  routeOwned?: boolean;
 }) {
   const [phase, setPhase] = useState<DialogPhase>('write');
   const [initialAnswer, setInitialAnswer] = useState(question.answer || '');
@@ -637,7 +681,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
         onAiFeedback('AI reflection complete.', 'A Socratic probe is ready for your next response.');
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'AI reflection failed. Please try again.');
+      setError(noesisUserError(error, 'AI reflection failed. Please try again.'));
     } finally {
       setIsLoading(false);
     }
@@ -667,7 +711,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
         onAiFeedback('Another probe generated.', 'AI found one more tension to explore before forming a position.');
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'AI reflection failed. Please try again.');
+      setError(noesisUserError(error, 'AI reflection failed. Please try again.'));
     } finally {
       setIsLoading(false);
     }
@@ -685,6 +729,19 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       <Button variant="ghost" onClick={onBack} className="mb-8 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50">
         <ArrowLeft className="size-4 mr-2" /> Back to Inquiries
       </Button>
+      {routeOwned && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
+          <div>
+            <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Inquiries Detail Route</div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This inquiry is opened directly from the URL. Refresh and browser history keep the investigation in focus.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={onBack} className="rounded-full bg-background">
+            Return to Inquiries
+          </Button>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-10">
         <div>
           <Card className="mb-6 rounded-2xl border border-accent/10 bg-white p-6 shadow-sm">

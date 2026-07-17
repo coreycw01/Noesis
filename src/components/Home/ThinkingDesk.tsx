@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { allAnnotations } from '@/lib/readex';
+import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import type {
   Concept,
   Draft,
@@ -86,6 +87,7 @@ interface ThinkingDeskProps {
   unknowns: Unknown[];
   links: PhilosophicalLink[];
   onNavigate: (target: HomeTarget) => void;
+  onCreateInquiry?: (data: Partial<Question>) => Question;
 }
 
 function recentDate(value?: string) {
@@ -133,6 +135,7 @@ export function ThinkingDesk({
   unknowns,
   links,
   onNavigate,
+  onCreateInquiry,
 }: ThinkingDeskProps) {
   const [mode, setMode] = useState<HomeMode>('continue');
   const [provocationAngle, setProvocationAngle] = useState(0);
@@ -521,6 +524,223 @@ export function ThinkingDesk({
 
   const hasWorkspace = media.length + concepts.length + inquiries.length + positions.length + works.length + practices.length > 0;
 
+  const previewOrNavigate = (
+    target: HomeTarget,
+    fallback?: {
+      label?: string;
+      description?: string;
+      reason?: string;
+      section?: string;
+      state?: string;
+      stage?: 'Encounter' | 'Capture' | 'Interpret' | 'Question' | 'Judge' | 'Express' | 'Test' | 'Revise' | 'Understand' | 'Navigate' | 'Configure';
+    }
+  ) => {
+    if (!target.targetId) {
+      onNavigate(target);
+      return;
+    }
+
+    if (target.view === 'vault') {
+      const position = positions.find((item) => item.id === target.targetId);
+      if (position) {
+        openNoesisObjectPreview({
+          id: `home-position-${position.id}`,
+          label: position.title || position.statement,
+          section: 'Position',
+          description: fallback?.description || position.status || 'Open position workbench.',
+          view: 'vault',
+          targetId: position.id,
+          targetType: 'position',
+          objectType: 'Judgment Object',
+          kind: 'object',
+          intellectualStage: fallback?.stage || 'Judge',
+          hierarchyLevel: 'Judgment',
+          currentState: position.status,
+          summary: position.statement || position.description || fallback?.reason || 'A position needing attention.',
+          matchedBecause: fallback?.reason || 'Home selected this position as an unfinished intellectual edge.',
+          connectedConcepts: position.tags || [],
+          relatedObjects: [
+            `${position.sourceIds?.length || 0} sources`,
+            `${(position.evidenceFor || []).length} supports`,
+            `${(position.evidenceAgainst || []).length} challenges`,
+            `${practices.filter((practice) => (practice.positionIds || []).includes(position.id)).length} practices`,
+          ],
+          lastChangedAt: position.dateUpdated || position.dateCreated,
+          quickActionLabel: fallback?.label || 'Open Position',
+          quickActions: [
+            { label: 'Open Position Workbench', view: 'vault', targetId: position.id, targetType: 'position' },
+            { label: 'View Evolution', view: 'evolution' },
+          ],
+          thinkingEventHint: 'Previewing a position is orientation. Support, challenge, confidence changes, stress tests, abandonment, and revision should create events.',
+        });
+        return;
+      }
+    }
+
+    if (target.view === 'questions') {
+      const inquiry = inquiries.find((item) => item.id === target.targetId);
+      if (inquiry) {
+        openNoesisObjectPreview({
+          id: `home-inquiry-${inquiry.id}`,
+          label: inquiry.text,
+          section: 'Inquiry',
+          description: fallback?.description || inquiry.status || 'Open inquiry workspace.',
+          view: 'questions',
+          targetId: inquiry.id,
+          targetType: 'inquiry',
+          objectType: 'Interpretive Object',
+          kind: 'object',
+          intellectualStage: fallback?.stage || 'Question',
+          hierarchyLevel: 'Interpretive',
+          currentState: inquiry.status,
+          summary: inquiry.answer || fallback?.reason || 'An inquiry needing development.',
+          matchedBecause: fallback?.reason || 'Home selected this inquiry as an open investigation.',
+          connectedConcepts: concepts.filter((concept) => inquiry.conceptIds?.includes(concept.id)).map((concept) => concept.name),
+          relatedObjects: [
+            `${inquiry.sourceIds?.length || 0} sources`,
+            `${inquiry.beliefIds?.length || 0} positions`,
+            `${inquiry.draftIds?.length || 0} works`,
+          ],
+          lastChangedAt: inquiry.dateUpdated || inquiry.dateCreated,
+          quickActionLabel: fallback?.label || 'Open Inquiry',
+          quickActions: [
+            { label: 'Open Investigation', view: 'questions', targetId: inquiry.id, targetType: 'inquiry' },
+            { label: 'Open Positions', view: 'vault' },
+          ],
+          thinkingEventHint: 'Previewing an inquiry is orientation. Reformulating, adding assumptions, resolving, or promoting it should create history.',
+        });
+        return;
+      }
+    }
+
+    if (target.view === 'library') {
+      const source = media.find((item) => item.id === target.targetId);
+      if (source) {
+        openNoesisObjectPreview({
+          id: `home-source-${source.id}`,
+          label: source.title,
+          section: 'Source',
+          description: fallback?.description || source.creator || source.type || 'Open source workspace.',
+          view: 'library',
+          targetId: source.id,
+          targetType: 'source',
+          objectType: 'Raw Input',
+          kind: 'object',
+          intellectualStage: fallback?.stage || 'Encounter',
+          hierarchyLevel: 'Raw',
+          currentState: source.status,
+          summary: source.description || source.capture?.after?.coreArgument || source.capture?.before?.openQuestion || fallback?.reason || 'A source needing reflection.',
+          matchedBecause: fallback?.reason || 'Home selected this source as a source-work item.',
+          connectedConcepts: source.tags || [],
+          relatedObjects: [
+            `${source.annotations?.length || 0} annotations`,
+            `${positions.filter((position) => (position.sourceIds || []).includes(source.id)).length} positions influenced`,
+            `${works.filter((work) => (work.sourceIds || []).includes(source.id)).length} works linked`,
+          ],
+          lastChangedAt: source.dateUpdated || source.dateAdded,
+          quickActionLabel: fallback?.label || 'Open Source',
+          quickActions: [
+            { label: 'Open Source Workspace', view: 'library', targetId: source.id, targetType: 'source' },
+            { label: 'Process Annotations', view: 'annotations' },
+          ],
+          thinkingEventHint: 'Previewing a source is orientation. Completing reflection, distilling a claim, or creating annotations should record intellectual development.',
+        });
+        return;
+      }
+    }
+
+    if (target.view === 'writing') {
+      const work = works.find((item) => item.id === target.targetId);
+      if (work) {
+        openNoesisObjectPreview({
+          id: `home-work-${work.id}`,
+          label: work.title,
+          section: 'Work',
+          description: fallback?.description || `${work.type.replace(/_/g, ' ')} - ${work.status}`,
+          view: 'writing',
+          targetId: work.id,
+          targetType: 'work',
+          objectType: 'Expression Object',
+          kind: 'object',
+          intellectualStage: fallback?.stage || 'Express',
+          hierarchyLevel: 'Expression',
+          currentState: work.status,
+          summary: work.body || work.draftContent || fallback?.reason || 'A work needing continuation.',
+          matchedBecause: fallback?.reason || 'Home selected this work as unfinished expression.',
+          connectedConcepts: work.conceptTags || [],
+          relatedObjects: [
+            `${work.sourceIds?.length || 0} sources`,
+            `${work.questionIds?.length || 0} inquiries`,
+            `${work.beliefIds?.length || 0} positions`,
+          ],
+          lastChangedAt: work.dateUpdated || work.dateCreated,
+          quickActionLabel: fallback?.label || 'Open Work',
+          quickActions: [
+            { label: 'Open Work Studio', view: 'writing', targetId: work.id, targetType: 'work' },
+            { label: 'Open Positions', view: 'vault' },
+          ],
+          thinkingEventHint: 'Previewing a work is orientation. Completing, substantially revising, or synthesizing linked ideas should record a thinking event.',
+        });
+        return;
+      }
+    }
+
+    if (target.view === 'practices') {
+      const practice = practices.find((item) => item.id === target.targetId);
+      if (practice) {
+        openNoesisObjectPreview({
+          id: `home-practice-${practice.id}`,
+          label: practice.title,
+          section: 'Practice',
+          description: fallback?.description || `${practice.type.replace(/_/g, ' ')} - ${practice.status}`,
+          view: 'practices',
+          targetId: practice.id,
+          targetType: 'practice',
+          objectType: 'Experiment Object',
+          kind: 'object',
+          intellectualStage: fallback?.stage || 'Test',
+          hierarchyLevel: 'Expression',
+          currentState: practice.status,
+          summary: practice.description || practice.notes || fallback?.reason || 'A practice needing observation.',
+          matchedBecause: fallback?.reason || 'Home selected this practice as lived evidence that needs attention.',
+          connectedConcepts: practice.conceptTags || [],
+          relatedObjects: [
+            `${practice.positionIds?.length || 0} positions tested`,
+            `${practice.questionIds?.length || 0} inquiries`,
+            `${practice.logDates?.length || 0} logs`,
+          ],
+          lastChangedAt: practice.dateUpdated || practice.dateCreated,
+          quickActionLabel: fallback?.label || 'Open Practice',
+          quickActions: [
+            { label: 'Open Practice Field', view: 'practices', targetId: practice.id, targetType: 'practice' },
+            { label: 'Open Positions', view: 'vault' },
+          ],
+          thinkingEventHint: 'Previewing a practice is orientation. Starting, concluding, or logging an outcome that affects a belief should create history.',
+        });
+        return;
+      }
+    }
+
+    onNavigate(target);
+  };
+
+  const turnProvocationIntoInquiry = () => {
+    const created = onCreateInquiry?.({
+      text: provocation.question,
+      whyItMatters: provocation.evidence,
+      currentIntuition: [
+        briefAnswer.trim(),
+        irrelevantReason.trim() ? `This prompt may miss because: ${irrelevantReason.trim()}` : '',
+      ].filter(Boolean).join('\n\n'),
+      status: 'open',
+      type: 'manual',
+      sourceDocumentId: provocation.target.targetId || '',
+    });
+    setBriefAnswer('');
+    setIrrelevantReason('');
+    onNavigate({ view: 'questions', targetId: created?.id });
+  };
+
   if (!hasWorkspace) {
     return (
       <main className="flex-1 overflow-y-auto px-6 py-8 md:px-10">
@@ -598,7 +818,7 @@ export function ThinkingDesk({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => onNavigate({ view: item.view, targetId: item.targetId })}
+                    onClick={() => previewOrNavigate({ view: item.view, targetId: item.targetId }, { label: item.action, description: item.eyebrow, reason: item.reason })}
                     className="group rounded-2xl border border-border bg-background/70 p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <div className="flex gap-4">
@@ -674,8 +894,8 @@ export function ThinkingDesk({
                       className="mt-4 min-h-[88px] rounded-2xl"
                     />
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" onClick={() => onNavigate(provocation.target)} className="rounded-full">Work on this</Button>
-                      <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'questions' })} className="rounded-full">Turn into inquiry</Button>
+                      <Button size="sm" onClick={() => previewOrNavigate(provocation.target, { label: 'Work on this', description: 'Today’s provocation', reason: provocation.evidence })} className="rounded-full">Work on this</Button>
+                      <Button size="sm" variant="outline" onClick={turnProvocationIntoInquiry} className="rounded-full">Turn into inquiry</Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -719,7 +939,7 @@ export function ThinkingDesk({
               {pulseObservations.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => onNavigate({ view: item.view, targetId: item.targetId })}
+                  onClick={() => previewOrNavigate({ view: item.view, targetId: item.targetId }, { label: 'Open from pulse', description: item.title, reason: item.evidence })}
                   className="w-full rounded-2xl border border-border bg-background/60 p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <div className="flex items-start gap-3">
@@ -745,7 +965,7 @@ export function ThinkingDesk({
               {quietSignals.map((signal) => (
                 <button
                   key={signal.label}
-                  onClick={() => onNavigate(signal.target)}
+                  onClick={() => previewOrNavigate(signal.target, { label: signal.label, description: 'Quiet signal', reason: `${signal.value} item(s) need attention` })}
                   className="flex w-full items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
                 >
                   <span className="text-sm text-muted-foreground">{signal.label}</span>
@@ -763,7 +983,7 @@ export function ThinkingDesk({
                   key={item.id}
                   type="button"
                   disabled={!item.target}
-                  onClick={() => item.target && onNavigate(item.target)}
+                  onClick={() => item.target && previewOrNavigate(item.target, { label: 'Open recent movement', description: item.meta, reason: item.title })}
                   className="w-full rounded-xl border border-border bg-background/60 p-3 text-left transition-colors enabled:hover:border-accent/40 enabled:hover:bg-accent/5 disabled:cursor-default"
                 >
                   <div className="text-sm font-medium text-foreground/80">{item.title}</div>
