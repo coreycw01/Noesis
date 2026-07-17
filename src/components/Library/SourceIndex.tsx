@@ -27,8 +27,34 @@ interface SourceIndexProps {
 type SourceIndexView = 'table' | 'covers' | 'timeline' | 'influence' | 'domains' | 'unfinished' | 'recent';
 type SortKey = 'creator' | 'dateAdded' | 'title' | 'year' | 'influence' | 'annotations' | 'connected' | 'progress';
 type AnnotationFilter = 'all' | 'with' | 'without';
+type CatalogFilter = 'all' | 'missing_metadata' | 'no_annotations' | 'high_influence' | 'unfinished';
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
+const HIGH_INFLUENCE_SCORE = 10;
+
+function sourceMetadataGaps(m: Media) {
+  const identifiers = Object.values(m.externalIds || {}).filter(Boolean);
+  const gaps: string[] = [];
+  if (!m.creator && !(m.creators || []).length) gaps.push('creator');
+  if (!m.year) gaps.push('year');
+  if (!m.description) gaps.push('description');
+  if (!(m.tags || []).length) gaps.push('concepts');
+  if (!m.publisher && !m.platform) gaps.push('publisher/platform');
+  if (!m.isbn && !m.doi && !m.url && identifiers.length === 0) gaps.push('identifier');
+  return gaps;
+}
+
+function sourceCatalogHealth(m: Media) {
+  let score = 0;
+  if (m.title) score += 10;
+  if (m.creator || (m.creators || []).length) score += 15;
+  if (m.year) score += 10;
+  if (m.description) score += 20;
+  if ((m.tags || []).length > 0) score += 20;
+  if ((m.annotations || []).length > 0) score += 15;
+  if (m.publisher || m.platform || m.isbn || m.doi || m.url || Object.values(m.externalIds || {}).some(Boolean)) score += 10;
+  return Math.min(score, 100);
+}
 
 export function SourceIndex({ media, vault, drafts, practices, questions, onOpenSource }: SourceIndexProps) {
   const [view, setView] = useState<SourceIndexView>('table');
@@ -37,6 +63,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
   const [filterStatus, setFilterStatus] = useState<MediaStatus | 'all'>('all');
   const [filterConcept, setFilterConcept] = useState<string>('all');
   const [filterAnnotations, setFilterAnnotations] = useState<AnnotationFilter>('all');
+  const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('dateAdded');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const { toast } = useToast();
@@ -83,16 +110,26 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         const annotationOk = filterAnnotations === 'all' || (filterAnnotations === 'with' ? (m.annotations || []).length > 0 : (m.annotations || []).length === 0);
         const unfinishedOk = view !== 'unfinished' || ['Want to Read', 'Consuming', 'Paused'].includes(m.status);
         const recentOk = view !== 'recent' || new Date(m.dateAdded || m.dateUpdated || '').getTime() >= recentCutoff;
-        const influenceOk = view !== 'influence' || scoreSourceInfluence(m) > 0;
+        const influence = scoreSourceInfluence(m);
+        const influenceOk = view !== 'influence' || influence > 0;
+        const metadataGaps = sourceMetadataGaps(m);
+        const catalogOk =
+          catalogFilter === 'all' ||
+          (catalogFilter === 'missing_metadata' && metadataGaps.length > 0) ||
+          (catalogFilter === 'no_annotations' && (m.annotations || []).length === 0) ||
+          (catalogFilter === 'high_influence' && influence >= HIGH_INFLUENCE_SCORE) ||
+          (catalogFilter === 'unfinished' && ['Want to Read', 'Consuming', 'Paused'].includes(m.status));
         const ids = Object.values(m.externalIds || {}).join(' ');
         const query = `${m.title} ${m.creator} ${(m.creators || []).join(' ')} ${m.description || ''} ${m.publisher} ${m.platform} ${m.isbn} ${m.doi} ${m.url} ${m.sourceProvider} ${ids} ${(m.tags || []).join(' ')}`.toLowerCase();
-        return typeOk && statusOk && conceptOk && annotationOk && unfinishedOk && recentOk && influenceOk && (!search || query.includes(search.toLowerCase()));
+        return typeOk && statusOk && conceptOk && annotationOk && unfinishedOk && recentOk && influenceOk && catalogOk && (!search || query.includes(search.toLowerCase()));
       })
       .map((source) => ({
         source,
         influence: scoreSourceInfluence(source),
         connected: connectedCount(source),
         progress: progressScore(source),
+        metadataGaps: sourceMetadataGaps(source),
+        health: sourceCatalogHealth(source),
         linkedPositions: vault.filter((entry) => (entry.sourceIds || []).includes(source.id)).length,
         linkedWorks: drafts.filter((draft) => (draft.sourceIds || []).includes(source.id)).length,
         linkedPractices: practices.filter((practice) => (practice.sourceIds || []).includes(source.id)).length,
@@ -114,7 +151,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         if (sortOrder === 'asc') return valA > valB ? 1 : -1;
         return valA < valB ? 1 : -1;
       });
-  }, [media, search, filterType, filterStatus, filterConcept, filterAnnotations, sortKey, sortOrder, view, vault, drafts, practices, questions]);
+  }, [media, search, filterType, filterStatus, filterConcept, filterAnnotations, catalogFilter, sortKey, sortOrder, view, vault, drafts, practices, questions]);
 
   const filtered = sourceRows.map((row) => row.source);
 
@@ -187,15 +224,6 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
     }
   };
 
-  const getSourceHealth = (m: Media) => {
-    let score = 0;
-    if (m.description) score += 20;
-    if ((m.tags || []).length > 0) score += 20;
-    if ((m.annotations || []).length > 0) score += 30;
-    if (m.publisher || m.isbn || m.doi) score += 30;
-    return score;
-  };
-
   const copyCitation = (m: Media) => {
     const citation = `${m.creator || 'Unknown'} (${m.year || 'n.d.'}). ${m.title}.${m.publisher ? ` ${m.publisher}.` : ''}`;
     navigator.clipboard.writeText(citation);
@@ -214,9 +242,10 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
     setFilterStatus('all');
     setFilterConcept('all');
     setFilterAnnotations('all');
+    setCatalogFilter('all');
   };
 
-  const filtersActive = Boolean(search || filterType !== 'all' || filterStatus !== 'all' || filterConcept !== 'all' || filterAnnotations !== 'all');
+  const filtersActive = Boolean(search || filterType !== 'all' || filterStatus !== 'all' || filterConcept !== 'all' || filterAnnotations !== 'all' || catalogFilter !== 'all');
 
   return (
     <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
@@ -273,6 +302,16 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               <SelectItem value="without" className="font-code text-[10px] uppercase">No Annotations</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={catalogFilter} onValueChange={(v) => setCatalogFilter(v as CatalogFilter)}>
+            <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Catalog State" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="font-code text-[10px] uppercase">All Catalog States</SelectItem>
+              <SelectItem value="missing_metadata" className="font-code text-[10px] uppercase">Missing Metadata</SelectItem>
+              <SelectItem value="no_annotations" className="font-code text-[10px] uppercase">No Annotations</SelectItem>
+              <SelectItem value="high_influence" className="font-code text-[10px] uppercase">High Influence</SelectItem>
+              <SelectItem value="unfinished" className="font-code text-[10px] uppercase">Unfinished Sources</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={view} onValueChange={(v) => setView(v as SourceIndexView)}>
             <SelectTrigger className="w-40 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="View" /></SelectTrigger>
             <SelectContent>
@@ -302,16 +341,24 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
 
       <div className="mb-6 grid gap-4 md:grid-cols-4">
         {[
-          { label: 'Influential', value: sourceRows.filter((row) => row.influence >= 10).length, note: 'linked beyond annotations' },
-          { label: 'Unfinished', value: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length, note: 'still in study flow' },
-          { label: 'Under-integrated', value: sourceRows.filter((row) => row.influence === 0 && (row.source.annotations || []).length > 0).length, note: 'captured but not used' },
-          { label: 'Connected', value: sourceRows.filter((row) => row.connected > 0).length, note: 'feeds objects' },
+          { label: 'Missing Metadata', value: media.filter((item) => sourceMetadataGaps(item).length > 0).length, note: 'needs catalog cleanup', filter: 'missing_metadata' as CatalogFilter },
+          { label: 'Unfinished', value: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length, note: 'still in study flow', filter: 'unfinished' as CatalogFilter },
+          { label: 'No Annotations', value: media.filter((item) => !(item.annotations || []).length).length, note: 'cataloged but not processed', filter: 'no_annotations' as CatalogFilter },
+          { label: 'High Influence', value: sourceRows.filter((row) => row.influence >= HIGH_INFLUENCE_SCORE).length, note: 'feeding many objects', filter: 'high_influence' as CatalogFilter },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-xl border border-border/40 bg-white p-4 shadow-sm">
+          <button
+            key={stat.label}
+            type="button"
+            onClick={() => setCatalogFilter(catalogFilter === stat.filter ? 'all' : stat.filter)}
+            className={cn(
+              "rounded-xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
+              catalogFilter === stat.filter ? "border-accent/50 bg-accent/10 ring-2 ring-accent/15" : "border-border/40 bg-white"
+            )}
+          >
             <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
             <div className="mt-1 font-headline text-2xl font-bold text-accent">{stat.value}</div>
             <div className="mt-1 text-xs text-muted-foreground">{stat.note}</div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -457,8 +504,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             </TableRow>
           </TableHeader>
           <TableBody className="font-body text-[14px]">
-            {sourceRows.map(({ source: m, influence, connected, progress, linkedPositions, linkedWorks, linkedPractices, linkedQuestions }) => {
-              const health = getSourceHealth(m);
+            {sourceRows.map(({ source: m, influence, connected, progress, metadataGaps, health, linkedPositions, linkedWorks, linkedPractices, linkedQuestions }) => {
               return (
                 <TableRow key={m.id} className="hover:bg-muted/5 group transition-colors cursor-pointer" onClick={() => onOpenSource(m.id)}>
                   <TableCell>
@@ -467,6 +513,21 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       {(m.tags || []).slice(0, 3).map((tag) => (
                         <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-tighter rounded-full bg-muted/20 text-muted-foreground">{tag}</Badge>
                       ))}
+                      {metadataGaps.length > 0 && (
+                        <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full border-amber-200 bg-amber-50 text-amber-800">
+                          {metadataGaps.length} gaps
+                        </Badge>
+                      )}
+                      {!(m.annotations || []).length && (
+                        <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full border-rose-200 bg-rose-50 text-rose-800">
+                          no notes
+                        </Badge>
+                      )}
+                      {influence >= HIGH_INFLUENCE_SCORE && (
+                        <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full border-emerald-200 bg-emerald-50 text-emerald-800">
+                          influential
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{m.creator}</TableCell>
@@ -478,6 +539,11 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                     <div className="max-w-[150px] truncate text-[11px] text-muted-foreground/80" title={m.isbn || m.publisher}>
                       {m.isbn || m.doi || m.publisher || '—'}
                     </div>
+                    {metadataGaps.length > 0 && (
+                      <div className="mt-1 max-w-[170px] truncate font-code text-[8px] uppercase tracking-widest text-amber-700" title={`Missing: ${metadataGaps.join(', ')}`}>
+                        missing {metadataGaps.slice(0, 2).join(', ')}{metadataGaps.length > 2 ? '...' : ''}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1.5">

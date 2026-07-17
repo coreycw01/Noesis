@@ -42,7 +42,7 @@ interface AnnotationsIndexProps {
 }
 
 type FlatAnnotation = Annotation & { source: Media };
-type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered' | 'needs_context' | 'potentially_important' | 'recently_promoted';
+type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered' | 'needs_context' | 'source_context_missing' | 'needs_direction' | 'evidence_ready' | 'potentially_important' | 'recently_promoted';
 type PreflightMode = 'position' | 'inquiry';
 type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'archive';
 type AnnotationProcessingMode = 'single' | 'sweep' | 'cluster' | 'source';
@@ -147,6 +147,23 @@ export function AnnotationsIndex({
       || ['evidence', 'claim', 'objection', 'definition'].includes(annotation.consequenceKind || '')
     );
   };
+  const missingSourceContext = (annotation: FlatAnnotation) => {
+    const status = annotationStatus(annotation);
+    return !['archived', 'dismissed'].includes(status) && !annotation.context?.trim();
+  };
+  const needsSupportDirection = (annotation: FlatAnnotation) => {
+    const status = annotationStatus(annotation);
+    if (['archived', 'dismissed', 'reference_only', 'used_in_position', 'promoted'].includes(status)) return false;
+    const isEvidenceLike = ['claim', 'objection'].includes(annotation.type) || ['evidence', 'claim', 'objection'].includes(annotation.consequenceKind || '');
+    return isEvidenceLike && !(annotation.linkedPositionIds || []).length && !annotation.createdPositionId;
+  };
+  const isEvidenceReady = (annotation: FlatAnnotation) => {
+    const status = annotationStatus(annotation);
+    return !['archived', 'dismissed', 'reference_only'].includes(status)
+      && Boolean(annotation.consequenceNote?.trim())
+      && annotationTags(annotation).length > 0
+      && ['claim', 'objection', 'definition', 'connection'].includes(annotation.type);
+  };
   const isRecentlyPromoted = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
     return Boolean(annotation.createdInquiryId || annotation.createdPositionId || ['promoted', 'used_in_position'].includes(status));
@@ -160,6 +177,12 @@ export function AnnotationsIndex({
           typeOk = annotation.type === 'question' && !annotation.answer?.trim();
         } else if (filterType === 'needs_context') {
           typeOk = needsContext(annotation);
+        } else if (filterType === 'source_context_missing') {
+          typeOk = missingSourceContext(annotation);
+        } else if (filterType === 'needs_direction') {
+          typeOk = needsSupportDirection(annotation);
+        } else if (filterType === 'evidence_ready') {
+          typeOk = isEvidenceReady(annotation);
         } else if (filterType === 'potentially_important') {
           typeOk = isPotentiallyImportant(annotation);
         } else if (filterType === 'recently_promoted') {
@@ -222,6 +245,18 @@ export function AnnotationsIndex({
       value: annotations.filter(isPotentiallyImportant).length,
       description: 'Claims, objections, definitions, evidence, and fragments marked beyond the source.',
       filter: 'potentially_important' as AnnotationFilter,
+    },
+    {
+      label: 'Needs Direction',
+      value: annotations.filter(needsSupportDirection).length,
+      description: 'Evidence-like captures that need support or challenge direction before judgment.',
+      filter: 'needs_direction' as AnnotationFilter,
+    },
+    {
+      label: 'Evidence Ready',
+      value: annotations.filter(isEvidenceReady).length,
+      description: 'Tagged, interpreted captures ready to become evidence, concept material, or inquiry fuel.',
+      filter: 'evidence_ready' as AnnotationFilter,
     },
     {
       label: 'Recently Promoted',
@@ -491,6 +526,9 @@ export function AnnotationsIndex({
     { id: 'all', label: 'All', count: typeCounts.total },
     { id: 'raw', label: 'Unprocessed', count: typeCounts.raw || 0 },
     { id: 'needs_context', label: 'Needs Context', count: annotations.filter(needsContext).length },
+    { id: 'source_context_missing', label: 'No Source Context', count: annotations.filter(missingSourceContext).length },
+    { id: 'needs_direction', label: 'Needs Direction', count: annotations.filter(needsSupportDirection).length },
+    { id: 'evidence_ready', label: 'Evidence Ready', count: annotations.filter(isEvidenceReady).length },
     { id: 'potentially_important', label: 'Important', count: annotations.filter(isPotentiallyImportant).length },
     { id: 'recently_promoted', label: 'Promoted', count: annotations.filter(isRecentlyPromoted).length },
     { id: 'reviewed', label: 'Reviewed', count: typeCounts.reviewed || 0 },
@@ -654,6 +692,21 @@ export function AnnotationsIndex({
                   <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest rounded-full bg-accent/5 text-accent font-bold">
                     {annotationStatus(annotation).replace(/_/g, ' ')}
                   </Badge>
+                  {missingSourceContext(annotation) && (
+                    <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest rounded-full border-amber-200 bg-amber-50 text-amber-800 font-bold">
+                      context
+                    </Badge>
+                  )}
+                  {needsSupportDirection(annotation) && (
+                    <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest rounded-full border-rose-200 bg-rose-50 text-rose-800 font-bold">
+                      direction
+                    </Badge>
+                  )}
+                  {isEvidenceReady(annotation) && (
+                    <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest rounded-full border-emerald-200 bg-emerald-50 text-emerald-800 font-bold">
+                      evidence ready
+                    </Badge>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

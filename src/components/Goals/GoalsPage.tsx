@@ -29,6 +29,7 @@ const QUEST_KIND_OPTIONS: Array<{ value: IntellectualGoalKind; label: string; de
 ];
 
 const GOAL_STATUS_OPTIONS: IntellectualGoalStatus[] = ['planned', 'active', 'stalled', 'under_review', 'completed', 'abandoned', 'transformed', 'archived'];
+type QuestFilter = 'all' | 'needs_purpose' | 'needs_completion' | 'review_due' | 'needs_path' | 'stalled';
 
 interface GoalsPageProps {
   goal: GoalSettings;
@@ -103,6 +104,36 @@ function questNextStep(item: GoalItem & { percent?: number }, type?: GoalType) {
   return 'Review whether the current path still serves the desired intellectual change.';
 }
 
+function cadenceDays(item: GoalItem) {
+  if (item.reviewCadence === 'monthly') return 30;
+  if (item.reviewCadence === 'seasonal') return 90;
+  if (item.reviewCadence === 'custom') return 45;
+  return 7;
+}
+
+function dateAgeDays(value?: string) {
+  const time = Date.parse(value || '');
+  if (!Number.isFinite(time)) return Number.POSITIVE_INFINITY;
+  return Math.floor((Date.now() - time) / (1000 * 60 * 60 * 24));
+}
+
+function goalNeedsPurpose(item: GoalItem) {
+  return !item.purpose?.trim() || !item.reason?.trim();
+}
+
+function goalNeedsCompletionEvidence(item: GoalItem) {
+  return !item.completionCriteria?.trim() || !item.evidenceOfProgress?.trim();
+}
+
+function goalNeedsPath(item: GoalItem) {
+  return !(item.milestones || []).filter((milestone) => milestone.trim()).length;
+}
+
+function goalReviewDue(item: GoalItem) {
+  if (!['active', 'stalled', 'under_review'].includes(item.status)) return false;
+  return dateAgeDays(item.lastReviewAt || item.updatedAt || item.createdAt) >= cadenceDays(item);
+}
+
 function defaultQuestMilestones(item: GoalItem, type?: GoalType) {
   const questType = questKindForGoal(item, type);
   if (questType === 'consumption') return [
@@ -168,6 +199,7 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   const [saving, setSaving] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<IntellectualGoalStatus | 'all'>('active');
+  const [questFilter, setQuestFilter] = useState<QuestFilter>('all');
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
@@ -199,8 +231,18 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
   }), [goals, goalProgress, goalTypes]);
 
   const visibleGoals = useMemo(
-    () => enrichedGoals.filter((item) => statusFilter === 'all' || item.status === statusFilter),
-    [enrichedGoals, statusFilter]
+    () => enrichedGoals.filter((item) => {
+      const statusOk = statusFilter === 'all' || item.status === statusFilter;
+      const questOk =
+        questFilter === 'all' ||
+        (questFilter === 'needs_purpose' && goalNeedsPurpose(item)) ||
+        (questFilter === 'needs_completion' && goalNeedsCompletionEvidence(item)) ||
+        (questFilter === 'review_due' && goalReviewDue(item)) ||
+        (questFilter === 'needs_path' && goalNeedsPath(item)) ||
+        (questFilter === 'stalled' && item.status === 'stalled');
+      return statusOk && questOk;
+    }),
+    [enrichedGoals, statusFilter, questFilter]
   );
 
   const featured = enrichedGoals.filter((item) => item.status === 'active').sort((a, b) => {
@@ -219,6 +261,10 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
         ? enrichedGoals.reduce((sum, item) => sum + item.percent, 0) / enrichedGoals.length
         : 0
     ),
+    needsPurpose: enrichedGoals.filter(goalNeedsPurpose).length,
+    needsCompletion: enrichedGoals.filter(goalNeedsCompletionEvidence).length,
+    needsPath: enrichedGoals.filter(goalNeedsPath).length,
+    reviewDue: enrichedGoals.filter(goalReviewDue).length,
   };
 
   const updateGoal = (id: string, patch: Partial<GoalItem>) => {
@@ -439,6 +485,53 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
           )}
         </section>
 
+        <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              label: 'Needs Purpose',
+              value: goalStats.needsPurpose,
+              description: 'Quests without a clear reason or desired intellectual change.',
+              filter: 'needs_purpose' as QuestFilter,
+            },
+            {
+              label: 'Needs Completion',
+              value: goalStats.needsCompletion,
+              description: 'Quests missing evidence of progress or completion criteria.',
+              filter: 'needs_completion' as QuestFilter,
+            },
+            {
+              label: 'Review Due',
+              value: goalStats.reviewDue,
+              description: 'Active commitments whose review cadence has gone stale.',
+              filter: 'review_due' as QuestFilter,
+            },
+            {
+              label: 'Needs Quest Path',
+              value: goalStats.needsPath,
+              description: 'Goals without milestones that show how development unfolds.',
+              filter: 'needs_path' as QuestFilter,
+            },
+          ].map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => setQuestFilter(questFilter === item.filter ? 'all' : item.filter)}
+              className={cn(
+                "rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
+                questFilter === item.filter ? "border-accent/50 bg-accent/10 ring-2 ring-accent/15" : "border-border/50 bg-card"
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-code text-[8px] font-bold uppercase tracking-[0.22em] text-muted-foreground/60">{item.label}</div>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
+                </div>
+                <div className="font-headline text-3xl font-bold italic leading-none text-primary">{item.value}</div>
+              </div>
+            </button>
+          ))}
+        </section>
+
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <Card className="rounded-2xl border-border bg-card p-6 shadow-sm">
             <div className="mb-6">
@@ -451,22 +544,37 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                 <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Commitments</div>
                 <div className="mt-1 text-sm text-muted-foreground">{visibleGoals.length} shown from {goals.length} total goals</div>
               </div>
-              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
-                <SelectTrigger className="w-[180px] rounded-full font-code text-[10px] uppercase">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="planned">Planned</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="stalled">Stalled</SelectItem>
-                  <SelectItem value="under_review">Under Review</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="abandoned">Abandoned</SelectItem>
-                  <SelectItem value="transformed">Transformed</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
-                  <SelectItem value="all">All goals</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap gap-2">
+                <Select value={questFilter} onValueChange={(value) => setQuestFilter(value as QuestFilter)}>
+                  <SelectTrigger className="w-[190px] rounded-full font-code text-[10px] uppercase">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All quest states</SelectItem>
+                    <SelectItem value="needs_purpose">Needs Purpose</SelectItem>
+                    <SelectItem value="needs_completion">Needs Completion</SelectItem>
+                    <SelectItem value="review_due">Review Due</SelectItem>
+                    <SelectItem value="needs_path">Needs Quest Path</SelectItem>
+                    <SelectItem value="stalled">Stalled</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+                  <SelectTrigger className="w-[180px] rounded-full font-code text-[10px] uppercase">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="planned">Planned</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="stalled">Stalled</SelectItem>
+                    <SelectItem value="under_review">Under Review</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="abandoned">Abandoned</SelectItem>
+                    <SelectItem value="transformed">Transformed</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
+                    <SelectItem value="all">All goals</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid gap-3">
@@ -486,6 +594,10 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                       <span>{questTypeForGoal(row, row.type)}</span>
                       <span>{(row.type?.mediaTypes || []).length ? `Counts: ${(row.type?.mediaTypes || []).map((mediaType) => MEDIA_LABELS[mediaType]).join(', ')}` : 'No media types selected yet'}</span>
                       <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase">{row.status}</Badge>
+                      {goalNeedsPurpose(row) && <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 font-code text-[8px] uppercase text-amber-800">needs purpose</Badge>}
+                      {goalNeedsCompletionEvidence(row) && <Badge variant="outline" className="rounded-full border-rose-200 bg-rose-50 font-code text-[8px] uppercase text-rose-800">needs criteria</Badge>}
+                      {goalNeedsPath(row) && <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 font-code text-[8px] uppercase text-blue-800">needs path</Badge>}
+                      {goalReviewDue(row) && <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 font-code text-[8px] uppercase text-emerald-800">review due</Badge>}
                     </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-accent" style={{ width: `${row.percent}%` }} />

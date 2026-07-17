@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import type {
   BeliefProfile,
   Concept,
@@ -228,6 +229,13 @@ export function ProfilePage({
     ['Contradictions resolved', String(thinkingMetrics.contradictionsResolved)],
     ['Practices active', String(practices.filter((item) => item.status === 'active').length)],
   ] as const;
+
+  const patternEvidenceLevel = (pattern: ThinkingPattern) => {
+    const sampleSize = pattern.evidence.length;
+    if (sampleSize >= 5 && pattern.confidence >= 0.75) return { label: 'strong evidence', tone: 'strong' as const };
+    if (sampleSize >= 3 && pattern.confidence >= 0.55) return { label: 'moderate evidence', tone: 'moderate' as const };
+    return { label: 'limited evidence', tone: 'limited' as const };
+  };
 
   const mirrorDiagnostics = useMemo(() => {
     const evidenceEvents = thinkingEvents.filter((event) => ['evidence_added', 'supported', 'source_distilled', 'annotation_created'].includes(event.eventType));
@@ -481,13 +489,33 @@ export function ProfilePage({
               <div className="space-y-3">
                 {thinkingPatterns.map((pattern) => (
                   <Card key={pattern.patternId} className="rounded-2xl border-border bg-background/60 p-4 shadow-none">
+                    {(() => {
+                      const evidenceLevel = patternEvidenceLevel(pattern);
+                      return (
+                        <>
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-headline text-xl font-semibold italic">Recent evidence suggests: {pattern.label}</h3>
                       <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(pattern.confidence * 100)}% confidence</Badge>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "rounded-full font-code text-[8px] uppercase tracking-widest",
+                          evidenceLevel.tone === 'strong' ? "border-emerald-200 bg-emerald-50 text-emerald-800" :
+                          evidenceLevel.tone === 'moderate' ? "border-amber-200 bg-amber-50 text-amber-800" :
+                          "border-rose-200 bg-rose-50 text-rose-800"
+                        )}
+                      >
+                        {evidenceLevel.label}
+                      </Badge>
                       <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{pattern.status}</Badge>
                       <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{pattern.timespan}</Badge>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{pattern.description}</p>
+                    {evidenceLevel.tone === 'limited' && (
+                      <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs italic leading-5 text-rose-900">
+                        This observation has limited support. Treat it as a prompt to inspect evidence, not as a profile truth.
+                      </div>
+                    )}
                     <div className="mt-4 grid gap-3 md:grid-cols-3">
                       <div className="rounded-xl border border-border/50 bg-card p-3">
                         <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Sample Size</div>
@@ -502,6 +530,9 @@ export function ProfilePage({
                         <div className="mt-1 text-xs italic text-muted-foreground">This may reflect the available records more than your full thinking.</div>
                       </div>
                     </div>
+                        </>
+                      );
+                    })()}
                     {pattern.evidence.length > 0 && <ul className="mt-3 space-y-1 text-sm text-muted-foreground">{pattern.evidence.map((evidence) => <li key={evidence}>- {evidence}</li>)}</ul>}
                     {pattern.userResponse && (
                       <div className="mt-3 rounded-xl border border-border/50 bg-card p-3 text-sm">

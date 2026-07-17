@@ -593,7 +593,7 @@ export function ThinkingDesk({
               ))}
             </div>
             <div className="grid gap-3">
-              {continueItems.map((item) => {
+              {continueItems.length ? continueItems.map((item) => {
                 const Icon = item.icon;
                 return (
                   <button
@@ -617,7 +617,26 @@ export function ThinkingDesk({
                     </div>
                   </button>
                 );
-              })}
+              }) : (
+                <div className="rounded-2xl border border-dashed border-border bg-background/60 p-5">
+                  <div className="flex gap-4">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-accent">
+                      <Compass className="size-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">No active edge in this mode</div>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        This filter has nothing urgent right now. Capture a source, open an inquiry, or switch modes to rediscover older material.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button size="sm" onClick={() => onNavigate({ view: 'library' })} className="rounded-full">Add source</Button>
+                        <Button size="sm" variant="outline" onClick={() => setMode('rediscover')} className="rounded-full">Rediscover</Button>
+                        <Button size="sm" variant="outline" onClick={() => setMode('continue')} className="rounded-full">Return to continue</Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
