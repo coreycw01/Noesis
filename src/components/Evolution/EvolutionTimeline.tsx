@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, History } from 'lucide-react';
+import { AlertTriangle, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Media, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -76,6 +75,9 @@ const FILTER_OPTIONS: Array<{ value: EvolutionFilter; label: string }> = [
   { value: 'practices', label: 'Practices' },
   { value: 'sources', label: 'Sources' },
 ];
+
+const EVENT_FILTERS: EvolutionFilter[] = ['belief_revisions', 'confidence', 'unknowns', 'contradictions', 'patterns', 'questions', 'replacements', 'links'];
+const OBJECT_FILTERS: EvolutionFilter[] = ['positions', 'concepts', 'inquiries', 'works', 'practices', 'sources'];
 
 const VIEW_OPTIONS: Array<{ value: EvolutionView; label: string; description: string }> = [
   { value: 'turning_points', label: 'Turning Points', description: 'Major revisions, discoveries, abandonments, and resolutions.' },
@@ -244,11 +246,10 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
 }
 
 export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thinkingPatterns, metrics }: EvolutionTimelineProps) {
-  const [view, setView] = useState<EvolutionView>('turning_points');
+  const [view, setView] = useState<EvolutionView>('timeline');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
-  const [pageSize, setPageSize] = useState<5 | 10>(5);
-  const [page, setPage] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(12);
   const [scrubberDate, setScrubberDate] = useState(() => dateInputValue(new Date().toISOString()));
 
   const displayEvents = useMemo<DisplayEvent[]>(() => {
@@ -463,14 +464,12 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
   }, [displayEvents, scrubberDate]);
 
   useEffect(() => {
-    setPage(0);
-  }, [filter, pageSize, search]);
+    setVisibleCount(12);
+  }, [filter, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredEvents.length / pageSize));
-  const safePage = Math.min(page, totalPages - 1);
-  const pagedEvents = filteredEvents.slice(safePage * pageSize, safePage * pageSize + pageSize);
-  const rangeStart = filteredEvents.length ? safePage * pageSize + 1 : 0;
-  const rangeEnd = Math.min(filteredEvents.length, safePage * pageSize + pageSize);
+  const pagedEvents = filteredEvents.slice(0, visibleCount);
+  const rangeStart = filteredEvents.length ? 1 : 0;
+  const rangeEnd = Math.min(filteredEvents.length, visibleCount);
   const clearEvolutionFilters = () => {
     setSearch('');
     setFilter('all');
@@ -482,69 +481,48 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
   ].filter(Boolean) as string[];
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
       <PageHeader
         title="Evolution"
         description="Trace meaningful changes in positions, concepts, inquiries, practices, unknowns, and thinking patterns over time."
-        actions={
-          <>
-            <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value) as 5 | 10)}>
-              <SelectTrigger className="h-9 w-40 rounded-full bg-muted/40 font-code text-[10px] uppercase tracking-widest">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5" className="font-code text-[10px] uppercase">Recent 5</SelectItem>
-                <SelectItem value="10" className="font-code text-[10px] uppercase">Recent 10</SelectItem>
-              </SelectContent>
-            </Select>
-          </>
-        }
+        meta={`${filteredEvents.length} changes - ${eventCoverage.thinkingCount} event-backed - ${eventCoverage.provisionalCount} provisional`}
       />
 
-      <div className="mb-8 grid gap-4 md:grid-cols-4">
-        <MetricCard label="Beliefs Revised" value={metrics.beliefsRevised} />
-        <MetricCard label="Contradictions Resolved" value={metrics.contradictionsResolved} />
-        <MetricCard label="Unknowns Resolved" value={metrics.unknownsResolved} />
-        <MetricCard label="Stress Tests Answered" value={metrics.positionsStressTested} />
-      </div>
-
       <section className={cn(
-        "mb-8 rounded-2xl border p-4 shadow-sm",
+        "mb-5 rounded-xl border px-4 py-3 shadow-sm",
         eventCoverage.coverageLevel === 'strong' ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/80"
       )}>
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="flex gap-3">
-            <AlertTriangle className={cn("mt-0.5 size-4 shrink-0", eventCoverage.coverageLevel === 'strong' ? "text-emerald-700" : "text-amber-700")} />
-            <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <AlertTriangle className={cn("size-4 shrink-0", eventCoverage.coverageLevel === 'strong' ? "text-emerald-700" : "text-amber-700")} />
+            <div className="min-w-0">
               <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Recorded History Coverage</div>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                This view reflects recorded meaningful actions. Thinking events are strongest evidence; legacy timeline records are shown as context when event coverage is incomplete.
+              <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
+                {eventCoverage.coverageLevel === 'strong' ? 'Strong event-backed history.' : 'Mixed event and timeline history.'} Provisional observations stay labeled.
               </p>
             </div>
           </div>
-          <div className="grid min-w-[320px] grid-cols-2 gap-2 lg:grid-cols-5">
-            <MiniEvolutionStat label="Events" value={eventCoverage.thinkingCount} />
-            <MiniEvolutionStat label="Timeline" value={eventCoverage.legacyCount} />
-            <MiniEvolutionStat label="Interpreted" value={eventCoverage.interpretedCount} />
-            <MiniEvolutionStat label="Before/After" value={eventCoverage.beforeAfterCount} />
-            <MiniEvolutionStat label="Provisional" value={eventCoverage.provisionalCount} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{eventCoverage.thinkingCount} events</Badge>
+            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{eventCoverage.beforeAfterCount} before/after</Badge>
+            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{eventCoverage.provisionalCount} provisional</Badge>
+            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{metrics.beliefsRevised} revisions</Badge>
           </div>
         </div>
       </section>
 
-      <div className="mb-8 grid gap-3 lg:grid-cols-5">
+      <div className="mb-5 flex flex-wrap gap-2">
         {VIEW_OPTIONS.map((option) => (
           <button
             key={option.value}
             type="button"
             onClick={() => setView(option.value)}
             className={cn(
-              'rounded-2xl border p-4 text-left transition-all',
-              view === option.value ? 'border-accent bg-accent/10 shadow-sm' : 'border-border/50 bg-card hover:border-accent/40'
+              'rounded-full border px-4 py-2 text-left font-code text-[10px] font-bold uppercase tracking-[0.14em] transition-all',
+              view === option.value ? 'border-accent bg-accent text-white shadow-sm' : 'border-border/50 bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground'
             )}
           >
-            <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{option.label}</div>
-            <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{option.description}</p>
+            {option.label}
           </button>
         ))}
       </div>
@@ -780,41 +758,62 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
         activeFilterLabels={activeEvolutionFilterLabels}
         onClear={clearEvolutionFilters}
         clearDisabled={!evolutionFiltersActive}
-        className="mb-8"
+        className="mb-5"
       >
-        <div className="flex flex-wrap gap-2">
-          {FILTER_OPTIONS.map((option) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFilter('all')}
+            className={cn(
+              'px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap',
+              filter === 'all' ? 'bg-accent text-white shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+            )}
+          >
+            All
+          </button>
+          <span className="font-code text-[8px] font-bold uppercase tracking-[0.16em] text-muted-foreground/60">Events</span>
+          {EVENT_FILTERS.map((value) => {
+            const option = FILTER_OPTIONS.find((item) => item.value === value)!;
+            return (
             <button
               key={option.value}
+              type="button"
               onClick={() => setFilter(option.value)}
               className={cn(
-                'px-4 py-1.5 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap',
+                'px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap',
                 filter === option.value ? 'bg-accent text-white shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
             >
               {option.label}
             </button>
-          ))}
+            );
+          })}
+          <span className="font-code text-[8px] font-bold uppercase tracking-[0.16em] text-muted-foreground/60">Objects</span>
+          {OBJECT_FILTERS.map((value) => {
+            const option = FILTER_OPTIONS.find((item) => item.value === value)!;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setFilter(option.value)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap',
+                  filter === option.value ? 'bg-accent text-white shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                {option.label}
+              </button>
+            );
+          })}
         </div>
       </FilterToolbar>
 
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border/50 bg-card p-4 shadow-sm">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border/50 bg-card px-4 py-3 shadow-sm">
         <div>
           <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Meaningful Change Feed</div>
           <p className="mt-1 text-sm italic text-muted-foreground">
-            Showing {rangeStart}-{rangeEnd} of {filteredEvents.length} evolution events.
+            Showing {rangeStart}-{rangeEnd} of {filteredEvents.length} meaningful changes.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" disabled={safePage === 0} onClick={() => setPage((value) => Math.max(0, value - 1))} className="size-9 rounded-full bg-white" title="Newer events">
-            <ChevronLeft className="size-4" />
-          </Button>
-          <span className="min-w-20 text-center font-code text-[10px] uppercase tracking-widest text-muted-foreground">
-            {safePage + 1} / {totalPages}
-          </span>
-          <Button variant="outline" size="icon" disabled={safePage >= totalPages - 1} onClick={() => setPage((value) => Math.min(totalPages - 1, value + 1))} className="size-9 rounded-full bg-white" title="Older events">
-            <ChevronRight className="size-4" />
-          </Button>
         </div>
       </div>
 
@@ -916,17 +915,19 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
           </div>
         )}
       </div>
+      {rangeEnd < filteredEvents.length && (
+        <div className="mt-8 flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => setVisibleCount((count) => count + 12)}
+            className="rounded-full px-5 font-code text-[10px] uppercase tracking-widest"
+          >
+            Load more history
+          </Button>
+        </div>
+      )}
       </>
       )}
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-border/50 bg-white p-4 shadow-sm">
-      <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
-      <div className="mt-2 font-headline text-3xl font-bold italic text-primary">{value}</div>
     </div>
   );
 }

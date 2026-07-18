@@ -27,8 +27,9 @@ interface SourceIndexProps {
 
 type SourceIndexView = 'table' | 'covers' | 'timeline' | 'influence' | 'domains' | 'unfinished' | 'recent';
 type SortKey = 'creator' | 'dateAdded' | 'title' | 'year' | 'influence' | 'annotations' | 'connected' | 'progress';
+type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'creator_asc' | 'connected_desc' | 'influence_desc' | 'health_asc' | 'manual';
 type AnnotationFilter = 'all' | 'with' | 'without';
-type CatalogFilter = 'all' | 'missing_metadata' | 'no_annotations' | 'high_influence' | 'unfinished';
+type CatalogFilter = 'all' | 'missing_metadata' | 'no_annotations' | 'high_influence' | 'unfinished' | 'ready_to_cite';
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
 const HIGH_INFLUENCE_SCORE = 10;
@@ -112,6 +113,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
   const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('dateAdded');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortOption, setSortOption] = useState<SortOption>('date_desc');
   const { toast } = useToast();
 
   const previewSource = (source: Media) => {
@@ -203,7 +205,8 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           (catalogFilter === 'missing_metadata' && metadataGaps.length > 0) ||
           (catalogFilter === 'no_annotations' && (m.annotations || []).length === 0) ||
           (catalogFilter === 'high_influence' && influence >= HIGH_INFLUENCE_SCORE) ||
-          (catalogFilter === 'unfinished' && ['Want to Read', 'Consuming', 'Paused'].includes(m.status));
+          (catalogFilter === 'unfinished' && ['Want to Read', 'Consuming', 'Paused'].includes(m.status)) ||
+          (catalogFilter === 'ready_to_cite' && sourceCatalogState(m).label === 'cataloged');
         const ids = Object.values(m.externalIds || {}).join(' ');
         const query = `${m.title} ${m.creator} ${(m.creators || []).join(' ')} ${m.description || ''} ${m.publisher} ${m.platform} ${m.isbn} ${m.doi} ${m.url} ${m.sourceProvider} ${ids} ${(m.tags || []).join(' ')}`.toLowerCase();
         return typeOk && statusOk && conceptOk && annotationOk && unfinishedOk && recentOk && influenceOk && catalogOk && (!search || query.includes(search.toLowerCase()));
@@ -222,6 +225,15 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         linkedQuestions: questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(source.id)).length,
       }))
       .sort((a, b) => {
+        if (sortOption !== 'manual') {
+          if (sortOption === 'date_desc') return new Date(b.source.dateAdded || b.source.dateUpdated || '').getTime() - new Date(a.source.dateAdded || a.source.dateUpdated || '').getTime();
+          if (sortOption === 'date_asc') return new Date(a.source.dateAdded || a.source.dateUpdated || '').getTime() - new Date(b.source.dateAdded || b.source.dateUpdated || '').getTime();
+          if (sortOption === 'title_asc') return a.source.title.localeCompare(b.source.title);
+          if (sortOption === 'creator_asc') return (a.source.creator || '').localeCompare(b.source.creator || '');
+          if (sortOption === 'connected_desc') return b.connected - a.connected || a.source.title.localeCompare(b.source.title);
+          if (sortOption === 'influence_desc') return b.influence - a.influence || a.source.title.localeCompare(b.source.title);
+          if (sortOption === 'health_asc') return a.health - b.health || a.source.title.localeCompare(b.source.title);
+        }
         const numericSorts: Partial<Record<SortKey, [number, number]>> = {
           influence: [a.influence, b.influence],
           annotations: [a.source.annotations?.length || 0, b.source.annotations?.length || 0],
@@ -237,7 +249,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         if (sortOrder === 'asc') return valA > valB ? 1 : -1;
         return valA < valB ? 1 : -1;
       });
-  }, [media, search, filterType, filterStatus, filterConcept, filterAnnotations, catalogFilter, sortKey, sortOrder, view, vault, drafts, practices, questions]);
+  }, [media, search, filterType, filterStatus, filterConcept, filterAnnotations, catalogFilter, sortKey, sortOrder, sortOption, view, vault, drafts, practices, questions]);
 
   const filtered = sourceRows.map((row) => row.source);
 
@@ -303,6 +315,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
   }, [sourceRows]);
 
   const toggleSort = (key: SortKey) => {
+    setSortOption('manual');
     if (sortKey === key) setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     else {
       setSortKey(key);
@@ -341,22 +354,17 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
     catalogFilter !== 'all' ? `Catalog: ${catalogFilter.replace(/_/g, ' ')}` : null,
     view !== 'table' ? `View: ${view}` : null,
   ].filter(Boolean) as string[];
-  const sortLabels: Record<SortKey, string> = {
-    creator: 'creator',
-    dateAdded: 'date added',
-    title: 'title',
-    year: 'year',
-    influence: 'influence',
-    annotations: 'annotations',
-    connected: 'connections',
-    progress: 'progress',
-  };
-
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
       <PageHeader
         title="Source Index"
-        description="Browse, filter, and manage every source feeding your thinking."
+        description="Browse, cite, and manage every source feeding your thinking."
+        meta={
+          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+            {media.length} sources
+          </span>
+        }
+        className="mb-5"
         actions={
           <>
           <Button variant="outline" onClick={copyAllCitations} size="sm" className="h-9 px-6 bg-white border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
@@ -375,52 +383,53 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         searchPlaceholder="Search registry by title, creator, identifiers, concepts..."
         resultCount={filtered.length}
         resultLabel="sources"
-        sortLabel={`${sortLabels[sortKey]} ${sortOrder}`}
         activeFilterLabels={activeFilterLabels}
         onClear={clearFilters}
         clearDisabled={!filtersActive}
+        className="mb-3"
       >
           <Select value={filterType} onValueChange={(v) => setFilterType(v as MediaType | 'all')}>
-            <SelectTrigger className="w-40 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="All Types" /></SelectTrigger>
+            <SelectTrigger className="w-36 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Type" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" className="font-code text-[10px] uppercase">All Types</SelectItem>
+              <SelectItem value="all" className="font-code text-[10px] uppercase">Type: All</SelectItem>
               {MEDIA_TYPES.map(t => <SelectItem key={t} value={t} className="font-code text-[10px] uppercase">{MEDIA_LABELS[t]}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as MediaStatus | 'all')}>
-            <SelectTrigger className="w-44 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" className="font-code text-[10px] uppercase">All Statuses</SelectItem>
+              <SelectItem value="all" className="font-code text-[10px] uppercase">Status: All</SelectItem>
               {statuses.map(s => <SelectItem key={s} value={s} className="font-code text-[10px] uppercase">{s}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterConcept} onValueChange={setFilterConcept}>
-            <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="All Concepts" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Concept" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" className="font-code text-[10px] uppercase">All Concepts</SelectItem>
+              <SelectItem value="all" className="font-code text-[10px] uppercase">Concept: All</SelectItem>
               {allConcepts.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterAnnotations} onValueChange={(v) => setFilterAnnotations(v as AnnotationFilter)}>
-            <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Annotations" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Annotations" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" className="font-code text-[10px] uppercase">All Annotation States</SelectItem>
+              <SelectItem value="all" className="font-code text-[10px] uppercase">Annotation State: All</SelectItem>
               <SelectItem value="with" className="font-code text-[10px] uppercase">Has Annotations</SelectItem>
               <SelectItem value="without" className="font-code text-[10px] uppercase">No Annotations</SelectItem>
             </SelectContent>
           </Select>
           <Select value={catalogFilter} onValueChange={(v) => setCatalogFilter(v as CatalogFilter)}>
-            <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Catalog State" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Catalog Health" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" className="font-code text-[10px] uppercase">All Catalog States</SelectItem>
+              <SelectItem value="all" className="font-code text-[10px] uppercase">Catalog Health: All</SelectItem>
               <SelectItem value="missing_metadata" className="font-code text-[10px] uppercase">Missing Metadata</SelectItem>
               <SelectItem value="no_annotations" className="font-code text-[10px] uppercase">No Annotations</SelectItem>
               <SelectItem value="high_influence" className="font-code text-[10px] uppercase">High Influence</SelectItem>
               <SelectItem value="unfinished" className="font-code text-[10px] uppercase">Unfinished Sources</SelectItem>
+              <SelectItem value="ready_to_cite" className="font-code text-[10px] uppercase">Ready To Cite</SelectItem>
             </SelectContent>
           </Select>
           <Select value={view} onValueChange={(v) => setView(v as SourceIndexView)}>
-            <SelectTrigger className="w-40 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="View" /></SelectTrigger>
+            <SelectTrigger className="w-36 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="View" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="table" className="font-code text-[10px] uppercase">Table</SelectItem>
               <SelectItem value="covers" className="font-code text-[10px] uppercase">Covers</SelectItem>
@@ -431,41 +440,40 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               <SelectItem value="recent" className="font-code text-[10px] uppercase">Recently Added</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
-            <SelectTrigger className="w-44 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Sort" /></SelectTrigger>
+          <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
+            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Sort" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="dateAdded" className="font-code text-[10px] uppercase">Date Added</SelectItem>
-              <SelectItem value="title" className="font-code text-[10px] uppercase">Title</SelectItem>
-              <SelectItem value="creator" className="font-code text-[10px] uppercase">Creator</SelectItem>
-              <SelectItem value="year" className="font-code text-[10px] uppercase">Year</SelectItem>
-              <SelectItem value="influence" className="font-code text-[10px] uppercase">Influence</SelectItem>
-              <SelectItem value="annotations" className="font-code text-[10px] uppercase">Annotations</SelectItem>
-              <SelectItem value="connected" className="font-code text-[10px] uppercase">Connected</SelectItem>
-              <SelectItem value="progress" className="font-code text-[10px] uppercase">Progress</SelectItem>
+              <SelectItem value="date_desc" className="font-code text-[10px] uppercase">Date Added: Newest</SelectItem>
+              <SelectItem value="date_asc" className="font-code text-[10px] uppercase">Date Added: Oldest</SelectItem>
+              <SelectItem value="title_asc" className="font-code text-[10px] uppercase">Title: A-Z</SelectItem>
+              <SelectItem value="creator_asc" className="font-code text-[10px] uppercase">Author: A-Z</SelectItem>
+              <SelectItem value="connected_desc" className="font-code text-[10px] uppercase">Most Connected</SelectItem>
+              <SelectItem value="influence_desc" className="font-code text-[10px] uppercase">Highest Influence</SelectItem>
+              <SelectItem value="health_asc" className="font-code text-[10px] uppercase">Catalog Health</SelectItem>
+              <SelectItem value="manual" disabled className="font-code text-[10px] uppercase">Column Sort</SelectItem>
             </SelectContent>
           </Select>
       </FilterToolbar>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-4">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground/60">Quick views:</span>
         {[
-          { label: 'Missing Metadata', value: media.filter((item) => sourceMetadataGaps(item).length > 0).length, note: 'needs catalog cleanup', filter: 'missing_metadata' as CatalogFilter },
-          { label: 'Unfinished', value: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length, note: 'still in study flow', filter: 'unfinished' as CatalogFilter },
-          { label: 'No Annotations', value: media.filter((item) => !(item.annotations || []).length).length, note: 'cataloged but not processed', filter: 'no_annotations' as CatalogFilter },
-          { label: 'High Influence', value: sourceRows.filter((row) => row.influence >= HIGH_INFLUENCE_SCORE).length, note: 'feeding many objects', filter: 'high_influence' as CatalogFilter },
-          { label: 'Ready To Cite', value: sourceRows.filter((row) => row.catalogState.label === 'cataloged').length, note: 'clean catalog records', filter: 'all' as CatalogFilter },
+          { label: 'Needs cleanup', value: media.filter((item) => sourceMetadataGaps(item).length > 0).length, filter: 'missing_metadata' as CatalogFilter },
+          { label: 'Unfinished', value: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length, filter: 'unfinished' as CatalogFilter },
+          { label: 'No annotations', value: media.filter((item) => !(item.annotations || []).length).length, filter: 'no_annotations' as CatalogFilter },
+          { label: 'High influence', value: sourceRows.filter((row) => row.influence >= HIGH_INFLUENCE_SCORE).length, filter: 'high_influence' as CatalogFilter },
+          { label: 'Ready to cite', value: sourceRows.filter((row) => row.catalogState.label === 'cataloged').length, filter: 'ready_to_cite' as CatalogFilter },
         ].map((stat) => (
           <button
             key={stat.label}
             type="button"
             onClick={() => setCatalogFilter(catalogFilter === stat.filter ? 'all' : stat.filter)}
             className={cn(
-              "rounded-xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
-              catalogFilter === stat.filter ? "border-accent/50 bg-accent/10 ring-2 ring-accent/15" : "border-border/40 bg-white"
+              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+              catalogFilter === stat.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
-            <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
-            <div className="mt-1 font-headline text-2xl font-bold text-accent">{stat.value}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{stat.note}</div>
+            {stat.label} ({stat.value})
           </button>
         ))}
       </div>
@@ -601,11 +609,8 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         <Table>
           <TableHeader className="bg-muted/5 font-code text-[9px] uppercase tracking-[0.2em] font-bold">
             <TableRow>
-              <TableHead className="w-[300px] cursor-pointer" onClick={() => toggleSort('title')}>
-                Title <ArrowUpDown className="inline size-3 ml-1" />
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('creator')}>
-                Author/Creator <ArrowUpDown className="inline size-3 ml-1" />
+              <TableHead className="min-w-[320px] cursor-pointer" onClick={() => toggleSort('title')}>
+                Source <ArrowUpDown className="inline size-3 ml-1" />
               </TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="cursor-pointer" onClick={() => toggleSort('year')}>
@@ -617,12 +622,13 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody className="font-body text-[14px]">
+          <TableBody className="font-body text-[13px]">
             {sourceRows.map(({ source: m, influence, connected, progress, metadataGaps, health, catalogState, linkedPositions, linkedWorks, linkedPractices, linkedQuestions }) => {
               return (
-                <TableRow key={m.id} className="hover:bg-muted/5 group transition-colors cursor-pointer" onClick={() => previewSource(m)}>
-                  <TableCell>
-                    <div className="font-semibold italic text-primary/90">{m.title}</div>
+                <TableRow key={m.id} className="group h-16 cursor-pointer transition-colors hover:bg-muted/5" onClick={() => previewSource(m)}>
+                  <TableCell className="py-2.5">
+                    <div className="font-semibold italic leading-5 text-primary/90">{m.title}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{m.creator || (m.creators || []).join(', ') || 'Unknown creator'}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {(m.tags || []).slice(0, 3).map((tag) => (
                         <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-tighter rounded-full bg-muted/20 text-muted-foreground">{tag}</Badge>
@@ -644,14 +650,13 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{m.creator}</TableCell>
-                  <TableCell>
+                  <TableCell className="py-2.5">
                     <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full bg-white shadow-sm">{m.type}</Badge>
                   </TableCell>
-                  <TableCell className="font-code text-[10px] text-muted-foreground/60">{m.year || '—'}</TableCell>
-                  <TableCell>
+                  <TableCell className="py-2.5 font-code text-[10px] text-muted-foreground/60">{m.year || '-'}</TableCell>
+                  <TableCell className="py-2.5">
                     <div className="max-w-[150px] truncate text-[11px] text-muted-foreground/80" title={m.isbn || m.publisher}>
-                      {m.isbn || m.doi || m.publisher || '—'}
+                      {m.isbn || m.doi || m.publisher || m.platform || '-'}
                     </div>
                     {metadataGaps.length > 0 && (
                       <div className="mt-1 max-w-[170px] truncate font-code text-[8px] uppercase tracking-widest text-amber-700" title={`Missing: ${metadataGaps.join(', ')}`}>
@@ -659,13 +664,9 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Badge variant="outline" className="text-[8px] bg-white rounded-full"><MessageSquare className="size-3 mr-1" />{(m.annotations || []).length}</Badge>
-                      <Badge variant="outline" className="text-[8px] bg-white rounded-full">{linkedQuestions} inquiries</Badge>
-                      <Badge variant="outline" className="text-[8px] bg-white rounded-full">{linkedPositions} positions</Badge>
-                      <Badge variant="outline" className="text-[8px] bg-white rounded-full">{linkedWorks} works</Badge>
-                      <Badge variant="outline" className="text-[8px] bg-white rounded-full">{linkedPractices} practices</Badge>
+                  <TableCell className="py-2.5">
+                    <div className="whitespace-nowrap text-xs text-muted-foreground" title={`Influence ${influence}; ${connected} total linked objects`}>
+                      <MessageSquare className="mr-1 inline size-3.5" />{(m.annotations || []).length} notes · {linkedQuestions} inquiries · {linkedPositions} positions · {linkedWorks} works · {linkedPractices} practices
                     </div>
                   </TableCell>
                   <TableCell>
@@ -708,7 +709,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             })}
             {sourceRows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="p-8">
+                <TableCell colSpan={7} className="p-8">
                   <PageEmptyState
                     icon={Library}
                     title="No sources match this view"

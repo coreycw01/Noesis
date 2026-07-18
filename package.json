@@ -13,6 +13,7 @@
     "firestore:schema": "node scripts/seed-firestore-schema.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.2",
     "@capacitor/core": "^8.4.2",
     "@genkit-ai/google-genai": "^1.28.0",
     "@hookform/resolvers": "^4.1.3",

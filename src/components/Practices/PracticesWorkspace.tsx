@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, ClipboardList, Edit, Plus, Repeat, Target, Trash2 } from 'lucide-react';
+import { Edit, Plus, Repeat, Target, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
-import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
 import type { Concept, Draft, Media, PhilosophicalLink, Practice, PracticeLog, PracticeStatus, PracticeType, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, normalizeConceptTags, PRACTICE_LABELS, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
@@ -253,87 +252,23 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
       <PageHeader
         title="Practices"
         description="Turn understanding into habits, experiments, disciplines, commitments, and lived tests."
+        meta={
+          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+            {practiceStats.total} practices · {practiceStats.active} active · {practiceStats.needsDesign} need setup · {practiceStats.needsOutcome + practiceStats.needsConsequence} ready for review
+          </span>
+        }
+        className="mb-5"
         actions={
-          <>
-            <PracticeStat label="Total" value={practiceStats.total} />
-            <PracticeStat label="Active" value={practiceStats.active} />
-            <PracticeStat label="Planned" value={practiceStats.planned} />
-            <PracticeStat label="Positions Tested" value={practiceStats.testedPositions} />
-            <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
-              <Plus className="size-4 mr-1.5" /> NEW PRACTICE
-            </Button>
-          </>
+          <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
+            <Plus className="size-4 mr-1.5" /> NEW PRACTICE
+          </Button>
         }
       />
 
-      <section className="mb-10 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <PracticeLane
-          label="Awaiting Log"
-          value={practiceStats.awaitingLog}
-          description="Active tests that need lived evidence today."
-          active={viewFilter === 'awaiting_log'}
-          onClick={() => setViewFilter(viewFilter === 'awaiting_log' ? 'all' : 'awaiting_log')}
-        />
-        <PracticeLane
-          label="Needs Basis"
-          value={practiceStats.needsBasis}
-          description="Practices not yet tied to an idea, inquiry, source, or position."
-          active={viewFilter === 'needs_basis'}
-          onClick={() => setViewFilter(viewFilter === 'needs_basis' ? 'all' : 'needs_basis')}
-        />
-        <PracticeLane
-          label="Needs Design"
-          value={practiceStats.needsDesign}
-          description="Tests missing hypothesis, action, observation, or expected outcome."
-          active={viewFilter === 'needs_design'}
-          onClick={() => setViewFilter(viewFilter === 'needs_design' ? 'all' : 'needs_design')}
-        />
-        <PracticeLane
-          label="Needs Outcome"
-          value={practiceStats.needsOutcome}
-          description="Finished practices missing a theory-versus-reality review."
-          active={viewFilter === 'needs_outcome'}
-          onClick={() => setViewFilter(viewFilter === 'needs_outcome' ? 'all' : 'needs_outcome')}
-        />
-        <PracticeLane
-          label="Needs Consequence"
-          value={practiceStats.needsConsequence}
-          description="Concluded tests missing what changed intellectually."
-          active={viewFilter === 'needs_consequence'}
-          onClick={() => setViewFilter(viewFilter === 'needs_consequence' ? 'all' : 'needs_consequence')}
-        />
-        <PracticeLane
-          label="Testing Positions"
-          value={practices.filter((practice) => (practice.positionIds || []).length > 0).length}
-          description="Behavioral loops currently pressuring explicit positions."
-          active={viewFilter === 'testing_positions'}
-          onClick={() => setViewFilter(viewFilter === 'testing_positions' ? 'all' : 'testing_positions')}
-        />
-      </section>
-
-      <section className="mb-12">
-        <div className="flex items-center gap-2 mb-6">
-          <Repeat className="size-4 text-accent" />
-          <h2 className="font-headline text-2xl font-bold italic text-primary/80">Active Loop</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {(activePractices.length ? activePractices : practices.slice(0, 3)).map((practice) => (
-            <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onDelete={() => setDeleteTarget(practice)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
-          ))}
-          {!practices.length && (
-            <Card className="p-12 border-dashed border-border/60 text-center md:col-span-2 xl:col-span-3 bg-muted/5 rounded-xl shadow-inner">
-              <Repeat className="size-16 mx-auto mb-6 text-muted-foreground/30" />
-              <h3 className="font-headline text-2xl italic mb-3 text-primary/60">No lived tests initiated</h3>
-              <p className="max-w-sm mx-auto text-sm text-muted-foreground italic mb-8">What does your current understanding require of you? Create the first behavioral loop to find out.</p>
-              <Button variant="outline" onClick={() => openEditor()} className="rounded-full px-8 font-bold border-border/60 shadow-sm bg-white">Initiate Practice</Button>
-            </Card>
-          )}
-        </div>
-      </section>
 
       <FilterToolbar
         search={search}
@@ -342,11 +277,10 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
         searchLabel="Search practices"
         resultCount={filtered.length}
         resultLabel="practices"
-        sortLabel="Grouped by current view"
         activeFilterLabels={activePracticeFilterLabels}
         onClear={clearPracticeFilters}
         clearDisabled={!practiceFiltersActive}
-        className="mb-8"
+        className="mb-3"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PracticeViewFilter)}>
           <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Views" /></SelectTrigger>
@@ -370,12 +304,53 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
         </Select>
       </FilterToolbar>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        {[
+          { label: 'Needs setup', value: practiceStats.needsDesign + practiceStats.needsBasis, filter: 'needs_design' as PracticeViewFilter },
+          { label: 'Log due', value: practiceStats.awaitingLog, filter: 'awaiting_log' as PracticeViewFilter },
+          { label: 'Ready for review', value: practiceStats.needsOutcome + practiceStats.needsConsequence, filter: 'needs_outcome' as PracticeViewFilter },
+          { label: 'Testing positions', value: practiceStats.testedPositions, filter: 'testing_positions' as PracticeViewFilter },
+        ].filter((item) => item.value > 0).map((item) => (
+          <button
+            key={item.filter}
+            type="button"
+            onClick={() => setViewFilter(viewFilter === item.filter ? 'all' : item.filter)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+              viewFilter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+            )}
+          >
+            {item.label} {item.value}
+          </button>
+        ))}
+      </div>
+
+      <section className="mb-8 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
+          <Repeat className="size-4 text-accent" />
+          <h2 className="font-headline text-xl font-bold italic text-primary/80">Active Loop</h2>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {(activePractices.length ? activePractices.slice(0, 4) : practices.slice(0, 4)).map((practice) => (
+            <PracticeCard key={`active-${practice.id}`} compact practice={practice} questions={questionList} positions={positions} onEdit={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onDelete={() => setDeleteTarget(practice)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
+          ))}
+          {!practices.length && (
+            <Card className="border-dashed border-border/60 bg-muted/5 p-8 text-center shadow-inner md:col-span-2 xl:col-span-3 2xl:col-span-4 rounded-xl">
+              <Repeat className="size-12 mx-auto mb-4 text-muted-foreground/30" />
+              <h3 className="font-headline text-xl italic mb-2 text-primary/60">No lived tests initiated</h3>
+              <p className="max-w-sm mx-auto text-sm text-muted-foreground italic mb-5">What does your current understanding require of you?</p>
+              <Button variant="outline" onClick={() => openEditor()} className="rounded-full px-8 font-bold border-border/60 shadow-sm bg-white">Initiate Practice</Button>
+            </Card>
+          )}
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {filtered.map((practice) => (
           <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onDelete={() => setDeleteTarget(practice)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
         ))}
         {filtered.length === 0 && (
-          <div className="md:col-span-2 xl:col-span-3">
+          <div className="md:col-span-2 xl:col-span-3 2xl:col-span-4">
             <PageEmptyState
               icon={Repeat}
               title="No practices found"
@@ -421,37 +396,7 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
   );
 }
 
-function PracticeStat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-xl border border-border/50 bg-card px-4 py-2 text-right shadow-sm">
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
-      <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
-    </div>
-  );
-}
-
-function PracticeLane({ label, value, description, active, onClick }: { label: string; value: number; description: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "group rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
-        active ? "border-accent/50 bg-accent/10 ring-2 ring-accent/15" : "border-border/50 bg-card"
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-code text-[8px] font-bold uppercase tracking-[0.22em] text-muted-foreground/60">{label}</div>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
-        </div>
-        <div className="font-headline text-3xl font-bold italic leading-none text-primary group-hover:text-accent">{value}</div>
-      </div>
-    </button>
-  );
-}
-
-function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpdatePractice, onCreateLink }: {
+function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpdatePractice, onCreateLink, compact = false }: {
   practice: Practice;
   questions: Question[];
   positions: VaultEntry[];
@@ -459,13 +404,13 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   onDelete: () => void;
   onUpdatePractice: (practice: Practice) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
+  compact?: boolean;
 }) {
   const linkedQuestions = questions.filter((question) => (practice.questionIds || []).includes(question.id));
   const linkedPositions = positions.filter((position) => (practice.positionIds || []).includes(position.id));
   const firstLinkedPosition = linkedPositions[0];
   const todayKey = dateKey();
   const logDates = practiceLogDates(practice);
-  const hasLoggedToday = logDates.includes(todayKey);
   const streak = currentStreak(logDates);
   const experimentShape = practiceExperimentShape(practice, linkedQuestions, linkedPositions);
   const needsLog = practiceNeedsLog(practice);
@@ -482,6 +427,27 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
     shouldContinue: practice.conclusion?.shouldContinue || '',
   });
   const setStatus = (status: PracticeStatus) => onUpdatePractice({ ...practice, status, dateUpdated: today() });
+  const meaningfulStreak = ['habit', 'discipline', 'ritual', 'rule', 'challenge'].includes(practice.type);
+  const durationText = practice.durationDays
+    ? `Day ${Math.min(logDates.length || 0, practice.durationDays)} of ${practice.durationDays}`
+    : practice.durationMode || 'Cadence unset';
+  const setupNeed = !experimentShape.hasBasis
+    ? 'Needs basis: link the idea, position, or inquiry this tests.'
+    : experimentShape.designGaps.length
+      ? `Needs setup: add ${experimentShape.designGaps[0]}.`
+      : '';
+  const relationshipText = `Tests ${linkedPositions.length} position${linkedPositions.length === 1 ? '' : 's'} · connected to ${linkedQuestions.length} inquir${linkedQuestions.length === 1 ? 'y' : 'ies'}`;
+  const nextAction =
+    setupNeed ? { label: 'Finish setup', handler: onEdit, tone: 'setup' as const } :
+    practice.status === 'proposed' || practice.status === 'designed' || practice.status === 'planned' || practice.status === 'paused'
+      ? { label: 'Start practice', handler: () => setStatus('active'), tone: 'start' as const } :
+    practice.status === 'active' && needsLog
+      ? { label: 'Log Observation', handler: () => setLogOpen(true), tone: 'log' as const } :
+    isPracticeConcluded(practice) || experimentShape.needsOutcome || experimentShape.needsConsequence
+      ? { label: 'Review evidence', handler: () => setReviewOpen(true), tone: 'review' as const } :
+    practice.status === 'completed' || practice.status === 'integrated'
+      ? { label: 'View conclusion', handler: () => setReviewOpen(true), tone: 'review' as const } :
+      { label: 'Open', handler: onEdit, tone: 'open' as const };
   const saveLog = () => {
     const date = (logDraft.date || todayKey).slice(0, 10);
     const nextLog: PracticeLog = {
@@ -522,17 +488,14 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
     setReviewOpen(false);
   };
   return (
-    <Card className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-5 rounded-xl shadow-md">
+    <Card className={cn("group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 rounded-xl shadow-md", compact ? "p-4" : "p-5")}>
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap gap-2 mb-2">
             <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5 shadow-sm">{PRACTICE_LABELS[practice.type]}</Badge>
             <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-border/60 bg-white shadow-sm rounded-full font-bold px-2.5 py-0.5 shadow-sm">{practice.status}</Badge>
             {needsLog && <Badge className="font-code text-[8px] uppercase tracking-widest bg-emerald-100 text-emerald-900 hover:bg-emerald-100 rounded-full font-bold px-2.5 py-0.5">log due</Badge>}
-            {!!experimentShape.designGaps.length && <Badge className="font-code text-[8px] uppercase tracking-widest bg-sky-100 text-sky-950 hover:bg-sky-100 rounded-full font-bold px-2.5 py-0.5">needs design</Badge>}
-            {experimentShape.needsOutcome && <Badge className="font-code text-[8px] uppercase tracking-widest bg-amber-100 text-amber-950 hover:bg-amber-100 rounded-full font-bold px-2.5 py-0.5">needs outcome</Badge>}
-            {experimentShape.needsConsequence && <Badge className="font-code text-[8px] uppercase tracking-widest bg-purple-100 text-purple-950 hover:bg-purple-100 rounded-full font-bold px-2.5 py-0.5">needs consequence</Badge>}
-            {!experimentShape.hasBasis && <Badge className="font-code text-[8px] uppercase tracking-widest bg-rose-100 text-rose-950 hover:bg-rose-100 rounded-full font-bold px-2.5 py-0.5">needs basis</Badge>}
+            {setupNeed && <Badge className="font-code text-[8px] uppercase tracking-widest bg-sky-100 text-sky-950 hover:bg-sky-100 rounded-full font-bold px-2.5 py-0.5">needs setup</Badge>}
             {recentlyConcluded && <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-accent/30 bg-accent/5 text-accent rounded-full font-bold px-2.5 py-0.5">recent result</Badge>}
           </div>
           <h3 className="font-headline text-xl font-bold italic leading-tight group-hover:text-accent transition-colors text-primary truncate">{practice.title}</h3>
@@ -543,136 +506,38 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
         </div>
       </div>
       
-      <p className="text-[13px] leading-relaxed text-muted-foreground font-body line-clamp-2 italic mb-6">
+      <p className="text-[13px] leading-relaxed text-muted-foreground font-body line-clamp-2 italic mb-4">
         {practice.description || 'No requirement explicitly defined.'}
       </p>
 
-      <div className="mb-5 grid gap-2 rounded-xl border border-border/40 bg-card/80 p-4 text-[12px] leading-relaxed">
-        <div>
-          <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Intellectual Basis</div>
-          <p className="line-clamp-2 text-primary/80 italic">{practice.intellectualBasis || firstLinkedPosition?.title || linkedQuestions[0]?.text || 'No source idea named yet.'}</p>
+      <div className="mb-4 rounded-xl border border-border/40 bg-card/80 p-3 text-[12px] leading-relaxed">
+        <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Tests</div>
+        <p className="line-clamp-2 text-primary/80 italic">{practice.intellectualBasis || firstLinkedPosition?.title || linkedQuestions[0]?.text || 'No source idea named yet.'}</p>
+        <div className="mt-2 flex flex-wrap gap-2 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+          <span>{durationText}</span>
+          <span>{(practice.logs || []).length} observations</span>
+          {meaningfulStreak && <span>{streak}d streak</span>}
         </div>
-        <div>
-          <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Action</div>
-          <p className="line-clamp-2 text-muted-foreground italic">{practice.action || 'Define the behavior, restraint, dialogue, or observation this practice requires.'}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-3 mb-6">
-        <MiniStat label="DAYS" value={practice.durationDays || 0} />
-        <MiniStat label="STREAK" value={`${streak}d`} />
-        <MiniStat label="INQUIRIES" value={linkedQuestions.length} />
-        <MiniStat label="POSITIONS" value={linkedPositions.length} />
-      </div>
-
-      <div className="mb-5 rounded-xl border border-border/40 bg-muted/10 p-4 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Target className="size-3.5 text-accent" />
-            <span className="font-code text-[8px] uppercase tracking-[0.22em] text-muted-foreground font-bold">Field Experiment</span>
-          </div>
-          <Badge variant={experimentShape.readinessScore >= 5 ? 'outline' : 'secondary'} className="font-code text-[8px] uppercase tracking-widest rounded-full">
-            readiness {experimentShape.readinessScore}/5
-          </Badge>
-        </div>
-        {!!experimentShape.designGaps.length && (
-          <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-[11px] leading-5 text-sky-950">
-            <span className="font-code text-[8px] uppercase tracking-widest">Design gaps:</span> {experimentShape.designGaps.join(', ')}
-          </div>
+        <p className="mt-2 text-xs text-muted-foreground">{relationshipText}</p>
+        {setupNeed && (
+          <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] leading-5 text-sky-950">{setupNeed}</p>
         )}
-        <div className="grid gap-3 text-[12px] leading-relaxed">
-          <div>
-            <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Hypothesis</div>
-            <p className="text-primary/80 italic line-clamp-2">{experimentShape.hypothesis}</p>
-          </div>
-          <div>
-            <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Observation</div>
-            <p className="text-muted-foreground italic line-clamp-2">{experimentShape.observation}</p>
-          </div>
-          <div className={cn("rounded-lg border p-3", experimentShape.needsOutcome ? "border-amber-300 bg-amber-50 text-amber-950" : "border-border/30 bg-white/70")}>
-            <div className="flex items-start gap-2">
-              <ClipboardList className="mt-0.5 size-3.5 shrink-0 text-accent" />
-              <p className="text-[11px] leading-relaxed font-medium">{experimentShape.nextStep}</p>
-            </div>
-          </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-border/30 pt-4">
+        <Button size="sm" onClick={(event) => { event.stopPropagation(); nextAction.handler(); }} className="h-8 rounded-full font-code text-[9px] uppercase tracking-widest">
+          {nextAction.label}
+        </Button>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+            Open
+          </Button>
+          {practice.status === 'active' && (
+            <Button variant="ghost" size="sm" className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); setStatus('paused'); }}>
+              Pause
+            </Button>
+          )}
         </div>
-      </div>
-
-      <div className="mb-5 rounded-xl border border-border/40 bg-background/80 p-4">
-        <div className="mb-3 font-code text-[8px] uppercase tracking-[0.22em] text-muted-foreground font-bold">Theory vs Reality</div>
-        <div className="grid gap-3 text-[12px] leading-relaxed sm:grid-cols-2">
-          <div>
-            <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Expected</div>
-            <p className="line-clamp-3 text-primary/80 italic">{practice.expectedOutcome || practice.hypothesis || 'No expectation stated yet.'}</p>
-          </div>
-          <div>
-            <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Observed</div>
-            <p className="line-clamp-3 text-muted-foreground italic">{practice.observedOutcome || practice.conclusion?.whatHappened || 'No outcome logged yet.'}</p>
-          </div>
-          <div>
-            <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Interpretation</div>
-            <p className="line-clamp-3 text-muted-foreground italic">{practice.interpretation || practice.conclusion?.hypothesisSupported || 'Awaiting conclusion review.'}</p>
-          </div>
-          <div>
-            <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Effect on Position</div>
-            <p className="line-clamp-3 text-muted-foreground italic">{practice.effectOnPosition || practice.conclusion?.intellectualChange || 'No belief consequence recorded.'}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5 pt-4 border-t border-border/30">
-        {(practice.conceptTags || []).slice(0, 4).map((tag) => (
-          <Badge key={tag} variant="outline" className="font-code text-[8px] uppercase tracking-tighter bg-muted/10 border-transparent rounded-full font-bold shadow-sm">{tag}</Badge>
-        ))}
-      </div>
-
-      <div className="mt-5">
-        <NextPhilosophicalActionPanel
-          compact
-          status={practice.status}
-          title="What does this test?"
-          description="Practices close the loop by testing positions in lived behavior."
-          actions={[
-            {
-              label: hasLoggedToday ? 'Logged' : 'Log Result',
-              tone: 'support',
-              icon: <CheckCircle2 className="size-3" />,
-              onClick: () => setLogOpen(true),
-            },
-            {
-              label: 'Activate',
-              disabled: practice.status === 'active',
-              onClick: () => setStatus('active'),
-            },
-            {
-              label: 'Complete',
-              tone: 'support',
-              disabled: practice.status === 'completed',
-              onClick: () => setReviewOpen(true),
-            },
-            {
-              label: 'Failed',
-              tone: 'challenge',
-              disabled: practice.status === 'failed',
-              onClick: () => setReviewOpen(true),
-            },
-            {
-              label: 'Link Test',
-              disabled: !firstLinkedPosition,
-              description: firstLinkedPosition ? `Mark ${practice.title} as testing ${firstLinkedPosition.title}.` : 'Choose a linked position first.',
-              onClick: () => firstLinkedPosition && onCreateLink({
-                fromType: 'position',
-                fromId: firstLinkedPosition.id,
-                fromLabel: firstLinkedPosition.title,
-                toType: 'practice',
-                toId: practice.id,
-                toLabel: practice.title,
-                type: 'tested_by',
-                note: 'Practice tests this position in lived behavior.',
-              }),
-            },
-          ]}
-        />
       </div>
 
       {logOpen && (
@@ -773,15 +638,6 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
         </div>
       )}
     </Card>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg bg-muted/30 p-3 text-center border border-border/10 shadow-sm">
-      <div className="font-headline font-bold text-xl text-primary/80 leading-none mb-1">{value}</div>
-      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</div>
-    </div>
   );
 }
 

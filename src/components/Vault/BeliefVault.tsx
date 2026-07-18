@@ -397,6 +397,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const [stressTests, setStressTests] = useState<Array<{ kind: string; question: string }>>([]);
   const [stressAnswer, setStressAnswer] = useState('');
   const [stressStageIndex, setStressStageIndex] = useState(0);
+  const [tensionDrawerOpen, setTensionDrawerOpen] = useState(false);
 
   const openIdeaDialog = () => {
     setIdeaDraft({ title: '', body: '' });
@@ -573,19 +574,34 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
   const tensions = useMemo(() => {
     const active = safeEntries.filter((e) => e.status !== 'rejected' && e.status !== 'abandoned');
-    const pairs: Array<{ a: VaultEntry; b: VaultEntry; sharedTags: string[] }> = [];
+    const pairs: Array<{ a: VaultEntry; b: VaultEntry; sharedTags: string[]; severity: 'possible contradiction' | 'possible qualification' | 'possible complement' | 'shared concept only' }> = [];
     for (let i = 0; i < active.length; i++) {
       for (let j = i + 1; j < active.length; j++) {
         const tagsA = (active[i].tags || []).map((t) => t.toLowerCase());
         const tagsB = (active[j].tags || []).map((t) => t.toLowerCase());
         const shared = tagsA.filter((t) => tagsB.includes(t));
         if (shared.length > 0 && active[i].id !== active[j].id) {
-          pairs.push({ a: active[i], b: active[j], sharedTags: shared });
+          const hasExplicitConflict = links.some((link) =>
+            ['contradicts', 'challenges'].includes(link.type) &&
+            ((link.fromId === active[i].id && link.toId === active[j].id) || (link.fromId === active[j].id && link.toId === active[i].id))
+          );
+          const hasRefinement = links.some((link) =>
+            ['refines', 'coheres'].includes(link.type) &&
+            ((link.fromId === active[i].id && link.toId === active[j].id) || (link.fromId === active[j].id && link.toId === active[i].id))
+          );
+          const severity = hasExplicitConflict
+            ? 'possible contradiction'
+            : hasRefinement
+              ? 'possible qualification'
+              : shared.length > 1
+                ? 'possible complement'
+                : 'shared concept only';
+          pairs.push({ a: active[i], b: active[j], sharedTags: shared, severity });
         }
       }
     }
-    return pairs.slice(0, 3);
-  }, [safeEntries]);
+    return pairs.slice(0, 8);
+  }, [safeEntries, links]);
 
   if (selected) {
     const linkedSources = media.filter((item) => (selected.sourceIds || []).includes(item.id));
@@ -1579,19 +1595,23 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
       <PageHeader
         title="Positions"
-        description="State what you currently believe, what you are testing, and what evidence supports or challenges each position."
+        description="State what you currently believe, what supports it, and what could change it."
+        meta={
+          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+            {positionStats.total} positions · {positionStats.underReview} need review · {positionStats.needsPractice} untested · {positionStats.tensions} tensions
+          </span>
+        }
+        className="mb-5"
         actions={
           <>
-            <PositionStat label="Total" value={positionStats.total} />
-            <PositionStat label="Review" value={positionStats.underReview} active={viewFilter === 'under_review'} onClick={() => setViewFilter('under_review')} />
-            <PositionStat label="Unsupported" value={positionStats.unsupported} active={viewFilter === 'unsupported'} onClick={() => setViewFilter('unsupported')} />
-            <PositionStat label="Untested" value={positionStats.needsPractice} active={viewFilter === 'needs_practice'} onClick={() => setViewFilter('needs_practice')} />
-            <PositionStat label="Overconfident" value={positionStats.overconfident} active={viewFilter === 'overconfident'} onClick={() => setViewFilter('overconfident')} />
-            <PositionStat label="Stale" value={positionStats.stale} active={viewFilter === 'stale'} onClick={() => setViewFilter('stale')} />
-            <PositionStat label="Tensions" value={positionStats.tensions} active={viewFilter === 'tensions'} onClick={() => setViewFilter('tensions')} />
+            {positionStats.tensions > 0 && (
+              <Button variant="outline" onClick={() => setTensionDrawerOpen(true)} size="sm" className="bg-amber-50 border-amber-200 text-amber-900 shadow-sm rounded-full h-9 font-bold">
+                <AlertTriangle className="size-4 mr-1.5" /> {positionStats.tensions} TENSIONS
+              </Button>
+            )}
             <Button variant="outline" onClick={openIdeaDialog} size="sm" className="bg-white border-border/60 shadow-sm rounded-full h-9 font-bold">
               <Lightbulb className="size-4 mr-1.5" /> NEW IDEA
             </Button>
@@ -1611,7 +1631,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         activeFilterLabels={activeFilterLabels}
         onClear={clearPositionFilters}
         clearDisabled={!positionFiltersActive}
-        className="mb-8"
+        className="mb-3"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PositionViewFilter)}>
           <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
@@ -1647,37 +1667,31 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           </div>
       </FilterToolbar>
 
-      {tensions.length > 0 && (
-        <div className="mb-8 rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
-            <h3 className="font-code text-[10px] uppercase tracking-[0.2em] text-foreground font-bold">Possible Tensions Detected</h3>
-          </div>
-          <div className="space-y-3">
-            {tensions.map(({ a, b, sharedTags }) => (
-              <div key={`${a.id}-${b.id}`} className="rounded-lg border border-border bg-background p-4 shadow-sm">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm font-body">
-                  <button onClick={() => openEntry(a.id)} className="font-headline text-base font-bold italic text-foreground hover:text-accent transition-colors focus:outline-none focus:ring-2 focus:ring-ring rounded-sm">
-                    {a.title}
-                  </button>
-                  <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground self-center">shares concept</span>
-                  <span className="font-code text-[9px] bg-accent/10 text-accent rounded-full px-2.5 py-1 self-center border border-accent/20 font-bold">{sharedTags[0]}</span>
-                  <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground self-center">with</span>
-                  <button onClick={() => openEntry(b.id)} className="font-headline text-base font-bold italic text-foreground hover:text-accent transition-colors focus:outline-none focus:ring-2 focus:ring-ring rounded-sm">
-                    {b.title}
-                  </button>
-                </div>
-                <p className="mt-3 text-sm text-foreground/80 font-body italic leading-6">Examine whether these positions contradict, refine, or complement each other.</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        {[
+          { label: 'Needs review', value: positionStats.underReview, filter: 'under_review' as PositionViewFilter },
+          { label: 'Untested', value: positionStats.needsPractice, filter: 'needs_practice' as PositionViewFilter },
+          { label: 'Unsupported', value: positionStats.unsupported, filter: 'unsupported' as PositionViewFilter },
+          { label: 'Stale', value: positionStats.stale, filter: 'stale' as PositionViewFilter },
+        ].filter((item) => item.value > 0).map((item) => (
+          <button
+            key={item.filter}
+            type="button"
+            onClick={() => setViewFilter(viewFilter === item.filter ? 'all' : item.filter)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+              viewFilter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+            )}
+          >
+            {item.label} ({item.value})
+          </button>
+        ))}
+      </div>
 
       {viewMode === 'table' ? (
         <PositionsTable entries={filteredEntries} diagnostics={positionDiagnostics} links={links} practices={practices} onOpen={openEntry} />
       ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {filteredEntries.map((entry) => {
           const diagnostic = positionDiagnostics.get(entry.id) || diagnosePosition(entry, links, practices);
           return (
@@ -1704,15 +1718,12 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               {entry.statement || entry.description}
             </p>
 
-            <div className="mb-4 rounded-xl border border-border/40 bg-background/70 px-3 py-2 text-xs leading-5 text-muted-foreground">
-              <span className="font-medium text-foreground/70">Workbench note:</span> {positionListReason(entry, links, viewFilter)}
-            </div>
-
             <div className="mb-4 rounded-xl border border-border/40 bg-muted/10 p-3">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{diagnostic.label}</Badge>
                 <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{diagnostic.daysSinceUpdate}d since review</span>
               </div>
+              <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Strongest next action</div>
               <p className="text-xs italic leading-5 text-muted-foreground">{diagnostic.nextAction}</p>
               {!!diagnostic.flags.length && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1781,6 +1792,55 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         questions={questions}
         timeline={timeline}
       />
+
+      <Dialog open={tensionDrawerOpen} onOpenChange={setTensionDrawerOpen}>
+        <DialogContent className="max-w-2xl max-h-[82vh] overflow-y-auto bg-white border-none shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl italic">Possible tensions</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm leading-6 text-muted-foreground">
+              These are review prompts, not proven contradictions. Decide whether the positions conflict, qualify each other, complement each other, or merely share vocabulary.
+            </p>
+            {tensions.map(({ a, b, sharedTags, severity }) => (
+              <div key={`${a.id}-${b.id}`} className="rounded-xl border border-border bg-background p-4 shadow-sm">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={cn(
+                    "rounded-full font-code text-[8px] uppercase tracking-widest",
+                    severity === 'possible contradiction' ? "border-rose-200 bg-rose-50 text-rose-800" :
+                    severity === 'possible qualification' ? "border-blue-200 bg-blue-50 text-blue-800" :
+                    severity === 'possible complement' ? "border-emerald-200 bg-emerald-50 text-emerald-800" :
+                    "border-border bg-muted/20 text-muted-foreground"
+                  )}>
+                    {severity}
+                  </Badge>
+                  <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Shared: {sharedTags.slice(0, 2).join(', ')}</span>
+                </div>
+                <button onClick={() => { setTensionDrawerOpen(false); openEntry(a.id); }} className="block text-left font-headline text-base font-bold italic text-foreground hover:text-accent">
+                  {a.title}
+                </button>
+                <div className="my-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">and</div>
+                <button onClick={() => { setTensionDrawerOpen(false); openEntry(b.id); }} className="block text-left font-headline text-base font-bold italic text-foreground hover:text-accent">
+                  {b.title}
+                </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="h-8 rounded-full bg-white" onClick={() => { setTensionDrawerOpen(false); openEntry(a.id); }}>
+                    Review tension
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 rounded-full" onClick={() => setViewFilter('tensions')}>
+                    Filter positions
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {tensions.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border/50 bg-muted/10 p-5 text-sm text-muted-foreground">
+                No possible tensions are currently active.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} />
 

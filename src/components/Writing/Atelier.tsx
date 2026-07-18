@@ -4,10 +4,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Camera,
   ChevronLeft,
+  CirclePause,
+  CirclePlay,
   Cloud,
   Download,
   Eraser,
   ExternalLink,
+  FileText,
   ImageIcon,
   Link2,
   Mic,
@@ -213,6 +216,77 @@ function isWritingWork(draft: Draft) {
   return (draft.workCategory || workCategoryForDraft(draft.type)) === 'writing';
 }
 
+function plainTextFromDraft(draft: Draft) {
+  return (draft.body || draft.draftContent || draft.finalContent || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function wordCountForDraft(draft: Draft) {
+  return plainTextFromDraft(draft).split(/\s+/).filter(Boolean).length;
+}
+
+function formatDuration(seconds?: number) {
+  const total = Math.max(0, Math.round(seconds || 0));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function formatEdited(date?: string) {
+  if (!date) return 'Edited recently';
+  const value = new Date(date);
+  if (Number.isNaN(value.getTime())) return 'Edited recently';
+  return `Edited ${value.toLocaleDateString()}`;
+}
+
+function workTypePresentation(draft: Draft): {
+  label: string;
+  ariaLabel: string;
+  action: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  BadgeIcon?: React.ComponentType<{ className?: string }>;
+  tone: string;
+} {
+  if (draft.type === 'recording') {
+    return { label: 'Recording', ariaLabel: 'Video recording', action: 'Play recording', Icon: CirclePlay, tone: 'bg-blue-50 text-blue-700 border-blue-100' };
+  }
+  if (draft.type === 'drawing') {
+    return { label: 'Drawing', ariaLabel: 'Drawing work', action: 'Edit drawing', Icon: PenTool, tone: 'bg-rose-50 text-rose-700 border-rose-100' };
+  }
+  if (draft.type === 'voice_note') {
+    return { label: 'Quick Note - Voice', ariaLabel: 'Voice quick note', action: 'Play voice note', Icon: NotebookPen, BadgeIcon: CirclePlay, tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  }
+  if (draft.type === 'drawing_note') {
+    return { label: 'Quick Note - Drawing', ariaLabel: 'Drawing quick note', action: 'Open drawing note', Icon: NotebookPen, BadgeIcon: PenTool, tone: 'bg-amber-50 text-amber-700 border-amber-100' };
+  }
+  if (draft.type === 'text_note' || draft.type === 'talk_to_text') {
+    return { label: draft.type === 'talk_to_text' ? 'Quick Note - Talk' : 'Quick Note - Text', ariaLabel: 'Written quick note', action: 'Open note', Icon: NotebookPen, BadgeIcon: PencilLine, tone: 'bg-slate-50 text-slate-700 border-slate-100' };
+  }
+  return { label: 'Writing', ariaLabel: 'Writing work', action: 'Continue writing', Icon: PencilLine, tone: 'bg-violet-50 text-violet-700 border-violet-100' };
+}
+
+function WorkTypeMark({ draft }: { draft: Draft }) {
+  const presentation = workTypePresentation(draft);
+  const Icon = presentation.Icon;
+  const BadgeIcon = presentation.BadgeIcon;
+  return (
+    <div className="relative flex size-11 shrink-0 items-center justify-center rounded-xl border bg-background shadow-sm" aria-label={presentation.ariaLabel} title={presentation.ariaLabel}>
+      <Icon className="size-5 text-primary" aria-hidden="true" />
+      {BadgeIcon && (
+        <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border border-background bg-accent text-accent-foreground shadow-sm">
+          <BadgeIcon className="size-3" aria-hidden="true" />
+        </span>
+      )}
+    </div>
+  );
+}
+
 function workReadiness(draft: Draft, questions: Question[]) {
   const category = draft.workCategory || workCategoryForDraft(draft.type);
   const linkedActiveInquiry = (draft.questionIds || []).some((questionId) => {
@@ -290,6 +364,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   const [writingTool, setWritingTool] = useState<WritingTool>('text');
   const [writingStrokeColor, setWritingStrokeColor] = useState('#4c1d95');
   const [writingStrokeSize, setWritingStrokeSize] = useState(3);
+  const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
 
   const { toast } = useToast();
   const activeFromStore = drafts.find((draft) => draft.id === activeId) || null;
@@ -1006,21 +1081,20 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
       <PageHeader
         title="Works"
         description="Create writing, notes, drawings, and recordings that express the ideas gathered across Noesis."
+        meta={
+          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+            {workStats.total} works · {workStats.writing} writings · {workStats.notes} note{workStats.notes === 1 ? '' : 's'} · {workStats.awaitingRevision} need revision
+          </span>
+        }
+        className="mb-5"
         actions={
-          <>
-            <WorkStat label="Total" value={workStats.total} />
-            <WorkStat label="Writing" value={workStats.writing} />
-            <WorkStat label="Notes" value={workStats.notes} />
-            <WorkStat label="Revise" value={workStats.awaitingRevision} />
-            <WorkStat label="Linked Docs" value={workStats.linkedDocs} />
-            <Button onClick={() => setIsWorkTypeOpen(true)} size="sm" className="h-9 px-6 font-code text-[10px] tracking-widest rounded-full uppercase font-bold shadow-sm shadow-accent/20">
-              <Plus className="mr-2 size-4" /> Add Work
-            </Button>
-          </>
+          <Button onClick={() => setIsWorkTypeOpen(true)} size="sm" className="h-9 px-6 font-code text-[10px] tracking-widest rounded-full uppercase font-bold shadow-sm shadow-accent/20">
+            <Plus className="mr-2 size-4" /> Add Work
+          </Button>
         }
       />
 
@@ -1034,7 +1108,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
         activeFilterLabels={activeWorkFilterLabels}
         onClear={clearWorkFilters}
         clearDisabled={!workFiltersActive}
-        className="mb-8"
+        className="mb-3"
       >
         <Select value={workTab} onValueChange={(value) => { setWorkTab(value as WorkTab); setFilter('all'); }}>
           <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
@@ -1060,38 +1134,78 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
         </Select>
       </FilterToolbar>
 
-      <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <WorkLane
-          label="Needs Sources"
-          value={workStats.needsSources}
-          description="Writing that needs evidence or source material before it matures."
-          active={filter === 'needs_sources'}
-          onClick={() => setFilter(filter === 'needs_sources' ? 'all' : 'needs_sources')}
-        />
-        <WorkLane
-          label="Needs Positions"
-          value={workStats.needsPositions}
-          description="Argumentative works not yet linked to the claims they express."
-          active={filter === 'needs_positions'}
-          onClick={() => setFilter(filter === 'needs_positions' ? 'all' : 'needs_positions')}
-        />
-        <WorkLane
-          label="Needs Structure"
-          value={workStats.needsStructure}
-          description="Works missing a central claim, support, objection, or conclusion."
-          active={filter === 'needs_structure'}
-          onClick={() => setFilter(filter === 'needs_structure' ? 'all' : 'needs_structure')}
-        />
-        <WorkLane
-          label="Unresolved"
-          value={workStats.unresolved}
-          description="Drafts carrying an open question or unresolved ending."
-          active={filter === 'unresolved'}
-          onClick={() => setFilter(filter === 'unresolved' ? 'all' : 'unresolved')}
-        />
-      </section>
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        {workTab === 'notes' && ([
+          { label: 'All notes', value: 'all' as WorkFilter },
+          { label: 'Written', value: 'text_note' as WorkFilter },
+          { label: 'Voice', value: 'voice_note' as WorkFilter },
+          { label: 'Talk-to-text', value: 'talk_to_text' as WorkFilter },
+          { label: 'Drawing', value: 'drawing_note' as WorkFilter },
+        ].map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setFilter(filter === item.value ? 'all' : item.value)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+              filter === item.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+            )}
+          >
+            {item.label}
+          </button>
+        )))}
+        {[
+          { label: 'Needs sources', value: workStats.needsSources, filter: 'needs_sources' as WorkFilter },
+          { label: 'Needs positions', value: workStats.needsPositions, filter: 'needs_positions' as WorkFilter },
+          { label: 'Needs structure', value: workStats.needsStructure, filter: 'needs_structure' as WorkFilter },
+          { label: 'Unresolved', value: workStats.unresolved, filter: 'unresolved' as WorkFilter },
+          { label: 'Linked docs', value: workStats.linkedDocs, filter: 'external_docs' as WorkFilter },
+        ].filter((item) => item.value > 0).map((item) => (
+          <button
+            key={item.filter}
+            type="button"
+            onClick={() => setFilter(filter === item.filter ? 'all' : item.filter)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+              filter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+            )}
+          >
+            {item.label} {item.value}
+          </button>
+        ))}
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {visibleDrafts.length > 0 && (
+        <div className="mb-5 rounded-xl border border-border/50 bg-card/80 p-3 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Continue</div>
+            <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Recently edited</span>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            {visibleDrafts.slice(0, 4).map((draft) => {
+              const presentation = workTypePresentation(draft);
+              const ActionIcon = presentation.Icon;
+              return (
+                <button
+                  key={draft.id}
+                  type="button"
+                  onClick={() => openDraft(draft.id)}
+                  className="flex min-w-0 items-center gap-3 rounded-xl border border-border/50 bg-background p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+                >
+                  <WorkTypeMark draft={draft} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-headline text-base font-bold italic text-primary">{draft.title || 'Untitled Draft'}</span>
+                    <span className="mt-1 block truncate font-code text-[8px] uppercase tracking-widest text-muted-foreground">{presentation.action} - {formatEdited(draft.dateUpdated)}</span>
+                  </span>
+                  <ActionIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {visibleDrafts.map((draft) => (
           (() => {
             const hasActiveInquiry = (draft.questionIds || []).some((questionId) => {
@@ -1102,25 +1216,49 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
               || Boolean(draft.argumentSkeleton?.objections?.length)
               || Boolean(draft.completionReflection?.unresolved);
             const readiness = workReadiness(draft, questions);
+            const presentation = workTypePresentation(draft);
+            const ActionIcon = presentation.Icon;
+            const textPreview = plainTextFromDraft(draft);
+            const wordCount = wordCountForDraft(draft);
+            const linkCount = (draft.conceptTags || []).length + (draft.sourceIds || []).length + (draft.questionIds || []).length + (draft.beliefIds || []).length;
+            const isPlayable = ['recording', 'voice_note'].includes(draft.type);
+            const isPlaying = playingWorkId === draft.id;
+            const thumbnail = draft.thumbnailUrl || (draft.type === 'drawing' || draft.type === 'drawing_note' ? draft.canvasData : undefined);
+            const metadata =
+              draft.type === 'recording'
+                ? `${formatDuration(draft.durationSeconds)} - ${draft.fileUrl ? 'Saved recording' : 'No saved video'} - ${formatEdited(draft.dateUpdated)}`
+                : draft.type === 'voice_note'
+                  ? `${formatDuration(draft.durationSeconds)} - ${draft.fileUrl ? 'Saved audio' : 'No saved audio'} - ${linkCount} links`
+                  : draft.type === 'drawing' || draft.type === 'drawing_note'
+                    ? `${draft.canvasData ? 'Canvas saved' : 'Blank canvas'} - ${linkCount} links - ${formatEdited(draft.dateUpdated)}`
+                    : `${wordCount} words - ${Math.max(1, Math.ceil(wordCount / 225))} min read - ${formatEdited(draft.dateUpdated)}`;
             return (
           <Card
             key={draft.id}
-            className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-6 rounded-xl shadow-md relative"
+            className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-5 rounded-xl shadow-md relative overflow-hidden"
             onClick={() => openDraft(draft.id)}
           >
-            <div className="flex justify-between items-start mb-4">
-              <div className="grid gap-1">
-                <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">
-                  {DRAFT_LABELS[draft.type]}
-                </span>
-                {draft.workPurpose && (
-                  <span className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">
-                    {draft.workPurpose}
-                  </span>
-                )}
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <WorkTypeMark draft={draft} />
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/70 font-bold">
+                      {presentation.label}
+                    </span>
+                    <Badge variant="outline" className={cn("rounded-full border font-code text-[8px] uppercase tracking-widest", presentation.tone)}>
+                      {draft.status}
+                    </Badge>
+                  </div>
+                  {draft.workPurpose && (
+                    <span className="mt-1 block font-code text-[8px] uppercase tracking-widest text-accent font-bold">
+                      {draft.workPurpose}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-              {draft.externalDoc && <Cloud className="size-3.5 text-accent" />}
+              <div className="flex shrink-0 items-center gap-2">
+                {draft.externalDoc && <Cloud className="size-3.5 text-accent" aria-label="External document linked" />}
                 {hasActiveInquiry && (
                   <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-blue-50 text-blue-700 border-transparent rounded-full font-bold px-2 py-0.5">
                     Inquiry
@@ -1136,38 +1274,69 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                     {readiness.gaps.length} gaps
                   </Badge>
                 )}
-                <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter bg-white shadow-sm border-border/60 rounded-full font-bold px-2 py-0.5">
-                  {draft.status}
-                </Badge>
               </div>
             </div>
 
-            <h3 className="font-headline text-2xl font-bold italic leading-tight group-hover:text-accent transition-colors text-primary mb-6">
+            <h3 className="font-headline text-2xl font-bold italic leading-tight group-hover:text-accent transition-colors text-primary mb-4">
               {draft.title || 'Untitled Draft'}
             </h3>
-            {draft.purposeNote && (
-              <p className="mb-5 line-clamp-2 text-sm italic leading-6 text-muted-foreground">{draft.purposeNote}</p>
-            )}
 
-            <div className="mb-5 rounded-xl border border-border/40 bg-muted/10 p-3">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{readiness.label}</Badge>
-                <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{readiness.structureCount} structure</span>
-              </div>
-              <p className="text-xs italic leading-5 text-muted-foreground">{readiness.nextAction}</p>
-              {!!readiness.gaps.length && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {readiness.gaps.slice(0, 3).map((gap) => (
-                    <span key={gap} className="rounded-full bg-accent/10 px-2 py-0.5 font-code text-[8px] uppercase tracking-widest text-accent">{gap}</span>
-                  ))}
+            <div className="mb-4 min-h-[150px] overflow-hidden rounded-xl border border-border/40 bg-muted/10">
+              {isPlayable && isPlaying && draft.fileUrl ? (
+                draft.type === 'recording' ? (
+                  <video
+                    src={draft.fileUrl}
+                    controls
+                    autoPlay
+                    className="h-[150px] w-full bg-black object-contain"
+                    onClick={(event) => event.stopPropagation()}
+                    onPause={() => setPlayingWorkId((current) => current === draft.id ? null : current)}
+                    onEnded={() => setPlayingWorkId(null)}
+                  />
+                ) : (
+                  <div className="flex h-[150px] flex-col justify-center gap-3 p-4">
+                    <audio
+                      src={draft.fileUrl}
+                      controls
+                      autoPlay
+                      className="w-full"
+                      onClick={(event) => event.stopPropagation()}
+                      onPause={() => setPlayingWorkId((current) => current === draft.id ? null : current)}
+                      onEnded={() => setPlayingWorkId(null)}
+                    />
+                    <p className="line-clamp-2 text-sm italic text-muted-foreground">{textPreview || 'Voice note transcript or follow-up notes will appear here.'}</p>
+                  </div>
+                )
+              ) : thumbnail ? (
+                <div className="relative h-[150px]">
+                  <img src={thumbnail} alt={`${presentation.label} preview for ${draft.title || 'untitled work'}`} className="h-full w-full object-contain bg-background" />
+                  {isPlayable && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                      <CirclePlay className="size-12 rounded-full bg-background/90 p-2 text-primary shadow-lg" />
+                    </div>
+                  )}
+                </div>
+              ) : isPlayable ? (
+                <div className="flex h-[150px] flex-col items-center justify-center gap-3 p-4 text-center">
+                  <CirclePlay className="size-12 text-primary/70" />
+                  <p className="max-w-[18rem] text-sm italic text-muted-foreground">{draft.fileUrl ? 'Saved recording ready to play.' : 'Recording metadata exists, but no saved media file is attached yet.'}</p>
+                </div>
+              ) : draft.type === 'drawing' || draft.type === 'drawing_note' ? (
+                <div className="flex h-[150px] flex-col items-center justify-center gap-3 p-4 text-center">
+                  <PenTool className="size-10 text-primary/70" />
+                  <p className="text-sm italic text-muted-foreground">{draft.canvasData ? 'Drawing preview saved.' : 'Blank drawing canvas.'}</p>
+                </div>
+              ) : (
+                <div className="flex h-[150px] flex-col justify-between p-4">
+                  <FileText className="size-6 text-primary/60" />
+                  <p className="line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                    {textPreview || draft.purposeNote || 'No written content yet.'}
+                  </p>
                 </div>
               )}
             </div>
 
-            <div className="flex flex-wrap gap-1.5 mb-6">
-              <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-accent/10 text-accent border-transparent rounded-full font-bold">
-                {DRAFT_LABELS[draft.type]}
-              </Badge>
+            <div className="mb-4 flex flex-wrap gap-1.5">
               {(draft.workCategory || workCategoryForDraft(draft.type)) === 'writing' && (
                 <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
                   {WRITING_STYLE_LABELS[draft.writingStyle || writingDefaults.writingStyle]}
@@ -1178,19 +1347,45 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                   {tag}
                 </Badge>
               ))}
+              {linkCount > 0 && (
+                <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
+                  {linkCount} links
+                </Badge>
+              )}
             </div>
 
-            <div className="flex items-center justify-between pt-6 border-t border-border/20">
-              <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 font-bold">
-                {draft.type === 'recording' || draft.type === 'voice_note'
-                  ? `${Math.max(0, draft.durationSeconds || 0)} SEC`
-                  : draft.type === 'drawing' || draft.type === 'drawing_note'
-                    ? (draft.canvasData ? 'CANVAS SAVED' : 'BLANK CANVAS')
-                    : `${draft.body.split(/\s+/).filter(Boolean).length} WORDS`}
+            <div className="flex items-center justify-between gap-3 border-t border-border/20 pt-4">
+              <div className="min-w-0">
+                <div className="truncate font-code text-[8px] uppercase tracking-widest text-muted-foreground/50 font-bold">
+                  {metadata}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{readiness.label}</Badge>
+                  {!!readiness.gaps.length && <span className="font-code text-[8px] uppercase tracking-widest text-rose-600">{readiness.gaps.length} gaps</span>}
+                </div>
               </div>
-              <time className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/20 font-bold">
-                {new Date(draft.dateUpdated).toLocaleDateString()}
-              </time>
+              <Button
+                type="button"
+                size="sm"
+                variant={isPlaying ? 'default' : 'outline'}
+                className="h-10 shrink-0 rounded-full px-3 font-code text-[9px] uppercase tracking-widest"
+                aria-label={isPlaying ? `Pause ${presentation.ariaLabel}` : presentation.action}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (isPlayable) {
+                    if (!draft.fileUrl) {
+                      openDraft(draft.id);
+                      return;
+                    }
+                    setPlayingWorkId((current) => current === draft.id ? null : draft.id);
+                    return;
+                  }
+                  openDraft(draft.id);
+                }}
+              >
+                {isPlayable ? (isPlaying ? <CirclePause className="mr-1.5 size-4" /> : <CirclePlay className="mr-1.5 size-4" />) : <ActionIcon className="mr-1.5 size-4" />}
+                {isPlayable ? (isPlaying ? 'Pause' : 'Play') : presentation.action}
+              </Button>
             </div>
           </Card>
             );
@@ -1431,36 +1626,6 @@ function QuickNoteStudio({
         </div>
       </Card>
     </div>
-  );
-}
-
-function WorkStat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-xl border border-border/50 bg-card px-4 py-2 text-right shadow-sm">
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
-      <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
-    </div>
-  );
-}
-
-function WorkLane({ label, value, description, active, onClick }: { label: string; value: number; description: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'group rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
-        active ? 'border-accent/50 bg-accent/10 ring-2 ring-accent/15' : 'border-border/50 bg-card'
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-code text-[8px] font-bold uppercase tracking-[0.22em] text-muted-foreground/60">{label}</div>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
-        </div>
-        <div className="font-headline text-3xl font-bold italic leading-none text-primary group-hover:text-accent">{value}</div>
-      </div>
-    </button>
   );
 }
 

@@ -12,8 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { SourceLinker } from '@/components/SourceLinker';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Concept, Draft, Insight, Media, PhilosophicalLink, PhilosophicalLinkType, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
-import { allAnnotations, conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
+import { conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { aiClient, type ClarityCheckQuestion } from '@/lib/ai-client';
 import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
@@ -43,7 +44,7 @@ interface ConceptEncyclopediaProps {
   onOpenConceptRoute?: (id: string | null) => void;
 }
 
-type ConceptListView = 'all' | 'recent' | 'connected' | 'undefined' | 'contested' | 'duplicates' | 'transformed' | 'neglected';
+type ConceptListView = 'all' | 'recent' | 'needs_attention' | 'connected' | 'undefined' | 'contested' | 'duplicates' | 'transformed' | 'neglected';
 
 type ConceptListRow = {
   name: string;
@@ -77,6 +78,7 @@ type ConceptMaturity = {
 const CONCEPT_LIST_VIEWS: Array<{ id: ConceptListView; label: string; description: string }> = [
   { id: 'all', label: 'All', description: 'Every defined concept in the vocabulary.' },
   { id: 'recent', label: 'Recently Active', description: 'Concepts with recent timeline movement or updated definitions.' },
+  { id: 'needs_attention', label: 'Needs Attention', description: 'Concepts missing definition, evidence, distinctions, or practice.' },
   { id: 'connected', label: 'Most Connected', description: 'Concepts carrying the most sources, positions, works, or practices.' },
   { id: 'undefined', label: 'Undefined', description: 'Concepts that need a working definition or boundary.' },
   { id: 'contested', label: 'Contested', description: 'Concepts under tension, challenge, or contradictory usage.' },
@@ -284,11 +286,13 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       const possibleDuplicates = possibleDuplicateConcepts(conceptDoc, name, concepts);
       const repairFlags = conceptRepairFlags({ concept: conceptDoc, related, diagnosis, connectionCount, lastActiveAt, possibleDuplicates });
       const maturity = conceptMaturityScore({ concept: conceptDoc, related, repairFlags });
+      const needsAttention = repairFlags.length > 0 || maturity.label === 'beginning' || maturity.label === 'emerging';
       const searchText = `${name} ${conceptDoc.description || ''} ${(conceptDoc.aliases || []).join(' ')} ${(conceptDoc.notSameAs || []).join(' ')} ${(conceptDoc.examples || []).join(' ')} ${(conceptDoc.counterexamples || []).join(' ')} ${JSON.stringify(related)}`.toLowerCase();
       const matchesSearch = !search || searchText.includes(search.toLowerCase());
       const matchesView =
         listView === 'all' ||
         (listView === 'recent' && isRecent) ||
+        (listView === 'needs_attention' && needsAttention) ||
         (listView === 'connected' && connectionCount > 0) ||
         (listView === 'undefined' && isUndefined) ||
         (listView === 'contested' && isContested) ||
@@ -299,6 +303,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
       let why = 'Part of the current concept vocabulary.';
       if (listView === 'recent') why = lastActiveAt ? `Last moved ${new Date(lastActiveAt).toLocaleDateString()}.` : 'Recently updated definition or linked event.';
+      if (listView === 'needs_attention') why = 'Missing at least one definition, evidence, distinction, or practice signal.';
       if (listView === 'connected') why = `${connectionCount} linked object${connectionCount === 1 ? '' : 's'} depend on this concept.`;
       if (listView === 'undefined') why = 'Needs a clearer working definition or boundary test.';
       if (listView === 'contested') why = 'Shows tension, challenge, or inconsistent usage.';
@@ -311,6 +316,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     .filter((row): row is ConceptListRow => Boolean(row))
     .sort((a, b) => {
       if (listView === 'recent' || listView === 'transformed') return b.lastActiveAt - a.lastActiveAt;
+      if (listView === 'needs_attention') return b.repairFlags.length - a.repairFlags.length || a.maturity.score - b.maturity.score;
       if (listView === 'connected') return b.connectionCount - a.connectionCount;
       if (listView === 'neglected') return a.lastActiveAt - b.lastActiveAt;
       if (listView === 'duplicates') return b.possibleDuplicates.length - a.possibleDuplicates.length || a.name.localeCompare(b.name);
@@ -326,6 +332,17 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     setSearch('');
     setListView('all');
   };
+  const totalConceptCount = allTerms.filter((name) => conceptKey(name) !== conceptKey(UNSORTED_CONCEPT)).length;
+  const needsAttentionRows = conceptRows.filter((row) => row.repairFlags.length > 0 || row.maturity.label === 'beginning' || row.maturity.label === 'emerging');
+  const matureConceptCount = conceptRows.filter((row) => row.maturity.label === 'stable').length;
+  const developingConceptCount = conceptRows.filter((row) => row.maturity.label === 'usable').length;
+  const emergingConceptCount = conceptRows.filter((row) => row.maturity.label === 'emerging' || row.maturity.label === 'beginning').length;
+  const wellDevelopedCount = conceptRows.filter((row) => row.maturity.label === 'stable' || row.maturity.label === 'usable').length;
+  const duplicateReviewCount = conceptRows.filter((row) => row.possibleDuplicates.length).length;
+  const primaryConceptViews = CONCEPT_LIST_VIEWS.filter((view) => ['all', 'recent', 'needs_attention', 'connected'].includes(view.id));
+  const moreConceptViews = CONCEPT_LIST_VIEWS.filter((view) => !primaryConceptViews.some((primary) => primary.id === view.id));
+  const moreConceptViewActive = moreConceptViews.some((view) => view.id === listView);
+  const maturitySummary = `${totalConceptCount} concepts · ${matureConceptCount} mature · ${developingConceptCount} developing · ${emergingConceptCount} emerging`;
 
   const openEditor = (concept?: Concept) => {
     if (concept) {
@@ -1547,27 +1564,64 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
-      <header className="flex justify-between items-center mb-10">
-        <div>
+    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+      <header className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="max-w-4xl">
           <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Concepts</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Build the vocabulary lab for definitions, boundaries, consistency, and conceptual drift.</p>
+          <p className="mt-3 font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">{maturitySummary}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 rounded-full h-9">
             <Plus className="size-4 mr-1.5" /> NEW CONCEPT
           </Button>
         </div>
       </header>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <Stat value={allTerms.length} label="Total Terms" sub="Knowledge index size" />
-        <Stat value={media.length} label="Sources" sub="Input library" />
-        <Stat value={allAnnotations(media).length} label="Annotations" sub="Tagged excerpts" />
-        <Stat value={vault.length + drafts.length + (practices?.length || 0)} label="Outputs" sub="Positions, works, practices" />
-        <Stat value={conceptRows.filter((row) => row.possibleDuplicates.length).length} label="Overlap" sub="Potential duplicate concepts" />
-        <Stat value={conceptRows.filter((row) => row.repairFlags.length).length} label="Needs Work" sub="Definition repair signals" />
-        <Stat value={conceptRows.filter((row) => row.maturity.label === 'stable' || row.maturity.label === 'usable').length} label="Usable" sub="Concepts ready for argument" />
+      <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1.4fr]">
+        <div className="grid grid-cols-3 gap-3">
+          <Stat value={totalConceptCount} label="Concepts" sub="Vocabulary size" />
+          <Stat value={wellDevelopedCount} label="Well Developed" sub="Ready for argument" />
+          <button
+            type="button"
+            onClick={() => setListView('needs_attention')}
+            className={cn(
+              "text-left transition-all",
+              listView === 'needs_attention' && "ring-2 ring-accent/40 rounded-xl"
+            )}
+          >
+            <Stat value={needsAttentionRows.length} label="Need Attention" sub="Definition, evidence, or tests" tone="warning" />
+          </button>
+        </div>
+        {needsAttentionRows.length > 0 ? (
+          <Card className="flex flex-col justify-center gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-code text-[9px] font-bold uppercase tracking-widest text-amber-800">
+                {needsAttentionRows.length} concept{needsAttentionRows.length === 1 ? '' : 's'} need attention
+              </div>
+              <p className="mt-1 text-xs leading-5 text-amber-900/80">
+                Most are missing distinctions, evidence, or practical tests.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setListView('needs_attention')}
+              className="h-8 rounded-full border-amber-300 bg-white/70 font-code text-[9px] uppercase tracking-widest text-amber-900 hover:bg-white"
+            >
+              Review them
+            </Button>
+          </Card>
+        ) : (
+          <Card className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 shadow-sm">
+            <div>
+              <div className="font-code text-[9px] font-bold uppercase tracking-widest text-emerald-800">Vocabulary stable</div>
+              <p className="mt-1 text-xs leading-5 text-emerald-900/75">Every visible concept has a usable definition path.</p>
+            </div>
+            <CheckCircle2 className="size-5 text-emerald-700" />
+          </Card>
+        )}
       </div>
 
       <FilterToolbar
@@ -1583,8 +1637,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         clearDisabled={!conceptFiltersActive}
         className="mb-6"
       >
-        <div className="flex flex-wrap gap-2">
-          {CONCEPT_LIST_VIEWS.map((view) => {
+        <div className="flex flex-wrap items-center gap-2">
+          {primaryConceptViews.map((view) => {
             const active = listView === view.id;
             return (
               <button
@@ -1603,11 +1657,27 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               </button>
             );
           })}
+          <Select value={moreConceptViewActive ? listView : 'more'} onValueChange={(value) => setListView(value as ConceptListView)}>
+            <SelectTrigger className={cn(
+              'h-8 w-[150px] rounded-full border bg-background/70 px-3 font-code text-[9px] uppercase tracking-[0.14em]',
+              moreConceptViewActive ? 'border-accent text-accent' : 'border-border text-muted-foreground'
+            )}>
+              <SelectValue placeholder="More Filters" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="more" disabled className="font-code text-[10px] uppercase">More Filters</SelectItem>
+              {moreConceptViews.map((view) => (
+                <SelectItem key={view.id} value={view.id} className="font-code text-[10px] uppercase">
+                  {view.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </FilterToolbar>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {conceptRows.map(({ name, concept, related, diagnosis: diag, maturity, connectionCount, why, possibleDuplicates, repairFlags }) => {
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {conceptRows.map(({ name, concept, related, diagnosis: diag, maturity, connectionCount, possibleDuplicates, repairFlags }) => {
 
           return (
             <Card
@@ -1657,45 +1727,18 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 {concept?.description || 'Inspect linked sources, positions, works, inquiries, and practices.'}
               </p>
 
-              <div className="mb-4 rounded-xl border border-border/50 bg-background/70 px-3 py-2 text-xs leading-5 text-muted-foreground">
-                <span className="font-medium text-foreground/70">Why shown:</span> {why}
-              </div>
-
-              <div className="mb-4 grid grid-cols-2 gap-2">
-                {[
-                  { label: 'Clarity', value: diag.clarity },
-                  { label: 'Evidence', value: diag.evidence },
-                  { label: 'Tension', value: diag.tension },
-                  { label: 'Practice', value: diag.embodiment },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-lg border border-border/40 bg-background/60 px-2.5 py-2">
-                    <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground/50">{item.label}</div>
-                    <div className="mt-0.5 font-code text-[8px] uppercase tracking-widest text-foreground/70">{item.value}</div>
-                  </div>
-                ))}
-              </div>
-
               <div className="mb-4 rounded-xl border border-border/50 bg-background/70 px-3 py-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Concept Maturity</div>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      {maturity.score}/6 complete. Next: {maturity.nextStep}
-                    </p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">
+                    {connectionCount} linked object{connectionCount === 1 ? '' : 's'}
                   </div>
                   <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
                     {maturity.missing.length ? `${maturity.missing.length} gaps` : 'ready'}
                   </Badge>
                 </div>
-                {maturity.missing.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {maturity.missing.slice(0, 3).map((gap) => (
-                      <Badge key={gap} variant="secondary" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                        {gap}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
+                <p className="mt-2 text-xs leading-5 text-foreground/75">
+                  Next: {maturity.nextStep}
+                </p>
               </div>
 
               {possibleDuplicates.length > 0 && (
@@ -1725,11 +1768,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   ))}
                 </div>
               )}
-
-              <div className="mb-4 rounded-xl border border-accent/20 bg-accent/5 px-3 py-2">
-                <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">Next Boundary Move</div>
-                <p className="mt-1 text-xs leading-5 text-foreground/75">{diag.suggestedNextAction}</p>
-              </div>
 
               <div className="flex flex-wrap gap-1.5 border-t border-border/30 pt-4">
                 <Badge variant="outline" className="text-[8px] font-code uppercase tracking-tighter bg-muted/10 border-transparent rounded-full px-2.5 py-0.5 font-bold shadow-sm">{related.sources.length} SOURCES</Badge>
@@ -1802,11 +1840,14 @@ function ConceptPageSection({ title, count, empty, children }: { title: string; 
   );
 }
 
-function Stat({ value, label, sub }: { value: number | string; label: string; sub: string }) {
+function Stat({ value, label, sub, tone = 'default' }: { value: number | string; label: string; sub: string; tone?: 'default' | 'warning' }) {
   return (
-    <Card className="bg-white border border-accent/10 shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl">
+    <Card className={cn(
+      "bg-white border shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl",
+      tone === 'warning' ? "border-amber-200" : "border-accent/10"
+    )}>
       <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</div>
-      <div className="mt-1 text-2xl font-headline font-bold text-accent leading-none">{value}</div>
+      <div className={cn("mt-1 text-2xl font-headline font-bold leading-none", tone === 'warning' ? "text-amber-700" : "text-accent")}>{value}</div>
       <div className="mt-1 text-[10px] text-muted-foreground/40 truncate font-body">{sub}</div>
     </Card>
   );

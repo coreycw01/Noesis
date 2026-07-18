@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  trailingSlash: true,
+
   allowedDevOrigins: [
     '10.0.0.232',
     '10.0.0.232:9002',
@@ -18,6 +20,8 @@ const nextConfig: NextConfig = {
   },
 
   images: {
+    unoptimized: true,
+
     remotePatterns: [
       {
         protocol: 'https',

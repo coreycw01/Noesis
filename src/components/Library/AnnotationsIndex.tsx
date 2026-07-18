@@ -13,7 +13,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
-import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
 import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
@@ -46,7 +45,7 @@ interface AnnotationsIndexProps {
 type FlatAnnotation = Annotation & { source: Media };
 type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered' | 'needs_context' | 'source_context_missing' | 'needs_direction' | 'evidence_ready' | 'potentially_important' | 'recently_promoted';
 type PreflightMode = 'position' | 'inquiry';
-type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'archive';
+type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'reference';
 type AnnotationProcessingMode = 'single' | 'sweep' | 'cluster' | 'source';
 type AnnotationConsequenceKind = NonNullable<Annotation['consequenceKind']>;
 
@@ -547,8 +546,8 @@ export function AnnotationsIndex({
       }
       return;
     }
-    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'archived' });
-    toast({ title: 'Annotation archived.', description: 'It will no longer appear in active processing views.' });
+    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'reference_only', consequenceKind: 'interpretation' });
+    toast({ title: 'Kept as reference.', description: 'This note will remain attached to the source without becoming a new object.' });
   };
 
   const consequenceQuestion = (annotation: FlatAnnotation) => {
@@ -556,6 +555,23 @@ export function AnnotationsIndex({
     if (annotation.type === 'connection') return 'What relationship does this reveal?';
     if (annotation.type === 'highlight') return 'What claim or concept does this clarify?';
     return 'What does this thought affect?';
+  };
+
+  const selectedEffectForAnnotation = (annotation: FlatAnnotation): ConsequenceAction => {
+    if (annotation.createdInquiryId || annotation.type === 'question' || annotation.consequenceKind === 'question') return 'raises_question';
+    if ((annotation.linkedPositionIds || []).length || annotation.createdPositionId || ['evidence', 'claim'].includes(annotation.consequenceKind || '')) return 'supports_claim';
+    if (annotation.type === 'objection' || annotation.consequenceKind === 'objection') return 'challenges_claim';
+    if (annotation.philosophyStatus === 'reference_only') return 'reference';
+    if (annotation.type === 'definition' || annotation.consequenceKind === 'definition') return 'clarifies';
+    return 'reference';
+  };
+
+  const nextActionLabelForEffect = (annotation: FlatAnnotation, action: ConsequenceAction) => {
+    if (action === 'raises_question') return annotation.createdInquiryId ? 'Open inquiry' : 'Open inquiry';
+    if (action === 'supports_claim') return positions.length ? 'Select position' : 'Form position';
+    if (action === 'challenges_claim') return positions.length ? 'Select position' : 'Open inquiry';
+    if (action === 'clarifies') return 'Select concept';
+    return 'Finish';
   };
 
   const createPositionFromSelection = () => {
@@ -706,25 +722,6 @@ export function AnnotationsIndex({
           </Select>
       </FilterToolbar>
 
-      <section className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {consequenceLanes.map((lane) => (
-          <button
-            key={lane.label}
-            type="button"
-            onClick={() => setFilterType(lane.filter)}
-            className="rounded-2xl border border-border/50 bg-card p-4 text-left shadow-sm transition-colors hover:border-accent/40 hover:bg-accent/5"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{lane.label}</div>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">{lane.description}</p>
-              </div>
-              <span className="font-headline text-2xl font-bold text-accent">{lane.value}</span>
-            </div>
-          </button>
-        ))}
-      </section>
-
       <section className="mb-8 rounded-2xl border border-border/50 bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <button onClick={toggleVisibleSelection} className="flex items-center gap-3 text-left">
@@ -732,25 +729,19 @@ export function AnnotationsIndex({
             <div>
               <p className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Processing Inbox</p>
               <p className="text-xs text-muted-foreground">
-                {selectedAnnotations.length ? `${selectedAnnotations.length} selected` : 'Select annotations to tag, archive, or route together.'}
+                {selectedAnnotations.length ? `${selectedAnnotations.length} selected` : 'Select notes to tag, open as inquiries, or form a position together.'}
               </p>
             </div>
           </button>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('reviewed')} className="rounded-full">
-              <CheckCircle2 className="mr-1.5 size-3.5" /> Mark reviewed
-            </Button>
             <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={createInquiryFromSelection} className="rounded-full">
               <GitBranch className="mr-1.5 size-3.5" /> Create inquiry
             </Button>
             <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={createPositionFromSelection} className="rounded-full">
               <Layers3 className="mr-1.5 size-3.5" /> Form position
             </Button>
-            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('archived')} className="rounded-full">
-              <Archive className="mr-1.5 size-3.5" /> Archive
-            </Button>
             <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('reference_only')} className="rounded-full">
-              <Quote className="mr-1.5 size-3.5" /> Reference
+              <Quote className="mr-1.5 size-3.5" /> Keep as reference
             </Button>
             {selectedAnnotations.length > 0 && (
               <Button variant="ghost" size="sm" onClick={() => setSelectedKeys([])} className="rounded-full">
@@ -763,7 +754,8 @@ export function AnnotationsIndex({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {filtered.map((annotation) => {
-          const quality = annotationProcessingQuality(annotation);
+          const selectedEffect = selectedEffectForAnnotation(annotation);
+          const contextValue = annotation.context || '';
           return (
           <Card key={`${annotation.source.id}:${annotation.id}`} className={cn(
             "p-5 bg-white border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all",
@@ -785,29 +777,9 @@ export function AnnotationsIndex({
                   </Badge>
                   {missingSourceContext(annotation) && (
                     <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest rounded-full border-amber-200 bg-amber-50 text-amber-800 font-bold">
-                      context
+                      add context
                     </Badge>
                   )}
-                  {needsSupportDirection(annotation) && (
-                    <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest rounded-full border-rose-200 bg-rose-50 text-rose-800 font-bold">
-                      direction
-                    </Badge>
-                  )}
-                  {isEvidenceReady(annotation) && (
-                    <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest rounded-full border-emerald-200 bg-emerald-50 text-emerald-800 font-bold">
-                      evidence ready
-                    </Badge>
-                  )}
-                  <Badge variant="outline" className={cn(
-                    "font-code text-[8px] uppercase tracking-widest rounded-full font-bold",
-                    quality.score >= 6
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                      : quality.score >= 4
-                        ? "border-blue-200 bg-blue-50 text-blue-800"
-                        : "border-amber-200 bg-amber-50 text-amber-800"
-                  )}>
-                    {quality.label}
-                  </Badge>
                 </div>
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -837,173 +809,85 @@ export function AnnotationsIndex({
               ))}
             </div>
 
-            <div className="mb-3 grid gap-2 rounded-xl border border-border/40 bg-background/70 p-3 sm:grid-cols-3">
-              <div>
-                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Original Context</div>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{annotation.context || annotation.source.title}</p>
-              </div>
-              <div>
-                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Likely Consequence</div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  {annotation.consequenceNote || (annotation.createdPositionId ? 'Position formed' : annotation.createdInquiryId ? 'Inquiry opened' : annotation.type === 'question' ? 'Open inquiry' : 'Classify or form claim')}
-                </p>
-              </div>
-              <div>
-                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Affects</div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  {annotation.consequenceKind ? annotationLabel(annotation.consequenceKind) : normalizeConceptTags(annotation.conceptTags || annotation.source.tags).slice(0, 2).join(', ') || 'No concept yet'}
-                </p>
-              </div>
-            </div>
-
-            <div className="mb-3 rounded-xl border border-border/40 bg-muted/10 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Processing Readiness</div>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {quality.score}/6 complete. Next: {quality.nextStep}.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {quality.missing.slice(0, 4).map((gap) => (
-                    <Badge key={gap} variant="outline" className="rounded-full border-border/50 bg-card font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                      {gap}
-                    </Badge>
-                  ))}
-                  {!quality.missing.length && (
-                    <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 font-code text-[8px] uppercase tracking-widest text-emerald-800">
-                      ready
-                    </Badge>
-                  )}
-                </div>
-              </div>
+            <div className="mb-3 rounded-xl border border-border/40 bg-background/70 p-3">
+              <Label className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Optional context</Label>
+              <Textarea
+                defaultValue={contextValue}
+                onBlur={(event) => {
+                  const value = event.target.value.trim();
+                  if (value !== contextValue) {
+                    const { source, ...annotationData } = annotation;
+                    onUpdateAnnotation(source.id, { ...annotationData, context: value });
+                  }
+                }}
+                placeholder="Add the surrounding idea only if this note needs it."
+                className="mt-2 min-h-16 rounded-xl bg-card text-xs leading-5"
+              />
+              <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={Boolean(annotation.mattersBeyondSource)}
+                  onCheckedChange={(checked) => updateAnnotationConsequence(annotation, {
+                    mattersBeyondSource: Boolean(checked),
+                    philosophyStatus: annotationStatus(annotation) === 'raw' ? 'reviewed' : annotationStatus(annotation),
+                  })}
+                />
+                This is my interpretation, not the author's claim.
+              </label>
             </div>
 
             <div className="mb-3 rounded-xl border border-accent/15 bg-accent/5 p-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0">
-                  <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">Consequence Sweep</div>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">How does this affect your thinking?</div>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
                     {consequenceQuestion(annotation)}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {([
-                    ['clarifies', 'Clarifies'],
-                    ['raises_question', 'Question'],
-                    ['supports_claim', 'Supports'],
-                    ['challenges_claim', 'Challenges'],
-                    ['archive', 'Archive'],
+                    ['supports_claim', 'Supports a position'],
+                    ['challenges_claim', 'Challenges a position'],
+                    ['raises_question', 'Raises a question'],
+                    ['clarifies', 'Clarifies an idea'],
+                    ['reference', 'Keep as reference'],
                   ] as Array<[ConsequenceAction, string]>).map(([action, label]) => (
                     <Button
                       key={action}
                       type="button"
-                      variant="outline"
+                      variant={selectedEffect === action ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => runConsequenceAction(annotation, action)}
-                      className="h-7 rounded-full bg-card px-2.5 font-code text-[8px] uppercase tracking-widest"
+                      className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
                     >
                       {label}
                     </Button>
                   ))}
                 </div>
-              </div>
-              <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_160px_auto] lg:items-center">
-                <Input
-                  defaultValue={annotation.consequenceNote || ''}
-                  onBlur={(event) => {
-                    const value = event.target.value.trim();
-                    if (value !== (annotation.consequenceNote || '')) {
-                      updateAnnotationConsequence(annotation, { consequenceNote: value, philosophyStatus: annotationStatus(annotation) === 'raw' ? 'reviewed' : annotationStatus(annotation) });
-                    }
-                  }}
-                  placeholder="What does this suggest, challenge, clarify, or raise?"
-                  className="h-9 rounded-full bg-card text-xs"
-                />
-                <Select
-                  value={annotation.consequenceKind || 'interpretation'}
-                  onValueChange={(value) => updateAnnotationConsequence(annotation, {
-                    consequenceKind: value as AnnotationConsequenceKind,
-                    philosophyStatus: annotationStatus(annotation) === 'raw' ? 'reviewed' : annotationStatus(annotation),
-                  })}
-                >
-                  <SelectTrigger className="h-9 rounded-full bg-card font-code text-[9px] uppercase">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONSEQUENCE_KINDS.map((kind) => (
-                      <SelectItem key={kind.id} value={kind.id} className="font-code text-[10px] uppercase">{kind.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <button
-                  type="button"
-                  onClick={() => updateAnnotationConsequence(annotation, {
-                    mattersBeyondSource: !annotation.mattersBeyondSource,
-                    philosophyStatus: annotationStatus(annotation) === 'raw' ? 'reviewed' : annotationStatus(annotation),
-                  })}
-                  className={cn(
-                    "h-9 rounded-full border px-3 font-code text-[8px] font-bold uppercase tracking-widest transition-colors",
-                    annotation.mattersBeyondSource ? "border-accent/40 bg-accent/10 text-accent" : "border-border/50 bg-card text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Beyond Source
-                </button>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {([
-                  ['reviewed', 'Reviewed'],
-                  ['reference_only', 'Reference'],
-                  ['dismissed', 'Dismiss'],
-                  ['archived', 'Archive'],
-                ] as Array<[AnnotationPhilosophyStatus, string]>).map(([status, label]) => (
+                <div className="flex flex-col gap-2 rounded-xl border border-border/40 bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Next action</div>
+                    <p className="mt-1 text-xs text-muted-foreground">{nextActionLabelForEffect(annotation, selectedEffect)}</p>
+                  </div>
                   <Button
-                    key={status}
                     type="button"
-                    variant={annotationStatus(annotation) === status ? 'default' : 'ghost'}
                     size="sm"
-                    onClick={() => updateAnnotationConsequence(annotation, { philosophyStatus: status })}
-                    className="h-7 rounded-full px-2.5 font-code text-[8px] uppercase tracking-widest"
+                    onClick={() => runConsequenceAction(annotation, selectedEffect)}
+                    className="rounded-full"
                   >
-                    {label}
+                    {nextActionLabelForEffect(annotation, selectedEffect)}
                   </Button>
-                ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openPreflight(annotation, 'position')}
+                  className="self-start rounded-full px-0 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Form position instead
+                </Button>
               </div>
             </div>
-
-            <NextPhilosophicalActionPanel
-              compact
-              status={annotation.philosophyStatus || (annotation.type === 'question' ? 'questioned' : 'raw')}
-              description="Move this note into the next layer: classify it, link it, or transform it."
-              actions={[
-                {
-                  label: 'Support Position',
-                  tone: 'support',
-                  description: positions.length ? 'Mark this annotation as evidence for an existing position.' : 'Create a position first.',
-                  disabled: positions.length === 0,
-                  onClick: () => setLinkDialog({ annotation, linkType: 'supports' }),
-                },
-                {
-                  label: 'Challenge Position',
-                  tone: 'challenge',
-                  description: positions.length ? 'Mark this annotation as a challenge to an existing position.' : 'Create a position first.',
-                  disabled: positions.length === 0,
-                  onClick: () => setLinkDialog({ annotation, linkType: 'challenges' }),
-                },
-                {
-                  label: annotation.createdPositionId ? 'Open Position' : pendingAction === `position:${annotation.id}` ? 'Creating position...' : 'Form Position',
-                  disabled: pendingAction === `position:${annotation.id}`,
-                  icon: annotation.createdPositionId ? <GitBranch className="mr-1 size-3" /> : undefined,
-                  onClick: () => annotation.createdPositionId ? onNavigate?.('vault', annotation.createdPositionId) : openPreflight(annotation, 'position'),
-                },
-                {
-                  label: annotation.createdInquiryId ? 'Open Inquiry' : pendingAction === `inquiry:${annotation.id}` ? 'Creating inquiry...' : 'Open in Query',
-                  disabled: pendingAction === `inquiry:${annotation.id}`,
-                  icon: annotation.createdInquiryId ? <GitBranch className="mr-1 size-3" /> : undefined,
-                  onClick: () => annotation.createdInquiryId ? onNavigate?.('questions', annotation.createdInquiryId) : openPreflight(annotation, 'inquiry'),
-                },
-              ]}
-            />
 
             <div className="flex items-center justify-between gap-4 pt-4 border-t border-border/20 mt-4">
               <button onClick={() => previewSource(annotation.source, annotation)} className="flex min-w-0 items-center gap-3 text-left">

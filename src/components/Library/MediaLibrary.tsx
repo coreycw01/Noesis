@@ -51,16 +51,16 @@ const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Pause
 type LibraryViewFilter = 'all' | 'continue' | 'needs_intent' | 'needs_session' | 'needs_annotations' | 'awaiting_reflection' | 'inquiry_driven' | 'recently_added' | 'paused_or_abandoned' | 'influential';
 
 const LIBRARY_VIEW_LABELS: Record<LibraryViewFilter, string> = {
-  all: 'All Source Work',
-  continue: 'Continue Consuming',
-  needs_intent: 'Needs Intent',
+  all: 'All Attention',
+  continue: 'Continue',
+  needs_intent: 'Needs Context',
   needs_session: 'Needs Session',
-  needs_annotations: 'Needs Annotations',
-  awaiting_reflection: 'Awaiting Reflection',
-  inquiry_driven: 'Inquiry Driven',
+  needs_annotations: 'Needs Notes',
+  awaiting_reflection: 'Needs Reflection',
+  inquiry_driven: 'Connected to Inquiry',
   recently_added: 'Recently Added',
   paused_or_abandoned: 'Paused / Abandoned',
-  influential: 'Recently Influential',
+  influential: 'Influential',
 };
 
 function sourceNeedsReflection(item: Media) {
@@ -144,7 +144,7 @@ export function MediaLibrary({
   onOpenSourceRoute,
 }: MediaLibraryProps) {
   const [filter, setFilter] = useState<MediaType | 'all'>('all');
-  const [statusFilter, setStatusFilter] = useState<MediaStatus | 'active' | 'all'>('active');
+  const [statusFilter, setStatusFilter] = useState<MediaStatus | 'active' | 'all'>('all');
   const [viewFilter, setViewFilter] = useState<LibraryViewFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -206,26 +206,23 @@ export function MediaLibrary({
     return {
       continueConsuming: media
         .filter((item) => item.status === 'Consuming' || item.status === 'Paused')
-        .sort((a, b) => new Date(b.dateUpdated || b.dateAdded).getTime() - new Date(a.dateUpdated || a.dateAdded).getTime())
-        .slice(0, 3),
-      awaitingReflection: media.filter(needsReflection).slice(0, 3),
-      inquiryDriven: media.filter(hasActiveQuestion).slice(0, 3),
+        .sort((a, b) => new Date(b.dateUpdated || b.dateAdded).getTime() - new Date(a.dateUpdated || a.dateAdded).getTime()),
+      awaitingReflection: media.filter(needsReflection),
+      inquiryDriven: media.filter(hasActiveQuestion),
       recentlyAdded: media
         .slice()
-        .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime())
-        .slice(0, 3),
-      pausedOrAbandoned: media.filter((item) => item.status === 'Paused' || item.status === 'Abandoned').slice(0, 3),
+        .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()),
     };
   }, [media, questions]);
 
   const clearLibraryFilters = () => {
     setSearchQuery('');
     setFilter('all');
-    setStatusFilter('active');
+    setStatusFilter('all');
     setViewFilter('all');
   };
 
-  const libraryFiltersActive = Boolean(searchQuery || filter !== 'all' || statusFilter !== 'active' || viewFilter !== 'all');
+  const libraryFiltersActive = Boolean(searchQuery || filter !== 'all' || statusFilter !== 'all' || viewFilter !== 'all');
 
   useEffect(() => {
     if (!focusedSourceId) {
@@ -1098,66 +1095,22 @@ export function MediaLibrary({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
       <PageHeader
         title="Library"
-        description="Work inside active sources: capture context, annotations, concept tags, sessions, and reflections before they become positions or works."
+        description="Read actively, capture what matters, and trace what each source changes."
+        meta={
+          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+            {media.length} sources · {libraryStats.consuming} in progress · {libraryStats.annotations} annotations
+          </span>
+        }
+        className="mb-6"
         actions={
-          <>
-            <SourceStat label="Active" value={libraryStats.active} />
-            <SourceStat label="Consuming" value={libraryStats.consuming} />
-            <SourceStat label="Annotations" value={libraryStats.annotations} />
-            <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 h-9 px-6 shadow-md shadow-accent/20 rounded-full font-bold">
-              <Plus className="size-4 mr-1.5" /> ADD SOURCE
-            </Button>
-          </>
+          <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 h-9 px-6 shadow-md shadow-accent/20 rounded-full font-bold">
+            <Plus className="size-4 mr-1.5" /> ADD SOURCE
+          </Button>
         }
       />
-
-      <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <SourceLane
-          label="Needs Intent"
-          value={libraryStats.needsIntent}
-          description="Sources without why-this-matters capture context."
-          active={viewFilter === 'needs_intent'}
-          onClick={() => setViewFilter(viewFilter === 'needs_intent' ? 'all' : 'needs_intent')}
-        />
-        <SourceLane
-          label="Needs Session"
-          value={libraryStats.needsSession}
-          description="In-progress or finished sources without session evidence."
-          active={viewFilter === 'needs_session'}
-          onClick={() => setViewFilter(viewFilter === 'needs_session' ? 'all' : 'needs_session')}
-        />
-        <SourceLane
-          label="Needs Notes"
-          value={libraryStats.needsAnnotations}
-          description="Sources cataloged but not yet intellectually captured."
-          active={viewFilter === 'needs_annotations'}
-          onClick={() => setViewFilter(viewFilter === 'needs_annotations' ? 'all' : 'needs_annotations')}
-        />
-        <SourceLane
-          label="Awaiting Reflection"
-          value={libraryStats.awaitingReflection}
-          description="Finished sources that still need after-reading consequences."
-          active={viewFilter === 'awaiting_reflection'}
-          onClick={() => setViewFilter(viewFilter === 'awaiting_reflection' ? 'all' : 'awaiting_reflection')}
-        />
-        <SourceLane
-          label="Inquiry Driven"
-          value={libraryStats.inquiryDriven}
-          description="Sources currently feeding open investigations."
-          active={viewFilter === 'inquiry_driven'}
-          onClick={() => setViewFilter(viewFilter === 'inquiry_driven' ? 'all' : 'inquiry_driven')}
-        />
-        <SourceLane
-          label="Influential"
-          value={libraryStats.influential}
-          description="Sources already linked to positions, works, practices, or inquiries."
-          active={viewFilter === 'influential'}
-          onClick={() => setViewFilter(viewFilter === 'influential' ? 'all' : 'influential')}
-        />
-      </section>
 
       <FilterToolbar
         search={searchQuery}
@@ -1167,11 +1120,11 @@ export function MediaLibrary({
         resultLabel="sources"
         onClear={clearLibraryFilters}
         clearDisabled={!libraryFiltersActive}
-        className="mb-10"
+        className="mb-6"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as LibraryViewFilter)}>
           <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
-            <SelectValue placeholder="Source Work View" />
+            <SelectValue placeholder="Attention" />
           </SelectTrigger>
           <SelectContent>
             {(Object.keys(LIBRARY_VIEW_LABELS) as LibraryViewFilter[]).map((value) => (
@@ -1184,8 +1137,8 @@ export function MediaLibrary({
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="active" className="font-code text-[10px] uppercase">Active Work</SelectItem>
-            <SelectItem value="all" className="font-code text-[10px] uppercase">All Statuses</SelectItem>
+            <SelectItem value="all" className="font-code text-[10px] uppercase">Status: All</SelectItem>
+            <SelectItem value="active" className="font-code text-[10px] uppercase">In Progress</SelectItem>
             {statuses.map((status) => (
               <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{status}</SelectItem>
             ))}
@@ -1193,10 +1146,10 @@ export function MediaLibrary({
         </Select>
         <Select value={filter} onValueChange={(value) => setFilter(value as MediaType | 'all')}>
           <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
-            <SelectValue placeholder="Media Type" />
+            <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-code text-[10px] uppercase">All Types</SelectItem>
+            <SelectItem value="all" className="font-code text-[10px] uppercase">Type: All</SelectItem>
             {MEDIA_TYPES.map((type) => (
               <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{MEDIA_LABELS[type]}</SelectItem>
             ))}
@@ -1204,50 +1157,60 @@ export function MediaLibrary({
         </Select>
       </FilterToolbar>
 
-      <section className="mb-10 rounded-2xl border border-border/50 bg-card/70 p-5 shadow-sm">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <section className="mb-8 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Reading Room Queue</div>
+            <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Reading Room</div>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Library prioritizes source engagement: continue, reflect, or follow a source into an inquiry.
+              Continue, reflect, or develop the source threads that need a next move.
             </p>
           </div>
-          <Badge variant="outline" className="rounded-full">{media.length} total sources</Badge>
+          <Badge variant="outline" className="rounded-full">{filtered.length} shown</Badge>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
           {[
-            { label: 'Continue Consuming', items: readingRoomQueue.continueConsuming, empty: 'No active sessions waiting.' },
-            { label: 'Awaiting Reflection', items: readingRoomQueue.awaitingReflection, empty: 'No finished sources need reflection.' },
-            { label: 'Inquiry Driven', items: readingRoomQueue.inquiryDriven, empty: 'No sources tied to active inquiries.' },
-            { label: 'Recently Added', items: readingRoomQueue.recentlyAdded, empty: 'Add a source to start.' },
-            { label: 'Paused / Abandoned', items: readingRoomQueue.pausedOrAbandoned, empty: 'No paused source threads.' },
+            { label: 'Continue', action: 'Continue', items: readingRoomQueue.continueConsuming, empty: '0 active sources' },
+            { label: 'Reflect', action: 'Reflect', items: readingRoomQueue.awaitingReflection, empty: '0 waiting' },
+            { label: 'Develop', action: 'Develop', items: readingRoomQueue.inquiryDriven, empty: '0 inquiry-linked' },
+            { label: 'Recent', action: 'Open', items: readingRoomQueue.recentlyAdded, empty: '0 recent' },
           ].map((column) => (
             <div key={column.label} className="rounded-xl border border-border/40 bg-background/70 p-3">
-              <div className="mb-3 font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">{column.label}</div>
-              <div className="space-y-2">
-                {column.items.length ? column.items.map((item) => (
-                  <button
-                    key={`${column.label}-${item.id}`}
-                    type="button"
-                    onClick={() => openSelectedSource(item.id)}
-                    className="w-full rounded-lg border border-border/40 bg-card px-3 py-2 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
-                  >
-                    <div className="line-clamp-2 text-sm font-medium leading-5 text-foreground/85">{item.title}</div>
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <span className="truncate text-xs text-muted-foreground">{item.creator || MEDIA_LABELS[item.type]}</span>
-                      <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{item.status}</span>
-                    </div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">
+                  {column.label} - {column.items.length}
+                </div>
+                {column.items.length > 2 && (
+                  <button type="button" onClick={() => setViewFilter(column.label === 'Reflect' ? 'awaiting_reflection' : column.label === 'Develop' ? 'inquiry_driven' : column.label === 'Recent' ? 'recently_added' : 'continue')} className="font-code text-[8px] uppercase tracking-widest text-accent">
+                    View all {column.items.length}
                   </button>
-                )) : (
-                  <p className="rounded-lg border border-dashed border-border/40 bg-card/60 px-3 py-3 text-xs leading-5 text-muted-foreground">{column.empty}</p>
                 )}
               </div>
+              {column.items.length ? (
+                <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-1">
+                  {column.items.slice(0, 2).map((item) => (
+                    <button
+                      key={`${column.label}-${item.id}`}
+                      type="button"
+                      onClick={() => openSelectedSource(item.id)}
+                      className="w-full rounded-lg border border-border/40 bg-card px-3 py-2 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+                    >
+                      <div className="line-clamp-1 text-sm font-medium leading-5 text-foreground/85">{item.title}</div>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <span className="truncate text-xs text-muted-foreground">{item.creator || MEDIA_LABELS[item.type]}</span>
+                        <span className="font-code text-[8px] uppercase tracking-widest text-accent">{column.action}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-lg border border-dashed border-border/40 bg-card/60 px-3 py-2 text-xs leading-5 text-muted-foreground">{column.empty}</p>
+              )}
             </div>
           ))}
         </div>
       </section>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-8 gap-y-12">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         {filtered.map((item) => {
           const needsReflection = sourceNeedsReflection(item);
           const hasOpenInquiry = questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status));

@@ -472,7 +472,7 @@ export function ThinkingDesk({
       ? thinkingEvents
           .slice()
           .sort((a, b) => recentDate(b.createdAt) - recentDate(a.createdAt))
-          .slice(0, 5)
+          .slice(0, 3)
           .map((item) => ({
             id: item.id,
             title: item.summary,
@@ -483,7 +483,7 @@ export function ThinkingDesk({
       : timeline
           .slice()
           .sort((a, b) => recentDate(b.date) - recentDate(a.date))
-          .slice(0, 5)
+          .slice(0, 3)
           .map((item) => ({
             id: item.id,
             title: `${item.entityTitle}: ${item.reason || item.eventType}`,
@@ -521,6 +521,9 @@ export function ThinkingDesk({
       target: { view: 'library' as NoesisView },
     },
   ];
+  const visibleQuietSignals = quietSignals.filter((signal) => signal.value > 0).slice(0, 3);
+  const primaryEdge = continueItems[0] || null;
+  const secondaryEdges = continueItems.slice(1, 3);
 
   const hasWorkspace = media.length + concepts.length + inquiries.length + positions.length + works.length + practices.length > 0;
 
@@ -769,75 +772,79 @@ export function ThinkingDesk({
 
   return (
     <main className="flex-1 overflow-y-auto px-6 py-8 md:px-10">
-      <PageHeader
-        title={`Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, ${firstName(profile)}.`}
-        description={currentThemes.length
-          ? `Your recent work is circling ${currentThemes.join(', ')}. Home shows the unfinished edges worth returning to.`
-          : 'Home shows the unfinished edges of your thinking and routes you into the next useful act.'}
-        actions={(
-          <Button onClick={() => onNavigate({ view: 'library' })} className="rounded-full">
-            <Sparkles className="mr-2 size-4" />
-            Capture Something
-          </Button>
-        )}
-        meta={currentThemes.map((theme) => (
-          <Badge key={theme} variant="outline" className="rounded-full">{theme}</Badge>
-        ))}
-      />
+      <div className="mx-auto max-w-[1500px]">
+        <PageHeader
+          title={`Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, ${firstName(profile)}.`}
+          description={currentThemes.length
+            ? `Your recent thinking is converging around ${currentThemes.join(', ')}.`
+            : 'Home chooses the next useful act from your unfinished thinking.'}
+          actions={(
+            <Button onClick={() => onNavigate({ view: 'library' })} className="rounded-full">
+              <Sparkles className="mr-2 size-4" />
+              Capture
+            </Button>
+          )}
+          meta={currentThemes.length ? [
+            <span key="focus-label" className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Current focus</span>,
+            ...currentThemes.map((theme) => (
+              <Badge key={theme} variant="outline" className="rounded-full">{theme}</Badge>
+            )),
+          ] : undefined}
+        />
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.8fr)]">
-        <section className="space-y-5">
-          <Card className="rounded-2xl border-border bg-card p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Continue Thinking</div>
-                <h2 className="mt-1 font-headline text-2xl font-semibold italic text-foreground/80">The next three edges</h2>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+          <section className="space-y-5">
+            <Card className="rounded-2xl border-border bg-card p-5 md:p-6">
+              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Primary Focus</div>
+                  <h2 className="mt-1 font-headline text-3xl font-semibold italic text-foreground/85">Continue this thought</h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {HOME_MODES.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setMode(item.id)}
+                      title={item.description}
+                      className={`rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-[0.14em] transition-colors ${
+                        mode === item.id
+                          ? 'border-accent bg-accent text-accent-foreground'
+                          : 'border-border bg-background/60 text-muted-foreground hover:border-accent/40 hover:text-foreground'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <Badge variant="secondary" className="rounded-full">{continueItems.length} active</Badge>
-            </div>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {HOME_MODES.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setMode(item.id)}
-                  title={item.description}
-                  className={`rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-[0.14em] transition-colors ${
-                    mode === item.id
-                      ? 'border-accent bg-accent text-accent-foreground'
-                      : 'border-border bg-background/60 text-muted-foreground hover:border-accent/40 hover:text-foreground'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            <div className="grid gap-3">
-              {continueItems.length ? continueItems.map((item) => {
-                const Icon = item.icon;
+
+              {primaryEdge ? (() => {
+                const Icon = primaryEdge.icon;
                 return (
                   <button
-                    key={item.id}
-                    onClick={() => previewOrNavigate({ view: item.view, targetId: item.targetId }, { label: item.action, description: item.eyebrow, reason: item.reason })}
-                    className="group rounded-2xl border border-border bg-background/70 p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
+                    onClick={() => previewOrNavigate({ view: primaryEdge.view, targetId: primaryEdge.targetId }, { label: primaryEdge.action, description: primaryEdge.eyebrow, reason: primaryEdge.reason })}
+                    className="group w-full rounded-3xl border border-accent/20 bg-accent/5 p-5 text-left transition-colors hover:border-accent/50 hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-ring md:p-6"
                   >
-                    <div className="flex gap-4">
-                      <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-accent">
-                        <Icon className="size-5" />
+                    <div className="flex flex-col gap-4 sm:flex-row">
+                      <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-accent/20 bg-card text-accent">
+                        <Icon className="size-6" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{item.eyebrow}</div>
-                        <div className="mt-1 font-medium text-foreground">{item.label}</div>
-                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.reason}</p>
-                      </div>
-                      <div className="hidden items-center gap-1 text-xs font-medium text-accent sm:flex">
-                        {item.action}
-                        <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                        <div className="font-code text-[9px] uppercase tracking-[0.18em] text-accent">{primaryEdge.eyebrow}</div>
+                        <div className="mt-2 max-w-3xl font-headline text-2xl font-semibold leading-tight text-foreground">{primaryEdge.label}</div>
+                        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                          <span className="font-medium text-foreground/75">Why now:</span> {primaryEdge.reason}
+                        </p>
+                        <div className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent">
+                          {primaryEdge.action}
+                          <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                        </div>
                       </div>
                     </div>
                   </button>
                 );
-              }) : (
+              })() : (
                 <div className="rounded-2xl border border-dashed border-border bg-background/60 p-5">
                   <div className="flex gap-4">
                     <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-accent">
@@ -848,17 +855,37 @@ export function ThinkingDesk({
                       <p className="mt-1 text-sm leading-6 text-muted-foreground">
                         This filter has nothing urgent right now. Capture a source, open an inquiry, or switch modes to rediscover older material.
                       </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button size="sm" onClick={() => onNavigate({ view: 'library' })} className="rounded-full">Add source</Button>
-                        <Button size="sm" variant="outline" onClick={() => setMode('rediscover')} className="rounded-full">Rediscover</Button>
-                        <Button size="sm" variant="outline" onClick={() => setMode('continue')} className="rounded-full">Return to continue</Button>
-                      </div>
                     </div>
                   </div>
                 </div>
               )}
-            </div>
-          </Card>
+
+              {secondaryEdges.length > 0 && (
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {secondaryEdges.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => previewOrNavigate({ view: item.view, targetId: item.targetId }, { label: item.action, description: item.eyebrow, reason: item.reason })}
+                        className="group rounded-2xl border border-border bg-background/70 p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <div className="flex gap-3">
+                          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-accent">
+                            <Icon className="size-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">{item.eyebrow}</div>
+                            <div className="mt-1 line-clamp-2 text-sm font-medium text-foreground">{item.label}</div>
+                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.reason}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
 
           <Card className="rounded-2xl border-border bg-card p-5">
             <div className="flex items-start gap-4">
@@ -894,8 +921,8 @@ export function ThinkingDesk({
                       className="mt-4 min-h-[88px] rounded-2xl"
                     />
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" onClick={() => previewOrNavigate(provocation.target, { label: 'Work on this', description: 'Today’s provocation', reason: provocation.evidence })} className="rounded-full">Work on this</Button>
-                      <Button size="sm" variant="outline" onClick={turnProvocationIntoInquiry} className="rounded-full">Turn into inquiry</Button>
+                      <Button size="sm" onClick={turnProvocationIntoInquiry} className="rounded-full">Respond</Button>
+                      <Button size="sm" variant="outline" onClick={() => previewOrNavigate(provocation.target, { label: 'Explore further', description: 'Today provocation', reason: provocation.evidence })} className="rounded-full">Explore further</Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -906,18 +933,9 @@ export function ThinkingDesk({
                         }}
                         className="rounded-full"
                       >
-                        Different angle
+                        Replace prompt
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setProvocationDismissed(true)} className="rounded-full">Dismiss</Button>
-                    </div>
-                    <div className="mt-4 rounded-2xl border border-border bg-background/60 p-3">
-                      <div className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">If irrelevant, why?</div>
-                      <Textarea
-                        value={irrelevantReason}
-                        onChange={(event) => setIrrelevantReason(event.target.value)}
-                        placeholder="Explain why this prompt misses the mark. This stays local for now."
-                        className="mt-2 min-h-[64px] rounded-xl border-border/70 bg-card"
-                      />
+                      <Button size="sm" variant="ghost" onClick={() => setProvocationDismissed(true)} className="rounded-full">Not relevant</Button>
                     </div>
                   </>
                 )}
@@ -930,8 +948,8 @@ export function ThinkingDesk({
           <Card className="rounded-2xl border-border bg-card p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Intellectual Pulse</div>
-                <p className="mt-1 text-xs text-muted-foreground">Evidence-backed signals, not stats for their own sake.</p>
+                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Thinking Health</div>
+                <p className="mt-1 text-xs text-muted-foreground">Three signals that deserve attention now.</p>
               </div>
               <Target className="size-4 text-accent" />
             </div>
@@ -956,16 +974,10 @@ export function ThinkingDesk({
                   </div>
                 </button>
               ))}
-            </div>
-          </Card>
-
-          <Card className="rounded-2xl border-border bg-card p-5">
-            <div className="mb-3 font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Quiet Signals</div>
-            <div className="space-y-2">
-              {quietSignals.map((signal) => (
+              {visibleQuietSignals.map((signal) => (
                 <button
                   key={signal.label}
-                  onClick={() => previewOrNavigate(signal.target, { label: signal.label, description: 'Quiet signal', reason: `${signal.value} item(s) need attention` })}
+                  onClick={() => previewOrNavigate(signal.target, { label: signal.label, description: 'Thinking gap', reason: `${signal.value} item(s) need attention` })}
                   className="flex w-full items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
                 >
                   <span className="text-sm text-muted-foreground">{signal.label}</span>
@@ -976,7 +988,10 @@ export function ThinkingDesk({
           </Card>
 
           <Card className="rounded-2xl border-border bg-card p-5">
-            <div className="mb-3 font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Recent Movement</div>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Recent Change</div>
+              <Button variant="ghost" size="sm" onClick={() => onNavigate({ view: 'evolution' })} className="rounded-full">View full evolution</Button>
+            </div>
             <div className="space-y-3">
               {recentMovement.length ? recentMovement.map((item) => (
                 <button
@@ -996,6 +1011,8 @@ export function ThinkingDesk({
           </Card>
         </aside>
       </div>
+      </div>
     </main>
   );
 }
+
