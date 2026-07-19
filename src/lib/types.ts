@@ -51,7 +51,7 @@ export type AtlasMapBackgroundPreset = 'dark' | 'light' | 'paper' | 'grid' | 'bl
 export type AtlasMapFontFamily = 'system' | 'serif' | 'mono' | 'rounded' | 'condensed';
 export type AtlasMapNodeStyle = 'default' | 'compact' | 'pill' | 'card';
 export type AtlasMapMode = 'core' | 'conflict' | 'evidence' | 'practice' | 'evolution' | 'full' | 'custom';
-export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'url_metadata' | 'manual';
+export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'itunes' | 'crossref' | 'internet_archive' | 'url_metadata' | 'manual';
 export type AiSuggestionType = 'annotation_consequence' | 'position_draft' | 'typed_link' | 'possible_tension' | 'evolution_summary' | 'daily_prompt' | 'missing_perspective' | 'blind_spot' | 'missing_question' | 'stress_test' | 'thinking_pattern' | 'unknown_candidate' | 'contradiction_cluster';
 export type AiSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'ignored' | 'dismissed' | 'outdated';
 export type ThinkingEventType = 'created' | 'edited' | 'revised' | 'challenged' | 'supported' | 'abandoned' | 'resolved' | 'linked' | 'unlinked' | 'link_removed' | 'tested' | 'synthesized' | 'confidence_changed' | 'evidence_added' | 'evidence_removed' | 'contradiction_detected' | 'contradiction_resolved' | 'unknown_created' | 'unknown_resolved' | 'question_created' | 'question_resolved' | 'position_formed' | 'practice_created' | 'source_distilled' | 'annotation_created' | 'ai_suggestion_generated' | 'ai_suggestion_accepted' | 'ai_suggestion_rejected' | 'position_created' | 'position_revised' | 'position_replaced' | 'position_abandoned' | 'question_promoted' | 'link_created' | 'suggestion_created' | 'suggestion_accepted' | 'suggestion_dismissed' | 'thinking_pattern_inferred' | 'thinking_pattern_acknowledged' | 'thinking_pattern_dismissed' | 'stress_test_generated' | 'stress_test_answered' | 'assumption_added' | 'assumption_challenged' | 'challenge_added' | 'source_created' | 'source_abandoned' | 'concept_defined' | 'concept_redefined' | 'concept_abandoned' | 'work_created' | 'work_revised' | 'work_abandoned' | 'practice_logged' | 'practice_concluded' | 'practice_abandoned';
@@ -155,6 +155,9 @@ export interface Media {
     openLibraryId?: string;
     openAlexId?: string;
     tmdbId?: string;
+    itunesId?: string;
+    crossrefId?: string;
+    internetArchiveId?: string;
     isbn?: string;
     doi?: string;
     url?: string;

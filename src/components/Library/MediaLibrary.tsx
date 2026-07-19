@@ -1364,12 +1364,11 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
   const [showDropdown, setShowDropdown] = useState(false);
   const terms = TYPE_TERMINOLOGY[draft.type || 'book'];
 
-  const isScholarly = ['book', 'audiobook', 'paper'].includes(draft.type || 'book');
   const isDigital = ['video', 'podcast', 'article', 'course', 'lecture', 'documentary', 'interview', 'conversation', 'other'].includes(draft.type || 'book');
   const isPaper = draft.type === 'paper';
 
-  const showSearch = isScholarly;
-  const showImport = isDigital || isPaper;
+  const showSearch = true;
+  const showImport = isDigital || isPaper || ['book', 'audiobook', 'movie'].includes(draft.type || 'book');
 
   const handleLocateSource = useCallback(async (query: string) => {
     if (query.trim().length < 3) return;
@@ -1395,7 +1394,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
       const response = await fetch('/api/source-metadata', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ url: importUrl.trim() }),
+        body: JSON.stringify({ url: importUrl.trim(), type: draft.type || 'article' }),
       });
       const data = await response.json();
       if (data.result) {
@@ -1414,7 +1413,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
     } finally {
       setIsImporting(false);
     }
-  }, [importUrl, setDraft, toast]);
+  }, [draft.type, importUrl, setDraft, toast]);
 
   const addTag = () => {
     if (!tagInput.trim()) return;
@@ -1460,7 +1459,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/40" />
                         <Input 
-                          placeholder={`Search ${MEDIA_LABELS[draft.type || 'book']} databases...`} 
+                          placeholder={`Search ${MEDIA_LABELS[draft.type || 'book']} locator...`} 
                           value={locatorQuery}
                           onChange={(e) => {
                             setLocatorQuery(e.target.value);

@@ -20,6 +20,9 @@ export interface NormalizedSourceResult {
     openLibraryId?: string;
     openAlexId?: string;
     tmdbId?: string;
+    itunesId?: string;
+    crossrefId?: string;
+    internetArchiveId?: string;
     isbn?: string;
     doi?: string;
     url?: string;

@@ -193,6 +193,83 @@ function normalizeTmdbMovie(movie: any, forcedType: MediaType): NormalizedSource
   };
 }
 
+function normalizeItunesResult(item: any, forcedType: MediaType): NormalizedSourceResult | null {
+  const title = item.collectionName || item.trackName;
+  if (!title) return null;
+  const id = String(item.collectionId || item.trackId || '');
+  const sourceUrl = item.collectionViewUrl || item.trackViewUrl || '';
+  return {
+    provider: 'itunes',
+    externalId: id || sourceUrl || title,
+    type: forcedType,
+    title: cleanText(title),
+    creators: unique([item.artistName, item.collectionArtistName]),
+    year: yearFromDate(item.releaseDate),
+    description: cleanText(item.description || item.shortDescription || item.longDescription),
+    thumbnailUrl: String(item.artworkUrl100 || item.artworkUrl60 || '').replace('100x100', '600x600'),
+    sourceUrl,
+    publisher: cleanText(item.artistName),
+    platform: 'Apple',
+    tags: unique([item.primaryGenreName]),
+    externalIds: {
+      itunesId: id,
+      url: sourceUrl,
+    },
+  };
+}
+
+function normalizeCrossrefWork(work: any, forcedType: MediaType): NormalizedSourceResult | null {
+  const title = work?.title?.[0];
+  if (!title) return null;
+  const doi = cleanText(work.DOI);
+  const year = work.published?.['date-parts']?.[0]?.[0] || work.issued?.['date-parts']?.[0]?.[0] || '';
+  const creators = unique((work.author || []).map((author: any) => [author.given, author.family].filter(Boolean).join(' ')));
+  const sourceUrl = work.URL || (doi ? `https://doi.org/${doi}` : '');
+  return {
+    provider: 'crossref',
+    externalId: doi || sourceUrl || title,
+    type: forcedType,
+    title: cleanText(title),
+    creators,
+    year: yearFromDate(year),
+    description: cleanText(work.abstract || work.subtitle?.[0] || ''),
+    thumbnailUrl: '',
+    sourceUrl,
+    publisher: cleanText(work.publisher || work['container-title']?.[0]),
+    doi,
+    tags: unique([work.type, ...(work.subject || [])]),
+    externalIds: {
+      crossrefId: doi || work.URL || '',
+      doi,
+      url: sourceUrl,
+    },
+  };
+}
+
+function normalizeInternetArchiveDoc(doc: any, forcedType: MediaType): NormalizedSourceResult | null {
+  if (!doc?.title) return null;
+  const identifier = cleanText(doc.identifier);
+  const sourceUrl = identifier ? `https://archive.org/details/${identifier}` : '';
+  return {
+    provider: 'internet_archive',
+    externalId: identifier || doc.title,
+    type: forcedType,
+    title: cleanText(doc.title),
+    creators: unique(Array.isArray(doc.creator) ? doc.creator : [doc.creator]),
+    year: yearFromDate(doc.year || doc.date),
+    description: cleanText(doc.description),
+    thumbnailUrl: identifier ? `https://archive.org/services/img/${identifier}` : '',
+    sourceUrl,
+    publisher: cleanText(doc.publisher || doc.collection?.[0] || 'Internet Archive'),
+    platform: 'Internet Archive',
+    tags: unique([doc.mediatype, ...(Array.isArray(doc.subject) ? doc.subject : [doc.subject])]),
+    externalIds: {
+      internetArchiveId: identifier,
+      url: sourceUrl,
+    },
+  };
+}
+
 export async function searchBooks(query: string) {
   const googleUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=8&printType=books`;
   let results: NormalizedSourceResult[] = [];
@@ -227,6 +304,36 @@ export async function searchMovies(query: string, type: MediaType) {
     page: '1',
   });
   return (data.results || []).map((movie: any) => normalizeTmdbMovie(movie, type)).filter(Boolean).slice(0, 8);
+}
+
+export async function searchItunes(query: string, type: MediaType) {
+  const entity = type === 'audiobook' ? 'audiobook' : 'podcast';
+  const data = await fetchJson(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=${entity === 'audiobook' ? 'audiobook' : 'podcast'}&entity=${entity}&limit=8`);
+  return (data.results || []).map((item: any) => normalizeItunesResult(item, type)).filter(Boolean).slice(0, 8);
+}
+
+export async function searchArticles(query: string, type: MediaType = 'article') {
+  const data = await fetchJson(`https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=8&select=DOI,title,subtitle,author,publisher,published,issued,container-title,type,subject,abstract,URL`);
+  return (data.message?.items || []).map((work: any) => normalizeCrossrefWork(work, type)).filter(Boolean).slice(0, 8);
+}
+
+export async function searchInternetArchive(query: string, type: MediaType) {
+  const mediaType =
+    type === 'podcast' || type === 'audiobook' || type === 'conversation'
+      ? 'audio'
+      : type === 'article' || type === 'paper' || type === 'course'
+        ? 'texts'
+        : 'movies';
+  const fields = ['identifier', 'title', 'creator', 'year', 'date', 'description', 'publisher', 'collection', 'subject', 'mediatype'];
+  const params = new URLSearchParams({
+    q: `${query} AND mediatype:${mediaType}`,
+    fl: fields.join(','),
+    rows: '8',
+    page: '1',
+    output: 'json',
+  });
+  const data = await fetchJson(`https://archive.org/advancedsearch.php?${params.toString()}`);
+  return (data.response?.docs || []).map((doc: any) => normalizeInternetArchiveDoc(doc, type)).filter(Boolean).slice(0, 8);
 }
 
 function metaContent(html: string, selector: RegExp) {
@@ -266,7 +373,7 @@ function firstJsonLdValue(items: any[], keys: string[]) {
   return '';
 }
 
-export async function metadataFromUrl(rawUrl: string): Promise<NormalizedSourceResult> {
+export async function metadataFromUrl(rawUrl: string, forcedType?: MediaType): Promise<NormalizedSourceResult> {
   const url = new URL(rawUrl);
   const response = await fetchPublicUrl(url, {
     headers: {
@@ -301,7 +408,7 @@ export async function metadataFromUrl(rawUrl: string): Promise<NormalizedSourceR
   return {
     provider: 'url_metadata',
     externalId: canonical,
-    type: 'article',
+    type: forcedType || 'article',
     title: title || canonical,
     creators: author ? [author] : [],
     year: yearFromDate(published),
@@ -317,7 +424,23 @@ export async function metadataFromUrl(rawUrl: string): Promise<NormalizedSourceR
 
 export async function searchSources(query: string, type: MediaType) {
   if (type === 'paper') return searchPapers(query);
-  if (type === 'movie' || type === 'documentary') return searchMovies(query, type);
-  if (type === 'book' || type === 'audiobook') return searchBooks(query);
-  return [];
+  if (type === 'article') return searchArticles(query, type);
+  if (type === 'podcast') return searchItunes(query, type);
+  if (type === 'audiobook') {
+    const [books, audio] = await Promise.allSettled([searchBooks(query), searchItunes(query, type)]);
+    return [
+      ...(audio.status === 'fulfilled' ? audio.value : []),
+      ...(books.status === 'fulfilled' ? books.value.map((item) => ({ ...item, type })) : []),
+    ].slice(0, 8);
+  }
+  if (type === 'movie' || type === 'documentary') {
+    const [tmdb, archive] = await Promise.allSettled([searchMovies(query, type), searchInternetArchive(query, type)]);
+    return [
+      ...(tmdb.status === 'fulfilled' ? tmdb.value : []),
+      ...(archive.status === 'fulfilled' ? archive.value : []),
+    ].slice(0, 8);
+  }
+  if (type === 'book') return searchBooks(query);
+  if (['video', 'course', 'lecture', 'interview', 'conversation', 'other'].includes(type)) return searchInternetArchive(query, type);
+  return searchInternetArchive(query, type);
 }
