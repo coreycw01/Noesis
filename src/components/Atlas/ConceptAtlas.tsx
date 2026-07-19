@@ -168,6 +168,7 @@ const ATLAS_MIN_ZOOM = 0.45;
 const ATLAS_MAX_ZOOM = 1.7;
 const ATLAS_ZOOM_STEP = 0.08;
 const ATLAS_ZOOM_STORAGE_KEY = 'noesis.atlas.zoom';
+const atlasColorSwatches = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2', '#64748b'];
 
 const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'depends_on', 'explains', 'explained_by', 'derived_from', 'references', 'replaces', 'questions', 'expands', 'weakens', 'strengthens', 'relates', 'custom'];
 const highImportanceLinkTypes = new Set<AtlasMapLinkType | PhilosophicalLinkType>(['contradicts', 'supports', 'challenges', 'depends_on', 'strengthens', 'weakens', 'tested_by', 'changed_by', 'refines']);
@@ -231,6 +232,13 @@ function getAtlasRelationshipFamily(edge: Pick<MapEdge, 'linkType' | 'type'>): A
 
 function atlasEdgePairKey(edge: Pick<MapEdge, 'from' | 'to'>) {
   return [conceptKey(edge.from), conceptKey(edge.to)].sort().join('::');
+}
+
+function atlasLinkColorKey(link: Pick<AtlasLinkItem, 'id' | 'kind' | 'from' | 'to'>) {
+  if (link.kind === 'typed' && link.id.startsWith('typed-group:')) return link.id;
+  if (link.kind === 'shared') return `shared:${[conceptKey(link.from), conceptKey(link.to)].sort().join('::')}`;
+  if (link.kind === 'concept') return link.id;
+  return link.id;
 }
 
 function edgePriorityScore(edge: MapEdge) {
@@ -1541,6 +1549,45 @@ export function ConceptAtlas({
                   {panelSection === 'actions' && (
                     <section className="space-y-3">
                       <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
+                      {activeMap && (
+                        <div className="rounded-xl border border-border/60 bg-muted/10 p-3">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Node Color</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 rounded-full px-2 text-[10px]"
+                              onClick={() => updateNodeColor(selectedName!)}
+                              disabled={!activeMap.nodeColors?.[conceptKey(selectedName!)]}
+                            >
+                              Reset
+                            </Button>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {atlasColorSwatches.map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                aria-label={`Set node color ${color}`}
+                                className={cn(
+                                  'size-6 rounded-full border border-border shadow-sm ring-offset-2 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-ring',
+                                  activeMap.nodeColors?.[conceptKey(selectedName!)] === color && 'ring-2 ring-accent'
+                                )}
+                                style={{ backgroundColor: color }}
+                                onClick={() => updateNodeColor(selectedName!, color)}
+                              />
+                            ))}
+                            <input
+                              type="color"
+                              aria-label="Custom node color"
+                              value={activeMap.nodeColors?.[conceptKey(selectedName!)] || '#7c3aed'}
+                              onChange={(event) => updateNodeColor(selectedName!, event.target.value)}
+                              className="h-7 w-9 cursor-pointer rounded-md border border-border bg-card p-0.5"
+                            />
+                          </div>
+                        </div>
+                      )}
                       <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => beginQuickLinkMode(selectedName!)}>
                         <Link2 className="mr-1.5 size-3.5" /> Quick Link
                       </Button>
@@ -1631,6 +1678,31 @@ export function ConceptAtlas({
       linkIds: patch.linkIds || nextManualLinks.map((link) => link.id),
       dateUpdated: today(),
     });
+  };
+
+  const updateNodeColor = (nodeName: string, color?: string) => {
+    if (!activeMap) return;
+    const key = conceptKey(nodeName);
+    const nextNodeColors = { ...(activeMap.nodeColors || {}) };
+    if (color) {
+      nextNodeColors[key] = color;
+    } else {
+      delete nextNodeColors[key];
+    }
+    updateActiveMap({ nodeColors: nextNodeColors });
+  };
+
+  const updateLinkColor = (link: AtlasLinkItem, color?: string) => {
+    if (!activeMap) return;
+    const key = atlasLinkColorKey(link);
+    const nextLinkColors = { ...(activeMap.linkColors || {}) };
+    if (color) {
+      nextLinkColors[key] = color;
+    } else {
+      delete nextLinkColors[key];
+    }
+    updateActiveMap({ linkColors: nextLinkColors });
+    setSelectedLink((prev) => (prev && prev.id === link.id && prev.kind === link.kind ? { ...prev } : prev));
   };
 
   const addNodeToMap = (name: string) => {
@@ -1839,6 +1911,8 @@ export function ConceptAtlas({
   };
 
   const edgeStrokeColor = (edge: MapEdge) => {
+    const colorOverride = activeMap?.linkColors?.[atlasLinkColorKey(linkItemForEdge(edge))];
+    if (colorOverride) return colorOverride;
     const family = getAtlasRelationshipFamily(edge);
     if (mode === 'custom') {
       if (activeMapStyle.lineMode === 'singleColor') return activeMapStyle.customLineColor || '#7c3aed';
@@ -1977,6 +2051,18 @@ export function ConceptAtlas({
       ? 'border-accent shadow-2xl ring-2 ring-accent'
       : 'border-accent shadow-lg ring-1 ring-accent/85')
   );
+
+  const nodeColorStyle = (nodeName: string): React.CSSProperties => {
+    const color = activeMap?.nodeColors?.[conceptKey(nodeName)];
+    const fontFamily = mode === 'custom' ? mapFontFamily(activeMapStyle.fontFamily) : undefined;
+    if (!color) return { fontFamily };
+    return {
+      fontFamily,
+      borderColor: color,
+      boxShadow: `0 0 0 1px ${color}55, 0 12px 30px ${color}22`,
+      background: `linear-gradient(135deg, ${color}24, hsl(var(--card)) 62%)`,
+    };
+  };
 
   const saveMapStyle = () => {
     if (!activeMap) return;
@@ -2552,7 +2638,7 @@ export function ConceptAtlas({
                     !activeEdgeNodes.size && selectedClusterNodes.size > 0 && !selectedClusterNodes.has(conceptKey(node.name)) && 'opacity-25 saturate-50',
                     !activeEdgeNodes.size && selectedClusterNodes.has(conceptKey(node.name)) && selectedName !== node.name && 'border-accent/35 ring-1 ring-accent/35 shadow-lg'
                   )}
-                  style={{ fontFamily: mode === 'custom' ? mapFontFamily(activeMapStyle.fontFamily) : undefined }}
+                  style={nodeColorStyle(node.name)}
                 >
                   <h3 className={cn('font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-[15px]')}>
                     {node.name}
@@ -2657,6 +2743,48 @@ export function ConceptAtlas({
               <p className="rounded-xl border border-border/60 bg-card p-4 text-sm italic leading-6 text-muted-foreground">
                 {selectedLink.note || (selectedLink.kind === 'shared' ? 'This relationship is derived from shared evidence across the system.' : 'No note recorded for this link.')}
               </p>
+              {activeMap && (
+                <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                      <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Link Color</Label>
+                      <p className="mt-1 text-xs italic text-muted-foreground">Changes how this connection appears on the current map.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 rounded-full px-3 text-xs"
+                      onClick={() => updateLinkColor(selectedLink)}
+                      disabled={!activeMap.linkColors?.[atlasLinkColorKey(selectedLink)]}
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {atlasColorSwatches.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        aria-label={`Set link color ${color}`}
+                        className={cn(
+                          'size-7 rounded-full border border-border shadow-sm ring-offset-2 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-ring',
+                          activeMap.linkColors?.[atlasLinkColorKey(selectedLink)] === color && 'ring-2 ring-accent'
+                        )}
+                        style={{ backgroundColor: color }}
+                        onClick={() => updateLinkColor(selectedLink, color)}
+                      />
+                    ))}
+                    <input
+                      type="color"
+                      aria-label="Custom link color"
+                      value={activeMap.linkColors?.[atlasLinkColorKey(selectedLink)] || '#7c3aed'}
+                      onChange={(event) => updateLinkColor(selectedLink, event.target.value)}
+                      className="h-8 w-10 cursor-pointer rounded-md border border-border bg-card p-0.5"
+                    />
+                  </div>
+                </div>
+              )}
               {selectedLink.kind === 'shared' && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs italic leading-5 text-amber-800">
                   Auto/shared links are calculated from overlap. They cannot be cut directly; remove the shared evidence or disable this auto-link filter on a Custom Map.

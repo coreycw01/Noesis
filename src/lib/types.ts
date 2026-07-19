@@ -937,6 +937,8 @@ export interface AtlasMap {
   nodeIds?: string[];
   nodePositions: Record<string, AtlasMapNodePosition>;
   manualLinks: AtlasMapLink[];
+  nodeColors?: Record<string, string>;
+  linkColors?: Record<string, string>;
   linkIds?: string[];
   autoLinkFilters: AtlasAutoLinkFilters;
   style?: AtlasMapStyle;
