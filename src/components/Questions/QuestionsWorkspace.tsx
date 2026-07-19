@@ -218,7 +218,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
   ].filter(Boolean) as string[];
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
       <PageHeader
         title="Inquiries"
         description="Work through returning questions as structured investigations with evidence, provisional answers, and resolution summaries."
@@ -725,7 +725,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-6xl mx-auto w-full font-body">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
       <Button variant="ghost" onClick={onBack} className="mb-8 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50">
         <ArrowLeft className="size-4 mr-2" /> Back to Inquiries
       </Button>

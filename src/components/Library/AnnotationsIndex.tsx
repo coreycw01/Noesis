@@ -46,8 +46,8 @@ type FlatAnnotation = Annotation & { source: Media };
 type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered' | 'needs_context' | 'source_context_missing' | 'needs_direction' | 'evidence_ready' | 'potentially_important' | 'recently_promoted';
 type PreflightMode = 'position' | 'inquiry';
 type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'reference';
-type AnnotationProcessingMode = 'single' | 'sweep' | 'cluster' | 'source';
 type AnnotationConsequenceKind = NonNullable<Annotation['consequenceKind']>;
+type AnnotationSort = 'newest' | 'oldest' | 'source' | 'type' | 'status';
 
 const ANNOTATION_TYPES: Array<{ id: AnnotationType; label: string }> = [
   { id: 'highlight', label: 'Highlight' },
@@ -120,7 +120,7 @@ export function AnnotationsIndex({
   const [filterType, setFilterType] = useState<AnnotationFilter>('all');
   const [filterConcept, setFilterConcept] = useState<string>('all');
   const [filterSource, setFilterSource] = useState<string>('all');
-  const [processingMode, setProcessingMode] = useState<AnnotationProcessingMode>('sweep');
+  const [sortBy, setSortBy] = useState<AnnotationSort>('newest');
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
   const [suggestingId, setSuggestingId] = useState<string | null>(null);
@@ -279,8 +279,14 @@ export function AnnotationsIndex({
         const query = `${annotation.text} ${annotation.source.title} ${annotation.source.creator} ${annotationTags(annotation).join(' ')}`.toLowerCase();
         return typeOk && conceptOk && sourceOk && (!search || query.includes(search.toLowerCase()));
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [annotations, search, filterType, filterConcept, filterSource]);
+      .sort((a, b) => {
+        if (sortBy === 'oldest') return new Date(a.date).getTime() - new Date(b.date).getTime();
+        if (sortBy === 'source') return a.source.title.localeCompare(b.source.title) || new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (sortBy === 'type') return annotationLabel(a.type).localeCompare(annotationLabel(b.type)) || new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (sortBy === 'status') return annotationLabel(annotationStatus(a)).localeCompare(annotationLabel(annotationStatus(b))) || new Date(b.date).getTime() - new Date(a.date).getTime();
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      });
+  }, [annotations, search, filterType, filterConcept, filterSource, sortBy]);
 
   const selectedAnnotations = useMemo(
     () => annotations.filter((annotation) => selectedKeys.includes(annotationKey(annotation))),
@@ -627,21 +633,15 @@ export function AnnotationsIndex({
     onNavigate?.('questions', created.id);
   };
 
-  const filterButtons: { id: AnnotationFilter; label: string; count: number }[] = [
+  const rawFilterButtons: { id: AnnotationFilter; label: string; count: number; always?: boolean }[] = [
     { id: 'all', label: 'All', count: typeCounts.total },
-    { id: 'raw', label: 'Unprocessed', count: typeCounts.raw || 0 },
+    { id: 'raw', label: 'Unprocessed', count: typeCounts.raw || 0, always: true },
     { id: 'needs_context', label: 'Needs Context', count: annotations.filter(needsContext).length },
-    { id: 'source_context_missing', label: 'No Source Context', count: annotations.filter(missingSourceContext).length },
     { id: 'needs_direction', label: 'Needs Direction', count: annotations.filter(needsSupportDirection).length },
     { id: 'evidence_ready', label: 'Evidence Ready', count: annotations.filter(isEvidenceReady).length },
     { id: 'potentially_important', label: 'Important', count: annotations.filter(isPotentiallyImportant).length },
     { id: 'recently_promoted', label: 'Promoted', count: annotations.filter(isRecentlyPromoted).length },
-    { id: 'reviewed', label: 'Reviewed', count: typeCounts.reviewed || 0 },
-    { id: 'connected', label: 'Connected', count: typeCounts.connected || 0 },
-    { id: 'promoted', label: 'Promoted', count: typeCounts.promoted || 0 },
-    { id: 'used_in_position', label: 'In Positions', count: typeCounts.used_in_position || 0 },
     { id: 'reference_only', label: 'Reference', count: typeCounts.reference_only || 0 },
-    { id: 'dismissed', label: 'Dismissed', count: typeCounts.dismissed || 0 },
     { id: 'archived', label: 'Archived', count: typeCounts.archived || 0 },
     { id: 'highlight', label: 'Highlights', count: typeCounts.highlight || 0 },
     { id: 'claim', label: 'Claims', count: typeCounts.claim || 0 },
@@ -651,6 +651,7 @@ export function AnnotationsIndex({
     { id: 'unanswered', label: 'Unanswered', count: typeCounts.unanswered },
     { id: 'connection', label: 'Connections', count: typeCounts.connection || 0 },
   ];
+  const filterButtons = rawFilterButtons.filter((button) => button.id === 'all' || button.always || button.count > 0 || filterType === button.id);
 
   const clearFilters = () => {
     setSearch('');
@@ -662,7 +663,7 @@ export function AnnotationsIndex({
   const filtersActive = Boolean(search || filterType !== 'all' || filterConcept !== 'all' || filterSource !== 'all');
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
       <PageHeader
         title="Annotations"
         description="Review and refine captured highlights, thoughts, questions, and connections across all sources."
@@ -677,17 +678,19 @@ export function AnnotationsIndex({
         resultLabel="annotations"
         onClear={clearFilters}
         clearDisabled={!filtersActive}
-        className="mb-10"
+        sortLabel={`Sorted by ${sortBy.replace(/_/g, ' ')}`}
+        className="mb-5"
       >
-        <Select value={processingMode} onValueChange={(value) => setProcessingMode(value as AnnotationProcessingMode)}>
-          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
-            <SelectValue placeholder="Processing Mode" />
+        <Select value={sortBy} onValueChange={(value) => setSortBy(value as AnnotationSort)}>
+          <SelectTrigger className="w-44 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+            <SelectValue placeholder="Sort" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="single" className="font-code text-[10px] uppercase">Single Review</SelectItem>
-            <SelectItem value="sweep" className="font-code text-[10px] uppercase">Sweep Mode</SelectItem>
-            <SelectItem value="cluster" className="font-code text-[10px] uppercase">Cluster Mode</SelectItem>
-            <SelectItem value="source" className="font-code text-[10px] uppercase">Source Mode</SelectItem>
+            <SelectItem value="newest" className="font-code text-[10px] uppercase">Newest</SelectItem>
+            <SelectItem value="oldest" className="font-code text-[10px] uppercase">Oldest</SelectItem>
+            <SelectItem value="source" className="font-code text-[10px] uppercase">Source</SelectItem>
+            <SelectItem value="type" className="font-code text-[10px] uppercase">Type</SelectItem>
+            <SelectItem value="status" className="font-code text-[10px] uppercase">Status</SelectItem>
           </SelectContent>
         </Select>
 
@@ -697,7 +700,7 @@ export function AnnotationsIndex({
               key={button.id}
               onClick={() => setFilterType(button.id)}
               className={cn(
-                "px-5 py-2 rounded-full text-[10px] font-code font-bold uppercase tracking-[0.16em] transition-all shadow-sm",
+                "px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all shadow-sm",
                 filterType === button.id ? "bg-accent text-white" : "bg-card text-muted-foreground border border-border/60 hover:text-foreground"
               )}
             >

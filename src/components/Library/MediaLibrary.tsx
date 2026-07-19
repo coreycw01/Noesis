@@ -474,7 +474,7 @@ export function MediaLibrary({
     const sourcePurpose = capture.before?.reasonForAdding || capture.before?.openQuestion || capture.before?.expectation || selected.description || 'This source still needs a clear reason for being studied.';
     
     return (
-      <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-7xl mx-auto w-full font-body">
+      <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <button onClick={closeSelectedSource} className="font-code text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground flex items-center transition-colors">
@@ -1090,6 +1090,7 @@ export function MediaLibrary({
             setDeleteTarget(null);
           }}
         />
+        <MediaEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draft} setDraft={setDraft} onSave={saveMedia} />
       </div>
     );
   }

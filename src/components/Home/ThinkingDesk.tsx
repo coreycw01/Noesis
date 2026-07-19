@@ -771,8 +771,8 @@ export function ThinkingDesk({
   }
 
   return (
-    <main className="flex-1 overflow-y-auto px-6 py-8 md:px-10">
-      <div className="mx-auto max-w-[1500px]">
+    <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+      <div className="w-full">
         <PageHeader
           title={`Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, ${firstName(profile)}.`}
           description={currentThemes.length
