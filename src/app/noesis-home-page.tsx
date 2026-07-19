@@ -2271,6 +2271,8 @@ function ReadexWorkspace({
       nodeIds: data.nodeIds || resolvedNodeIds,
       nodePositions: data.nodePositions || {},
       manualLinks,
+      nodeColors: data.nodeColors || {},
+      linkColors: data.linkColors || {},
       linkIds: data.linkIds || manualLinks.map((link) => link.id),
       autoLinkFilters: data.autoLinkFilters || {
         sharedSources: true,

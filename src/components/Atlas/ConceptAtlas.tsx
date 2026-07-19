@@ -241,6 +241,18 @@ function atlasLinkColorKey(link: Pick<AtlasLinkItem, 'id' | 'kind' | 'from' | 't
   return link.id;
 }
 
+function mergeAtlasColorOverrides(saved?: Record<string, string>, pending?: Record<string, string>) {
+  const merged = { ...(saved || {}) };
+  Object.entries(pending || {}).forEach(([key, value]) => {
+    if (value) {
+      merged[key] = value;
+    } else {
+      delete merged[key];
+    }
+  });
+  return merged;
+}
+
 function edgePriorityScore(edge: MapEdge) {
   const strengthBonus = edge.strength === 'strong' ? 24 : edge.strength === 'moderate' ? 12 : edge.strength === 'weak' ? 2 : 0;
   const typeBonus = edge.type === 'typed' ? 24 : edge.type === 'concept' ? 14 : edge.type === 'user' ? 18 : 0;
@@ -314,6 +326,8 @@ export function ConceptAtlas({
   const [quickLinkCursor, setQuickLinkCursor] = useState({ x: 0, y: 0 });
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [linkInteractionMap, setLinkInteractionMap] = useState<Record<string, { lastInteractedAt: string; interactionCount: number }>>({});
+  const [pendingNodeColors, setPendingNodeColors] = useState<Record<string, Record<string, string>>>({});
+  const [pendingLinkColors, setPendingLinkColors] = useState<Record<string, Record<string, string>>>({});
   const [newConcept, setNewConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
   const [newMap, setNewMap] = useState({ title: '', description: '' });
   const [styleDraft, setStyleDraft] = useState<AtlasMapStyle>(defaultAtlasMapStyle);
@@ -347,6 +361,15 @@ export function ConceptAtlas({
 
   const terms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
   const activeMap = atlasMaps.find((map) => map.id === activeMapId) || atlasMaps[0] || null;
+  const activeMapColorKey = activeMap?.id || 'default-map';
+  const effectiveNodeColors = useMemo(
+    () => mergeAtlasColorOverrides(activeMap?.nodeColors, pendingNodeColors[activeMapColorKey]),
+    [activeMap?.nodeColors, activeMapColorKey, pendingNodeColors]
+  );
+  const effectiveLinkColors = useMemo(
+    () => mergeAtlasColorOverrides(activeMap?.linkColors, pendingLinkColors[activeMapColorKey]),
+    [activeMap?.linkColors, activeMapColorKey, pendingLinkColors]
+  );
   const activeMapStyle = useMemo(
     () => normalizeAtlasMapStyle(activeMap?.style),
     [activeMap?.style]
@@ -1472,6 +1495,46 @@ export function ConceptAtlas({
               </Select>
             </div>
 
+            {activeMap && (
+              <div className="mb-4 rounded-xl border border-border/60 bg-muted/10 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Node Color</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 rounded-full px-2 text-[10px]"
+                    onClick={() => updateNodeColor(selectedName!)}
+                    disabled={!effectiveNodeColors[conceptKey(selectedName!)]}
+                  >
+                    Reset
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {atlasColorSwatches.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`Set node color ${color}`}
+                      className={cn(
+                        'size-6 rounded-full border border-border shadow-sm ring-offset-2 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-ring',
+                        effectiveNodeColors[conceptKey(selectedName!)] === color && 'ring-2 ring-accent'
+                      )}
+                      style={{ backgroundColor: color }}
+                      onClick={() => updateNodeColor(selectedName!, color)}
+                    />
+                  ))}
+                  <input
+                    type="color"
+                    aria-label="Custom node color"
+                    value={effectiveNodeColors[conceptKey(selectedName!)] || '#7c3aed'}
+                    onChange={(event) => updateNodeColor(selectedName!, event.target.value)}
+                    className="h-7 w-9 cursor-pointer rounded-md border border-border bg-card p-0.5"
+                  />
+                </div>
+              </div>
+            )}
+
             {panelSection === 'links' && (
               <section>
                 <div className="mb-3 flex items-center justify-between gap-2">
@@ -1549,45 +1612,6 @@ export function ConceptAtlas({
                   {panelSection === 'actions' && (
                     <section className="space-y-3">
                       <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
-                      {activeMap && (
-                        <div className="rounded-xl border border-border/60 bg-muted/10 p-3">
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Node Color</Label>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 rounded-full px-2 text-[10px]"
-                              onClick={() => updateNodeColor(selectedName!)}
-                              disabled={!activeMap.nodeColors?.[conceptKey(selectedName!)]}
-                            >
-                              Reset
-                            </Button>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {atlasColorSwatches.map((color) => (
-                              <button
-                                key={color}
-                                type="button"
-                                aria-label={`Set node color ${color}`}
-                                className={cn(
-                                  'size-6 rounded-full border border-border shadow-sm ring-offset-2 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-ring',
-                                  activeMap.nodeColors?.[conceptKey(selectedName!)] === color && 'ring-2 ring-accent'
-                                )}
-                                style={{ backgroundColor: color }}
-                                onClick={() => updateNodeColor(selectedName!, color)}
-                              />
-                            ))}
-                            <input
-                              type="color"
-                              aria-label="Custom node color"
-                              value={activeMap.nodeColors?.[conceptKey(selectedName!)] || '#7c3aed'}
-                              onChange={(event) => updateNodeColor(selectedName!, event.target.value)}
-                              className="h-7 w-9 cursor-pointer rounded-md border border-border bg-card p-0.5"
-                            />
-                          </div>
-                        </div>
-                      )}
                       <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => beginQuickLinkMode(selectedName!)}>
                         <Link2 className="mr-1.5 size-3.5" /> Quick Link
                       </Button>
@@ -1657,6 +1681,8 @@ export function ConceptAtlas({
       nodeIds: atlasNodeIdsForNames(initialNodeNames),
       nodePositions: selectedName ? { [conceptKey(selectedName)]: { x: 50, y: 50 } } : {},
       manualLinks: [],
+      nodeColors: {},
+      linkColors: {},
       linkIds: [],
       autoLinkFilters: defaultAutoLinkFilters,
       style: defaultAtlasMapStyle,
@@ -1684,6 +1710,15 @@ export function ConceptAtlas({
     if (!activeMap) return;
     const key = conceptKey(nodeName);
     const nextNodeColors = { ...(activeMap.nodeColors || {}) };
+    setPendingNodeColors((prev) => {
+      const current = { ...(prev[activeMapColorKey] || {}) };
+      if (color) {
+        current[key] = color;
+      } else {
+        current[key] = '';
+      }
+      return { ...prev, [activeMapColorKey]: current };
+    });
     if (color) {
       nextNodeColors[key] = color;
     } else {
@@ -1696,6 +1731,15 @@ export function ConceptAtlas({
     if (!activeMap) return;
     const key = atlasLinkColorKey(link);
     const nextLinkColors = { ...(activeMap.linkColors || {}) };
+    setPendingLinkColors((prev) => {
+      const current = { ...(prev[activeMapColorKey] || {}) };
+      if (color) {
+        current[key] = color;
+      } else {
+        current[key] = '';
+      }
+      return { ...prev, [activeMapColorKey]: current };
+    });
     if (color) {
       nextLinkColors[key] = color;
     } else {
@@ -1911,7 +1955,7 @@ export function ConceptAtlas({
   };
 
   const edgeStrokeColor = (edge: MapEdge) => {
-    const colorOverride = activeMap?.linkColors?.[atlasLinkColorKey(linkItemForEdge(edge))];
+    const colorOverride = effectiveLinkColors[atlasLinkColorKey(linkItemForEdge(edge))];
     if (colorOverride) return colorOverride;
     const family = getAtlasRelationshipFamily(edge);
     if (mode === 'custom') {
@@ -2053,7 +2097,7 @@ export function ConceptAtlas({
   );
 
   const nodeColorStyle = (nodeName: string): React.CSSProperties => {
-    const color = activeMap?.nodeColors?.[conceptKey(nodeName)];
+    const color = effectiveNodeColors[conceptKey(nodeName)];
     const fontFamily = mode === 'custom' ? mapFontFamily(activeMapStyle.fontFamily) : undefined;
     if (!color) return { fontFamily };
     return {
@@ -2756,7 +2800,7 @@ export function ConceptAtlas({
                       size="sm"
                       className="h-7 rounded-full px-3 text-xs"
                       onClick={() => updateLinkColor(selectedLink)}
-                      disabled={!activeMap.linkColors?.[atlasLinkColorKey(selectedLink)]}
+                      disabled={!effectiveLinkColors[atlasLinkColorKey(selectedLink)]}
                     >
                       Reset
                     </Button>
@@ -2769,7 +2813,7 @@ export function ConceptAtlas({
                         aria-label={`Set link color ${color}`}
                         className={cn(
                           'size-7 rounded-full border border-border shadow-sm ring-offset-2 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-ring',
-                          activeMap.linkColors?.[atlasLinkColorKey(selectedLink)] === color && 'ring-2 ring-accent'
+                          effectiveLinkColors[atlasLinkColorKey(selectedLink)] === color && 'ring-2 ring-accent'
                         )}
                         style={{ backgroundColor: color }}
                         onClick={() => updateLinkColor(selectedLink, color)}
@@ -2778,7 +2822,7 @@ export function ConceptAtlas({
                     <input
                       type="color"
                       aria-label="Custom link color"
-                      value={activeMap.linkColors?.[atlasLinkColorKey(selectedLink)] || '#7c3aed'}
+                      value={effectiveLinkColors[atlasLinkColorKey(selectedLink)] || '#7c3aed'}
                       onChange={(event) => updateLinkColor(selectedLink, event.target.value)}
                       className="h-8 w-10 cursor-pointer rounded-md border border-border bg-card p-0.5"
                     />
