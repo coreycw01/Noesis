@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getGeminiApiKey } from '@/ai/genkit';
 import { distillInsightsFromMedia } from '@/ai/flows/distill-insights-from-media';
 import { generateReflectiveQuestions } from '@/ai/flows/generate-reflective-questions-flow';
 import { suggestConceptDescription } from '@/ai/flows/suggest-concept-description';
@@ -36,11 +37,7 @@ type AiAction =
   | 'detectBlindSpotPatterns';
 
 function isAiConfigured() {
-  return Boolean(
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.GOOGLE_GENAI_API_KEY,
-  );
+  return Boolean(getGeminiApiKey());
 }
 
 function noUsableResult(result: unknown) {
@@ -54,7 +51,7 @@ function aiConfigError() {
   return NextResponse.json(
     {
       error:
-        'AI service is not configured. Add GEMINI_API_KEY, GOOGLE_API_KEY, or GOOGLE_GENAI_API_KEY on the server before using AI features.',
+        'AI service is not configured. Add GEMINI_API_KEY, GOOGLE_API_KEY, GOOGLE_GENAI_API_KEY, or GOOGLE_GENERATIVE_AI_API_KEY on the server before using AI features.',
     },
     { status: 503 },
   );
