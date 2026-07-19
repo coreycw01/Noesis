@@ -711,14 +711,14 @@ export function AnnotationsIndex({
 
           <Select value={filterSource} onValueChange={setFilterSource}>
             <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Filter by Source" /></SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-80">
               <SelectItem value="all" className="font-code text-[10px] uppercase">All Sources</SelectItem>
               {media.map((source) => <SelectItem key={source.id} value={source.id} className="font-code text-[10px] uppercase">{source.title}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterConcept} onValueChange={setFilterConcept}>
             <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Filter by Concept" /></SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-80">
               <SelectItem value="all" className="font-code text-[10px] uppercase">All Concepts</SelectItem>
               {allConcepts.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
             </SelectContent>

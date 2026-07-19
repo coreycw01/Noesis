@@ -404,7 +404,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           </Select>
           <Select value={filterConcept} onValueChange={setFilterConcept}>
             <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Concept" /></SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-80">
               <SelectItem value="all" className="font-code text-[10px] uppercase">Concept: All</SelectItem>
               {allConcepts.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
             </SelectContent>

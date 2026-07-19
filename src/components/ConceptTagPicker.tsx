@@ -21,17 +21,26 @@ interface ConceptTagPickerProps {
 }
 
 export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, compact }: ConceptTagPickerProps) {
+  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const selected = normalizeConceptTags(value);
   
   const allConceptNames = useMemo(() => {
-    const names = [UNSORTED_CONCEPT, ...concepts.map((concept) => concept.name)].map(conceptKey).filter(Boolean);
-    return Array.from(new Set(names));
-  }, [concepts]);
+    const names = [UNSORTED_CONCEPT, ...concepts.map((concept) => concept.name), ...selected].map(conceptKey).filter(Boolean);
+    return Array.from(new Set(names)).sort((a, b) => {
+      if (a === UNSORTED_CONCEPT) return -1;
+      if (b === UNSORTED_CONCEPT) return 1;
+      return a.localeCompare(b);
+    });
+  }, [concepts, selected]);
 
   const filtered = allConceptNames.filter(name => 
     !search || name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const commit = (tags: string[]) => {
+    onChange(normalizeConceptTags(tags));
+  };
 
   const toggle = (name: string) => {
     const key = conceptKey(name);
@@ -45,7 +54,7 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
       next = next.filter((tag) => tag !== UNSORTED_CONCEPT);
     }
     
-    onChange(normalizeConceptTags(next));
+    commit(next);
   };
 
   const addNew = () => {
@@ -54,8 +63,9 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
     if (onCreateConcept) {
       onCreateConcept(name);
     }
-    toggle(name);
+    commit([...selected.filter((tag) => tag !== UNSORTED_CONCEPT), name]);
     setSearch('');
+    setOpen(false);
   };
 
   return (
@@ -69,15 +79,16 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
           {tag}
           <button 
             type="button"
-            onClick={(e) => { e.preventDefault(); toggle(tag); }} 
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(tag); }} 
             className="hover:text-destructive transition-colors"
+            aria-label={`Remove ${tag}`}
           >
             <X className="size-2.5" />
           </button>
         </Badge>
       ))}
       
-      <Popover>
+      <Popover open={open} onOpenChange={setOpen} modal>
         <PopoverTrigger asChild>
           <Button 
             type="button"
@@ -87,12 +98,13 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
               "h-7 px-2 font-code text-[9px] uppercase tracking-widest border-dashed",
               compact && "h-6 px-1.5"
             )}
+            onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >
             <Plus className="size-3 mr-1" /> Concept
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-0" align="start" onPointerDown={(e) => e.stopPropagation()}>
+        <PopoverContent className="z-[100] w-72 p-0" align="start" onClick={(e) => e.stopPropagation()}>
           <div className="p-2 border-b">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
@@ -120,7 +132,12 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
                   <button
                     key={name}
                     type="button"
-                    onClick={() => toggle(name)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      toggle(name);
+                    }}
+                    aria-pressed={isSelected}
                     className={cn(
                       "w-full flex items-center justify-between p-2 rounded-sm text-left transition-colors hover:bg-muted",
                       isSelected && "text-accent"
@@ -131,10 +148,19 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
                   </button>
                 );
               })}
+              {filtered.length === 0 && !search && (
+                <div className="px-3 py-4 text-center text-xs italic text-muted-foreground">
+                  No concepts available yet.
+                </div>
+              )}
               {search && !allConceptNames.includes(conceptKey(search)) && (
                 <button
                   type="button"
-                  onClick={addNew}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    addNew();
+                  }}
                   className="w-full flex items-center gap-2 p-2 rounded-sm text-left hover:bg-accent/10 text-accent transition-colors border-t border-border mt-1"
                 >
                   <Plus className="size-3" />
