@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle, HelpCircle, Loader2, MessageCircle, Plus } from 'lucide-react';
+import { ArrowLeft, CheckCircle, HelpCircle, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { noesisUserError } from '@/lib/user-facing-errors';
 
 interface QuestionsWorkspaceProps {
@@ -32,6 +33,7 @@ interface QuestionsWorkspaceProps {
   concepts: Concept[];
   onAddQuestion: (data: Partial<Question>) => Question;
   onUpdateQuestion: (question: Question) => void;
+  onDeleteQuestion: (id: string) => void;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
@@ -115,12 +117,13 @@ function inquiryDiagnosticFlags(question: Question) {
   return flags;
 }
 
-export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onAddVaultEntry, onAddDraft, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
+export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newQuestion, setNewQuestion] = useState({ text: '', sourceIds: [] as string[] });
+  const [deleteTarget, setDeleteTarget] = useState<Question | null>(null);
   const { toast } = useToast();
 
   const all = useMemo(() => allQuestions(media, questions), [media, questions]);
@@ -191,6 +194,10 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           drafts={relatedDrafts}
           onBack={closeQuestion}
           onUpdateQuestion={onUpdateQuestion}
+          onDeleteQuestion={(id) => {
+            onDeleteQuestion(id);
+            closeQuestion();
+          }}
           onFormPositionFromInquiry={onFormPositionFromInquiry}
           onAiFeedback={(title, description, variant) => toast({ title, description, ...(variant ? { variant } : {}) })}
           routeOwned={focusedQuestionId === selected.id}
@@ -324,7 +331,23 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
                     <span className="font-code text-[8px] font-bold uppercase tracking-widest text-emerald-600/80">· POSITION FORMED</span>
                   )}
                 </div>
-                <div className="font-code text-[8px] uppercase text-muted-foreground/40 font-bold">{draftLinks} WORKS LINKED</div>
+                <div className="flex items-center gap-2">
+                  <div className="font-code text-[8px] uppercase text-muted-foreground/40 font-bold">{draftLinks} WORKS LINKED</div>
+                  {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeleteTarget(question);
+                      }}
+                      aria-label="Delete inquiry"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <button className="w-full text-left group" onClick={() => openQuestion(question.id)}>
@@ -449,6 +472,22 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           <DialogFooter className="pt-8"><Button onClick={createQuestion} className="w-full h-12 rounded-full font-bold shadow-lg shadow-accent/20">OPEN INVESTIGATION</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+      <ConfirmActionDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete inquiry?"
+        description={`This removes "${deleteTarget?.text || 'this inquiry'}" from Inquiries. Linked sources, positions, works, and Evolution history will remain.`}
+        confirmLabel="Delete Inquiry"
+        destructive
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          onDeleteQuestion(deleteTarget.id);
+          if (selectedId === deleteTarget.id) closeQuestion();
+          setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }
@@ -515,7 +554,7 @@ function branchNextStep(label: string) {
   return 'Choose the next concrete investigation move.';
 }
 
-function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onFormPositionFromInquiry, onAiFeedback, routeOwned = false }: {
+function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onDeleteQuestion, onFormPositionFromInquiry, onAiFeedback, routeOwned = false }: {
   question: Question;
   sources: Media[];
   concepts: string[];
@@ -523,6 +562,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   drafts: Draft[];
   onBack: () => void;
   onUpdateQuestion: (question: Question) => void;
+  onDeleteQuestion: (id: string) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   onAiFeedback: (title: string, description: string, variant?: 'default' | 'destructive') => void;
   routeOwned?: boolean;
@@ -534,6 +574,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   const [currentFocus, setCurrentFocus] = useState('');
   const [probeResponse, setProbeResponse] = useState('');
   const [positionDraft, setPositionDraft] = useState<{ title: string; statement: string; description: string; confidence: number } | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedBranchLabel, setSelectedBranchLabel] = useState('');
   const [investigationDraft, setInvestigationDraft] = useState({
     whyItMatters: question.whyItMatters || '',
@@ -750,7 +791,20 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                 <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">Investigation Chamber</div>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">Clarify the question, expose assumptions, choose a branch, and only resolve when the answer has evidence.</p>
               </div>
-              <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{inquiryType}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{inquiryType}</Badge>
+                {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setDeleteOpen(true)}
+                    className="size-9 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    aria-label="Delete inquiry"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-4 xl:grid-cols-2">
@@ -1135,6 +1189,18 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
           <ContextPanel title="Linked Works" items={drafts.map((d) => d.title)} />
         </aside>
       </div>
+      <ConfirmActionDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete inquiry?"
+        description={`This removes "${question.text}" from Inquiries. Linked sources, positions, works, and Evolution history will remain.`}
+        confirmLabel="Delete Inquiry"
+        destructive
+        onConfirm={() => {
+          onDeleteQuestion(question.id);
+          setDeleteOpen(false);
+        }}
+      />
     </div>
   );
 }

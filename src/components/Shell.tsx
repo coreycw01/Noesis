@@ -16,7 +16,6 @@ import {
   Repeat,
   Settings,
   ShieldCheck,
-  Edit2,
   ChevronRight,
   Command,
   Table as TableIcon,
@@ -228,6 +227,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   const [commandQuery, setCommandQuery] = useState('');
   const [previewItem, setPreviewItem] = useState<CommandPaletteItem | null>(null);
   const [recentCommandItems, setRecentCommandItems] = useState<CommandPaletteItem[]>([]);
+  const [attentionOpen, setAttentionOpen] = useState(false);
   const navItems = [
     { id: 'home', icon: Home },
     { id: 'atlas', icon: MapIcon },
@@ -457,13 +457,43 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   const attentionTotal = movement
     ? movement.rawAnnotations + movement.unsupportedPositions + movement.openInquiries + movement.practicesWithoutPosition + movement.positionsWithoutPractice
     : 0;
-  const attentionTarget = movement?.rawAnnotations
-    ? 'annotations'
-    : movement?.openInquiries
-      ? 'questions'
-      : movement?.unsupportedPositions
-        ? 'vault'
-        : 'practices';
+  const attentionItems = [
+    {
+      id: 'raw-annotations',
+      label: 'Unprocessed annotations',
+      count: movement?.rawAnnotations || 0,
+      description: 'Captured notes still need a decision: support, challenge, question, clarify, or reference.',
+      view: 'annotations',
+    },
+    {
+      id: 'open-inquiries',
+      label: 'Open inquiries',
+      count: movement?.openInquiries || 0,
+      description: 'Questions are still active and need evidence, a working answer, or resolution.',
+      view: 'questions',
+    },
+    {
+      id: 'unsupported-positions',
+      label: 'Unsupported positions',
+      count: movement?.unsupportedPositions || 0,
+      description: 'Positions need supporting evidence, challenges, or a clearer confidence state.',
+      view: 'vault',
+    },
+    {
+      id: 'positions-without-practice',
+      label: 'Untested positions',
+      count: movement?.positionsWithoutPractice || 0,
+      description: 'Beliefs exist without a linked practice or lived test.',
+      view: 'vault',
+    },
+    {
+      id: 'practices-without-position',
+      label: 'Unanchored practices',
+      count: movement?.practicesWithoutPosition || 0,
+      description: 'Practices need a linked position so the behavior tests an idea.',
+      view: 'practices',
+    },
+  ].filter((item) => item.count > 0);
 
   const renderNavButton = (item: typeof navItems[number]) => {
     const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
@@ -568,29 +598,25 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
         {(!collapsed || isMobile) && (
           <div
             onClick={onOpenGoals || (() => handleNavChange('goals'))}
-            className="mt-3 w-full rounded border border-white/10 bg-white/[0.05] p-3 transition-all hover:border-white/20 hover:bg-white/[0.075] group/goals relative cursor-pointer"
+            className="group/goals relative mt-3 w-full cursor-pointer rounded border border-white/10 bg-white/[0.05] p-3 pr-9 transition-all hover:border-white/20 hover:bg-white/[0.075]"
           >
-            <div className="mb-2 flex justify-between items-center">
+            <ChevronRight className="absolute right-3 top-3 size-3 text-sidebar-foreground/35 transition-all group-hover/goals:translate-x-0.5 group-hover/goals:text-white/70" />
+            <div className="mb-2 min-w-0">
               <div>
                 <span className="font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/60 font-bold">Goals</span>
                 <div className="mt-1 text-[13px] font-body text-white/90">{goal.label || 'Goal Set'}</div>
               </div>
-              <Edit2 className="size-3 text-sidebar-foreground/40 opacity-0 group-hover/goals:opacity-100 transition-opacity" />
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-1.5">
               {sortedActiveGoals.slice(0, 3).map((row) => (
-                <div key={row.id} className="space-y-1">
-                  <div className="flex justify-between items-end gap-3">
-                    <span className="truncate font-code text-[7px] uppercase tracking-widest text-sidebar-foreground/45 font-bold">{row.label}</span>
-                    <span className="shrink-0 font-code text-[8px] text-white/65 font-bold">{row.done}/{row.target}</span>
+                <div key={row.id} className="min-w-0 rounded-lg border border-white/10 bg-black/10 px-2 py-1.5">
+                  <div className="truncate font-code text-[7px] font-bold uppercase tracking-widest text-sidebar-foreground/60">{row.label}</div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <Progress value={row.percent} className="h-1 flex-1 bg-white/10" />
+                    <span className="shrink-0 font-code text-[7px] font-bold text-white/60">{row.done}/{row.target}</span>
                   </div>
-                  <Progress value={row.percent} className="h-1 bg-white/10" />
                 </div>
               ))}
-            </div>
-            <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between font-code text-[8px] uppercase tracking-widest text-sidebar-foreground/30 font-bold group-hover/goals:text-sidebar-foreground/60 transition-colors">
-              <span>View All Details</span>
-              <ChevronRight className="size-2.5" />
             </div>
           </div>
         )}
@@ -600,7 +626,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
         <div className={cn("border-b border-sidebar-border", collapsed && !isMobile ? "px-3 py-3" : "px-5 py-3")}>
           <button
             type="button"
-            onClick={() => handleNavChange(attentionTarget)}
+            onClick={() => setAttentionOpen(true)}
             className={cn(
               "group flex w-full items-center rounded-full border border-amber-300/20 bg-amber-400/10 text-amber-100 transition-colors hover:border-amber-300/35 hover:bg-amber-400/15",
               collapsed && !isMobile ? "justify-center p-2.5" : "gap-2 px-3 py-2"
@@ -728,6 +754,46 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
             </nav>
           )}
         </main>
+
+        <Dialog open={attentionOpen} onOpenChange={setAttentionOpen}>
+          <DialogContent className="max-w-lg rounded-3xl border-border bg-card shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="font-headline text-2xl font-semibold italic">Needs Attention</DialogTitle>
+              <DialogDescription>
+                These are the parts of your workspace that need the next concrete move.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              {attentionItems.length ? attentionItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setAttentionOpen(false);
+                    handleNavChange(item.view);
+                  }}
+                  className="flex w-full items-center justify-between gap-4 rounded-2xl border border-border bg-background/70 px-4 py-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2">
+                      <span className="grid size-7 place-items-center rounded-full bg-amber-400/15 font-code text-[10px] font-bold text-amber-700 dark:text-amber-200">
+                        {item.count}
+                      </span>
+                      <span className="font-medium text-foreground">{item.label}</span>
+                    </span>
+                    <span className="mt-1 block text-sm leading-5 text-muted-foreground">{item.description}</span>
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                </button>
+              )) : (
+                <div className="rounded-2xl border border-dashed border-border p-6 text-center">
+                  <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Clear</div>
+                  <p className="mt-2 text-sm text-muted-foreground">Nothing currently needs attention.</p>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
           <DialogContent className="max-w-xl rounded-3xl border-border bg-card p-0 shadow-2xl">

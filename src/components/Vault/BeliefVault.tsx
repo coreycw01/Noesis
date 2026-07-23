@@ -873,8 +873,8 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     };
 
     return (
-      <div className="flex-1 overflow-y-auto p-8 pt-8 max-w-5xl mx-auto w-full font-body">
-        <div className="flex items-center justify-between mb-8">
+      <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+        <div className="mb-5 flex items-center justify-between">
           <Button variant="ghost" onClick={closeEntry} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full"><ArrowLeft className="size-4 mr-2" /> Positions</Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => openEditor(selected)} className="h-8 bg-white border-border/60 shadow-sm rounded-full"><Edit className="size-4 mr-2" /> Edit</Button>
@@ -896,34 +896,29 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           </div>
         )}
 
-        <Card className="p-6 mb-6 bg-white border-border/50 shadow-sm rounded-xl">
+        <Card className="mb-5 rounded-2xl border-border/50 bg-white p-5 shadow-sm">
             <div className="mb-3 flex flex-wrap gap-2">
               <Badge variant="outline" className="font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
               <Badge variant="outline" className="font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.positionKind || 'interpretive').replace(/_/g, ' ')}</Badge>
               <Badge variant="secondary" className="font-code uppercase rounded-full bg-accent/10 text-accent">{confidenceLabel(selected.confidence)} confidence</Badge>
             </div>
-          <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="min-w-0 flex-1">
-              <h1 className="font-headline text-4xl font-bold mb-3">{selected.title}</h1>
-              <p className="font-body text-lg italic text-primary/80 mb-4">{selected.statement || selected.description}</p>
+              <h1 className="font-headline text-3xl font-bold leading-tight">{selected.title}</h1>
+              <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>
             </div>
-            <div className="grid min-w-[220px] gap-2 rounded-xl border border-border/50 bg-muted/10 p-4">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-code uppercase tracking-widest text-muted-foreground">Confidence</span>
-                <span className="font-headline text-lg font-semibold italic">{selected.confidence}/5</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-code uppercase tracking-widest text-muted-foreground">Support</span>
-                <span className="font-headline text-lg font-semibold italic">{(selected.evidenceFor || []).length}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-code uppercase tracking-widest text-muted-foreground">Challenge</span>
-                <span className="font-headline text-lg font-semibold italic">{(selected.evidenceAgainst || []).length + tensionLinks.length}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-code uppercase tracking-widest text-muted-foreground">Practices</span>
-                <span className="font-headline text-lg font-semibold italic">{linkedPractices.length}</span>
-              </div>
+            <div className="grid min-w-[260px] grid-cols-4 gap-2 rounded-xl border border-border/50 bg-muted/10 p-3 text-center">
+              {[
+                { label: 'Confidence', value: `${selected.confidence}/5` },
+                { label: 'Support', value: (selected.evidenceFor || []).length },
+                { label: 'Challenge', value: (selected.evidenceAgainst || []).length + tensionLinks.length },
+                { label: 'Tests', value: linkedPractices.length },
+              ].map((item) => (
+                <div key={item.label} className="rounded-lg bg-card px-2 py-2">
+                  <div className="font-headline text-lg font-semibold italic">{item.value}</div>
+                  <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">{item.label}</div>
+                </div>
+              ))}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -939,8 +934,9 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           </div>
         </Card>
 
-        <div className="mb-6">
+        <div className="mb-5">
           <NextPhilosophicalActionPanel
+            compact
             status={selected.status}
             title="Next Philosophical Action"
             description="Positions are the center of gravity: support them, challenge them, express them, or test them."
@@ -2000,8 +1996,8 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         destructive
         onConfirm={() => {
           if (!deleteTarget) return;
-          onDeleteEntry(deleteTarget.id);
           if (selectedId === deleteTarget.id) closeEntry();
+          onDeleteEntry(deleteTarget.id);
           setDeleteTarget(null);
         }}
       />

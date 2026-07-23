@@ -109,6 +109,16 @@ function firstName(profile: UserProfile) {
   return label.split(/\s+/)[0] || 'there';
 }
 
+function uniqueDeskItems(items: DeskItem[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.view}:${item.targetId || item.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function targetFromEvent(event: ThinkingEvent | TimelineEvent): HomeTarget | null {
   const entityType = 'entityType' in event ? event.entityType : '';
   const entityId = 'entityId' in event ? event.entityId : '';
@@ -245,16 +255,22 @@ export function ThinkingDesk({
         } as DeskItem));
 
     if (mode === 'challenge') {
-      addPositionPressure(100);
       positions
-        .filter((item) => item.status !== 'abandoned' && (item.confidence || 0) >= 4 && (item.evidenceAgainst || []).length < 2)
+        .filter((item) => {
+          if (item.status === 'abandoned' || item.status === 'rejected') return false;
+          const challengeCount = (item.evidenceAgainst || []).length + links.filter((link) =>
+            ['challenges', 'contradicts', 'weakens', 'questions'].includes(link.type) &&
+            (link.fromId === item.id || link.toId === item.id)
+          ).length;
+          return challengeCount < 2 || ((item.confidence || 0) >= 4 && challengeCount < 3);
+        })
         .forEach((item) => items.push({
           id: `challenge-${item.id}`,
           label: item.title || item.statement,
-          eyebrow: 'High confidence, low opposition',
-          reason: 'This belief may need a stronger opposing case before it deserves confidence.',
+          eyebrow: (item.evidenceAgainst || []).length === 0 ? 'No recorded opposition' : 'Opposition still thin',
+          reason: 'This position needs a stronger opposing case, counterexample, or stress test before it should feel settled.',
           action: 'Stress test',
-          priority: 92,
+          priority: ((item.confidence || 0) >= 4 ? 100 : 90) - (item.evidenceAgainst || []).length,
           icon: ShieldCheck,
           view: 'vault',
           targetId: item.id,
@@ -326,18 +342,26 @@ export function ThinkingDesk({
           targetId: item.id,
         } as DeskItem));
     } else {
-      addPositionPressure();
-      addOpenInquiries();
-      addSourceReflection();
-      addPracticeLogs();
-      addOpenWorks();
-      addUndefinedConcepts();
+      addOpenWorks(100);
+      addOpenInquiries(92);
+      addSourceReflection(84);
+      addPracticeLogs(78);
+      addUndefinedConcepts(62);
     }
 
-    return items
+    return uniqueDeskItems(items)
       .sort((a, b) => b.priority - a.priority || a.label.localeCompare(b.label))
       .slice(0, 3);
-  }, [concepts, inquiries, media, mode, positions, practices, works]);
+  }, [concepts, inquiries, links, media, mode, positions, practices, works]);
+
+  const primaryFocusTitle = {
+    continue: 'Continue this thought',
+    challenge: 'Pressure-test a position',
+    unfinished: 'Finish a loose thread',
+    recent: 'Reopen recent movement',
+    neglected: 'Revisit neglected material',
+    rediscover: 'Rediscover an older thread',
+  }[mode];
 
   const provocation = useMemo(() => {
     const untested = positions.find((position) => position.status !== 'abandoned' && !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
@@ -798,7 +822,7 @@ export function ThinkingDesk({
               <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Primary Focus</div>
-                  <h2 className="mt-1 font-headline text-3xl font-semibold italic text-foreground/85">Continue this thought</h2>
+                  <h2 className="mt-1 font-headline text-3xl font-semibold italic text-foreground/85">{primaryFocusTitle}</h2>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {HOME_MODES.map((item) => (

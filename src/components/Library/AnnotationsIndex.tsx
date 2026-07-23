@@ -34,8 +34,8 @@ interface AnnotationsIndexProps {
   onUpdateAnnotation: (sourceId: string, annotation: Annotation) => void;
   onDeleteAnnotation: (sourceId: string, annotationId: string) => void;
   onOpenSource: (sourceId: string) => void;
-  onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string }) => { positionId: string; insightId: string; title: string };
-  onCreateInquiry: (data: { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string }) => Question;
+  onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string; position?: { title: string; statement: string; description: string; confidence: number } }) => { positionId: string; insightId: string; title: string };
+  onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string }) => Question;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateSuggestion: (data: Partial<AiSuggestion>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
@@ -98,6 +98,13 @@ interface PreflightDraft {
   title: string;
   body: string;
   question: string;
+  context: string;
+  whyItMatters: string;
+  currentIntuition: string;
+  description: string;
+  supportNote: string;
+  challengeNote: string;
+  confidence: number;
   tags: string[];
 }
 
@@ -390,12 +397,26 @@ export function AnnotationsIndex({
 
   const openPreflight = (annotation: FlatAnnotation, mode: PreflightMode) => {
     const tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags);
+    const sourceLabel = `${annotation.source.title}${annotation.source.creator ? ` by ${annotation.source.creator}` : ''}`;
+    const context = [
+      `Source: ${sourceLabel}`,
+      annotation.context ? `Context: ${annotation.context}` : '',
+      annotation.answer ? `Existing answer/interpretation: ${annotation.answer}` : '',
+    ].filter(Boolean).join('\n');
+    const conceptPhrase = tags.length ? ` It is connected to ${tags.join(', ')}.` : '';
     setPreflight({
       mode,
       annotation,
       title: annotation.text.slice(0, 90),
-      body: annotation.answer ? `${annotation.text}\n\nAnswer: ${annotation.answer}` : annotation.text,
+      body: annotation.answer ? annotation.answer : annotation.text,
       question: annotation.type === 'question' ? annotation.text : `What does this imply: ${annotation.text}`,
+      context,
+      whyItMatters: `This annotation from ${sourceLabel} may change how I understand the idea.${conceptPhrase}`,
+      currentIntuition: annotation.answer || annotation.context || annotation.text,
+      description: `Formed from an annotation in ${sourceLabel}.\n\nAnnotation:\n${annotation.text}${annotation.context ? `\n\nContext:\n${annotation.context}` : ''}`,
+      supportNote: annotation.type === 'objection' || annotation.consequenceKind === 'objection' ? '' : annotation.text,
+      challengeNote: annotation.type === 'objection' || annotation.consequenceKind === 'objection' ? annotation.text : '',
+      confidence: 3,
       tags,
     });
   };
@@ -403,9 +424,9 @@ export function AnnotationsIndex({
   const submitPreflight = () => {
     if (!preflight) return;
     if (preflight.mode === 'position') {
-      void createPosition(preflight.annotation, preflight.title, preflight.body, preflight.tags, true);
+      void createPosition(preflight.annotation, preflight.title, preflight.body, preflight.tags, true, preflight);
     } else {
-      void createInquiry(preflight.annotation, preflight.question, preflight.tags, true);
+      void createInquiry(preflight.annotation, preflight.question, preflight.tags, true, preflight);
     }
     setPreflight(null);
   };
@@ -415,7 +436,8 @@ export function AnnotationsIndex({
     title = annotation.text.slice(0, 90),
     body = annotation.answer ? `${annotation.text}\n\nAnswer: ${annotation.answer}` : annotation.text,
     tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags),
-    navigateOnCreate = false
+    navigateOnCreate = false,
+    shaped?: PreflightDraft
   ) => {
     if (annotation.createdPositionId) {
       toast({ title: 'Position already exists', description: 'This annotation already has a position draft.' });
@@ -425,10 +447,21 @@ export function AnnotationsIndex({
     setPendingAction(`position:${annotation.id}`);
     const created = onCreatePosition({
       title,
-      body,
+      body: [
+        body,
+        shaped?.context ? `\n\nSource context:\n${shaped.context}` : '',
+        shaped?.supportNote ? `\n\nSupporting evidence:\n${shaped.supportNote}` : '',
+        shaped?.challengeNote ? `\n\nChallenge pressure:\n${shaped.challengeNote}` : '',
+      ].filter(Boolean).join(''),
       tags,
       sourceIds: [annotation.source.id],
       sourceAnnotationId: annotation.id,
+      position: {
+        title,
+        statement: body,
+        description: shaped?.description || `Formed from annotation: ${annotation.text}`,
+        confidence: shaped?.confidence || 3,
+      },
     });
     const { source, ...annotationData } = annotation;
     onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'used_in_position', createdPositionId: created.positionId });
@@ -442,7 +475,8 @@ export function AnnotationsIndex({
     annotation: FlatAnnotation,
     text = annotation.type === 'question' ? annotation.text : `What does this imply: ${annotation.text}`,
     tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags),
-    navigateOnCreate = false
+    navigateOnCreate = false,
+    shaped?: PreflightDraft
   ) => {
     if (annotation.createdInquiryId) {
       toast({ title: 'Inquiry already exists', description: 'This annotation already has an inquiry.' });
@@ -452,6 +486,12 @@ export function AnnotationsIndex({
     setPendingAction(`inquiry:${annotation.id}`);
     const created = onCreateInquiry({
       text,
+      whyItMatters: shaped?.whyItMatters || `This inquiry was opened from an annotation in ${annotation.source.title}.`,
+      currentIntuition: shaped?.currentIntuition || annotation.answer || annotation.context || '',
+      assumptions: [
+        `The annotation is relevant evidence from ${annotation.source.title}.`,
+        ...(tags.length ? [`The key concepts are ${tags.join(', ')}.`] : []),
+      ],
       conceptIds: concepts.filter((concept) => tags.map(conceptKey).includes(conceptKey(concept.name))).map((concept) => concept.id),
       sourceIds: [annotation.source.id],
       evidenceIds: [annotation.id],
@@ -586,12 +626,21 @@ export function AnnotationsIndex({
     const tags = normalizeConceptTags(selectedAnnotations.flatMap((annotation) => annotation.conceptTags || annotation.source.tags || []));
     const first = selectedAnnotations[0];
     const body = selectedAnnotations.map((annotation) => `- ${annotation.text}${annotation.answer ? `\n  Answer: ${annotation.answer}` : ''}`).join('\n\n');
+    const sourceContext = selectedAnnotations
+      .map((annotation) => `${annotation.source.title}${annotation.source.creator ? ` by ${annotation.source.creator}` : ''}: ${annotation.context || annotation.text}`)
+      .join('\n');
     const created = onCreatePosition({
       title: first.text.slice(0, 90),
-      body,
+      body: `${body}\n\nSource context:\n${sourceContext}`,
       tags,
       sourceIds,
       sourceAnnotationId: first.id,
+      position: {
+        title: first.text.slice(0, 90),
+        statement: first.answer || first.text,
+        description: `Formed from ${selectedAnnotations.length} annotation${selectedAnnotations.length === 1 ? '' : 's'} across ${sourceIds.length} source${sourceIds.length === 1 ? '' : 's'}.\n\n${sourceContext}`,
+        confidence: 3,
+      },
     });
     selectedAnnotations.forEach((selectedAnnotation) => {
       const { source, ...annotationData } = selectedAnnotation;
@@ -612,8 +661,17 @@ export function AnnotationsIndex({
     const sourceIds = Array.from(new Set(selectedAnnotations.map((annotation) => annotation.source.id)));
     const evidenceIds = selectedAnnotations.map((annotation) => annotation.id);
     const tags = normalizeConceptTags(selectedAnnotations.flatMap((annotation) => annotation.conceptTags || annotation.source.tags || []));
+    const sourceContext = selectedAnnotations
+      .map((annotation) => `${annotation.source.title}${annotation.source.creator ? ` by ${annotation.source.creator}` : ''}: ${annotation.context || annotation.text}`)
+      .join('\n');
     const created = onCreateInquiry({
       text: selectedAnnotations.find((annotation) => annotation.type === 'question')?.text || `What follows from these annotations?\n\n${selectedAnnotations.map((annotation) => `- ${annotation.text}`).join('\n')}`,
+      whyItMatters: `This inquiry was formed from ${selectedAnnotations.length} related annotation${selectedAnnotations.length === 1 ? '' : 's'} and should preserve their shared evidence context.`,
+      currentIntuition: sourceContext,
+      assumptions: [
+        'The selected annotations are related enough to investigate together.',
+        ...(tags.length ? [`The relevant concepts are ${tags.join(', ')}.`] : []),
+      ],
       conceptIds: concepts.filter((concept) => tags.map(conceptKey).includes(conceptKey(concept.name))).map((concept) => concept.id),
       sourceIds,
       evidenceIds,
@@ -1115,13 +1173,60 @@ export function AnnotationsIndex({
                     <Label>Position Statement</Label>
                     <Textarea value={preflight.body} onChange={(event) => setPreflight((prev) => prev ? { ...prev, body: event.target.value } : prev)} className="min-h-[140px]" />
                   </div>
+                  <div className="space-y-2">
+                    <Label>Why This Position Exists</Label>
+                    <Textarea value={preflight.description} onChange={(event) => setPreflight((prev) => prev ? { ...prev, description: event.target.value } : prev)} className="min-h-[110px]" />
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Support From Annotation</Label>
+                      <Textarea value={preflight.supportNote} onChange={(event) => setPreflight((prev) => prev ? { ...prev, supportNote: event.target.value } : prev)} className="min-h-[90px]" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Challenge Or Limitation</Label>
+                      <Textarea value={preflight.challengeNote} onChange={(event) => setPreflight((prev) => prev ? { ...prev, challengeNote: event.target.value } : prev)} className="min-h-[90px]" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Confidence</Label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setPreflight((prev) => prev ? { ...prev, confidence: value } : prev)}
+                          className={cn(
+                            'h-9 flex-1 rounded-full border font-code text-[10px] font-bold uppercase tracking-widest transition-colors',
+                            preflight.confidence === value ? 'border-accent bg-accent text-accent-foreground' : 'border-border bg-card text-muted-foreground hover:border-accent/40'
+                          )}
+                        >
+                          {value}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </>
               ) : (
-                <div className="space-y-2">
-                  <Label>Question To Work</Label>
-                  <Textarea value={preflight.question} onChange={(event) => setPreflight((prev) => prev ? { ...prev, question: event.target.value } : prev)} className="min-h-[140px]" />
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label>Question To Work</Label>
+                    <Textarea value={preflight.question} onChange={(event) => setPreflight((prev) => prev ? { ...prev, question: event.target.value } : prev)} className="min-h-[110px]" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Why This Inquiry Matters</Label>
+                    <Textarea value={preflight.whyItMatters} onChange={(event) => setPreflight((prev) => prev ? { ...prev, whyItMatters: event.target.value } : prev)} className="min-h-[90px]" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Current Intuition</Label>
+                    <Textarea value={preflight.currentIntuition} onChange={(event) => setPreflight((prev) => prev ? { ...prev, currentIntuition: event.target.value } : prev)} className="min-h-[90px]" />
+                  </div>
+                </>
               )}
+
+              <div className="space-y-2">
+                <Label>Source Context</Label>
+                <Textarea value={preflight.context} onChange={(event) => setPreflight((prev) => prev ? { ...prev, context: event.target.value } : prev)} className="min-h-[90px]" />
+              </div>
 
               <div className="space-y-2">
                 <Label>Concepts</Label>

@@ -550,7 +550,6 @@ export function MediaLibrary({
             <TabsTrigger value="overview" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">OVERVIEW</TabsTrigger>
             <TabsTrigger value="capture" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CAPTURE</TabsTrigger>
             <TabsTrigger value="annotations" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">ANNOTATIONS</TabsTrigger>
-            <TabsTrigger value="concepts" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CONCEPTS</TabsTrigger>
             <TabsTrigger value="insights" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CLAIMS</TabsTrigger>
             <TabsTrigger value="connections" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CONNECTIONS</TabsTrigger>
             <TabsTrigger value="reflection" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">REFLECTION</TabsTrigger>
@@ -558,6 +557,25 @@ export function MediaLibrary({
 
           <TabsContent value="overview" className="space-y-8">
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+              <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
+                <div className="readex-kicker mb-3 opacity-50 font-bold">MEDIA SUMMARY</div>
+                <div className="grid gap-3 text-sm">
+                  {[
+                    { label: 'Type', value: MEDIA_LABELS[selected.type] },
+                    { label: 'Creator', value: selected.creator || selected.creators?.join(', ') || 'Unknown creator' },
+                    { label: 'Year', value: selected.year || selected.dateAdded || 'No year recorded' },
+                    { label: 'Publisher / Platform', value: selected.publisher || selected.platform || selected.sourceProvider || 'No publisher recorded' },
+                    { label: 'Locator', value: selected.isbn || selected.doi || selected.url || selected.externalIds?.url || selected.externalIds?.doi || 'No locator recorded' },
+                    { label: 'Status', value: selected.status },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-background/70 px-4 py-3">
+                      <span className="font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">{item.label}</span>
+                      <span className="max-w-[70%] text-right text-foreground/80 break-words">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
               <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
                 <div className="readex-kicker mb-3 opacity-50 font-bold">SOURCE PURPOSE</div>
                 <p className="font-headline text-2xl italic leading-snug text-primary/90">{sourcePurpose}</p>
@@ -573,6 +591,37 @@ export function MediaLibrary({
                       <p className="text-sm leading-6 text-muted-foreground">{milestone.detail}</p>
                     </div>
                   ))}
+                </div>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
+                <div className="readex-kicker mb-4 opacity-50 font-bold">CONCEPTS IN THIS SOURCE</div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {(selected.tags || []).map((tag) => {
+                    const concept = concepts.find((item) => conceptKey(item.name) === conceptKey(tag));
+                    const related = conceptRelated(tag, { media, insights: [], vault, drafts, practices, questions, timeline });
+                    return (
+                      <button key={tag} type="button" onClick={() => setConceptPopupName(tag)} className="rounded-xl border border-border/40 bg-background/70 p-4 text-left shadow-sm transition-colors hover:border-accent/40 hover:bg-accent/5">
+                        <div className="font-headline text-xl font-bold italic text-foreground hover:text-accent">{tag}</div>
+                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                          {concept?.description || 'No working definition yet.'}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge variant="outline" className="rounded-full">{related.sources.length} sources</Badge>
+                          <Badge variant="outline" className="rounded-full">{related.beliefs.length} positions</Badge>
+                          <Badge variant="outline" className="rounded-full">{related.questions.length} inquiries</Badge>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {(selected.tags || []).length === 0 && (
+                    <div className="rounded-xl border border-dashed border-border/50 bg-background/70 p-6 text-center md:col-span-2">
+                      <p className="font-headline text-xl italic text-muted-foreground">No concepts attached yet.</p>
+                      <p className="mt-2 text-sm text-muted-foreground">Use Edit to tag the source so it can feed Concepts and Atlas.</p>
+                    </div>
+                  )}
                 </div>
               </Card>
 
@@ -804,37 +853,6 @@ export function MediaLibrary({
                   <p className="text-sm font-body italic text-muted-foreground leading-relaxed">Focus on claims that challenge your current understanding. Label them clearly to aid later synthesis.</p>
                 </Card>
               </aside>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="concepts" className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {(selected.tags || []).map((tag) => {
-                const concept = concepts.find((item) => conceptKey(item.name) === conceptKey(tag));
-                const related = conceptRelated(tag, { media, insights: [], vault, drafts, practices, questions, timeline });
-                return (
-                  <Card key={tag} className="rounded-xl border border-border/40 bg-white p-5 shadow-sm">
-                    <div className="readex-kicker mb-2 opacity-50 font-bold">CONCEPT</div>
-                    <button onClick={() => setConceptPopupName(tag)} className="text-left font-headline text-2xl font-bold italic text-primary hover:text-accent transition-colors">
-                      {tag}
-                    </button>
-                    <p className="mt-3 text-sm leading-6 text-muted-foreground line-clamp-3">
-                      {concept?.description || 'No working definition yet. Use Concepts to define the boundary of this idea.'}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Badge variant="outline" className="rounded-full">{related.sources.length} sources</Badge>
-                      <Badge variant="outline" className="rounded-full">{related.beliefs.length} claims</Badge>
-                      <Badge variant="outline" className="rounded-full">{related.questions.length} inquiries</Badge>
-                    </div>
-                  </Card>
-                );
-              })}
-              {(selected.tags || []).length === 0 && (
-                <div className="col-span-full rounded-xl border border-dashed border-border/50 bg-white p-12 text-center">
-                  <p className="font-headline text-2xl italic text-primary/50">No concepts attached yet.</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Add source concepts from Edit so this source can feed the encyclopedia and Atlas.</p>
-                </div>
-              )}
             </div>
           </TabsContent>
 

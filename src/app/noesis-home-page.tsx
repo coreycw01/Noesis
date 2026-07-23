@@ -1663,6 +1663,34 @@ function ReadexWorkspace({
     }, { operation: 'update', data: nextQuestion });
   };
 
+  const deleteQuestion = (id: string) => {
+    const existing = questions.find((item) => item.id === id);
+    const questionRef = doc(refs.questions, id);
+    void commitAndReport({
+      db,
+      ref: questionRef as any,
+      operation: 'delete',
+      thinkingEvent: metacognitionEnabled && existing ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
+        eventType: 'abandoned',
+        entityType: 'inquiry',
+        entityId: id,
+        before: existing,
+        summary: `Deleted inquiry: ${existing.text}`,
+        origin: 'user',
+        importance: 'medium',
+        relatedEntityIds: {
+          sourceIds: existing.sourceIds || existing.evidenceIds || [],
+          positionIds: existing.beliefIds || [],
+          workIds: existing.draftIds || [],
+          annotationIds: existing.sourceAnnotationId ? [existing.sourceAnnotationId] : [],
+        },
+        sourceActionId: makeActionId(),
+      } : null,
+    }, { operation: 'delete', data: existing || { id } });
+  };
+
   const addDraft = (data: Partial<Draft>) => {
     const conceptTags = normalizeConceptTags(data.conceptTags);
     ensureConcepts(conceptTags);
@@ -2584,6 +2612,7 @@ function ReadexWorkspace({
         navigateToView={navigateToView}
         addQuestion={addQuestion}
         updateQuestion={updateQuestion}
+        deleteQuestion={deleteQuestion}
         formPositionFromInquiry={formPositionFromInquiry}
         addConcept={addConcept}
         updateConcept={updateConcept}

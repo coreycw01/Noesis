@@ -13,6 +13,7 @@ export interface InquiriesRoutePageProps {
   focusedQuestionId?: string | null;
   onAddQuestion: (data: Partial<Question>) => Question;
   onUpdateQuestion: (question: Question) => void;
+  onDeleteQuestion: (id: string) => void;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
@@ -28,6 +29,7 @@ export function InquiriesRoutePage({
   focusedQuestionId,
   onAddQuestion,
   onUpdateQuestion,
+  onDeleteQuestion,
   onAddVaultEntry,
   onAddDraft,
   onFormPositionFromInquiry,
@@ -42,6 +44,7 @@ export function InquiriesRoutePage({
       concepts={concepts}
       onAddQuestion={onAddQuestion}
       onUpdateQuestion={onUpdateQuestion}
+      onDeleteQuestion={onDeleteQuestion}
       onAddVaultEntry={onAddVaultEntry}
       onAddDraft={onAddDraft}
       onFormPositionFromInquiry={onFormPositionFromInquiry}

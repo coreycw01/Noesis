@@ -114,6 +114,7 @@ export interface NoesisRouteContentProps {
   }) => void;
   addQuestion: (data: Partial<Question>) => Question | void;
   updateQuestion: (question: Question) => void;
+  deleteQuestion: (id: string) => void;
   formPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   addConcept: (data: Partial<Concept>) => Concept | void;
   updateConcept: (concept: Concept) => void;
@@ -220,6 +221,7 @@ export function NoesisRouteContent({
   navigateToView,
   addQuestion,
   updateQuestion,
+  deleteQuestion,
   formPositionFromInquiry,
   addConcept,
   updateConcept,
@@ -424,7 +426,7 @@ export function NoesisRouteContent({
         />
       );
     case 'questions':
-      return <InquiriesRoutePage questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={(data) => addDraft(data) as Draft} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
+      return <InquiriesRoutePage questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={(data) => addDraft(data) as Draft} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
     case 'writing':
       return <WorksRoutePage drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={(data) => addDraft(data) as Draft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
     case 'evolution':
