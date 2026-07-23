@@ -56,7 +56,7 @@ export type PaperColor = 'blank' | 'warm' | 'sepia' | 'dark';
 export type PaperPattern = 'none' | 'notebook' | 'grid' | 'dotted' | 'dotted_grid';
 type WritingTool = 'text' | 'pencil' | 'eraser';
 type WorkRailAnnotation = Annotation & { sourceTitle: string; sourceId: string };
-type WorkFilter = 'all' | DraftType | DraftStatus | 'active_inquiries' | 'awaiting_revision' | 'needs_sources' | 'needs_positions' | 'needs_structure' | 'unresolved' | 'external_docs';
+type WorkFilter = 'all' | DraftType | DraftStatus | 'active_inquiries' | 'awaiting_revision' | 'needs_sources' | 'needs_positions' | 'unresolved' | 'external_docs';
 type BrowserSpeechRecognitionCtor = new () => {
   continuous: boolean;
   interimResults: boolean;
@@ -98,7 +98,6 @@ const workViewFilters: Array<{ id: WorkFilter; label: string }> = [
   { id: 'awaiting_revision', label: 'Awaiting Revision' },
   { id: 'needs_sources', label: 'Needs Sources' },
   { id: 'needs_positions', label: 'Needs Positions' },
-  { id: 'needs_structure', label: 'Needs Structure' },
   { id: 'unresolved', label: 'Unresolved' },
   { id: 'external_docs', label: 'External Docs' },
 ];
@@ -300,26 +299,18 @@ function workReadiness(draft: Draft, questions: Question[]) {
     draft.argumentSkeleton?.conclusion,
   ].filter((item) => item && String(item).trim());
   const gaps: string[] = [];
-  if (!draft.purposeNote?.trim()) gaps.push('purpose');
-  if (isWritingWork(draft) && !(draft.sourceIds || []).length) gaps.push('sources');
-  if (['essay', 'argument', 'manuscript', 'source_analysis'].includes(draft.type) && !(draft.beliefIds || []).length) gaps.push('positions');
-  if (isWritingWork(draft) && structureParts.length === 0) gaps.push('argument structure');
+  if (draft.type === 'source_analysis' && !(draft.sourceIds || []).length) gaps.push('sources');
+  if (draft.type === 'argument' && !(draft.beliefIds || []).length) gaps.push('positions');
   if (linkedActiveInquiry && !draft.completionReflection?.unresolved?.trim()) gaps.push('unresolved question');
 
-  let label = 'ready to develop';
-  let nextAction = 'Keep drafting, then record what changed or remains unresolved before marking it final.';
-  if (gaps.includes('purpose')) {
-    label = 'needs purpose';
-    nextAction = 'Name what this work should draw from and what job it should do.';
-  } else if (gaps.includes('sources')) {
+  let label = 'in progress';
+  let nextAction = 'Keep creating. Add links, sources, or reflection only when they help the work.';
+  if (gaps.includes('sources')) {
     label = 'needs sources';
-    nextAction = 'Link source material or annotations so this work has evidence, not just momentum.';
+    nextAction = 'Link the source material this analysis is responding to.';
   } else if (gaps.includes('positions')) {
     label = 'needs position';
-    nextAction = 'Link the position this work expresses, challenges, or revises.';
-  } else if (gaps.includes('argument structure')) {
-    label = 'needs structure';
-    nextAction = 'Add a central claim, supporting claims, objections, or conclusion.';
+    nextAction = 'Link the position this argument is expressing, challenging, or revising.';
   } else if (gaps.includes('unresolved question')) {
     label = 'unresolved';
     nextAction = 'Record what question remains open or what this work still cannot answer.';
@@ -402,7 +393,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
       }
       if (filter === 'needs_sources') return readiness.gaps.includes('sources');
       if (filter === 'needs_positions') return readiness.gaps.includes('positions');
-      if (filter === 'needs_structure') return readiness.gaps.includes('argument structure');
       if (filter === 'unresolved') return Boolean(draft.completionReflection?.unresolved?.trim()) || readiness.gaps.includes('unresolved question');
       if (filter === 'external_docs') return Boolean(draft.externalDoc);
       return draft.type === filter || draft.status === filter;
@@ -422,7 +412,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
     ).length,
     needsSources: drafts.filter((draft) => workReadiness(draft, questions).gaps.includes('sources')).length,
     needsPositions: drafts.filter((draft) => workReadiness(draft, questions).gaps.includes('positions')).length,
-    needsStructure: drafts.filter((draft) => workReadiness(draft, questions).gaps.includes('argument structure')).length,
     unresolved: drafts.filter((draft) => Boolean(draft.completionReflection?.unresolved?.trim()) || workReadiness(draft, questions).gaps.includes('unresolved question')).length,
   }), [drafts, questions]);
 
@@ -750,7 +739,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 <ChevronLeft className="size-4" /> BACK TO WORKS
               </button>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="flex rounded-full border border-border/60 bg-white p-1 shadow-sm">
+                <div className="flex rounded-full border border-border/60 bg-card p-1 shadow-sm">
                   {(['draft', 'final'] as const).map((mode) => (
                     <button
                       key={mode}
@@ -767,7 +756,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 <div className="flex items-center gap-3">
                   <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">STATUS</span>
                   <Select value={active.status} onValueChange={(value) => updateActive({ status: value as DraftStatus })}>
-                    <SelectTrigger className="h-8 border-border/40 bg-white shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-32 px-3 font-bold">
+                    <SelectTrigger className="h-8 border-border/40 bg-background shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-32 px-3 font-bold">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -781,7 +770,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                   <div className="flex items-center gap-3">
                     <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">PAPER</span>
                     <Select value={active.writingStyle || writingDefaults.writingStyle} onValueChange={(value) => updateActive({ writingStyle: value as WritingStyle })}>
-                      <SelectTrigger className="h-8 border-border/40 bg-white shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-44 px-3 font-bold">
+                      <SelectTrigger className="h-8 border-border/40 bg-background shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-44 px-3 font-bold">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -793,15 +782,15 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                   </div>
                 )}
                 {showExternalDocControls && (
-                  <Button variant="outline" size="sm" onClick={openDocDialog} className="h-9 px-5 rounded-full font-bold shadow-sm bg-white border-border/60">
+                  <Button variant="outline" size="sm" onClick={openDocDialog} className="h-9 px-5 rounded-full font-bold shadow-sm bg-card border-border/60">
                     <Link2 className="size-4 mr-2" /> {active.externalDoc ? 'Doc' : 'Connect Doc'}
                   </Button>
                 )}
-                <Button variant="outline" size="sm" onClick={() => saveActive()} className="h-9 px-5 rounded-full font-bold shadow-sm bg-white border-border/60">
+                <Button variant="outline" size="sm" onClick={() => saveActive()} className="h-9 px-5 rounded-full font-bold shadow-sm bg-card border-border/60">
                   <Save className="size-4 mr-2" /> {dirty ? 'Save*' : 'Save'}
                 </Button>
                 {activeCategory === 'writing' && (
-                  <Button variant="outline" size="sm" onClick={exportManuscript} className="h-9 px-5 rounded-full font-bold shadow-sm bg-white border-border/60">
+                  <Button variant="outline" size="sm" onClick={exportManuscript} className="h-9 px-5 rounded-full font-bold shadow-sm bg-card border-border/60">
                     <Download className="size-4 mr-2" /> Export
                   </Button>
                 )}
@@ -841,30 +830,35 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 </div>
               </div>
 
-              <div className="grid gap-3 rounded-xl border border-border/30 bg-card/80 p-4 md:grid-cols-[220px_1fr]">
-                <div className="space-y-2">
-                  <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Purpose</Label>
-                  <Select value={active.workPurpose || 'explore'} onValueChange={(value) => updateActive({ workPurpose: value as WorkPurpose })}>
-                    <SelectTrigger className="h-9 rounded-full border-border/50 bg-background font-code text-[9px] uppercase">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {workPurposes.map((purpose) => (
-                        <SelectItem key={purpose.id} value={purpose.id} className="font-code text-[10px] uppercase">{purpose.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <details className="rounded-xl border border-border/30 bg-card/80 p-4">
+                <summary className="cursor-pointer font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Creative Direction
+                </summary>
+                <div className="mt-4 grid gap-3 md:grid-cols-[220px_1fr]">
+                  <div className="space-y-2">
+                    <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Mode</Label>
+                    <Select value={active.workPurpose || 'explore'} onValueChange={(value) => updateActive({ workPurpose: value as WorkPurpose })}>
+                      <SelectTrigger className="h-9 rounded-full border-border/50 bg-background font-code text-[9px] uppercase">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {workPurposes.map((purpose) => (
+                          <SelectItem key={purpose.id} value={purpose.id} className="font-code text-[10px] uppercase">{purpose.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">What sparked this?</Label>
+                    <Input
+                      value={active.purposeNote || ''}
+                      onChange={(event) => updateActive({ purposeNote: event.target.value })}
+                      placeholder="Optional: a phrase, source, feeling, question, or image this work is growing from..."
+                      className="h-9 rounded-full bg-background text-sm"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">What this work should draw from</Label>
-                  <Input
-                    value={active.purposeNote || ''}
-                    onChange={(event) => updateActive({ purposeNote: event.target.value })}
-                    placeholder="Example: synthesize my attention notes, challenge the agency position, or explain one source clearly..."
-                    className="h-9 rounded-full bg-background text-sm"
-                  />
-                </div>
-              </div>
+              </details>
 
               {showExternalDocControls && active.externalDoc && (
                 <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 flex flex-wrap items-center justify-between gap-3">
@@ -879,10 +873,10 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => syncExternalDoc(active)} disabled={syncingId === active.id} className="rounded-full bg-white">
+                    <Button variant="outline" size="sm" onClick={() => syncExternalDoc(active)} disabled={syncingId === active.id} className="rounded-full bg-card">
                       <RefreshCw className={cn('mr-2 size-4', syncingId === active.id && 'animate-spin')} /> Sync Now
                     </Button>
-                    <Button variant="outline" size="sm" asChild className="rounded-full bg-white">
+                    <Button variant="outline" size="sm" asChild className="rounded-full bg-card">
                       <a href={active.externalDoc.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 size-4" /> Open</a>
                     </Button>
                     <Button variant="ghost" size="sm" onClick={detachExternalDoc} className="rounded-full text-destructive hover:text-destructive">
@@ -918,7 +912,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 )}
               </div>
               {showPaperControls && (
-                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/30 bg-white/70 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/30 bg-card/80 px-4 py-3">
                   <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">PENCIL</span>
                   <Button variant={writingTool === 'text' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('text')} className="rounded-full">
                     <Type className="mr-2 size-4" /> Type
@@ -931,7 +925,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                   </Button>
                   <input type="color" value={writingStrokeColor} onChange={(event) => setWritingStrokeColor(event.target.value)} className="h-9 w-11 rounded border border-border bg-background p-1" aria-label="Pencil color" />
                   <input type="range" min={1} max={14} value={writingStrokeSize} onChange={(event) => setWritingStrokeSize(Number(event.target.value))} className="w-28" aria-label="Pencil size" />
-                  <Button variant="outline" size="sm" onClick={() => updateActive({ writingOverlayData: '' })} className="rounded-full bg-white">
+                  <Button variant="outline" size="sm" onClick={() => updateActive({ writingOverlayData: '' })} className="rounded-full bg-card">
                     <Square className="mr-2 size-4" /> Clear Marks
                   </Button>
                 </div>
@@ -939,28 +933,28 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
 
               <details className="rounded-xl border border-border/30 bg-card/80 p-4">
                 <summary className="cursor-pointer font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Argument Skeleton and Completion Reflection
+                  Optional Structure and Reflection
                 </summary>
                 <div className="mt-4 grid gap-4 xl:grid-cols-2">
                   <div className="rounded-xl border border-border/50 bg-background p-4">
-                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Argument Skeleton</div>
+                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Structure, if useful</div>
                     <div className="mt-3 grid gap-3">
                       <Input
                         value={active.argumentSkeleton?.centralClaim || ''}
                         onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), centralClaim: event.target.value } })}
-                        placeholder="Central claim this work expresses..."
+                        placeholder="Center of gravity, thesis, image, or scene..."
                         className="rounded-full"
                       />
                       <Textarea
                         value={joinWorkLines(active.argumentSkeleton?.supportingClaims)}
                         onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), supportingClaims: splitWorkLines(event.target.value) } })}
-                        placeholder="Supporting claims, one per line..."
+                        placeholder="Threads, scenes, supports, fragments, or movements, one per line..."
                         className="min-h-[82px]"
                       />
                       <Textarea
                         value={joinWorkLines(active.argumentSkeleton?.objections)}
                         onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), objections: splitWorkLines(event.target.value) } })}
-                        placeholder="Objections this work must answer, one per line..."
+                        placeholder="Tensions, objections, gaps, or alternate directions, one per line..."
                         className="min-h-[82px]"
                       />
                       <Textarea
@@ -1111,7 +1105,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
         className="mb-3"
       >
         <Select value={workTab} onValueChange={(value) => { setWorkTab(value as WorkTab); setFilter('all'); }}>
-          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Work Category" />
           </SelectTrigger>
           <SelectContent>
@@ -1123,7 +1117,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
           </SelectContent>
         </Select>
         <Select value={filter} onValueChange={(value) => setFilter(value as WorkFilter)}>
-          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Work View" />
           </SelectTrigger>
           <SelectContent>
@@ -1157,7 +1151,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
         {[
           { label: 'Needs sources', value: workStats.needsSources, filter: 'needs_sources' as WorkFilter },
           { label: 'Needs positions', value: workStats.needsPositions, filter: 'needs_positions' as WorkFilter },
-          { label: 'Needs structure', value: workStats.needsStructure, filter: 'needs_structure' as WorkFilter },
           { label: 'Unresolved', value: workStats.unresolved, filter: 'unresolved' as WorkFilter },
           { label: 'Linked docs', value: workStats.linkedDocs, filter: 'external_docs' as WorkFilter },
         ].filter((item) => item.value > 0).map((item) => (
@@ -1393,10 +1386,10 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
         ))}
 
         <Card
-          className="aspect-video rounded-xl border-2 border-dashed border-border/50 bg-white/50 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-white transition-all group shadow-sm hover:shadow-xl hover:-translate-y-1"
+          className="aspect-video rounded-xl border-2 border-dashed border-border/50 bg-card/70 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-card transition-all group shadow-sm hover:shadow-xl hover:-translate-y-1"
           onClick={() => setIsWorkTypeOpen(true)}
         >
-          <div className="size-12 rounded-full bg-white flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-md border border-border/30">
+          <div className="size-12 rounded-full bg-card flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-md border border-border/30">
             <Plus className="size-6 text-muted-foreground" />
           </div>
           <div className="readex-kicker text-muted-foreground font-bold text-[10px]">CREATE WORK</div>
@@ -1410,7 +1403,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
               description="Clear filters or create a writing, note, drawing, or recording to express what your system is producing."
               belongsHere="Essays, notes, recordings, drawings, external documents, and other artifacts where your philosophy becomes expression."
               whyItMatters="Works reveal ambiguity and force ideas to become shareable, revisable artifacts."
-              firstAction="Create the smallest useful artifact: a note if the idea is raw, a writing draft if it needs structure, or a drawing/recording if words are not enough."
+              firstAction="Create the smallest useful artifact: a note, draft, sketch, or recording. Let structure arrive after the idea starts moving."
               filterCause={workFiltersActive ? 'Current filters may be hiding existing works.' : undefined}
               action={
                 <div className="flex flex-wrap items-center justify-center gap-3">
@@ -1424,36 +1417,11 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
       </div>
 
       <Dialog open={isWorkTypeOpen} onOpenChange={setIsWorkTypeOpen}>
-        <DialogContent className="max-w-2xl border-none bg-white shadow-2xl rounded-2xl">
+        <DialogContent className="max-w-2xl border-none bg-card shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-headline text-3xl italic">Add Work</DialogTitle>
-            <p className="text-sm italic text-muted-foreground">Choose what you are creating, why it exists, and what thinking it should draw from.</p>
+            <p className="text-sm italic text-muted-foreground">Choose the form first. You can link sources, positions, and structure later if the work asks for it.</p>
           </DialogHeader>
-          <div className="grid gap-4 rounded-2xl border border-border/50 bg-muted/10 p-4 sm:grid-cols-[180px_1fr]">
-            <div className="space-y-2">
-              <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Purpose</Label>
-              <Select value={workLauncher.purpose} onValueChange={(value) => setWorkLauncher((current) => ({ ...current, purpose: value as WorkPurpose }))}>
-                <SelectTrigger className="rounded-full bg-white font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {workPurposes.map((purpose) => (
-                    <SelectItem key={purpose.id} value={purpose.id} className="font-code text-[10px] uppercase">{purpose.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs italic leading-5 text-muted-foreground">
-                {workPurposes.find((purpose) => purpose.id === workLauncher.purpose)?.description}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Draw from</Label>
-              <Textarea
-                value={workLauncher.note}
-                onChange={(event) => setWorkLauncher((current) => ({ ...current, note: event.target.value }))}
-                placeholder="What concepts, inquiries, positions, sources, or practices should this work draw from?"
-                className="min-h-[96px] bg-white"
-              />
-            </div>
-          </div>
           <div className="grid gap-4 pt-4 sm:grid-cols-2">
             {[
               { title: 'Writing', description: 'Open a long-form writing document.', icon: PencilLine, onClick: () => spawnDraft('essay', 'Untitled Writing') },
@@ -1482,7 +1450,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
       </Dialog>
 
       <Dialog open={isNoteTypeOpen} onOpenChange={setIsNoteTypeOpen}>
-        <DialogContent className="max-w-xl border-none bg-white shadow-2xl rounded-2xl">
+        <DialogContent className="max-w-xl border-none bg-card shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-headline text-3xl italic">Choose Note Type</DialogTitle>
             <p className="text-sm italic text-muted-foreground">Notes can start as voice, drawing, or text and stay lightweight.</p>
@@ -2043,28 +2011,28 @@ function WorkIntellectualRail({
         <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Intellectual Rail</div>
-              <h3 className="mt-1 font-headline text-xl font-bold italic">What this work is carrying</h3>
+              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Studio Rail</div>
+              <h3 className="mt-1 font-headline text-xl font-bold italic">Materials around this work</h3>
             </div>
             <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
               {WORK_CATEGORY_LABELS[category]}
             </Badge>
           </div>
           <div className="mt-3 rounded-xl border border-border/50 bg-muted/10 p-3">
-            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Purpose</div>
+            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Creative Direction</div>
             <p className="mt-1 text-sm font-medium capitalize text-foreground">{active.workPurpose || 'explore'}</p>
             <p className="mt-1 text-xs italic leading-5 text-muted-foreground">
-              {active.purposeNote || 'No source question, position, or intention has been named yet.'}
+              {active.purposeNote || 'Optional. Add a spark, source, feeling, question, or direction when it helps.'}
             </p>
           </div>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Use this rail to keep expression connected to claims, evidence, objections, and raw material.
+            Use this rail when you want links and context nearby. The work itself stays first.
           </p>
         </Card>
 
         <RailSection
-          title="Argument Skeleton"
-          empty="No skeleton yet. Add a central claim, support, objections, and conclusion if this work needs structure."
+          title="Optional Shape"
+          empty="No shape notes yet. Add a center, fragments, tensions, or ending only if structure helps the work."
           items={skeletonItems}
         />
 
@@ -2224,7 +2192,7 @@ function ExternalDocDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl border-none shadow-2xl rounded-2xl bg-white">
+      <DialogContent className="max-w-xl border-none shadow-2xl rounded-2xl bg-card">
         <DialogHeader>
           <DialogTitle className="font-headline text-3xl italic">Connect External Document</DialogTitle>
           <p className="text-sm text-muted-foreground">Write in your preferred platform and let Noesis keep a synced copy when the document exposes readable text.</p>
