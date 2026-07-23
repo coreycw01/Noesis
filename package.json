@@ -10,7 +10,13 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
-    "firestore:schema": "node scripts/seed-firestore-schema.mjs"
+    "firestore:schema": "node scripts/seed-firestore-schema.mjs",
+    "mobile:sync": "cap sync",
+    "mobile:add:android": "cap add android",
+    "mobile:open:android": "cap open android",
+    "mobile:run:android": "cap run android",
+    "mobile:add:ios": "cap add ios",
+    "mobile:open:ios": "cap open ios"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
