@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -455,6 +454,16 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   const previewThinkingEventHint = normalizeThinkingEventHint(previewItem);
   const activePage = NOESIS_PAGE_BY_VIEW[activeView as keyof typeof NOESIS_PAGE_BY_VIEW] || NOESIS_PAGE_BY_VIEW.home;
   const mobilePrimaryNav = navItems.filter((item) => ['home', 'atlas', 'annotations', 'vault', 'writing'].includes(item.id));
+  const attentionTotal = movement
+    ? movement.rawAnnotations + movement.unsupportedPositions + movement.openInquiries + movement.practicesWithoutPosition + movement.positionsWithoutPractice
+    : 0;
+  const attentionTarget = movement?.rawAnnotations
+    ? 'annotations'
+    : movement?.openInquiries
+      ? 'questions'
+      : movement?.unsupportedPositions
+        ? 'vault'
+        : 'practices';
 
   const renderNavButton = (item: typeof navItems[number]) => {
     const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
@@ -561,32 +570,25 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
             onClick={onOpenGoals || (() => handleNavChange('goals'))}
             className="mt-3 w-full rounded border border-white/10 bg-white/[0.05] p-3 transition-all hover:border-white/20 hover:bg-white/[0.075] group/goals relative cursor-pointer"
           >
-            <div className="mb-3 flex justify-between items-center">
+            <div className="mb-2 flex justify-between items-center">
               <div>
                 <span className="font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/60 font-bold">Goals</span>
                 <div className="mt-1 text-[13px] font-body text-white/90">{goal.label || 'Goal Set'}</div>
               </div>
               <Edit2 className="size-3 text-sidebar-foreground/40 opacity-0 group-hover/goals:opacity-100 transition-opacity" />
             </div>
-            <ScrollArea className="h-[110px] pr-2">
-              <div className="space-y-4">
-                {sortedActiveGoals.map((row) => (
-                  <div key={row.id} className="space-y-1.5">
-                    <div className="flex justify-between items-end">
-                      <span className="font-code text-[7px] uppercase tracking-widest text-sidebar-foreground/40 font-bold">{row.label}</span>
-                      <span className="font-code text-[9px] text-white/70 font-bold">{row.done}/{row.target}</span>
-                    </div>
-                    {row.mediaTypes.length > 0 && (
-                      <div className="font-code text-[7px] uppercase tracking-widest text-sidebar-foreground/25">
-                        Counts: {row.mediaTypes.map((type) => MEDIA_LABELS[type]).join(', ')}
-                      </div>
-                    )}
-                    <Progress value={row.percent} className="h-1 bg-white/10" />
+            <div className="space-y-2">
+              {sortedActiveGoals.slice(0, 3).map((row) => (
+                <div key={row.id} className="space-y-1">
+                  <div className="flex justify-between items-end gap-3">
+                    <span className="truncate font-code text-[7px] uppercase tracking-widest text-sidebar-foreground/45 font-bold">{row.label}</span>
+                    <span className="shrink-0 font-code text-[8px] text-white/65 font-bold">{row.done}/{row.target}</span>
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
-            <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between font-code text-[8px] uppercase tracking-widest text-sidebar-foreground/30 font-bold group-hover/goals:text-sidebar-foreground/60 transition-colors">
+                  <Progress value={row.percent} className="h-1 bg-white/10" />
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between font-code text-[8px] uppercase tracking-widest text-sidebar-foreground/30 font-bold group-hover/goals:text-sidebar-foreground/60 transition-colors">
               <span>View All Details</span>
               <ChevronRight className="size-2.5" />
             </div>
@@ -594,49 +596,31 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
         )}
       </div>
 
-      {(!collapsed || isMobile) && movement && (movement.rawAnnotations + movement.unsupportedPositions + movement.openInquiries + movement.practicesWithoutPosition + movement.positionsWithoutPractice) > 0 && (
-        <div className="px-5 pb-4 border-b border-sidebar-border">
-          <div className="flex items-center gap-1.5 mb-2 mt-4">
-            <AlertTriangle className="size-3 text-amber-400" />
-            <span className="font-code text-[8px] uppercase tracking-[0.16em] text-sidebar-foreground/40 font-bold">Needs Attention</span>
-          </div>
-          <div className="space-y-1.5">
-            {movement.rawAnnotations > 0 && (
-              <button onClick={() => handleNavChange('annotations')} className="w-full text-left rounded-lg px-3 py-2 bg-white/[0.04] hover:bg-white/[0.07] transition-colors group">
-                <span className="font-code text-[9px] text-white/60 group-hover:text-white/85 transition-colors">
-                  <span className="text-amber-400 font-bold">{movement.rawAnnotations}</span> raw annotation{movement.rawAnnotations !== 1 ? 's' : ''} unclassified
-                </span>
-              </button>
+      {attentionTotal > 0 && (
+        <div className={cn("border-b border-sidebar-border", collapsed && !isMobile ? "px-3 py-3" : "px-5 py-3")}>
+          <button
+            type="button"
+            onClick={() => handleNavChange(attentionTarget)}
+            className={cn(
+              "group flex w-full items-center rounded-full border border-amber-300/20 bg-amber-400/10 text-amber-100 transition-colors hover:border-amber-300/35 hover:bg-amber-400/15",
+              collapsed && !isMobile ? "justify-center p-2.5" : "gap-2 px-3 py-2"
             )}
-            {movement.openInquiries > 0 && (
-              <button onClick={() => handleNavChange('questions')} className="w-full text-left rounded-lg px-3 py-2 bg-white/[0.04] hover:bg-white/[0.07] transition-colors group">
-                <span className="font-code text-[9px] text-white/60 group-hover:text-white/85 transition-colors">
-                  <span className="text-amber-400 font-bold">{movement.openInquiries}</span> open inquir{movement.openInquiries !== 1 ? 'ies' : 'y'} without answer
-                </span>
-              </button>
+            title={`${attentionTotal} item${attentionTotal === 1 ? '' : 's'} need attention`}
+            aria-label={`${attentionTotal} item${attentionTotal === 1 ? '' : 's'} need attention`}
+          >
+            <span className="relative">
+              <AlertTriangle className="size-4 text-amber-300" />
+              <span className="absolute -right-2 -top-2 grid min-w-4 place-items-center rounded-full bg-amber-300 px-1 font-code text-[8px] font-bold text-black">
+                {attentionTotal > 9 ? '9+' : attentionTotal}
+              </span>
+            </span>
+            {(!collapsed || isMobile) && (
+              <span className="min-w-0 flex-1 text-left">
+                <span className="block truncate font-code text-[8px] font-bold uppercase tracking-[0.16em] text-amber-200">Attention</span>
+                <span className="block truncate text-[11px] text-sidebar-foreground/55">{attentionTotal} item{attentionTotal === 1 ? '' : 's'} to review</span>
+              </span>
             )}
-            {movement.unsupportedPositions > 0 && (
-              <button onClick={() => handleNavChange('vault')} className="w-full text-left rounded-lg px-3 py-2 bg-white/[0.04] hover:bg-white/[0.07] transition-colors group">
-                <span className="font-code text-[9px] text-white/60 group-hover:text-white/85 transition-colors">
-                  <span className="text-amber-400 font-bold">{movement.unsupportedPositions}</span> position{movement.unsupportedPositions !== 1 ? 's' : ''} without evidence
-                </span>
-              </button>
-            )}
-            {movement.positionsWithoutPractice > 0 && (
-              <button onClick={() => handleNavChange('practices')} className="w-full text-left rounded-lg px-3 py-2 bg-white/[0.04] hover:bg-white/[0.07] transition-colors group">
-                <span className="font-code text-[9px] text-white/60 group-hover:text-white/85 transition-colors">
-                  <span className="text-amber-400 font-bold">{movement.positionsWithoutPractice}</span> position{movement.positionsWithoutPractice !== 1 ? 's' : ''} not yet tested
-                </span>
-              </button>
-            )}
-            {movement.practicesWithoutPosition > 0 && (
-              <button onClick={() => handleNavChange('practices')} className="w-full text-left rounded-lg px-3 py-2 bg-white/[0.04] hover:bg-white/[0.07] transition-colors group">
-                <span className="font-code text-[9px] text-white/60 group-hover:text-white/85 transition-colors">
-                  <span className="text-amber-400 font-bold">{movement.practicesWithoutPosition}</span> practice{movement.practicesWithoutPosition !== 1 ? 's' : ''} without a belief
-                </span>
-              </button>
-            )}
-          </div>
+          </button>
         </div>
       )}
 
