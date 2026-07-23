@@ -41,7 +41,7 @@ export function FilterToolbar({
   const resolvedActiveFilterCount = activeFilterCount ?? activeFilterLabels.length;
   const hasActiveFilters = Boolean(resolvedActiveFilterCount && resolvedActiveFilterCount > 0) || Boolean(onClear && clearDisabled === false);
   return (
-    <section aria-label="Page filters and search" className={cn('mb-5 rounded-xl border border-border/40 bg-card p-3 shadow-sm md:mb-8 md:p-4', className)}>
+    <section aria-label="Page filters and search" className={cn('sticky top-0 z-20 mb-5 rounded-xl border border-border/40 bg-card/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/85 md:mb-8 md:p-4', className)}>
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
         {typeof search === 'string' && onSearchChange && (
           <div className="relative min-w-0 flex-1 xl:max-w-md">
