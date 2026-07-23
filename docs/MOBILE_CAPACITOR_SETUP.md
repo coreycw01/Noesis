@@ -24,6 +24,19 @@ npm run mobile:open:android
 
 Android Studio will open the generated `android` project. From there, choose an emulator or connected Android phone and press Run.
 
+If PowerShell says `'cap' is not recognized`, dependencies are not installed in the current checkout. Run:
+
+```bash
+npm install
+```
+
+Then rerun:
+
+```bash
+npm run mobile:sync
+npm run mobile:open:android
+```
+
 ## Local Testing Against A Dev Server
 
 To point the mobile shell at a local development server, set `CAPACITOR_SERVER_URL` before syncing:
