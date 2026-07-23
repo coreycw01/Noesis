@@ -1667,7 +1667,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           </div>
       </FilterToolbar>
 
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      <div className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
         {[
           { label: 'Needs review', value: positionStats.underReview, filter: 'under_review' as PositionViewFilter },
           { label: 'Untested', value: positionStats.needsPractice, filter: 'needs_practice' as PositionViewFilter },
@@ -1680,7 +1680,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             onClick={() => setViewFilter(viewFilter === item.filter ? 'all' : item.filter)}
             className={cn(
               "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
-              viewFilter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+              viewFilter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
             {item.label} ({item.value})
@@ -1691,13 +1691,13 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       {viewMode === 'table' ? (
         <PositionsTable entries={filteredEntries} diagnostics={positionDiagnostics} links={links} practices={practices} onOpen={openEntry} />
       ) : (
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
         {filteredEntries.map((entry) => {
           const diagnostic = positionDiagnostics.get(entry.id) || diagnosePosition(entry, links, practices);
           return (
             <Card 
               key={entry.id} 
-              className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-5 rounded-xl shadow-md" 
+              className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-card p-4 rounded-xl shadow-md md:p-5"
               onClick={() => openEntry(entry.id)}
             >
             <div className="flex items-start justify-between gap-4 mb-4">
@@ -1718,7 +1718,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               {entry.statement || entry.description}
             </p>
 
-            <div className="mb-4 rounded-xl border border-border/40 bg-muted/10 p-3">
+            <div className="mb-4 hidden rounded-xl border border-border/40 bg-muted/10 p-3 md:block">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{diagnostic.label}</Badge>
                 <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{diagnostic.daysSinceUpdate}d since review</span>

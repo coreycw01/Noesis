@@ -1134,7 +1134,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
         </Select>
       </FilterToolbar>
 
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      <div className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
         {workTab === 'notes' && ([
           { label: 'All notes', value: 'all' as WorkFilter },
           { label: 'Written', value: 'text_note' as WorkFilter },
@@ -1148,7 +1148,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             onClick={() => setFilter(filter === item.value ? 'all' : item.value)}
             className={cn(
               "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
-              filter === item.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+              filter === item.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
             {item.label}
@@ -1167,7 +1167,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             onClick={() => setFilter(filter === item.filter ? 'all' : item.filter)}
             className={cn(
               "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
-              filter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+              filter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
             {item.label} {item.value}
@@ -1205,7 +1205,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
         {visibleDrafts.map((draft) => (
           (() => {
             const hasActiveInquiry = (draft.questionIds || []).some((questionId) => {
@@ -1235,7 +1235,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             return (
           <Card
             key={draft.id}
-            className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 p-5 rounded-xl shadow-md relative overflow-hidden"
+            className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-card p-4 rounded-xl shadow-md relative overflow-hidden md:p-5"
             onClick={() => openDraft(draft.id)}
           >
             <div className="mb-4 flex items-start justify-between gap-3">

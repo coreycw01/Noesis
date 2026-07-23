@@ -1578,7 +1578,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         </div>
       </header>
 
-      <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1.4fr]">
+      <div className="mb-6 hidden grid-cols-1 gap-3 md:grid lg:grid-cols-[1fr_1.4fr]">
         <div className="grid grid-cols-3 gap-3">
           <Stat value={totalConceptCount} label="Concepts" sub="Vocabulary size" />
           <Stat value={wellDevelopedCount} label="Well Developed" sub="Ready for argument" />
@@ -1676,13 +1676,13 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         </div>
       </FilterToolbar>
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
         {conceptRows.map(({ name, concept, related, diagnosis: diag, maturity, connectionCount, possibleDuplicates, repairFlags }) => {
 
           return (
             <Card
               key={name}
-              className="rounded-xl p-5 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group bg-white/95 shadow-md border border-accent/20"
+              className="rounded-xl p-4 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group bg-card shadow-md border border-accent/20 md:p-5"
               onClick={() => {
                 openConceptDetail(name, concept);
               }}

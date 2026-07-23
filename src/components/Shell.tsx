@@ -453,6 +453,8 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
   const previewThoughtPath = thoughtPathFor(previewItem);
   const previewActivityClass = normalizeActivityClass(previewItem);
   const previewThinkingEventHint = normalizeThinkingEventHint(previewItem);
+  const activePage = NOESIS_PAGE_BY_VIEW[activeView as keyof typeof NOESIS_PAGE_BY_VIEW] || NOESIS_PAGE_BY_VIEW.home;
+  const mobilePrimaryNav = navItems.filter((item) => ['home', 'atlas', 'annotations', 'vault', 'writing'].includes(item.id));
 
   const renderNavButton = (item: typeof navItems[number]) => {
     const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
@@ -673,14 +675,30 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
 
         {isMobile && (
           <>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setMobileNavOpen(true)}
-              className="fixed left-4 top-4 z-30 rounded-full border-border/60 bg-card shadow-md md:hidden"
-            >
-              <Menu className="size-4" />
-            </Button>
+            <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-2 border-b border-border/70 bg-background/95 px-3 shadow-sm backdrop-blur md:hidden">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setMobileNavOpen(true)}
+                className="size-9 rounded-full border-border/60 bg-card shadow-sm"
+                aria-label="Open navigation"
+              >
+                <Menu className="size-4" />
+              </Button>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-headline text-lg font-semibold italic leading-none text-foreground/85">{activePage.title}</div>
+                <div className="mt-0.5 truncate font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{activePage.section}</div>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setCommandOpen(true)}
+                className="size-9 rounded-full border-border/60 bg-card shadow-sm"
+                aria-label="Open command palette"
+              >
+                <Command className="size-4" />
+              </Button>
+            </div>
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
               <SheetContent side="left" className="w-[280px] border-r border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
                 <SheetTitle className="sr-only">Navigation</SheetTitle>
@@ -690,7 +708,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
           </>
         )}
 
-        <main className="flex-1 flex flex-col relative overflow-hidden bg-background min-w-0">
+        <main className="flex-1 flex flex-col relative overflow-hidden bg-background min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
           <button
             type="button"
             onClick={() => setCommandOpen(true)}
@@ -701,6 +719,30 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
             <span className="font-code text-[9px] uppercase tracking-[0.16em]">Ctrl K</span>
           </button>
           {children}
+          {isMobile && (
+            <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-2 py-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur md:hidden" aria-label="Primary mobile navigation">
+              <div className="grid grid-cols-5 gap-1">
+                {mobilePrimaryNav.map((item) => {
+                  const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
+                  const isActive = activeView === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleNavChange(item.id)}
+                      className={cn(
+                        'flex min-h-11 flex-col items-center justify-center rounded-2xl px-1 py-1 text-[10px] transition-colors',
+                        isActive ? 'bg-accent/12 text-accent' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                      )}
+                    >
+                      <item.icon className="size-4" />
+                      <span className="mt-0.5 max-w-full truncate font-code text-[7px] uppercase tracking-[0.12em]">{page.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+          )}
         </main>
 
         <Dialog open={commandOpen} onOpenChange={setCommandOpen}>

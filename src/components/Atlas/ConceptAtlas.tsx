@@ -2204,7 +2204,7 @@ export function ConceptAtlas({
       isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-[calc(100vh-3.5rem)] overflow-hidden"
     )}>
       {!isFullScreen && (
-      <header className="z-20 mb-1 flex items-start justify-between gap-4 px-8 pt-4">
+      <header className="z-20 mb-1 flex flex-col gap-3 px-4 pt-4 md:px-8 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-headline text-[28px] font-semibold italic">Atlas</h1>
@@ -2212,7 +2212,7 @@ export function ConceptAtlas({
           </div>
           <p className="mt-1 max-w-3xl text-sm leading-5 text-muted-foreground">{atlasSectionMeta[atlasSection].description}</p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:items-center md:justify-end md:overflow-visible md:pb-0">
           {atlasSection === 'map' && (
             <>
               <div className="relative">
@@ -2229,8 +2229,8 @@ export function ConceptAtlas({
       )}
 
       {!isFullScreen && (
-      <div className="z-10 space-y-2 px-8 pb-1">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="z-10 space-y-2 px-4 pb-1 md:px-8">
+        <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
           {([
             ['territory', 'Territory View'],
             ['tensions', 'Tension View'],
@@ -2251,13 +2251,13 @@ export function ConceptAtlas({
         </div>
         {atlasSection === 'map' && (
         <>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 rounded-full border border-border bg-white p-1 shadow-sm">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex w-max items-center gap-2 rounded-full border border-border bg-card p-1 shadow-sm">
             <Button variant={mode === 'auto' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('auto')} className="h-8 rounded-full">Auto Map</Button>
             <Button variant={mode === 'custom' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('custom')} className="h-8 rounded-full">Custom Maps</Button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:justify-end md:overflow-visible md:pb-0">
             <Select value={viewMode} onValueChange={(value) => setViewMode(value as AtlasViewMode)}>
               <SelectTrigger className="h-8 w-36 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
                 <SelectValue placeholder="View Mode" />
@@ -2335,7 +2335,7 @@ export function ConceptAtlas({
           </div>
 
           {mode === 'custom' && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
               <select
                 value={activeMap?.id || ''}
                 onChange={(event) => setActiveMapId(event.target.value)}
@@ -2356,14 +2356,14 @@ export function ConceptAtlas({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
+        <div className="flex flex-col gap-2 pb-1 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
           <div className="flex gap-4 overflow-x-auto scrollbar-hide">
             <Stat value={nodes.length} label="Nodes" />
             <Stat value={visibleEdges.length} label="Visible Links" />
             <Stat value={visibleFamilies} label="Visible Families" />
             <Stat value={selectedName || 'None'} label="Active" />
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:justify-end md:overflow-visible md:pb-0">
             {selectedRegion && (
               <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setAtlasSection('territory')}>
                 {selectedRegion.name}
@@ -2383,7 +2383,7 @@ export function ConceptAtlas({
       )}
 
       {atlasSection !== 'map' && !isFullScreen && (
-        <div className="flex-1 overflow-y-auto px-8 pb-6 pt-2">
+        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-2 md:px-8">
           {atlasSection === 'territory' && (
             <AtlasTerritoryView
               cards={atlasTerritoryCards}
@@ -2432,7 +2432,7 @@ export function ConceptAtlas({
       {atlasSection === 'map' && (
       <div className={cn(
         "flex min-h-0 flex-1 gap-4",
-        isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-hidden px-8 pb-4"
+        isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-hidden px-4 pb-4 md:px-8"
       )}>
         <div
           ref={mapRef}
@@ -2470,7 +2470,7 @@ export function ConceptAtlas({
           </div>
 
           {isMapEmpty && (
-            <div className="absolute left-4 top-4 z-20 max-w-sm rounded-2xl border border-border bg-white/95 p-4 shadow-lg backdrop-blur">
+            <div className="absolute left-4 top-14 z-20 max-w-[calc(100%-2rem)] rounded-2xl border border-border bg-card/95 p-4 shadow-lg backdrop-blur md:top-4 md:max-w-sm">
               <div className="font-headline text-lg font-semibold italic">Not enough strong connections yet.</div>
               <p className="mt-1 text-sm italic leading-5 text-muted-foreground">Create links, interact with nodes, or lower the strength filter to reveal weaker relationships.</p>
               <div className="mt-3 flex flex-wrap gap-2">

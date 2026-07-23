@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -37,13 +37,14 @@ export function FilterToolbar({
   clearDisabled,
   className,
 }: FilterToolbarProps) {
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
   const resolvedActiveFilterCount = activeFilterCount ?? activeFilterLabels.length;
   const hasActiveFilters = Boolean(resolvedActiveFilterCount && resolvedActiveFilterCount > 0) || Boolean(onClear && clearDisabled === false);
   return (
-    <section aria-label="Page filters and search" className={cn('mb-8 rounded-xl border border-border/40 bg-card p-4 shadow-sm', className)}>
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+    <section aria-label="Page filters and search" className={cn('mb-5 rounded-xl border border-border/40 bg-card p-3 shadow-sm md:mb-8 md:p-4', className)}>
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
         {typeof search === 'string' && onSearchChange && (
-          <div className="relative min-w-[240px] flex-1 xl:max-w-md">
+          <div className="relative min-w-0 flex-1 xl:max-w-md">
             <label htmlFor="page-search" className="sr-only">{searchLabel}</label>
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -55,8 +56,28 @@ export function FilterToolbar({
             />
           </div>
         )}
-        {children && <div className="flex flex-wrap items-center gap-2" aria-label="Filters">{children}</div>}
-        <div className="flex flex-wrap items-center justify-between gap-3 xl:justify-end">
+        {children && (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setMobileFiltersOpen((open) => !open)}
+              className="h-9 justify-center rounded-full font-code text-[9px] uppercase tracking-widest md:hidden"
+              aria-expanded={mobileFiltersOpen}
+            >
+              <SlidersHorizontal className="mr-1.5 size-3.5" />
+              Filters{resolvedActiveFilterCount ? ` (${resolvedActiveFilterCount})` : ''}
+            </Button>
+            <div className={cn(
+              'flex-wrap items-center gap-2 md:flex',
+              mobileFiltersOpen ? 'flex rounded-xl border border-border/50 bg-background/50 p-2' : 'hidden'
+            )} aria-label="Filters">
+              {children}
+            </div>
+          </>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-2 xl:justify-end">
           {hasActiveFilters && (
             <span className="rounded-full border border-accent/30 bg-accent/10 px-3 py-1 font-code text-[9px] font-bold uppercase tracking-[0.16em] text-accent">
               {resolvedActiveFilterCount ? `${resolvedActiveFilterCount} active` : 'Filters active'}

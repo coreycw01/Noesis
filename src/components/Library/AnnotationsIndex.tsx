@@ -725,7 +725,7 @@ export function AnnotationsIndex({
           </Select>
       </FilterToolbar>
 
-      <section className="mb-8 rounded-2xl border border-border/50 bg-card p-4 shadow-sm">
+      <section className="mb-8 hidden rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:block">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <button onClick={toggleVisibleSelection} className="flex items-center gap-3 text-left">
             <Checkbox checked={filtered.length > 0 && filtered.every((annotation) => selectedKeys.includes(annotationKey(annotation)))} />
@@ -755,13 +755,13 @@ export function AnnotationsIndex({
         </div>
       </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-8">
         {filtered.map((annotation) => {
           const selectedEffect = selectedEffectForAnnotation(annotation);
           const contextValue = annotation.context || '';
           return (
           <Card key={`${annotation.source.id}:${annotation.id}`} className={cn(
-            "p-5 bg-white border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all",
+            "p-4 md:p-5 bg-card border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all",
             selectedKeys.includes(annotationKey(annotation)) && "border-accent/50 ring-2 ring-accent/10"
           )}>
             <div className="flex justify-between items-start gap-4 mb-4">
@@ -785,7 +785,7 @@ export function AnnotationsIndex({
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                 <Button variant="ghost" size="icon" className="size-10 rounded-full text-accent hover:text-accent" onClick={() => suggestConsequences(annotation)} disabled={suggestingId === annotation.id} title="Ask Noesis AI">
                   {suggestingId === annotation.id ? <Loader2 className="size-5 animate-spin" /> : <GenerativeAiIcon className="size-8" />}
                 </Button>
@@ -803,7 +803,7 @@ export function AnnotationsIndex({
 
             <div className="relative mb-4">
               <Quote className="absolute -left-6 -top-2 size-10 text-accent/5" />
-              <p className="font-body italic leading-relaxed text-[18px] text-primary/90 relative z-10">"{annotation.text}"</p>
+              <p className="font-body italic leading-relaxed text-[16px] text-primary/90 relative z-10 md:text-[18px]">"{annotation.text}"</p>
             </div>
 
             <div className="flex flex-wrap gap-2 mb-3">
@@ -824,7 +824,7 @@ export function AnnotationsIndex({
                   }
                 }}
                 placeholder="Add the surrounding idea only if this note needs it."
-                className="mt-2 min-h-16 rounded-xl bg-card text-xs leading-5"
+                className="mt-2 min-h-12 rounded-xl bg-card text-xs leading-5 md:min-h-16"
               />
               <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <Checkbox
@@ -846,7 +846,7 @@ export function AnnotationsIndex({
                     {consequenceQuestion(annotation)}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
                   {([
                     ['supports_claim', 'Supports a position'],
                     ['challenges_claim', 'Challenges a position'],
@@ -860,7 +860,7 @@ export function AnnotationsIndex({
                       variant={selectedEffect === action ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => runConsequenceAction(annotation, action)}
-                      className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
+                      className="h-8 rounded-full px-2 font-code text-[8px] uppercase tracking-widest sm:px-3"
                     >
                       {label}
                     </Button>
