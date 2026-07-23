@@ -250,24 +250,23 @@ function workTypePresentation(draft: Draft): {
   action: string;
   Icon: React.ComponentType<{ className?: string }>;
   BadgeIcon?: React.ComponentType<{ className?: string }>;
-  tone: string;
 } {
   if (draft.type === 'recording') {
-    return { label: 'Recording', ariaLabel: 'Video recording', action: 'Play recording', Icon: CirclePlay, tone: 'bg-blue-50 text-blue-700 border-blue-100' };
+    return { label: 'Recording', ariaLabel: 'Video recording', action: 'Play recording', Icon: CirclePlay };
   }
   if (draft.type === 'drawing') {
-    return { label: 'Drawing', ariaLabel: 'Drawing work', action: 'Edit drawing', Icon: PenTool, tone: 'bg-rose-50 text-rose-700 border-rose-100' };
+    return { label: 'Drawing', ariaLabel: 'Drawing work', action: 'Edit drawing', Icon: PenTool };
   }
   if (draft.type === 'voice_note') {
-    return { label: 'Quick Note - Voice', ariaLabel: 'Voice quick note', action: 'Play voice note', Icon: NotebookPen, BadgeIcon: CirclePlay, tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+    return { label: 'Quick Note - Voice', ariaLabel: 'Voice quick note', action: 'Play voice note', Icon: NotebookPen, BadgeIcon: CirclePlay };
   }
   if (draft.type === 'drawing_note') {
-    return { label: 'Quick Note - Drawing', ariaLabel: 'Drawing quick note', action: 'Open drawing note', Icon: NotebookPen, BadgeIcon: PenTool, tone: 'bg-amber-50 text-amber-700 border-amber-100' };
+    return { label: 'Quick Note - Drawing', ariaLabel: 'Drawing quick note', action: 'Open drawing note', Icon: NotebookPen, BadgeIcon: PenTool };
   }
   if (draft.type === 'text_note' || draft.type === 'talk_to_text') {
-    return { label: draft.type === 'talk_to_text' ? 'Quick Note - Talk' : 'Quick Note - Text', ariaLabel: 'Written quick note', action: 'Open note', Icon: NotebookPen, BadgeIcon: PencilLine, tone: 'bg-slate-50 text-slate-700 border-slate-100' };
+    return { label: draft.type === 'talk_to_text' ? 'Quick Note - Talk' : 'Quick Note - Text', ariaLabel: 'Written quick note', action: 'Open note', Icon: NotebookPen, BadgeIcon: PencilLine };
   }
-  return { label: 'Writing', ariaLabel: 'Writing work', action: 'Continue writing', Icon: PencilLine, tone: 'bg-violet-50 text-violet-700 border-violet-100' };
+  return { label: 'Writing', ariaLabel: 'Writing work', action: 'Continue writing', Icon: PencilLine };
 }
 
 function WorkTypeMark({ draft }: { draft: Draft }) {
@@ -275,8 +274,8 @@ function WorkTypeMark({ draft }: { draft: Draft }) {
   const Icon = presentation.Icon;
   const BadgeIcon = presentation.BadgeIcon;
   return (
-    <div className="relative flex size-11 shrink-0 items-center justify-center rounded-xl border bg-background shadow-sm" aria-label={presentation.ariaLabel} title={presentation.ariaLabel}>
-      <Icon className="size-5 text-primary" aria-hidden="true" />
+    <div className="relative flex size-11 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/5 shadow-sm" aria-label={presentation.ariaLabel} title={presentation.ariaLabel}>
+      <Icon className="size-5 text-accent" aria-hidden="true" />
       {BadgeIcon && (
         <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border border-background bg-accent text-accent-foreground shadow-sm">
           <BadgeIcon className="size-3" aria-hidden="true" />
@@ -746,7 +745,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                       onClick={() => updateActive({ activeMode: mode, body: mode === 'final' ? active.finalContent || '' : active.draftContent || active.body || '' })}
                       className={cn(
                         'rounded-full px-3 py-1 font-code text-[9px] font-bold uppercase tracking-widest transition-colors',
-                        (active.activeMode || 'draft') === mode ? 'bg-accent text-white' : 'text-muted-foreground hover:text-primary'
+                        (active.activeMode || 'draft') === mode ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
                       )}
                     >
                       {mode === 'draft' ? 'Drafting' : 'Final'}
@@ -817,7 +816,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-4">
                 <Input
-                  className="bg-transparent border-none text-4xl font-headline font-bold focus-visible:ring-0 italic p-0 h-auto rounded-none shadow-none text-primary placeholder:text-muted-foreground/20 flex-1"
+                  className="bg-transparent border-none text-4xl font-headline font-bold focus-visible:ring-0 italic p-0 h-auto rounded-none shadow-none text-foreground placeholder:text-muted-foreground/20 flex-1"
                   value={active.title}
                   onChange={(event) => updateActive({ title: event.target.value })}
                   placeholder={`Enter ${activeTypeLabel} Title...`}
@@ -864,7 +863,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="font-code text-[9px] uppercase tracking-widest text-accent font-bold">External Writing Source</div>
-                    <p className="font-body text-sm italic text-primary/80">
+                    <p className="font-body text-sm italic text-foreground/80">
                       {providerLabels[active.externalDoc.provider]} - {active.externalDoc.title || active.title}
                     </p>
                     <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground mt-1">
@@ -1142,7 +1141,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             onClick={() => setFilter(filter === item.value ? 'all' : item.value)}
             className={cn(
               "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
-              filter === item.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
+              filter === item.value ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
             {item.label}
@@ -1187,7 +1186,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 >
                   <WorkTypeMark draft={draft} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-headline text-base font-bold italic text-primary">{draft.title || 'Untitled Draft'}</span>
+                    <span className="block truncate font-headline text-base font-bold italic text-foreground">{draft.title || 'Untitled Draft'}</span>
                     <span className="mt-1 block truncate font-code text-[8px] uppercase tracking-widest text-muted-foreground">{presentation.action} - {formatEdited(draft.dateUpdated)}</span>
                   </span>
                   <ActionIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -1239,7 +1238,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                     <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/70 font-bold">
                       {presentation.label}
                     </span>
-                    <Badge variant="outline" className={cn("rounded-full border font-code text-[8px] uppercase tracking-widest", presentation.tone)}>
+                    <Badge variant="outline" className="rounded-full border border-accent/20 bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">
                       {draft.status}
                     </Badge>
                   </div>
@@ -1253,24 +1252,24 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
               <div className="flex shrink-0 items-center gap-2">
                 {draft.externalDoc && <Cloud className="size-3.5 text-accent" aria-label="External document linked" />}
                 {hasActiveInquiry && (
-                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-blue-50 text-blue-700 border-transparent rounded-full font-bold px-2 py-0.5">
+                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-accent/10 text-accent border-transparent rounded-full font-bold px-2 py-0.5">
                     Inquiry
                   </Badge>
                 )}
                 {needsRevision && (
-                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-amber-50 text-amber-700 border-transparent rounded-full font-bold px-2 py-0.5">
+                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-muted text-muted-foreground border-transparent rounded-full font-bold px-2 py-0.5">
                     Revise
                   </Badge>
                 )}
                 {!!readiness.gaps.length && (
-                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-rose-50 text-rose-700 border-transparent rounded-full font-bold px-2 py-0.5">
+                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-destructive/10 text-destructive border-transparent rounded-full font-bold px-2 py-0.5">
                     {readiness.gaps.length} gaps
                   </Badge>
                 )}
               </div>
             </div>
 
-            <h3 className="font-headline text-2xl font-bold italic leading-tight group-hover:text-accent transition-colors text-primary mb-4">
+            <h3 className="font-headline text-2xl font-bold italic leading-tight group-hover:text-accent transition-colors text-foreground mb-4">
               {draft.title || 'Untitled Draft'}
             </h3>
 
@@ -1305,23 +1304,23 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                   <img src={thumbnail} alt={`${presentation.label} preview for ${draft.title || 'untitled work'}`} className="h-full w-full object-contain bg-background" />
                   {isPlayable && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                      <CirclePlay className="size-12 rounded-full bg-background/90 p-2 text-primary shadow-lg" />
+                      <CirclePlay className="size-12 rounded-full bg-background/90 p-2 text-accent shadow-lg" />
                     </div>
                   )}
                 </div>
               ) : isPlayable ? (
                 <div className="flex h-[150px] flex-col items-center justify-center gap-3 p-4 text-center">
-                  <CirclePlay className="size-12 text-primary/70" />
+                  <CirclePlay className="size-12 text-accent/70" />
                   <p className="max-w-[18rem] text-sm italic text-muted-foreground">{draft.fileUrl ? 'Saved recording ready to play.' : 'Recording metadata exists, but no saved media file is attached yet.'}</p>
                 </div>
               ) : draft.type === 'drawing' || draft.type === 'drawing_note' ? (
                 <div className="flex h-[150px] flex-col items-center justify-center gap-3 p-4 text-center">
-                  <PenTool className="size-10 text-primary/70" />
+                  <PenTool className="size-10 text-accent/70" />
                   <p className="text-sm italic text-muted-foreground">{draft.canvasData ? 'Drawing preview saved.' : 'Blank drawing canvas.'}</p>
                 </div>
               ) : (
                 <div className="flex h-[150px] flex-col justify-between p-4">
-                  <FileText className="size-6 text-primary/60" />
+                  <FileText className="size-6 text-accent/60" />
                   <p className="line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">
                     {textPreview || draft.purposeNote || 'No written content yet.'}
                   </p>
@@ -1354,7 +1353,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{readiness.label}</Badge>
-                  {!!readiness.gaps.length && <span className="font-code text-[8px] uppercase tracking-widest text-rose-600">{readiness.gaps.length} gaps</span>}
+                  {!!readiness.gaps.length && <span className="font-code text-[8px] uppercase tracking-widest text-destructive">{readiness.gaps.length} gaps</span>}
                 </div>
               </div>
               <Button
@@ -1439,7 +1438,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                     <option.icon className="size-5" />
                   </div>
                   <div>
-                    <div className="font-headline text-2xl font-bold italic text-primary">{option.title}</div>
+                    <div className="font-headline text-2xl font-bold italic text-foreground">{option.title}</div>
                     <p className="mt-1 text-sm italic leading-5 text-muted-foreground">{option.description}</p>
                   </div>
                 </div>
@@ -1467,7 +1466,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 onClick={() => spawnDraft(option.type, `Untitled ${option.title}`)}
                 className="rounded-xl border border-border/60 bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md"
               >
-                <div className="font-headline text-xl font-bold italic text-primary">{option.title}</div>
+                <div className="font-headline text-xl font-bold italic text-foreground">{option.title}</div>
                 <p className="mt-1 text-sm italic leading-5 text-muted-foreground">{option.description}</p>
               </button>
             ))}
@@ -2083,8 +2082,8 @@ function WorkIntellectualRail({
                 key={`${signal.label}:${signal.detail}`}
                 className={cn(
                   'rounded-xl border p-3',
-                  signal.tone === 'warning' && 'border-amber-300/50 bg-amber-50 text-amber-950',
-                  signal.tone === 'support' && 'border-emerald-300/50 bg-emerald-50 text-emerald-950',
+                  signal.tone === 'warning' && 'border-destructive/30 bg-destructive/10 text-destructive',
+                  signal.tone === 'support' && 'border-accent/30 bg-accent/10 text-accent',
                   signal.tone === 'neutral' && 'border-border/60 bg-muted/10 text-foreground'
                 )}
               >
@@ -2131,7 +2130,7 @@ function RailSection({
               key={`${item}:${index}`}
               className={cn(
                 'rounded-xl border px-3 py-2 text-sm leading-5',
-                tone === 'warning' ? 'border-amber-300/40 bg-amber-50/70 text-amber-950' : 'border-border/50 bg-muted/10 text-foreground'
+                tone === 'warning' ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-border/50 bg-muted/10 text-foreground'
               )}
             >
               {item}
@@ -2169,9 +2168,9 @@ function PaperPreview({ styleName }: { styleName: WritingStyle }) {
       styleName === 'timeline' && 'before:absolute before:left-4 before:right-4 before:top-1/2 before:h-px before:bg-accent/40 after:absolute after:left-6 after:top-1/2 after:size-2 after:-translate-y-1/2 after:rounded-full after:bg-accent/50 after:shadow-[40px_0_0_hsl(var(--accent)/0.45),80px_0_0_hsl(var(--accent)/0.35)]'
     )}>
       <div className="absolute left-4 right-4 top-4 space-y-2 opacity-35">
-        <div className="h-1.5 w-2/3 rounded bg-primary/30" />
-        <div className="h-1 w-full rounded bg-primary/20" />
-        <div className="h-1 w-3/4 rounded bg-primary/20" />
+        <div className="h-1.5 w-2/3 rounded bg-accent/30" />
+        <div className="h-1 w-full rounded bg-accent/20" />
+        <div className="h-1 w-3/4 rounded bg-accent/20" />
       </div>
     </div>
   );
