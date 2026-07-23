@@ -346,7 +346,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   const [dirty, setDirty] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Draft | null>(null);
 
-  const [viewMode, setViewMode] = useState<PageViewMode>('vertical-continuous');
+  const [viewMode, setViewMode] = useState<PageViewMode>('vertical-single');
   const [pageSize, setPageSize] = useState<PageSize>('letter');
   const [paperColor, setPaperColor] = useState<PaperColor>('blank');
   const [paperPattern, setPaperPattern] = useState<PaperPattern>('none');
@@ -355,6 +355,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   const [writingStrokeColor, setWritingStrokeColor] = useState('#4c1d95');
   const [writingStrokeSize, setWritingStrokeSize] = useState(3);
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   const { toast } = useToast();
   const activeFromStore = drafts.find((draft) => draft.id === activeId) || null;
@@ -829,36 +830,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 </div>
               </div>
 
-              <details className="rounded-xl border border-border/30 bg-card/80 p-4">
-                <summary className="cursor-pointer font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Creative Direction
-                </summary>
-                <div className="mt-4 grid gap-3 md:grid-cols-[220px_1fr]">
-                  <div className="space-y-2">
-                    <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Mode</Label>
-                    <Select value={active.workPurpose || 'explore'} onValueChange={(value) => updateActive({ workPurpose: value as WorkPurpose })}>
-                      <SelectTrigger className="h-9 rounded-full border-border/50 bg-background font-code text-[9px] uppercase">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {workPurposes.map((purpose) => (
-                          <SelectItem key={purpose.id} value={purpose.id} className="font-code text-[10px] uppercase">{purpose.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">What sparked this?</Label>
-                    <Input
-                      value={active.purposeNote || ''}
-                      onChange={(event) => updateActive({ purposeNote: event.target.value })}
-                      placeholder="Optional: a phrase, source, feeling, question, or image this work is growing from..."
-                      className="h-9 rounded-full bg-background text-sm"
-                    />
-                  </div>
-                </div>
-              </details>
-
               {showExternalDocControls && active.externalDoc && (
                 <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -930,77 +901,14 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 </div>
               )}
 
-              <details className="rounded-xl border border-border/30 bg-card/80 p-4">
-                <summary className="cursor-pointer font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Optional Structure and Reflection
-                </summary>
-                <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                  <div className="rounded-xl border border-border/50 bg-background p-4">
-                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Structure, if useful</div>
-                    <div className="mt-3 grid gap-3">
-                      <Input
-                        value={active.argumentSkeleton?.centralClaim || ''}
-                        onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), centralClaim: event.target.value } })}
-                        placeholder="Center of gravity, thesis, image, or scene..."
-                        className="rounded-full"
-                      />
-                      <Textarea
-                        value={joinWorkLines(active.argumentSkeleton?.supportingClaims)}
-                        onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), supportingClaims: splitWorkLines(event.target.value) } })}
-                        placeholder="Threads, scenes, supports, fragments, or movements, one per line..."
-                        className="min-h-[82px]"
-                      />
-                      <Textarea
-                        value={joinWorkLines(active.argumentSkeleton?.objections)}
-                        onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), objections: splitWorkLines(event.target.value) } })}
-                        placeholder="Tensions, objections, gaps, or alternate directions, one per line..."
-                        className="min-h-[82px]"
-                      />
-                      <Textarea
-                        value={active.argumentSkeleton?.conclusion || ''}
-                        onChange={(event) => updateActive({ argumentSkeleton: { ...(active.argumentSkeleton || {}), conclusion: event.target.value } })}
-                        placeholder="Conclusion or unresolved ending..."
-                        className="min-h-[70px]"
-                      />
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-border/50 bg-background p-4">
-                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Completion Reflection</div>
-                    <p className="mt-1 text-xs italic text-muted-foreground">Use this when the work becomes complete, final, or published.</p>
-                    <div className="mt-3 grid gap-3">
-                      <Textarea
-                        value={active.completionReflection?.clarified || ''}
-                        onChange={(event) => updateActive({ completionReflection: { ...(active.completionReflection || {}), clarified: event.target.value } })}
-                        placeholder="What did this work clarify?"
-                        className="min-h-[68px]"
-                      />
-                      <Textarea
-                        value={active.completionReflection?.positionChanged || ''}
-                        onChange={(event) => updateActive({ completionReflection: { ...(active.completionReflection || {}), positionChanged: event.target.value } })}
-                        placeholder="Did any position change?"
-                        className="min-h-[68px]"
-                      />
-                      <Textarea
-                        value={active.completionReflection?.unresolved || ''}
-                        onChange={(event) => updateActive({ completionReflection: { ...(active.completionReflection || {}), unresolved: event.target.value } })}
-                        placeholder="What remains unresolved?"
-                        className="min-h-[68px]"
-                      />
-                      <Textarea
-                        value={active.completionReflection?.nextExploration || ''}
-                        onChange={(event) => updateActive({ completionReflection: { ...(active.completionReflection || {}), nextExploration: event.target.value } })}
-                        placeholder="What should be explored next?"
-                        className="min-h-[68px]"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </details>
             </div>
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className={cn(
+          "grid min-h-0 flex-1 grid-cols-1 overflow-hidden",
+          railCollapsed ? "lg:grid-cols-[minmax(0,1fr)_64px]" : "lg:grid-cols-[minmax(0,1fr)_340px]"
+        )}>
           <div className="relative min-h-0 overflow-hidden">
             {activeCategory === 'writing' ? (
               <>
@@ -1041,6 +949,8 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             concepts={workConcepts}
             annotations={unusedAnnotations}
             coherenceSignals={coherenceSignals}
+            collapsed={railCollapsed}
+            onCollapsedChange={setRailCollapsed}
           />
         </div>
 
@@ -1968,6 +1878,8 @@ function WorkIntellectualRail({
   concepts,
   annotations,
   coherenceSignals,
+  collapsed,
+  onCollapsedChange,
 }: {
   active: Draft;
   sources: Media[];
@@ -1976,6 +1888,8 @@ function WorkIntellectualRail({
   concepts: string[];
   annotations: WorkRailAnnotation[];
   coherenceSignals: Array<{ label: string; tone: 'support' | 'warning' | 'neutral'; detail: string }>;
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
 }) {
   const category = active.workCategory || workCategoryForDraft(active.type);
   const supportingMaterial = [
@@ -1991,21 +1905,32 @@ function WorkIntellectualRail({
     .filter((question) => !['resolved', 'archived'].includes(question.status))
     .slice(0, 4)
     .map((question) => question.text);
-  const skeletonItems = [
-    active.argumentSkeleton?.centralClaim ? `Claim: ${active.argumentSkeleton.centralClaim}` : '',
-    ...(active.argumentSkeleton?.supportingClaims || []).map((item) => `Support: ${item}`),
-    ...(active.argumentSkeleton?.objections || []).map((item) => `Objection: ${item}`),
-    active.argumentSkeleton?.conclusion ? `Conclusion: ${active.argumentSkeleton.conclusion}` : '',
-  ].filter(Boolean);
-  const reflectionItems = [
-    active.completionReflection?.clarified ? `Clarified: ${active.completionReflection.clarified}` : '',
-    active.completionReflection?.positionChanged ? `Position changed: ${active.completionReflection.positionChanged}` : '',
-    active.completionReflection?.unresolved ? `Unresolved: ${active.completionReflection.unresolved}` : '',
-    active.completionReflection?.nextExploration ? `Next: ${active.completionReflection.nextExploration}` : '',
-  ].filter(Boolean);
 
   return (
-    <aside className="hidden min-h-0 overflow-y-auto border-l border-border/40 bg-muted/10 p-4 lg:block">
+    <aside className={cn(
+      "hidden min-h-0 border-l border-border/40 bg-muted/10 lg:block",
+      collapsed ? "overflow-hidden p-2" : "overflow-y-auto p-4"
+    )}>
+      {collapsed ? (
+        <div className="flex h-full flex-col items-center gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onCollapsedChange(false)}
+            className="h-10 w-10 rounded-full bg-card"
+            aria-label="Expand studio rail"
+          >
+            <ChevronLeft className="size-4 rotate-180" />
+          </Button>
+          <div className="h-px w-8 bg-border/60" />
+          <div className="[writing-mode:vertical-rl] rotate-180 font-code text-[9px] font-bold uppercase tracking-[0.24em] text-muted-foreground">
+            Studio Rail
+          </div>
+          <Badge variant="outline" className="mt-auto rounded-full font-code text-[8px] uppercase tracking-widest">
+            {sources.length + positions.length + inquiries.length + concepts.length}
+          </Badge>
+        </div>
+      ) : (
       <div className="space-y-4">
         <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
@@ -2013,27 +1938,25 @@ function WorkIntellectualRail({
               <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Studio Rail</div>
               <h3 className="mt-1 font-headline text-xl font-bold italic">Materials around this work</h3>
             </div>
-            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-              {WORK_CATEGORY_LABELS[category]}
-            </Badge>
-          </div>
-          <div className="mt-3 rounded-xl border border-border/50 bg-muted/10 p-3">
-            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Creative Direction</div>
-            <p className="mt-1 text-sm font-medium capitalize text-foreground">{active.workPurpose || 'explore'}</p>
-            <p className="mt-1 text-xs italic leading-5 text-muted-foreground">
-              {active.purposeNote || 'Optional. Add a spark, source, feeling, question, or direction when it helps.'}
-            </p>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                {WORK_CATEGORY_LABELS[category]}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onCollapsedChange(true)}
+                className="h-8 w-8 rounded-full"
+                aria-label="Collapse studio rail"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+            </div>
           </div>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
             Use this rail when you want links and context nearby. The work itself stays first.
           </p>
         </Card>
-
-        <RailSection
-          title="Optional Shape"
-          empty="No shape notes yet. Add a center, fragments, tensions, or ending only if structure helps the work."
-          items={skeletonItems}
-        />
 
         <RailSection
           title="Claims Expressed"
@@ -2068,12 +1991,6 @@ function WorkIntellectualRail({
           items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)}
         />
 
-        <RailSection
-          title="Completion Reflection"
-          empty="When this work is complete, record what it clarified, what changed, and what remains unresolved."
-          items={reflectionItems}
-        />
-
         <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
           <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Coherence Review</div>
           <div className="mt-3 space-y-3">
@@ -2096,6 +2013,7 @@ function WorkIntellectualRail({
           </div>
         </Card>
       </div>
+      )}
     </aside>
   );
 }

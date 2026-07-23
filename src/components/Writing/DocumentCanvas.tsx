@@ -46,7 +46,9 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
 
   const containerClasses = cn(
     "w-full h-full relative transition-all duration-500 bg-muted/10",
-    viewMode === 'horizontal-single' ? "overflow-x-auto overflow-y-hidden" : "overflow-y-auto overflow-x-hidden"
+    viewMode === 'vertical-continuous' && "overflow-y-auto overflow-x-hidden",
+    viewMode === 'vertical-single' && "overflow-hidden",
+    viewMode === 'horizontal-single' && "overflow-x-auto overflow-y-hidden"
   );
 
   const canvasClasses = cn(
