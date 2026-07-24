@@ -59,6 +59,15 @@ const INQUIRY_FILTER_LABELS: Record<FilterType, string> = {
   annotations: 'From Annotations',
 };
 
+const PRIMARY_INQUIRY_FILTERS: FilterType[] = [
+  'all',
+  'active',
+  'needs_frame',
+  'awaiting_evidence',
+  'ready_to_resolve',
+  'annotations',
+];
+
 const RESOLUTION_OPTIONS: Array<{ status: Question['status']; label: string; description: string }> = [
   { status: 'provisionally_answered', label: 'Provisionally Answered', description: 'The answer is useful, but still open to revision.' },
   { status: 'suspended', label: 'Suspend', description: 'Not enough evidence or attention to proceed right now.' },
@@ -288,7 +297,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
             <SelectValue placeholder="Inquiry View" />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(INQUIRY_FILTER_LABELS) as FilterType[]).map((value) => (
+            {PRIMARY_INQUIRY_FILTERS.map((value) => (
               <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{INQUIRY_FILTER_LABELS[value]}</SelectItem>
             ))}
           </SelectContent>

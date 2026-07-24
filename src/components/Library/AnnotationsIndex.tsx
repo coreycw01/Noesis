@@ -290,6 +290,13 @@ export function AnnotationsIndex({
     });
     return Array.from(tags).sort();
   }, [annotations]);
+  const visibleSourceFilters = useMemo(() => {
+    const selected = filterSource !== 'all' ? media.find((source) => source.id === filterSource) : null;
+    return Array.from(new Map([...(selected ? [selected] : []), ...media.slice(0, 5)].map((source) => [source.id, source])).values());
+  }, [filterSource, media]);
+  const visibleConceptFilters = useMemo(() => {
+    return Array.from(new Set([...(filterConcept !== 'all' ? [filterConcept] : []), ...allConcepts.slice(0, 5)]));
+  }, [allConcepts, filterConcept]);
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -754,14 +761,14 @@ export function AnnotationsIndex({
             <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Filter by Source" /></SelectTrigger>
             <SelectContent className="max-h-80">
               <SelectItem value="all" className="font-code text-[10px] uppercase">All Sources</SelectItem>
-              {media.map((source) => <SelectItem key={source.id} value={source.id} className="font-code text-[10px] uppercase">{source.title}</SelectItem>)}
+              {visibleSourceFilters.map((source) => <SelectItem key={source.id} value={source.id} className="font-code text-[10px] uppercase">{source.title}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterConcept} onValueChange={setFilterConcept}>
             <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Filter by Concept" /></SelectTrigger>
             <SelectContent className="max-h-80">
               <SelectItem value="all" className="font-code text-[10px] uppercase">All Concepts</SelectItem>
-              {allConcepts.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
+              {visibleConceptFilters.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
             </SelectContent>
           </Select>
       </FilterToolbar>

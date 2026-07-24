@@ -37,16 +37,16 @@ interface PracticesWorkspaceProps {
 }
 
 const practiceTypes: PracticeType[] = ['experiment', 'habit', 'commitment', 'observation', 'dialogue', 'reflection', 'restraint', 'exposure', 'decision_rule', 'ritual', 'challenge', 'discipline', 'reflection_prompt', 'rule'];
+const primaryPracticeTypeFilters: PracticeType[] = ['experiment', 'habit', 'commitment', 'observation', 'reflection', 'challenge'];
 const statuses: PracticeStatus[] = ['proposed', 'designed', 'planned', 'active', 'completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'paused', 'abandoned'];
+const primaryPracticeStatusFilters: PracticeStatus[] = ['planned', 'active', 'completed', 'paused', 'abandoned'];
 type PracticeViewFilter = 'all' | 'awaiting_log' | 'needs_basis' | 'needs_design' | 'needs_outcome' | 'needs_consequence' | 'testing_positions' | 'recently_concluded';
 
 const practiceViewFilters: Array<{ value: PracticeViewFilter; label: string }> = [
   { value: 'all', label: 'All Practices' },
   { value: 'awaiting_log', label: 'Awaiting Log' },
-  { value: 'needs_basis', label: 'Needs Basis' },
   { value: 'needs_design', label: 'Needs Design' },
   { value: 'needs_outcome', label: 'Needs Outcome' },
-  { value: 'needs_consequence', label: 'Needs Consequence' },
   { value: 'testing_positions', label: 'Testing Positions' },
   { value: 'recently_concluded', label: 'Recently Concluded' },
 ];
@@ -292,14 +292,14 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
           <SelectTrigger className="w-48 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Statuses" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="font-code text-[9px] uppercase">All Statuses</SelectItem>
-            {statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[9px] uppercase">{status}</SelectItem>)}
+            {primaryPracticeStatusFilters.map((status) => <SelectItem key={status} value={status} className="font-code text-[9px] uppercase">{status}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as PracticeType | 'all')}>
           <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Types" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="font-code text-[9px] uppercase">All Practice Types</SelectItem>
-            {practiceTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{PRACTICE_LABELS[type]}</SelectItem>)}
+            {primaryPracticeTypeFilters.map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{PRACTICE_LABELS[type]}</SelectItem>)}
           </SelectContent>
         </Select>
       </FilterToolbar>

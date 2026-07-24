@@ -91,15 +91,10 @@ type WorkTab = (typeof workTabs)[number];
 const workViewFilters: Array<{ id: WorkFilter; label: string }> = [
   { id: 'all', label: 'All Works' },
   { id: 'drafting', label: 'Drafting' },
-  { id: 'complete', label: 'Complete' },
-  { id: 'published', label: 'Published' },
-  { id: 'final', label: 'Final' },
-  { id: 'active_inquiries', label: 'Active Inquiries' },
   { id: 'awaiting_revision', label: 'Awaiting Revision' },
   { id: 'needs_sources', label: 'Needs Sources' },
   { id: 'needs_positions', label: 'Needs Positions' },
   { id: 'unresolved', label: 'Unresolved' },
-  { id: 'external_docs', label: 'External Docs' },
 ];
 
 const workPurposes: Array<{ id: WorkPurpose; label: string; description: string }> = [

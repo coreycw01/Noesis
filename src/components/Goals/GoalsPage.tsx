@@ -575,15 +575,13 @@ export function GoalsPage({ goal, goalProgress, onSaveGoal }: GoalsPageProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">All goals</SelectItem>
                     <SelectItem value="planned">Planned</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="stalled">Stalled</SelectItem>
                     <SelectItem value="under_review">Under Review</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="abandoned">Abandoned</SelectItem>
-                    <SelectItem value="transformed">Transformed</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                    <SelectItem value="all">All goals</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

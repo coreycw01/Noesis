@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import type { Draft, Media, MediaStatus, MediaType, Practice, Question, VaultEntry } from '@/lib/types';
-import { MEDIA_LABELS, MEDIA_TYPES, conceptKey } from '@/lib/readex';
+import { MEDIA_LABELS, conceptKey } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
@@ -32,6 +32,28 @@ type AnnotationFilter = 'all' | 'with' | 'without';
 type CatalogFilter = 'all' | 'missing_metadata' | 'no_annotations' | 'high_influence' | 'unfinished' | 'ready_to_cite';
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
+const PRIMARY_SOURCE_TYPE_FILTERS: MediaType[] = ['book', 'article', 'paper', 'video', 'podcast'];
+const PRIMARY_SOURCE_INDEX_VIEWS: SourceIndexView[] = ['table', 'covers', 'timeline', 'influence', 'unfinished', 'recent'];
+const PRIMARY_SOURCE_SORTS: SortOption[] = ['date_desc', 'title_asc', 'creator_asc', 'connected_desc', 'influence_desc', 'health_asc'];
+const SOURCE_INDEX_VIEW_LABELS: Record<SourceIndexView, string> = {
+  table: 'Table',
+  covers: 'Covers',
+  timeline: 'Timeline',
+  influence: 'Influence',
+  domains: 'Domains',
+  unfinished: 'Unfinished',
+  recent: 'Recently Added',
+};
+const SOURCE_SORT_LABELS: Record<SortOption, string> = {
+  date_desc: 'Newest',
+  date_asc: 'Oldest',
+  title_asc: 'Title A-Z',
+  creator_asc: 'Author A-Z',
+  connected_desc: 'Most Connected',
+  influence_desc: 'Highest Influence',
+  health_asc: 'Catalog Health',
+  manual: 'Column Sort',
+};
 const HIGH_INFLUENCE_SCORE = 10;
 
 function sourceMetadataGaps(m: Media) {
@@ -160,6 +182,9 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
     media.forEach(m => (m.tags || []).forEach(tag => tags.add(conceptKey(tag))));
     return Array.from(tags).sort();
   }, [media]);
+  const visibleConceptFilters = useMemo(() => {
+    return Array.from(new Set([...(filterConcept !== 'all' ? [filterConcept] : []), ...allConcepts.slice(0, 5)]));
+  }, [allConcepts, filterConcept]);
 
   const sourceRows = useMemo(() => {
     const scoreSourceInfluence = (m: Media) => {
@@ -392,7 +417,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             <SelectTrigger className="w-36 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Type" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all" className="font-code text-[10px] uppercase">Type: All</SelectItem>
-              {MEDIA_TYPES.map(t => <SelectItem key={t} value={t} className="font-code text-[10px] uppercase">{MEDIA_LABELS[t]}</SelectItem>)}
+              {PRIMARY_SOURCE_TYPE_FILTERS.map(t => <SelectItem key={t} value={t} className="font-code text-[10px] uppercase">{MEDIA_LABELS[t]}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as MediaStatus | 'all')}>
@@ -406,7 +431,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Concept" /></SelectTrigger>
             <SelectContent className="max-h-80">
               <SelectItem value="all" className="font-code text-[10px] uppercase">Concept: All</SelectItem>
-              {allConcepts.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
+              {visibleConceptFilters.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterAnnotations} onValueChange={(v) => setFilterAnnotations(v as AnnotationFilter)}>
@@ -431,26 +456,17 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           <Select value={view} onValueChange={(v) => setView(v as SourceIndexView)}>
             <SelectTrigger className="w-36 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="View" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="table" className="font-code text-[10px] uppercase">Table</SelectItem>
-              <SelectItem value="covers" className="font-code text-[10px] uppercase">Covers</SelectItem>
-              <SelectItem value="timeline" className="font-code text-[10px] uppercase">Timeline</SelectItem>
-              <SelectItem value="influence" className="font-code text-[10px] uppercase">Influence</SelectItem>
-              <SelectItem value="domains" className="font-code text-[10px] uppercase">Domains</SelectItem>
-              <SelectItem value="unfinished" className="font-code text-[10px] uppercase">Unfinished</SelectItem>
-              <SelectItem value="recent" className="font-code text-[10px] uppercase">Recently Added</SelectItem>
+              {PRIMARY_SOURCE_INDEX_VIEWS.map((value) => (
+                <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{SOURCE_INDEX_VIEW_LABELS[value]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
             <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Sort" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="date_desc" className="font-code text-[10px] uppercase">Date Added: Newest</SelectItem>
-              <SelectItem value="date_asc" className="font-code text-[10px] uppercase">Date Added: Oldest</SelectItem>
-              <SelectItem value="title_asc" className="font-code text-[10px] uppercase">Title: A-Z</SelectItem>
-              <SelectItem value="creator_asc" className="font-code text-[10px] uppercase">Author: A-Z</SelectItem>
-              <SelectItem value="connected_desc" className="font-code text-[10px] uppercase">Most Connected</SelectItem>
-              <SelectItem value="influence_desc" className="font-code text-[10px] uppercase">Highest Influence</SelectItem>
-              <SelectItem value="health_asc" className="font-code text-[10px] uppercase">Catalog Health</SelectItem>
-              <SelectItem value="manual" disabled className="font-code text-[10px] uppercase">Column Sort</SelectItem>
+              {PRIMARY_SOURCE_SORTS.map((value) => (
+                <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{SOURCE_SORT_LABELS[value]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
       </FilterToolbar>

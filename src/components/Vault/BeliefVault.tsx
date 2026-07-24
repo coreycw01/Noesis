@@ -164,6 +164,15 @@ const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
   recently_changed: 'Recently Changed',
 };
 
+const PRIMARY_POSITION_VIEW_FILTERS: PositionViewFilter[] = [
+  'all',
+  'current',
+  'needs_evidence',
+  'needs_opposition',
+  'needs_practice',
+  'under_review',
+];
+
 function safePosition(entry: VaultEntry): VaultEntry {
   const title = entry.title || entry.statement || entry.description || 'Untitled Position';
   return {
@@ -1619,7 +1628,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             <SelectValue placeholder="Position View" />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(POSITION_VIEW_LABELS) as PositionViewFilter[]).map((value) => (
+            {PRIMARY_POSITION_VIEW_FILTERS.map((value) => (
               <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{POSITION_VIEW_LABELS[value]}</SelectItem>
             ))}
           </SelectContent>
@@ -1634,7 +1643,6 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             {vaultTypes.map((type) => (
               <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{TYPE_LABELS[type]}</SelectItem>
             ))}
-            <SelectItem value="ideas" className="font-code text-[10px] uppercase">Ideas</SelectItem>
           </SelectContent>
         </Select>
 
