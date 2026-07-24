@@ -2,6 +2,14 @@
 
 import type { Annotation, Media } from '@/lib/types';
 
+export interface AiMemoryContext {
+  scope: 'current_object' | 'linked_objects' | 'whole_workspace';
+  itemMemory?: string[];
+  linkedMemory?: string[];
+  workspaceMemory?: string[];
+  instruction?: string;
+}
+
 export interface DistillInsightsPayload {
   mediaTitle: string;
   mediaCreator?: string;
@@ -26,6 +34,7 @@ export interface SuggestAnnotationConsequencesPayload {
   existingConcepts?: string[];
   existingInquiries?: string[];
   existingPositions?: string[];
+  memoryContext?: AiMemoryContext;
 }
 
 export interface SuggestAnnotationConsequencesResult {
@@ -44,6 +53,7 @@ export interface DetectMissingPerspectivesPayload {
   sourceTitles?: string[];
   conceptTags?: string[];
   existingPerspectiveCoverage?: string[];
+  memoryContext?: AiMemoryContext;
 }
 
 export interface DetectMissingPerspectivesResult {
@@ -62,6 +72,7 @@ export interface DetectMissingQuestionsPayload {
   unknowns: string[];
   inquiries: string[];
   contradictions: string[];
+  memoryContext?: AiMemoryContext;
 }
 
 export interface DetectMissingQuestionsResult {
@@ -77,6 +88,7 @@ export interface GenerateStressTestPayload {
   targetType: string;
   title: string;
   content: string;
+  memoryContext?: AiMemoryContext;
 }
 
 export interface GenerateStressTestResult {
@@ -151,6 +163,7 @@ export interface SuggestConceptDescriptionPayload {
   linkedSources?: Array<{ title: string; creator?: string; description?: string; notes?: string }>;
   linkedIdeas?: Array<{ title: string; body: string }>;
   linkedBeliefs?: Array<{ title: string; description?: string; statement: string }>;
+  memoryContext?: AiMemoryContext;
 }
 
 export interface GenerateClarityCheckPayload {
@@ -159,6 +172,7 @@ export interface GenerateClarityCheckPayload {
   positionStatements: string[];
   annotationTexts: string[];
   relatedConcepts: string[];
+  memoryContext?: AiMemoryContext;
 }
 
 export interface ClarityCheckOption {
@@ -182,6 +196,7 @@ export interface SuggestPositionDraftsPayload {
   conceptName?: string;
   annotations: string[];
   sourceTitles?: string[];
+  memoryContext?: AiMemoryContext;
 }
 
 export interface SuggestPositionDraftsResult {

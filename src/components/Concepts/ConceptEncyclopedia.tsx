@@ -377,7 +377,20 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         currentDescription: draftConcept.description,
         linkedSources: related.sources.map(s => ({ title: s.title, creator: s.creator, description: s.description })),
         linkedIdeas: related.ideas.map(i => ({ title: i.title, body: i.body })),
-        linkedBeliefs: related.beliefs.map(b => ({ title: b.title, statement: b.statement, description: b.description }))
+        linkedBeliefs: related.beliefs.map(b => ({ title: b.title, statement: b.statement, description: b.description })),
+        memoryContext: {
+          scope: 'linked_objects',
+          instruction: 'Define this concept from the current concept record and linked evidence. Do not use unrelated workspace material.',
+          itemMemory: [
+            `Concept: ${draftConcept.name}`,
+            draftConcept.description ? `Current definition: ${draftConcept.description}` : 'No current definition.',
+          ],
+          linkedMemory: [
+            ...related.sources.slice(0, 6).map((source) => `Source ${source.title}: ${source.description || source.capture?.after?.coreArgument || 'No summary.'}`),
+            ...related.annotations.slice(0, 8).map((annotation) => `Annotation: ${annotation.text}`),
+            ...related.beliefs.slice(0, 6).map((position) => `Position ${position.title}: ${position.statement || position.description || 'No statement.'}`),
+          ],
+        },
       });
       setDraftConcept(prev => ({ ...prev, description: suggestedDescription }));
       toast({ title: "AI description ready.", description: "Noesis drafted a concept definition from your linked evidence." });
@@ -484,6 +497,19 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         positionStatements: selectedRelated.beliefs.slice(0, 4).map(b => b.statement || b.title),
         annotationTexts: selectedRelated.annotations.slice(0, 5).map(a => a.text).filter((t): t is string => !!t),
         relatedConcepts: diagnosis.areasToReview,
+        memoryContext: {
+          scope: 'current_object',
+          instruction: 'Generate questions only about this selected concept and its closest linked evidence.',
+          itemMemory: [
+            `Concept: ${selectedName}`,
+            concept?.description ? `Current definition: ${concept.description}` : 'No current definition.',
+            `Diagnosis: clarity ${diagnosis.clarity}, tension ${diagnosis.tension}, embodiment ${diagnosis.embodiment}.`,
+          ],
+          linkedMemory: [
+            ...selectedRelated.annotations.slice(0, 5).map((annotation) => `Annotation: ${annotation.text}`),
+            ...selectedRelated.beliefs.slice(0, 4).map((position) => `Position: ${position.statement || position.title}`),
+          ],
+        },
       });
       setClarityCheckQuestions(result.questions);
       toast({ title: 'Clarity questions generated.', description: 'AI prepared a concept check based on your notes.' });
@@ -518,6 +544,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         conceptName: selectedName,
         annotations: annotationTexts.slice(0, 16),
         sourceTitles: selectedRelated.sources.map((source) => source.title).slice(0, 8),
+        memoryContext: {
+          scope: 'linked_objects',
+          instruction: 'Draft positions only from this concept, its annotations, and linked sources. Keep them provisional and editable.',
+          itemMemory: [`Concept: ${selectedName}`],
+          linkedMemory: [
+            ...selectedRelated.sources.slice(0, 8).map((source) => `Source ${source.title}: ${source.description || source.capture?.after?.coreArgument || 'No summary.'}`),
+            ...selectedRelated.beliefs.slice(0, 6).map((position) => `Existing position ${position.title}: ${position.statement || position.description || 'No statement.'}`),
+          ],
+        },
       });
       setPositionDrafts(result.drafts);
       toast({ title: 'Position drafts ready.', description: 'Review the AI drafts and save only the claims you want to own.' });

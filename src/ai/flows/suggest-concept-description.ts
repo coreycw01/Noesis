@@ -11,6 +11,14 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const AiMemoryContextSchema = z.object({
+  scope: z.enum(['current_object', 'linked_objects', 'whole_workspace']),
+  itemMemory: z.array(z.string()).optional(),
+  linkedMemory: z.array(z.string()).optional(),
+  workspaceMemory: z.array(z.string()).optional(),
+  instruction: z.string().optional(),
+}).optional();
+
 const SuggestConceptDescriptionInputSchema = z.object({
   conceptName: z.string().describe('The name of the concept.'),
   currentDescription: z.string().optional().describe('The current description of the concept, if any.'),
@@ -35,6 +43,7 @@ const SuggestConceptDescriptionInputSchema = z.object({
       statement: z.string().describe('The core statement of the belief.'),
     })
   ).optional().describe('A list of beliefs linked to the concept.'),
+  memoryContext: AiMemoryContextSchema,
 });
 export type SuggestConceptDescriptionInput = z.infer<typeof SuggestConceptDescriptionInputSchema>;
 
@@ -57,6 +66,30 @@ Please refine this description or use it as a starting point.
 {{/if}}
 
 Consider the following related information:
+{{#if memoryContext}}
+
+--- Memory Strategy ---
+Scope: {{memoryContext.scope}}
+{{#if memoryContext.instruction}}Instruction: {{{memoryContext.instruction}}}{{/if}}
+{{#if memoryContext.itemMemory}}
+Item memory:
+{{#each memoryContext.itemMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.linkedMemory}}
+Linked memory:
+{{#each memoryContext.linkedMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.workspaceMemory}}
+Workspace memory:
+{{#each memoryContext.workspaceMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{/if}}
 
 {{#if linkedSources}}
 --- Linked Sources ---

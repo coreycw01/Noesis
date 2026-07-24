@@ -5,6 +5,14 @@ import {z} from 'genkit';
 
 const LinkTypeSchema = z.enum(['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'depends_on', 'explains', 'explained_by', 'derived_from', 'references', 'replaces', 'questions', 'expands', 'weakens', 'strengthens']);
 
+const AiMemoryContextSchema = z.object({
+  scope: z.enum(['current_object', 'linked_objects', 'whole_workspace']),
+  itemMemory: z.array(z.string()).optional(),
+  linkedMemory: z.array(z.string()).optional(),
+  workspaceMemory: z.array(z.string()).optional(),
+  instruction: z.string().optional(),
+}).optional();
+
 const SuggestAnnotationConsequencesInputSchema = z.object({
   annotationText: z.string(),
   annotationType: z.string().optional(),
@@ -12,6 +20,7 @@ const SuggestAnnotationConsequencesInputSchema = z.object({
   existingConcepts: z.array(z.string()).optional(),
   existingInquiries: z.array(z.string()).optional(),
   existingPositions: z.array(z.string()).optional(),
+  memoryContext: AiMemoryContextSchema,
 });
 
 const SuggestAnnotationConsequencesOutputSchema = z.object({
@@ -39,6 +48,29 @@ Source: {{sourceTitle}}
 Existing concepts: {{existingConcepts}}
 Existing inquiries: {{existingInquiries}}
 Existing positions: {{existingPositions}}
+{{#if memoryContext}}
+
+Memory scope: {{memoryContext.scope}}
+{{#if memoryContext.instruction}}Memory instruction: {{{memoryContext.instruction}}}{{/if}}
+{{#if memoryContext.itemMemory}}
+Item memory:
+{{#each memoryContext.itemMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.linkedMemory}}
+Linked memory:
+{{#each memoryContext.linkedMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.workspaceMemory}}
+Workspace memory:
+{{#each memoryContext.workspaceMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{/if}}
 
 Return concise suggestions. Use "challenges" only when the note clearly creates pressure against a position.`,
 });
@@ -56,6 +88,7 @@ const SuggestPositionDraftsInputSchema = z.object({
   conceptName: z.string().optional(),
   annotations: z.array(z.string()),
   sourceTitles: z.array(z.string()).optional(),
+  memoryContext: AiMemoryContextSchema,
 });
 
 const SuggestPositionDraftsOutputSchema = z.object({
@@ -79,6 +112,22 @@ const suggestPositionDraftsPrompt = ai.definePrompt({
 
 Concept: {{conceptName}}
 Sources: {{sourceTitles}}
+{{#if memoryContext}}
+Memory scope: {{memoryContext.scope}}
+{{#if memoryContext.instruction}}Memory instruction: {{{memoryContext.instruction}}}{{/if}}
+{{#if memoryContext.itemMemory}}
+Item memory:
+{{#each memoryContext.itemMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.linkedMemory}}
+Linked memory:
+{{#each memoryContext.linkedMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{/if}}
 Annotations:
 {{#each annotations}}
 - {{{this}}}
@@ -382,6 +431,7 @@ const GenerateClarityCheckInputSchema = z.object({
   positionStatements: z.array(z.string()).max(4),
   annotationTexts: z.array(z.string()).max(5),
   relatedConcepts: z.array(z.string()).max(6),
+  memoryContext: AiMemoryContextSchema,
 });
 
 const ClarityCheckOptionSchema = z.object({
@@ -428,6 +478,23 @@ Key annotations:
 {{/each}}
 
 Related concepts: {{relatedConcepts}}
+{{#if memoryContext}}
+
+Memory scope: {{memoryContext.scope}}
+{{#if memoryContext.instruction}}Memory instruction: {{{memoryContext.instruction}}}{{/if}}
+{{#if memoryContext.itemMemory}}
+Item memory:
+{{#each memoryContext.itemMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.linkedMemory}}
+Linked memory:
+{{#each memoryContext.linkedMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{/if}}
 
 Generate 3-5 questions. Each tests ONE dimension:
 - definition: what this concept means
@@ -504,6 +571,7 @@ const DetectMissingPerspectivesInputSchema = z.object({
   sourceTitles: z.array(z.string()).optional(),
   conceptTags: z.array(z.string()).optional(),
   existingPerspectiveCoverage: z.array(z.string()).optional(),
+  memoryContext: AiMemoryContextSchema,
 });
 
 const DetectMissingPerspectivesOutputSchema = z.object({
@@ -532,6 +600,29 @@ Content: {{{content}}}
 Sources: {{sourceTitles}}
 Concepts: {{conceptTags}}
 Already covered: {{existingPerspectiveCoverage}}
+{{#if memoryContext}}
+
+Memory scope: {{memoryContext.scope}}
+{{#if memoryContext.instruction}}Memory instruction: {{{memoryContext.instruction}}}{{/if}}
+{{#if memoryContext.itemMemory}}
+Item memory:
+{{#each memoryContext.itemMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.linkedMemory}}
+Linked memory:
+{{#each memoryContext.linkedMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.workspaceMemory}}
+Workspace memory:
+{{#each memoryContext.workspaceMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{/if}}
 
 Rules:
 - Do not spray generic ideology lists
@@ -556,6 +647,7 @@ const DetectMissingQuestionsInputSchema = z.object({
   unknowns: z.array(z.string()),
   inquiries: z.array(z.string()),
   contradictions: z.array(z.string()),
+  memoryContext: AiMemoryContextSchema,
 });
 
 const DetectMissingQuestionsOutputSchema = z.object({
@@ -582,6 +674,29 @@ Positions: {{positions}}
 Unknowns: {{unknowns}}
 Open inquiries: {{inquiries}}
 Contradictions/tensions: {{contradictions}}
+{{#if memoryContext}}
+
+Memory scope: {{memoryContext.scope}}
+{{#if memoryContext.instruction}}Memory instruction: {{{memoryContext.instruction}}}{{/if}}
+{{#if memoryContext.itemMemory}}
+Item memory:
+{{#each memoryContext.itemMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.linkedMemory}}
+Linked memory:
+{{#each memoryContext.linkedMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.workspaceMemory}}
+Workspace memory:
+{{#each memoryContext.workspaceMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{/if}}
 
 Return only high-value missing questions. Each suggestion must include reasoning and evidence from the existing map. Avoid generic philosophy trivia.`,
 });
@@ -599,6 +714,7 @@ const GenerateStressTestInputSchema = z.object({
   targetType: z.string(),
   title: z.string(),
   content: z.string(),
+  memoryContext: AiMemoryContextSchema,
 });
 
 const GenerateStressTestOutputSchema = z.object({
@@ -621,6 +737,23 @@ const generateStressTestPrompt = ai.definePrompt({
 Type: {{targetType}}
 Title: {{{title}}}
 Content: {{{content}}}
+{{#if memoryContext}}
+
+Memory scope: {{memoryContext.scope}}
+{{#if memoryContext.instruction}}Memory instruction: {{{memoryContext.instruction}}}{{/if}}
+{{#if memoryContext.itemMemory}}
+Item memory:
+{{#each memoryContext.itemMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{#if memoryContext.linkedMemory}}
+Linked memory:
+{{#each memoryContext.linkedMemory}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+{{/if}}
 
 Write exactly six prompts, one for each kind:
 - change_mind

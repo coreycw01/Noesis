@@ -808,6 +808,26 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     };
 
     const createMissingPerspective = async () => {
+      const positionMemory = {
+        scope: 'linked_objects' as const,
+        instruction: 'Use the selected position first. Use linked objects only to identify grounded missing perspectives. Do not use generic perspective lists.',
+        itemMemory: [
+          `Position title: ${selected.title}`,
+          `Statement: ${selected.statement || 'No statement.'}`,
+          selected.description ? `Scope: ${selected.description}` : '',
+          `Status: ${selected.status}`,
+          `Confidence: ${selected.confidence}/5`,
+          selected.confidenceReasoning ? `Confidence reasoning: ${selected.confidenceReasoning}` : '',
+          (selected.assumptions || []).length ? `Assumptions: ${(selected.assumptions || []).join('; ')}` : '',
+        ].filter(Boolean),
+        linkedMemory: [
+          ...linkedSources.slice(0, 6).map((source) => `Source ${source.title}: ${source.description || source.capture?.after?.coreArgument || 'No summary.'}`),
+          ...linkedQuestions.slice(0, 5).map((question) => `Inquiry ${question.text}: ${question.answer || question.status || 'open'}`),
+          ...linkedPractices.slice(0, 5).map((practice) => `Practice ${practice.title}: ${practice.description || practice.notes || practice.status}`),
+          ...linkedDrafts.slice(0, 4).map((draft) => `Work ${draft.title}: ${draft.body || draft.status}`),
+          ...tensionLinks.slice(0, 5).map((link) => `Tension link ${link.type}: ${link.note || `${link.fromLabel || link.fromId} -> ${link.toLabel || link.toId}`}`),
+        ],
+      };
       try {
         const result = await aiClient.detectMissingPerspectives({
           targetType: 'position',
@@ -816,6 +836,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           sourceTitles: linkedSources.map((item) => item.title),
           conceptTags: selected.tags || [],
           existingPerspectiveCoverage: typedLinks.map((item) => item.type),
+          memoryContext: positionMemory,
         });
         result.suggestions.forEach((suggestion) => onCreateSuggestion({
           targetType: 'position',
@@ -835,6 +856,13 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     };
 
     const createMissingQuestions = async () => {
+      const workspaceMemory = [
+        `${safeEntries.length} total positions`,
+        `${questions.length} total inquiries`,
+        `${media.length} total sources`,
+        `${unknowns.length} total unknowns`,
+        `${links.length} typed links`,
+      ];
       try {
         const result = await aiClient.detectMissingQuestions({
           concepts: selected.tags || [],
@@ -842,6 +870,21 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           unknowns: linkedUnknowns.map((item) => item.title),
           inquiries: questions.filter((item) => (item.beliefIds || []).includes(selected.id)).map((item) => item.text),
           contradictions: tensionLinks.map((item) => item.note || `${item.fromLabel || item.fromId} ${item.type} ${item.toLabel || item.toId}`),
+          memoryContext: {
+            scope: 'whole_workspace',
+            instruction: 'Use the selected position first, then compare it to the wider workspace summary to find missing high-value questions. Do not ask generic philosophy questions.',
+            itemMemory: [
+              `Position: ${selected.title}`,
+              `Statement: ${selected.statement || selected.description || 'No statement.'}`,
+              `Concepts: ${(selected.tags || []).join(', ') || 'none'}`,
+            ],
+            linkedMemory: [
+              ...linkedSources.slice(0, 5).map((source) => `Linked source ${source.title}: ${source.description || source.capture?.after?.coreArgument || 'No summary.'}`),
+              ...linkedQuestions.slice(0, 5).map((question) => `Linked inquiry ${question.text}: ${question.answer || question.status || 'open'}`),
+              ...linkedUnknowns.slice(0, 5).map((unknown) => `Linked unknown ${unknown.title}: ${unknown.status}`),
+            ],
+            workspaceMemory,
+          },
         });
         result.suggestions.forEach((suggestion) => onCreateSuggestion({
           targetType: 'position',
@@ -866,6 +909,24 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           targetType: 'position',
           title: selected.title,
           content: `${selected.statement}\n${selected.description || ''}`,
+          memoryContext: {
+            scope: 'linked_objects',
+            instruction: 'Stress-test this exact position. Use linked support, challenges, assumptions, sources, and practices. Do not drift into unrelated worldview analysis.',
+            itemMemory: [
+              `Position: ${selected.title}`,
+              `Statement: ${selected.statement || 'No statement.'}`,
+              selected.description ? `Scope: ${selected.description}` : '',
+              (selected.assumptions || []).length ? `Assumptions: ${(selected.assumptions || []).join('; ')}` : '',
+              selected.falsification ? `Existing falsification condition: ${selected.falsification}` : '',
+              (selected.evidenceFor || []).length ? `Evidence for: ${(selected.evidenceFor || []).join('; ')}` : '',
+              (selected.evidenceAgainst || []).length ? `Evidence against: ${(selected.evidenceAgainst || []).join('; ')}` : '',
+            ].filter(Boolean),
+            linkedMemory: [
+              ...linkedSources.slice(0, 5).map((source) => `Source ${source.title}: ${source.description || source.capture?.after?.coreArgument || 'No summary.'}`),
+              ...linkedPractices.slice(0, 5).map((practice) => `Practice ${practice.title}: ${practice.description || practice.status}`),
+              ...tensionLinks.slice(0, 5).map((link) => `Challenge link ${link.type}: ${link.note || `${link.fromLabel || link.fromId} -> ${link.toLabel || link.toId}`}`),
+            ],
+          },
         });
         setStressTests(result.prompts);
         result.prompts.forEach((prompt) => onCreateSuggestion({

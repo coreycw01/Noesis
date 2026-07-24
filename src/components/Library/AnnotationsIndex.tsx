@@ -499,13 +499,47 @@ export function AnnotationsIndex({
   const suggestConsequences = async (annotation: FlatAnnotation) => {
     setSuggestingId(annotation.id);
     try {
+      const tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags);
+      const tagKeys = new Set(tags.map(conceptKey));
+      const linkedConcepts = concepts
+        .filter((concept) => tagKeys.has(conceptKey(concept.name)))
+        .slice(0, 6);
+      const linkedPositions = positions
+        .filter((position) => (position.tags || []).some((tag) => tagKeys.has(conceptKey(tag))) || (annotation.linkedPositionIds || []).includes(position.id))
+        .slice(0, 6);
+      const linkedInquiries = inquiries
+        .filter((inquiry) => (inquiry.conceptIds || []).some((id) => linkedConcepts.some((concept) => concept.id === id)) || (annotation.createdInquiryId && inquiry.id === annotation.createdInquiryId))
+        .slice(0, 6);
       const suggestion = await aiClient.suggestAnnotationConsequences({
         annotationText: annotation.text,
         annotationType: annotation.type,
         sourceTitle: annotation.source.title,
-        existingConcepts: concepts.map((concept) => concept.name),
-        existingInquiries: inquiries.map((inquiry) => inquiry.text),
-        existingPositions: positions.map((position) => position.statement || position.title),
+        existingConcepts: linkedConcepts.map((concept) => concept.name),
+        existingInquiries: linkedInquiries.map((inquiry) => inquiry.text),
+        existingPositions: linkedPositions.map((position) => position.statement || position.title),
+        memoryContext: {
+          scope: 'linked_objects',
+          instruction: 'Use the annotation and its parent source first. Use linked concepts, positions, and inquiries only to choose the most relevant next move. Do not infer from unrelated workspace material.',
+          itemMemory: [
+            `Annotation text: ${annotation.text}`,
+            `Annotation type: ${annotation.type}`,
+            annotation.context ? `Annotation context: ${annotation.context}` : '',
+            annotation.answer ? `User interpretation or answer: ${annotation.answer}` : '',
+            `Parent source: ${annotation.source.title}${annotation.source.creator ? ` by ${annotation.source.creator}` : ''}`,
+            annotation.source.description ? `Source summary: ${annotation.source.description}` : '',
+            annotation.source.capture?.after?.coreArgument ? `Source core argument: ${annotation.source.capture.after.coreArgument}` : '',
+          ].filter(Boolean),
+          linkedMemory: [
+            ...linkedConcepts.map((concept) => `Concept ${concept.name}: ${concept.description || 'No definition yet.'}`),
+            ...linkedPositions.map((position) => `Position ${position.title}: ${position.statement || position.description || 'No statement yet.'}`),
+            ...linkedInquiries.map((inquiry) => `Inquiry ${inquiry.text}: ${inquiry.answer || inquiry.status || 'open'}`),
+          ],
+          workspaceMemory: [
+            `${concepts.length} total concepts`,
+            `${positions.length} total positions`,
+            `${inquiries.length} total inquiries`,
+          ],
+        },
       });
       onCreateSuggestion({
         targetType: 'annotation',
