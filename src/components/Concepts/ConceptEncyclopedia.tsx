@@ -154,7 +154,7 @@ function conceptRepairFlags({
     flags.push({ id: 'define', label: 'Define', detail: 'Write a provisional working definition before this concept carries more weight.', tone: 'urgent' });
   }
   if (!(concept?.notSameAs || []).length || !(concept?.counterexamples || []).length) {
-    flags.push({ id: 'boundaries', label: 'Boundary', detail: 'Add distinctions or counterexamples so neighboring ideas do not collapse together.', tone: 'review' });
+    flags.push({ id: 'boundaries', label: 'Boundary', detail: 'Add distinctions or counterexamples so neighboring concepts do not collapse together.', tone: 'review' });
   }
   if (!(concept?.examples || []).length) {
     flags.push({ id: 'examples', label: 'Examples', detail: 'Add clear cases that belong inside the concept.', tone: 'growth' });
@@ -557,25 +557,25 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       .slice(0, 10);
     const usageRows = [
       { label: 'Annotations', value: r.annotations.length, note: 'raw language and captured meaning' },
-      { label: 'Inquiries', value: r.questions.length, note: 'questions that depend on this idea' },
+      { label: 'Inquiries', value: r.questions.length, note: 'questions that depend on this concept' },
       { label: 'Positions', value: r.beliefs.length, note: 'claims using this concept as judgment' },
-      { label: 'Works', value: r.drafts.length, note: 'places where the idea is expressed' },
-      { label: 'Practices', value: r.practices.length, note: 'lived tests connected to the idea' },
+      { label: 'Works', value: r.drafts.length, note: 'places where this concept is expressed' },
+      { label: 'Practices', value: r.practices.length, note: 'lived tests connected to this concept' },
     ];
     const boundarySignals = [
       concept?.description ? 'Current definition exists, but should be tested against edge cases.' : 'No stable definition yet.',
       r.beliefs.length > 1 ? 'Multiple positions use this concept, so scope may need tightening.' : 'Few formal claims depend on it yet.',
       diagnosis.tension === 'high' ? 'Related positions or inquiries suggest inconsistent usage.' : 'No strong inconsistency signal yet.',
-      r.practices.length ? 'At least one practice tests how the idea behaves in life.' : 'No lived boundary test is attached yet.',
+      r.practices.length ? 'At least one practice tests how this concept behaves in life.' : 'No lived boundary test is attached yet.',
     ];
     const boundaryCases = Array.from(new Set([
-      `A source uses ${selectedName} as a synonym for ${linkedConceptNames[0] || 'a neighboring idea'}.`,
+      `A source uses ${selectedName} as a synonym for ${linkedConceptNames[0] || 'a neighboring concept'}.`,
       `A position depends on ${selectedName}, but only as a feeling or intuition rather than a clear claim.`,
       r.practices.length
         ? `A practice tries to test ${selectedName} through behavior instead of argument.`
         : `Someone claims ${selectedName} matters, but no lived test or practice is attached.`,
       r.annotations.length
-        ? `An annotation uses ${selectedName} as a reaction to a passage rather than a defined idea.`
+        ? `An annotation uses ${selectedName} as a reaction to a passage rather than a defined concept.`
         : `A note mentions ${selectedName}, but gives no example, counterexample, or boundary.`,
       r.questions.length
         ? `An inquiry asks whether ${selectedName} changes when pressure, desire, or uncertainty enters.`
@@ -668,7 +668,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
     const conceptLanguageSections: Array<{ field: ConceptListField; title: string; prompt: string; placeholder: string }> = [
       { field: 'aliases', title: 'Aliases', prompt: 'Other words or phrases you use for this concept.', placeholder: 'Add alternate wording' },
-      { field: 'notSameAs', title: 'Not The Same As', prompt: 'Neighboring ideas this concept should not collapse into.', placeholder: 'Add distinction' },
+      { field: 'notSameAs', title: 'Not The Same As', prompt: 'Neighboring concepts this concept should not collapse into.', placeholder: 'Add distinction' },
       { field: 'examples', title: 'Examples', prompt: 'Cases that clearly belong inside the concept.', placeholder: 'Add example' },
       { field: 'counterexamples', title: 'Counterexamples', prompt: 'Cases that test or fall outside the boundary.', placeholder: 'Add counterexample' },
     ];
@@ -876,7 +876,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
                 <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Concept Anatomy</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Definition, boundary, usage, and dependency signals for this idea.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Definition, boundary, usage, and dependency signals for this concept.</p>
               </div>
               <Badge variant="outline" className="rounded-full">{diagnosis.level}</Badge>
             </div>
@@ -1731,7 +1731,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
                   <div className="font-code text-[8px] uppercase tracking-widest text-amber-700 font-bold">Duplicate Review</div>
                   <p className="mt-1 text-xs leading-5 text-amber-800">
-                    Compare with {possibleDuplicates.join(', ')} before merging or treating these as separate ideas.
+                    Compare with {possibleDuplicates.join(', ')} before merging or treating these as separate concepts.
                   </p>
                 </div>
               )}

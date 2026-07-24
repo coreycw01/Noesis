@@ -140,7 +140,7 @@ export const DEFAULT_GOAL_SETTINGS: GoalSettings = {
     },
     {
       id: 'works-2026',
-      title: 'Express mature ideas in works',
+      title: 'Express mature positions in works',
       typeId: 'work-expression',
       goalKind: 'expression',
       currentProgress: 0,
@@ -150,7 +150,7 @@ export const DEFAULT_GOAL_SETTINGS: GoalSettings = {
       purpose: 'Move developed thinking out of storage and into essays, notes, recordings, drawings, or external documents.',
       evidenceOfProgress: 'A work expresses linked positions, concepts, inquiries, or practices.',
       completionCriteria: 'Four works reach a reviewed state with linked evidence and a reflection.',
-      milestones: ['Choose the idea being expressed.', 'Build the outline or artifact structure.', 'Draft the complete work.', 'Review coherence and evidence.', 'Archive, revise, or finalize with a reflection.'],
+      milestones: ['Choose the position being expressed.', 'Build the outline or artifact structure.', 'Draft the complete work.', 'Review coherence and evidence.', 'Archive, revise, or finalize with a reflection.'],
       reviewCadence: 'monthly',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',

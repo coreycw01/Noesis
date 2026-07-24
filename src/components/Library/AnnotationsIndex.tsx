@@ -401,7 +401,7 @@ export function AnnotationsIndex({
       body: annotation.answer ? annotation.answer : annotation.text,
       question: annotation.type === 'question' ? annotation.text : `What does this imply: ${annotation.text}`,
       context,
-      whyItMatters: `This annotation from ${sourceLabel} may change how I understand the idea.${conceptPhrase}`,
+      whyItMatters: `This annotation from ${sourceLabel} may change how I understand the related concept or position.${conceptPhrase}`,
       currentIntuition: annotation.answer || annotation.context || annotation.text,
       description: `Formed from an annotation in ${sourceLabel}.\n\nAnnotation:\n${annotation.text}${annotation.context ? `\n\nContext:\n${annotation.context}` : ''}`,
       supportNote: annotation.type === 'objection' || annotation.consequenceKind === 'objection' ? '' : annotation.text,
@@ -871,7 +871,7 @@ export function AnnotationsIndex({
                     onUpdateAnnotation(source.id, { ...annotationData, context: value });
                   }
                 }}
-                placeholder="Add the surrounding idea only if this note needs it."
+                placeholder="Add the surrounding passage or context only if this note needs it."
                 className="mt-2 min-h-12 rounded-xl bg-card text-xs leading-5 md:min-h-16"
               />
             </div>
@@ -889,7 +889,7 @@ export function AnnotationsIndex({
                     ['supports_claim', 'Supports a position'],
                     ['challenges_claim', 'Challenges a position'],
                     ['raises_question', 'Raises a question'],
-                    ['clarifies', 'Clarifies an idea'],
+                    ['clarifies', 'Clarifies a concept'],
                     ['reference', 'Keep as reference'],
                   ] as Array<[ConsequenceAction, string]>).map(([action, label]) => (
                     <Button

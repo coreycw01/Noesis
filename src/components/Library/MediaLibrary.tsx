@@ -777,7 +777,7 @@ export function MediaLibrary({
                 <CaptureRow label="STRONGEST ARGUMENT" value={capture.after?.strongestArgument} placeholder="What was the strongest move this source made?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, strongestArgument: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="WEAKEST ARGUMENT" value={capture.after?.weakestArgument} placeholder="Where is the source thinnest, weakest, or least convincing?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, weakestArgument: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="MOST IMPORTANT CONCEPT" value={capture.after?.mostImportantConcept} placeholder="Which concept should change or become clearer because of this?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, mostImportantConcept: val }, sessions: capture.sessions || [] })} />
-                <CaptureRow label="WHAT HELD UP" value={capture.after?.heldUp} placeholder="Ideas that survived your skepticism" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, heldUp: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT HELD UP" value={capture.after?.heldUp} placeholder="Positions or claims that survived your skepticism" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, heldUp: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="WHAT DIDN'T" value={capture.after?.didntHold} placeholder="Where it was wrong or incomplete" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, didntHold: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="LASTING IDEA" value={capture.after?.lasting} placeholder="What is the one thing you'll take with you?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, lasting: val }, sessions: capture.sessions || [] })} />
                 <CaptureRow label="BELIEF CHANGE" value={capture.after?.beliefChange} placeholder="How has your perspective shifted?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, beliefChange: val }, sessions: capture.sessions || [] })} />
@@ -968,7 +968,7 @@ export function MediaLibrary({
                   { label: 'Most Important Concept', value: capture.after?.mostImportantConcept },
                   { label: 'What Held Up', value: capture.after?.heldUp },
                   { label: 'What Failed', value: capture.after?.didntHold },
-                  { label: 'Lasting Idea', value: capture.after?.lasting },
+                  { label: 'Lasting Position', value: capture.after?.lasting },
                   { label: 'Belief Change', value: capture.after?.beliefChange },
                   { label: 'What I Reject', value: capture.after?.whatIReject },
                   { label: 'Unanswered', value: capture.after?.remainsUnanswered },
@@ -1686,7 +1686,6 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
   const tabs = [
     { id: 'sources', label: 'SOURCES', count: related.sources.length },
     { id: 'notes', label: 'NOTES', count: related.annotations.length },
-    { id: 'ideas', label: 'IDEAS', count: (related.ideas || []).length },
     { id: 'questions', label: 'QUESTIONS', count: related.questions.length },
     { id: 'beliefs', label: 'BELIEFS', count: related.beliefs.length },
     { id: 'writing', label: 'WRITING', count: related.drafts.length },
@@ -1727,16 +1726,15 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
             {related.annotations.length === 0 && <p className="text-sm italic text-muted-foreground text-center py-12 font-body">No linked annotations discovered.</p>}
           </div>
         );
-      case 'ideas':
       case 'beliefs':
-        const items = activeTab === 'ideas' ? (related.ideas || []) : related.beliefs;
+        const items = related.beliefs;
         return (
           <div className="space-y-5">
             <h4 className="readex-kicker opacity-50 font-bold text-[10px]">{activeTab.toUpperCase()}</h4>
             {items.map((item, i) => (
               <Card key={i} className="p-6 bg-white border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
                 <h5 className="font-headline font-bold text-xl italic mb-3 text-primary leading-tight">{item.title}</h5>
-                <p className="font-body text-base text-muted-foreground leading-relaxed italic">{('description' in item ? item.description : item.body) || ''}</p>
+                <p className="font-body text-base text-muted-foreground leading-relaxed italic">{item.description || item.statement || ''}</p>
               </Card>
             ))}
             {items.length === 0 && <p className="text-sm italic text-muted-foreground text-center py-12 font-body">No linked items discovered.</p>}

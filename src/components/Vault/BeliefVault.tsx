@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, ChevronRight, Edit, LayoutGrid, Lightbulb, Loader2, Plus, ShieldCheck, Table2, Trash2, Triangle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ChevronRight, Edit, LayoutGrid, Loader2, Plus, ShieldCheck, Table2, Trash2, Triangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -239,6 +239,28 @@ type PositionDiagnostic = {
   flags: string[];
 };
 
+function positionFormation(entry: VaultEntry) {
+  const checks = [
+    { label: 'core claim', complete: Boolean((entry.statement || entry.title || '').trim()) },
+    { label: 'meaning and scope', complete: Boolean(entry.description?.trim()) },
+    { label: 'confidence reasoning', complete: Boolean(entry.confidenceReasoning?.trim()) },
+    { label: 'assumptions', complete: (entry.assumptions || []).some((item) => item.trim()) },
+    { label: 'falsification test', complete: Boolean(entry.falsification?.trim()) },
+    {
+      label: 'supporting evidence',
+      complete: (entry.evidenceFor || []).some((item) => item.trim()) || (entry.sourceIds || []).length > 0,
+    },
+    { label: 'serious challenge', complete: (entry.evidenceAgainst || []).some((item) => item.trim()) },
+  ];
+  const complete = checks.filter((item) => item.complete).length;
+  return {
+    complete,
+    total: checks.length,
+    fullyFormed: complete === checks.length,
+    missing: checks.filter((item) => !item.complete).map((item) => item.label),
+  };
+}
+
 function daysSince(value?: string) {
   const date = value ? new Date(value).getTime() : 0;
   if (!date || Number.isNaN(date)) return 999;
@@ -387,7 +409,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | VaultType | 'ideas'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | VaultType>('all');
   const [viewFilter, setViewFilter] = useState<PositionViewFilter>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'opposition' | 'relations' | 'history'>('overview');
@@ -396,7 +418,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const [deleteTarget, setDeleteTarget] = useState<VaultEntry | null>(null);
   const { toast } = useToast();
 
-  // Idea pipeline state
+  // Draft-position pipeline state
   const [ideaOpen, setIdeaOpen] = useState(false);
   const [ideaStep, setIdeaStep] = useState<1 | 2 | 3>(1);
   const [ideaDraft, setIdeaDraft] = useState({ title: '', body: '' });
@@ -423,7 +445,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       const result = await aiClient.generateIdeaQuestions({ ideaTitle: ideaDraft.title, ideaBody: ideaDraft.body });
       setIdeaQA(result.questions.map((q) => ({ ...q, answer: '' })));
       setIdeaStep(2);
-      toast({ title: 'Inquiries generated.', description: 'AI produced three clarifying questions for this idea.' });
+      toast({ title: 'Inquiries generated.', description: 'AI produced three clarifying questions for this draft position.' });
     } catch (error) {
       toast({ variant: 'destructive', title: 'AI Unavailable', description: noesisUserError(error, 'Could not generate questions. Try again.') });
     } finally {
@@ -445,7 +467,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       });
       setIdeaPosition(result);
       setIdeaStep(3);
-      toast({ title: 'Position draft ready.', description: 'AI formed a draft position from your idea and answers.' });
+      toast({ title: 'Position draft ready.', description: 'AI formed a draft position from your answers.' });
     } catch (error) {
       toast({ variant: 'destructive', title: 'AI Unavailable', description: noesisUserError(error, 'Could not form position. Try again.') });
     } finally {
@@ -482,9 +504,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     const diagnostic = positionDiagnostics.get(e.id) || diagnosePosition(e, links, practices);
     const typeOk = typeFilter === 'all'
       ? true
-      : typeFilter === 'ideas'
-        ? e.createdFrom === 'idea'
-        : e.type === typeFilter;
+      : e.type === typeFilter;
     const hasTension = links.some((link) =>
       ((link.fromType === 'position' && link.fromId === e.id) || (link.toType === 'position' && link.toId === e.id)) &&
       ['challenges', 'contradicts'].includes(link.type)
@@ -542,7 +562,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const activeFilterLabels = [
     search ? `Search: ${search}` : null,
     viewFilter !== 'all' ? `View: ${POSITION_VIEW_LABELS[viewFilter]}` : null,
-    typeFilter !== 'all' ? `Type: ${typeFilter === 'ideas' ? 'Ideas' : TYPE_LABELS[typeFilter as VaultType]}` : null,
+    typeFilter !== 'all' ? `Type: ${TYPE_LABELS[typeFilter as VaultType]}` : null,
     viewMode !== 'cards' ? `Layout: ${viewMode}` : null,
   ].filter(Boolean) as string[];
 
@@ -629,6 +649,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     const beliefProfile = beliefProfiles.find((item) => item.positionId === selected.id);
     const linkedUnknowns = unknowns.filter((item) => (item.positionIds || []).includes(selected.id));
     const positionSuggestions = suggestions.filter((item) => item.targetType === 'position' && item.targetId === selected.id);
+    const formation = positionFormation(selected);
     const firstLinkedSource = linkedSources[0];
     const strongestObjection = tensionLinks[0]?.note || selected.evidenceAgainst?.[0] || 'No direct objection has been articulated yet.';
     const strongestSupport = selected.evidenceFor?.[0] || linkedSources[0]?.title || 'No direct support has been recorded yet.';
@@ -754,7 +775,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           { label: 'Open Work Studio', view: 'writing', targetId: draft.id, targetType: 'work' },
           { label: 'Return to Position', view: 'vault', targetId: selected.id, targetType: 'position' },
         ],
-        thinkingEventHint: 'Previewing a work is orientation. Completing, substantially revising, or synthesizing linked ideas should create a thinking event.',
+        thinkingEventHint: 'Previewing a work is orientation. Completing, substantially revising, or synthesizing linked positions should create a thinking event.',
       });
     };
 
@@ -895,6 +916,15 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               <Badge variant="outline" className="font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
               <Badge variant="outline" className="font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.positionKind || 'interpretive').replace(/_/g, ' ')}</Badge>
               <Badge variant="secondary" className="font-code uppercase rounded-full bg-accent/10 text-accent">{confidenceLabel(selected.confidence)} confidence</Badge>
+              <Badge
+                variant={formation.fullyFormed ? 'default' : 'outline'}
+                className={cn(
+                  'font-code uppercase rounded-full shadow-sm',
+                  formation.fullyFormed ? 'bg-emerald-600 text-white' : 'bg-amber-50 text-amber-900 border-amber-200'
+                )}
+              >
+                {formation.fullyFormed ? 'Fully formed' : `Draft position ${formation.complete}/${formation.total}`}
+              </Badge>
             </div>
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="min-w-0 flex-1">
@@ -927,6 +957,16 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             ))}
           </div>
         </Card>
+
+        {!formation.fullyFormed && (
+          <Card className="mb-5 rounded-xl border-amber-200 bg-amber-50/80 p-4 shadow-sm">
+            <div className="font-code text-[9px] uppercase tracking-[0.18em] text-amber-800 font-bold">To fully form this position</div>
+            <p className="mt-2 text-sm leading-6 text-amber-950">
+              Complete {formation.missing.slice(0, 4).join(', ')}
+              {formation.missing.length > 4 ? `, and ${formation.missing.length - 4} more` : ''}.
+            </p>
+          </Card>
+        )}
 
         <div className="mb-5">
           <NextPhilosophicalActionPanel
@@ -1602,9 +1642,6 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 <AlertTriangle className="size-4 mr-1.5" /> {positionStats.tensions} TENSIONS
               </Button>
             )}
-            <Button variant="outline" onClick={openIdeaDialog} size="sm" className="bg-white border-border/60 shadow-sm rounded-full h-9 font-bold">
-              <Lightbulb className="size-4 mr-1.5" /> NEW IDEA
-            </Button>
             <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
               <Plus className="size-4 mr-1.5" /> NEW POSITION
             </Button>
@@ -1634,7 +1671,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           </SelectContent>
         </Select>
 
-        <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as VaultType | 'ideas' | 'all')}>
+        <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as VaultType | 'all')}>
           <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
             <SelectValue placeholder="Position Type" />
           </SelectTrigger>
@@ -1683,6 +1720,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
         {filteredEntries.map((entry) => {
           const diagnostic = positionDiagnostics.get(entry.id) || diagnosePosition(entry, links, practices);
+          const formation = positionFormation(entry);
           return (
             <Card 
               key={entry.id} 
@@ -1738,6 +1776,12 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-emerald-100/40 text-emerald-700 border-emerald-200/50 rounded-full font-bold">
                 {entry.status}
               </Badge>
+              <Badge variant="outline" className={cn(
+                'font-code text-[8px] uppercase tracking-widest px-2 py-0.5 rounded-full font-bold',
+                formation.fullyFormed ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'
+              )}>
+                {formation.fullyFormed ? 'formed' : `${formation.complete}/${formation.total}`}
+              </Badge>
               <div className="flex items-center gap-1.5 ml-auto">
                 {(entry.tags || []).slice(0, 2).map(tag => (
                   <button
@@ -1758,9 +1802,9 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             <PageEmptyState
               icon={ShieldCheck}
               title="No positions found"
-              description="Refine your search or turn an idea into something you are willing to examine."
+              description="Refine your search or start a draft position you are willing to examine."
               belongsHere="Positions are explicit claims, principles, mental models, worldview statements, and life rules you are willing to support or challenge."
-              whyItMatters="Noesis needs positions to distinguish stored ideas from judgments you are actively testing."
+              whyItMatters="Noesis uses positions as the lifecycle for rough thoughts, tested judgments, and fully formed commitments."
               firstAction="Create one provisional position from an annotation, inquiry, source reflection, or direct claim."
               filterCause={positionFiltersActive ? 'Current view, search, or filters may be hiding positions.' : undefined}
               action={positionFiltersActive ? <Button variant="outline" onClick={clearPositionFilters} className="rounded-full">Clear filters</Button> : undefined}
@@ -1833,7 +1877,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
       <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} />
 
-      {/* Idea → Position pipeline dialog */}
+      {/* Draft position pipeline dialog */}
       <Dialog open={ideaOpen} onOpenChange={(open) => { if (!open) setIdeaOpen(false); }}>
         <DialogContent className="max-w-xl bg-white border-none shadow-2xl rounded-2xl">
           <DialogHeader>
@@ -1843,25 +1887,25 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               ))}
             </div>
             <DialogTitle className="font-headline text-2xl italic">
-              {ideaStep === 1 && 'Write Your Idea'}
+              {ideaStep === 1 && 'Start a Draft Position'}
               {ideaStep === 2 && 'Sharpen It'}
               {ideaStep === 3 && 'Review Your Position'}
             </DialogTitle>
             <p className="text-xs text-muted-foreground font-body">
-              {ideaStep === 1 && 'Capture the thought. AI will ask 3 questions to turn it into a position.'}
+              {ideaStep === 1 && 'Capture the rough claim. AI can ask 3 questions to make it clearer.'}
               {ideaStep === 2 && 'Answer each question to clarify the claim you are willing to own.'}
-              {ideaStep === 3 && 'Edit and save the position AI formed from your idea and answers.'}
+              {ideaStep === 3 && 'Edit and save the draft position AI formed from your answers.'}
             </p>
           </DialogHeader>
 
           {ideaStep === 1 && (
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Idea Statement</Label>
+                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Draft Position</Label>
                 <Input
                   value={ideaDraft.title}
                   onChange={(e) => setIdeaDraft((p) => ({ ...p, title: e.target.value }))}
-                  placeholder="State the idea briefly..."
+                  placeholder="State the rough claim briefly..."
                   className="rounded-full"
                   autoFocus
                 />
@@ -1891,7 +1935,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           {ideaStep === 2 && (
             <div className="space-y-5 pt-2">
               <div className="rounded-lg bg-muted/20 border border-border/30 px-4 py-3">
-                <p className="text-xs text-muted-foreground font-code uppercase tracking-widest mb-1 font-bold">Your Idea</p>
+                <p className="text-xs text-muted-foreground font-code uppercase tracking-widest mb-1 font-bold">Draft Position</p>
                 <p className="text-sm italic font-body text-primary/80">{ideaDraft.title}</p>
               </div>
               {ideaQA.map((qa, i) => (
@@ -2105,7 +2149,7 @@ function PositionsTable({
       <div className="py-20 flex flex-col items-center justify-center text-center opacity-40">
         <ShieldCheck className="size-20 mb-6 text-muted-foreground" />
         <h2 className="text-2xl font-headline italic mb-2">No positions found</h2>
-        <p className="max-w-md font-body">Refine your search or turn an idea into something you are willing to examine.</p>
+        <p className="max-w-md font-body">Refine your search or start a draft position you are willing to examine.</p>
       </div>
     );
   }

@@ -30,7 +30,7 @@ export interface GuideWorkflow {
 export const noesisGuide = {
   title: 'How Noesis Works',
   overview:
-    'Noesis is built around connected thinking. Different sections help you capture, organize, question, connect, and develop your ideas without forcing every thought into one rigid path.',
+    'Noesis is built around connected thinking. Different sections help you capture, organize, question, connect, and develop positions without forcing every thought into one rigid path.',
   sections: [
     {
       id: 'atlas',
@@ -51,7 +51,7 @@ export const noesisGuide = {
       label: 'Concepts',
       viewId: 'concepts',
       section: 'Mind',
-      definition: 'The encyclopedia of recurring ideas and terms in your system.',
+      definition: 'The encyclopedia of recurring concepts and terms in your system.',
       whatYouDo: [
         'Define concepts and edit their descriptions.',
         'Review linked sources, annotations, inquiries, positions, works, and practices.',
@@ -149,7 +149,7 @@ export const noesisGuide = {
       label: 'Practices',
       viewId: 'practices',
       section: 'Outputs',
-      definition: 'The place where ideas become tests, commitments, habits, and experiments.',
+      definition: 'The place where positions become tests, commitments, habits, and experiments.',
       whatYouDo: [
         'Create a practice tied to a concept, position, inquiry, source, or work.',
         'Track notes and streak-like log dates over time.',
@@ -166,7 +166,7 @@ export const noesisGuide = {
       definition: 'The timeline of meaningful changes across your Noesis system.',
       whatYouDo: [
         'Review created, refined, challenged, revised, and abandoned events.',
-        'Use the timeline to see how ideas and positions changed over time.',
+        'Use the timeline to see how positions, concepts, and inquiries changed over time.',
       ],
       connectsTo: ['Concepts', 'Positions', 'Works', 'Practices', 'Library'],
       importantActions: ['Review timeline', 'Open related entity'],
@@ -208,7 +208,7 @@ export const noesisGuide = {
       id: 'concept',
       label: 'Concept',
       collection: READEX_COLLECTIONS.concepts,
-      definition: 'A named idea used to organize related sources, questions, positions, works, and practices.',
+      definition: 'A named concept used to organize related sources, questions, positions, works, and practices.',
       appearsIn: ['Atlas', 'Concepts'],
       createdBy: ['Concept creation flow', 'Tag creation in pickers', 'Fallback term creation'],
       connectsTo: ['Sources', 'Annotations', 'Inquiries', 'Positions', 'Works', 'Practices', 'Atlas maps'],
@@ -228,7 +228,7 @@ export const noesisGuide = {
       collection: READEX_COLLECTIONS.vault,
       definition: 'A belief, principle, mental model, life rule, or worldview statement.',
       appearsIn: ['Positions'],
-      createdBy: ['Manual position creation', 'Idea formation', 'Annotation -> Form Position', 'Inquiry -> Form Position'],
+      createdBy: ['Manual position creation', 'Draft position formation', 'Annotation -> Form Position', 'Inquiry -> Form Position'],
       connectsTo: ['Sources via sourceIds', 'Annotations via sourceAnnotationId and typed links', 'Works via beliefIds', 'Practices via positionIds'],
     },
     {
@@ -433,7 +433,7 @@ export const noesisGuide = {
     ['Atlas Map', 'A saved map layout with node positions, manual links, and auto-link filters.'],
     ['Goal Category', 'A bucket such as Books or Articles that counts one or more media types.'],
     ['Included Media Types', 'The source formats that count toward a goal category.'],
-    ['Insight', 'An internal idea record created when some idea flows create a mirrored position.'],
+    ['Insight', 'An internal compatibility record created when older draft-position flows mirror a position.'],
     ['Typed Link', 'A saved relationship such as supports, challenges, defines, refines, or tested_by.'],
     ['View ID', 'The internal sidebar view key, such as atlas, library, or vault, used by the single-page workspace.'],
   ] as Array<[string, string]>,

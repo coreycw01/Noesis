@@ -94,7 +94,7 @@ export function computeConceptDiagnosis(conceptName: string, related: RelatedDat
   if (!hasDefinition) whyParts.push('definition is still forming');
   if (beliefs.length === 0) whyParts.push('no formal position has been crystallized');
   if (!hasOpposition && beliefs.length > 0) whyParts.push('the position has not yet been challenged');
-  if (practices.length === 0 && beliefs.length > 0) whyParts.push('the idea remains untested through practice');
+  if (practices.length === 0 && beliefs.length > 0) whyParts.push('the position remains untested through practice');
 
   const why = whyParts.length > 0
     ? `At the ${level} stage because the ${whyParts.join(', ')}.`

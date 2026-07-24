@@ -1502,7 +1502,7 @@ function ReadexWorkspace({
       dateUpdated: today(),
     });
     const eventRef = doc(refs.timeline);
-    batch.set(eventRef, { id: eventRef.id, entityId: beliefRef.id, entityType: 'vault', entityTitle: posTitle, eventType: 'created', reason: 'Idea formed as position', influencedBy: data.sourceIds || [], date: today() });
+    batch.set(eventRef, { id: eventRef.id, entityId: beliefRef.id, entityType: 'vault', entityTitle: posTitle, eventType: 'created', reason: 'Draft position formed', influencedBy: data.sourceIds || [], date: today() });
     batch.commit().catch(() => emitError('batch', 'write', data));
     createThinkingEvent({
       eventType: 'position_formed',
@@ -1514,7 +1514,7 @@ function ReadexWorkspace({
         description: data.position?.description || data.body,
       },
       origin: 'user',
-      summary: `Position formed from idea: ${posTitle}`,
+      summary: `Draft position formed: ${posTitle}`,
       importance: 'high',
       relatedEntityIds: {
         sourceIds: data.sourceIds || [],
