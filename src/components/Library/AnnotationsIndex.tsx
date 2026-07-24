@@ -840,7 +840,6 @@ export function AnnotationsIndex({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-8">
         {filtered.map((annotation) => {
           const selectedEffect = selectedEffectForAnnotation(annotation);
-          const contextValue = annotation.context || '';
           return (
           <Card key={`${annotation.source.id}:${annotation.id}`} className={cn(
             "p-4 md:p-5 bg-card border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all",
@@ -892,22 +891,6 @@ export function AnnotationsIndex({
               {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).map((tag) => (
                 <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-wider rounded-full bg-muted/20 text-muted-foreground font-bold">{tag}</Badge>
               ))}
-            </div>
-
-            <div className="mb-3 rounded-xl border border-border/40 bg-background/70 p-3">
-              <Label className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Optional context</Label>
-              <Textarea
-                defaultValue={contextValue}
-                onBlur={(event) => {
-                  const value = event.target.value.trim();
-                  if (value !== contextValue) {
-                    const { source, ...annotationData } = annotation;
-                    onUpdateAnnotation(source.id, { ...annotationData, context: value });
-                  }
-                }}
-                placeholder="Add the surrounding passage or context only if this note needs it."
-                className="mt-2 min-h-12 rounded-xl bg-card text-xs leading-5 md:min-h-16"
-              />
             </div>
 
             <div className="mb-3 overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/10 via-card to-card shadow-sm">
@@ -1099,6 +1082,15 @@ export function AnnotationsIndex({
               <div className="space-y-2">
                 <Label>Text</Label>
                 <Textarea value={editing.text} onChange={(event) => setEditing((prev) => prev ? { ...prev, text: event.target.value } : prev)} className="min-h-[140px]" />
+              </div>
+              <div className="space-y-2">
+                <Label>Optional Context</Label>
+                <Textarea
+                  value={editing.context || ''}
+                  onChange={(event) => setEditing((prev) => prev ? { ...prev, context: event.target.value } : prev)}
+                  placeholder="Add the surrounding passage or source context only if this note needs it."
+                  className="min-h-[100px]"
+                />
               </div>
               {editing.type === 'question' && (
                 <div className="space-y-2">
