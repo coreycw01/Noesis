@@ -464,7 +464,6 @@ export function MediaLibrary({
     const relatedQuestions = questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(selected.id));
     const relatedDrafts = drafts.filter((draft) => (draft.sourceIds || []).includes(selected.id));
     const relatedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(selected.id));
-    const isRoutedSource = focusedSourceId === selected.id;
     const captureMilestones = [
       { label: 'Reason', complete: Boolean(capture.before?.openQuestion || capture.before?.expectation || capture.before?.priorBeliefs), detail: capture.before?.openQuestion || capture.before?.expectation || capture.before?.priorBeliefs || 'Explain why this source entered the system.' },
       { label: 'During', complete: (selected.annotations || []).length > 0 || (capture.sessions || []).length > 0, detail: `${selected.annotations?.length || 0} annotations · ${capture.sessions?.length || 0} sessions` },
@@ -494,20 +493,6 @@ export function MediaLibrary({
             <Button variant="outline" size="sm" onClick={() => setDeleteTarget({ type: 'source', item: selected })} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-white rounded-full">DELETE</Button>
           </div>
         </header>
-
-        {isRoutedSource && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
-            <div>
-              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Library Detail Route</div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                This source is opened directly from the URL. Refresh and browser history keep the source thread in focus.
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={closeSelectedSource} className="rounded-full bg-background">
-              Return to Library
-            </Button>
-          </div>
-        )}
 
         <div className="bg-white border border-border/50 rounded-xl p-8 mb-10 flex gap-10 shadow-sm">
           <div className="size-56 bg-accent/5 rounded-lg shrink-0 flex items-center justify-center border border-border/30 overflow-hidden shadow-inner">

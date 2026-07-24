@@ -674,7 +674,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
     : '';
 
   const activeTypeLabel = active ? DRAFT_LABELS[active.type] : '';
-  const isRoutedDraft = Boolean(active && focusedDraftId === active.id);
   const showPaperControls = !!active && activeCategory === 'writing';
   const showExternalDocControls = !!active && activeCategory === 'writing';
   const activeSources = useMemo(() => {
@@ -799,20 +798,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 </Button>
               </div>
             </div>
-
-            {isRoutedDraft && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
-                <div>
-                  <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Works Detail Route</div>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    This workspace is opened directly from the URL. Browser refresh and back/forward keep this work in focus.
-                  </p>
-                </div>
-                <Button variant="outline" size="sm" onClick={closeDraft} className="rounded-full bg-background">
-                  Return to Works index
-                </Button>
-              </div>
-            )}
 
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-4">

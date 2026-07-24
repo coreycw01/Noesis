@@ -647,7 +647,6 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       'No explicit consequences have been written yet.',
       'Ask what decisions, behaviors, writings, or practices would change if this position were true.',
     ];
-    const isRoutedEntry = focusedEntryId === selected.id;
     const stressStages = buildStressStages({
       selected,
       assumptions: positionAssumptions,
@@ -881,20 +880,6 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             <Button variant="destructive" onClick={() => setDeleteTarget(selected)} className="h-8 shadow-sm rounded-full"><Trash2 className="size-4 mr-2" /> Delete</Button>
           </div>
         </div>
-
-        {isRoutedEntry && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
-            <div>
-              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Positions Detail Route</div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                This position is opened directly from the URL. Refresh and browser history keep this belief workbench item in focus.
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={closeEntry} className="rounded-full bg-background">
-              Return to Positions
-            </Button>
-          </div>
-        )}
 
         <Card className="mb-5 rounded-2xl border-border/50 bg-white p-5 shadow-sm">
             <div className="mb-3 flex flex-wrap gap-2">

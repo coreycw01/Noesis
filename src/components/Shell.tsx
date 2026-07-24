@@ -534,7 +534,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
 
   const sidebarContent = (
     <>
-      <div className={cn("border-b border-sidebar-border", collapsed && !isMobile ? "p-3" : "p-5")}>
+      <div className={cn("shrink-0 border-b border-sidebar-border", collapsed && !isMobile ? "p-3" : "p-5")}>
         <div className={cn("mb-2 flex", collapsed && !isMobile ? "flex-col items-center gap-3" : "items-start gap-3")}>
           <div className={cn("flex items-center", collapsed && !isMobile ? "justify-center" : "gap-3")}>
             <div className="relative size-8 overflow-hidden rounded-lg border border-white/10 bg-white/[0.05] shrink-0">
@@ -623,7 +623,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
       </div>
 
       {attentionTotal > 0 && (
-        <div className={cn("border-b border-sidebar-border", collapsed && !isMobile ? "px-3 py-3" : "px-5 py-3")}>
+        <div className={cn("shrink-0 border-b border-sidebar-border", collapsed && !isMobile ? "px-3 py-3" : "px-5 py-3")}>
           <button
             type="button"
             onClick={() => setAttentionOpen(true)}
@@ -650,7 +650,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
         </div>
       )}
 
-      <nav className="flex-1 overflow-y-auto py-4 scrollbar-hide">
+      <nav className="min-h-0 flex-1 overflow-y-auto py-4 scrollbar-hide">
         {['Mind', 'Inputs', 'Outputs', 'Utility'].map((section) => (
           <div key={section} className="mb-5">
             {(!collapsed || isMobile) && (
@@ -665,7 +665,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
         ))}
       </nav>
 
-      <div className={cn("border-t border-sidebar-border bg-transparent", collapsed && !isMobile ? "p-3 text-center" : "p-4")}>
+      <div className={cn("shrink-0 border-t border-sidebar-border bg-transparent", collapsed && !isMobile ? "p-3 text-center" : "p-4")}>
         <span className="text-[9px] font-code text-sidebar-foreground/20">v1.3.0 cloud</span>
       </div>
     </>

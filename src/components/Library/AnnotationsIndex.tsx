@@ -46,7 +46,6 @@ type FlatAnnotation = Annotation & { source: Media };
 type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered' | 'needs_context' | 'source_context_missing' | 'needs_direction' | 'evidence_ready' | 'potentially_important' | 'recently_promoted';
 type PreflightMode = 'position' | 'inquiry';
 type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'reference';
-type AnnotationConsequenceKind = NonNullable<Annotation['consequenceKind']>;
 type AnnotationSort = 'newest' | 'oldest' | 'source' | 'type' | 'status';
 
 const ANNOTATION_TYPES: Array<{ id: AnnotationType; label: string }> = [
@@ -68,28 +67,18 @@ const ANNOTATION_TYPES: Array<{ id: AnnotationType; label: string }> = [
 
 const ANNOTATION_STATUSES: Array<{ id: AnnotationPhilosophyStatus; label: string }> = [
   { id: 'raw', label: 'Unprocessed' },
-  { id: 'reviewed', label: 'Reviewed' },
-  { id: 'connected', label: 'Connected' },
-  { id: 'questioned', label: 'Questioned' },
+  { id: 'connected', label: 'Linked' },
   { id: 'used_in_position', label: 'In Positions' },
-  { id: 'promoted', label: 'Promoted' },
-  { id: 'reference_only', label: 'Reference Only' },
-  { id: 'dismissed', label: 'Dismissed' },
+  { id: 'reference_only', label: 'Reference' },
   { id: 'archived', label: 'Archived' },
-];
-
-const CONSEQUENCE_KINDS: Array<{ id: AnnotationConsequenceKind; label: string }> = [
-  { id: 'evidence', label: 'Evidence' },
-  { id: 'interpretation', label: 'Interpretation' },
-  { id: 'reaction', label: 'Reaction' },
-  { id: 'question', label: 'Question' },
-  { id: 'definition', label: 'Definition' },
-  { id: 'objection', label: 'Objection' },
-  { id: 'claim', label: 'Claim' },
 ];
 
 const annotationLabel = (value: string) => ANNOTATION_TYPES.find((type) => type.id === value)?.label
   || ANNOTATION_STATUSES.find((status) => status.id === value)?.label
+  || (value === 'questioned' ? 'Inquiry opened' : null)
+  || (value === 'reviewed' ? 'Reviewed' : null)
+  || (value === 'promoted' ? 'Sent onward' : null)
+  || (value === 'dismissed' ? 'Archived' : null)
   || value.replace(/_/g, ' ');
 
 interface PreflightDraft {
@@ -173,12 +162,12 @@ export function AnnotationsIndex({
 
   const annotations = useMemo(() => allAnnotations(media) as FlatAnnotation[], [media]);
   const annotationKey = (annotation: FlatAnnotation) => `${annotation.source.id}:${annotation.id}`;
-  const annotationStatus = (annotation: Annotation): AnnotationPhilosophyStatus => annotation.philosophyStatus || (annotation.type === 'question' ? 'questioned' : 'raw');
+  const annotationStatus = (annotation: Annotation): AnnotationPhilosophyStatus => annotation.philosophyStatus || 'raw';
   const annotationTags = (annotation: FlatAnnotation) => normalizeConceptTags(annotation.conceptTags || annotation.source.tags || []);
   const needsContext = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
     return !['archived', 'dismissed', 'promoted', 'used_in_position'].includes(status)
-      && (!annotationTags(annotation).length || !annotation.consequenceNote?.trim());
+      && (!annotationTags(annotation).length || !annotation.context?.trim());
   };
   const isPotentiallyImportant = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
@@ -222,18 +211,12 @@ export function AnnotationsIndex({
     if (annotation.context?.trim()) score += 1;
     else missing.push('source context');
 
-    if (annotation.consequenceNote?.trim()) score += 1;
-    else missing.push('consequence note');
-
-    if (annotation.consequenceKind) score += 1;
-    else missing.push('consequence type');
-
     if (
       ['reviewed', 'connected', 'questioned', 'used_in_position', 'promoted', 'reference_only', 'archived', 'dismissed'].includes(status)
       || annotation.createdInquiryId
       || annotation.createdPositionId
     ) score += 1;
-    else missing.push('processing status');
+    else missing.push('effect');
 
     if (needsSupportDirection(annotation)) {
       missing.push('support/challenge direction');
@@ -241,12 +224,12 @@ export function AnnotationsIndex({
       score += 1;
     }
 
-    const label = score >= 6
+    const label = score >= 4
       ? 'processed'
-      : score >= 4
+      : score >= 3
         ? 'needs refinement'
-        : score >= 2
-          ? 'needs processing'
+      : score >= 2
+        ? 'needs processing'
           : 'raw capture';
 
     const nextStep = missing[0]
@@ -332,13 +315,13 @@ export function AnnotationsIndex({
     {
       label: 'Needs Context',
       value: annotations.filter(needsContext).length,
-      description: 'Fragments missing concept tags or a clear consequence note.',
+      description: 'Fragments missing concept tags or enough source context.',
       filter: 'needs_context' as AnnotationFilter,
     },
     {
       label: 'Potentially Important',
       value: annotations.filter(isPotentiallyImportant).length,
-      description: 'Claims, objections, definitions, evidence, and fragments marked beyond the source.',
+      description: 'Claims, objections, definitions, and connections likely to affect a position or inquiry.',
       filter: 'potentially_important' as AnnotationFilter,
     },
     {
@@ -362,7 +345,7 @@ export function AnnotationsIndex({
     {
       label: 'Fully Processed',
       value: annotations.filter((annotation) => annotationProcessingQuality(annotation).score >= 6).length,
-      description: 'Captures with tags, context, consequence, direction, and a clear processing state.',
+      description: 'Captures with tags, context, direction, and a clear next destination.',
       filter: 'all' as AnnotationFilter,
     },
     {
@@ -378,7 +361,7 @@ export function AnnotationsIndex({
     onUpdateAnnotation(source.id, {
       ...annotationData,
       ...patch,
-      philosophyStatus: patch.philosophyStatus || annotationData.philosophyStatus || 'reviewed',
+      philosophyStatus: patch.philosophyStatus || annotationData.philosophyStatus || 'connected',
     });
   };
 
@@ -389,7 +372,7 @@ export function AnnotationsIndex({
       ...annotation,
       text: annotation.text.trim(),
       conceptTags: normalizeConceptTags(annotation.conceptTags || source.tags),
-      philosophyStatus: annotation.philosophyStatus || (annotation.type === 'question' ? 'questioned' : 'connected'),
+      philosophyStatus: annotation.philosophyStatus || 'connected',
       date: annotation.date || today(),
     });
     setEditing(null);
@@ -522,7 +505,7 @@ export function AnnotationsIndex({
         targetId: `${annotation.source.id}:${annotation.id}`,
         targetLabel: annotation.text.slice(0, 90),
         suggestionType: 'annotation_consequence',
-        title: 'Possible consequence',
+        title: 'Suggested next move',
         body: suggestion.rationale,
         payload: {
           ...suggestion,
@@ -834,7 +817,7 @@ export function AnnotationsIndex({
                     {annotation.type}
                   </Badge>
                   <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest rounded-full bg-accent/5 text-accent font-bold">
-                    {annotationStatus(annotation).replace(/_/g, ' ')}
+                    {annotationLabel(annotationStatus(annotation))}
                   </Badge>
                   {missingSourceContext(annotation) && (
                     <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest rounded-full border-amber-200 bg-amber-50 text-amber-800 font-bold">
@@ -884,26 +867,16 @@ export function AnnotationsIndex({
                 placeholder="Add the surrounding idea only if this note needs it."
                 className="mt-2 min-h-12 rounded-xl bg-card text-xs leading-5 md:min-h-16"
               />
-              <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <Checkbox
-                  checked={Boolean(annotation.mattersBeyondSource)}
-                  onCheckedChange={(checked) => updateAnnotationConsequence(annotation, {
-                    mattersBeyondSource: Boolean(checked),
-                    philosophyStatus: annotationStatus(annotation) === 'raw' ? 'reviewed' : annotationStatus(annotation),
-                  })}
-                />
-                This is my interpretation, not the author's claim.
-              </label>
             </div>
 
-            <div className="mb-3 rounded-xl border border-accent/15 bg-accent/5 p-3">
-              <div className="flex flex-col gap-3">
-                <div>
-                  <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">How does this affect your thinking?</div>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {consequenceQuestion(annotation)}
-                  </p>
-                </div>
+            <div className="mb-3 overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/10 via-card to-card shadow-sm">
+              <div className="border-b border-accent/10 px-4 py-3">
+                <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">How does this affect your thinking?</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {consequenceQuestion(annotation)}
+                </p>
+              </div>
+              <div className="space-y-3 p-3">
                 <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
                   {([
                     ['supports_claim', 'Supports a position'],
@@ -924,9 +897,9 @@ export function AnnotationsIndex({
                     </Button>
                   ))}
                 </div>
-                <div className="flex flex-col gap-2 rounded-xl border border-border/40 bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-2 rounded-xl border border-accent/15 bg-background/80 p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Next action</div>
+                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Destination</div>
                     <p className="mt-1 text-xs text-muted-foreground">{nextActionLabelForEffect(annotation, selectedEffect)}</p>
                   </div>
                   <Button
@@ -1101,39 +1074,21 @@ export function AnnotationsIndex({
                   onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
                 />
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_190px]">
-                <div className="space-y-2">
-                  <Label>Suggested Consequence</Label>
-                  <Textarea
-                    value={editing.consequenceNote || ''}
-                    onChange={(event) => setEditing((prev) => prev ? { ...prev, consequenceNote: event.target.value } : prev)}
-                    placeholder="What does this suggest, challenge, clarify, or raise?"
-                    className="min-h-[90px]"
+              <div className="space-y-2">
+                <Label>Interpretation</Label>
+                <Textarea
+                  value={editing.consequenceNote || ''}
+                  onChange={(event) => setEditing((prev) => prev ? { ...prev, consequenceNote: event.target.value } : prev)}
+                  placeholder="Optional: what does this note suggest, clarify, question, support, or challenge?"
+                  className="min-h-[90px]"
+                />
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Checkbox
+                    checked={Boolean(editing.mattersBeyondSource)}
+                    onCheckedChange={(checked) => setEditing((prev) => prev ? { ...prev, mattersBeyondSource: Boolean(checked) } : prev)}
                   />
-                </div>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Consequence Kind</Label>
-                    <Select value={editing.consequenceKind || 'interpretation'} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, consequenceKind: value as AnnotationConsequenceKind } : prev)}>
-                      <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {CONSEQUENCE_KINDS.map((kind) => (
-                          <SelectItem key={kind.id} value={kind.id}>{kind.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditing((prev) => prev ? { ...prev, mattersBeyondSource: !prev.mattersBeyondSource } : prev)}
-                    className={cn(
-                      "w-full rounded-full border px-4 py-2 font-code text-[9px] font-bold uppercase tracking-widest transition-colors",
-                      editing.mattersBeyondSource ? "border-accent/40 bg-accent/10 text-accent" : "border-border/60 bg-card text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Matters Beyond Source
-                  </button>
-                </div>
+                  This is my interpretation, not the author's claim.
+                </label>
               </div>
             </div>
           )}
@@ -1147,8 +1102,8 @@ export function AnnotationsIndex({
       <Dialog open={!!preflight} onOpenChange={(open) => !open && setPreflight(null)}>
         <DialogContent className="max-w-2xl border-none shadow-2xl rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl italic">Route Annotation</DialogTitle>
-            <p className="text-sm text-muted-foreground">Shape the object before Noesis sends it to the right workspace.</p>
+            <DialogTitle className="font-headline text-2xl italic">Send Annotation</DialogTitle>
+            <p className="text-sm text-muted-foreground">Shape the inquiry or position before Noesis opens the destination workspace.</p>
           </DialogHeader>
           {preflight && (
             <div className="space-y-5 pt-2">

@@ -672,7 +672,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       { field: 'examples', title: 'Examples', prompt: 'Cases that clearly belong inside the concept.', placeholder: 'Add example' },
       { field: 'counterexamples', title: 'Counterexamples', prompt: 'Cases that test or fall outside the boundary.', placeholder: 'Add counterexample' },
     ];
-    const isRoutedConcept = Boolean(concept && focusedConceptId === concept.id);
     const previewSource = (source: Media, reason = 'This source feeds the current concept.') => {
       openNoesisObjectPreview({
         id: `concept-source-${source.id}`,
@@ -822,19 +821,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         </div>
 
         <div className="p-8 pt-10 max-w-5xl mx-auto">
-          {isRoutedConcept && (
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
-              <div>
-                <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Concepts Detail Route</div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  This concept is opened directly from the URL. Browser refresh and back/forward keep this vocabulary page in focus.
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={back} className="rounded-full bg-background">
-                Return to Concepts
-              </Button>
-            </div>
-          )}
           {/* Title + definition */}
           <div className="mb-8">
             <h1 className="text-[42px] font-headline font-bold italic text-primary leading-none mb-4">{selectedName}</h1>

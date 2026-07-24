@@ -660,19 +660,6 @@ function PracticeEditor({ open, onOpenChange, draft, setDraft, concepts, media, 
       <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto bg-white border-none shadow-2xl rounded-2xl p-0">
         <div className="p-8">
           <DialogHeader className="mb-8"><DialogTitle className="font-headline text-3xl italic">{draft.id ? 'Refine Practice' : 'Initiate Practice'}</DialogTitle></DialogHeader>
-          {routeOwned && (
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/20 bg-accent/5 p-4">
-              <div>
-                <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Practices Detail Route</div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  This practice is opened directly from the URL. Closing this panel returns to the Practices index.
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="rounded-full bg-background">
-                Return to Practices
-              </Button>
-            </div>
-          )}
           <div className="space-y-8">
             <div className="rounded-2xl border border-accent/20 bg-accent/5 p-5">
               <div className="flex items-center gap-2 mb-3">

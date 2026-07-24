@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SourceLinker } from '@/components/SourceLinker';
-import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
 import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { aiClient } from '@/lib/ai-client';
 import type { Concept, Draft, Media, Question, VaultEntry } from '@/lib/types';
@@ -299,7 +298,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
         </div>
       </FilterToolbar>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filtered.map((question) => {
           const sources = media.filter(m => (question.sourceIds || []).includes(m.id));
           const draftLinks = drafts.filter(d => (d.questionIds || []).includes(question.id)).length;
@@ -315,8 +314,8 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           const readinessScore = inquiryReadinessScore(question);
 
           return (
-            <Card key={question.id} className="border border-accent/20 bg-white/95 p-6 rounded-xl shadow-md">
-              <div className="flex items-center justify-between mb-4">
+            <Card key={question.id} className="border border-accent/15 bg-white/95 p-4 rounded-xl shadow-sm">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5">
                     {question.type || 'manual'}
@@ -351,12 +350,12 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
               </div>
 
               <button className="w-full text-left group" onClick={() => openQuestion(question.id)}>
-                <h3 className="text-2xl font-headline font-bold italic group-hover:text-accent transition-colors leading-relaxed text-primary mb-4">
+                <h3 className="text-xl font-headline font-bold italic group-hover:text-accent transition-colors leading-snug text-primary mb-3">
                   {question.text}
                 </h3>
               </button>
 
-              <div className="font-body text-xs text-muted-foreground italic flex items-center gap-2 opacity-60 border-t border-border/20 pt-4 mb-4">
+              <div className="font-body text-xs text-muted-foreground italic flex items-center gap-2 opacity-70 border-t border-border/20 pt-3 mb-3">
                 {sources.length > 0 ? (
                   <span className="truncate">From {sources.map(s => s.title).join(', ')}</span>
                 ) : (
@@ -364,25 +363,25 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
                 )}
               </div>
 
-              <div className="mb-4 rounded-xl border border-border/50 bg-background/70 p-3">
+              <div className="mb-3 rounded-xl border border-border/40 bg-background/70 p-2.5">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Investigation Shape</span>
                   <div className="flex flex-wrap gap-1.5">
                     <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{inquiryType}</Badge>
-                    <Badge variant={readinessScore >= 5 ? 'outline' : 'secondary'} className="rounded-full font-code text-[8px] uppercase tracking-widest">readiness {readinessScore}/6</Badge>
+                    <Badge variant={readinessScore >= 5 ? 'outline' : 'secondary'} className="rounded-full font-code text-[8px] uppercase tracking-widest">{readinessScore}/6</Badge>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-3 gap-1.5 text-center">
                   <div className="rounded-lg border border-border/40 bg-card px-2 py-2">
-                    <div className="font-headline text-lg font-bold text-accent">{activeBranches}</div>
+                    <div className="font-headline text-base font-bold text-accent">{activeBranches}</div>
                     <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">active</div>
                   </div>
                   <div className="rounded-lg border border-border/40 bg-card px-2 py-2">
-                    <div className="font-headline text-lg font-bold text-emerald-600">{branches.length - activeBranches - neededBranches}</div>
+                    <div className="font-headline text-base font-bold text-emerald-600">{branches.length - activeBranches - neededBranches}</div>
                     <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">available</div>
                   </div>
                   <div className="rounded-lg border border-border/40 bg-card px-2 py-2">
-                    <div className="font-headline text-lg font-bold text-amber-600">{neededBranches}</div>
+                    <div className="font-headline text-base font-bold text-amber-600">{neededBranches}</div>
                     <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">needed</div>
                   </div>
                 </div>
@@ -412,28 +411,35 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
                 </div>
               )}
 
-              <NextPhilosophicalActionPanel
-                compact
-                status={question.status || (question.answer ? 'answered' : 'open')}
-                title="Investigate this inquiry"
-                description="Gather evidence, write a provisional answer, and resolve only when the answer has a summary."
-                actions={[
-                  {
-                    label: 'Investigate',
-                    tone: 'support',
-                    onClick: () => openQuestion(question.id),
-                  },
-                  {
-                    label: question.answer ? 'Review Resolution' : 'Write Answer',
-                    disabled: question.id.startsWith('open:') || question.id.startsWith('annotation:'),
-                    onClick: () => {
+              <div className="rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/10 via-card to-card p-3">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-code text-[8px] font-bold uppercase tracking-widest text-accent">Investigate this inquiry</div>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Open the workbench, add evidence, or write the next answer.</p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0 rounded-full font-code text-[8px] uppercase tracking-widest">
+                    {(question.status || (question.answer ? 'answered' : 'open')).replace(/_/g, ' ')}
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => openQuestion(question.id)} className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">
+                    Investigate
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={question.id.startsWith('open:') || question.id.startsWith('annotation:')}
+                    onClick={() => {
                       if (!question.id.startsWith('open:') && !question.id.startsWith('annotation:')) {
                         onUpdateQuestion({ ...question, status: question.answer ? 'provisionally_answered' : 'partially_answered', dateUpdated: today() });
                       }
-                    },
-                  },
-                ]}
-              />
+                    }}
+                    className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest"
+                  >
+                    {question.answer ? 'Review' : 'Write answer'}
+                  </Button>
+                </div>
+              </div>
             </Card>
           );
         })}
@@ -766,30 +772,17 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   };
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
-      <Button variant="ghost" onClick={onBack} className="mb-8 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body">
+      <Button variant="ghost" onClick={onBack} className="mb-5 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50">
         <ArrowLeft className="size-4 mr-2" /> Back to Inquiries
       </Button>
-      {routeOwned && (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
-          <div>
-            <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Inquiries Detail Route</div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              This inquiry is opened directly from the URL. Refresh and browser history keep the investigation in focus.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={onBack} className="rounded-full bg-background">
-            Return to Inquiries
-          </Button>
-        </div>
-      )}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-10">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
-          <Card className="mb-6 rounded-2xl border border-accent/10 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <Card className="mb-5 rounded-2xl border border-accent/10 bg-white p-4 shadow-sm sm:p-5">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">Investigation Chamber</div>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">Clarify the question, expose assumptions, choose a branch, and only resolve when the answer has evidence.</p>
+                <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground/50">Inquiry Workbench</div>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Clarify the question, gather evidence, and name the answer only when the investigation has enough shape.</p>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{inquiryType}</Badge>
