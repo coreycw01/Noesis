@@ -100,6 +100,7 @@
     @apply bg-background text-foreground font-body;
     overflow: hidden;
     cursor: default;
+    caret-color: transparent;
   }
   p,
   span,
@@ -122,7 +123,13 @@
   input,
   textarea,
   [contenteditable="true"],
+  [contenteditable="plaintext-only"],
+  .ProseMirror,
+  .tiptap,
+  .writing-editor,
+  .writing-editor *,
   [role="textbox"] {
+    caret-color: auto;
     cursor: text;
   }
   button,
