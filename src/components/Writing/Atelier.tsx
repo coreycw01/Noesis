@@ -369,6 +369,23 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
     }
   }, [drafts, focusedDraftId]);
 
+  useEffect(() => {
+    try {
+      setRailCollapsed(window.localStorage.getItem('noesis-works-rail-collapsed') === 'true');
+    } catch {
+      setRailCollapsed(false);
+    }
+  }, []);
+
+  const setRailPreference = useCallback((collapsed: boolean) => {
+    setRailCollapsed(collapsed);
+    try {
+      window.localStorage.setItem('noesis-works-rail-collapsed', String(collapsed));
+    } catch {
+      // Preference persistence is optional.
+    }
+  }, []);
+
   const visibleDrafts = drafts
     .filter((draft) => {
       const category = draft.workCategory || workCategoryForDraft(draft.type);
@@ -723,16 +740,44 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   if (active) {
     return (
       <div className="flex-1 flex flex-col h-full bg-background overflow-hidden font-body">
-        <header className="px-8 pt-8 pb-4 border-b border-border/30 bg-background/80 backdrop-blur z-50">
-          <div className="max-w-7xl mx-auto flex flex-col gap-4">
-            <div className="flex items-center justify-between">
+        <header className="border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur z-50 sm:px-5">
+          <div className="mx-auto flex max-w-[1800px] flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <button
                 onClick={closeDraft}
-                className="font-code text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors"
+                className="flex h-9 items-center gap-1 rounded-full px-2 font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
               >
-                <ChevronLeft className="size-4" /> BACK TO WORKS
+                <ChevronLeft className="size-4" /> Works
               </button>
-              <div className="flex flex-wrap items-center gap-3">
+              <Input
+                className="min-w-[180px] flex-1 border-none bg-transparent p-0 font-headline text-xl font-bold italic text-foreground shadow-none outline-none placeholder:text-muted-foreground/30 focus-visible:ring-0 sm:text-2xl"
+                value={active.title}
+                onChange={(event) => updateActive({ title: event.target.value })}
+                placeholder={`Untitled ${activeTypeLabel}`}
+              />
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="flex items-center gap-2 rounded-full border border-border/30 bg-muted/10 px-3 py-1.5">
+                  <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
+                  <span className="font-code text-[8px] uppercase tracking-widest font-bold text-muted-foreground">
+                    {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}
+                  </span>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => saveActive()} className="h-9 px-4 rounded-full font-bold shadow-sm bg-card border-border/60">
+                  <Save className="size-4 mr-2" /> {dirty ? 'Save*' : 'Save'}
+                </Button>
+                {activeCategory === 'writing' && (
+                  <Button variant="outline" size="sm" onClick={exportManuscript} className="h-9 px-4 rounded-full font-bold shadow-sm bg-card border-border/60">
+                    <Download className="size-4 mr-2" /> Export
+                  </Button>
+                )}
+                <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(active)} className="h-9 w-9 rounded-full shadow-sm">
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/10 pt-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="flex rounded-full border border-border/60 bg-card p-1 shadow-sm">
                   {(['draft', 'final'] as const).map((mode) => (
                     <button
@@ -747,8 +792,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                     </button>
                   ))}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">STATUS</span>
+                <div className="flex items-center gap-2">
                   <Select value={active.status} onValueChange={(value) => updateActive({ status: value as DraftStatus })}>
                     <SelectTrigger className="h-8 border-border/40 bg-background shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-32 px-3 font-bold">
                       <SelectValue />
@@ -761,8 +805,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                   </Select>
                 </div>
                 {showPaperControls && (
-                  <div className="flex items-center gap-3">
-                    <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">PAPER</span>
+                  <div className="flex items-center gap-2">
                     <Select value={active.writingStyle || writingDefaults.writingStyle} onValueChange={(value) => updateActive({ writingStyle: value as WritingStyle })}>
                       <SelectTrigger className="h-8 border-border/40 bg-background shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-44 px-3 font-bold">
                         <SelectValue />
@@ -780,36 +823,21 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                     <Link2 className="size-4 mr-2" /> {active.externalDoc ? 'Doc' : 'Connect Doc'}
                   </Button>
                 )}
-                <Button variant="outline" size="sm" onClick={() => saveActive()} className="h-9 px-5 rounded-full font-bold shadow-sm bg-card border-border/60">
-                  <Save className="size-4 mr-2" /> {dirty ? 'Save*' : 'Save'}
-                </Button>
-                {activeCategory === 'writing' && (
-                  <Button variant="outline" size="sm" onClick={exportManuscript} className="h-9 px-5 rounded-full font-bold shadow-sm bg-card border-border/60">
-                    <Download className="size-4 mr-2" /> Export
-                  </Button>
-                )}
-                <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(active)} className="h-9 w-9 rounded-full shadow-sm">
-                  <Trash2 className="size-4" />
-                </Button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">CONCEPTS</span>
+                <ConceptTagPicker
+                  concepts={concepts}
+                  value={active.conceptTags || []}
+                  onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })}
+                  onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
+                  compact
+                />
               </div>
             </div>
 
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-4">
-                <Input
-                  className="bg-transparent border-none text-4xl font-headline font-bold focus-visible:ring-0 italic p-0 h-auto rounded-none shadow-none text-foreground placeholder:text-muted-foreground/20 flex-1"
-                  value={active.title}
-                  onChange={(event) => updateActive({ title: event.target.value })}
-                  placeholder={`Enter ${activeTypeLabel} Title...`}
-                />
-                <div className="flex items-center gap-3 bg-muted/10 px-4 py-2 rounded-full border border-border/30">
-                  <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-amber-500 animate-pulse' : 'bg-red-400')} />
-                  <span className="font-code text-[9px] uppercase tracking-widest font-bold opacity-60">
-                    {saveStatus === 'saved' ? 'Changes Saved' : saveStatus === 'saving' ? 'Saving...' : 'Unsaved'}
-                  </span>
-                </div>
-              </div>
-
+            <div className="flex flex-col gap-2">
               {showExternalDocControls && active.externalDoc && (
                 <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -836,19 +864,8 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-border/10">
-                <div className="flex items-center gap-4">
-                  <span className="font-code text-[10px] uppercase tracking-widest opacity-40 font-bold">CONCEPTS</span>
-                  <ConceptTagPicker
-                    concepts={concepts}
-                    value={active.conceptTags || []}
-                    onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })}
-                    onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
-                    compact
-                  />
-                </div>
-
-                {showPaperControls && (
+              {showPaperControls && (
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <PageViewControls
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
@@ -859,8 +876,8 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                     paperPattern={paperPattern}
                     onPaperPatternChange={setPaperPattern}
                   />
-                )}
-              </div>
+                </div>
+              )}
               {showPaperControls && (
                 <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/30 bg-card/80 px-4 py-3">
                   <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">PENCIL</span>
@@ -930,7 +947,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             annotations={unusedAnnotations}
             coherenceSignals={coherenceSignals}
             collapsed={railCollapsed}
-            onCollapsedChange={setRailCollapsed}
+            onCollapsedChange={setRailPreference}
           />
         </div>
 
@@ -1170,7 +1187,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                     src={draft.fileUrl}
                     controls
                     autoPlay
-                    className="h-[150px] w-full bg-black object-contain"
+                    className="h-[150px] w-full bg-foreground object-contain"
                     onClick={(event) => event.stopPropagation()}
                     onPause={() => setPlayingWorkId((current) => current === draft.id ? null : current)}
                     onEnded={() => setPlayingWorkId(null)}
@@ -1193,7 +1210,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 <div className="relative h-[150px]">
                   <img src={thumbnail} alt={`${presentation.label} preview for ${draft.title || 'untitled work'}`} className="h-full w-full object-contain bg-background" />
                   {isPlayable && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                    <div className="absolute inset-0 flex items-center justify-center bg-foreground/10">
                       <CirclePlay className="size-12 rounded-full bg-background/90 p-2 text-accent shadow-lg" />
                     </div>
                   )}
@@ -1606,7 +1623,7 @@ function RecordingStudio({
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
           {!audioOnly ? (
-            <div className="aspect-video overflow-hidden rounded-2xl border border-border bg-black">
+            <div className="aspect-video overflow-hidden rounded-2xl border border-border bg-foreground">
               {draft.fileUrl && (state === 'saved' || state === 'stopped') ? (
                 <video ref={previewRef} src={draft.fileUrl} controls className="h-full w-full object-contain" />
               ) : (
@@ -1676,6 +1693,7 @@ function DrawingStudio({
   updateActive: (patch: Partial<Draft>) => void;
   compact?: boolean;
 }) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingRef = useRef(false);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
@@ -1683,6 +1701,7 @@ function DrawingStudio({
   const [brushSize, setBrushSize] = useState(4);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [canvasSize, setCanvasSize] = useState({ width: compact ? 720 : 1120, height: compact ? 420 : 680 });
 
   const snapshot = useCallback(() => {
     const canvas = canvasRef.current;
@@ -1696,11 +1715,36 @@ function DrawingStudio({
   }, [historyIndex]);
 
   useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const resize = () => {
+      const rect = viewport.getBoundingClientRect();
+      const maxWidth = Math.max(280, rect.width - 32);
+      const maxHeight = Math.max(compact ? 260 : 360, rect.height - 32);
+      const documentWidth = compact ? 720 : 1120;
+      const documentHeight = compact ? 420 : 680;
+      const fit = Math.min(maxWidth / documentWidth, maxHeight / documentHeight, 1);
+      setCanvasSize({
+        width: Math.round(documentWidth * fit),
+        height: Math.round(documentHeight * fit),
+      });
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(viewport);
+    window.addEventListener('orientationchange', resize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('orientationchange', resize);
+    };
+  }, [compact]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ratio = window.devicePixelRatio || 1;
-    const width = compact ? 720 : 1120;
-    const height = compact ? 420 : 680;
+    const width = canvasSize.width;
+    const height = canvasSize.height;
     canvas.width = width * ratio;
     canvas.height = height * ratio;
     canvas.style.width = `${width}px`;
@@ -1717,7 +1761,7 @@ function DrawingStudio({
     } else {
       snapshot();
     }
-  }, [compact, draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [canvasSize.height, canvasSize.width, draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -1786,12 +1830,12 @@ function DrawingStudio({
   };
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-7xl flex-col gap-6 overflow-y-auto p-8">
-      <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
+    <div className="flex h-full w-full flex-col gap-3 overflow-hidden bg-background p-3 sm:p-4">
+      <Card className="rounded-2xl border-border bg-card p-3 shadow-sm sm:p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="font-headline text-2xl font-bold italic">{compact ? 'Quick Drawing Note' : 'Drawing Studio'}</h2>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            <h2 className="font-headline text-xl font-bold italic">{compact ? 'Quick Drawing Note' : 'Drawing Studio'}</h2>
+            <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
               {compact ? 'A lightweight sketch space for capturing visual ideas fast.' : 'A full visual thinking workspace for diagrams, sketches, and concept maps.'}
             </p>
           </div>
@@ -1817,8 +1861,8 @@ function DrawingStudio({
         </div>
       </Card>
 
-      <div className={cn("grid gap-6", compact ? "xl:grid-cols-[1fr_320px]" : "xl:grid-cols-[1fr_360px]")}>
-        <div className="overflow-auto rounded-2xl border border-border bg-muted/10 p-4">
+      <div className={cn("grid min-h-0 flex-1 gap-3", compact ? "xl:grid-cols-[1fr_300px]" : "xl:grid-cols-[1fr_340px]")}>
+        <div ref={viewportRef} className="min-h-[420px] overflow-hidden rounded-2xl border border-border bg-muted/10 p-3">
           <canvas
             ref={canvasRef}
             onPointerDown={onPointerDown}
@@ -1827,10 +1871,10 @@ function DrawingStudio({
             onPointerLeave={() => {
               drawingRef.current = false;
             }}
-            className="mx-auto block rounded-xl border border-border bg-white shadow-sm touch-none"
+            className="mx-auto block max-h-full max-w-full rounded-xl border border-border bg-white shadow-sm touch-none"
           />
         </div>
-        <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
+        <Card className="min-h-0 overflow-y-auto rounded-2xl border-border bg-card p-4 shadow-sm">
           <div className="font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Drawing Notes</div>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {compact ? 'Keep this quick. Use text for labels, context, or one sharp takeaway.' : 'Use text for labels, context, explanation, or the argument behind the sketch.'}
