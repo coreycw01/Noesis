@@ -129,7 +129,7 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
 
   return (
     <div className="sticky top-0 z-40 flex items-center justify-center border-b border-border/30 bg-background/95 backdrop-blur py-2 px-8">
-      <div className="flex items-center gap-1 p-1.5 rounded-full border border-border/60 bg-white shadow-sm overflow-x-auto max-w-full">
+      <div className="flex items-center gap-1 p-1.5 rounded-full border border-border/60 bg-card shadow-sm overflow-x-auto max-w-full">
         <div className="flex items-center px-3 border-r border-border/40 gap-1">
           <ToolbarButton icon={RotateCcw} onClick={() => applyFormat('undo')} title="Undo" />
           <ToolbarButton icon={RotateCw} onClick={() => applyFormat('redo')} title="Redo" />

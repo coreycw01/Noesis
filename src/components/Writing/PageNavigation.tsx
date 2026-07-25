@@ -13,7 +13,7 @@ interface PageNavigationProps {
 
 export function PageNavigation({ currentPage, totalPages, onPageChange }: PageNavigationProps) {
   return (
-    <div className="h-12 bg-white/80 backdrop-blur border-t border-border/30 flex items-center justify-center gap-8 z-40">
+    <div className="h-12 bg-background/90 backdrop-blur border-t border-border/30 flex items-center justify-center gap-8 z-40">
       <div className="flex items-center gap-2">
         <Button 
           variant="ghost" 

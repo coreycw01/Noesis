@@ -28,6 +28,7 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
+import { searchMatches } from '@/lib/search';
 
 interface BeliefVaultProps {
   entries: VaultEntry[];
@@ -552,9 +553,22 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       (viewFilter === 'unsupported' && !hasSupport) ||
       (viewFilter === 'stale' && diagnostic.flags.includes('stale')) ||
       (viewFilter === 'recently_changed' && changedAt >= recentCutoff);
-    const haystack = `${e.title || ''} ${e.statement || ''} ${e.description || ''} ${e.positionKind || ''} ${(e.assumptions || []).join(' ')} ${e.falsification || ''} ${(e.consequences || []).join(' ')} ${(e.applications || []).join(' ')}`.toLowerCase();
-    const queryOk = !search ||
-      haystack.includes(search.toLowerCase());
+    const relatedSources = media.filter((source) => (e.sourceIds || []).includes(source.id));
+    const relatedConcepts = concepts.filter((concept) => (e.tags || []).some((tag) => concept.name.toLowerCase() === tag.toLowerCase() || (concept.aliases || []).some((alias) => alias.toLowerCase() === tag.toLowerCase())));
+    const relatedInquiries = questions.filter((question) => (question.beliefIds || []).includes(e.id) || (question.conceptIds || []).some((id) => relatedConcepts.some((concept) => concept.id === id)));
+    const queryOk = searchMatches(search, [
+      { value: e.title, label: 'position' },
+      { value: e.statement, label: 'statement' },
+      { value: e.description, label: 'meaning' },
+      { value: e.positionKind, label: 'kind' },
+      ...(e.assumptions || []).map((item) => ({ value: item, label: 'assumption' })),
+      { value: e.falsification, label: 'falsification' },
+      ...(e.consequences || []).map((item) => ({ value: item, label: 'consequence' })),
+      ...(e.applications || []).map((item) => ({ value: item, label: 'application' })),
+      ...relatedSources.flatMap((source) => [{ value: source.title, label: 'source' }, { value: source.creator, label: 'source creator' }]),
+      ...relatedConcepts.map((concept) => ({ value: concept.name, label: 'concept' })),
+      ...relatedInquiries.map((inquiry) => ({ value: inquiry.text, label: 'inquiry' })),
+    ]);
     return typeOk && viewOk && queryOk;
   });
 

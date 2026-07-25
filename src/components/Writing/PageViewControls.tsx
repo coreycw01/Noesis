@@ -51,7 +51,7 @@ export function PageViewControls({
   ];
 
   const colors: { id: PaperColor; label: string; bg: string }[] = [
-    { id: 'blank', label: 'Blank', bg: 'bg-white' },
+    { id: 'blank', label: 'Blank', bg: 'bg-card' },
     { id: 'warm', label: 'Warm', bg: 'bg-amber-50/50' },
     { id: 'sepia', label: 'Sepia', bg: 'bg-[#f4ecd8]' },
     { id: 'dark', label: 'Dark', bg: 'bg-slate-900' },

@@ -27,6 +27,29 @@ export type DraftStatus = 'idea' | 'rough' | 'seed' | 'drafting' | 'developing' 
 export type WorkCategory = 'writing' | 'notes' | 'drawing' | 'recording';
 export type WorkMode = 'draft' | 'final';
 export type WorkPurpose = 'explore' | 'explain' | 'persuade' | 'synthesize' | 'reflect' | 'document' | 'teach' | 'challenge' | 'imagine';
+export type DrawingTool = 'pen' | 'pencil' | 'marker' | 'eraser';
+export interface DrawingStroke {
+  id: string;
+  tool: DrawingTool;
+  color: string;
+  opacity: number;
+  width: number;
+  points: Array<{ x: number; y: number }>;
+}
+export interface DrawingLayer {
+  id: string;
+  name: string;
+  visible: boolean;
+  strokes: DrawingStroke[];
+}
+export interface DrawingDocumentState {
+  version: 1;
+  width: number;
+  height: number;
+  background: string;
+  activeLayerId: string;
+  layers: DrawingLayer[];
+}
 export type RecordingType = 'video' | 'screen';
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type AccentTheme = 'violet' | 'sage' | 'blue' | 'amber' | 'rose' | 'mono';
@@ -320,6 +343,7 @@ export interface Draft {
   storagePath?: string;
   thumbnailUrl?: string;
   canvasData?: string;
+  drawingState?: DrawingDocumentState;
   writingOverlayData?: string;
   writingStyle?: WritingStyle;
   externalDoc?: ExternalDraftDocument;

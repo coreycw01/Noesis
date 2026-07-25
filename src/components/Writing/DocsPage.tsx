@@ -223,7 +223,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
             <span
               key={label}
               className={cn(
-                "absolute rounded-full border border-accent/15 bg-white/70 px-3 py-1",
+                "absolute rounded-full border border-accent/15 bg-card/80 px-3 py-1",
                 writingStyle === 'cornell_notes' && index === 0 && "left-20 top-24",
                 writingStyle === 'cornell_notes' && index === 1 && "left-[240px] top-24",
                 writingStyle === 'cornell_notes' && index === 2 && "left-20 bottom-20",

@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { aiClient } from '@/lib/ai-client';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
+import { searchMatches } from '@/lib/search';
 
 interface AnnotationsIndexProps {
   media: Media[];
@@ -259,8 +260,21 @@ export function AnnotationsIndex({
         }
         const conceptOk = filterConcept === 'all' || annotationTags(annotation).map(conceptKey).includes(filterConcept);
         const sourceOk = filterSource === 'all' || annotation.source.id === filterSource;
-        const query = `${annotation.text} ${annotation.source.title} ${annotation.source.creator} ${annotationTags(annotation).join(' ')}`.toLowerCase();
-        return typeOk && conceptOk && sourceOk && (!search || query.includes(search.toLowerCase()));
+        const relatedPositions = (positions || []).filter((position) => (annotation.linkedPositionIds || []).includes(position.id) || annotation.createdPositionId === position.id);
+        const relatedInquiries = (inquiries || []).filter((inquiry) => annotation.createdInquiryId === inquiry.id);
+        const searchOk = searchMatches(search, [
+          { value: annotation.text, label: 'annotation' },
+          { value: annotation.context, label: 'context' },
+          { value: annotation.answer, label: 'answer' },
+          { value: annotationType(annotation), label: 'type' },
+          { value: annotationStatus(annotation), label: 'processing state' },
+          { value: annotation.source.title, label: 'source' },
+          { value: annotation.source.creator, label: 'source creator' },
+          ...annotationTags(annotation).map((tag) => ({ value: tag, label: 'concept' })),
+          ...relatedPositions.map((position) => ({ value: position.title, label: 'position' })),
+          ...relatedInquiries.map((inquiry) => ({ value: inquiry.text, label: 'inquiry' })),
+        ]);
+        return typeOk && conceptOk && sourceOk && searchOk;
       })
       .sort((a, b) => {
         if (sortBy === 'oldest') return new Date(a.date).getTime() - new Date(b.date).getTime();

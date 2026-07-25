@@ -1,6 +1,7 @@
 "use client";
 
 import { Atelier } from '@/components/Writing/Atelier';
+import { WorksHub } from '@/components/Writing/WorksHub';
 import type { Concept, Draft, Media, Question, UserPreferences, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
@@ -33,6 +34,22 @@ export function WorksRoutePage({
   onAddConcept,
   onNavigate,
 }: WorksRoutePageProps) {
+  if (!focusedDraftId) {
+    return (
+      <WorksHub
+        drafts={drafts}
+        media={media}
+        vault={vault}
+        questions={questions}
+        concepts={concepts}
+        writingDefaults={writingDefaults}
+        onAddDraft={onAddDraft}
+        onDeleteDraft={onDeleteDraft}
+        onNavigate={onNavigate}
+      />
+    );
+  }
+
   return (
     <Atelier
       drafts={drafts}

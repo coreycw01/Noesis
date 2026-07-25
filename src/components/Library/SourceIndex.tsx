@@ -15,6 +15,7 @@ import { MEDIA_LABELS, conceptKey } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
+import { searchMatches } from '@/lib/search';
 
 interface SourceIndexProps {
   media: Media[];
@@ -233,8 +234,33 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           (catalogFilter === 'unfinished' && ['Want to Read', 'Consuming', 'Paused'].includes(m.status)) ||
           (catalogFilter === 'ready_to_cite' && sourceCatalogState(m).label === 'cataloged');
         const ids = Object.values(m.externalIds || {}).join(' ');
-        const query = `${m.title} ${m.creator} ${(m.creators || []).join(' ')} ${m.description || ''} ${m.publisher} ${m.platform} ${m.isbn} ${m.doi} ${m.url} ${m.sourceProvider} ${ids} ${(m.tags || []).join(' ')}`.toLowerCase();
-        return typeOk && statusOk && conceptOk && annotationOk && unfinishedOk && recentOk && influenceOk && catalogOk && (!search || query.includes(search.toLowerCase()));
+        const linkedPositions = vault.filter((entry) => (entry.sourceIds || []).includes(m.id));
+        const linkedWorks = drafts.filter((draft) => (draft.sourceIds || []).includes(m.id));
+        const linkedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(m.id));
+        const linkedQuestions = questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(m.id));
+        const searchOk = searchMatches(search, [
+          { value: m.title, label: 'title' },
+          { value: m.creator, label: 'creator' },
+          ...(m.creators || []).map((creator) => ({ value: creator, label: 'creator' })),
+          { value: m.type, label: 'media type' },
+          { value: m.status, label: 'status' },
+          { value: m.year, label: 'year' },
+          { value: m.description, label: 'description' },
+          { value: m.publisher, label: 'publisher' },
+          { value: m.platform, label: 'platform' },
+          { value: m.isbn, label: 'isbn' },
+          { value: m.doi, label: 'doi' },
+          { value: m.url, label: 'url' },
+          { value: m.sourceProvider, label: 'provider' },
+          { value: ids, label: 'identifier' },
+          ...(m.tags || []).map((tag) => ({ value: tag, label: 'tag' })),
+          ...(m.annotations || []).map((annotation) => ({ value: annotation.text, label: 'annotation' })),
+          ...linkedPositions.map((position) => ({ value: position.title, label: 'position' })),
+          ...linkedWorks.map((work) => ({ value: work.title, label: 'work' })),
+          ...linkedPractices.map((practice) => ({ value: practice.title, label: 'practice' })),
+          ...linkedQuestions.map((question) => ({ value: question.text, label: 'inquiry' })),
+        ]);
+        return typeOk && statusOk && conceptOk && annotationOk && unfinishedOk && recentOk && influenceOk && catalogOk && searchOk;
       })
       .map((source) => ({
         source,

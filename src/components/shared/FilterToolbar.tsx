@@ -16,6 +16,7 @@ interface FilterToolbarProps {
   resultLabel?: string;
   sortLabel?: string;
   activeFilterLabels?: string[];
+  activeFilters?: Array<{ id: string; label: string; onRemove?: () => void }>;
   activeFilterCount?: number;
   onClear?: () => void;
   clearDisabled?: boolean;
@@ -32,28 +33,70 @@ export function FilterToolbar({
   resultLabel = 'results',
   sortLabel,
   activeFilterLabels = [],
+  activeFilters,
   activeFilterCount,
   onClear,
   clearDisabled,
   className,
 }: FilterToolbarProps) {
   const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
-  const resolvedActiveFilterCount = activeFilterCount ?? activeFilterLabels.length;
+  const [localSearch, setLocalSearch] = React.useState(search || '');
+  const searchId = React.useId();
+  const searchTimer = React.useRef<number | null>(null);
+  const resolvedActiveFilterCount = activeFilterCount ?? activeFilters?.length ?? activeFilterLabels.length;
   const hasActiveFilters = Boolean(resolvedActiveFilterCount && resolvedActiveFilterCount > 0) || Boolean(onClear && clearDisabled === false);
+
+  React.useEffect(() => {
+    setLocalSearch(search || '');
+  }, [search]);
+
+  React.useEffect(() => () => {
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+  }, []);
+
+  const updateSearch = (value: string) => {
+    setLocalSearch(value);
+    if (!onSearchChange) return;
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    searchTimer.current = window.setTimeout(() => onSearchChange(value.trim()), 180);
+  };
+
+  const clearSearch = () => {
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    setLocalSearch('');
+    onSearchChange?.('');
+  };
+
+  const renderedFilters: Array<{ id: string; label: string; onRemove?: () => void }> = activeFilters?.length
+    ? activeFilters
+    : activeFilterLabels.map((label) => ({ id: label, label }));
   return (
-    <section aria-label="Page filters and search" className={cn('sticky top-0 z-20 mb-5 rounded-xl border border-border/40 bg-card/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/85 md:mb-8 md:p-4', className)}>
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
+    <section aria-label="Page filters and search" className={cn('sticky top-0 z-20 mb-5 border-b border-border/30 bg-background/90 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:mb-8', className)}>
+      <div className="flex min-h-10 flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
         {typeof search === 'string' && onSearchChange && (
-          <div className="relative min-w-0 flex-1 xl:max-w-md">
-            <label htmlFor="page-search" className="sr-only">{searchLabel}</label>
+          <div className="relative min-w-0 flex-1 md:max-w-lg">
+            <label htmlFor={searchId} className="sr-only">{searchLabel}</label>
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              id="page-search"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
+              id={searchId}
+              value={localSearch}
+              onChange={(event) => updateSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  clearSearch();
+                }
+              }}
+              role="searchbox"
+              aria-label={searchLabel}
               placeholder={searchPlaceholder}
-              className="h-10 rounded-full pl-9 text-sm"
+              className="h-10 rounded-full border-border/50 bg-transparent pl-9 pr-9 text-sm shadow-none focus-visible:ring-1 focus-visible:ring-accent/40"
             />
+            {localSearch && (
+              <button type="button" onClick={clearSearch} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
         )}
         {children && (
@@ -63,7 +106,7 @@ export function FilterToolbar({
               variant="outline"
               size="sm"
               onClick={() => setMobileFiltersOpen((open) => !open)}
-              className="h-9 justify-center rounded-full font-code text-[9px] uppercase tracking-widest md:hidden"
+              className="h-9 justify-center rounded-full border-border/50 bg-transparent font-code text-[9px] uppercase tracking-widest md:hidden"
               aria-expanded={mobileFiltersOpen}
             >
               <SlidersHorizontal className="mr-1.5 size-3.5" />
@@ -71,7 +114,7 @@ export function FilterToolbar({
             </Button>
             <div className={cn(
               'flex-wrap items-center gap-2 md:flex',
-              mobileFiltersOpen ? 'flex rounded-xl border border-border/50 bg-background/50 p-2' : 'hidden'
+              mobileFiltersOpen ? 'flex' : 'hidden'
             )} aria-label="Filters">
               {children}
             </div>
@@ -100,11 +143,16 @@ export function FilterToolbar({
           )}
         </div>
       </div>
-      {activeFilterLabels.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-border/50 pt-3" aria-label="Active filter summary">
-          {activeFilterLabels.map((label) => (
-            <span key={label} className="rounded-full bg-muted px-3 py-1 font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
-              {label}
+      {renderedFilters.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Active filter summary">
+          {renderedFilters.map((filter) => (
+            <span key={filter.id} className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-muted/50 px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+              {filter.label}
+              {filter.onRemove && (
+                <button type="button" onClick={filter.onRemove} aria-label={`Remove ${filter.label}`} className="rounded-full p-0.5 hover:bg-background hover:text-foreground">
+                  <X className="size-3" />
+                </button>
+              )}
             </span>
           ))}
         </div>

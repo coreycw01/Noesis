@@ -40,7 +40,7 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { FormattingToolbar } from './FormattingToolbar';
 import { DocumentCanvas } from './DocumentCanvas';
 import { PageViewControls } from './PageViewControls';
-import type { Annotation, Concept, Draft, DraftStatus, DraftType, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkPurpose, WritingStyle } from '@/lib/types';
+import type { Annotation, Concept, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WritingStyle } from '@/lib/types';
 import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, WRITING_STYLES, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -49,6 +49,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { searchMatches } from '@/lib/search';
 
 export type PageViewMode = 'vertical-continuous' | 'vertical-single' | 'horizontal-single';
 export type PageSize = 'letter' | 'a4';
@@ -56,7 +57,7 @@ export type PaperColor = 'blank' | 'warm' | 'sepia' | 'dark';
 export type PaperPattern = 'none' | 'notebook' | 'grid' | 'dotted' | 'dotted_grid';
 type WritingTool = 'text' | 'pencil' | 'eraser';
 type WorkRailAnnotation = Annotation & { sourceTitle: string; sourceId: string };
-type WorkFilter = 'all' | DraftType | DraftStatus | 'active_inquiries' | 'awaiting_revision' | 'needs_sources' | 'needs_positions' | 'unresolved' | 'external_docs';
+type WorkFilter = 'all' | DraftType | DraftStatus | 'awaiting_revision' | 'external_docs';
 type BrowserSpeechRecognitionCtor = new () => {
   continuous: boolean;
   interimResults: boolean;
@@ -92,21 +93,7 @@ const workViewFilters: Array<{ id: WorkFilter; label: string }> = [
   { id: 'all', label: 'All Works' },
   { id: 'drafting', label: 'Drafting' },
   { id: 'awaiting_revision', label: 'Awaiting Revision' },
-  { id: 'needs_sources', label: 'Needs Sources' },
-  { id: 'needs_positions', label: 'Needs Positions' },
-  { id: 'unresolved', label: 'Unresolved' },
-];
-
-const workPurposes: Array<{ id: WorkPurpose; label: string; description: string }> = [
-  { id: 'explore', label: 'Explore', description: 'Find what you think by working through the material.' },
-  { id: 'explain', label: 'Explain', description: 'Make an idea legible to yourself or someone else.' },
-  { id: 'persuade', label: 'Persuade', description: 'Argue for a position and answer objections.' },
-  { id: 'synthesize', label: 'Synthesize', description: 'Combine sources, concepts, and positions into one artifact.' },
-  { id: 'reflect', label: 'Reflect', description: 'Clarify experience, change, or uncertainty.' },
-  { id: 'document', label: 'Document', description: 'Preserve an observation, recording, sketch, or process.' },
-  { id: 'teach', label: 'Teach', description: 'Turn understanding into a teachable structure.' },
-  { id: 'challenge', label: 'Challenge', description: 'Pressure-test a claim or assumption.' },
-  { id: 'imagine', label: 'Imagine', description: 'Generate a possible world, image, metaphor, or scenario.' },
+  { id: 'external_docs', label: 'External Documents' },
 ];
 
 const providerLabels: Record<ExternalDocProvider, string> = {
@@ -121,11 +108,7 @@ const providerLabels: Record<ExternalDocProvider, string> = {
 const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'title',
   'label',
-  'workPurpose',
-  'purposeNote',
   'atlasRegion',
-  'argumentSkeleton',
-  'completionReflection',
   'body',
   'draftContent',
   'finalContent',
@@ -139,6 +122,7 @@ const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'storagePath',
   'thumbnailUrl',
   'canvasData',
+  'drawingState',
   'writingOverlayData',
   'writingStyle',
   'externalDoc',
@@ -280,50 +264,14 @@ function WorkTypeMark({ draft }: { draft: Draft }) {
   );
 }
 
-function workReadiness(draft: Draft, questions: Question[]) {
-  const category = draft.workCategory || workCategoryForDraft(draft.type);
-  const linkedActiveInquiry = (draft.questionIds || []).some((questionId) => {
-    const question = questions.find((item) => item.id === questionId);
-    return question && !['resolved', 'answered', 'archived', 'suspended', 'converted', 'no_longer_meaningful'].includes(question.status);
-  });
-  const structureParts = [
-    draft.argumentSkeleton?.centralClaim,
-    ...(draft.argumentSkeleton?.supportingClaims || []),
-    ...(draft.argumentSkeleton?.objections || []),
-    draft.argumentSkeleton?.conclusion,
-  ].filter((item) => item && String(item).trim());
-  const gaps: string[] = [];
-  if (draft.type === 'source_analysis' && !(draft.sourceIds || []).length) gaps.push('sources');
-  if (draft.type === 'argument' && !(draft.beliefIds || []).length) gaps.push('positions');
-  if (linkedActiveInquiry && !draft.completionReflection?.unresolved?.trim()) gaps.push('unresolved question');
+function needsRevisionForWork(draft: Draft) {
+  return ['rough', 'drafting', 'developing', 'revising', 'revised'].includes(draft.status);
+}
 
-  let label = 'in progress';
-  let nextAction = 'Keep creating. Add links, sources, or reflection only when they help the work.';
-  if (gaps.includes('sources')) {
-    label = 'needs sources';
-    nextAction = 'Link the source material this analysis is responding to.';
-  } else if (gaps.includes('positions')) {
-    label = 'needs position';
-    nextAction = 'Link the position this argument is expressing, challenging, or revising.';
-  } else if (gaps.includes('unresolved question')) {
-    label = 'unresolved';
-    nextAction = 'Record what question remains open or what this work still cannot answer.';
-  } else if (draft.completionReflection?.unresolved?.trim()) {
-    label = 'awaiting revision';
-    nextAction = 'Resolve, narrow, or preserve the unresolved thread before finalizing.';
-  } else if (draft.status === 'final' || draft.status === 'published') {
-    label = 'ready to review';
-    nextAction = 'Review coherence against linked positions, sources, and objections.';
-  }
-
-  return {
-    category,
-    linkedActiveInquiry,
-    structureCount: structureParts.length,
-    gaps,
-    label,
-    nextAction,
-  };
+function workStatusLabel(draft: Draft) {
+  if (needsRevisionForWork(draft)) return 'Needs revision';
+  if (draft.status === 'final' || draft.status === 'published' || draft.status === 'complete') return 'Ready to revisit';
+  return 'In progress';
 }
 
 export function Atelier({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
@@ -333,7 +281,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   const [search, setSearch] = useState('');
   const [isWorkTypeOpen, setIsWorkTypeOpen] = useState(false);
   const [isNoteTypeOpen, setIsNoteTypeOpen] = useState(false);
-  const [workLauncher, setWorkLauncher] = useState<{ purpose: WorkPurpose; note: string }>({ purpose: 'explore', note: '' });
   const [isDocOpen, setIsDocOpen] = useState(false);
   const [docDraft, setDocDraft] = useState({ title: '', url: '', provider: 'google_docs' as ExternalDocProvider, autoSync: true });
   const [syncingId, setSyncingId] = useState<string | null>(null);
@@ -389,27 +336,25 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   const visibleDrafts = drafts
     .filter((draft) => {
       const category = draft.workCategory || workCategoryForDraft(draft.type);
-      const readiness = workReadiness(draft, questions);
       if (workTab !== 'all' && category !== workTab) return false;
       if (filter === 'all') return true;
-      if (filter === 'active_inquiries') {
-        return (draft.questionIds || []).some((questionId) => {
-          const question = questions.find((item) => item.id === questionId);
-          return question && !['resolved', 'answered', 'archived', 'suspended', 'converted', 'no_longer_meaningful'].includes(question.status);
-        });
-      }
-      if (filter === 'awaiting_revision') {
-        return ['rough', 'drafting', 'developing', 'revising', 'revised'].includes(draft.status)
-          || Boolean(draft.argumentSkeleton?.objections?.length)
-          || Boolean(draft.completionReflection?.unresolved);
-      }
-      if (filter === 'needs_sources') return readiness.gaps.includes('sources');
-      if (filter === 'needs_positions') return readiness.gaps.includes('positions');
-      if (filter === 'unresolved') return Boolean(draft.completionReflection?.unresolved?.trim()) || readiness.gaps.includes('unresolved question');
+      if (filter === 'awaiting_revision') return needsRevisionForWork(draft);
       if (filter === 'external_docs') return Boolean(draft.externalDoc);
       return draft.type === filter || draft.status === filter;
     })
-    .filter((draft) => !search || draft.title.toLowerCase().includes(search.toLowerCase()))
+    .filter((draft) => searchMatches(search, [
+      { value: draft.title, label: 'title' },
+      { value: plainTextFromDraft(draft), label: 'content' },
+      { value: draft.type, label: 'work type' },
+      { value: draft.status, label: 'status' },
+      ...(draft.conceptTags || []).map((tag) => ({ value: tag, label: 'concept' })),
+      ...media.filter((source) => (draft.sourceIds || []).includes(source.id)).flatMap((source) => [
+        { value: source.title, label: 'source' },
+        { value: source.creator, label: 'source creator' },
+      ]),
+      ...questions.filter((question) => (draft.questionIds || []).includes(question.id)).map((question) => ({ value: question.text, label: 'inquiry' })),
+      ...vault.filter((position) => (draft.beliefIds || []).includes(position.id)).map((position) => ({ value: position.title, label: 'position' })),
+    ]))
     .sort((a, b) => new Date(b.dateUpdated).getTime() - new Date(a.dateUpdated).getTime());
 
   const workStats = useMemo(() => ({
@@ -417,14 +362,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
     writing: drafts.filter((draft) => (draft.workCategory || workCategoryForDraft(draft.type)) === 'writing').length,
     notes: drafts.filter((draft) => (draft.workCategory || workCategoryForDraft(draft.type)) === 'notes').length,
     linkedDocs: drafts.filter((draft) => !!draft.externalDoc).length,
-    awaitingRevision: drafts.filter((draft) =>
-      ['rough', 'drafting', 'developing', 'revising', 'revised'].includes(draft.status)
-      || Boolean(draft.argumentSkeleton?.objections?.length)
-      || Boolean(draft.completionReflection?.unresolved)
-    ).length,
-    needsSources: drafts.filter((draft) => workReadiness(draft, questions).gaps.includes('sources')).length,
-    needsPositions: drafts.filter((draft) => workReadiness(draft, questions).gaps.includes('positions')).length,
-    unresolved: drafts.filter((draft) => Boolean(draft.completionReflection?.unresolved?.trim()) || workReadiness(draft, questions).gaps.includes('unresolved question')).length,
+    awaitingRevision: drafts.filter(needsRevisionForWork).length,
   }), [drafts, questions]);
 
   const clearWorkFilters = () => {
@@ -517,8 +455,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
       title: baseTitle,
       type,
       label: DRAFT_LABELS[type],
-      workPurpose: workLauncher.purpose,
-      purposeNote: workLauncher.note,
       body: '',
       draftContent: '',
       finalContent: '',
@@ -529,6 +465,14 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
       recordingType: type === 'recording' || type === 'voice_note' ? 'screen' : undefined,
       status: writingDefaults.status,
       writingStyle: writingDefaults.writingStyle,
+      drawingState: type === 'drawing' || type === 'drawing_note' ? {
+        version: 1,
+        width: type === 'drawing_note' ? 720 : 1120,
+        height: type === 'drawing_note' ? 420 : 680,
+        background: '#ffffff',
+        activeLayerId: 'layer-1',
+        layers: [{ id: 'layer-1', name: 'Sketch', visible: true, strokes: [] }],
+      } : undefined,
       conceptTags: [],
       sourceIds: [],
       questionIds: [],
@@ -1055,10 +999,8 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
           </button>
         )))}
         {[
-          { label: 'Needs sources', value: workStats.needsSources, filter: 'needs_sources' as WorkFilter },
-          { label: 'Needs positions', value: workStats.needsPositions, filter: 'needs_positions' as WorkFilter },
-          { label: 'Unresolved', value: workStats.unresolved, filter: 'unresolved' as WorkFilter },
-          { label: 'Linked docs', value: workStats.linkedDocs, filter: 'external_docs' as WorkFilter },
+          { label: 'Needs revision', value: workStats.awaitingRevision, filter: 'awaiting_revision' as WorkFilter },
+          { label: 'External docs', value: workStats.linkedDocs, filter: 'external_docs' as WorkFilter },
         ].filter((item) => item.value > 0).map((item) => (
           <button
             key={item.filter}
@@ -1111,10 +1053,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
               const question = questions.find((item) => item.id === questionId);
               return question && !['resolved', 'answered', 'archived', 'suspended', 'converted', 'no_longer_meaningful'].includes(question.status);
             });
-            const needsRevision = ['rough', 'drafting', 'developing', 'revising', 'revised'].includes(draft.status)
-              || Boolean(draft.argumentSkeleton?.objections?.length)
-              || Boolean(draft.completionReflection?.unresolved);
-            const readiness = workReadiness(draft, questions);
+            const needsRevision = needsRevisionForWork(draft);
             const presentation = workTypePresentation(draft);
             const ActionIcon = presentation.Icon;
             const textPreview = plainTextFromDraft(draft);
@@ -1149,11 +1088,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                       {draft.status}
                     </Badge>
                   </div>
-                  {draft.workPurpose && (
-                    <span className="mt-1 block font-code text-[8px] uppercase tracking-widest text-accent font-bold">
-                      {draft.workPurpose}
-                    </span>
-                  )}
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -1166,11 +1100,6 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 {needsRevision && (
                   <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-muted text-muted-foreground border-transparent rounded-full font-bold px-2 py-0.5">
                     Revise
-                  </Badge>
-                )}
-                {!!readiness.gaps.length && (
-                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-destructive/10 text-destructive border-transparent rounded-full font-bold px-2 py-0.5">
-                    {readiness.gaps.length} gaps
                   </Badge>
                 )}
               </div>
@@ -1229,7 +1158,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                 <div className="flex h-[150px] flex-col justify-between p-4">
                   <FileText className="size-6 text-accent/60" />
                   <p className="line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">
-                    {textPreview || draft.purposeNote || 'No written content yet.'}
+                    {textPreview || 'No written content yet.'}
                   </p>
                 </div>
               )}
@@ -1259,8 +1188,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                   {metadata}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1.5">
-                  <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{readiness.label}</Badge>
-                  {!!readiness.gaps.length && <span className="font-code text-[8px] uppercase tracking-widest text-destructive">{readiness.gaps.length} gaps</span>}
+                  <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{workStatusLabel(draft)}</Badge>
                 </div>
               </div>
               <Button
@@ -1517,9 +1445,10 @@ function RecordingStudio({
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const [state, setState] = useState<'idle' | 'requesting' | 'ready' | 'recording' | 'stopped' | 'saving' | 'saved' | 'error'>('idle');
+  const [state, setState] = useState<'idle' | 'requesting' | 'ready' | 'recording' | 'stopped' | 'saving' | 'saved' | 'error'>(draft.fileUrl ? 'saved' : 'idle');
   const [error, setError] = useState('');
   const [duration, setDuration] = useState(draft.durationSeconds || 0);
+  const durationRef = useRef(draft.durationSeconds || 0);
 
   useEffect(() => {
     return () => {
@@ -1531,7 +1460,10 @@ function RecordingStudio({
   useEffect(() => {
     let timer: number | undefined;
     if (state === 'recording') {
-      timer = window.setInterval(() => setDuration((current) => current + 1), 1000);
+      timer = window.setInterval(() => {
+        durationRef.current += 1;
+        setDuration(durationRef.current);
+      }, 1000);
     }
     return () => {
       if (timer) window.clearInterval(timer);
@@ -1577,7 +1509,7 @@ function RecordingStudio({
         const fileUrl = await blobToDataUrl(blob);
         updateActive({
           fileUrl,
-          durationSeconds: duration,
+          durationSeconds: durationRef.current,
         });
         streamRef.current?.getTracks().forEach((track) => track.stop());
         if (previewRef.current) {
@@ -1596,7 +1528,14 @@ function RecordingStudio({
 
   const stopRecording = () => {
     recorderRef.current?.stop();
-    setState('stopped');
+  };
+
+  const rerecord = () => {
+    updateActive({ fileUrl: '', durationSeconds: 0 });
+    durationRef.current = 0;
+    setDuration(0);
+    setState('idle');
+    setError('');
   };
 
   return (
@@ -1676,6 +1615,11 @@ function RecordingStudio({
             <Button onClick={stopRecording} disabled={state !== 'recording'} variant="outline" className="rounded-full bg-background">
               Stop Recording
             </Button>
+            {(state === 'stopped' || state === 'saved') && (
+              <Button onClick={rerecord} variant="ghost" className="rounded-full text-muted-foreground">
+                <RefreshCw className="mr-2 size-4" /> Re-record
+              </Button>
+            )}
           </div>
         </Card>
 
@@ -1696,12 +1640,22 @@ function DrawingStudio({
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingRef = useRef(false);
-  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
+  const [tool, setTool] = useState<DrawingTool>('pen');
   const [color, setColor] = useState('#1f2937');
   const [brushSize, setBrushSize] = useState(4);
+  const [opacity, setOpacity] = useState(1);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [canvasSize, setCanvasSize] = useState({ width: compact ? 720 : 1120, height: compact ? 420 : 680 });
+  const strokesRef = useRef<DrawingStroke[]>(draft.drawingState?.layers.flatMap((layer) => layer.strokes) || []);
+  const currentStrokeRef = useRef<DrawingStroke | null>(null);
+
+  useEffect(() => {
+    strokesRef.current = draft.drawingState?.layers.flatMap((layer) => layer.strokes) || [];
+    currentStrokeRef.current = null;
+    setHistory([]);
+    setHistoryIndex(-1);
+  }, [draft.id]);
 
   const snapshot = useCallback(() => {
     const canvas = canvasRef.current;
@@ -1778,8 +1732,18 @@ function DrawingStudio({
     ctx.moveTo(point.x, point.y);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = brushSize;
+    ctx.lineWidth = tool === 'marker' ? brushSize * 3 : tool === 'pencil' ? Math.max(1, brushSize * 0.65) : brushSize;
     ctx.strokeStyle = tool === 'eraser' ? '#ffffff' : color;
+    ctx.globalAlpha = tool === 'marker' ? Math.min(opacity, 0.3) : tool === 'pencil' ? Math.min(opacity, 0.65) : opacity;
+    ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+    currentStrokeRef.current = {
+      id: `stroke-${Date.now()}`,
+      tool,
+      color,
+      opacity: ctx.globalAlpha,
+      width: ctx.lineWidth,
+      points: [point],
+    };
   };
 
   const onPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1789,11 +1753,21 @@ function DrawingStudio({
     const point = getPoint(event);
     ctx.lineTo(point.x, point.y);
     ctx.stroke();
+    currentStrokeRef.current?.points.push(point);
   };
 
   const onPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
     drawingRef.current = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
+    if (currentStrokeRef.current) {
+      strokesRef.current = [...strokesRef.current, currentStrokeRef.current];
+      currentStrokeRef.current = null;
+    }
+    const ctx = canvasRef.current?.getContext('2d');
+    if (ctx) {
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
     snapshot();
     window.setTimeout(saveDrawing, 0);
   };
@@ -1817,8 +1791,11 @@ function DrawingStudio({
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, parseInt(canvas.style.width, 10), parseInt(canvas.style.height, 10));
+    strokesRef.current = [];
     snapshot();
     window.setTimeout(saveDrawing, 0);
   };
@@ -1826,7 +1803,15 @@ function DrawingStudio({
   const saveDrawing = () => {
     const data = canvasRef.current?.toDataURL('image/png');
     if (!data) return;
-    updateActive({ canvasData: data, thumbnailUrl: data });
+    const drawingState: DrawingDocumentState = {
+      version: 1,
+      width: canvasSize.width,
+      height: canvasSize.height,
+      background: '#ffffff',
+      activeLayerId: 'layer-1',
+      layers: [{ id: 'layer-1', name: 'Sketch', visible: true, strokes: strokesRef.current }],
+    };
+    updateActive({ canvasData: data, thumbnailUrl: data, drawingState });
   };
 
   return (
@@ -1840,14 +1825,19 @@ function DrawingStudio({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant={tool === 'pen' ? 'default' : 'outline'} onClick={() => setTool('pen')} className="rounded-full">
-              <PenTool className="mr-2 size-4" /> Pen
-            </Button>
-            <Button variant={tool === 'eraser' ? 'default' : 'outline'} onClick={() => setTool('eraser')} className="rounded-full">
-              <Eraser className="mr-2 size-4" /> Eraser
-            </Button>
-            <input type="color" value={color} onChange={(event) => setColor(event.target.value)} className="h-10 w-12 rounded border border-border bg-background p-1" />
-            <input type="range" min={1} max={24} value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} className="w-28" />
+            {([
+              ['pen', 'Pen', PenTool],
+              ['pencil', 'Pencil', PencilLine],
+              ['marker', 'Marker', PenTool],
+              ['eraser', 'Erase', Eraser],
+            ] as const).map(([value, label, Icon]) => (
+              <Button key={value} variant={tool === value ? 'default' : 'outline'} onClick={() => setTool(value)} className="rounded-full" title={label}>
+                <Icon className="mr-2 size-4" /> {label}
+              </Button>
+            ))}
+            <input type="color" value={color} onChange={(event) => setColor(event.target.value)} className="h-10 w-12 rounded border border-border bg-background p-1" aria-label="Drawing color" />
+            <input type="range" min={1} max={24} value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} className="w-24" aria-label="Brush size" />
+            <input type="range" min={0.1} max={1} step={0.1} value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} className="w-20" aria-label="Brush opacity" />
             <Button variant="outline" onClick={() => restoreHistory(Math.max(0, historyIndex - 1))} disabled={historyIndex <= 0} className="rounded-full bg-background">
               <Undo2 className="size-4" />
             </Button>
@@ -1863,7 +1853,7 @@ function DrawingStudio({
 
       <div className={cn("grid min-h-0 flex-1 gap-3", compact ? "xl:grid-cols-[1fr_300px]" : "xl:grid-cols-[1fr_340px]")}>
         <div ref={viewportRef} className="min-h-[420px] overflow-hidden rounded-2xl border border-border bg-muted/10 p-3">
-          <canvas
+            <canvas
             ref={canvasRef}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -1871,7 +1861,7 @@ function DrawingStudio({
             onPointerLeave={() => {
               drawingRef.current = false;
             }}
-            className="mx-auto block max-h-full max-w-full rounded-xl border border-border bg-white shadow-sm touch-none"
+            className="mx-auto block max-h-full max-w-full rounded-xl border border-border bg-card shadow-sm touch-none"
           />
         </div>
         <Card className="min-h-0 overflow-y-auto rounded-2xl border-border bg-card p-4 shadow-sm">

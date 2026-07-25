@@ -27,6 +27,7 @@ import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { noesisUserError } from '@/lib/user-facing-errors';
+import { searchMatches } from '@/lib/search';
 
 interface MediaLibraryProps {
   media: Media[];
@@ -184,8 +185,23 @@ export function MediaLibrary({
       (viewFilter === 'recently_added' && sourceIsRecentlyAdded(item)) ||
       (viewFilter === 'paused_or_abandoned' && (item.status === 'Paused' || item.status === 'Abandoned')) ||
       (viewFilter === 'influential' && sourceInfluenceCount(item, vault, drafts, practices, questions) > 0);
-    const query = `${item.title} ${item.creator} ${item.description || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
-    return typeOk && statusOk && viewOk && (!searchQuery || query.includes(searchQuery.toLowerCase()));
+    const linkedPositions = vault.filter((entry) => (entry.sourceIds || []).includes(item.id));
+    const linkedWorks = drafts.filter((draft) => (draft.sourceIds || []).includes(item.id));
+    const linkedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(item.id));
+    const linkedConcepts = concepts.filter((concept) => (item.tags || []).some((tag) => concept.name.toLowerCase() === tag.toLowerCase() || (concept.aliases || []).some((alias) => alias.toLowerCase() === tag.toLowerCase())));
+    const searchOk = searchMatches(searchQuery, [
+      { value: item.title, label: 'title' },
+      { value: item.creator, label: 'creator' },
+      { value: item.type, label: 'media type' },
+      { value: item.status, label: 'status' },
+      { value: item.description, label: 'description' },
+      ...(item.tags || []).map((tag) => ({ value: tag, label: 'tag' })),
+      ...linkedPositions.map((position) => ({ value: position.title, label: 'position' })),
+      ...linkedWorks.map((work) => ({ value: work.title, label: 'work' })),
+      ...linkedPractices.map((practice) => ({ value: practice.title, label: 'practice' })),
+      ...linkedConcepts.map((concept) => ({ value: concept.name, label: 'concept' })),
+    ]);
+    return typeOk && statusOk && viewOk && searchOk;
   }), [filter, media, searchQuery, statusFilter, viewFilter, vault, drafts, practices, questions]);
 
   const libraryStats = useMemo(() => ({

@@ -23,6 +23,7 @@ import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { noesisUserError } from '@/lib/user-facing-errors';
+import { searchMatches } from '@/lib/search';
 
 interface QuestionsWorkspaceProps {
   questions: Question[];
@@ -157,7 +158,24 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
     if (filter === 'suspended') typeOk = question.status === 'suspended' || question.status === 'archived';
     if (filter === 'resolved') typeOk = isInquiryClosed(question) || question.status === 'provisionally_answered';
     if (filter === 'annotations') typeOk = question.type === 'annotation';
-    return typeOk && (!search || question.text.toLowerCase().includes(search.toLowerCase()) || (question.answer || '').toLowerCase().includes(search.toLowerCase()));
+    const relatedSources = media.filter((source) => (question.sourceIds || question.evidenceIds || []).includes(source.id));
+    const relatedConcepts = concepts.filter((concept) => (question.conceptIds || []).includes(concept.id));
+    const searchOk = searchMatches(search, [
+      { value: question.text, label: 'question' },
+      { value: question.answer, label: 'answer' },
+      { value: question.currentIntuition, label: 'intuition' },
+      ...(question.candidateAnswers || []).flatMap((candidate) => [
+        { value: candidate.statement, label: 'candidate answer' },
+        { value: candidate.support, label: 'candidate support' },
+        { value: candidate.objection, label: 'candidate objection' },
+      ]),
+      ...relatedSources.flatMap((source) => [
+        { value: source.title, label: 'source' },
+        { value: source.creator, label: 'source creator' },
+      ]),
+      ...relatedConcepts.map((concept) => ({ value: concept.name, label: 'concept' })),
+    ]);
+    return typeOk && searchOk;
   });
   const selected = all.find((question) => question.id === selectedId) || null;
 
@@ -214,10 +232,6 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
     );
   }
 
-  const answered = all.filter((q) => !!q.answer || q.status === 'provisionally_answered').length;
-  const openCount = all.filter((q) => ['captured', 'clarifying', 'open', 'investigating', 'reopened', 'under_tension'].includes(q.status) || (!q.answer && !isInquiryClosed(q))).length;
-  const investigatingCount = all.filter((q) => q.status === 'investigating' || q.status === 'gathering_evidence' || q.status === 'comparing_answers').length;
-  const stalledCount = all.filter((q) => q.status === 'suspended' || q.status === 'enduring' || q.status === 'under_tension' || q.status === 'reopened').length;
   const needsFrameCount = all.filter((q) => inquiryFrameGaps(q).length > 0 && !isInquiryClosed(q)).length;
   const needsAssumptionsCount = all.filter(inquiryNeedsAssumptions).length;
   const needsEvidenceCount = all.filter(inquiryNeedsEvidence).length;
@@ -240,13 +254,9 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
         description="Work through returning questions as structured investigations with evidence, provisional answers, and resolution summaries."
         actions={
           <>
-            <Stat label="Open" value={openCount} />
-            <Stat label="Investigating" value={investigatingCount} />
-            <Stat label="Stalled" value={stalledCount} />
-            <Stat label="Answered" value={answered} />
-          <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90 rounded-full h-9 px-6 font-bold">
-            <Plus className="size-4 mr-1.5" /> ADD INQUIRY
-          </Button>
+            <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90 rounded-full h-9 px-6 font-bold">
+              <Plus className="size-4 mr-1.5" /> ADD INQUIRY
+            </Button>
           </>
         }
       />
@@ -1428,15 +1438,6 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
         }}
       />
     </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <Card className="bg-white border border-accent/10 shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl">
-      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</div>
-      <div className="mt-1 text-2xl font-headline font-bold text-accent leading-none">{value}</div>
-    </Card>
   );
 }
 
