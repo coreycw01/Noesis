@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle, HelpCircle, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { SourceLinker } from '@/components/SourceLinker';
 import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { aiClient } from '@/lib/ai-client';
-import type { Concept, Draft, Media, Question, VaultEntry } from '@/lib/types';
+import type { Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, conceptKey, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +36,7 @@ interface QuestionsWorkspaceProps {
   onDeleteQuestion: (id: string) => void;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
+  onAddPractice: (data: Partial<Practice>) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   focusedQuestionId?: string | null;
   onFocusedQuestionHandled?: () => void;
@@ -126,10 +127,11 @@ function inquiryDiagnosticFlags(question: Question) {
   return flags;
 }
 
-export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
+export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onAddPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailSection, setDetailSection] = useState<'investigation' | 'answer'>('investigation');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newQuestion, setNewQuestion] = useState({ text: '', sourceIds: [] as string[] });
   const [deleteTarget, setDeleteTarget] = useState<Question | null>(null);
@@ -179,7 +181,8 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
   });
   const selected = all.find((question) => question.id === selectedId) || null;
 
-  const openQuestion = (id: string) => {
+  const openQuestion = (id: string, section: 'investigation' | 'answer' = 'investigation') => {
+    setDetailSection(section);
     setSelectedId(id);
     onOpenQuestionRoute?.(id);
   };
@@ -225,9 +228,11 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
             closeQuestion();
           }}
           onAddDraft={onAddDraft}
+          onAddPractice={onAddPractice}
           onFormPositionFromInquiry={onFormPositionFromInquiry}
           onAiFeedback={(title, description, variant) => toast({ title, description, ...(variant ? { variant } : {}) })}
           routeOwned={focusedQuestionId === selected.id}
+          initialSection={detailSection}
         />
     );
   }
@@ -431,32 +436,24 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
                 </div>
               )}
 
-              <div className="rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/10 via-card to-card p-3">
-                <div className="mb-2 flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-code text-[8px] font-bold uppercase tracking-widest text-accent">Investigate this inquiry</div>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Open the workbench, add evidence, or write the next answer.</p>
-                  </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-3">
+                <div>
                   <Badge variant="outline" className="shrink-0 rounded-full font-code text-[8px] uppercase tracking-widest">
                     {(question.status || (question.answer ? 'answered' : 'open')).replace(/_/g, ' ')}
                   </Badge>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => openQuestion(question.id)} className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">
+                  <Button size="sm" onClick={() => openQuestion(question.id, 'investigation')} className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">
                     Investigate
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={question.id.startsWith('open:') || question.id.startsWith('annotation:')}
-                    onClick={() => {
-                      if (!question.id.startsWith('open:') && !question.id.startsWith('annotation:')) {
-                        onUpdateQuestion({ ...question, status: question.answer ? 'provisionally_answered' : 'partially_answered', dateUpdated: today() });
-                      }
-                    }}
+                    onClick={() => openQuestion(question.id, 'answer')}
                     className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest"
                   >
-                    {question.answer ? 'Review' : 'Write answer'}
+                    Write answer
                   </Button>
                 </div>
               </div>
@@ -581,7 +578,7 @@ function branchNextStep(label: string) {
   return 'Choose the next concrete investigation move.';
 }
 
-function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onDeleteQuestion, onAddDraft, onFormPositionFromInquiry, onAiFeedback, routeOwned = false }: {
+function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onDeleteQuestion, onAddDraft, onAddPractice, onFormPositionFromInquiry, onAiFeedback, routeOwned = false, initialSection = 'investigation' }: {
   question: Question;
   sources: Media[];
   concepts: string[];
@@ -591,10 +588,14 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   onUpdateQuestion: (question: Question) => void;
   onDeleteQuestion: (id: string) => void;
   onAddDraft: (data: Partial<Draft>) => void;
+  onAddPractice: (data: Partial<Practice>) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   onAiFeedback: (title: string, description: string, variant?: 'default' | 'destructive') => void;
   routeOwned?: boolean;
+  initialSection?: 'investigation' | 'answer';
 }) {
+  const investigationRef = useRef<HTMLDivElement>(null);
+  const answerRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<DialogPhase>('write');
   const [initialAnswer, setInitialAnswer] = useState(question.answer || '');
   const [exchanges, setExchanges] = useState<{ probe: string; response: string }[]>([]);
@@ -615,6 +616,11 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   const [testDraft, setTestDraft] = useState({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  React.useEffect(() => {
+    const target = initialSection === 'answer' ? answerRef.current : investigationRef.current;
+    const frame = window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [initialSection, question.id]);
   React.useEffect(() => {
     setInvestigationDraft({
       whyItMatters: question.whyItMatters || '',
@@ -793,28 +799,26 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       return;
     }
     const title = testDraft.title.trim() || `Test for: ${question.text.slice(0, 60)}`;
-    const body = [
-      `Inquiry: ${question.text}`,
-      testDraft.tested.trim() ? `What is being tested: ${testDraft.tested.trim()}` : '',
-      testDraft.predictionA.trim() ? `Prediction A: ${testDraft.predictionA.trim()}` : '',
-      testDraft.predictionB.trim() ? `Prediction B: ${testDraft.predictionB.trim()}` : '',
-      testDraft.method.trim() ? `Method: ${testDraft.method.trim()}` : '',
-      testDraft.reviewDate.trim() ? `Review date: ${testDraft.reviewDate.trim()}` : '',
-      testDraft.result.trim() ? `Result: ${testDraft.result.trim()}` : '',
-    ].filter(Boolean).join('\n\n');
-    onAddDraft({
+    onAddPractice({
       title,
-      body,
-      type: 'field_note',
-      status: 'seed',
+      description: `A test created from the inquiry: ${question.text}`,
+      type: testDraft.method.trim().toLowerCase().includes('repeat') ? 'observation' : 'experiment',
+      status: testDraft.result.trim() ? 'concluded' : 'proposed',
+      hypothesis: testDraft.tested.trim() || question.text,
+      action: testDraft.method.trim(),
+      observationMethod: [testDraft.predictionA.trim(), testDraft.predictionB.trim()].filter(Boolean).join('\n'),
+      expectedOutcome: testDraft.predictionA.trim(),
+      observedOutcome: testDraft.result.trim(),
+      durationMode: testDraft.method.trim().toLowerCase().includes('repeat') ? 'repeated' : 'one_time',
       questionIds: [question.id],
       conceptTags: concepts,
       sourceIds: sources.map((source) => source.id),
-      beliefIds: beliefs.map((belief) => belief.id),
+      positionIds: beliefs.map((belief) => belief.id),
+      notes: testDraft.reviewDate.trim() ? `Review date: ${testDraft.reviewDate.trim()}` : '',
     });
-    onUpdateQuestion({ ...question, status: 'partially_answered', dateUpdated: today() });
+    onUpdateQuestion({ ...question, status: question.status === 'captured' ? 'investigating' : question.status, dateUpdated: today() });
     setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
-    onAiFeedback('Test created.', 'A linked field note was added to Works so this inquiry can be tested outside the page.');
+    onAiFeedback('Test created.', 'A linked practice was created so the inquiry can be tested through action or observation.');
   };
 
   const updateInvestigationStatus = (status: Question['status']) => {
@@ -922,7 +926,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       </Card>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
-          <Card className="mb-5 rounded-2xl border border-accent/10 bg-white p-4 shadow-sm sm:p-5">
+          <Card ref={investigationRef} className="mb-5 scroll-mt-6 rounded-2xl border border-accent/10 bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground/50">Inquiry Workbench</div>
@@ -1218,7 +1222,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
           </Card>
 
           {phase === 'write' && (
-            <Card className="p-10 bg-white border border-accent/10 shadow-md rounded-2xl space-y-6">
+            <Card ref={answerRef} className="scroll-mt-6 space-y-6 rounded-2xl border border-accent/10 bg-card p-6 shadow-md sm:p-10">
               <Badge variant="outline" className="font-code text-[10px] uppercase tracking-widest bg-muted/20 border-border/30 rounded-full px-4 py-1 font-bold">
                 {question.type || 'manual'}
               </Badge>

@@ -12,7 +12,7 @@ export default {
     extend: {
       fontFamily: {
         body: ['Spectral', 'Georgia', 'serif'],
-        headline: ['Playfair Display', 'serif'],
+        headline: ['var(--font-headline)', 'serif'],
         code: ['JetBrains Mono', 'monospace'],
       },
       colors: {

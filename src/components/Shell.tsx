@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   BookOpen,
   ChevronLeft,
+  ChevronRight,
   HelpCircle,
   History,
   Library,
@@ -16,7 +17,6 @@ import {
   Repeat,
   Settings,
   ShieldCheck,
-  ChevronRight,
   Command,
   Table as TableIcon,
   Highlighter,
@@ -24,7 +24,6 @@ import {
   Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -32,8 +31,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
-import type { GoalSettings, MediaType } from '@/lib/types';
-import { MEDIA_LABELS } from '@/lib/readex';
 import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
 import type { NoesisRouteTargetType } from '@/lib/noesis-routes';
 import { NOESIS_OBJECT_PREVIEW_EVENT, type NoesisObjectPreviewItem } from '@/lib/noesis-object-preview';
@@ -191,9 +188,9 @@ const thoughtPathFor = (item: CommandPaletteItem | null) => {
 interface ShellProps {
   children: React.ReactNode;
   activeView: string;
+  pendingPath?: string | null;
   onViewChange: (view: string) => void;
   onOpenProfile?: () => void;
-  onOpenGoals?: () => void;
   counts: {
     concepts: number;
     questions: number;
@@ -204,8 +201,6 @@ interface ShellProps {
     practices: number;
     timeline: number;
   };
-  goal: GoalSettings;
-  goalProgress: Partial<Record<MediaType, number>>;
   movement?: MovementMetrics;
   profile?: {
     displayName?: string;
@@ -219,7 +214,7 @@ interface ShellProps {
   onCommandSelect?: (item: CommandPaletteItem) => void;
 }
 
-export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpenGoals, counts, goal, goalProgress, movement, profile, workspaceMode, commandItems: workspaceCommandItems = [], onCommandSelect }: ShellProps) {
+export function Shell({ children, activeView, pendingPath, onViewChange, onOpenProfile, counts, movement, profile, workspaceMode, commandItems: workspaceCommandItems = [], onCommandSelect }: ShellProps) {
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -298,46 +293,13 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
     return () => window.removeEventListener(NOESIS_OBJECT_PREVIEW_EVENT, onPreviewObject);
   }, []);
 
-  const sortedActiveGoals = useMemo(() => {
-    const categories = [...(goal.goalTypes || [])].sort((a, b) => a.sortOrder - b.sortOrder);
-    const activeGoals = [...(goal.goals || [])]
-      .filter((item) => item.status === 'active')
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-    if (categories.length && activeGoals.length) {
-      return activeGoals.map((item) => {
-        const category = categories.find((goalType) => goalType.id === item.typeId);
-        const mediaTypes = category?.mediaTypes || [];
-        const done = mediaTypes.reduce((sum, type) => sum + (goalProgress[type] || 0), 0);
-        const target = Math.max(1, item.targetProgress || 1);
-        const percent = (done / target) * 100;
-        return {
-          id: item.id,
-          label: item.title || category?.name || 'Goal Category',
-          done,
-          target,
-          percent,
-          mediaTypes,
-        };
-      });
-    }
-
-    return goal.types.map((type) => {
-      const done = goalProgress[type] || 0;
-      const target = goal.targets[type] || 12;
-      const percent = (done / Math.max(1, target)) * 100;
-      return {
-        id: type,
-        label: MEDIA_LABELS[type],
-        done,
-        target,
-        percent,
-        mediaTypes: [type],
-      };
-    });
-  }, [goal, goalProgress]).sort((a, b) => b.percent - a.percent);
-
   const toggleSidebar = () => setCollapsed((current) => !current);
   const handleNavChange = (view: string) => {
+    if (view === activeView && !pendingPath) {
+      setMobileNavOpen(false);
+      setCommandOpen(false);
+      return;
+    }
     onViewChange(view);
     setMobileNavOpen(false);
     setCommandOpen(false);
@@ -595,31 +557,6 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
           )}
         </button>
 
-        {(!collapsed || isMobile) && (
-          <div
-            onClick={onOpenGoals || (() => handleNavChange('goals'))}
-            className="group/goals relative mt-3 w-full cursor-pointer rounded border border-white/10 bg-white/[0.05] p-3 pr-9 transition-all hover:border-white/20 hover:bg-white/[0.075]"
-          >
-            <ChevronRight className="absolute right-3 top-3 size-3 text-sidebar-foreground/35 transition-all group-hover/goals:translate-x-0.5 group-hover/goals:text-white/70" />
-            <div className="mb-2 min-w-0">
-              <div>
-                <span className="font-code text-[9px] uppercase tracking-wider text-sidebar-foreground/60 font-bold">Goals</span>
-                <div className="mt-1 text-[13px] font-body text-white/90">{goal.label || 'Goal Set'}</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {sortedActiveGoals.slice(0, 3).map((row) => (
-                <div key={row.id} className="min-w-0 rounded-lg border border-white/10 bg-black/10 px-2 py-1.5">
-                  <div className="truncate font-code text-[7px] font-bold uppercase tracking-widest text-sidebar-foreground/60">{row.label}</div>
-                  <div className="mt-1 flex items-center gap-1.5">
-                    <Progress value={row.percent} className="h-1 flex-1 bg-white/10" />
-                    <span className="shrink-0 font-code text-[7px] font-bold text-white/60">{row.done}/{row.target}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {attentionTotal > 0 && (
@@ -718,7 +655,7 @@ export function Shell({ children, activeView, onViewChange, onOpenProfile, onOpe
           </>
         )}
 
-        <main className="flex-1 flex flex-col relative overflow-hidden bg-background min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
+        <main className="flex-1 flex flex-col relative overflow-hidden bg-background min-w-0 pt-14 pb-16 md:pt-0 md:pb-0" aria-busy={Boolean(pendingPath)}>
           <button
             type="button"
             onClick={() => setCommandOpen(true)}

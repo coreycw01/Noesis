@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -83,8 +83,9 @@ import type {
   WorksSettings,
   WorkspacePreferenceSettings,
   WorkspaceSettings,
+  WorkspaceSummary,
 } from '@/lib/types';
-import { doc, getDoc, setDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
+import { arrayRemove, doc, getDoc, setDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { classifyThinkingChange } from '@/lib/thinkingEvents/classifyThinkingChange';
@@ -134,8 +135,15 @@ function ReadexWorkspace({
   const focusedQuestionId = focusedIdForNoesisView(routeState, 'questions');
   const focusedWorkId = focusedIdForNoesisView(routeState, 'writing');
   const focusedPracticeId = focusedIdForNoesisView(routeState, 'practices');
+  const pendingNavigationRef = useRef<string | null>(null);
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
 
-  const navigateToView = (view: NoesisView, options?: {
+  useEffect(() => {
+    pendingNavigationRef.current = null;
+    setPendingPath(null);
+  }, [pathname]);
+
+  const navigateToView = useCallback((view: NoesisView, options?: {
     conceptId?: string | null;
     questionId?: string | null;
     sourceId?: string | null;
@@ -143,7 +151,7 @@ function ReadexWorkspace({
     workId?: string | null;
     practiceId?: string | null;
   }) => {
-    router.push(viewToPath(view, {
+    const destination = viewToPath(view, {
       reviewMode,
       conceptId: options?.conceptId,
       questionId: options?.questionId,
@@ -151,8 +159,12 @@ function ReadexWorkspace({
       positionId: options?.positionId,
       workId: options?.workId,
       practiceId: options?.practiceId,
-    }));
-  };
+    });
+    if (destination === pathname || pendingNavigationRef.current === destination) return;
+    pendingNavigationRef.current = destination;
+    setPendingPath(destination);
+    router.push(destination);
+  }, [pathname, reviewMode, router]);
 
   const {
     refs,
@@ -165,7 +177,7 @@ function ReadexWorkspace({
     drafts,
     practices,
     atlasMaps,
-    links,
+    links: rawLinks,
     suggestions,
     thinkingEvents,
     beliefProfiles,
@@ -176,6 +188,7 @@ function ReadexWorkspace({
     legacyPreferencesDoc,
     legacyProfileDoc,
     workspaceDoc,
+    workspaceSummaryDoc,
     profileMainDoc,
     profilePrivacyDoc,
     profileSummaryDoc,
@@ -200,6 +213,20 @@ function ReadexWorkspace({
     routeState,
     isOfflineReviewPreview,
   });
+  const links = useMemo(() => {
+    const annotationIds = new Set(media.flatMap((source) => (source.annotations || []).map((annotation) => annotation.id)));
+    const entityIds = {
+      source: new Set(media.map((item) => item.id)),
+      annotation: annotationIds,
+      concept: new Set(concepts.map((item) => item.id)),
+      inquiry: new Set(questions.map((item) => item.id)),
+      position: new Set(vault.map((item) => item.id)),
+      work: new Set(drafts.map((item) => item.id)),
+      practice: new Set(practices.map((item) => item.id)),
+      evolution: new Set(timeline.map((item) => item.id)),
+    };
+    return rawLinks.filter((link) => entityIds[link.fromType]?.has(link.fromId) && entityIds[link.toType]?.has(link.toId));
+  }, [concepts, drafts, media, practices, questions, rawLinks, timeline, vault]);
   
   const goal = { ...DEFAULT_GOAL_SETTINGS, ...(goalDoc || {}) };
   const appearanceSettings: AppearanceSettings = {
@@ -318,7 +345,7 @@ function ReadexWorkspace({
   const featureFlags = workspace.featureFlags || {};
   const isReviewIdentity = (user?.email || profile.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
   const activeReviewWorkspaceUid = reviewWorkspaceUid || REVIEW_WORKSPACE_UID;
-  const isReviewWorkspace = Boolean(reviewMode || isReviewIdentity || workspace.workspaceMode === 'review' || workspace.demoWorkspace);
+  const isReviewWorkspace = Boolean(reviewMode);
   const canSeedReviewWorkspace = Boolean(
     isReviewIdentity ||
     (user?.uid && effectiveUid === user.uid) ||
@@ -330,10 +357,62 @@ function ReadexWorkspace({
   const pageDataLoading = loading.page;
   const shellDataLoading = loading.shell;
   const reviewDataLoading = pageDataLoading;
+  const workspaceCounts = workspaceSummaryDoc?.counts;
 
   useEffect(() => {
     setGoalState(goal);
   }, [goalDoc]);
+
+  useEffect(() => {
+    if (isOfflineReviewPreview || shellDataLoading) return;
+
+    const required = new Set<NoesisWorkspaceDataKey>(loading.activePageRequirements);
+    const isBootstrap = !workspaceSummaryDoc;
+    const currentCounts = workspaceSummaryDoc?.counts || {
+      media: 0,
+      concepts: 0,
+      questions: 0,
+      annotations: 0,
+      vault: 0,
+      drafts: 0,
+      practices: 0,
+      timeline: 0,
+    };
+    const nextCounts = { ...currentCounts };
+    const assign = (key: keyof WorkspaceSummary['counts'], value: number, requirement: NoesisWorkspaceDataKey) => {
+      if (isBootstrap || required.has(requirement)) nextCounts[key] = value;
+    };
+
+    assign('media', media.length, 'media');
+    assign('annotations', allAnnotations(media).length, 'media');
+    assign('concepts', concepts.length, 'concepts');
+    assign('questions', questions.length, 'questions');
+    assign('vault', vault.length, 'vault');
+    assign('drafts', drafts.length, 'drafts');
+    assign('practices', practices.length, 'practices');
+    assign('timeline', timeline.length, 'timeline');
+
+    if (JSON.stringify(nextCounts) === JSON.stringify(currentCounts) && workspaceSummaryDoc) return;
+    void setDoc(refs.settingsWorkspaceSummary, {
+      counts: nextCounts,
+      dateUpdated: today(),
+    } satisfies WorkspaceSummary, { merge: true }).catch(() => {
+      // Navigation remains usable even when summary maintenance is denied.
+    });
+  }, [
+    concepts.length,
+    drafts.length,
+    isOfflineReviewPreview,
+    loading.activePageRequirements,
+    media,
+    practices.length,
+    questions.length,
+    refs.settingsWorkspaceSummary,
+    shellDataLoading,
+    timeline.length,
+    vault.length,
+    workspaceSummaryDoc,
+  ]);
 
   useEffect(() => {
     if (isOfflineReviewPreview) return;
@@ -414,9 +493,13 @@ function ReadexWorkspace({
       root.classList.toggle('high-contrast', appearanceSettings.highContrastMode);
       root.classList.toggle('reduce-motion', appearanceSettings.reducedMotion);
       root.dataset.theme = preferences.accentTheme;
+      root.dataset.headerFont = appearanceSettings.headerFont;
+      root.dataset.fontSize = appearanceSettings.fontSize;
       window.localStorage.setItem('noesis:theme', JSON.stringify({
         themeMode: preferences.themeMode,
         accentTheme: preferences.accentTheme,
+        headerFont: appearanceSettings.headerFont,
+        fontSize: appearanceSettings.fontSize,
         highContrastMode: appearanceSettings.highContrastMode,
         reducedMotion: appearanceSettings.reducedMotion,
       }));
@@ -424,7 +507,7 @@ function ReadexWorkspace({
     applyTheme();
     mediaQuery.addEventListener('change', applyTheme);
     return () => mediaQuery.removeEventListener('change', applyTheme);
-  }, [appearanceSettings.highContrastMode, appearanceSettings.reducedMotion, preferences.themeMode, preferences.accentTheme]);
+  }, [appearanceSettings.fontSize, appearanceSettings.headerFont, appearanceSettings.highContrastMode, appearanceSettings.reducedMotion, preferences.themeMode, preferences.accentTheme]);
 
   const totalObjects = media.length + concepts.length + questions.length + vault.length + drafts.length + practices.length + timeline.length + insights.length + links.length + suggestions.length + atlasMaps.length + thinkingEvents.length + beliefProfiles.length + unknowns.length + thinkingPatterns.length;
 
@@ -703,6 +786,52 @@ function ReadexWorkspace({
       );
       if (context?.rethrow) throw error;
     });
+  };
+
+  const cleanupDeletedEntityReferences = async (
+    entityType: 'source' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice',
+    entityId: string,
+    conceptName?: string
+  ) => {
+    const batch = writeBatch(db);
+    let changes = 0;
+    const updateArray = (collectionRef: any, id: string, field: string, value: string) => {
+      batch.update(doc(collectionRef, id), { [field]: arrayRemove(value), dateUpdated: today() });
+      changes += 1;
+    };
+
+    links
+      .filter((link) => (link.fromType === entityType && link.fromId === entityId) || (link.toType === entityType && link.toId === entityId))
+      .forEach((link) => {
+        batch.delete(doc(refs.links, link.id));
+        changes += 1;
+      });
+
+    if (entityType === 'source') {
+      concepts.filter((item) => item.sourceIds.includes(entityId)).forEach((item) => updateArray(refs.concepts, item.id, 'sourceIds', entityId));
+      questions.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'sourceIds', entityId));
+      vault.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.vault, item.id, 'sourceIds', entityId));
+      drafts.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.drafts, item.id, 'sourceIds', entityId));
+      practices.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'sourceIds', entityId));
+    } else if (entityType === 'concept' && conceptName) {
+      vault.filter((item) => (item.tags || []).includes(conceptName)).forEach((item) => updateArray(refs.vault, item.id, 'tags', conceptName));
+      drafts.filter((item) => (item.conceptTags || []).includes(conceptName)).forEach((item) => updateArray(refs.drafts, item.id, 'conceptTags', conceptName));
+      practices.filter((item) => (item.conceptTags || []).includes(conceptName)).forEach((item) => updateArray(refs.practices, item.id, 'conceptTags', conceptName));
+      media.filter((item) => (item.tags || []).includes(conceptName)).forEach((item) => updateArray(refs.media, item.id, 'tags', conceptName));
+      questions.filter((item) => (item.conceptIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'conceptIds', entityId));
+    } else if (entityType === 'inquiry') {
+      drafts.filter((item) => (item.questionIds || []).includes(entityId)).forEach((item) => updateArray(refs.drafts, item.id, 'questionIds', entityId));
+      practices.filter((item) => (item.questionIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'questionIds', entityId));
+    } else if (entityType === 'position') {
+      questions.filter((item) => (item.beliefIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'beliefIds', entityId));
+      drafts.filter((item) => (item.beliefIds || []).includes(entityId)).forEach((item) => updateArray(refs.drafts, item.id, 'beliefIds', entityId));
+      practices.filter((item) => (item.positionIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'positionIds', entityId));
+    } else if (entityType === 'work') {
+      questions.filter((item) => (item.draftIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'draftIds', entityId));
+      practices.filter((item) => (item.draftIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'draftIds', entityId));
+    }
+
+    if (changes > 0) await batch.commit();
   };
 
   useEffect(() => {
@@ -1158,7 +1287,9 @@ function ReadexWorkspace({
         importance: 'medium',
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'delete', data: existing || { id } });
+    }, { operation: 'delete', data: existing || { id }, rethrow: true })
+      .then(() => cleanupDeletedEntityReferences('concept', id, existing?.name))
+      .catch(() => undefined);
   };
 
   const addMedia = (data: Partial<Media>) => {
@@ -1270,7 +1401,9 @@ function ReadexWorkspace({
         importance: 'medium',
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'delete', data: existing || { id } });
+    }, { operation: 'delete', data: existing || { id }, rethrow: true })
+      .then(() => cleanupDeletedEntityReferences('source', id))
+      .catch(() => undefined);
   };
 
   const updateAnnotation = (sourceId: string, annotation: Annotation) => {
@@ -1462,7 +1595,9 @@ function ReadexWorkspace({
         epistemicStatus: 'abandoned',
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'delete', data: existing || { id } });
+    }, { operation: 'delete', data: existing || { id }, rethrow: true })
+      .then(() => cleanupDeletedEntityReferences('position', id))
+      .catch(() => undefined);
   };
 
   const createIdea = (data: { title: string; body: string; tags: string[]; sourceIds: string[]; position?: { title: string; statement: string; description: string; confidence: number }; sourceAnnotationId?: string; sourceWorkId?: string; sourceDocumentId?: string }) => {
@@ -1692,7 +1827,9 @@ function ReadexWorkspace({
         },
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'delete', data: existing || { id } });
+    }, { operation: 'delete', data: existing || { id }, rethrow: true })
+      .then(() => cleanupDeletedEntityReferences('inquiry', id))
+      .catch(() => undefined);
   };
 
   const addDraft = (data: Partial<Draft>) => {
@@ -1816,7 +1953,9 @@ function ReadexWorkspace({
         relatedEntityIds: { sourceIds: existing.sourceIds || [], inquiryIds: existing.questionIds || [], positionIds: existing.beliefIds || [] },
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'delete', data: existing || { id } });
+    }, { operation: 'delete', data: existing || { id }, rethrow: true })
+      .then(() => cleanupDeletedEntityReferences('work', id))
+      .catch(() => undefined);
   };
 
   const addPractice = (data: Partial<Practice>) => {
@@ -1942,7 +2081,9 @@ function ReadexWorkspace({
         relatedEntityIds: { sourceIds: existing.sourceIds || [], inquiryIds: existing.questionIds || [], positionIds: existing.positionIds || [], workIds: existing.draftIds || [] },
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'delete', data: existing || { id } });
+    }, { operation: 'delete', data: existing || { id }, rethrow: true })
+      .then(() => cleanupDeletedEntityReferences('practice', id))
+      .catch(() => undefined);
   };
 
   const highImportanceAtlasLinks = new Set<PhilosophicalLinkType>(['contradicts', 'supports', 'challenges', 'tested_by', 'refines', 'depends_on']);
@@ -2553,6 +2694,22 @@ function ReadexWorkspace({
       );
     }
 
+    if (loading.pageError) {
+      const failedArea = NOESIS_DATA_REQUIREMENT_LABELS[loading.pageError.key] || 'workspace data';
+      return (
+        <div className="flex-1 overflow-y-auto p-8">
+          <PageErrorState
+            title={`Could not load ${failedArea}`}
+            description={`Noesis could not read this account's ${failedArea.toLowerCase()}. No demo or cached records were substituted.`}
+            savedState="Nothing was changed. The current account remains selected and no fallback workspace was opened."
+            nextStep="Retry the request. If it fails again, verify the connection and this account's Firestore permissions."
+            onRetry={() => router.refresh()}
+            retryLabel="Retry"
+          />
+        </div>
+      );
+    }
+
     if (missingFocusedTarget) {
       return (
         <MissingFocusedTargetState
@@ -2663,21 +2820,19 @@ function ReadexWorkspace({
   return (
     <NoesisShell
       activeView={activeView}
+      pendingPath={pendingPath}
       onViewChange={(nextView) => navigateToView(nextView as NoesisView)}
       onOpenProfile={() => navigateToView('profile')}
-      onOpenGoals={() => navigateToView('goals')}
       counts={{
-        concepts: concepts.length,
-        questions: questions.length,
-        media: media.length,
-        vault: vault.length,
-        drafts: drafts.length,
-        timeline: timeline.length,
-        practices: practices.length,
-        annotations: allAnnotations(media).length
+        concepts: workspaceCounts?.concepts ?? concepts.length,
+        questions: workspaceCounts?.questions ?? questions.length,
+        media: workspaceCounts?.media ?? media.length,
+        vault: workspaceCounts?.vault ?? vault.length,
+        drafts: workspaceCounts?.drafts ?? drafts.length,
+        timeline: workspaceCounts?.timeline ?? timeline.length,
+        practices: workspaceCounts?.practices ?? practices.length,
+        annotations: workspaceCounts?.annotations ?? allAnnotations(media).length
       }}
-      goal={goalState}
-      goalProgress={goalProgress}
       movement={movement}
       profile={profile}
       workspaceMode={workspace.workspaceMode}

@@ -430,6 +430,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | VaultType>('all');
+  const [conceptFilter, setConceptFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState<PositionViewFilter>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'opposition' | 'relations' | 'history'>('overview');
@@ -514,6 +515,13 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   };
 
   const safeEntries = useMemo(() => entries.filter((entry) => entry?.id).map(safePosition), [entries]);
+  const conceptFilterOptions = useMemo(
+    () => concepts
+      .map((concept) => concept.name.trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b)),
+    [concepts]
+  );
   const positionDiagnostics = useMemo(() => {
     const map = new Map<string, PositionDiagnostic>();
     safeEntries.forEach((entry) => map.set(entry.id, diagnosePosition(entry, links, practices)));
@@ -555,6 +563,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       (viewFilter === 'recently_changed' && changedAt >= recentCutoff);
     const relatedSources = media.filter((source) => (e.sourceIds || []).includes(source.id));
     const relatedConcepts = concepts.filter((concept) => (e.tags || []).some((tag) => concept.name.toLowerCase() === tag.toLowerCase() || (concept.aliases || []).some((alias) => alias.toLowerCase() === tag.toLowerCase())));
+    const conceptOk = conceptFilter === 'all' || relatedConcepts.some((concept) => concept.name.toLowerCase() === conceptFilter.toLowerCase());
     const relatedInquiries = questions.filter((question) => (question.beliefIds || []).includes(e.id) || (question.conceptIds || []).some((id) => relatedConcepts.some((concept) => concept.id === id)));
     const queryOk = searchMatches(search, [
       { value: e.title, label: 'position' },
@@ -569,7 +578,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       ...relatedConcepts.map((concept) => ({ value: concept.name, label: 'concept' })),
       ...relatedInquiries.map((inquiry) => ({ value: inquiry.text, label: 'inquiry' })),
     ]);
-    return typeOk && viewOk && queryOk;
+    return typeOk && conceptOk && viewOk && queryOk;
   });
 
   const positionStats = useMemo(() => {
@@ -598,14 +607,16 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const clearPositionFilters = () => {
     setSearch('');
     setTypeFilter('all');
+    setConceptFilter('all');
     setViewFilter('all');
   };
 
-  const positionFiltersActive = Boolean(search || typeFilter !== 'all' || viewFilter !== 'all');
+  const positionFiltersActive = Boolean(search || typeFilter !== 'all' || conceptFilter !== 'all' || viewFilter !== 'all');
   const activeFilterLabels = [
     search ? `Search: ${search}` : null,
     viewFilter !== 'all' ? `View: ${POSITION_VIEW_LABELS[viewFilter]}` : null,
     typeFilter !== 'all' ? `Type: ${TYPE_LABELS[typeFilter as VaultType]}` : null,
+    conceptFilter !== 'all' ? `Concept: ${conceptFilter}` : null,
     viewMode !== 'cards' ? `Layout: ${viewMode}` : null,
   ].filter(Boolean) as string[];
 
@@ -1036,17 +1047,18 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               <h1 className="font-headline text-3xl font-bold leading-tight">{selected.title}</h1>
               <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>
             </div>
-            <div className="grid min-w-[300px] grid-cols-3 gap-2 rounded-xl border border-border/50 bg-muted/10 p-3 text-center">
-              {[
-                { label: 'Personal confidence', value: `${selected.confidence}/5` },
-                { label: 'Recorded support', value: `${diagnostic.recordedSupport}` },
-                { label: 'Completeness', value: `${diagnostic.completeness}%` },
-              ].map((item) => (
-                <div key={item.label} className="rounded-lg bg-card px-2 py-2">
-                  <div className="font-headline text-lg font-semibold italic">{item.value}</div>
-                  <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">{item.label}</div>
-                </div>
-              ))}
+            <div className="min-w-[280px] rounded-xl border border-border/50 bg-muted/10 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Confidence</span>
+                <span className="font-headline text-lg font-semibold italic">{selected.confidence}/5</span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.max(0, Math.min(100, (selected.confidence || 0) * 20))}%` }} />
+              </div>
+              <div className="mt-3 flex justify-between font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+                <span>{diagnostic.recordedSupport} support</span>
+                <span>{diagnostic.challengeCount} challenges</span>
+              </div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1838,6 +1850,17 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             ))}
           </SelectContent>
         </Select>
+        <Select value={conceptFilter} onValueChange={setConceptFilter}>
+          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+            <SelectValue placeholder="Concept" />
+          </SelectTrigger>
+          <SelectContent className="max-h-80">
+            <SelectItem value="all" className="font-code text-[10px] uppercase">All Concepts</SelectItem>
+            {conceptFilterOptions.map((concept) => (
+              <SelectItem key={concept} value={concept} className="font-code text-[10px] uppercase">{concept}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </FilterToolbar>
 
       <div className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
@@ -1908,26 +1931,18 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               )}
             </div>
 
-            <div className="flex items-center gap-5 pt-4 border-t border-border/30">
-              <div className="flex gap-1.5">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <div 
-                    key={n} 
-                    className={cn(
-                      'size-2 rounded-full shadow-sm', 
-                      n <= (entry.confidence || 3) ? 'bg-accent' : 'bg-muted'
-                    )} 
-                  />
-                ))}
+            <div className="flex items-center gap-4 border-t border-border/30 pt-4">
+              <div className="w-28">
+                <div className="mb-1 flex items-center justify-between font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+                  <span>Confidence</span>
+                  <span>{entry.confidence || 3}/5</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(0, Math.min(100, (entry.confidence || 3) * 20))}%` }} />
+                </div>
               </div>
               <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-emerald-100/40 text-emerald-700 border-emerald-200/50 rounded-full font-bold">
                 {entry.status}
-              </Badge>
-              <Badge variant="outline" className={cn(
-                'font-code text-[8px] uppercase tracking-widest px-2 py-0.5 rounded-full font-bold',
-                formation.fullyFormed ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'
-              )}>
-                {diagnostic.completeness}% complete
               </Badge>
               <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 rounded-full font-bold">
                 support {diagnostic.recordedSupport}

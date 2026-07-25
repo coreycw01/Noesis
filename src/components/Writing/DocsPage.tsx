@@ -107,8 +107,8 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
   };
 
   const colorClasses = {
-    blank: "bg-white text-primary",
-    warm: "bg-amber-50/40 text-primary",
+    blank: "bg-[#ffffff] text-[#211f1c]",
+    warm: "bg-[#fffaf0] text-[#302820]",
     sepia: "bg-[#f4ecd8] text-[#5b4636]",
     dark: "bg-slate-900 text-slate-200"
   };

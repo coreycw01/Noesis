@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   BookOpen,
   Brain,
+  ChevronRight,
   ClipboardCheck,
   Compass,
   GitBranch,
@@ -23,12 +24,15 @@ import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PageEmptyState } from '@/components/shared/PageState';
-import { allAnnotations } from '@/lib/readex';
+import { Progress } from '@/components/ui/progress';
+import { allAnnotations, MEDIA_LABELS } from '@/lib/readex';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import type {
   Concept,
   Draft,
+  GoalSettings,
   Media,
+  MediaType,
   PhilosophicalLink,
   Practice,
   Question,
@@ -65,6 +69,13 @@ type PulseObservation = HomeTarget & {
   tone: 'pressure' | 'balance' | 'movement';
 };
 
+type RecentlyOpenedItem = HomeTarget & {
+  id: string;
+  label: string;
+  meta: string;
+  openedAt: string;
+};
+
 const HOME_MODES: Array<{ id: HomeMode; label: string; description: string }> = [
   { id: 'continue', label: 'Continue', description: 'Return to the strongest next action.' },
   { id: 'challenge', label: 'Challenge Me', description: 'Find claims that need opposition.' },
@@ -86,6 +97,8 @@ interface ThinkingDeskProps {
   thinkingEvents: ThinkingEvent[];
   unknowns: Unknown[];
   links: PhilosophicalLink[];
+  goal: GoalSettings;
+  goalProgress: Partial<Record<MediaType, number>>;
   onNavigate: (target: HomeTarget) => void;
   onCreateInquiry?: (data: Partial<Question>) => Question;
 }
@@ -144,10 +157,21 @@ export function ThinkingDesk({
   thinkingEvents,
   unknowns,
   links,
+  goal,
+  goalProgress,
   onNavigate,
   onCreateInquiry,
 }: ThinkingDeskProps) {
   const [mode, setMode] = useState<HomeMode>('continue');
+  const [recentActivityMode, setRecentActivityMode] = useState<'edited' | 'opened'>('edited');
+  const [recentlyOpened, setRecentlyOpened] = useState<RecentlyOpenedItem[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      return JSON.parse(window.localStorage.getItem('noesis:home-recently-opened') || '[]') as RecentlyOpenedItem[];
+    } catch {
+      return [];
+    }
+  });
   const [provocationAngle, setProvocationAngle] = useState(0);
   const [briefAnswer, setBriefAnswer] = useState('');
   const [irrelevantReason, setIrrelevantReason] = useState('');
@@ -163,6 +187,39 @@ export function ThinkingDesk({
       .slice(0, 3)
       .map(([term]) => term);
   }, [media, positions, works]);
+  const activeGoalRows = useMemo(() => {
+    const categories = [...(goal.goalTypes || [])].sort((a, b) => a.sortOrder - b.sortOrder);
+    const activeGoals = [...(goal.goals || [])]
+      .filter((item) => item.status === 'active')
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    if (activeGoals.length) {
+      return activeGoals.map((item) => {
+        const category = categories.find((goalType) => goalType.id === item.typeId);
+        const done = (category?.mediaTypes || []).reduce((sum, type) => sum + (goalProgress[type] || 0), 0);
+        const target = Math.max(1, item.targetProgress || 1);
+        return {
+          id: item.id,
+          label: item.title || category?.name || 'Untitled goal',
+          done,
+          target,
+          percent: Math.min(100, (done / target) * 100),
+        };
+      }).slice(0, 3);
+    }
+
+    return (goal.types || []).slice(0, 3).map((type) => {
+      const done = goalProgress[type] || 0;
+      const target = Math.max(1, goal.targets[type] || 12);
+      return {
+        id: type,
+        label: MEDIA_LABELS[type],
+        done,
+        target,
+        percent: Math.min(100, (done / target) * 100),
+      };
+    });
+  }, [goal, goalProgress]);
 
   const continueItems = useMemo<DeskItem[]>(() => {
     const items: DeskItem[] = [];
@@ -562,6 +619,21 @@ export function ThinkingDesk({
       stage?: 'Encounter' | 'Capture' | 'Interpret' | 'Question' | 'Judge' | 'Express' | 'Test' | 'Revise' | 'Understand' | 'Navigate' | 'Configure';
     }
   ) => {
+    if (target.targetId) {
+      const opened: RecentlyOpenedItem = {
+        id: `${target.view}:${target.targetId}`,
+        view: target.view,
+        targetId: target.targetId,
+        label: fallback?.label || 'Open item',
+        meta: fallback?.description || target.view,
+        openedAt: new Date().toISOString(),
+      };
+      setRecentlyOpened((current) => {
+        const next = [opened, ...current.filter((item) => item.id !== opened.id)].slice(0, 8);
+        window.localStorage.setItem('noesis:home-recently-opened', JSON.stringify(next));
+        return next;
+      });
+    }
     if (!target.targetId) {
       onNavigate(target);
       return;
@@ -818,23 +890,23 @@ export function ThinkingDesk({
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
           <section className="space-y-5">
-            <Card className="rounded-2xl border-border bg-card p-5 md:p-6">
-              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <Card className="rounded-2xl border-border bg-card p-4 md:p-5">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Primary Focus</div>
-                  <h2 className="mt-1 font-headline text-3xl font-semibold italic text-foreground/85">{primaryFocusTitle}</h2>
+                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Recent Activity</div>
+                  <h2 className="mt-1 font-headline text-2xl font-semibold italic text-foreground/85">Return to what is moving.</h2>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {HOME_MODES.map((item) => (
+                <div className="inline-flex rounded-full border border-border bg-background/70 p-1">
+                  {([
+                    { id: 'edited', label: 'Recently Edited' },
+                    { id: 'opened', label: 'Recently Opened' },
+                  ] as const).map((item) => (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setMode(item.id)}
-                      title={item.description}
-                      className={`rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-[0.14em] transition-colors ${
-                        mode === item.id
-                          ? 'border-accent bg-accent text-accent-foreground'
-                          : 'border-border bg-background/60 text-muted-foreground hover:border-accent/40 hover:text-foreground'
+                      onClick={() => setRecentActivityMode(item.id)}
+                      className={`rounded-full px-3 py-1.5 font-code text-[9px] uppercase tracking-[0.14em] transition-colors ${
+                        recentActivityMode === item.id ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
                       {item.label}
@@ -842,72 +914,34 @@ export function ThinkingDesk({
                   ))}
                 </div>
               </div>
-
-              {primaryEdge ? (() => {
-                const Icon = primaryEdge.icon;
-                return (
+              <div className="grid gap-3 md:grid-cols-3">
+                {recentActivityMode === 'edited' ? recentMovement.map((item) => (
                   <button
-                    onClick={() => previewOrNavigate({ view: primaryEdge.view, targetId: primaryEdge.targetId }, { label: primaryEdge.action, description: primaryEdge.eyebrow, reason: primaryEdge.reason })}
-                    className="group w-full rounded-3xl border border-accent/20 bg-accent/5 p-5 text-left transition-colors hover:border-accent/50 hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-ring md:p-6"
+                    key={item.id}
+                    type="button"
+                    disabled={!item.target}
+                    onClick={() => item.target && previewOrNavigate(item.target, { label: item.title, description: item.meta })}
+                    className="rounded-xl border border-border bg-background/70 p-3 text-left transition-colors enabled:hover:border-accent/40 enabled:hover:bg-accent/5"
                   >
-                    <div className="flex flex-col gap-4 sm:flex-row">
-                      <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-accent/20 bg-card text-accent">
-                        <Icon className="size-6" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-code text-[9px] uppercase tracking-[0.18em] text-accent">{primaryEdge.eyebrow}</div>
-                        <div className="mt-2 max-w-3xl font-headline text-2xl font-semibold leading-tight text-foreground">{primaryEdge.label}</div>
-                        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-                          <span className="font-medium text-foreground/75">Why now:</span> {primaryEdge.reason}
-                        </p>
-                        <div className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent">
-                          {primaryEdge.action}
-                          <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-                        </div>
-                      </div>
-                    </div>
+                    <div className="line-clamp-2 text-sm font-medium text-foreground">{item.title}</div>
+                    <div className="mt-2 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{item.meta}</div>
                   </button>
-                );
-              })() : (
-                <div className="rounded-2xl border border-dashed border-border bg-background/60 p-5">
-                  <div className="flex gap-4">
-                    <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-accent">
-                      <Compass className="size-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">No active edge in this mode</div>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        This filter has nothing urgent right now. Capture a source, open an inquiry, or switch modes to rediscover older material.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {secondaryEdges.length > 0 && (
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {secondaryEdges.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => previewOrNavigate({ view: item.view, targetId: item.targetId }, { label: item.action, description: item.eyebrow, reason: item.reason })}
-                        className="group rounded-2xl border border-border bg-background/70 p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        <div className="flex gap-3">
-                          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-accent">
-                            <Icon className="size-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">{item.eyebrow}</div>
-                            <div className="mt-1 line-clamp-2 text-sm font-medium text-foreground">{item.label}</div>
-                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.reason}</p>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                )) : recentlyOpened.slice(0, 3).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => previewOrNavigate(item, { label: item.label, description: item.meta })}
+                    className="rounded-xl border border-border bg-background/70 p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+                  >
+                    <div className="line-clamp-2 text-sm font-medium text-foreground">{item.label}</div>
+                    <div className="mt-2 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{item.meta}</div>
+                  </button>
+                ))}
+              </div>
+              {((recentActivityMode === 'edited' && !recentMovement.length) || (recentActivityMode === 'opened' && !recentlyOpened.length)) && (
+                <p className="rounded-xl border border-dashed border-border bg-background/60 p-4 text-sm text-muted-foreground">
+                  {recentActivityMode === 'edited' ? 'Meaningful edits will appear here as your workspace changes.' : 'Open an item and it will be easy to return to from here.'}
+                </p>
               )}
             </Card>
 
@@ -1009,6 +1043,52 @@ export function ThinkingDesk({
                 </button>
               ))}
             </div>
+          </Card>
+
+          <Card className="rounded-2xl border-border bg-card p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Active Goals</div>
+                <p className="mt-1 text-xs text-muted-foreground">Commitments currently directing your attention.</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onNavigate({ view: 'goals' })}
+                className="size-8 rounded-full"
+                aria-label="Open all goals"
+                title="Open all goals"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+            {activeGoalRows.length ? (
+              <div className="space-y-3">
+                {activeGoalRows.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => onNavigate({ view: 'goals' })}
+                    className="w-full rounded-xl border border-border bg-background/60 p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="truncate text-sm font-medium text-foreground">{row.label}</span>
+                      <span className="shrink-0 font-code text-[9px] text-muted-foreground">{row.done}/{row.target}</span>
+                    </div>
+                    <Progress value={row.percent} className="mt-2 h-1.5" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onNavigate({ view: 'goals' })}
+                className="w-full rounded-xl border border-dashed border-border bg-background/50 p-4 text-left text-sm text-muted-foreground hover:border-accent/40 hover:text-foreground"
+              >
+                Set an intellectual commitment for what deserves sustained attention.
+              </button>
+            )}
           </Card>
 
           <Card className="rounded-2xl border-border bg-card p-5">

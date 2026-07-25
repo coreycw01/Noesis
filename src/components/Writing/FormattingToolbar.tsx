@@ -167,7 +167,7 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
 
         <div className="flex items-center px-3 border-r border-border/40 gap-2">
           <Type className="size-3.5 text-muted-foreground" />
-          <select defaultValue="P" onChange={(event) => applyFormat('formatBlock', event.target.value)} className="bg-transparent text-[11px] font-body italic text-primary/80 outline-none" title="Paragraph style">
+          <select defaultValue="P" onChange={(event) => applyFormat('formatBlock', event.target.value)} className="bg-transparent text-[11px] font-body italic text-foreground/80 outline-none" title="Paragraph style">
             <option value="P">Paragraph</option>
             <option value="H1">Heading 1</option>
             <option value="H2">Heading 2</option>
@@ -178,7 +178,7 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
 
         <div className="flex items-center px-3 border-r border-border/40 gap-2">
           <Pilcrow className="size-3.5 text-muted-foreground" />
-          <select defaultValue="normal" onChange={(event) => applyLineSpacing(event.target.value)} className="bg-transparent text-[11px] font-code font-bold text-primary/80 outline-none" title="Line spacing">
+          <select defaultValue="normal" onChange={(event) => applyLineSpacing(event.target.value)} className="bg-transparent text-[11px] font-code font-bold text-foreground/80 outline-none" title="Line spacing">
             <option value="1.2">Single</option>
             <option value="1.6">1.5</option>
             <option value="2">Double</option>

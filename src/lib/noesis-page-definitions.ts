@@ -38,6 +38,7 @@ export type NoesisWorkspaceDataKey =
   | 'preferences'
   | 'legacyProfile'
   | 'workspace'
+  | 'workspaceSummary'
   | 'profileDocs'
   | 'allSettings';
 
@@ -176,7 +177,7 @@ export const NOESIS_PAGE_BY_VIEW = NOESIS_PAGE_DEFINITIONS.reduce((acc, page) =>
 }, {} as Record<NoesisView, NoesisPageDefinition>);
 
 export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDataKey[]> = {
-  home: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'thinkingEvents', 'unknowns', 'workspace'],
+  home: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'thinkingEvents', 'unknowns', 'goal', 'workspace'],
   atlas: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'atlasMaps', 'links', 'thinkingEvents', 'unknowns'],
   concepts: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'links'],
   questions: ['media', 'concepts', 'questions', 'vault', 'drafts'],
@@ -209,9 +210,9 @@ export const NOESIS_SHELL_SUMMARY_REQUIREMENTS: NoesisWorkspaceDataKey[] = [
   'drafts',
   'practices',
   'timeline',
-  'goal',
   'legacyProfile',
   'workspace',
+  'workspaceSummary',
 ];
 
 export const NOESIS_DATA_REQUIREMENT_LABELS: Record<NoesisWorkspaceDataKey, string> = {
@@ -235,6 +236,7 @@ export const NOESIS_DATA_REQUIREMENT_LABELS: Record<NoesisWorkspaceDataKey, stri
   preferences: 'Preferences',
   legacyProfile: 'Profile',
   workspace: 'Workspace',
+  workspaceSummary: 'Workspace summary',
   profileDocs: 'Profile docs',
   allSettings: 'Settings',
 };

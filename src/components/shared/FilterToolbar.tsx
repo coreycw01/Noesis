@@ -171,7 +171,21 @@ export function FilterToolbar({
               Filters{resolvedActiveFilterCount ? ` (${resolvedActiveFilterCount})` : ''}
             </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[min(420px,calc(100vw-2rem))] rounded-xl border-border bg-popover p-4 shadow-xl">
+            <PopoverContent
+              align="end"
+              className="w-[min(420px,calc(100vw-2rem))] rounded-xl border-border bg-popover p-4 shadow-xl"
+              onFocusOutside={(event) => {
+                // Radix Select renders in a portal. Moving focus into or back from
+                // that portal should not dismiss the surrounding filter panel.
+                event.preventDefault();
+              }}
+              onPointerDownOutside={(event) => {
+                const target = event.target as HTMLElement | null;
+                if (target?.closest('[data-noesis-select-content]')) {
+                  event.preventDefault();
+                }
+              }}
+            >
               <div className="mb-3 font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Filter and sort</div>
               <div className="flex flex-wrap items-center gap-2 [&_[role=combobox]]:min-w-[170px] [&_[role=combobox]]:flex-1" aria-label="Filters">
                 {children}

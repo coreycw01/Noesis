@@ -708,7 +708,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
 
   if (active) {
     return (
-      <div className="flex-1 flex flex-col h-full bg-background overflow-hidden font-body">
+      <div className="flex-1 flex flex-col h-full bg-background text-foreground overflow-hidden font-body">
         <header className="border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur z-50 sm:px-5">
           <div className="mx-auto flex max-w-[1800px] flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2303,7 +2303,7 @@ async function blobToDataUrl(blob: Blob) {
 function PaperPreview({ styleName }: { styleName: WritingStyle }) {
   return (
     <div className={cn(
-      'relative h-24 overflow-hidden rounded-lg border border-border/50 bg-white',
+      'relative h-24 overflow-hidden rounded-lg border border-border/50 bg-[#ffffff] text-[#211f1c]',
       styleName === 'ruled_notebook' && 'bg-[linear-gradient(#e7dfd5_1px,transparent_1px)] bg-[length:100%_16px]',
       styleName === 'manuscript' && 'bg-[linear-gradient(#ece4da_1px,transparent_1px)] bg-[length:100%_22px]',
       styleName === 'cornell_notes' && 'after:absolute after:left-1/3 after:top-0 after:bottom-5 after:w-px after:bg-accent/30 before:absolute before:left-0 before:right-0 before:bottom-5 before:h-px before:bg-accent/30',

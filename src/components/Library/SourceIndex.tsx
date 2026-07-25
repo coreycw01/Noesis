@@ -29,22 +29,11 @@ interface SourceIndexProps {
 type SourceIndexView = 'table' | 'covers' | 'timeline' | 'influence' | 'domains' | 'unfinished' | 'recent';
 type SortKey = 'creator' | 'dateAdded' | 'title' | 'year' | 'influence' | 'annotations' | 'connected' | 'progress';
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'creator_asc' | 'connected_desc' | 'influence_desc' | 'health_asc' | 'manual';
-type AnnotationFilter = 'all' | 'with' | 'without';
 type CatalogFilter = 'all' | 'missing_metadata' | 'no_annotations' | 'high_influence' | 'unfinished' | 'ready_to_cite';
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
 const PRIMARY_SOURCE_TYPE_FILTERS: MediaType[] = ['book', 'article', 'paper', 'video', 'podcast'];
-const PRIMARY_SOURCE_INDEX_VIEWS: SourceIndexView[] = ['table', 'covers', 'timeline', 'influence', 'unfinished', 'recent'];
 const PRIMARY_SOURCE_SORTS: SortOption[] = ['date_desc', 'title_asc', 'creator_asc', 'connected_desc', 'influence_desc', 'health_asc'];
-const SOURCE_INDEX_VIEW_LABELS: Record<SourceIndexView, string> = {
-  table: 'Table',
-  covers: 'Covers',
-  timeline: 'Timeline',
-  influence: 'Influence',
-  domains: 'Domains',
-  unfinished: 'Unfinished',
-  recent: 'Recently Added',
-};
 const SOURCE_SORT_LABELS: Record<SortOption, string> = {
   date_desc: 'Newest',
   date_asc: 'Oldest',
@@ -132,7 +121,6 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
   const [filterType, setFilterType] = useState<MediaType | 'all'>('all');
   const [filterStatus, setFilterStatus] = useState<MediaStatus | 'all'>('all');
   const [filterConcept, setFilterConcept] = useState<string>('all');
-  const [filterAnnotations, setFilterAnnotations] = useState<AnnotationFilter>('all');
   const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('dateAdded');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -214,17 +202,12 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       if (m.status === 'Abandoned') return 20;
       return 10;
     };
-    const recentCutoff = Date.now() - 1000 * 60 * 60 * 24 * 30;
     return media
       .filter((m) => {
         const typeOk = filterType === 'all' || m.type === filterType;
         const statusOk = filterStatus === 'all' || m.status === filterStatus;
         const conceptOk = filterConcept === 'all' || (m.tags || []).map(conceptKey).includes(filterConcept);
-        const annotationOk = filterAnnotations === 'all' || (filterAnnotations === 'with' ? (m.annotations || []).length > 0 : (m.annotations || []).length === 0);
-        const unfinishedOk = view !== 'unfinished' || ['Want to Read', 'Consuming', 'Paused'].includes(m.status);
-        const recentOk = view !== 'recent' || new Date(m.dateAdded || m.dateUpdated || '').getTime() >= recentCutoff;
         const influence = scoreSourceInfluence(m);
-        const influenceOk = view !== 'influence' || influence > 0;
         const metadataGaps = sourceMetadataGaps(m);
         const catalogOk =
           catalogFilter === 'all' ||
@@ -260,7 +243,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           ...linkedPractices.map((practice) => ({ value: practice.title, label: 'practice' })),
           ...linkedQuestions.map((question) => ({ value: question.text, label: 'inquiry' })),
         ]);
-        return typeOk && statusOk && conceptOk && annotationOk && unfinishedOk && recentOk && influenceOk && catalogOk && searchOk;
+        return typeOk && statusOk && conceptOk && catalogOk && searchOk;
       })
       .map((source) => ({
         source,
@@ -300,7 +283,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         if (sortOrder === 'asc') return valA > valB ? 1 : -1;
         return valA < valB ? 1 : -1;
       });
-  }, [media, search, filterType, filterStatus, filterConcept, filterAnnotations, catalogFilter, sortKey, sortOrder, sortOption, view, vault, drafts, practices, questions]);
+  }, [media, search, filterType, filterStatus, filterConcept, catalogFilter, sortKey, sortOrder, sortOption, vault, drafts, practices, questions]);
 
   const filtered = sourceRows.map((row) => row.source);
 
@@ -391,19 +374,16 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
     setFilterType('all');
     setFilterStatus('all');
     setFilterConcept('all');
-    setFilterAnnotations('all');
     setCatalogFilter('all');
   };
 
-  const filtersActive = Boolean(search || filterType !== 'all' || filterStatus !== 'all' || filterConcept !== 'all' || filterAnnotations !== 'all' || catalogFilter !== 'all');
+  const filtersActive = Boolean(search || filterType !== 'all' || filterStatus !== 'all' || filterConcept !== 'all' || catalogFilter !== 'all');
   const activeFilterLabels = [
     search ? `Search: ${search}` : null,
     filterType !== 'all' ? `Type: ${MEDIA_LABELS[filterType]}` : null,
     filterStatus !== 'all' ? `Status: ${filterStatus}` : null,
     filterConcept !== 'all' ? `Concept: ${filterConcept}` : null,
-    filterAnnotations !== 'all' ? `Annotations: ${filterAnnotations === 'with' ? 'has annotations' : 'none yet'}` : null,
     catalogFilter !== 'all' ? `Catalog: ${catalogFilter.replace(/_/g, ' ')}` : null,
-    view !== 'table' ? `View: ${view}` : null,
   ].filter(Boolean) as string[];
   return (
     <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
@@ -467,14 +447,6 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               {visibleConceptFilters.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterAnnotations} onValueChange={(v) => setFilterAnnotations(v as AnnotationFilter)}>
-            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Annotations" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="font-code text-[10px] uppercase">Annotation State: All</SelectItem>
-              <SelectItem value="with" className="font-code text-[10px] uppercase">Has Annotations</SelectItem>
-              <SelectItem value="without" className="font-code text-[10px] uppercase">No Annotations</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={catalogFilter} onValueChange={(v) => setCatalogFilter(v as CatalogFilter)}>
             <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Catalog Health" /></SelectTrigger>
             <SelectContent>
@@ -484,14 +456,6 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               <SelectItem value="high_influence" className="font-code text-[10px] uppercase">High Influence</SelectItem>
               <SelectItem value="unfinished" className="font-code text-[10px] uppercase">Unfinished Sources</SelectItem>
               <SelectItem value="ready_to_cite" className="font-code text-[10px] uppercase">Ready To Cite</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={view} onValueChange={(v) => setView(v as SourceIndexView)}>
-            <SelectTrigger className="w-36 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="View" /></SelectTrigger>
-            <SelectContent>
-              {PRIMARY_SOURCE_INDEX_VIEWS.map((value) => (
-                <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{SOURCE_INDEX_VIEW_LABELS[value]}</SelectItem>
-              ))}
             </SelectContent>
           </Select>
           <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
@@ -528,24 +492,21 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       </div>
 
       {view === 'covers' && (
-        <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           {sourceRows.map(({ source: m, influence, connected, catalogState }) => (
-            <button key={m.id} type="button" onClick={() => previewSource(m)} className="group rounded-xl border border-border/40 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
-              <div className="mb-4 aspect-[3/4] overflow-hidden rounded-lg border border-border/30 bg-muted/20">
-                {m.thumbnailUrl ? <img src={m.thumbnailUrl} alt={m.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-muted-foreground"><Library className="size-10" /></div>}
+            <button key={m.id} type="button" onClick={() => previewSource(m)} className="group min-w-0 rounded-lg border border-border/40 bg-card p-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
+              <div className="mb-2.5 aspect-[4/5] overflow-hidden rounded-md border border-border/30 bg-muted/20">
+                {m.thumbnailUrl ? <img src={m.thumbnailUrl} alt={m.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-muted-foreground"><Library className="size-7" /></div>}
               </div>
-              <div className="font-headline text-xl font-bold italic text-primary group-hover:text-accent">{m.title}</div>
-              <div className="mt-1 text-sm text-muted-foreground">{m.creator || 'Unknown creator'}</div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                <Badge variant="outline" className="rounded-full">{m.type}</Badge>
-                <Badge variant="outline" className="rounded-full">{influence} influence</Badge>
-                <Badge variant="outline" className="rounded-full">{connected} links</Badge>
+              <div className="line-clamp-2 font-headline text-base font-bold leading-5 text-foreground group-hover:text-accent">{m.title}</div>
+              <div className="mt-1 truncate text-xs text-muted-foreground">{m.creator || 'Unknown creator'}</div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                <Badge variant="outline" className="rounded-full px-2 py-0 text-[8px]">{MEDIA_LABELS[m.type]}</Badge>
+                <Badge variant="outline" className="rounded-full px-2 py-0 text-[8px]">{connected} links</Badge>
               </div>
-              <div className="mt-4 rounded-xl border border-border/40 bg-background/70 px-3 py-2">
-                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Catalog State</div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  {catalogState.label}. Next: {catalogState.nextAction}.
-                </p>
+              <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/30 pt-2 font-code text-[8px] uppercase tracking-wider text-muted-foreground">
+                <span className="truncate">{catalogState.label}</span>
+                <span className="shrink-0">{influence} influence</span>
               </div>
             </button>
           ))}

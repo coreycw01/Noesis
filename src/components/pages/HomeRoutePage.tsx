@@ -4,7 +4,9 @@ import { ThinkingDesk } from '@/components/Home/ThinkingDesk';
 import type {
   Concept,
   Draft,
+  GoalSettings,
   Media,
+  MediaType,
   PhilosophicalLink,
   Practice,
   Question,
@@ -33,6 +35,8 @@ export interface HomeRoutePageProps {
   thinkingEvents: ThinkingEvent[];
   unknowns: Unknown[];
   links: PhilosophicalLink[];
+  goal: GoalSettings;
+  goalProgress: Partial<Record<MediaType, number>>;
   onCreateInquiry: (data: Partial<Question>) => Question;
   onNavigate: (view: NoesisView, options?: {
     conceptId?: string | null;
@@ -67,6 +71,8 @@ export function HomeRoutePage({
   thinkingEvents,
   unknowns,
   links,
+  goal,
+  goalProgress,
   onCreateInquiry,
   onNavigate,
 }: HomeRoutePageProps) {
@@ -83,6 +89,8 @@ export function HomeRoutePage({
       thinkingEvents={thinkingEvents}
       unknowns={unknowns}
       links={links}
+      goal={goal}
+      goalProgress={goalProgress}
       onCreateInquiry={onCreateInquiry}
       onNavigate={(target) => onNavigate(target.view, routeOptionsForHomeTarget(target))}
     />

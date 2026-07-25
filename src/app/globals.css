@@ -5,6 +5,7 @@
 
 @layer base {
   :root {
+    --font-headline: "Playfair Display", Georgia, serif;
     --background: 60 23% 97%; /* prototype paper #FAFAF7 */
     --foreground: 30 6% 10%; /* prototype ink #1A1917 */
     --card: 0 0% 100%;
@@ -136,6 +137,16 @@
   * {
     @apply border-border;
   }
+
+  :root[data-header-font="editorial"] { --font-headline: "Playfair Display", Georgia, serif; }
+  :root[data-header-font="literary"] { --font-headline: "Spectral", Georgia, serif; }
+  :root[data-header-font="classic"] { --font-headline: Georgia, "Times New Roman", serif; }
+  :root[data-header-font="modern"] { --font-headline: Inter, ui-sans-serif, system-ui, sans-serif; }
+  :root[data-header-font="mono"] { --font-headline: "JetBrains Mono", ui-monospace, monospace; }
+
+  :root[data-font-size="sm"] { font-size: 15px; }
+  :root[data-font-size="md"] { font-size: 16px; }
+  :root[data-font-size="lg"] { font-size: 17px; }
   .high-contrast *:focus-visible {
     outline: 3px solid hsl(var(--ring));
     outline-offset: 2px;

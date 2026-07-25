@@ -276,6 +276,8 @@ export function NoesisRouteContent({
           thinkingEvents={thinkingEvents}
           unknowns={unknowns}
           links={links}
+          goal={goalState}
+          goalProgress={goalProgress}
           onCreateInquiry={(data) => addQuestion(data) as Question}
           onNavigate={navigateToView}
         />
@@ -426,7 +428,7 @@ export function NoesisRouteContent({
         />
       );
     case 'questions':
-      return <InquiriesRoutePage questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={(data) => addDraft(data) as Draft} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
+      return <InquiriesRoutePage questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={(data) => addDraft(data) as Draft} onAddPractice={(data) => addPractice(data)} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
     case 'writing':
       return <WorksRoutePage drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={(data) => addDraft(data) as Draft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
     case 'evolution':

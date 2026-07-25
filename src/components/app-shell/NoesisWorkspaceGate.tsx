@@ -7,7 +7,6 @@ import { useUser } from '@/firebase';
 import { LoginPage } from '@/components/Auth/LoginPage';
 import { Toaster } from '@/components/ui/toaster';
 import { Loader2 } from 'lucide-react';
-import { PROTOTYPE_USER_ID } from '@/lib/firestore-schema';
 import { REVIEW_ACCOUNT_EMAIL, REVIEW_WORKSPACE_UID } from '@/lib/demo-workspace';
 
 interface WorkspaceContext {
@@ -52,16 +51,19 @@ export function NoesisWorkspaceGate({
     );
   }
 
-  const workspaceUid = (reviewMode || demoMode || routeDemoMode || isReviewIdentity)
-    ? resolvedReviewWorkspaceUid
-    : (user?.uid || PROTOTYPE_USER_ID);
+  const explicitDemoMode = reviewMode || demoMode || routeDemoMode;
+  const useWritableReviewAccount = explicitDemoMode && isReviewIdentity && Boolean(user);
+  const workspaceUid = explicitDemoMode
+    ? (useWritableReviewAccount ? user!.uid : REVIEW_WORKSPACE_UID)
+    : user!.uid;
+  const workspaceUser = explicitDemoMode && !useWritableReviewAccount ? null : user;
 
   return (
     <>
       {children({
-        user,
+        user: workspaceUser,
         uid: workspaceUid,
-        reviewMode: reviewMode || demoMode || routeDemoMode || isReviewIdentity,
+        reviewMode: explicitDemoMode,
         reviewWorkspaceUid: resolvedReviewWorkspaceUid,
       })}
     </>

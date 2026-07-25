@@ -98,7 +98,7 @@ const SETTINGS_SECTION_STORAGE_KEY = 'noesis:settings-section';
 
 const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: string }> = [
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
-  { id: 'appearance', label: 'Appearance', description: 'Theme, color, density, and display feel.' },
+  { id: 'appearance', label: 'Appearance', description: 'Theme, typography, interface scale, contrast, and motion.' },
   { id: 'workspace', label: 'Workspace', description: 'Navigation and general working behavior.' },
   { id: 'capture', label: 'Capture Defaults', description: 'Source intake, annotations, and quick capture behavior.' },
   { id: 'works', label: 'Writing Defaults', description: 'Work creation defaults and editor behavior.' },
@@ -135,8 +135,8 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
     limitations: ['Profile identity and philosophical portrait editing belongs on Profile, not Settings.'],
   },
   appearance: {
-    current: 'Changes theme mode and accent immediately for preview, then persists those choices when saved.',
-    affects: ['Light, dark, and system mode', 'Accent theme tokens', 'Sidebar default and page description visibility'],
+    current: 'Previews theme, color, headline typography, interface size, contrast, and motion immediately, then persists them when saved.',
+    affects: ['Light, dark, and system mode', 'Accent theme tokens', 'Header typography', 'Interface text scale', 'Contrast and motion preferences'],
     limitations: ['Some older surfaces may still contain hard-coded colors until each page is fully tokenized.'],
   },
   workspace: {
@@ -232,6 +232,8 @@ export function SettingsPage({
     () => ({
       themeMode: drafts.appearance.themeMode,
       accentTheme: drafts.appearance.accentTheme,
+      headerFont: drafts.appearance.headerFont,
+      fontSize: drafts.appearance.fontSize,
       highContrastMode: drafts.appearance.highContrastMode,
       reducedMotion: drafts.appearance.reducedMotion,
     }),
@@ -248,6 +250,8 @@ export function SettingsPage({
       root.classList.toggle('high-contrast', appearancePreview.highContrastMode);
       root.classList.toggle('reduce-motion', appearancePreview.reducedMotion);
       root.dataset.theme = appearancePreview.accentTheme;
+      root.dataset.headerFont = appearancePreview.headerFont;
+      root.dataset.fontSize = appearancePreview.fontSize;
     };
     applyTheme();
     mediaQuery.addEventListener('change', applyTheme);
@@ -262,6 +266,8 @@ export function SettingsPage({
         window.localStorage.setItem('noesis:theme', JSON.stringify({
           themeMode: drafts.appearance.themeMode,
           accentTheme: drafts.appearance.accentTheme,
+          headerFont: drafts.appearance.headerFont,
+          fontSize: drafts.appearance.fontSize,
           highContrastMode: drafts.appearance.highContrastMode,
           reducedMotion: drafts.appearance.reducedMotion,
         }));
@@ -363,7 +369,7 @@ export function SettingsPage({
       case 'appearance':
         return (
           <div className="space-y-6">
-            <SettingsCard title="Appearance" description="Theme, density, visibility, and reading feel across the workspace.">
+            <SettingsCard title="Appearance" description="Theme, typography, interface scale, contrast, and motion across the workspace.">
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Mode">
                   <Select value={drafts.appearance.themeMode} onValueChange={(value) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, themeMode: value as AppearanceSettings['themeMode'] } }))}>
@@ -388,22 +394,25 @@ export function SettingsPage({
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Density">
-                  <Select value={drafts.appearance.density} onValueChange={(value) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, density: value as AppearanceSettings['density'] } }))}>
+                <Field label="Header Font">
+                  <Select value={drafts.appearance.headerFont} onValueChange={(value) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, headerFont: value as AppearanceSettings['headerFont'] } }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="comfortable">Comfortable</SelectItem>
-                      <SelectItem value="compact">Compact</SelectItem>
+                      <SelectItem value="editorial">Editorial — Playfair</SelectItem>
+                      <SelectItem value="literary">Literary — Spectral</SelectItem>
+                      <SelectItem value="classic">Classic — Georgia</SelectItem>
+                      <SelectItem value="modern">Modern — Sans Serif</SelectItem>
+                      <SelectItem value="mono">Technical — Mono</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Reading Width">
-                  <Select value={drafts.appearance.readingWidth} onValueChange={(value) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, readingWidth: value as AppearanceSettings['readingWidth'] } }))}>
+                <Field label="Interface Size">
+                  <Select value={drafts.appearance.fontSize} onValueChange={(value) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, fontSize: value as AppearanceSettings['fontSize'] } }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="narrow">Narrow</SelectItem>
-                      <SelectItem value="standard">Standard</SelectItem>
-                      <SelectItem value="wide">Wide</SelectItem>
+                      <SelectItem value="sm">Small</SelectItem>
+                      <SelectItem value="md">Standard</SelectItem>
+                      <SelectItem value="lg">Large</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>
@@ -411,8 +420,6 @@ export function SettingsPage({
               <div className="mt-5 grid gap-3">
                 <SwitchRow label="Reduced motion" checked={drafts.appearance.reducedMotion} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, reducedMotion: checked } }))} />
                 <SwitchRow label="High contrast mode" checked={drafts.appearance.highContrastMode} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, highContrastMode: checked } }))} />
-                <SwitchRow label="Sidebar collapsed by default" checked={drafts.appearance.sidebarCollapsedByDefault} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, sidebarCollapsedByDefault: checked } }))} />
-                <SwitchRow label="Show page descriptions" checked={drafts.appearance.showPageDescriptions} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, showPageDescriptions: checked } }))} />
               </div>
               <div className="mt-6 overflow-hidden rounded-2xl border-2 border-border bg-background shadow-sm" aria-label="Live theme preview">
                 <div className="flex min-h-48">

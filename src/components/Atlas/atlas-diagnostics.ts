@@ -46,6 +46,11 @@ export interface AtlasRegionViewModel {
   id: string;
   name: string;
   description?: string;
+  regionType: 'derived';
+  status: 'provisional' | 'active';
+  confirmedMemberCount: number;
+  suggestedMemberNames: string[];
+  explanation: string;
   conceptIds: string[];
   positionIds: string[];
   practiceIds: string[];
@@ -73,6 +78,9 @@ export interface AtlasTerritoryCard {
   id: string;
   name: string;
   description: string;
+  status: 'provisional' | 'active';
+  confirmedMemberCount: number;
+  suggestedMemberCount: number;
   dominantConcepts: string[];
   labels: AtlasRegionLabel[];
   maturityStatus: AtlasMaturityStatus;
@@ -200,6 +208,21 @@ const REGION_DEFINITIONS = [
     keywords: ['mortality', 'death', 'finite', 'legacy', 'time', 'urgent', 'aging', 'end', 'finitude'],
   },
 ] as const;
+
+const REGION_SUGGESTIONS: Record<string, string[]> = {
+  selfhood: ['Agency', 'Authenticity', 'Self-mastery', 'Ego', 'Narrative self'],
+  ethics: ['Duty', 'Justice', 'Virtue', 'Moral responsibility'],
+  meaning: ['Purpose', 'Significance', 'Calling', 'Suffering'],
+  knowledge: ['Evidence', 'Truth', 'Uncertainty', 'Justification'],
+  relationships: ['Belonging', 'Intimacy', 'Community', 'Solitude'],
+  spirituality: ['Faith', 'Transcendence', 'Reverence', 'Sacred order'],
+  power: ['Authority', 'Hierarchy', 'Influence', 'Domination'],
+  emotion: ['Desire', 'Anxiety', 'Courage', 'Shame'],
+  discipline: ['Habit', 'Attention', 'Training', 'Consistency'],
+  society: ['Institutions', 'Culture', 'Civic life', 'Media'],
+  creativity: ['Imagination', 'Expression', 'Craft', 'Originality'],
+  mortality: ['Finitude', 'Death', 'Legacy', 'Urgency'],
+};
 
 function parseDate(value?: string) {
   const time = value ? Date.parse(value) : NaN;
@@ -439,6 +462,7 @@ export function deriveAtlasRegions({
       id: regionDef.id,
       name: regionDef.name,
       description: regionDef.description,
+      regionType: 'derived' as const,
       conceptIds: uniqueStrings(regionConcepts.map((concept) => concept.id)),
       positionIds: uniqueStrings(regionPositions.map((position) => position.id)),
       practiceIds: uniqueStrings(regionPractices.map((practice) => practice.id)),
@@ -465,18 +489,36 @@ export function deriveAtlasRegions({
       recentActivityCount,
       lastActiveAt: lastActivityCandidates.sort((a, b) => parseDate(b) - parseDate(a))[0],
     };
+    const confirmedMemberCount = uniqueStrings([
+      ...baseRegion.conceptIds.map((id) => `concept:${id}`),
+      ...baseRegion.positionIds.map((id) => `position:${id}`),
+      ...baseRegion.practiceIds.map((id) => `practice:${id}`),
+      ...baseRegion.inquiryIds.map((id) => `inquiry:${id}`),
+      ...baseRegion.workIds.map((id) => `work:${id}`),
+    ]).length;
+    const confirmedConceptNames = new Set(regionConcepts.map((concept) => conceptKey(concept.name)));
+    const suggestedMemberNames = (REGION_SUGGESTIONS[regionDef.id] || [])
+      .filter((name) => !confirmedConceptNames.has(conceptKey(name)));
+    const status = confirmedMemberCount >= 2 ? 'active' as const : 'provisional' as const;
+    const explanation = confirmedMemberCount >= 2
+      ? `Noesis auto-organized ${confirmedMemberCount} confirmed records whose concepts, links, or language repeatedly overlap in this territory.`
+      : `Noesis found one confirmed record pointing toward this possible territory. Suggested topics remain uncreated until you review them.`;
 
-    const labels = labelSetForRegion(baseRegion);
+    const labels = labelSetForRegion(baseRegion as any);
     return {
       ...baseRegion,
+      status,
+      confirmedMemberCount,
+      suggestedMemberNames,
+      explanation,
       labels,
-      maturityStatus: maturityForRegion(baseRegion, labels),
-      suggestedNextActions: nextActionsForRegion(baseRegion, labels),
+      maturityStatus: maturityForRegion(baseRegion as any, labels),
+      suggestedNextActions: nextActionsForRegion(baseRegion as any, labels),
     };
   });
 
   return regions
-    .filter((region) => region.conceptIds.length || region.positionIds.length || region.inquiryIds.length || region.practiceIds.length || region.sourceIds.length || region.workIds.length)
+    .filter((region) => region.confirmedMemberCount >= 1)
     .sort((a, b) => {
       const aScore = a.activePositionsCount * 4 + a.conceptIds.length * 2 + a.recentActivityCount + a.tensionCount;
       const bScore = b.activePositionsCount * 4 + b.conceptIds.length * 2 + b.recentActivityCount + b.tensionCount;
@@ -489,6 +531,9 @@ export function deriveAtlasTerritoryView(regions: AtlasRegionViewModel[]): Atlas
     id: region.id,
     name: region.name,
     description: region.description || '',
+    status: region.status,
+    confirmedMemberCount: region.confirmedMemberCount,
+    suggestedMemberCount: region.suggestedMemberNames.length,
     dominantConcepts: region.dominantConcepts,
     labels: region.labels,
     maturityStatus: region.maturityStatus,

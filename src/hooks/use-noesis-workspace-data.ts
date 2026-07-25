@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from 'react';
-import { doc } from 'firebase/firestore';
+import { doc, limit, orderBy, query } from 'firebase/firestore';
 import { useCollection, useDoc } from '@/firebase';
 import { readexRefs } from '@/lib/firestore-schema';
 import { buildDemoWorkspace } from '@/lib/demo-workspace';
@@ -48,8 +48,16 @@ import type {
   WorksSettings,
   WorkspacePreferenceSettings,
   WorkspaceSettings,
+  WorkspaceSummary,
 } from '@/lib/types';
 import type { NoesisRouteState, NoesisView } from '@/lib/noesis-routes';
+
+function recordsForWorkspace<T>(records: T[], uid: string) {
+  return records.filter((record) => {
+    const owner = (record as any)?.userId || (record as any)?.uid;
+    return !owner || owner === uid;
+  });
+}
 
 export function useNoesisWorkspaceData({
   db,
@@ -71,14 +79,20 @@ export function useNoesisWorkspaceData({
     [uid, isOfflineReviewPreview]
   );
 
-  const needsMedia = routeNeedsData(effectiveRouteState, 'media') || shellNeedsSummaryData('media');
-  const needsVault = routeNeedsData(effectiveRouteState, 'vault') || shellNeedsSummaryData('vault');
+  const { data: workspaceSummaryDocLive, loading: workspaceSummaryLoadingLive } = useDoc<WorkspaceSummary>(
+    isOfflineReviewPreview ? null : refs.settingsWorkspaceSummary as any
+  );
+  const hasWorkspaceSummary = isOfflineReviewPreview || Boolean(workspaceSummaryDocLive);
+  const needsShellBootstrap = (key: NoesisWorkspaceDataKey) => !hasWorkspaceSummary && shellNeedsSummaryData(key);
+
+  const needsMedia = routeNeedsData(effectiveRouteState, 'media') || needsShellBootstrap('media');
+  const needsVault = routeNeedsData(effectiveRouteState, 'vault') || needsShellBootstrap('vault');
   const needsInsights = routeNeedsData(effectiveRouteState, 'insights');
-  const needsConcepts = routeNeedsData(effectiveRouteState, 'concepts') || shellNeedsSummaryData('concepts');
-  const needsQuestions = routeNeedsData(effectiveRouteState, 'questions') || shellNeedsSummaryData('questions');
-  const needsTimeline = routeNeedsData(effectiveRouteState, 'timeline') || shellNeedsSummaryData('timeline');
-  const needsDrafts = routeNeedsData(effectiveRouteState, 'drafts') || shellNeedsSummaryData('drafts');
-  const needsPractices = routeNeedsData(effectiveRouteState, 'practices') || shellNeedsSummaryData('practices');
+  const needsConcepts = routeNeedsData(effectiveRouteState, 'concepts') || needsShellBootstrap('concepts');
+  const needsQuestions = routeNeedsData(effectiveRouteState, 'questions') || needsShellBootstrap('questions');
+  const needsTimeline = routeNeedsData(effectiveRouteState, 'timeline') || needsShellBootstrap('timeline');
+  const needsDrafts = routeNeedsData(effectiveRouteState, 'drafts') || needsShellBootstrap('drafts');
+  const needsPractices = routeNeedsData(effectiveRouteState, 'practices') || needsShellBootstrap('practices');
   const needsAtlasMaps = routeNeedsData(effectiveRouteState, 'atlasMaps');
   const needsLinks = routeNeedsData(effectiveRouteState, 'links');
   const needsSuggestions = routeNeedsData(effectiveRouteState, 'suggestions');
@@ -87,25 +101,31 @@ export function useNoesisWorkspaceData({
   const needsUnknowns = routeNeedsData(effectiveRouteState, 'unknowns');
   const needsThinkingPatterns = routeNeedsData(effectiveRouteState, 'thinkingPatterns');
   const needsThinkingMetrics = routeNeedsData(effectiveRouteState, 'thinkingMetrics');
-  const needsGoalDoc = routeNeedsData(effectiveRouteState, 'goal') || shellNeedsSummaryData('goal');
+  const needsGoalDoc = routeNeedsData(effectiveRouteState, 'goal');
   const needsPreferencesDoc = routeNeedsData(effectiveRouteState, 'preferences');
   const needsLegacyProfileDoc = routeNeedsData(effectiveRouteState, 'legacyProfile') || shellNeedsSummaryData('legacyProfile');
   const needsProfileDocs = routeNeedsData(effectiveRouteState, 'profileDocs');
   const needsAllSettings = routeNeedsData(effectiveRouteState, 'allSettings');
   const needsWorkspaceDoc = routeNeedsData(effectiveRouteState, 'workspace') || shellNeedsSummaryData('workspace');
+  const thinkingEventsQuery = useMemo(
+    () => isOfflineReviewPreview || !needsThinkingEvents
+      ? null
+      : query(refs.thinkingEvents as any, orderBy('createdAt', 'desc'), limit(200)),
+    [isOfflineReviewPreview, needsThinkingEvents, refs.thinkingEvents]
+  );
 
-  const { data: mediaLive = [], loading: mediaLoadingLive } = useCollection<Media>(isOfflineReviewPreview || !needsMedia ? null : refs.media as any);
-  const { data: vaultLive = [], loading: vaultLoadingLive } = useCollection<VaultEntry>(isOfflineReviewPreview || !needsVault ? null : refs.vault as any);
+  const { data: mediaLive = [], loading: mediaLoadingLive, error: mediaErrorLive } = useCollection<Media>(isOfflineReviewPreview || !needsMedia ? null : refs.media as any);
+  const { data: vaultLive = [], loading: vaultLoadingLive, error: vaultErrorLive } = useCollection<VaultEntry>(isOfflineReviewPreview || !needsVault ? null : refs.vault as any);
   const { data: insightsLive = [], loading: insightsLoadingLive } = useCollection<Insight>(isOfflineReviewPreview || !needsInsights ? null : refs.insights as any);
-  const { data: conceptsLive = [], loading: conceptsLoadingLive } = useCollection<Concept>(isOfflineReviewPreview || !needsConcepts ? null : refs.concepts as any);
-  const { data: questionsLive = [], loading: questionsLoadingLive } = useCollection<Question>(isOfflineReviewPreview || !needsQuestions ? null : refs.questions as any);
-  const { data: timelineLive = [], loading: timelineLoadingLive } = useCollection<TimelineEvent>(isOfflineReviewPreview || !needsTimeline ? null : refs.timeline as any);
-  const { data: draftsLive = [], loading: draftsLoadingLive } = useCollection<Draft>(isOfflineReviewPreview || !needsDrafts ? null : refs.drafts as any);
-  const { data: practicesLive = [], loading: practicesLoadingLive } = useCollection<Practice>(isOfflineReviewPreview || !needsPractices ? null : refs.practices as any);
-  const { data: atlasMapsLive = [], loading: atlasMapsLoadingLive } = useCollection<AtlasMap>(isOfflineReviewPreview || !needsAtlasMaps ? null : refs.atlasMaps as any);
-  const { data: linksLive = [], loading: linksLoadingLive } = useCollection<PhilosophicalLink>(isOfflineReviewPreview || !needsLinks ? null : refs.links as any);
+  const { data: conceptsLive = [], loading: conceptsLoadingLive, error: conceptsErrorLive } = useCollection<Concept>(isOfflineReviewPreview || !needsConcepts ? null : refs.concepts as any);
+  const { data: questionsLive = [], loading: questionsLoadingLive, error: questionsErrorLive } = useCollection<Question>(isOfflineReviewPreview || !needsQuestions ? null : refs.questions as any);
+  const { data: timelineLive = [], loading: timelineLoadingLive, error: timelineErrorLive } = useCollection<TimelineEvent>(isOfflineReviewPreview || !needsTimeline ? null : refs.timeline as any);
+  const { data: draftsLive = [], loading: draftsLoadingLive, error: draftsErrorLive } = useCollection<Draft>(isOfflineReviewPreview || !needsDrafts ? null : refs.drafts as any);
+  const { data: practicesLive = [], loading: practicesLoadingLive, error: practicesErrorLive } = useCollection<Practice>(isOfflineReviewPreview || !needsPractices ? null : refs.practices as any);
+  const { data: atlasMapsLive = [], loading: atlasMapsLoadingLive, error: atlasMapsErrorLive } = useCollection<AtlasMap>(isOfflineReviewPreview || !needsAtlasMaps ? null : refs.atlasMaps as any);
+  const { data: linksLive = [], loading: linksLoadingLive, error: linksErrorLive } = useCollection<PhilosophicalLink>(isOfflineReviewPreview || !needsLinks ? null : refs.links as any);
   const { data: suggestionsLive = [], loading: suggestionsLoadingLive } = useCollection<AiSuggestion>(isOfflineReviewPreview || !needsSuggestions ? null : refs.suggestions as any);
-  const { data: thinkingEventsLive = [], loading: thinkingEventsLoadingLive } = useCollection<ThinkingEvent>(isOfflineReviewPreview || !needsThinkingEvents ? null : refs.thinkingEvents as any);
+  const { data: thinkingEventsLive = [], loading: thinkingEventsLoadingLive } = useCollection<ThinkingEvent>(thinkingEventsQuery as any);
   const { data: beliefProfilesLive = [], loading: beliefProfilesLoadingLive } = useCollection<BeliefProfile>(isOfflineReviewPreview || !needsBeliefProfiles ? null : refs.beliefProfiles as any);
   const { data: unknownsLive = [], loading: unknownsLoadingLive } = useCollection<Unknown>(isOfflineReviewPreview || !needsUnknowns ? null : refs.unknowns as any);
   const { data: thinkingPatternsLive = [], loading: thinkingPatternsLoadingLive } = useCollection<ThinkingPattern>(isOfflineReviewPreview || !needsThinkingPatterns ? null : refs.thinkingPatterns as any);
@@ -167,33 +187,47 @@ export function useNoesisWorkspaceData({
     workspace: isOfflineReviewPreview ? false : workspaceLoadingLive,
     profileDocs: isOfflineReviewPreview ? false : profileDocsLoading,
     allSettings: isOfflineReviewPreview ? false : settingsLoading,
+    workspaceSummary: isOfflineReviewPreview ? false : workspaceSummaryLoadingLive,
   };
   const activePageRequirements = dataRequirementsForNoesisRoute(effectiveRouteState);
   const pageLoading = activePageRequirements.some((key) => requirementLoading[key]);
   const shellLoading = NOESIS_SHELL_SUMMARY_REQUIREMENTS.some((key) => requirementLoading[key]);
+  const requirementErrors: Partial<Record<NoesisWorkspaceDataKey, Error | null>> = {
+    media: mediaErrorLive,
+    vault: vaultErrorLive,
+    concepts: conceptsErrorLive,
+    questions: questionsErrorLive,
+    timeline: timelineErrorLive,
+    drafts: draftsErrorLive,
+    practices: practicesErrorLive,
+    atlasMaps: atlasMapsErrorLive,
+    links: linksErrorLive,
+  };
+  const pageErrorKey = activePageRequirements.find((key) => requirementErrors[key]);
 
   return {
     refs,
-    media: isOfflineReviewPreview ? (reviewPreviewData?.media || []) : mediaLive,
-    vault: isOfflineReviewPreview ? (reviewPreviewData?.vault || []) : vaultLive,
-    insights: isOfflineReviewPreview ? (reviewPreviewData?.insights || []) : insightsLive,
-    concepts: isOfflineReviewPreview ? (reviewPreviewData?.concepts || []) : conceptsLive,
-    questions: isOfflineReviewPreview ? (reviewPreviewData?.questions || []) : questionsLive,
-    timeline: isOfflineReviewPreview ? (reviewPreviewData?.timeline || []) : timelineLive,
-    drafts: isOfflineReviewPreview ? (reviewPreviewData?.drafts || []) : draftsLive,
-    practices: isOfflineReviewPreview ? (reviewPreviewData?.practices || []) : practicesLive,
-    atlasMaps: isOfflineReviewPreview ? (reviewPreviewData?.atlasMaps || []) : atlasMapsLive,
-    links: isOfflineReviewPreview ? (reviewPreviewData?.links || []) : linksLive,
-    suggestions: isOfflineReviewPreview ? (reviewPreviewData?.suggestions || []) : suggestionsLive,
-    thinkingEvents: isOfflineReviewPreview ? (reviewPreviewData?.thinkingEvents || []) : thinkingEventsLive,
-    beliefProfiles: isOfflineReviewPreview ? (reviewPreviewData?.beliefProfiles || []) : beliefProfilesLive,
-    unknowns: isOfflineReviewPreview ? (reviewPreviewData?.unknowns || []) : unknownsLive,
-    thinkingPatterns: isOfflineReviewPreview ? (reviewPreviewData?.thinkingPatterns || []) : thinkingPatternsLive,
+    media: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.media || []) : mediaLive, uid),
+    vault: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.vault || []) : vaultLive, uid),
+    insights: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.insights || []) : insightsLive, uid),
+    concepts: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.concepts || []) : conceptsLive, uid),
+    questions: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.questions || []) : questionsLive, uid),
+    timeline: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.timeline || []) : timelineLive, uid),
+    drafts: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.drafts || []) : draftsLive, uid),
+    practices: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.practices || []) : practicesLive, uid),
+    atlasMaps: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.atlasMaps || []) : atlasMapsLive, uid),
+    links: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.links || []) : linksLive, uid),
+    suggestions: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.suggestions || []) : suggestionsLive, uid),
+    thinkingEvents: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.thinkingEvents || []) : thinkingEventsLive, uid),
+    beliefProfiles: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.beliefProfiles || []) : beliefProfilesLive, uid),
+    unknowns: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.unknowns || []) : unknownsLive, uid),
+    thinkingPatterns: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.thinkingPatterns || []) : thinkingPatternsLive, uid),
     thinkingMetricsDoc: isOfflineReviewPreview ? (reviewPreviewData?.thinkingMetrics || null) : thinkingMetricsDocLive,
     goalDoc: isOfflineReviewPreview ? (reviewPreviewData?.goal || null) : goalDocLive,
     legacyPreferencesDoc: isOfflineReviewPreview ? (reviewPreviewData?.preferences || null) : legacyPreferencesDocLive,
     legacyProfileDoc: isOfflineReviewPreview ? (reviewPreviewData?.profile || null) : legacyProfileDocLive,
     workspaceDoc: isOfflineReviewPreview ? (reviewPreviewData?.workspace || null) : workspaceDocLive,
+    workspaceSummaryDoc: isOfflineReviewPreview ? null : workspaceSummaryDocLive,
     profileMainDoc: isOfflineReviewPreview ? (reviewPreviewData?.profile || null) : profileMainDocLive,
     profilePrivacyDoc: isOfflineReviewPreview ? (reviewPreviewData?.profilePrivacy || null) : profilePrivacyDocLive,
     profileSummaryDoc: isOfflineReviewPreview ? (reviewPreviewData?.profileMetacognitionSummary || null) : profileSummaryDocLive,
@@ -231,6 +265,7 @@ export function useNoesisWorkspaceData({
       preferences: isOfflineReviewPreview ? false : preferencesLoadingLive,
       legacyProfile: isOfflineReviewPreview ? false : legacyProfileLoadingLive,
       workspace: isOfflineReviewPreview ? false : workspaceLoadingLive,
+      workspaceSummary: isOfflineReviewPreview ? false : workspaceSummaryLoadingLive,
       profileMain: isOfflineReviewPreview ? false : profileMainLoadingLive,
       profilePrivacy: isOfflineReviewPreview ? false : profilePrivacyLoadingLive,
       profileSummary: isOfflineReviewPreview ? false : profileSummaryLoadingLive,
@@ -252,6 +287,10 @@ export function useNoesisWorkspaceData({
       requirements: requirementLoading,
       activePageRequirements,
       shellRequirements: NOESIS_SHELL_SUMMARY_REQUIREMENTS,
+      pageError: pageErrorKey ? {
+        key: pageErrorKey,
+        error: requirementErrors[pageErrorKey]!,
+      } : null,
     },
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { QuestionsWorkspace } from '@/components/Questions/QuestionsWorkspace';
-import type { Concept, Draft, Media, Question, VaultEntry } from '@/lib/types';
+import type { Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface InquiriesRoutePageProps {
@@ -16,6 +16,7 @@ export interface InquiriesRoutePageProps {
   onDeleteQuestion: (id: string) => void;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
+  onAddPractice: (data: Partial<Practice>) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   onNavigate: (view: NoesisView, options?: { questionId?: string | null }) => void;
 }
@@ -32,6 +33,7 @@ export function InquiriesRoutePage({
   onDeleteQuestion,
   onAddVaultEntry,
   onAddDraft,
+  onAddPractice,
   onFormPositionFromInquiry,
   onNavigate,
 }: InquiriesRoutePageProps) {
@@ -47,6 +49,7 @@ export function InquiriesRoutePage({
       onDeleteQuestion={onDeleteQuestion}
       onAddVaultEntry={onAddVaultEntry}
       onAddDraft={onAddDraft}
+      onAddPractice={onAddPractice}
       onFormPositionFromInquiry={onFormPositionFromInquiry}
       focusedQuestionId={focusedQuestionId}
       onOpenQuestionRoute={(questionId) => onNavigate('questions', { questionId })}

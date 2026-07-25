@@ -703,13 +703,10 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
   const settingsAppearance: AppearanceSettings = {
     themeMode: 'dark',
     accentTheme: 'amber',
-    density: 'comfortable',
+    headerFont: 'editorial',
     fontSize: 'md',
-    readingWidth: 'standard',
     reducedMotion: false,
     highContrastMode: false,
-    sidebarCollapsedByDefault: false,
-    showPageDescriptions: true,
     dateUpdated: iso(24),
   };
 

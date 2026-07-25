@@ -177,6 +177,7 @@ function practiceExperimentShape(practice: Practice, linkedQuestions: Question[]
 export function PracticesWorkspace({ practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute }: PracticesWorkspaceProps) {
   const [statusFilter, setStatusFilter] = useState<PracticeStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<PracticeType | 'all'>('all');
+  const [conceptFilter, setConceptFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState<PracticeViewFilter>('all');
   const [otherStatus, setOtherStatus] = useState<PracticeStatus>('planned');
   const [search, setSearch] = useState('');
@@ -184,6 +185,13 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
   const [deleteTarget, setDeleteTarget] = useState<Practice | null>(null);
   const [draft, setDraft] = useState<Partial<Practice>>({ title: '', description: '', type: 'experiment', status: 'planned', durationDays: 7, durationMode: 'repeated', conceptTags: [] });
   const questionList = useMemo(() => allQuestions(media, questions), [media, questions]);
+  const conceptFilterOptions = useMemo(
+    () => concepts
+      .map((concept) => concept.name.trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b)),
+    [concepts]
+  );
   const activeLoops = practices.filter((practice) => normalizePracticeStatus(practice.status) === 'active' && practice.durationMode !== 'one_time');
   const practiceState = useMemo(() => {
     const questionById = new Map(questionList.map((question) => [question.id, question]));
@@ -220,13 +228,14 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
       ...(state?.linkedPositions || []).map((position) => position.title),
     ].filter(Boolean).join(' ').toLowerCase();
     const matchesSearch = !search.trim() || haystack.includes(search.trim().toLowerCase());
+    const matchesConcept = conceptFilter === 'all' || (practice.conceptTags || []).some((tag) => tag.toLowerCase() === conceptFilter.toLowerCase());
     const matchesView =
       viewFilter === 'all' ||
       (viewFilter === 'awaiting_log' && state?.needsLog) ||
       (viewFilter === 'needs_setup' && (!state?.hasBasis || state?.needsDesign)) ||
       (viewFilter === 'ready_review' && (state?.needsOutcome || state?.needsConsequence || state?.recentlyConcluded)) ||
       (viewFilter === 'testing_positions' && (practice.positionIds || []).length > 0);
-    return matchesSearch && matchesView && (statusFilter === 'all' || normalizePracticeStatus(practice.status) === statusFilter) && (typeFilter === 'all' || normalizePracticeType(practice.type) === typeFilter);
+    return matchesSearch && matchesConcept && matchesView && (statusFilter === 'all' || normalizePracticeStatus(practice.status) === statusFilter) && (typeFilter === 'all' || normalizePracticeType(practice.type) === typeFilter);
   });
   const otherPractices = filtered.filter((practice) => normalizePracticeStatus(practice.status) === otherStatus);
   const needsAttentionLoops = activeLoops.filter((practice) => {
@@ -253,16 +262,18 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
   const clearPracticeFilters = () => {
     setStatusFilter('all');
     setTypeFilter('all');
+    setConceptFilter('all');
     setViewFilter('all');
     setSearch('');
   };
 
-  const practiceFiltersActive = statusFilter !== 'all' || typeFilter !== 'all' || viewFilter !== 'all' || Boolean(search.trim());
+  const practiceFiltersActive = statusFilter !== 'all' || typeFilter !== 'all' || conceptFilter !== 'all' || viewFilter !== 'all' || Boolean(search.trim());
   const activePracticeFilterLabels = [
     search.trim() ? `Search: ${search.trim()}` : null,
     viewFilter !== 'all' ? `View: ${practiceViewFilters.find((item) => item.value === viewFilter)?.label || viewFilter.replace(/_/g, ' ')}` : null,
     statusFilter !== 'all' ? `Status: ${statusFilter.replace(/_/g, ' ')}` : null,
     typeFilter !== 'all' ? `Type: ${PRACTICE_LABELS[typeFilter] || typeFilter.replace(/_/g, ' ')}` : null,
+    conceptFilter !== 'all' ? `Concept: ${conceptFilter}` : null,
   ].filter(Boolean) as string[];
 
   const openEditor = (practice?: Practice) => {
@@ -334,6 +345,13 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
           <SelectContent>
             <SelectItem value="all" className="font-code text-[9px] uppercase">All Practice Types</SelectItem>
             {practiceTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{simplifiedTypeLabels[type]}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={conceptFilter} onValueChange={setConceptFilter}>
+          <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-card shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Concepts" /></SelectTrigger>
+          <SelectContent className="max-h-80">
+            <SelectItem value="all" className="font-code text-[9px] uppercase">All Concepts</SelectItem>
+            {conceptFilterOptions.map((concept) => <SelectItem key={concept} value={concept} className="font-code text-[9px] uppercase">{concept}</SelectItem>)}
           </SelectContent>
         </Select>
       </FilterToolbar>

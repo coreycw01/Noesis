@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
 import './globals.css';
+import { NoesisPersistentWorkspace } from './noesis-persistent-workspace';
 
 export const metadata: Metadata = {
   title: 'Noesis - Turn thought into understanding',
@@ -24,11 +25,15 @@ try {
   var saved = JSON.parse(localStorage.getItem('noesis:theme') || '{}');
   var mode = saved.themeMode || 'light';
   var accent = saved.accentTheme || 'violet';
+  var headerFont = saved.headerFont || 'editorial';
+  var fontSize = saved.fontSize || 'md';
   var dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.toggle('dark', dark);
   document.documentElement.classList.toggle('high-contrast', Boolean(saved.highContrastMode));
   document.documentElement.classList.toggle('reduce-motion', Boolean(saved.reducedMotion));
   document.documentElement.setAttribute('data-theme', accent);
+  document.documentElement.setAttribute('data-header-font', headerFont);
+  document.documentElement.setAttribute('data-font-size', fontSize);
 } catch (error) {
   console.warn('Theme init failed', error);
 }
@@ -39,7 +44,9 @@ try {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased selection:bg-accent/20 selection:text-accent-foreground">{children}</body>
+      <body className="font-body antialiased selection:bg-accent/20 selection:text-accent-foreground">
+        <NoesisPersistentWorkspace>{children}</NoesisPersistentWorkspace>
+      </body>
     </html>
   );
 }

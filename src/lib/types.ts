@@ -54,6 +54,7 @@ export interface DrawingDocumentState {
 export type RecordingType = 'video' | 'screen';
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type AccentTheme = 'violet' | 'sage' | 'blue' | 'amber' | 'rose' | 'mono';
+export type HeaderFont = 'editorial' | 'literary' | 'classic' | 'modern' | 'mono';
 export type WritingStyle = 'blank_paper' | 'ruled_notebook' | 'manuscript' | 'cornell_notes' | 'two_column_debate' | 'dialectic' | 'belief_audit' | 'source_analysis' | 'mind_map' | 'timeline';
 export type ExternalDocProvider = 'google_docs' | 'notion' | 'dropbox_paper' | 'microsoft_word' | 'markdown' | 'other';
 export type ExternalDocSyncStatus = 'connected' | 'syncing' | 'synced' | 'error';
@@ -693,6 +694,21 @@ export interface WorkspaceSettings {
   dateUpdated?: string;
 }
 
+export interface WorkspaceSummary {
+  id?: string;
+  counts: {
+    media: number;
+    concepts: number;
+    questions: number;
+    annotations: number;
+    vault: number;
+    drafts: number;
+    practices: number;
+    timeline: number;
+  };
+  dateUpdated: string;
+}
+
 export interface ProfilePrivacySettings {
   id?: string;
   defaultVisibility: VisibilitySetting;
@@ -734,13 +750,10 @@ export interface AppearanceSettings {
   id?: string;
   themeMode: ThemeMode;
   accentTheme: AccentTheme;
-  density: 'comfortable' | 'compact';
+  headerFont: HeaderFont;
   fontSize: 'sm' | 'md' | 'lg';
-  readingWidth: 'narrow' | 'standard' | 'wide';
   reducedMotion: boolean;
   highContrastMode: boolean;
-  sidebarCollapsedByDefault: boolean;
-  showPageDescriptions: boolean;
   dateUpdated?: string;
 }
 

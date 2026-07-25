@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { signOut } from 'firebase/auth';
 import { Brain, Globe, Lightbulb, LogOut, Save, Sparkles, UserCircle2 } from 'lucide-react';
@@ -58,6 +58,8 @@ interface ProfilePageProps {
   onNavigate: (view: string, targetId?: string) => void;
 }
 
+type ProfileTab = 'identity' | 'connections' | 'metacognition' | 'unknowns' | 'missing' | 'public';
+
 export function ProfilePage({
   user,
   profile,
@@ -88,21 +90,32 @@ export function ProfilePage({
   const [unknownDraft, setUnknownDraft] = useState({ title: '', description: '' });
   const [patternResponseDrafts, setPatternResponseDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<'profile' | 'privacy' | null>(null);
+  const [activeTab, setActiveTab] = useState<ProfileTab>('identity');
+  const profileBaselineRef = useRef(JSON.stringify(profile));
+  const privacyBaselineRef = useRef(JSON.stringify(privacy));
 
-  useEffect(() => setProfileDraft(profile), [profile]);
-  useEffect(() => setPrivacyDraft(privacy), [privacy]);
+  useEffect(() => {
+    const nextBaseline = JSON.stringify(profile);
+    if (JSON.stringify(profileDraft) === profileBaselineRef.current) setProfileDraft(profile);
+    profileBaselineRef.current = nextBaseline;
+  }, [profile]);
+  useEffect(() => {
+    const nextBaseline = JSON.stringify(privacy);
+    if (JSON.stringify(privacyDraft) === privacyBaselineRef.current) setPrivacyDraft(privacy);
+    privacyBaselineRef.current = nextBaseline;
+  }, [privacy]);
 
   const conceptLeaders = useMemo(
     () =>
-      [...concepts]
+      activeTab === 'connections' ? [...concepts]
         .sort((a, b) => (b.links.length + b.sourceIds.length) - (a.links.length + a.sourceIds.length))
-        .slice(0, 6),
-    [concepts]
+        .slice(0, 6) : [],
+    [activeTab, concepts]
   );
 
   const activePositions = useMemo(
-    () => [...positions].filter((item) => item.status !== 'rejected' && item.status !== 'abandoned').slice(0, 5),
-    [positions]
+    () => activeTab === 'connections' ? [...positions].filter((item) => item.status !== 'rejected' && item.status !== 'abandoned').slice(0, 5) : [],
+    [activeTab, positions]
   );
 
   const revisedPositions = useMemo(() => {
@@ -111,40 +124,40 @@ export function ProfilePage({
         .filter((event) => event.entityType === 'position' && ['position_revised', 'confidence_changed', 'challenge_added'].includes(event.eventType))
         .map((event) => event.entityId)
     );
-    return positions.filter((item) => revisedIds.has(item.id)).slice(0, 5);
-  }, [positions, thinkingEvents]);
+    return activeTab === 'connections' ? positions.filter((item) => revisedIds.has(item.id)).slice(0, 5) : [];
+  }, [activeTab, positions, thinkingEvents]);
 
   const challengedBeliefs = useMemo(
     () =>
-      [...beliefProfiles]
+      activeTab === 'connections' ? [...beliefProfiles]
         .filter((item) => (item.challengedBy || []).length > 0)
         .sort((a, b) => (b.challengedBy?.length || 0) - (a.challengedBy?.length || 0))
         .slice(0, 5)
         .map((item) => positions.find((position) => position.id === item.positionId))
-        .filter(Boolean) as VaultEntry[],
-    [beliefProfiles, positions]
+        .filter(Boolean) as VaultEntry[] : [],
+    [activeTab, beliefProfiles, positions]
   );
 
   const sourceLeaders = useMemo(
     () =>
-      [...sources]
+      activeTab === 'connections' ? [...sources]
         .sort((a, b) => b.annotations.length - a.annotations.length)
-        .slice(0, 5),
-    [sources]
+        .slice(0, 5) : [],
+    [activeTab, sources]
   );
 
   const openInquiries = useMemo(
-    () => [...inquiries].filter((item) => !['resolved', 'archived', 'answered'].includes(item.status)).slice(0, 5),
-    [inquiries]
+    () => activeTab === 'connections' ? [...inquiries].filter((item) => !['resolved', 'archived', 'answered'].includes(item.status)).slice(0, 5) : [],
+    [activeTab, inquiries]
   );
 
   const recentBeliefEvents = useMemo(
     () =>
-      [...thinkingEvents]
+      activeTab === 'connections' ? [...thinkingEvents]
         .filter((event) => event.entityType === 'position')
         .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-        .slice(0, 10),
-    [thinkingEvents]
+        .slice(0, 10) : [],
+    [activeTab, thinkingEvents]
   );
 
   const openUnknowns = useMemo(() => unknowns.filter((item) => item.status !== 'resolved' && item.status !== 'archived'), [unknowns]);
@@ -371,7 +384,7 @@ export function ProfilePage({
           </div>
         </Card>
 
-        <Tabs defaultValue="identity" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProfileTab)} className="space-y-6">
           <TabsList className="h-auto w-full flex-wrap justify-start rounded-2xl border border-border bg-card p-2">
             <TabsTrigger value="identity" className="rounded-xl">Identity</TabsTrigger>
             <TabsTrigger value="connections" className="rounded-xl">Intellectual Portrait</TabsTrigger>

@@ -12,9 +12,7 @@ import { allAnnotations } from '@/lib/readex';
 import type {
   Draft,
   Concept,
-  GoalSettings,
   Media,
-  MediaType,
   PhilosophicalLink,
   Practice,
   Question,
@@ -41,9 +39,9 @@ function daysAgo(days: number) {
 interface NoesisShellProps {
   children: React.ReactNode;
   activeView: string;
+  pendingPath?: string | null;
   onViewChange: (view: string) => void;
   onOpenProfile: () => void;
-  onOpenGoals: () => void;
   counts: {
     concepts: number;
     questions: number;
@@ -54,8 +52,6 @@ interface NoesisShellProps {
     practices: number;
     timeline: number;
   };
-  goal: GoalSettings;
-  goalProgress: Partial<Record<MediaType, number>>;
   movement: MovementMetrics;
   profile: UserProfile;
   workspaceMode?: string;
@@ -81,12 +77,10 @@ interface NoesisShellProps {
 export function NoesisShell({
   children,
   activeView,
+  pendingPath,
   onViewChange,
   onOpenProfile,
-  onOpenGoals,
   counts,
-  goal,
-  goalProgress,
   movement,
   profile,
   workspaceMode,
@@ -368,20 +362,20 @@ export function NoesisShell({
     ...attentionCommandItems,
     ...atlasRegions.slice(0, 12).map((region) => ({
       id: `atlas-region-${region.id}`,
-      label: region.name,
-      section: 'Atlas Region',
+      label: `${region.status === 'provisional' ? 'Possible region' : 'Region'}: ${region.name}`,
+      section: 'Atlas Organization',
       description: region.description || 'Open Atlas to inspect this worldview territory.',
       view: 'atlas',
       targetId: region.id,
-      objectType: 'Interpretive Territory',
+      objectType: region.status === 'provisional' ? 'Suggested Region' : 'Derived Region',
       kind: 'object' as const,
       intellectualStage: 'Understand' as const,
       hierarchyLevel: 'Interpretive' as const,
       activityClass: 'orientation' as const,
       thinkingEventHint: 'Opening a region is orientation. Creating links, resolving tensions, or revising related objects should create the meaningful event.',
-      currentState: region.maturityStatus,
-      summary: `${region.name} contains ${region.activePositionsCount} positions, ${region.openInquiryCount} open inquiries, ${region.practiceCount} practices, and ${region.tensionCount} tensions.`,
-      matchedBecause: 'Atlas regions are derived from connected concepts, positions, inquiries, sources, works, practices, and typed links.',
+      currentState: region.status,
+      summary: `${region.confirmedMemberCount} confirmed records and ${region.suggestedMemberNames.length} uncreated topic suggestions are organized under ${region.name}.`,
+      matchedBecause: region.explanation,
       connectedConcepts: region.dominantConcepts,
       relatedObjects: [
         `${region.sourceCount} sources`,
@@ -639,12 +633,10 @@ export function NoesisShell({
   return (
     <Shell
       activeView={activeView}
+      pendingPath={pendingPath}
       onViewChange={onViewChange}
       onOpenProfile={onOpenProfile}
-      onOpenGoals={onOpenGoals}
       counts={counts}
-      goal={goal}
-      goalProgress={goalProgress}
       movement={movement}
       profile={{
         displayName: profile.displayName,

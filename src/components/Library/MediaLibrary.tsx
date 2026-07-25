@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { ArrowLeft, Edit, Plus, Search, Trash2, MessageSquare, X, Loader2, HelpCircle, Triangle, BookOpen, FileText, Check, Globe, Link2, Clock, Pause, Play, Square } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Edit, Plus, Search, Trash2, MessageSquare, X, Loader2, HelpCircle, Triangle, BookOpen, FileText, Check, Globe, Link2, Clock, Pause, Play, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -148,6 +148,7 @@ export function MediaLibrary({
   const [statusFilter, setStatusFilter] = useState<MediaStatus | 'active' | 'all'>('all');
   const [viewFilter, setViewFilter] = useState<LibraryViewFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [readingRoomOpen, setReadingRoomOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<Partial<Media>>({ type: 'book', title: '', creator: '', status: 'Want to Read', tags: [] });
@@ -1177,17 +1178,23 @@ export function MediaLibrary({
         </Select>
       </FilterToolbar>
 
-      <section className="mb-8 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <section className="mb-6 rounded-xl border border-border/50 bg-card/70 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setReadingRoomOpen((open) => !open)}
+          className="flex w-full items-center justify-between gap-3 p-4 text-left"
+          aria-expanded={readingRoomOpen}
+        >
           <div>
             <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Reading Room</div>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Continue, reflect, or develop the source threads that need a next move.
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Continue, reflect, or develop active source threads.</p>
           </div>
-          <Badge variant="outline" className="rounded-full">{filtered.length} shown</Badge>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+          <span className="flex items-center gap-2">
+            <Badge variant="outline" className="rounded-full">{filtered.length} shown</Badge>
+            <ChevronDown className={cn('size-4 transition-transform', readingRoomOpen && 'rotate-180')} />
+          </span>
+        </button>
+        {readingRoomOpen && <div className="grid gap-3 border-t border-border/50 p-4 md:grid-cols-2 2xl:grid-cols-4">
           {[
             { label: 'Continue', action: 'Continue', items: readingRoomQueue.continueConsuming, empty: '0 active sources' },
             { label: 'Reflect', action: 'Reflect', items: readingRoomQueue.awaitingReflection, empty: '0 waiting' },
@@ -1227,18 +1234,15 @@ export function MediaLibrary({
               )}
             </div>
           ))}
-        </div>
+        </div>}
       </section>
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7">
         {filtered.map((item) => {
-          const needsReflection = sourceNeedsReflection(item);
-          const hasOpenInquiry = questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status));
           const influence = sourceInfluenceCount(item, vault, drafts, practices, questions);
-          const gaps = sourceWorkGaps(item);
           return (
           <Card key={item.id} className="cursor-pointer border-none shadow-none bg-transparent group" onClick={() => openSelectedSource(item.id)}>
-            <div className="aspect-[2/3] rounded-xl overflow-hidden shadow-sm mb-5 bg-white border border-border/30 group-hover:shadow-2xl group-hover:-translate-y-2 transition-all">
+            <div className="aspect-[4/5] overflow-hidden rounded-lg border border-border/30 bg-card shadow-sm mb-3 transition-all group-hover:-translate-y-1 group-hover:shadow-lg">
               {item.thumbnailUrl ? (
                 <img src={item.thumbnailUrl} alt={item.title} className="h-full w-full object-cover" />
               ) : (
@@ -1249,38 +1253,24 @@ export function MediaLibrary({
                 </div>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="readex-kicker opacity-50 font-bold text-[9px]">{MEDIA_LABELS[item.type].toUpperCase()}</div>
-              <h3 className="font-headline text-lg font-bold italic leading-snug group-hover:text-accent transition-colors line-clamp-2 text-primary">
+              <h3 className="line-clamp-2 font-headline text-base font-bold italic leading-snug text-foreground transition-colors group-hover:text-accent">
                 {item.title}
               </h3>
               <p className="readex-kicker text-muted-foreground truncate text-[9px] font-bold tracking-widest">{item.creator.toUpperCase()}</p>
-              <div className="rounded-xl border border-border/40 bg-muted/10 p-3">
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Next source action</span>
-                  {!!gaps.length && <Badge variant="secondary" className="rounded-full font-code text-[7px] uppercase tracking-widest">{gaps.length} gaps</Badge>}
-                </div>
-                <p className="line-clamp-2 text-xs italic leading-5 text-muted-foreground">{sourceNextAction(item)}</p>
-              </div>
-              <div className="flex items-center justify-between pt-3">
-                <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-white border-border/60 shadow-sm rounded-full font-bold">
+              {!!item.tags?.[0] && (
+                <div className="line-clamp-1 text-sm font-semibold text-accent">{item.tags[0]}</div>
+              )}
+              <div className="flex items-center justify-between pt-1">
+                <Badge variant="outline" className="rounded-full border-border/60 bg-card px-2 py-0.5 font-code text-[8px] font-bold uppercase tracking-widest">
                   {item.status}
                 </Badge>
-                {item.annotations?.length > 0 && (
-                  <div className="flex items-center gap-1.5 text-muted-foreground/60">
-                    <MessageSquare className="size-3.5" />
-                    <span className="font-code text-[10px] font-bold">{item.annotations.length}</span>
-                  </div>
-                )}
-              </div>
-              {(needsReflection || hasOpenInquiry || influence > 0) && (
-                <div className="flex flex-wrap gap-1.5 pt-2">
-                  {gaps.slice(0, 2).map((gap) => <span key={gap} className="rounded-full border border-accent/20 bg-accent/5 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-accent">{gap}</span>)}
-                  {needsReflection && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-amber-800">reflect</span>}
-                  {hasOpenInquiry && <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-blue-800">inquiry</span>}
-                  {influence > 0 && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-code text-[7px] font-bold uppercase tracking-widest text-emerald-800">{influence} links</span>}
+                <div className="flex items-center gap-3 text-muted-foreground/70">
+                  {item.annotations?.length > 0 && <span className="flex items-center gap-1"><MessageSquare className="size-3.5" /><span className="font-code text-[9px] font-bold">{item.annotations.length}</span></span>}
+                  {influence > 0 && <span className="flex items-center gap-1"><Link2 className="size-3.5" /><span className="font-code text-[9px] font-bold">{influence}</span></span>}
                 </div>
-              )}
+              </div>
             </div>
           </Card>
           );

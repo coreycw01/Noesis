@@ -50,7 +50,7 @@ import type {
   Unknown,
   VaultEntry,
 } from '@/lib/types';
-import { conceptKey, conceptRelated, conceptTerms, taggedItemsForConcept, today, uid as makeId } from '@/lib/readex';
+import { conceptKey, conceptRelated, taggedItemsForConcept, today, uid as makeId } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { deleteObject, getDownloadURL, getStorage, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
@@ -359,7 +359,10 @@ export function ConceptAtlas({
     window.localStorage.setItem(ATLAS_ZOOM_STORAGE_KEY, String(zoom));
   }, [zoom]);
 
-  const terms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
+  const terms = useMemo(
+    () => Array.from(new Set(concepts.map((concept) => conceptKey(concept.name)).filter(Boolean))),
+    [concepts]
+  );
   const activeMap = atlasMaps.find((map) => map.id === activeMapId) || atlasMaps[0] || null;
   const activeMapColorKey = activeMap?.id || 'default-map';
   const effectiveNodeColors = useMemo(
@@ -416,16 +419,16 @@ export function ConceptAtlas({
   );
   const atlasSectionMeta: Record<AtlasSection, { label: string; description: string }> = {
     territory: {
-      label: 'Territory View',
-      description: 'See the regions, densities, and dominant territories shaping your current thought-world.',
+      label: 'Regions',
+      description: 'Inspect auto-organized regions without confusing them with concepts or positions you created.',
     },
     tensions: {
-      label: 'Tension View',
-      description: 'Surface instability across regions, not just inside one belief.',
+      label: 'Connections',
+      description: 'Review cross-region tensions, typed relationships, and structural pressure across the Atlas.',
     },
     development: {
-      label: 'Development View',
-      description: 'Compare which territories are developed, stale, under-tested, or rapidly evolving.',
+      label: 'Review',
+      description: 'Review provisional, underdeveloped, stale, or under-tested regions before treating organization as settled.',
     },
     path: {
       label: 'Path View',
@@ -2232,18 +2235,32 @@ export function ConceptAtlas({
       <div className="z-10 space-y-2 px-4 pb-1 md:px-8">
         <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
           {([
-            ['territory', 'Territory View'],
-            ['tensions', 'Tension View'],
-            ['development', 'Development View'],
-            ['path', 'Path View'],
-            ['map', 'Map View'],
-          ] as Array<[AtlasSection, string]>).map(([section, label]) => (
+            ['map', 'Map'],
+            ['territory', 'Regions'],
+            ['tensions', 'Connections'],
+            ['custom', 'Custom Maps'],
+            ['development', 'Review'],
+          ] as const).map(([section, label]) => (
             <Button
               key={section}
-              variant={atlasSection === section ? 'default' : 'outline'}
+              variant={
+                section === 'custom'
+                  ? atlasSection === 'map' && mode === 'custom' ? 'default' : 'outline'
+                  : section === 'map'
+                    ? atlasSection === 'map' && mode === 'auto' ? 'default' : 'outline'
+                    : atlasSection === section ? 'default' : 'outline'
+              }
               size="sm"
               className="h-8 rounded-full"
-              onClick={() => setAtlasSection(section)}
+              onClick={() => {
+                if (section === 'custom') {
+                  setMode('custom');
+                  setAtlasSection('map');
+                  return;
+                }
+                if (section === 'map') setMode('auto');
+                setAtlasSection(section);
+              }}
             >
               {label}
             </Button>

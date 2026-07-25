@@ -223,7 +223,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
   ].filter(Boolean) as string[];
 
   return (
-    <div className="min-h-full w-full overflow-y-auto bg-background px-4 py-6 font-body sm:px-6 lg:px-8 xl:px-10">
+    <div className="min-h-full w-full overflow-y-auto bg-background px-4 py-6 font-body text-foreground sm:px-6 lg:px-8 xl:px-10">
       <PageHeader
         title="Works"
         description="Make the ideas in your system tangible through writing, notes, drawings, and recordings."

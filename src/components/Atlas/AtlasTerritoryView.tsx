@@ -194,10 +194,10 @@ export function AtlasTerritoryView({
       <Card className="rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">Territory View</Badge>
+            <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">Atlas Regions</Badge>
             <h2 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">What territories define my current thought-world?</h2>
             <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
-              Atlas is now reading the shape of your philosophy as regions, not isolated beliefs. Open a territory to see its concepts, pressures, practices, and where it wants to grow next.
+              Regions are auto-organized containers above your real concepts, positions, inquiries, works, and practices. They never become part of your philosophy unless you review their underlying records.
             </p>
           </div>
           {selectedRegion && (
@@ -218,12 +218,23 @@ export function AtlasTerritoryView({
               <Card className={`h-full rounded-3xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${selectedRegion?.id === card.id ? 'border-accent/50 bg-accent/5' : 'border-border/60 bg-card/85'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
+                    <Badge variant="outline" className="mb-2 rounded-full border-dashed font-code text-[8px] uppercase tracking-widest">
+                      {card.status === 'provisional' ? 'Possible Atlas Region' : 'Auto-organized Region'}
+                    </Badge>
                     <div className="font-headline text-2xl font-semibold italic text-foreground">{card.name}</div>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{card.description}</p>
                   </div>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="rounded-full font-code text-[9px] uppercase tracking-widest">
+                    {card.confirmedMemberCount} confirmed
+                  </Badge>
+                  {card.suggestedMemberCount > 0 && (
+                    <Badge variant="outline" className="rounded-full border-dashed font-code text-[9px] uppercase tracking-widest">
+                      {card.suggestedMemberCount} suggested
+                    </Badge>
+                  )}
                   {card.labels.slice(0, 3).map((label) => (
                     <Badge key={label} variant="outline" className={`rounded-full font-code text-[9px] uppercase tracking-widest ${toneForLabel(label)}`}>
                       {regionLabelDisplay(label)}
@@ -262,13 +273,22 @@ export function AtlasTerritoryView({
             <div className="space-y-5">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">Region Detail</Badge>
+                  <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">
+                    {selectedRegion.status === 'provisional' ? 'Possible Atlas Region' : 'Auto-organized Atlas Region'}
+                  </Badge>
                   <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">
                     {selectedRegion.maturityStatus}
                   </Badge>
                 </div>
                 <h3 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">{selectedRegion.name}</h3>
                 <p className="mt-2 text-sm leading-7 text-muted-foreground">{selectedRegion.description}</p>
+                <div className="mt-4 rounded-2xl border border-dashed border-accent/35 bg-accent/5 p-4">
+                  <div className="font-code text-[9px] uppercase tracking-widest text-accent">Why this region exists</div>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{selectedRegion.explanation}</p>
+                  <div className="mt-2 font-code text-[9px] uppercase tracking-widest text-muted-foreground">
+                    {selectedRegion.confirmedMemberCount} confirmed records · {selectedRegion.sourceCount} sources · {selectedRegion.annotationCount} annotations
+                  </div>
+                </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -295,6 +315,23 @@ export function AtlasTerritoryView({
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="size-4 text-accent" />
+                    <h4 className="font-headline text-lg font-semibold italic text-foreground">Suggested topics</h4>
+                  </div>
+                  <div className="rounded-2xl border border-dashed border-border/70 bg-muted/10 p-3">
+                    <div className="flex flex-wrap gap-2">
+                      {selectedRegion.suggestedMemberNames.map((name) => (
+                        <Badge key={name} variant="outline" className="rounded-full border-dashed font-code text-[9px] uppercase tracking-widest text-muted-foreground">
+                          {name} · Suggested
+                        </Badge>
+                      ))}
+                      {!selectedRegion.suggestedMemberNames.length && <span className="text-sm italic text-muted-foreground">No unconfirmed topics.</span>}
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-muted-foreground">These are organizational prompts, not Concept records, and do not count toward your totals.</p>
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <BrainCircuit className="size-4 text-violet-600" />

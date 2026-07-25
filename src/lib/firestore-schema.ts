@@ -53,6 +53,7 @@ export const READEX_SETTINGS_DOCS = {
   preferences: 'preferences',
   legacyProfile: 'profile',
   workspace: 'workspace',
+  workspaceSummary: 'workspaceSummary',
   account: 'account',
   appearance: 'appearance',
   ai: 'ai',
@@ -250,13 +251,10 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
 export const DEFAULT_APPEARANCE_SETTINGS: AppearanceSettings = {
   themeMode: 'light',
   accentTheme: 'violet',
-  density: 'comfortable',
+  headerFont: 'editorial',
   fontSize: 'md',
-  readingWidth: 'standard',
   reducedMotion: false,
   highContrastMode: false,
-  sidebarCollapsedByDefault: false,
-  showPageDescriptions: true,
 };
 
 export const DEFAULT_WORKSPACE_PREFERENCES: WorkspacePreferenceSettings = {
@@ -450,6 +448,7 @@ export function readexRefs(db: Firestore, uid: string) {
     settingsAtlasNodes: settingsDoc('atlasNodes'),
     settingsPreferences: settingsDoc('preferences'),
     settingsWorkspace: settingsDoc('workspace'),
+    settingsWorkspaceSummary: settingsDoc('workspaceSummary'),
     settingsAccount: settingsDoc('account'),
     settingsAppearance: settingsDoc('appearance'),
     settingsAi: settingsDoc('ai'),

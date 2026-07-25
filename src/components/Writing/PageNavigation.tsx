@@ -27,7 +27,7 @@ export function PageNavigation({ currentPage, totalPages, onPageChange }: PageNa
         
         <div className="flex items-center gap-2 px-4 py-1 rounded-full bg-muted/20 border border-border/20">
           <Hash className="size-3 text-muted-foreground/40" />
-          <span className="font-code text-[10px] font-bold text-primary">
+          <span className="font-code text-[10px] font-bold text-foreground">
             {currentPage} <span className="opacity-20 mx-1">/</span> {totalPages}
           </span>
         </div>
