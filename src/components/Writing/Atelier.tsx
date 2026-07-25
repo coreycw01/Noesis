@@ -56,6 +56,9 @@ import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { searchMatches } from '@/lib/search';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
+import { persistInlineDraftAssets } from '@/lib/storage-assets';
+import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 
 export type PageViewMode = 'vertical-continuous' | 'vertical-single' | 'horizontal-single';
 export type PageSize = 'letter' | 'a4';
@@ -76,6 +79,7 @@ type BrowserSpeechRecognitionCtor = new () => {
 };
 
 interface AtelierProps {
+  uid: string;
   drafts: Draft[];
   media: Media[];
   vault: VaultEntry[];
@@ -83,7 +87,7 @@ interface AtelierProps {
   concepts: Concept[];
   writingDefaults: UserPreferences['writingDefaults'];
   onAddDraft: (data: Partial<Draft>) => Draft;
-  onUpdateDraft: (draft: Draft) => void;
+  onUpdateDraft: (draft: Draft) => void | Promise<void>;
   onDeleteDraft: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   focusedDraftId?: string | null;
@@ -126,10 +130,13 @@ const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'durationSeconds',
   'fileUrl',
   'storagePath',
+  'asset',
   'thumbnailUrl',
   'canvasData',
+  'canvasAsset',
   'drawingState',
   'writingOverlayData',
+  'overlayAsset',
   'writingStyle',
   'externalDoc',
   'conceptTags',
@@ -280,7 +287,7 @@ function workStatusLabel(draft: Draft) {
   return 'In progress';
 }
 
-export function Atelier({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
+export function Atelier({ uid, drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<WorkFilter>('all');
   const [workTab, setWorkTab] = useState<WorkTab>('all');
@@ -305,10 +312,17 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   const [writingStrokeSize, setWritingStrokeSize] = useState(3);
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const latestDraftRef = useRef<Draft | null>(null);
 
   const { toast } = useToast();
   const activeFromStore = drafts.find((draft) => draft.id === activeId) || null;
   const active = draftBuffer || activeFromStore;
+  latestDraftRef.current = active;
+  const { url: activeOverlayUrl } = usePrivateAssetUrl(
+    active?.overlayAsset?.storagePath,
+    active?.writingOverlayData || '',
+  );
   const activeCategory = active ? active.workCategory || workCategoryForDraft(active.type) : null;
   const activeStoreSignature = useMemo(() => draftSaveSignature(activeFromStore), [activeFromStore]);
   const draftBufferSignature = useMemo(() => draftSaveSignature(draftBuffer), [draftBuffer]);
@@ -408,7 +422,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
     onOpenDraftRoute?.(null);
   }, [onOpenDraftRoute]);
 
-  const saveActive = useCallback((patch?: Partial<Draft>) => {
+  const saveActive = useCallback(async (patch?: Partial<Draft>) => {
     if (!active) return null;
     const patched = { ...active, ...patch };
     const priorVersions = active.versionHistory || [];
@@ -419,7 +433,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
       dateUpdated: today(),
       versionHistory: shouldSnapshot
         ? [...priorVersions, {
-            id: `revision-${Date.now()}`,
+            id: crypto.randomUUID(),
             title: patched.title,
             body: patched.body,
             draftContent: patched.draftContent,
@@ -429,13 +443,24 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
           }].slice(-50)
         : priorVersions,
     };
-    setDraftBuffer(nextDraft);
     setSaveStatus('saving');
-    onUpdateDraft(nextDraft);
-    setDirty(false);
-    window.setTimeout(() => setSaveStatus('saved'), 600);
-    return nextDraft;
-  }, [active, dirty, onUpdateDraft]);
+    try {
+      const persistedDraft = await persistInlineDraftAssets(uid, nextDraft);
+      setDraftBuffer(persistedDraft);
+      await onUpdateDraft(persistedDraft);
+      setDirty(false);
+      setSaveStatus('saved');
+      return persistedDraft;
+    } catch (error) {
+      setSaveStatus('unsaved');
+      toast({
+        title: 'Work not saved',
+        description: error instanceof Error ? error.message : 'The work could not be saved safely.',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  }, [active, dirty, onUpdateDraft, toast, uid]);
 
   const handleUpdateContent = useCallback((newContent: string) => {
     const clean = sanitizeHtml(newContent);
@@ -564,7 +589,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
     setSyncingId(draft.id);
     updateActive({ externalDoc: { ...draft.externalDoc, syncStatus: 'syncing', syncError: '' } });
     try {
-      const response = await fetch('/api/import-document', {
+      const response = await authenticatedFetch('/api/import-document', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ url: draft.externalDoc.url, provider: draft.externalDoc.provider }),
@@ -630,12 +655,39 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
     }
     const timeout = window.setTimeout(() => {
       setSaveStatus('saving');
-      onUpdateDraft({ ...draftBuffer, dateUpdated: today() });
-      setDirty(false);
-      window.setTimeout(() => setSaveStatus('saved'), 600);
-    }, 1400);
+      saveQueueRef.current = saveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          const latest = latestDraftRef.current;
+          if (!latest || latest.id !== draftBuffer.id) return;
+          const signatureBeforeSave = draftSaveSignature(latest);
+          const persisted = await persistInlineDraftAssets(uid, {
+            ...latest,
+            dateUpdated: today(),
+          });
+          await onUpdateDraft(persisted);
+          setDraftBuffer((current) => {
+            if (!current || current.id !== persisted.id) return current;
+            return draftSaveSignature(current) === signatureBeforeSave ? persisted : current;
+          });
+          if (draftSaveSignature(latestDraftRef.current) === signatureBeforeSave) {
+            setDirty(false);
+            setSaveStatus('saved');
+          } else {
+            setSaveStatus('unsaved');
+          }
+        })
+        .catch((error) => {
+          setSaveStatus('unsaved');
+          toast({
+            title: 'Autosave paused',
+            description: error instanceof Error ? error.message : 'Your edits remain in this tab.',
+            variant: 'destructive',
+          });
+        });
+    }, 750);
     return () => window.clearTimeout(timeout);
-  }, [activeStoreSignature, draftBuffer, draftBufferSignature, dirty, onUpdateDraft]);
+  }, [activeStoreSignature, draftBuffer, draftBufferSignature, dirty, onUpdateDraft, toast, uid]);
 
   useEffect(() => {
     if (!active?.externalDoc?.autoSync || active.externalDoc.syncStatus === 'syncing') return;
@@ -898,7 +950,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                   paperPattern={paperPattern}
                   writingStyle={active.writingStyle || writingDefaults.writingStyle}
                   title={active.title}
-                  overlayData={active.writingOverlayData || ''}
+                  overlayData={activeOverlayUrl}
                   onOverlayChange={(overlayData) => updateActive({ writingOverlayData: overlayData })}
                   overlayTool={writingTool}
                   overlayColor={writingStrokeColor}
@@ -1517,12 +1569,18 @@ function RecordingStudio({
   updateActive: (patch: Partial<Draft>) => void;
   audioOnly?: boolean;
 }) {
+  const { url: storedRecordingUrl, error: storedRecordingError } = usePrivateAssetUrl(
+    draft.asset?.storagePath || draft.storagePath,
+    draft.fileUrl || '',
+  );
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const previewRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const [state, setState] = useState<'idle' | 'requesting' | 'ready' | 'recording' | 'stopped' | 'saving' | 'saved' | 'error'>(draft.fileUrl ? 'saved' : 'idle');
+  const [state, setState] = useState<'idle' | 'requesting' | 'ready' | 'recording' | 'stopped' | 'saving' | 'saved' | 'error'>(
+    draft.fileUrl || draft.asset?.storagePath || draft.storagePath ? 'saved' : 'idle',
+  );
   const [error, setError] = useState('');
   const [duration, setDuration] = useState(draft.durationSeconds || 0);
   const durationRef = useRef(draft.durationSeconds || 0);
@@ -1530,9 +1588,8 @@ function RecordingStudio({
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((track) => track.stop());
-      if (draft.fileUrl?.startsWith('blob:')) URL.revokeObjectURL(draft.fileUrl);
     };
-  }, [draft.fileUrl]);
+  }, []);
 
   useEffect(() => {
     let timer: number | undefined;
@@ -1640,16 +1697,16 @@ function RecordingStudio({
         <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
           {!audioOnly ? (
             <div className="aspect-video overflow-hidden rounded-2xl border border-border bg-foreground">
-              {draft.fileUrl && (state === 'saved' || state === 'stopped') ? (
-                <video ref={previewRef} src={draft.fileUrl} controls className="h-full w-full object-contain" />
+              {storedRecordingUrl && (state === 'saved' || state === 'stopped') ? (
+                <video ref={previewRef} src={storedRecordingUrl} controls className="h-full w-full object-contain" />
               ) : (
                 <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
               )}
             </div>
           ) : (
             <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-border bg-background">
-              {draft.fileUrl && (state === 'saved' || state === 'stopped') ? (
-                <audio controls src={draft.fileUrl} className="w-full max-w-md" />
+              {storedRecordingUrl && (state === 'saved' || state === 'stopped') ? (
+                <audio controls src={storedRecordingUrl} className="w-full max-w-md" />
               ) : (
                 <div className="text-center">
                   <Mic className="mx-auto size-10 text-accent" />
@@ -1658,7 +1715,11 @@ function RecordingStudio({
               )}
             </div>
           )}
-          {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+          {(error || storedRecordingError) && (
+            <p className="mt-4 text-sm text-destructive">
+              {error || 'The private recording could not be loaded.'}
+            </p>
+          )}
         </Card>
 
         <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
@@ -1756,6 +1817,10 @@ function DrawingStudio({
   updateActive: (patch: Partial<Draft>) => void;
   compact?: boolean;
 }) {
+  const { url: storedCanvasUrl } = usePrivateAssetUrl(
+    draft.canvasAsset?.storagePath,
+    draft.canvasData || '',
+  );
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingRef = useRef(false);
@@ -1831,14 +1896,14 @@ function DrawingStudio({
     ctx.scale(ratio, ratio);
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, width, height);
-    if (draft.canvasData) {
+    if (storedCanvasUrl) {
       const image = new Image();
       image.onload = () => ctx.drawImage(image, 0, 0, width, height);
-      image.src = draft.canvasData;
+      image.src = storedCanvasUrl;
     } else {
       snapshot();
     }
-  }, [backgroundColor, canvasSize.height, canvasSize.width, draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [backgroundColor, canvasSize.height, canvasSize.width, draft.id, storedCanvasUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();

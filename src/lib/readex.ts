@@ -113,7 +113,8 @@ export const PRACTICE_LABELS = {
 };
 
 export function uid() {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  return globalThis.crypto?.randomUUID?.()
+    || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 export function today() {

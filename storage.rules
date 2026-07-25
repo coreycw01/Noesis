@@ -1,0 +1,50 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function validMetadata(uid, entityId) {
+      return request.resource.metadata.ownerUid == uid
+        && request.resource.metadata.entityId == entityId;
+    }
+
+    function validImage() {
+      return request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(png|jpeg|webp|gif)');
+    }
+
+    function validAudio() {
+      return request.resource.size <= 100 * 1024 * 1024
+        && request.resource.contentType.matches('audio/(webm|mpeg|mp4|wav|ogg)');
+    }
+
+    function validVideo() {
+      return request.resource.size <= 250 * 1024 * 1024
+        && request.resource.contentType.matches('video/(webm|mp4|quicktime)');
+    }
+
+    match /users/{uid}/works/{workId}/{fileName} {
+      allow read, delete: if owner(uid);
+      allow create, update: if owner(uid)
+        && validMetadata(uid, workId)
+        && (validImage() || validAudio() || validVideo());
+    }
+
+    match /users/{uid}/atlasMaps/{mapId}/{fileName} {
+      allow read, delete: if owner(uid);
+      allow create, update: if owner(uid)
+        && validMetadata(uid, mapId)
+        && validImage();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

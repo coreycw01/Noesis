@@ -2,9 +2,23 @@
 
 import React, { useMemo } from 'react';
 import { usePathname } from 'next/navigation';
-import { NoesisRoutePage } from './noesis-home-page';
+import dynamic from 'next/dynamic';
 import { NoesisRouteProvider } from '@/lib/noesis-route-context';
 import { parseNoesisRoute } from '@/lib/noesis-routes';
+
+const NoesisRoutePage = dynamic(
+  () => import('./noesis-home-page').then((module) => module.NoesisRoutePage),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid min-h-screen place-items-center bg-background text-foreground">
+        <span className="font-code text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          Opening workspace
+        </span>
+      </div>
+    ),
+  },
+);
 
 const WORKSPACE_SECTIONS = new Set([
   '',

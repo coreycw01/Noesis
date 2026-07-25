@@ -34,6 +34,7 @@ export interface AtlasRoutePageProps {
   onAddConcept: (data: Partial<Concept>) => void;
   onUpdateConcept: (concept: Concept) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
+  onUpdateLink: (link: PhilosophicalLink) => void;
   onAddAtlasMap: (data: Partial<AtlasMap>) => void;
   onUpdateAtlasMap: (map: AtlasMap) => void;
   onDeleteAtlasMap: (id: string) => void;
@@ -63,6 +64,7 @@ export function AtlasRoutePage({
   onAddConcept,
   onUpdateConcept,
   onCreateLink,
+  onUpdateLink,
   onAddAtlasMap,
   onUpdateAtlasMap,
   onDeleteAtlasMap,
@@ -87,6 +89,7 @@ export function AtlasRoutePage({
       onAddConcept={onAddConcept}
       onUpdateConcept={onUpdateConcept}
       onCreateLink={onCreateLink}
+      onUpdateLink={onUpdateLink}
       onAddAtlasMap={onAddAtlasMap}
       onUpdateAtlasMap={onUpdateAtlasMap}
       onDeleteAtlasMap={onDeleteAtlasMap}

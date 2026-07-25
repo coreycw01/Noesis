@@ -28,6 +28,7 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
 
 interface MediaLibraryProps {
   media: Media[];
@@ -1383,7 +1384,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
     if (query.trim().length < 3) return;
     setIsLocating(true);
     try {
-      const resp = await fetch(`/api/source-search?query=${encodeURIComponent(query)}&type=${draft.type}`);
+      const resp = await authenticatedFetch(`/api/source-search?query=${encodeURIComponent(query)}&type=${draft.type}`);
       const data = await resp.json();
       if (data.results) {
         setLocatorResults(data.results);
@@ -1400,7 +1401,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
     if (!importUrl.trim()) return;
     setIsImporting(true);
     try {
-      const response = await fetch('/api/source-metadata', {
+      const response = await authenticatedFetch('/api/source-metadata', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ url: importUrl.trim(), type: draft.type || 'article' }),

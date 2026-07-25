@@ -1,8 +1,8 @@
 "use client";
 
-import { doc, setDoc, type CollectionReference, type WriteBatch } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc, type CollectionReference, type WriteBatch } from 'firebase/firestore';
 import type { ThinkingEvent, ThinkingEventEntityType, ThinkingEventEpistemicStatus, ThinkingEventImportance, ThinkingEventOrigin, ThinkingEventType } from '@/lib/types';
-import { today, uid } from '@/lib/readex';
+import { uid } from '@/lib/readex';
 
 type RelatedEntityIds = NonNullable<ThinkingEvent['relatedEntityIds']>;
 
@@ -112,7 +112,7 @@ export function makeThinkingEventPayload(input: WriteThinkingEventInput) {
     idempotencyKey: input.idempotencyKey ?? null,
     visibility: input.visibility || 'private',
     metadata: input.metadata || {},
-    createdAt: today(),
+    createdAt: serverTimestamp() as any,
   };
   return { eventRef, payload };
 }

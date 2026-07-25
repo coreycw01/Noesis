@@ -1,20 +1,7 @@
 "use client";
 
 import type { User } from 'firebase/auth';
-import { HomeRoutePage } from '@/components/pages/HomeRoutePage';
-import { AtlasRoutePage } from '@/components/pages/AtlasRoutePage';
-import { ConceptsRoutePage } from '@/components/pages/ConceptsRoutePage';
-import { LibraryRoutePage } from '@/components/pages/LibraryRoutePage';
-import { SourceIndexRoutePage } from '@/components/pages/SourceIndexRoutePage';
-import { AnnotationsRoutePage } from '@/components/pages/AnnotationsRoutePage';
-import { GoalsRoutePage } from '@/components/pages/GoalsRoutePage';
-import { ProfileRoutePage } from '@/components/pages/ProfileRoutePage';
-import { InquiriesRoutePage } from '@/components/pages/InquiriesRoutePage';
-import { PracticesRoutePage } from '@/components/pages/PracticesRoutePage';
-import { EvolutionRoutePage } from '@/components/pages/EvolutionRoutePage';
-import { SettingsRoutePage } from '@/components/pages/SettingsRoutePage';
-import { PositionsRoutePage } from '@/components/pages/PositionsRoutePage';
-import { WorksRoutePage } from '@/components/pages/WorksRoutePage';
+import dynamic from 'next/dynamic';
 import type {
   AccountSettings,
   AiSettings,
@@ -55,6 +42,21 @@ import type {
   WorkspaceSettings,
 } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
+
+const HomeRoutePage = dynamic(() => import('./HomeRoutePage').then((module) => module.HomeRoutePage));
+const AtlasRoutePage = dynamic(() => import('./AtlasRoutePage').then((module) => module.AtlasRoutePage), { ssr: false });
+const ConceptsRoutePage = dynamic(() => import('./ConceptsRoutePage').then((module) => module.ConceptsRoutePage));
+const LibraryRoutePage = dynamic(() => import('./LibraryRoutePage').then((module) => module.LibraryRoutePage));
+const SourceIndexRoutePage = dynamic(() => import('./SourceIndexRoutePage').then((module) => module.SourceIndexRoutePage));
+const AnnotationsRoutePage = dynamic(() => import('./AnnotationsRoutePage').then((module) => module.AnnotationsRoutePage));
+const GoalsRoutePage = dynamic(() => import('./GoalsRoutePage').then((module) => module.GoalsRoutePage));
+const ProfileRoutePage = dynamic(() => import('./ProfileRoutePage').then((module) => module.ProfileRoutePage));
+const InquiriesRoutePage = dynamic(() => import('./InquiriesRoutePage').then((module) => module.InquiriesRoutePage));
+const PracticesRoutePage = dynamic(() => import('./PracticesRoutePage').then((module) => module.PracticesRoutePage));
+const EvolutionRoutePage = dynamic(() => import('./EvolutionRoutePage').then((module) => module.EvolutionRoutePage));
+const SettingsRoutePage = dynamic(() => import('./SettingsRoutePage').then((module) => module.SettingsRoutePage));
+const PositionsRoutePage = dynamic(() => import('./PositionsRoutePage').then((module) => module.PositionsRoutePage));
+const WorksRoutePage = dynamic(() => import('./WorksRoutePage').then((module) => module.WorksRoutePage), { ssr: false });
 
 export interface NoesisRouteContentProps {
   activeView: NoesisView;
@@ -152,6 +154,7 @@ export interface NoesisRouteContentProps {
   deleteVaultEntry: (id: string) => void;
   addDraft: (data: Partial<Draft>) => Draft | void;
   updateDraft: (draft: Draft) => void;
+  markDraftOpened: (draft: Draft) => void | Promise<void>;
   deleteDraft: (id: string) => void;
   addPractice: (data: Partial<Practice>) => Practice | void;
   updatePractice: (practice: Practice) => void;
@@ -247,6 +250,7 @@ export function NoesisRouteContent({
   deleteVaultEntry,
   addDraft,
   updateDraft,
+  markDraftOpened,
   deleteDraft,
   addPractice,
   updatePractice,
@@ -300,6 +304,7 @@ export function NoesisRouteContent({
           onAddConcept={addConcept}
           onUpdateConcept={updateConcept}
           onCreateLink={addAtlasQuickLink}
+          onUpdateLink={updatePhilosophicalLink}
           onAddAtlasMap={addAtlasMap}
           onUpdateAtlasMap={updateAtlasMap}
           onDeleteAtlasMap={deleteAtlasMap}
@@ -428,9 +433,9 @@ export function NoesisRouteContent({
         />
       );
     case 'questions':
-      return <InquiriesRoutePage questions={questions} media={media} vault={vault} drafts={drafts} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={(data) => addDraft(data) as Draft} onAddPractice={(data) => addPractice(data)} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
+      return <InquiriesRoutePage questions={questions} media={media} vault={vault} drafts={drafts} practices={practices} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={(data) => addDraft(data) as Draft} onUpdateDraft={updateDraft} onAddPractice={(data) => addPractice(data) as Practice} onUpdatePractice={updatePractice} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
     case 'writing':
-      return <WorksRoutePage drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={(data) => addDraft(data) as Draft} onUpdateDraft={updateDraft} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
+      return <WorksRoutePage uid={effectiveUid} drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={(data) => addDraft(data) as Draft} onUpdateDraft={updateDraft} onMarkDraftOpened={markDraftOpened} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
     case 'evolution':
       return <EvolutionRoutePage events={timeline} media={media} thinkingEvents={thinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} />;
     case 'practices':

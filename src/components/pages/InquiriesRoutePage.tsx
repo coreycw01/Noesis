@@ -9,16 +9,19 @@ export interface InquiriesRoutePageProps {
   media: Media[];
   vault: VaultEntry[];
   drafts: Draft[];
+  practices: Practice[];
   concepts: Concept[];
   focusedQuestionId?: string | null;
   onAddQuestion: (data: Partial<Question>) => Question;
   onUpdateQuestion: (question: Question) => void;
   onDeleteQuestion: (id: string) => void;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
-  onAddDraft: (data: Partial<Draft>) => void;
-  onAddPractice: (data: Partial<Practice>) => void;
+  onAddDraft: (data: Partial<Draft>) => Draft;
+  onUpdateDraft: (draft: Draft) => void;
+  onAddPractice: (data: Partial<Practice>) => Practice;
+  onUpdatePractice: (practice: Practice) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
-  onNavigate: (view: NoesisView, options?: { questionId?: string | null }) => void;
+  onNavigate: (view: NoesisView, options?: { questionId?: string | null; workId?: string | null; practiceId?: string | null }) => void;
 }
 
 export function InquiriesRoutePage({
@@ -26,6 +29,7 @@ export function InquiriesRoutePage({
   media,
   vault,
   drafts,
+  practices,
   concepts,
   focusedQuestionId,
   onAddQuestion,
@@ -33,7 +37,9 @@ export function InquiriesRoutePage({
   onDeleteQuestion,
   onAddVaultEntry,
   onAddDraft,
+  onUpdateDraft,
   onAddPractice,
+  onUpdatePractice,
   onFormPositionFromInquiry,
   onNavigate,
 }: InquiriesRoutePageProps) {
@@ -43,13 +49,18 @@ export function InquiriesRoutePage({
       media={media}
       vault={vault}
       drafts={drafts}
+      practices={practices}
       concepts={concepts}
       onAddQuestion={onAddQuestion}
       onUpdateQuestion={onUpdateQuestion}
       onDeleteQuestion={onDeleteQuestion}
       onAddVaultEntry={onAddVaultEntry}
       onAddDraft={onAddDraft}
+      onUpdateDraft={onUpdateDraft}
       onAddPractice={onAddPractice}
+      onUpdatePractice={onUpdatePractice}
+      onOpenWork={(workId) => onNavigate('writing', { workId })}
+      onOpenPractice={(practiceId) => onNavigate('practices', { practiceId })}
       onFormPositionFromInquiry={onFormPositionFromInquiry}
       focusedQuestionId={focusedQuestionId}
       onOpenQuestionRoute={(questionId) => onNavigate('questions', { questionId })}

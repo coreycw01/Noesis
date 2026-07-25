@@ -1,16 +1,37 @@
-const blockedBlocks = /<(script|style|iframe|object|embed)[\s\S]*?<\/\1>/gi;
-const blockedTags = /<\/?(script|style|iframe|object|embed|link|meta|base|form|input|button|textarea|select|option)[^>]*>/gi;
-const eventHandlers = /\s+on[a-z]+\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi;
-const dangerousUrls = /\s+(href|src|xlink:href)\s*=\s*("|')?\s*(javascript:|data:text\/html|vbscript:)[^"'\s>]*/gi;
-const styleAttributes = /\s+style\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi;
+import sanitize from 'sanitize-html';
+
+const allowedTags = [
+  'p', 'br', 'div', 'span',
+  'h1', 'h2', 'h3', 'h4',
+  'strong', 'b', 'em', 'i', 'u', 's',
+  'blockquote', 'pre', 'code',
+  'ul', 'ol', 'li',
+  'a',
+];
 
 export function sanitizeHtml(value = '') {
-  return value
-    .replace(blockedBlocks, '')
-    .replace(blockedTags, '')
-    .replace(eventHandlers, '')
-    .replace(dangerousUrls, '')
-    .replace(styleAttributes, '');
+  return sanitize(value, {
+    allowedTags,
+    allowedAttributes: {
+      a: ['href', 'title', 'target', 'rel'],
+      '*': ['data-text-align'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto'],
+    allowedSchemesByTag: { a: ['http', 'https', 'mailto'] },
+    allowProtocolRelative: false,
+    transformTags: {
+      a: (_tagName, attribs) => ({
+        tagName: 'a',
+        attribs: {
+          ...attribs,
+          target: '_blank',
+          rel: 'noopener noreferrer nofollow',
+        },
+      }),
+    },
+    disallowedTagsMode: 'discard',
+    enforceHtmlBoundary: true,
+  });
 }
 
 export function escapeTextAsHtml(value = '') {

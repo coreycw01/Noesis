@@ -11,7 +11,7 @@ import type {
 } from '@/lib/types';
 import { conceptKey } from '@/lib/readex';
 
-export type AtlasSection = 'territory' | 'tensions' | 'development' | 'path' | 'map';
+export type AtlasSection = 'map' | 'territory' | 'connections' | 'review';
 
 export type AtlasRegionLabel =
   | 'heavily-developed'
@@ -209,21 +209,6 @@ const REGION_DEFINITIONS = [
   },
 ] as const;
 
-const REGION_SUGGESTIONS: Record<string, string[]> = {
-  selfhood: ['Agency', 'Authenticity', 'Self-mastery', 'Ego', 'Narrative self'],
-  ethics: ['Duty', 'Justice', 'Virtue', 'Moral responsibility'],
-  meaning: ['Purpose', 'Significance', 'Calling', 'Suffering'],
-  knowledge: ['Evidence', 'Truth', 'Uncertainty', 'Justification'],
-  relationships: ['Belonging', 'Intimacy', 'Community', 'Solitude'],
-  spirituality: ['Faith', 'Transcendence', 'Reverence', 'Sacred order'],
-  power: ['Authority', 'Hierarchy', 'Influence', 'Domination'],
-  emotion: ['Desire', 'Anxiety', 'Courage', 'Shame'],
-  discipline: ['Habit', 'Attention', 'Training', 'Consistency'],
-  society: ['Institutions', 'Culture', 'Civic life', 'Media'],
-  creativity: ['Imagination', 'Expression', 'Craft', 'Originality'],
-  mortality: ['Finitude', 'Death', 'Legacy', 'Urgency'],
-};
-
 function parseDate(value?: string) {
   const time = value ? Date.parse(value) : NaN;
   return Number.isFinite(time) ? time : 0;
@@ -279,7 +264,7 @@ function buildConceptRegionMap({
   const map = new Map<string, string[]>();
 
   concepts.forEach((concept) => {
-    const directMatches = regionIdsForText(collectKeywords(concept.name, concept.description));
+    const directMatches = regionIdsForText(concept.name);
     const positionMatches = vault
       .filter((position) => (position.tags || []).some((tag) => conceptKey(tag) === conceptKey(concept.name)))
       .flatMap((position) => regionIdsForText(collectKeywords(position.title, position.statement, position.description, ...(position.tags || []))));
@@ -290,7 +275,7 @@ function buildConceptRegionMap({
       .filter((question) => question.conceptIds.includes(concept.id))
       .flatMap((question) => regionIdsForText(question.text));
     const derived = uniqueStrings([...directMatches, ...positionMatches, ...practiceMatches, ...questionMatches]);
-    map.set(concept.id, derived.length ? derived : ['knowledge']);
+    map.set(concept.id, derived);
   });
 
   return map;
@@ -374,41 +359,36 @@ export function deriveAtlasRegions({
 
     const regionPositions = vault.filter((position) => {
       const directConcept = (position.tags || []).some((tag) => regionConceptKeySet.has(conceptKey(tag)));
-      const fallbackText = regionIdsForText(collectKeywords(position.title, position.statement, position.description, ...(position.tags || []))).includes(regionDef.id);
-      return directConcept || fallbackText;
+      return directConcept;
     });
     const regionPositionIds = regionPositions.map((position) => position.id);
 
     const regionPractices = practices.filter((practice) => {
       const conceptMatch = (practice.conceptTags || []).some((tag) => regionConceptKeySet.has(conceptKey(tag)));
       const positionMatch = (practice.positionIds || []).some((id) => regionPositionIds.includes(id));
-      const fallbackText = regionIdsForText(collectKeywords(practice.title, practice.description, practice.notes, ...(practice.conceptTags || []))).includes(regionDef.id);
-      return conceptMatch || positionMatch || fallbackText;
+      return conceptMatch || positionMatch;
     });
 
     const regionQuestions = questions.filter((question) => {
       const conceptMatch = (question.conceptIds || []).some((id) => regionConcepts.some((concept) => concept.id === id));
       const positionMatch = (question.beliefIds || []).some((id) => regionPositionIds.includes(id));
-      const fallbackText = regionIdsForText(question.text).includes(regionDef.id);
-      return conceptMatch || positionMatch || fallbackText;
+      return conceptMatch || positionMatch;
     });
 
     const regionDrafts = drafts.filter((draft) => {
       const conceptMatch = (draft.conceptTags || []).some((tag) => regionConceptKeySet.has(conceptKey(tag)));
       const positionMatch = (draft.beliefIds || []).some((id) => regionPositionIds.includes(id));
       const questionMatch = (draft.questionIds || []).some((id) => regionQuestions.some((question) => question.id === id));
-      const fallbackText = regionIdsForText(collectKeywords(draft.title, draft.body, ...(draft.conceptTags || []))).includes(regionDef.id);
-      return conceptMatch || positionMatch || questionMatch || fallbackText;
+      return conceptMatch || positionMatch || questionMatch;
     });
 
     const regionSources = media.filter((source) => {
-      const tagMatch = (source.tags || []).some((tag) => regionConceptKeySet.has(conceptKey(tag)) || regionIdsForText(tag).includes(regionDef.id));
+      const tagMatch = (source.tags || []).some((tag) => regionConceptKeySet.has(conceptKey(tag)));
       const positionMatch = regionPositions.some((position) => (position.sourceIds || []).includes(source.id));
       const annotationMatch = (source.annotations || []).some((annotation) =>
         (annotation.conceptTags || []).some((tag) => regionConceptKeySet.has(conceptKey(tag)))
       );
-      const fallbackText = regionIdsForText(collectKeywords(source.title, source.creator, source.description, ...(source.tags || []))).includes(regionDef.id);
-      return tagMatch || positionMatch || annotationMatch || fallbackText;
+      return tagMatch || positionMatch || annotationMatch;
     });
 
     const supportCount = regionPositions.reduce((sum, position) => (
@@ -489,27 +469,27 @@ export function deriveAtlasRegions({
       recentActivityCount,
       lastActiveAt: lastActivityCandidates.sort((a, b) => parseDate(b) - parseDate(a))[0],
     };
-    const confirmedMemberCount = uniqueStrings([
-      ...baseRegion.conceptIds.map((id) => `concept:${id}`),
+    const confirmedMemberCount = baseRegion.conceptIds.length;
+    const supportingRecordCount = uniqueStrings([
       ...baseRegion.positionIds.map((id) => `position:${id}`),
       ...baseRegion.practiceIds.map((id) => `practice:${id}`),
       ...baseRegion.inquiryIds.map((id) => `inquiry:${id}`),
+      ...baseRegion.sourceIds.map((id) => `source:${id}`),
       ...baseRegion.workIds.map((id) => `work:${id}`),
     ]).length;
-    const confirmedConceptNames = new Set(regionConcepts.map((concept) => conceptKey(concept.name)));
-    const suggestedMemberNames = (REGION_SUGGESTIONS[regionDef.id] || [])
-      .filter((name) => !confirmedConceptNames.has(conceptKey(name)));
+    const hasStrongSupport = confirmedMemberCount === 1 && supportingRecordCount >= 2;
     const status = confirmedMemberCount >= 2 ? 'active' as const : 'provisional' as const;
     const explanation = confirmedMemberCount >= 2
-      ? `Noesis auto-organized ${confirmedMemberCount} confirmed records whose concepts, links, or language repeatedly overlap in this territory.`
-      : `Noesis found one confirmed record pointing toward this possible territory. Suggested topics remain uncreated until you review them.`;
+      ? `Noesis organized ${confirmedMemberCount} confirmed concepts and ${supportingRecordCount} linked records in this territory.`
+      : `Possible region based on one confirmed concept and ${supportingRecordCount} strongly linked records. No suggested topic is counted as a concept.`;
 
     const labels = labelSetForRegion(baseRegion as any);
     return {
       ...baseRegion,
       status,
       confirmedMemberCount,
-      suggestedMemberNames,
+      suggestedMemberNames: [],
+      qualifiesForDisplay: confirmedMemberCount >= 2 || hasStrongSupport,
       explanation,
       labels,
       maturityStatus: maturityForRegion(baseRegion as any, labels),
@@ -518,7 +498,8 @@ export function deriveAtlasRegions({
   });
 
   return regions
-    .filter((region) => region.confirmedMemberCount >= 1)
+    .filter((region) => region.qualifiesForDisplay)
+    .map(({ qualifiesForDisplay: _qualifiesForDisplay, ...region }) => region)
     .sort((a, b) => {
       const aScore = a.activePositionsCount * 4 + a.conceptIds.length * 2 + a.recentActivityCount + a.tensionCount;
       const bScore = b.activePositionsCount * 4 + b.conceptIds.length * 2 + b.recentActivityCount + b.tensionCount;

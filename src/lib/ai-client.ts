@@ -1,6 +1,7 @@
 "use client";
 
 import type { Annotation, Media } from '@/lib/types';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
 
 export interface AiMemoryContext {
   scope: 'current_object' | 'linked_objects' | 'whole_workspace';
@@ -267,7 +268,7 @@ async function callAiAction<K extends keyof AiActionMap>(
   action: K,
   payload: AiActionMap[K]['payload'],
 ): Promise<AiActionMap[K]['result']> {
-  const response = await fetch('/api/ai', {
+  const response = await authenticatedFetch('/api/ai', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ action, payload }),

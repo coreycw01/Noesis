@@ -1,166 +1,77 @@
-
 import { NextResponse } from 'next/server';
+import sanitizeHtml from 'sanitize-html';
+import { z } from 'zod';
+import { apiErrorResponse, ApiError, parseBoundedJson, requireApiUser } from '@/lib/server/api-security';
+import { fetchVerifiedPublicResource } from '@/lib/server/public-url';
+import { enforceUsageLimit } from '@/lib/server/rate-limit';
 import { noesisUserError } from '@/lib/user-facing-errors';
-import { Buffer } from 'node:buffer';
-import { lookup } from 'node:dns/promises';
-import net from 'node:net';
 
-const MAX_IMPORTED_CHARS = 250_000;
-const MAX_RESPONSE_BYTES = 10_000_000; // Increased to 10MB
-const IMPORT_TIMEOUT_MS = 15_000; // Increased timeout for heavy docs
-const MAX_REDIRECTS = 4;
+const MAX_IMPORTED_CHARS = 100_000;
+const importSchema = z.object({
+  url: z.string().trim().url().max(2_048),
+}).strict();
 
 export const runtime = 'nodejs';
 
 function googleDocExportUrl(url: string) {
-  const match = url.match(/docs\.google\.com\/document\/d\/([^/]+)/);
-  if (!match?.[1]) return null;
-  return `https://docs.google.com/document/d/${match[1]}/export?format=txt`;
+  const published = url.match(/docs\.google\.com\/document\/d\/e\/([^/]+)/)?.[1];
+  if (published) return `https://docs.google.com/document/d/e/${published}/pub?output=txt`;
+  const documentId = url.match(/docs\.google\.com\/document\/d\/([^/]+)/)?.[1];
+  return documentId ? `https://docs.google.com/document/d/${documentId}/export?format=txt` : url;
 }
 
-function googleDocPublishedUrl(url: string) {
-  const match = url.match(/docs\.google\.com\/document\/d\/e\/([^/]+)/);
-  if (!match?.[1]) return null;
-  return `https://docs.google.com/document/d/e/${match[1]}/pub?output=txt`;
-}
-
-function importUrl(rawUrl: string) {
-  const published = googleDocPublishedUrl(rawUrl);
-  if (published) return published;
-  const google = googleDocExportUrl(rawUrl);
-  if (google) return google;
-  return rawUrl;
-}
-
-function isPrivateIp(address: string) {
-  if (net.isIPv4(address)) {
-    const parts = address.split('.').map(Number);
-    return (
-      parts[0] === 0 ||
-      parts[0] === 10 ||
-      parts[0] === 127 ||
-      (parts[0] === 169 && parts[1] === 254) ||
-      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
-      (parts[0] === 192 && parts[1] === 168)
-    );
-  }
-
-  const normalized = address.toLowerCase();
-  return normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80');
-}
-
-async function assertPublicUrl(url: URL) {
-  if (!['http:', 'https:'].includes(url.protocol)) {
-    throw new Error('Only http and https document URLs can be imported.');
-  }
-
-  const hostname = url.hostname.toLowerCase();
-  if (
-    hostname === 'localhost' ||
-    hostname.endsWith('.localhost') ||
-    hostname.endsWith('.local') ||
-    hostname.endsWith('.internal')
-  ) {
-    throw new Error('Local or internal document URLs cannot be imported.');
-  }
-
-  if (net.isIP(hostname) && isPrivateIp(hostname)) {
-    throw new Error('Private network document URLs cannot be imported.');
-  }
-
-  const addresses = await lookup(hostname, { all: true, verbatim: true });
-  if (addresses.some((address) => isPrivateIp(address.address))) {
-    throw new Error('Private network document URLs cannot be imported.');
-  }
-}
-
-async function fetchPublicUrl(url: URL, redirects = 0): Promise<Response> {
-  await assertPublicUrl(url);
-  const response = await fetch(url.toString(), {
-    headers: {
-      accept: 'text/plain,text/markdown,text/html;q=0.8,*/*;q=0.1',
-      'user-agent': 'Noesis document importer',
-    },
-    cache: 'no-store',
-    redirect: 'manual',
-    signal: AbortSignal.timeout(IMPORT_TIMEOUT_MS),
-  });
-
-  if ([301, 302, 303, 307, 308].includes(response.status)) {
-    if (redirects >= MAX_REDIRECTS) throw new Error('Too many redirects.');
-    const location = response.headers.get('location');
-    if (!location) throw new Error('Redirect response is missing a location.');
-    return fetchPublicUrl(new URL(location, url), redirects + 1);
-  }
-
-  return response;
-}
-
-async function readLimitedText(response: Response) {
-  const reader = response.body?.getReader();
-  if (!reader) return '';
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    total += value.byteLength;
-    if (total > MAX_RESPONSE_BYTES) {
-      throw new Error('Document is too large to import safely.');
-    }
-    chunks.push(value);
-  }
-
-  return Buffer.concat(chunks).toString('utf8');
-}
-
-function stripHtml(value: string) {
-  return value
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+function htmlToText(value: string) {
+  return sanitizeHtml(value, {
+    allowedTags: [],
+    allowedAttributes: {},
+    textFilter: (text) => text,
+  })
+    .replace(/\u00a0/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
 export async function POST(request: Request) {
+  let requestId: string | undefined;
   try {
-    const { url } = await request.json();
-    if (!url || typeof url !== 'string') {
-      return NextResponse.json({ error: 'A document URL is required.' }, { status: 400 });
+    const user = await requireApiUser(request);
+    requestId = user.requestId;
+    await enforceUsageLimit(user.uid, 'document_import');
+    const { url } = await parseBoundedJson(request, importSchema, 4 * 1_024);
+    const resource = await fetchVerifiedPublicResource(new URL(googleDocExportUrl(url)), {
+      headers: {
+        accept: 'text/plain,text/markdown,text/html,application/xhtml+xml;q=0.8',
+        'user-agent': 'Noesis document importer',
+      },
+      maxBytes: 5_000_000,
+      timeoutMs: 12_000,
+      allowedContentTypes: ['text/plain', 'text/markdown', 'text/html', 'application/xhtml+xml'],
+    });
+
+    if (!resource.ok) {
+      throw new ApiError(
+        422,
+        `Document could not be read (${resource.status}). Make sure it is public or published.`,
+        'document_unreadable',
+      );
     }
 
-    const parsed = new URL(importUrl(url));
-    const response = await fetchPublicUrl(parsed);
-
-    if (!response.ok) {
-      return NextResponse.json({ error: `Document could not be read (${response.status}). Make sure it is public or published.` }, { status: 422 });
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    const raw = await readLimitedText(response);
-    const text = contentType.includes('html') ? stripHtml(raw) : raw.trim();
-
-    if (!text) {
-      return NextResponse.json({ error: 'No readable text was found in that document.' }, { status: 422 });
-    }
+    const contentType = resource.headers.get('content-type') || '';
+    const text = contentType.includes('html') ? htmlToText(resource.text) : resource.text.trim();
+    if (!text) throw new ApiError(422, 'No readable text was found in that document.', 'empty_document');
 
     return NextResponse.json({
       text: text.slice(0, MAX_IMPORTED_CHARS),
       truncated: text.length > MAX_IMPORTED_CHARS,
       importedAt: new Date().toISOString(),
+      requestId,
     });
   } catch (error) {
-    return NextResponse.json({ error: noesisUserError(error, 'Unable to import that document URL. Make sure it is public or published, then try again.') }, { status: 500 });
+    if (error instanceof ApiError) return apiErrorResponse(error, requestId);
+    console.error('[Import] Document import failed', { requestId, error });
+    return NextResponse.json({
+      error: noesisUserError(error, 'Unable to import that public document.'),
+      requestId,
+    }, { status: 500 });
   }
 }

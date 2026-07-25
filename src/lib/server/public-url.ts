@@ -1,95 +1,137 @@
-
 import 'server-only';
 
-import { Buffer } from 'node:buffer';
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
+import { Agent, fetch as undiciFetch } from 'undici';
+import { ApiError } from './api-security';
+import { isBlockedHostname, isPublicInternetAddress } from '@/lib/security/network-policy';
 
-const DEFAULT_MAX_RESPONSE_BYTES = 10_000_000; // Increased to 10MB to handle bloated modern pages and scholarly records
-const DEFAULT_TIMEOUT_MS = 12_000; // Increased to 12s for slower global providers
-const MAX_REDIRECTS = 4;
+const DEFAULT_MAX_RESPONSE_BYTES = 2_000_000;
+const DEFAULT_TIMEOUT_MS = 10_000;
+const MAX_REDIRECTS = 3;
 
-function isPrivateIp(address: string) {
-  if (net.isIPv4(address)) {
-    const parts = address.split('.').map(Number);
-    return (
-      parts[0] === 0 ||
-      parts[0] === 10 ||
-      parts[0] === 127 ||
-      (parts[0] === 169 && parts[1] === 254) ||
-      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
-      (parts[0] === 192 && parts[1] === 168)
-    );
-  }
-
-  const normalized = address.toLowerCase();
-  return normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80');
+export interface VerifiedPublicResource {
+  url: URL;
+  status: number;
+  ok: boolean;
+  headers: Headers;
+  text: string;
 }
 
-export async function assertPublicUrl(url: URL) {
+async function resolvePublicAddress(url: URL) {
   if (!['http:', 'https:'].includes(url.protocol)) {
-    throw new Error('Only http and https URLs can be imported.');
+    throw new ApiError(400, 'Only public http and https URLs can be imported.', 'invalid_url_protocol');
   }
 
-  const hostname = url.hostname.toLowerCase();
-  if (
-    hostname === 'localhost' ||
-    hostname.endsWith('.localhost') ||
-    hostname.endsWith('.local') ||
-    hostname.endsWith('.internal')
-  ) {
-    throw new Error('Local or internal URLs cannot be imported.');
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
+  if (isBlockedHostname(hostname)) {
+    throw new ApiError(400, 'Local or internal URLs cannot be imported.', 'private_url');
   }
 
-  if (net.isIP(hostname) && isPrivateIp(hostname)) {
-    throw new Error('Private network URLs cannot be imported.');
+  if (net.isIP(hostname)) {
+    if (!isPublicInternetAddress(hostname)) throw new ApiError(400, 'Private network URLs cannot be imported.', 'private_url');
+    return { address: hostname, family: net.isIPv6(hostname) ? 6 : 4 };
   }
 
-  const addresses = await lookup(hostname, { all: true, verbatim: true });
-  if (addresses.some((address) => isPrivateIp(address.address))) {
-    throw new Error('Private network URLs cannot be imported.');
+  let addresses: Array<{ address: string; family: number }>;
+  try {
+    addresses = await lookup(hostname, { all: true, verbatim: true }) as Array<{ address: string; family: number }>;
+  } catch {
+    throw new ApiError(422, 'The URL hostname could not be resolved.', 'dns_failed');
   }
+  if (!addresses.length || addresses.some((entry) => !isPublicInternetAddress(entry.address))) {
+    throw new ApiError(400, 'Private or ambiguous network URLs cannot be imported.', 'private_url');
+  }
+  return addresses[0];
 }
 
-export async function fetchPublicUrl(
-  url: URL,
-  options: RequestInit = {},
-  redirects = 0,
-): Promise<Response> {
-  await assertPublicUrl(url);
-  const response = await fetch(url.toString(), {
-    ...options,
-    cache: 'no-store',
-    redirect: 'manual',
-    signal: options.signal || AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
-  });
-
-  if ([301, 302, 303, 307, 308].includes(response.status)) {
-    if (redirects >= MAX_REDIRECTS) throw new Error('Too many redirects.');
-    const location = response.headers.get('location');
-    if (!location) throw new Error('Redirect response is missing a location.');
-    return fetchPublicUrl(new URL(location, url), options, redirects + 1);
+async function readLimitedText(response: Response, maxBytes: number) {
+  const declared = Number(response.headers.get('content-length') || 0);
+  if (declared > maxBytes) {
+    throw new ApiError(413, 'The remote response is too large to import safely.', 'response_too_large');
   }
-
-  return response;
-}
-
-export async function readLimitedText(response: Response, maxBytes = DEFAULT_MAX_RESPONSE_BYTES) {
   const reader = response.body?.getReader();
   if (!reader) return '';
-  const chunks: Uint8Array[] = [];
+  const decoder = new TextDecoder();
   let total = 0;
-
+  let text = '';
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     if (!value) continue;
     total += value.byteLength;
     if (total > maxBytes) {
-      throw new Error('Response is too large to import safely. Some scholarly pages are heavily bloated with scripts.');
+      await reader.cancel();
+      throw new ApiError(413, 'The remote response is too large to import safely.', 'response_too_large');
     }
-    chunks.push(value);
+    text += decoder.decode(value, { stream: true });
   }
+  return text + decoder.decode();
+}
 
-  return Buffer.concat(chunks).toString('utf8');
+export async function fetchVerifiedPublicResource(
+  initialUrl: URL,
+  options: {
+    headers?: HeadersInit;
+    maxBytes?: number;
+    timeoutMs?: number;
+    allowedContentTypes?: string[];
+  } = {},
+): Promise<VerifiedPublicResource> {
+  let url = initialUrl;
+  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    const resolved = await resolvePublicAddress(url);
+    const dispatcher = new Agent({
+      connect: {
+        lookup: (_hostname: string, lookupOptions: any, callback: (...args: any[]) => void) => {
+          if (lookupOptions?.all) {
+            callback(null, [{ address: resolved.address, family: resolved.family }]);
+          } else {
+            callback(null, resolved.address, resolved.family);
+          }
+        },
+      },
+    });
+
+    try {
+      const response = await undiciFetch(url, {
+        headers: options.headers,
+        method: 'GET',
+        redirect: 'manual',
+        dispatcher,
+        signal: AbortSignal.timeout(options.timeoutMs || DEFAULT_TIMEOUT_MS),
+      });
+
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const location = response.headers.get('location');
+        if (!location) throw new ApiError(422, 'Redirect response is missing a location.', 'invalid_redirect');
+        if (redirects === MAX_REDIRECTS) throw new ApiError(422, 'Too many redirects.', 'too_many_redirects');
+        url = new URL(location, url);
+        continue;
+      }
+
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      if (
+        options.allowedContentTypes?.length
+        && !options.allowedContentTypes.some((allowed) => contentType.includes(allowed))
+      ) {
+        throw new ApiError(415, 'The remote resource type is not supported.', 'unsupported_content_type');
+      }
+
+      const text = await readLimitedText(
+        response as unknown as Response,
+        options.maxBytes || DEFAULT_MAX_RESPONSE_BYTES,
+      );
+      return {
+        url,
+        status: response.status,
+        ok: response.ok,
+        headers: new Headers(response.headers as unknown as HeadersInit),
+        text,
+      };
+    } finally {
+      await dispatcher.close();
+    }
+  }
+  throw new ApiError(422, 'Too many redirects.', 'too_many_redirects');
 }

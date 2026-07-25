@@ -1,0 +1,7 @@
+{
+  "name": "@opentelemetry/exporter-jaeger",
+  "version": "0.0.0-noesis-disabled",
+  "private": true,
+  "main": "index.js",
+  "type": "commonjs"
+}

@@ -1858,9 +1858,13 @@ function ReadexWorkspace({
       durationSeconds: data.durationSeconds || 0,
       fileUrl: data.fileUrl || '',
       storagePath: data.storagePath || '',
+      asset: data.asset,
       thumbnailUrl: data.thumbnailUrl || '',
       canvasData: data.canvasData || '',
+      canvasAsset: data.canvasAsset,
+      drawingState: data.drawingState,
       writingOverlayData: data.writingOverlayData || '',
+      overlayAsset: data.overlayAsset,
       writingStyle: data.writingStyle || preferences.writingDefaults.writingStyle,
       externalDoc: data.externalDoc || null,
       conceptTags,
@@ -1897,7 +1901,11 @@ function ReadexWorkspace({
     ensureConcepts(draft.conceptTags || []);
     const draftRef = doc(refs.drafts, draft.id);
     const previous = drafts.find((item) => item.id === draft.id);
-    const nextDraft = { ...draft, dateUpdated: today() };
+    const nextDraft = {
+      ...draft,
+      revision: Math.max(draft.revision || 0, previous?.revision || 0) + 1,
+      dateUpdated: today(),
+    };
     const previousContent = `${previous?.body || ''}\n${previous?.draftContent || ''}\n${previous?.finalContent || ''}`;
     const nextContent = `${nextDraft.body || ''}\n${nextDraft.draftContent || ''}\n${nextDraft.finalContent || ''}`;
     const contentDelta = Math.abs(nextContent.length - previousContent.length);
@@ -1905,7 +1913,7 @@ function ReadexWorkspace({
     const reflectionChanged = JSON.stringify(previous?.completionReflection || {}) !== JSON.stringify(nextDraft.completionReflection || {});
     const structureChanged = JSON.stringify(previous?.argumentSkeleton || {}) !== JSON.stringify(nextDraft.argumentSkeleton || {});
     const meaningfulWorkChange = statusChanged || reflectionChanged || structureChanged || contentDelta >= 160;
-    void commitAndReport({
+    return commitAndReport({
       db,
       ref: draftRef as any,
       operation: 'update',
@@ -1930,7 +1938,21 @@ function ReadexWorkspace({
         relatedEntityIds: { sourceIds: draft.sourceIds || [], inquiryIds: draft.questionIds || [], positionIds: draft.beliefIds || [] },
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'update', data: nextDraft });
+    }, { operation: 'update', data: nextDraft, rethrow: true });
+  };
+
+  const markDraftOpened = (draft: Draft) => {
+    const openedAt = new Date().toISOString();
+    return commitAndReport({
+      db,
+      ref: doc(refs.drafts, draft.id) as any,
+      operation: 'update',
+      data: { lastOpenedAt: openedAt },
+    }, {
+      operation: 'update',
+      data: { id: draft.id, lastOpenedAt: openedAt },
+      rethrow: true,
+    });
   };
 
   const deleteDraft = (id: string) => {
@@ -2799,6 +2821,7 @@ function ReadexWorkspace({
         deleteVaultEntry={deleteVaultEntry}
         addDraft={addDraft}
         updateDraft={updateDraft}
+        markDraftOpened={markDraftOpened}
         deleteDraft={deleteDraft}
         addPractice={addPractice}
         updatePractice={updatePractice}

@@ -26,11 +26,13 @@ import type { Concept, Draft, DraftStatus, DraftType, Media, Question, UserPrefe
 import { DRAFT_LABELS, WRITING_STYLE_LABELS, today, workCategoryForDraft } from '@/lib/readex';
 import { searchMatches } from '@/lib/search';
 import { cn } from '@/lib/utils';
+import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 
 type HubCategory = WorkCategory | 'all';
 type HubStatus = 'all' | 'needs_revision' | 'external_docs' | DraftStatus;
-type HubSort = 'updated' | 'created' | 'title';
+type HubSort = 'activity' | 'created' | 'title';
 type HubView = 'grid' | 'list';
+type ActivityMode = 'edited' | 'opened';
 
 interface WorksHubProps {
   drafts: Draft[];
@@ -41,6 +43,7 @@ interface WorksHubProps {
   writingDefaults: UserPreferences['writingDefaults'];
   onAddDraft: (data: Partial<Draft>) => Draft;
   onDeleteDraft: (id: string) => void;
+  onMarkDraftOpened: (draft: Draft) => void;
   onNavigate: (view: 'writing', options?: { workId?: string | null }) => void;
 }
 
@@ -76,6 +79,16 @@ function cleanText(draft: Draft) {
     .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function DraftThumbnail({ draft, Icon }: { draft: Draft; Icon: React.ComponentType<{ className?: string }> }) {
+  const { url } = usePrivateAssetUrl(
+    draft.canvasAsset?.storagePath,
+    draft.thumbnailUrl || draft.canvasData || '',
+  );
+  return url
+    ? <img src={url} alt="" className="h-full w-full object-contain" />
+    : <Icon className="size-12 text-accent/45" aria-hidden="true" />;
 }
 
 function wordCount(draft: Draft) {
@@ -156,11 +169,12 @@ function createDraftPayload(type: DraftType, defaults: UserPreferences['writingD
   };
 }
 
-export function WorksHub({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onDeleteDraft, onNavigate }: WorksHubProps) {
+export function WorksHub({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onDeleteDraft, onMarkDraftOpened, onNavigate }: WorksHubProps) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<HubCategory>('all');
   const [status, setStatus] = useState<HubStatus>('all');
-  const [sort, setSort] = useState<HubSort>('updated');
+  const [sort, setSort] = useState<HubSort>('activity');
+  const [activityMode, setActivityMode] = useState<ActivityMode>('edited');
   const [view, setView] = useState<HubView>('grid');
   const [addOpen, setAddOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -197,10 +211,18 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
     })
     .sort((a, b) => {
       if (sort === 'title') return a.title.localeCompare(b.title);
-      const left = sort === 'created' ? a.dateCreated : a.dateUpdated;
-      const right = sort === 'created' ? b.dateCreated : b.dateUpdated;
+      const left = sort === 'created'
+        ? a.dateCreated
+        : activityMode === 'opened'
+          ? a.lastOpenedAt || ''
+          : a.dateUpdated;
+      const right = sort === 'created'
+        ? b.dateCreated
+        : activityMode === 'opened'
+          ? b.lastOpenedAt || ''
+          : b.dateUpdated;
       return new Date(right).getTime() - new Date(left).getTime();
-    }), [category, concepts, drafts, media, questions, search, sort, status, vault]);
+    }), [activityMode, category, concepts, drafts, media, questions, search, sort, status, vault]);
 
   const hasFilters = Boolean(search || category !== 'all' || status !== 'all');
   const clearFilters = () => {
@@ -214,6 +236,11 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
     setAddOpen(false);
     setNoteOpen(false);
     if (created) onNavigate('writing', { workId: created.id });
+  };
+
+  const openDraft = (draft: Draft) => {
+    onMarkDraftOpened(draft);
+    onNavigate('writing', { workId: draft.id });
   };
 
   const activeFilterLabels = [
@@ -272,12 +299,36 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="updated" className="font-code text-[10px] uppercase">Recently edited</SelectItem>
+            <SelectItem value="activity" className="font-code text-[10px] uppercase">Current activity</SelectItem>
             <SelectItem value="created" className="font-code text-[10px] uppercase">Date created</SelectItem>
             <SelectItem value="title" className="font-code text-[10px] uppercase">Title</SelectItem>
           </SelectContent>
         </Select>
       </FilterToolbar>
+
+      <div className="mb-5 inline-flex rounded-full border border-border bg-card p-1 shadow-sm" aria-label="Work recency view">
+        {([
+          { id: 'edited', label: 'Recently Edited' },
+          { id: 'opened', label: 'Recently Opened' },
+        ] as const).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => {
+              setActivityMode(item.id);
+              setSort('activity');
+            }}
+            className={cn(
+              'rounded-full px-4 py-2 font-code text-[9px] font-bold uppercase tracking-[0.14em] transition-colors',
+              activityMode === item.id && sort === 'activity'
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
       {visibleDrafts.length === 0 ? (
         <PageEmptyState
@@ -292,38 +343,23 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         />
       ) : (
         <>
-          {visibleDrafts.length > 1 && (
-            <section className="mb-5 rounded-xl border border-border/50 bg-card/70 p-3" aria-label="Continue working">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <span className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Continue</span>
-                <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Recently edited</span>
-              </div>
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                {visibleDrafts.slice(0, 4).map((draft) => {
-                  const Icon = workIcon(draft);
-                  return <button key={draft.id} type="button" onClick={() => onNavigate('writing', { workId: draft.id })} className="flex min-w-0 items-center gap-3 rounded-lg border border-border/45 bg-background p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"><div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/8 text-accent"><Icon className="size-4" /></div><span className="min-w-0"><span className="block truncate font-headline text-base font-bold italic">{draft.title || 'Untitled work'}</span><span className="mt-0.5 block truncate font-code text-[8px] uppercase tracking-widest text-muted-foreground">{updatedLabel(draft.dateUpdated)}</span></span></button>;
-                })}
-              </div>
-            </section>
-          )}
           <div className={cn(view === 'grid' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'space-y-2')}>
           {visibleDrafts.map((draft) => {
             const Icon = workIcon(draft);
             const categoryLabel = workLabel(draft);
             const text = cleanText(draft);
             const linkCount = (draft.conceptTags || []).length + (draft.sourceIds || []).length + (draft.questionIds || []).length + (draft.beliefIds || []).length;
-            const thumbnail = draft.thumbnailUrl || draft.canvasData;
             const isRecording = draft.type === 'recording' || draft.type === 'voice_note';
             return (
               <Card
                 key={draft.id}
                 className={cn('group border-border/60 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-lg', view === 'grid' ? 'overflow-hidden rounded-2xl' : 'rounded-xl')}
-                onClick={() => onNavigate('writing', { workId: draft.id })}
+                onClick={() => openDraft(draft)}
               >
                 <div className={cn('flex gap-4', view === 'grid' ? 'flex-col' : 'items-center p-3')}>
                   {view === 'grid' && (
                     <div className="relative flex h-40 items-center justify-center overflow-hidden border-b border-border/50 bg-muted/15">
-                      {thumbnail ? <img src={thumbnail} alt="" className="h-full w-full object-contain" /> : <Icon className="size-12 text-accent/45" aria-hidden="true" />}
+                      <DraftThumbnail draft={draft} Icon={Icon} />
                       {isRecording && <span className="absolute bottom-3 left-3 rounded-full border border-border/60 bg-background/90 px-2.5 py-1 font-code text-[9px] font-bold uppercase tracking-widest text-foreground">{durationLabel(draft.durationSeconds)}</span>}
                     </div>
                   )}

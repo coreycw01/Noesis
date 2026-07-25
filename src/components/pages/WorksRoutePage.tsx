@@ -6,6 +6,7 @@ import type { Concept, Draft, Media, Question, UserPreferences, VaultEntry } fro
 import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface WorksRoutePageProps {
+  uid: string;
   drafts: Draft[];
   media: Media[];
   vault: VaultEntry[];
@@ -14,13 +15,15 @@ export interface WorksRoutePageProps {
   writingDefaults: UserPreferences['writingDefaults'];
   focusedDraftId?: string | null;
   onAddDraft: (data: Partial<Draft>) => Draft;
-  onUpdateDraft: (draft: Draft) => void;
+  onUpdateDraft: (draft: Draft) => void | Promise<void>;
   onDeleteDraft: (id: string) => void;
+  onMarkDraftOpened: (draft: Draft) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onNavigate: (view: NoesisView, options?: { workId?: string | null }) => void;
 }
 
 export function WorksRoutePage({
+  uid,
   drafts,
   media,
   vault,
@@ -31,6 +34,7 @@ export function WorksRoutePage({
   onAddDraft,
   onUpdateDraft,
   onDeleteDraft,
+  onMarkDraftOpened,
   onAddConcept,
   onNavigate,
 }: WorksRoutePageProps) {
@@ -45,6 +49,7 @@ export function WorksRoutePage({
         writingDefaults={writingDefaults}
         onAddDraft={onAddDraft}
         onDeleteDraft={onDeleteDraft}
+        onMarkDraftOpened={onMarkDraftOpened}
         onNavigate={onNavigate}
       />
     );
@@ -52,6 +57,7 @@ export function WorksRoutePage({
 
   return (
     <Atelier
+      uid={uid}
       drafts={drafts}
       media={media}
       vault={vault}

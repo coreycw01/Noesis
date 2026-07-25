@@ -314,24 +314,7 @@ export function AtlasTerritoryView({
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="size-4 text-accent" />
-                    <h4 className="font-headline text-lg font-semibold italic text-foreground">Suggested topics</h4>
-                  </div>
-                  <div className="rounded-2xl border border-dashed border-border/70 bg-muted/10 p-3">
-                    <div className="flex flex-wrap gap-2">
-                      {selectedRegion.suggestedMemberNames.map((name) => (
-                        <Badge key={name} variant="outline" className="rounded-full border-dashed font-code text-[9px] uppercase tracking-widest text-muted-foreground">
-                          {name} · Suggested
-                        </Badge>
-                      ))}
-                      {!selectedRegion.suggestedMemberNames.length && <span className="text-sm italic text-muted-foreground">No unconfirmed topics.</span>}
-                    </div>
-                    <p className="mt-3 text-xs leading-5 text-muted-foreground">These are organizational prompts, not Concept records, and do not count toward your totals.</p>
-                  </div>
-                </div>
+              <div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <BrainCircuit className="size-4 text-violet-600" />

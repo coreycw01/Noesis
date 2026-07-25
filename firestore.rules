@@ -9,13 +9,84 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function hasValidOwnership(data, uid) {
+      return data.get('userId', uid) == uid
+        && data.get('uid', uid) == uid;
+    }
+
+    function validStringField(data, field, maxSize) {
+      return !data.keys().hasAny([field])
+        || (data[field] is string && data[field].size() <= maxSize);
+    }
+
+    function validListField(data, field, maxSize) {
+      return !data.keys().hasAny([field])
+        || (data[field] is list && data[field].size() <= maxSize);
+    }
+
+    function validCommonShape(data, documentId) {
+      return data.get('id', documentId) == documentId
+        && validStringField(data, 'title', 2000)
+        && validStringField(data, 'name', 1000)
+        && validStringField(data, 'question', 5000)
+        && validStringField(data, 'summary', 20000)
+        && validStringField(data, 'description', 100000)
+        && validStringField(data, 'body', 500000)
+        && validListField(data, 'tags', 200)
+        && validListField(data, 'conceptIds', 500)
+        && validListField(data, 'sourceIds', 500)
+        && validListField(data, 'questionIds', 500)
+        && validListField(data, 'positionIds', 500);
+    }
+
+    function validOwnedWrite(uid, documentId) {
+      return isOwner(uid)
+        && hasValidOwnership(request.resource.data, uid)
+        && validCommonShape(request.resource.data, documentId);
+    }
+
+    // Server-controlled usage counters are never readable or writable by clients.
+    match /apiUsage/{counterId} {
+      allow read, write: if false;
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid);
+      allow create, update: if validOwnedWrite(uid, uid);
       allow delete: if false;
 
+      match /thinkingEvents/{eventId} {
+        allow read: if isOwner(uid);
+        allow create: if validOwnedWrite(uid, eventId) && (
+          request.resource.data.get('demoSeed', false) == true
+          || (
+            request.resource.data.eventId == eventId
+            && request.resource.data.actorId == uid
+            && request.resource.data.schemaVersion == 2
+            && request.resource.data.summary is string
+            && request.resource.data.summary.size() <= 2000
+          )
+        );
+        // Production history is immutable. Deterministic demo records may be
+        // refreshed only while remaining explicitly marked as seeded data.
+        allow update: if isOwner(uid)
+          && resource.data.get('demoSeed', false) == true
+          && request.resource.data.get('demoSeed', false) == true
+          && request.resource.data.eventId == eventId;
+        allow delete: if isOwner(uid) && resource.data.get('demoSeed', false) == true;
+      }
+
+      match /{collectionId}/{documentId} {
+        allow read: if isOwner(uid);
+        allow create, update: if collectionId != 'thinkingEvents'
+          && validOwnedWrite(uid, documentId);
+        allow delete: if collectionId != 'thinkingEvents' && isOwner(uid);
+      }
+
+      // No unreviewed deeply nested collection receives an implicit write grant.
       match /{document=**} {
-        allow read, write: if isOwner(uid);
+        allow read: if isOwner(uid);
+        allow write: if false;
       }
     }
 

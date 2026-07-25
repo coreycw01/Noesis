@@ -2,6 +2,7 @@
 
 import {
   deleteDoc,
+  serverTimestamp,
   setDoc,
   updateDoc,
   writeBatch,
@@ -33,6 +34,13 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
   thinkingEvent,
   thinkingEvents,
 }: CommitWorkspaceMutationInput<T>) {
+  const mutationData = operation === 'delete'
+    ? undefined
+    : {
+        ...(data as Record<string, unknown>),
+        clientMutationId: crypto.randomUUID(),
+        serverUpdatedAt: serverTimestamp(),
+      };
   const eventQueue = [
     ...(thinkingEvent ? [thinkingEvent] : []),
     ...(thinkingEvents || []),
@@ -40,17 +48,17 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
 
   if (!eventQueue.length) {
     if (operation === 'delete') return deleteDoc(ref);
-    if (operation === 'update') return updateDoc(ref, data as any);
-    return setDoc(ref, data as any, setOptions as any);
+    if (operation === 'update') return updateDoc(ref, mutationData as any);
+    return setDoc(ref, mutationData as any, setOptions as any);
   }
 
   const batch = writeBatch(db);
   if (operation === 'delete') {
     batch.delete(ref);
   } else if (operation === 'update') {
-    batch.update(ref, data as any);
+    batch.update(ref, mutationData as any);
   } else {
-    batch.set(ref, data as any, setOptions as any);
+    batch.set(ref, mutationData as any, setOptions as any);
   }
   eventQueue.forEach((event) => queueThinkingEvent(batch, event));
   return batch.commit();

@@ -2,7 +2,7 @@ import 'server-only';
 
 import type { MediaType } from '@/lib/types';
 import type { NormalizedSourceResult } from '@/lib/source-intake';
-import { fetchPublicUrl, readLimitedText } from './public-url';
+import { fetchVerifiedPublicResource } from './public-url';
 
 const USER_AGENT = 'Noesis source intake';
 
@@ -45,7 +45,17 @@ async function fetchJson(url: string) {
     signal: AbortSignal.timeout(8_000),
   });
   if (!response.ok) throw new Error(`Provider request failed (${response.status}).`);
-  return response.json();
+  return readProviderJson(response);
+}
+
+async function readProviderJson(response: Response, maxBytes = 2_000_000) {
+  const declared = Number(response.headers.get('content-length') || 0);
+  if (declared > maxBytes) throw new Error('Provider response was too large.');
+  const text = await response.text();
+  if (new TextEncoder().encode(text).byteLength > maxBytes) {
+    throw new Error('Provider response was too large.');
+  }
+  return JSON.parse(text);
 }
 
 function normalizeGoogleBook(item: any): NormalizedSourceResult | null {
@@ -167,7 +177,7 @@ async function fetchTmdbJson(path: string, params: Record<string, string>) {
     signal: AbortSignal.timeout(8_000),
   });
   if (!response.ok) throw new Error(`TMDB request failed (${response.status}).`);
-  return response.json();
+  return readProviderJson(response);
 }
 
 function normalizeTmdbMovie(movie: any, forcedType: MediaType): NormalizedSourceResult | null {
@@ -375,15 +385,17 @@ function firstJsonLdValue(items: any[], keys: string[]) {
 
 export async function metadataFromUrl(rawUrl: string, forcedType?: MediaType): Promise<NormalizedSourceResult> {
   const url = new URL(rawUrl);
-  const response = await fetchPublicUrl(url, {
+  const response = await fetchVerifiedPublicResource(url, {
     headers: {
       accept: 'text/html,application/xhtml+xml,text/plain;q=0.8,*/*;q=0.1',
       'user-agent': USER_AGENT,
     },
+    maxBytes: 2_000_000,
+    allowedContentTypes: ['text/html', 'application/xhtml+xml', 'text/plain'],
   });
   if (!response.ok) throw new Error(`URL could not be read (${response.status}).`);
 
-  const html = await readLimitedText(response);
+  const html = response.text;
   const jsonLd = jsonLdValues(html);
   const title = metaContent(html, /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["'][^>]*>/i)
     || metaContent(html, /<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["'][^>]*>/i)

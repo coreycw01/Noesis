@@ -264,6 +264,7 @@ export interface Concept {
   y: number;
   createdFrom?: 'manual' | 'tag' | 'idea' | 'fallback';
   philosophyStatus?: ConceptPhilosophyStatus;
+  atlasReviewStatus?: 'new' | 'confirmed' | 'rejected' | 'deferred';
 }
 
 export interface Question {
@@ -288,6 +289,7 @@ export interface Question {
   sourceIds?: string[];
   beliefIds?: string[];
   draftIds?: string[];
+  practiceIds?: string[];
   type?: 'open' | 'annotation' | 'manual';
   sourceAnnotationId?: string;
   sourceWorkId?: string;
@@ -343,10 +345,13 @@ export interface Draft {
   durationSeconds?: number;
   fileUrl?: string;
   storagePath?: string;
+  asset?: StoredAsset;
   thumbnailUrl?: string;
   canvasData?: string;
+  canvasAsset?: StoredAsset;
   drawingState?: DrawingDocumentState;
   writingOverlayData?: string;
+  overlayAsset?: StoredAsset;
   writingStyle?: WritingStyle;
   externalDoc?: ExternalDraftDocument;
   conceptTags: string[];
@@ -355,7 +360,20 @@ export interface Draft {
   beliefIds: string[];
   dateCreated: string;
   dateUpdated: string;
+  lastOpenedAt?: string;
   versionHistory?: DraftRevision[];
+  revision?: number;
+  clientMutationId?: string;
+  serverUpdatedAt?: unknown;
+}
+
+export interface StoredAsset {
+  storagePath: string;
+  contentType: string;
+  size: number;
+  createdAt: string;
+  durationSeconds?: number;
+  originalName?: string;
 }
 
 export interface ExternalDraftDocument {

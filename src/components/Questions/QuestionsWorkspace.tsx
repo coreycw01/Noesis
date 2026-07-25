@@ -30,13 +30,18 @@ interface QuestionsWorkspaceProps {
   media: Media[];
   vault: VaultEntry[];
   drafts: Draft[];
+  practices: Practice[];
   concepts: Concept[];
   onAddQuestion: (data: Partial<Question>) => Question;
   onUpdateQuestion: (question: Question) => void;
   onDeleteQuestion: (id: string) => void;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
-  onAddDraft: (data: Partial<Draft>) => void;
-  onAddPractice: (data: Partial<Practice>) => void;
+  onAddDraft: (data: Partial<Draft>) => Draft;
+  onUpdateDraft: (draft: Draft) => void;
+  onAddPractice: (data: Partial<Practice>) => Practice;
+  onUpdatePractice: (practice: Practice) => void;
+  onOpenWork: (id: string) => void;
+  onOpenPractice: (id: string) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   focusedQuestionId?: string | null;
   onFocusedQuestionHandled?: () => void;
@@ -127,7 +132,7 @@ function inquiryDiagnosticFlags(question: Question) {
   return flags;
 }
 
-export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onAddPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
+export function QuestionsWorkspace({ questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -214,6 +219,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
     const conceptNames = selected.conceptIds || relatedSources.flatMap((item) => item.tags || []);
     const relatedBeliefs = vault.filter((entry) => (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => sourceIds.includes(id)));
     const relatedDrafts = drafts.filter((draft) => (draft.questionIds || []).includes(selected.id) || (draft.conceptTags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))));
+    const relatedPractices = practices.filter((practice) => (practice.questionIds || []).includes(selected.id));
     return (
         <QuestionDetail
           question={selected}
@@ -221,6 +227,9 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           concepts={conceptNames}
           beliefs={relatedBeliefs}
           drafts={relatedDrafts}
+          practices={relatedPractices}
+          availableDrafts={drafts}
+          availablePractices={practices}
           onBack={closeQuestion}
           onUpdateQuestion={onUpdateQuestion}
           onDeleteQuestion={(id) => {
@@ -228,7 +237,11 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
             closeQuestion();
           }}
           onAddDraft={onAddDraft}
+          onUpdateDraft={onUpdateDraft}
           onAddPractice={onAddPractice}
+          onUpdatePractice={onUpdatePractice}
+          onOpenWork={onOpenWork}
+          onOpenPractice={onOpenPractice}
           onFormPositionFromInquiry={onFormPositionFromInquiry}
           onAiFeedback={(title, description, variant) => toast({ title, description, ...(variant ? { variant } : {}) })}
           routeOwned={focusedQuestionId === selected.id}
@@ -330,8 +343,9 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
           const conceptNames = question.conceptIds || sources.flatMap((item) => item.tags || []);
           const relatedBeliefs = vault.filter((entry) => (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => (question.sourceIds || []).includes(id)));
           const relatedDrafts = drafts.filter((draft) => (draft.questionIds || []).includes(question.id));
+          const relatedPractices = practices.filter((practice) => (practice.questionIds || []).includes(question.id));
           const inquiryType = inferInquiryType(question, conceptNames, sources);
-          const branches = investigationBranches(question, conceptNames, sources, relatedBeliefs, relatedDrafts);
+          const branches = investigationBranches(question, conceptNames, sources, relatedBeliefs, relatedDrafts, relatedPractices);
           const activeBranches = branches.filter((branch) => branch.state === 'active').length;
           const neededBranches = branches.filter((branch) => branch.state === 'needed').length;
           const diagnosticFlags = inquiryDiagnosticFlags(question);
@@ -527,7 +541,7 @@ function inferInquiryType(question: Question, concepts: string[], sources: Media
   return 'open';
 }
 
-function investigationBranches(question: Question, concepts: string[], sources: Media[], beliefs: VaultEntry[], drafts: Draft[]) {
+function investigationBranches(question: Question, concepts: string[], sources: Media[], beliefs: VaultEntry[], drafts: Draft[], practices: Practice[]) {
   const branches = [
     {
       label: 'Clarify',
@@ -546,8 +560,13 @@ function investigationBranches(question: Question, concepts: string[], sources: 
     },
     {
       label: 'Test',
+      state: practices.length ? 'active' : question.answer ? 'available' : 'needed',
+      detail: practices.length ? `${practices.length} linked practice${practices.length === 1 ? '' : 's'} testing this inquiry.` : 'Turn a prediction into a practice or observation.',
+    },
+    {
+      label: 'Expand',
       state: drafts.length ? 'active' : question.answer ? 'available' : 'needed',
-      detail: drafts.length ? `${drafts.length} linked work${drafts.length === 1 ? '' : 's'} developing or testing this inquiry.` : 'Turn a prediction or prompt into an editable test record.',
+      detail: drafts.length ? `${drafts.length} linked work${drafts.length === 1 ? '' : 's'} developing this inquiry.` : 'Develop the inquiry as writing, a note, drawing, or recording.',
     },
   ];
   if (question.answer) {
@@ -564,7 +583,7 @@ function branchStatus(label: string): Question['status'] {
   if (label === 'Clarify') return 'clarifying';
   if (label === 'Investigate') return 'gathering_evidence';
   if (label === 'Compare') return 'comparing_answers';
-  if (label === 'Test') return 'partially_answered';
+  if (label === 'Test' || label === 'Expand') return 'investigating';
   if (label === 'Resolution Review') return 'partially_answered';
   return 'investigating';
 }
@@ -574,21 +593,29 @@ function branchNextStep(label: string) {
   if (label === 'Investigate') return 'Add one evidence record and separate direction from reliability.';
   if (label === 'Compare') return 'Put candidate answers beside each other and name the real difference.';
   if (label === 'Test') return 'Design one action, observation, conversation, or research test.';
+  if (label === 'Expand') return 'Develop this inquiry in a linked Work without treating the Work as a test.';
   if (label === 'Resolution Review') return 'Decide whether the answer should be provisional, suspended, transformed, or resolved.';
   return 'Choose the next concrete investigation move.';
 }
 
-function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onDeleteQuestion, onAddDraft, onAddPractice, onFormPositionFromInquiry, onAiFeedback, routeOwned = false, initialSection = 'investigation' }: {
+function QuestionDetail({ question, sources, concepts, beliefs, drafts, practices, availableDrafts, availablePractices, onBack, onUpdateQuestion, onDeleteQuestion, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, onAiFeedback, routeOwned = false, initialSection = 'investigation' }: {
   question: Question;
   sources: Media[];
   concepts: string[];
   beliefs: VaultEntry[];
   drafts: Draft[];
+  practices: Practice[];
+  availableDrafts: Draft[];
+  availablePractices: Practice[];
   onBack: () => void;
   onUpdateQuestion: (question: Question) => void;
   onDeleteQuestion: (id: string) => void;
-  onAddDraft: (data: Partial<Draft>) => void;
-  onAddPractice: (data: Partial<Practice>) => void;
+  onAddDraft: (data: Partial<Draft>) => Draft;
+  onUpdateDraft: (draft: Draft) => void;
+  onAddPractice: (data: Partial<Practice>) => Practice;
+  onUpdatePractice: (practice: Practice) => void;
+  onOpenWork: (id: string) => void;
+  onOpenPractice: (id: string) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   onAiFeedback: (title: string, description: string, variant?: 'default' | 'destructive') => void;
   routeOwned?: boolean;
@@ -605,6 +632,8 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   const [positionDraft, setPositionDraft] = useState<{ title: string; statement: string; description: string; confidence: number } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedBranchLabel, setSelectedBranchLabel] = useState('');
+  const [existingPracticeId, setExistingPracticeId] = useState('');
+  const [existingWorkId, setExistingWorkId] = useState('');
   const [investigationDraft, setInvestigationDraft] = useState({
     whyItMatters: question.whyItMatters || '',
     currentIntuition: question.currentIntuition || '',
@@ -633,7 +662,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
     setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
   }, [question.id, question.whyItMatters, question.currentIntuition, question.assumptions, question.resolutionSummary]);
   const inquiryType = inferInquiryType(question, concepts, sources);
-  const branches = investigationBranches(question, concepts, sources, beliefs, drafts);
+  const branches = investigationBranches(question, concepts, sources, beliefs, drafts, practices);
   const selectedBranch = branches.find((branch) => branch.label === selectedBranchLabel) || null;
   const evidenceLanes = [
     {
@@ -799,7 +828,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       return;
     }
     const title = testDraft.title.trim() || `Test for: ${question.text.slice(0, 60)}`;
-    onAddPractice({
+    const created = onAddPractice({
       title,
       description: `A test created from the inquiry: ${question.text}`,
       type: testDraft.method.trim().toLowerCase().includes('repeat') ? 'observation' : 'experiment',
@@ -816,9 +845,47 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       positionIds: beliefs.map((belief) => belief.id),
       notes: testDraft.reviewDate.trim() ? `Review date: ${testDraft.reviewDate.trim()}` : '',
     });
-    onUpdateQuestion({ ...question, status: question.status === 'captured' ? 'investigating' : question.status, dateUpdated: today() });
+    onUpdateQuestion({
+      ...question,
+      practiceIds: [...new Set([...(question.practiceIds || []), created.id])],
+      status: question.status === 'captured' ? 'investigating' : question.status,
+      dateUpdated: today(),
+    });
     setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
     onAiFeedback('Test created.', 'A linked practice was created so the inquiry can be tested through action or observation.');
+  };
+
+  const linkExistingPractice = () => {
+    const practice = availablePractices.find((item) => item.id === existingPracticeId);
+    if (!practice) return;
+    onUpdatePractice({ ...practice, questionIds: [...new Set([...(practice.questionIds || []), question.id])], dateUpdated: today() });
+    onUpdateQuestion({ ...question, practiceIds: [...new Set([...(question.practiceIds || []), practice.id])], dateUpdated: today() });
+    setExistingPracticeId('');
+    onAiFeedback('Practice linked.', `"${practice.title}" now tests this inquiry.`);
+  };
+
+  const createExpandedWork = () => {
+    const created = onAddDraft({
+      title: `Exploring: ${question.text.slice(0, 72)}`,
+      type: 'essay',
+      status: 'seed',
+      body: question.answer?.trim() || question.currentIntuition?.trim() || question.text,
+      questionIds: [question.id],
+      sourceIds: sources.map((source) => source.id),
+      beliefIds: beliefs.map((belief) => belief.id),
+      conceptTags: concepts,
+    });
+    onUpdateQuestion({ ...question, draftIds: [...new Set([...(question.draftIds || []), created.id])], dateUpdated: today() });
+    onOpenWork(created.id);
+  };
+
+  const linkExistingWork = () => {
+    const work = availableDrafts.find((item) => item.id === existingWorkId);
+    if (!work) return;
+    onUpdateDraft({ ...work, questionIds: [...new Set([...(work.questionIds || []), question.id])] });
+    onUpdateQuestion({ ...question, draftIds: [...new Set([...(question.draftIds || []), work.id])], dateUpdated: today() });
+    setExistingWorkId('');
+    onAiFeedback('Work linked.', `"${work.title}" now develops this inquiry.`);
   };
 
   const updateInvestigationStatus = (status: Question['status']) => {
@@ -1114,7 +1181,35 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                     <Label className="readex-kicker">Result, if known</Label>
                     <Textarea value={testDraft.result} onChange={(event) => setTestDraft((prev) => ({ ...prev, result: event.target.value }))} placeholder="What happened, and what changed afterward?" className="min-h-[82px]" />
                   </div>
-                  <div className="lg:col-span-2 flex justify-end"><Button onClick={createTestRecord} className="rounded-full px-5">Turn Into Test</Button></div>
+                  <div className="lg:col-span-2 flex flex-wrap justify-end gap-2"><Button onClick={createTestRecord} className="rounded-full px-5">Create Practice Test</Button></div>
+                  <div className="lg:col-span-2 rounded-xl border border-border/50 bg-background/70 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Select value={existingPracticeId} onValueChange={setExistingPracticeId}>
+                        <SelectTrigger className="flex-1"><SelectValue placeholder="Link an existing practice" /></SelectTrigger>
+                        <SelectContent>
+                          {availablePractices.filter((item) => !(item.questionIds || []).includes(question.id)).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Button variant="outline" onClick={linkExistingPractice} disabled={!existingPracticeId}>Link Practice</Button>
+                    </div>
+                    {!!practices.length && <div className="mt-3 flex flex-wrap gap-2">{practices.map((practice) => <Button key={practice.id} variant="ghost" size="sm" onClick={() => onOpenPractice(practice.id)}>Open: {practice.title}</Button>)}</div>}
+                  </div>
+                </div>
+              )}
+              {selectedBranch?.label === 'Expand' && (
+                <div className="space-y-3">
+                  <p className="text-sm leading-6 text-muted-foreground">Develop this inquiry as a creative Work. The inquiry remains open until you write and save an answer here.</p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button onClick={createExpandedWork}>Create Work</Button>
+                    <Select value={existingWorkId} onValueChange={setExistingWorkId}>
+                      <SelectTrigger className="flex-1"><SelectValue placeholder="Link an existing work" /></SelectTrigger>
+                      <SelectContent>
+                        {availableDrafts.filter((item) => !(item.questionIds || []).includes(question.id)).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" onClick={linkExistingWork} disabled={!existingWorkId}>Link Work</Button>
+                  </div>
+                  {!!drafts.length && <div className="flex flex-wrap gap-2">{drafts.map((work) => <Button key={work.id} variant="ghost" size="sm" onClick={() => onOpenWork(work.id)}>Open: {work.title}</Button>)}</div>}
                 </div>
               )}
             </div>

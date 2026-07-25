@@ -22,8 +22,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { AtlasDevelopmentView } from '@/components/Atlas/AtlasDevelopmentView';
-import { AtlasPathView } from '@/components/Atlas/AtlasPathView';
+import { AtlasConnectionsView } from '@/components/Atlas/AtlasConnectionsView';
+import { AtlasReviewQueue } from '@/components/Atlas/AtlasReviewQueue';
 import { AtlasTerritoryView } from '@/components/Atlas/AtlasTerritoryView';
 import { AtlasTensionsBoard } from '@/components/Atlas/AtlasTensionsBoard';
 import { SourceLinker } from '@/components/SourceLinker';
@@ -52,11 +52,11 @@ import type {
 } from '@/lib/types';
 import { conceptKey, conceptRelated, taggedItemsForConcept, today, uid as makeId } from '@/lib/readex';
 import { cn } from '@/lib/utils';
-import { deleteObject, getDownloadURL, getStorage, ref as storageRef, uploadBytes } from 'firebase/storage';
+import { deleteObject, getStorage, ref as storageRef } from 'firebase/storage';
+import { uploadPrivateAsset } from '@/lib/storage-assets';
+import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 import {
   AtlasSection,
-  deriveAtlasDevelopmentView,
-  deriveAtlasPathView,
   deriveAtlasRegions,
   deriveAtlasSystemTensions,
   deriveAtlasTerritoryView,
@@ -78,6 +78,7 @@ interface ConceptAtlasProps {
   onAddConcept: (data: Partial<Concept>) => void;
   onUpdateConcept: (concept: Concept) => void;
   onCreateLink?: (data: Partial<PhilosophicalLink>) => void;
+  onUpdateLink?: (link: PhilosophicalLink) => void;
   onAddAtlasMap: (data: Partial<AtlasMap>) => void;
   onUpdateAtlasMap: (map: AtlasMap) => void;
   onDeleteAtlasMap: (id: string) => void;
@@ -280,6 +281,7 @@ export function ConceptAtlas({
   onAddConcept,
   onUpdateConcept,
   onCreateLink,
+  onUpdateLink,
   onAddAtlasMap,
   onUpdateAtlasMap,
   onDeleteAtlasMap,
@@ -295,7 +297,7 @@ export function ConceptAtlas({
   const [zoom, setZoom] = useState(ATLAS_BASE_ZOOM);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
-  const [atlasSection, setAtlasSection] = useState<AtlasSection>('territory');
+  const [atlasSection, setAtlasSection] = useState<AtlasSection>('map');
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
   const [linkSearch, setLinkSearch] = useState('');
@@ -377,6 +379,14 @@ export function ConceptAtlas({
     () => normalizeAtlasMapStyle(activeMap?.style),
     [activeMap?.style]
   );
+  const { url: activeBackgroundUrl } = usePrivateAssetUrl(
+    activeMapStyle.background.storagePath,
+    activeMapStyle.background.imageUrl || '',
+  );
+  const { url: draftBackgroundUrl } = usePrivateAssetUrl(
+    styleDraft.background.storagePath,
+    styleDraft.background.imageUrl || '',
+  );
   const selectedConcept = concepts.find((item) => conceptKey(item.name) === conceptKey(selectedName || ''));
   const related = selectedName ? conceptRelated(selectedName, { media, insights, vault, drafts, practices, questions, timeline }) : null;
   const relatedUnknowns = useMemo(() => {
@@ -405,14 +415,15 @@ export function ConceptAtlas({
     () => deriveAtlasSystemTensions({ regions: atlasRegions, concepts, vault, practices, links }),
     [atlasRegions, concepts, vault, practices, links]
   );
-  const atlasDevelopmentBuckets = useMemo(
-    () => deriveAtlasDevelopmentView(atlasRegions),
-    [atlasRegions]
-  );
-  const atlasPathRecommendations = useMemo(
-    () => deriveAtlasPathView(atlasRegions),
-    [atlasRegions]
-  );
+  const atlasKnownIds = useMemo(() => ({
+    concept: new Set(concepts.map((item) => item.id)),
+    position: new Set(vault.map((item) => item.id)),
+    inquiry: new Set(questions.map((item) => item.id)),
+    source: new Set(media.map((item) => item.id)),
+    annotation: new Set(media.flatMap((item) => (item.annotations || []).map((annotation) => annotation.id))),
+    work: new Set(drafts.map((item) => item.id)),
+    practice: new Set(practices.map((item) => item.id)),
+  }), [concepts, drafts, media, practices, questions, vault]);
   const selectedRegion = useMemo(
     () => atlasRegions.find((region) => region.id === selectedRegionId) || atlasRegions[0] || null,
     [atlasRegions, selectedRegionId]
@@ -422,17 +433,13 @@ export function ConceptAtlas({
       label: 'Regions',
       description: 'Inspect auto-organized regions without confusing them with concepts or positions you created.',
     },
-    tensions: {
+    connections: {
       label: 'Connections',
-      description: 'Review cross-region tensions, typed relationships, and structural pressure across the Atlas.',
+      description: 'Inspect typed relationships, cross-region tensions, and structural pressure across the Atlas.',
     },
-    development: {
+    review: {
       label: 'Review',
-      description: 'Review provisional, underdeveloped, stale, or under-tested regions before treating organization as settled.',
-    },
-    path: {
-      label: 'Path View',
-      description: 'Follow the strongest deterministic next routes through the current map of thought.',
+      description: 'Review provisional, underdeveloped, stale, or under-tested organization before treating it as settled.',
     },
     map: {
       label: 'Map View',
@@ -2055,8 +2062,8 @@ export function ConceptAtlas({
       return base;
     }
 
-    if (background.type === 'uploaded' && background.imageUrl) {
-      base.backgroundImage = `url(${background.imageUrl})`;
+    if (background.type === 'uploaded' && activeBackgroundUrl) {
+      base.backgroundImage = `url(${activeBackgroundUrl})`;
       base.backgroundSize = 'cover';
       base.backgroundPosition = 'center';
       return base;
@@ -2078,7 +2085,7 @@ export function ConceptAtlas({
     }
 
     return base;
-  }, [activeMapStyle.background, mode]);
+  }, [activeBackgroundUrl, activeMapStyle.background, mode]);
 
   const customMapBackgroundOverlayStyle = useMemo<React.CSSProperties>(() => {
     if (mode !== 'custom') return {};
@@ -2113,7 +2120,11 @@ export function ConceptAtlas({
 
   const saveMapStyle = () => {
     if (!activeMap) return;
-    updateActiveMap({ style: styleDraft });
+    updateActiveMap({
+      style: styleDraft.background.storagePath
+        ? { ...styleDraft, background: { ...styleDraft.background, imageUrl: '' } }
+        : styleDraft,
+    });
     setIsStyleOpen(false);
   };
 
@@ -2160,20 +2171,20 @@ export function ConceptAtlas({
     if (!file || !activeMap || !uid) return;
     setIsUploadingBackground(true);
     try {
-      const { firebaseApp } = initializeFirebase();
-      const storage = getStorage(firebaseApp);
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
-      const path = `users/${uid}/atlasMaps/${activeMap.id}/background-${Date.now()}-${safeName}`;
-      const fileRef = storageRef(storage, path);
-      await uploadBytes(fileRef, file, { contentType: file.type || 'image/png' });
-      const imageUrl = await getDownloadURL(fileRef);
+      const asset = await uploadPrivateAsset({
+        uid,
+        area: 'atlasMaps',
+        entityId: activeMap.id,
+        blob: file,
+        originalName: file.name,
+      });
       setStyleDraft((prev) => ({
         ...prev,
         background: {
           ...prev.background,
           type: 'uploaded',
-          imageUrl,
-          storagePath: path,
+          imageUrl: '',
+          storagePath: asset.storagePath,
           opacity: prev.background.opacity ?? 0.58,
           blur: prev.background.blur ?? 0,
         },
@@ -2237,28 +2248,15 @@ export function ConceptAtlas({
           {([
             ['map', 'Map'],
             ['territory', 'Regions'],
-            ['tensions', 'Connections'],
-            ['custom', 'Custom Maps'],
-            ['development', 'Review'],
+            ['connections', 'Connections'],
+            ['review', 'Review'],
           ] as const).map(([section, label]) => (
             <Button
               key={section}
-              variant={
-                section === 'custom'
-                  ? atlasSection === 'map' && mode === 'custom' ? 'default' : 'outline'
-                  : section === 'map'
-                    ? atlasSection === 'map' && mode === 'auto' ? 'default' : 'outline'
-                    : atlasSection === section ? 'default' : 'outline'
-              }
+              variant={atlasSection === section ? 'default' : 'outline'}
               size="sm"
               className="h-8 rounded-full"
               onClick={() => {
-                if (section === 'custom') {
-                  setMode('custom');
-                  setAtlasSection('map');
-                  return;
-                }
-                if (section === 'map') setMode('auto');
                 setAtlasSection(section);
               }}
             >
@@ -2420,27 +2418,21 @@ export function ConceptAtlas({
               onOpenConcept={openConceptInGraph}
             />
           )}
-          {atlasSection === 'tensions' && (
-            <AtlasTensionsBoard
-              tensions={atlasSystemTensions}
-              onOpenRegion={openRegionWorkspace}
-            />
+          {atlasSection === 'connections' && (
+            <div className="space-y-5">
+              <AtlasConnectionsView links={links} onUpdateLink={onUpdateLink} onDeleteLink={onDeleteLink} />
+              <AtlasTensionsBoard tensions={atlasSystemTensions} onOpenRegion={openRegionWorkspace} />
+            </div>
           )}
-          {atlasSection === 'development' && (
-            <AtlasDevelopmentView
-              buckets={atlasDevelopmentBuckets}
-              onOpenRegion={openRegionWorkspace}
-            />
-          )}
-          {atlasSection === 'path' && (
-            <AtlasPathView
-              recommendations={atlasPathRecommendations}
-              onOpenRegion={openRegionWorkspace}
-              onOpenPosition={onOpenPosition}
-              onOpenQuestion={onOpenQuestion}
-              onOpenSource={onOpenSource}
-              onOpenWriting={onOpenWriting}
-              onOpenPractices={onOpenPractices}
+          {atlasSection === 'review' && (
+            <AtlasReviewQueue
+              concepts={concepts}
+              regions={atlasRegions}
+              links={links}
+              knownIds={atlasKnownIds}
+              onUpdateConcept={onUpdateConcept}
+              onUpdateLink={onUpdateLink}
+              onDeleteLink={onDeleteLink}
             />
           )}
         </div>
@@ -3202,7 +3194,7 @@ export function ConceptAtlas({
                     <input
                       ref={backgroundInputRef}
                       type="file"
-                      accept="image/png,image/jpeg,image/webp,image/avif"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
                       className="hidden"
                       onChange={(event) => handleBackgroundUpload(event.target.files?.[0] || null)}
                     />
@@ -3221,29 +3213,18 @@ export function ConceptAtlas({
                         variant="ghost"
                         className="rounded-full text-destructive hover:text-destructive"
                         onClick={clearUploadedBackground}
-                        disabled={!styleDraft.background.imageUrl}
+                        disabled={!styleDraft.background.imageUrl && !styleDraft.background.storagePath}
                       >
                         Remove Background
                       </Button>
                     </div>
                     {!uid && <p className="text-xs italic text-muted-foreground">Background upload becomes available once this workspace has a user id.</p>}
-                    {styleDraft.background.imageUrl && (
+                    {draftBackgroundUrl && (
                       <div className="space-y-2">
                         <div className="overflow-hidden rounded-xl border border-border/60">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={styleDraft.background.imageUrl} alt="Map background preview" className="h-32 w-full object-cover" />
+                          <img src={draftBackgroundUrl} alt="Map background preview" className="h-32 w-full object-cover" />
                         </div>
-                        <Input
-                          value={styleDraft.background.imageUrl}
-                          onChange={(event) => setStyleDraft((prev) => ({
-                            ...prev,
-                            background: {
-                              ...prev.background,
-                              imageUrl: event.target.value,
-                            },
-                          }))}
-                          className="rounded-full"
-                        />
                       </div>
                     )}
                   </div>

@@ -69,13 +69,6 @@ type PulseObservation = HomeTarget & {
   tone: 'pressure' | 'balance' | 'movement';
 };
 
-type RecentlyOpenedItem = HomeTarget & {
-  id: string;
-  label: string;
-  meta: string;
-  openedAt: string;
-};
-
 const HOME_MODES: Array<{ id: HomeMode; label: string; description: string }> = [
   { id: 'continue', label: 'Continue', description: 'Return to the strongest next action.' },
   { id: 'challenge', label: 'Challenge Me', description: 'Find claims that need opposition.' },
@@ -163,15 +156,6 @@ export function ThinkingDesk({
   onCreateInquiry,
 }: ThinkingDeskProps) {
   const [mode, setMode] = useState<HomeMode>('continue');
-  const [recentActivityMode, setRecentActivityMode] = useState<'edited' | 'opened'>('edited');
-  const [recentlyOpened, setRecentlyOpened] = useState<RecentlyOpenedItem[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      return JSON.parse(window.localStorage.getItem('noesis:home-recently-opened') || '[]') as RecentlyOpenedItem[];
-    } catch {
-      return [];
-    }
-  });
   const [provocationAngle, setProvocationAngle] = useState(0);
   const [briefAnswer, setBriefAnswer] = useState('');
   const [irrelevantReason, setIrrelevantReason] = useState('');
@@ -619,21 +603,6 @@ export function ThinkingDesk({
       stage?: 'Encounter' | 'Capture' | 'Interpret' | 'Question' | 'Judge' | 'Express' | 'Test' | 'Revise' | 'Understand' | 'Navigate' | 'Configure';
     }
   ) => {
-    if (target.targetId) {
-      const opened: RecentlyOpenedItem = {
-        id: `${target.view}:${target.targetId}`,
-        view: target.view,
-        targetId: target.targetId,
-        label: fallback?.label || 'Open item',
-        meta: fallback?.description || target.view,
-        openedAt: new Date().toISOString(),
-      };
-      setRecentlyOpened((current) => {
-        const next = [opened, ...current.filter((item) => item.id !== opened.id)].slice(0, 8);
-        window.localStorage.setItem('noesis:home-recently-opened', JSON.stringify(next));
-        return next;
-      });
-    }
     if (!target.targetId) {
       onNavigate(target);
       return;
@@ -890,61 +859,6 @@ export function ThinkingDesk({
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
           <section className="space-y-5">
-            <Card className="rounded-2xl border-border bg-card p-4 md:p-5">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Recent Activity</div>
-                  <h2 className="mt-1 font-headline text-2xl font-semibold italic text-foreground/85">Return to what is moving.</h2>
-                </div>
-                <div className="inline-flex rounded-full border border-border bg-background/70 p-1">
-                  {([
-                    { id: 'edited', label: 'Recently Edited' },
-                    { id: 'opened', label: 'Recently Opened' },
-                  ] as const).map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setRecentActivityMode(item.id)}
-                      className={`rounded-full px-3 py-1.5 font-code text-[9px] uppercase tracking-[0.14em] transition-colors ${
-                        recentActivityMode === item.id ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                {recentActivityMode === 'edited' ? recentMovement.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    disabled={!item.target}
-                    onClick={() => item.target && previewOrNavigate(item.target, { label: item.title, description: item.meta })}
-                    className="rounded-xl border border-border bg-background/70 p-3 text-left transition-colors enabled:hover:border-accent/40 enabled:hover:bg-accent/5"
-                  >
-                    <div className="line-clamp-2 text-sm font-medium text-foreground">{item.title}</div>
-                    <div className="mt-2 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{item.meta}</div>
-                  </button>
-                )) : recentlyOpened.slice(0, 3).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => previewOrNavigate(item, { label: item.label, description: item.meta })}
-                    className="rounded-xl border border-border bg-background/70 p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
-                  >
-                    <div className="line-clamp-2 text-sm font-medium text-foreground">{item.label}</div>
-                    <div className="mt-2 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{item.meta}</div>
-                  </button>
-                ))}
-              </div>
-              {((recentActivityMode === 'edited' && !recentMovement.length) || (recentActivityMode === 'opened' && !recentlyOpened.length)) && (
-                <p className="rounded-xl border border-dashed border-border bg-background/60 p-4 text-sm text-muted-foreground">
-                  {recentActivityMode === 'edited' ? 'Meaningful edits will appear here as your workspace changes.' : 'Open an item and it will be easy to return to from here.'}
-                </p>
-              )}
-            </Card>
-
           <Card className="rounded-2xl border-border bg-card p-5">
             <div className="flex items-start gap-4">
               <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
