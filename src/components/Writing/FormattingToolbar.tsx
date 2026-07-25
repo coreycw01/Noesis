@@ -8,6 +8,9 @@ import {
   AlignRight,
   Bold,
   ChartColumn,
+  CaseUpper,
+  Code2,
+  FileSearch,
   Highlighter,
   ImagePlus,
   IndentDecrease,
@@ -15,6 +18,7 @@ import {
   Italic,
   List,
   ListOrdered,
+  Link,
   Mic,
   Palette,
   Pilcrow,
@@ -22,8 +26,12 @@ import {
   RotateCw,
   Smile,
   Strikethrough,
+  Subscript,
+  Superscript,
+  Table2,
   Type,
   Underline,
+  Unlink,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -66,6 +74,28 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
     const url = window.prompt('Paste an image URL to insert inline:');
     if (!url?.trim()) return;
     insertHtml(`<img src="${url.trim()}" alt="" style="max-width:100%; border-radius:12px; margin:16px 0;" />`);
+  };
+
+  const insertLink = () => {
+    const url = window.prompt('Paste a link URL:');
+    if (!url?.trim()) return;
+    applyFormat('createLink', url.trim());
+  };
+
+  const insertTable = () => {
+    const rows = Math.min(12, Math.max(1, Number(window.prompt('Rows:', '3')) || 3));
+    const columns = Math.min(8, Math.max(1, Number(window.prompt('Columns:', '3')) || 3));
+    const body = Array.from({ length: rows }, () =>
+      `<tr>${Array.from({ length: columns }, () => '<td style="border:1px solid #cfc6bb;padding:8px;min-width:80px;"><br></td>').join('')}</tr>`
+    ).join('');
+    insertHtml(`<table style="width:100%;border-collapse:collapse;margin:16px 0;"><tbody>${body}</tbody></table><p><br></p>`);
+  };
+
+  const insertDivider = () => insertHtml('<hr style="border:0;border-top:1px solid currentColor;opacity:.25;margin:24px 0;"><p><br></p>');
+
+  const findInDocument = () => {
+    const query = window.prompt('Find in this work:');
+    if (query) (window as unknown as { find: (text: string) => boolean }).find(query);
   };
 
   const insertIcon = () => {
@@ -163,6 +193,13 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
           <ToolbarButton icon={Strikethrough} onClick={() => applyFormat('strikeThrough')} title="Strikethrough" />
         </div>
 
+        <div className="flex items-center gap-0.5 px-2 border-r border-border/40">
+          <ToolbarButton icon={Superscript} onClick={() => applyFormat('superscript')} title="Superscript" />
+          <ToolbarButton icon={Subscript} onClick={() => applyFormat('subscript')} title="Subscript" />
+          <ToolbarButton icon={CaseUpper} onClick={() => applyFormat('removeFormat')} title="Clear formatting" />
+          <ToolbarButton icon={Code2} onClick={() => applyFormat('formatBlock', 'PRE')} title="Code block" />
+        </div>
+
         <div className="flex items-center gap-2 px-2 border-r border-border/40">
           <ColorButton icon={Palette} value={textColor} onChange={(value) => { setTextColor(value); applyFormat('foreColor', value); }} title="Text color" />
           <ColorButton icon={Highlighter} value={highlightColor} onChange={(value) => { setHighlightColor(value); applyFormat('hiliteColor', value); applyFormat('backColor', value); }} title="Highlight color" />
@@ -183,9 +220,14 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
         </div>
 
         <div className="flex items-center gap-0.5 px-2">
+          <ToolbarButton icon={Link} onClick={insertLink} title="Add link" />
+          <ToolbarButton icon={Unlink} onClick={() => applyFormat('unlink')} title="Remove link" />
+          <ToolbarButton icon={Table2} onClick={insertTable} title="Insert table" />
           <ToolbarButton icon={ImagePlus} onClick={insertImage} title="Insert image" />
           <ToolbarButton icon={Smile} onClick={insertIcon} title="Insert icon" />
           <ToolbarButton icon={ChartColumn} onClick={insertChart} title="Insert chart" />
+          <ToolbarButton icon={Pilcrow} onClick={insertDivider} title="Insert divider" />
+          <ToolbarButton icon={FileSearch} onClick={findInDocument} title="Find in document" />
           <ToolbarButton icon={Mic} onClick={toggleTalkToText} active={listening} title="Talk to Text" />
         </div>
       </div>

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Camera,
   ChevronLeft,
+  Circle,
   CirclePause,
   CirclePlay,
   Cloud,
@@ -12,12 +13,17 @@ import {
   ExternalLink,
   FileText,
   ImageIcon,
+  Grid3X3,
+  History,
   Link2,
   Mic,
+  Minus,
+  MoveUpRight,
   NotebookPen,
   PencilLine,
   PenTool,
   Plus,
+  Printer,
   RefreshCw,
   Redo2,
   Save,
@@ -282,6 +288,7 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
   const [isWorkTypeOpen, setIsWorkTypeOpen] = useState(false);
   const [isNoteTypeOpen, setIsNoteTypeOpen] = useState(false);
   const [isDocOpen, setIsDocOpen] = useState(false);
+  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
   const [docDraft, setDocDraft] = useState({ title: '', url: '', provider: 'google_docs' as ExternalDocProvider, autoSync: true });
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [draftBuffer, setDraftBuffer] = useState<Draft | null>(null);
@@ -403,14 +410,32 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
 
   const saveActive = useCallback((patch?: Partial<Draft>) => {
     if (!active) return null;
-    const nextDraft = { ...active, ...patch, dateUpdated: today() };
+    const patched = { ...active, ...patch };
+    const priorVersions = active.versionHistory || [];
+    const latest = priorVersions[priorVersions.length - 1];
+    const shouldSnapshot = dirty && (!latest || latest.body !== patched.body || latest.title !== patched.title);
+    const nextDraft = {
+      ...patched,
+      dateUpdated: today(),
+      versionHistory: shouldSnapshot
+        ? [...priorVersions, {
+            id: `revision-${Date.now()}`,
+            title: patched.title,
+            body: patched.body,
+            draftContent: patched.draftContent,
+            finalContent: patched.finalContent,
+            activeMode: patched.activeMode,
+            createdAt: new Date().toISOString(),
+          }].slice(-50)
+        : priorVersions,
+    };
     setDraftBuffer(nextDraft);
     setSaveStatus('saving');
     onUpdateDraft(nextDraft);
     setDirty(false);
     window.setTimeout(() => setSaveStatus('saved'), 600);
     return nextDraft;
-  }, [active, onUpdateDraft]);
+  }, [active, dirty, onUpdateDraft]);
 
   const handleUpdateContent = useCallback((newContent: string) => {
     const clean = sanitizeHtml(newContent);
@@ -710,6 +735,16 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
                   <Save className="size-4 mr-2" /> {dirty ? 'Save*' : 'Save'}
                 </Button>
                 {activeCategory === 'writing' && (
+                  <Button variant="outline" size="sm" onClick={() => setIsVersionHistoryOpen(true)} className="h-9 px-3 rounded-full font-bold shadow-sm bg-card border-border/60" title="Version history">
+                    <History className="size-4" /><span className="ml-2 hidden xl:inline">Versions</span>
+                  </Button>
+                )}
+                {activeCategory === 'writing' && (
+                  <Button variant="outline" size="sm" onClick={() => window.print()} className="h-9 px-3 rounded-full font-bold shadow-sm bg-card border-border/60" title="Print">
+                    <Printer className="size-4" />
+                  </Button>
+                )}
+                {activeCategory === 'writing' && (
                   <Button variant="outline" size="sm" onClick={exportManuscript} className="h-9 px-4 rounded-full font-bold shadow-sm bg-card border-border/60">
                     <Download className="size-4 mr-2" /> Export
                   </Button>
@@ -904,6 +939,48 @@ export function Atelier({ drafts, media, vault, questions, concepts, writingDefa
             onConnect={connectExternalDoc}
           />
         )}
+        <Dialog open={isVersionHistoryOpen} onOpenChange={setIsVersionHistoryOpen}>
+          <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto rounded-2xl border-border bg-card">
+            <DialogHeader>
+              <DialogTitle className="font-headline text-3xl italic">Version history</DialogTitle>
+              <p className="text-sm text-muted-foreground">Explicit saves preserve up to the latest 50 document versions.</p>
+            </DialogHeader>
+            <div className="space-y-2 pt-2">
+              {(active.versionHistory || []).length ? [...(active.versionHistory || [])].reverse().map((revision) => (
+                <div key={revision.id} className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-background p-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-headline text-lg font-bold italic">{revision.title || 'Untitled version'}</p>
+                    <p className="mt-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">
+                      {new Date(revision.createdAt).toLocaleString()} · {revision.body.replace(/<[^>]+>/g, ' ').trim().split(/\s+/).filter(Boolean).length} words
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 rounded-full bg-card"
+                    onClick={() => {
+                      updateActive({
+                        title: revision.title,
+                        body: revision.body,
+                        draftContent: revision.draftContent,
+                        finalContent: revision.finalContent,
+                        activeMode: revision.activeMode,
+                      });
+                      setIsVersionHistoryOpen(false);
+                      toast({ title: 'Version restored', description: 'Review the restored content, then save to keep it.' });
+                    }}
+                  >
+                    Restore
+                  </Button>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                  Save an edited work to create its first restorable version.
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
         <ConfirmActionDialog
           open={Boolean(deleteTarget)}
           onOpenChange={(open) => {
@@ -1628,6 +1705,48 @@ function RecordingStudio({
   );
 }
 
+function drawShape(
+  ctx: CanvasRenderingContext2D,
+  tool: DrawingTool,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  color: string,
+  width: number,
+  opacity: number,
+) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  ctx.save();
+  ctx.beginPath();
+  ctx.globalAlpha = opacity;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  if (tool === 'rectangle') {
+    ctx.strokeRect(start.x, start.y, dx, dy);
+  } else if (tool === 'ellipse') {
+    ctx.ellipse(start.x + dx / 2, start.y + dy / 2, Math.abs(dx / 2), Math.abs(dy / 2), 0, 0, Math.PI * 2);
+    ctx.stroke();
+  } else {
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+    if (tool === 'arrow') {
+      const angle = Math.atan2(dy, dx);
+      const head = Math.max(12, width * 3);
+      ctx.beginPath();
+      ctx.moveTo(end.x, end.y);
+      ctx.lineTo(end.x - head * Math.cos(angle - Math.PI / 6), end.y - head * Math.sin(angle - Math.PI / 6));
+      ctx.moveTo(end.x, end.y);
+      ctx.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6));
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function DrawingStudio({
   draft,
   updateActive,
@@ -1640,10 +1759,13 @@ function DrawingStudio({
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingRef = useRef(false);
+  const shapeBaseRef = useRef<ImageData | null>(null);
   const [tool, setTool] = useState<DrawingTool>('pen');
   const [color, setColor] = useState('#1f2937');
+  const [backgroundColor, setBackgroundColor] = useState(draft.drawingState?.background || '#ffffff');
   const [brushSize, setBrushSize] = useState(4);
   const [opacity, setOpacity] = useState(1);
+  const [showGrid, setShowGrid] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [canvasSize, setCanvasSize] = useState({ width: compact ? 720 : 1120, height: compact ? 420 : 680 });
@@ -1655,6 +1777,7 @@ function DrawingStudio({
     currentStrokeRef.current = null;
     setHistory([]);
     setHistoryIndex(-1);
+    setBackgroundColor(draft.drawingState?.background || '#ffffff');
   }, [draft.id]);
 
   const snapshot = useCallback(() => {
@@ -1706,7 +1829,7 @@ function DrawingStudio({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.scale(ratio, ratio);
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, width, height);
     if (draft.canvasData) {
       const image = new Image();
@@ -1715,7 +1838,7 @@ function DrawingStudio({
     } else {
       snapshot();
     }
-  }, [canvasSize.height, canvasSize.width, draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [backgroundColor, canvasSize.height, canvasSize.width, draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -1726,6 +1849,29 @@ function DrawingStudio({
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
     const point = getPoint(event);
+    if (tool === 'text') {
+      const text = window.prompt('Text to place on the canvas:');
+      if (!text?.trim()) return;
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.fillStyle = color;
+      ctx.font = `${Math.max(14, brushSize * 4)}px Georgia, serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillText(text.trim(), point.x, point.y);
+      ctx.restore();
+      strokesRef.current = [...strokesRef.current, {
+        id: `text-${Date.now()}`,
+        tool,
+        color,
+        opacity,
+        width: brushSize,
+        points: [point],
+        text: text.trim(),
+      }];
+      snapshot();
+      window.setTimeout(saveDrawing, 0);
+      return;
+    }
     drawingRef.current = true;
     event.currentTarget.setPointerCapture(event.pointerId);
     ctx.beginPath();
@@ -1736,6 +1882,9 @@ function DrawingStudio({
     ctx.strokeStyle = tool === 'eraser' ? '#ffffff' : color;
     ctx.globalAlpha = tool === 'marker' ? Math.min(opacity, 0.3) : tool === 'pencil' ? Math.min(opacity, 0.65) : opacity;
     ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+    if (['line', 'rectangle', 'ellipse', 'arrow'].includes(tool)) {
+      shapeBaseRef.current = ctx.getImageData(0, 0, event.currentTarget.width, event.currentTarget.height);
+    }
     currentStrokeRef.current = {
       id: `stroke-${Date.now()}`,
       tool,
@@ -1751,6 +1900,12 @@ function DrawingStudio({
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
     const point = getPoint(event);
+    if (currentStrokeRef.current && ['line', 'rectangle', 'ellipse', 'arrow'].includes(tool)) {
+      if (shapeBaseRef.current) ctx.putImageData(shapeBaseRef.current, 0, 0);
+      drawShape(ctx, tool, currentStrokeRef.current.points[0], point, color, brushSize, opacity);
+      currentStrokeRef.current.points = [currentStrokeRef.current.points[0], point];
+      return;
+    }
     ctx.lineTo(point.x, point.y);
     ctx.stroke();
     currentStrokeRef.current?.points.push(point);
@@ -1763,6 +1918,7 @@ function DrawingStudio({
       strokesRef.current = [...strokesRef.current, currentStrokeRef.current];
       currentStrokeRef.current = null;
     }
+    shapeBaseRef.current = null;
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) {
       ctx.globalAlpha = 1;
@@ -1793,7 +1949,7 @@ function DrawingStudio({
     if (!canvas || !ctx) return;
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, parseInt(canvas.style.width, 10), parseInt(canvas.style.height, 10));
     strokesRef.current = [];
     snapshot();
@@ -1807,45 +1963,101 @@ function DrawingStudio({
       version: 1,
       width: canvasSize.width,
       height: canvasSize.height,
-      background: '#ffffff',
+      background: backgroundColor,
       activeLayerId: 'layer-1',
       layers: [{ id: 'layer-1', name: 'Sketch', visible: true, strokes: strokesRef.current }],
     };
     updateActive({ canvasData: data, thumbnailUrl: data, drawingState });
   };
 
+  const exportDrawing = () => {
+    const data = canvasRef.current?.toDataURL('image/png');
+    if (!data) return;
+    const link = document.createElement('a');
+    link.href = data;
+    link.download = `${(draft.title || 'noesis-drawing').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`;
+    link.click();
+  };
+
+  const importDrawingImage = (file?: File) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (!canvas || !ctx) return;
+        const width = parseInt(canvas.style.width, 10);
+        const height = parseInt(canvas.style.height, 10);
+        const scale = Math.min(width / image.width, height / image.height, 1);
+        const drawWidth = image.width * scale;
+        const drawHeight = image.height * scale;
+        ctx.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+        snapshot();
+        window.setTimeout(saveDrawing, 0);
+      };
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="flex h-full w-full flex-col gap-3 overflow-hidden bg-background p-3 sm:p-4">
-      <Card className="rounded-2xl border-border bg-card p-3 shadow-sm sm:p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <Card className="rounded-xl border-border bg-card p-2 shadow-sm sm:p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-headline text-xl font-bold italic">{compact ? 'Quick Drawing Note' : 'Drawing Studio'}</h2>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
               {compact ? 'A lightweight sketch space for capturing visual ideas fast.' : 'A full visual thinking workspace for diagrams, sketches, and concept maps.'}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center gap-1.5">
             {([
               ['pen', 'Pen', PenTool],
               ['pencil', 'Pencil', PencilLine],
               ['marker', 'Marker', PenTool],
               ['eraser', 'Erase', Eraser],
+              ['line', 'Line', Minus],
+              ['rectangle', 'Rectangle', Square],
+              ['ellipse', 'Ellipse', Circle],
+              ['arrow', 'Arrow', MoveUpRight],
+              ['text', 'Text', Type],
             ] as const).map(([value, label, Icon]) => (
-              <Button key={value} variant={tool === value ? 'default' : 'outline'} onClick={() => setTool(value)} className="rounded-full" title={label}>
-                <Icon className="mr-2 size-4" /> {label}
+              <Button key={value} variant={tool === value ? 'default' : 'outline'} size="sm" onClick={() => setTool(value)} className="h-9 rounded-lg px-2.5" title={label}>
+                <Icon className="size-4" /><span className="ml-1.5 hidden 2xl:inline">{label}</span>
               </Button>
             ))}
-            <input type="color" value={color} onChange={(event) => setColor(event.target.value)} className="h-10 w-12 rounded border border-border bg-background p-1" aria-label="Drawing color" />
-            <input type="range" min={1} max={24} value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} className="w-24" aria-label="Brush size" />
-            <input type="range" min={0.1} max={1} step={0.1} value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} className="w-20" aria-label="Brush opacity" />
-            <Button variant="outline" onClick={() => restoreHistory(Math.max(0, historyIndex - 1))} disabled={historyIndex <= 0} className="rounded-full bg-background">
+            <label className="flex h-9 items-center gap-1 rounded-lg border border-border bg-background px-2 text-[10px] font-bold uppercase text-muted-foreground" title="Stroke color">
+              Ink <input type="color" value={color} onChange={(event) => setColor(event.target.value)} className="h-6 w-7 cursor-pointer border-0 bg-transparent p-0" aria-label="Drawing color" />
+            </label>
+            <label className="flex h-9 items-center gap-1 rounded-lg border border-border bg-background px-2 text-[10px] font-bold uppercase text-muted-foreground" title="Canvas color">
+              Paper <input type="color" value={backgroundColor} onChange={(event) => setBackgroundColor(event.target.value)} className="h-6 w-7 cursor-pointer border-0 bg-transparent p-0" aria-label="Canvas background color" />
+            </label>
+            <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-2 text-[10px] font-bold uppercase text-muted-foreground">
+              Size <input type="range" min={1} max={36} value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} className="w-16" aria-label="Brush size" />
+            </label>
+            <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-2 text-[10px] font-bold uppercase text-muted-foreground">
+              Flow <input type="range" min={0.1} max={1} step={0.1} value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} className="w-14" aria-label="Brush opacity" />
+            </label>
+            <Button variant={showGrid ? 'default' : 'outline'} size="icon" onClick={() => setShowGrid((value) => !value)} className="size-9 rounded-lg" title="Toggle grid">
+              <Grid3X3 className="size-4" />
+            </Button>
+            <label className="flex size-9 cursor-pointer items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" title="Import image">
+              <ImageIcon className="size-4" />
+              <input type="file" accept="image/*" className="sr-only" onChange={(event) => importDrawingImage(event.target.files?.[0])} />
+            </label>
+            <Button variant="outline" size="icon" onClick={() => restoreHistory(Math.max(0, historyIndex - 1))} disabled={historyIndex <= 0} className="size-9 rounded-lg bg-background" title="Undo">
               <Undo2 className="size-4" />
             </Button>
-            <Button variant="outline" onClick={() => restoreHistory(Math.min(history.length - 1, historyIndex + 1))} disabled={historyIndex >= history.length - 1} className="rounded-full bg-background">
+            <Button variant="outline" size="icon" onClick={() => restoreHistory(Math.min(history.length - 1, historyIndex + 1))} disabled={historyIndex >= history.length - 1} className="size-9 rounded-lg bg-background" title="Redo">
               <Redo2 className="size-4" />
             </Button>
-            <Button variant="outline" onClick={clearCanvas} className="rounded-full bg-background">
-              <Square className="mr-2 size-4" /> Clear
+            <Button variant="outline" size="icon" onClick={exportDrawing} className="size-9 rounded-lg bg-background" title="Export PNG">
+              <Download className="size-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={clearCanvas} className="size-9 rounded-lg bg-background" title="Clear canvas">
+              <Trash2 className="size-4" />
             </Button>
           </div>
         </div>
@@ -1853,16 +2065,19 @@ function DrawingStudio({
 
       <div className={cn("grid min-h-0 flex-1 gap-3", compact ? "xl:grid-cols-[1fr_300px]" : "xl:grid-cols-[1fr_340px]")}>
         <div ref={viewportRef} className="min-h-[420px] overflow-hidden rounded-2xl border border-border bg-muted/10 p-3">
-            <canvas
-            ref={canvasRef}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerLeave={() => {
-              drawingRef.current = false;
-            }}
-            className="mx-auto block max-h-full max-w-full rounded-xl border border-border bg-card shadow-sm touch-none"
-          />
+          <div className="relative mx-auto w-fit max-w-full overflow-hidden rounded-xl shadow-sm">
+              <canvas
+              ref={canvasRef}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerLeave={() => {
+                drawingRef.current = false;
+              }}
+              className="block max-h-full max-w-full rounded-xl border border-border bg-card touch-none"
+            />
+            {showGrid && <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] [background-size:24px_24px]" />}
+          </div>
         </div>
         <Card className="min-h-0 overflow-y-auto rounded-2xl border-border bg-card p-4 shadow-sm">
           <div className="font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Drawing Notes</div>

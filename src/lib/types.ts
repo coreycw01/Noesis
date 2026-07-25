@@ -27,7 +27,7 @@ export type DraftStatus = 'idea' | 'rough' | 'seed' | 'drafting' | 'developing' 
 export type WorkCategory = 'writing' | 'notes' | 'drawing' | 'recording';
 export type WorkMode = 'draft' | 'final';
 export type WorkPurpose = 'explore' | 'explain' | 'persuade' | 'synthesize' | 'reflect' | 'document' | 'teach' | 'challenge' | 'imagine';
-export type DrawingTool = 'pen' | 'pencil' | 'marker' | 'eraser';
+export type DrawingTool = 'pen' | 'pencil' | 'marker' | 'eraser' | 'line' | 'rectangle' | 'ellipse' | 'arrow' | 'text';
 export interface DrawingStroke {
   id: string;
   tool: DrawingTool;
@@ -35,6 +35,7 @@ export interface DrawingStroke {
   opacity: number;
   width: number;
   points: Array<{ x: number; y: number }>;
+  text?: string;
 }
 export interface DrawingLayer {
   id: string;
@@ -353,6 +354,7 @@ export interface Draft {
   beliefIds: string[];
   dateCreated: string;
   dateUpdated: string;
+  versionHistory?: DraftRevision[];
 }
 
 export interface ExternalDraftDocument {
@@ -404,6 +406,16 @@ export interface Practice {
   logDates?: string[];
   dateCreated: string;
   dateUpdated: string;
+}
+
+export interface DraftRevision {
+  id: string;
+  title: string;
+  body: string;
+  draftContent?: string;
+  finalContent?: string;
+  activeMode?: WorkMode;
+  createdAt: string;
 }
 
 export interface PracticeLog {
