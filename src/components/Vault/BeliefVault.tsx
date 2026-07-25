@@ -85,20 +85,13 @@ const positionKinds: Array<{ id: PositionKind; label: string }> = [
 ];
 
 const positionStatuses: Array<{ id: PositionPhilosophyStatus | 'questioning'; label: string }> = [
-  { id: 'draft', label: 'Draft' },
-  { id: 'tentative', label: 'Tentative' },
   { id: 'developing', label: 'Developing' },
-  { id: 'defended', label: 'Defended' },
-  { id: 'active', label: 'Active' },
-  { id: 'contested', label: 'Contested' },
-  { id: 'unstable', label: 'Unstable' },
-  { id: 'questioning', label: 'Questioning' },
-  { id: 'suspended', label: 'Suspended' },
+  { id: 'active', label: 'Held' },
+  { id: 'contested', label: 'Under Review' },
   { id: 'revised', label: 'Revised' },
-  { id: 'split', label: 'Split' },
-  { id: 'abandoned', label: 'Abandoned' },
+  { id: 'suspended', label: 'Suspended' },
   { id: 'replaced', label: 'Replaced' },
-  { id: 'rejected', label: 'Rejected' },
+  { id: 'abandoned', label: 'Abandoned' },
 ];
 
 function splitLines(value?: string) {
@@ -123,6 +116,9 @@ function confidenceLabel(confidence = 3) {
 type PositionViewFilter =
   | 'all'
   | 'current'
+  | 'developing'
+  | 'retired'
+  | 'needs_attention'
   | 'emerging'
   | 'needs_evidence'
   | 'needs_opposition'
@@ -147,6 +143,9 @@ type StressStage = {
 const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
   all: 'All',
   current: 'Current',
+  developing: 'Developing',
+  retired: 'Retired',
+  needs_attention: 'Needs Attention',
   emerging: 'Emerging',
   needs_evidence: 'Needs Evidence',
   needs_opposition: 'Needs Opposition',
@@ -165,12 +164,10 @@ const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
 };
 
 const PRIMARY_POSITION_VIEW_FILTERS: PositionViewFilter[] = [
-  'all',
   'current',
-  'needs_evidence',
-  'needs_opposition',
-  'needs_practice',
-  'under_review',
+  'developing',
+  'retired',
+  'needs_attention',
 ];
 
 function safePosition(entry: VaultEntry): VaultEntry {
@@ -234,6 +231,9 @@ type PositionDiagnostic = {
   practiceCount: number;
   assumptionCount: number;
   daysSinceUpdate: number;
+  completeness: number;
+  recordedSupport: number;
+  readinessLabel: string;
   label: string;
   nextAction: string;
   flags: string[];
@@ -257,6 +257,7 @@ function positionFormation(entry: VaultEntry) {
     complete,
     total: checks.length,
     fullyFormed: complete === checks.length,
+    completeness: Math.round((complete / checks.length) * 100),
     missing: checks.filter((item) => !item.complete).map((item) => item.label),
   };
 }
@@ -278,8 +279,17 @@ function diagnosePosition(entry: VaultEntry, links: PhilosophicalLink[], practic
   const challengeCount = (entry.evidenceAgainst || []).length + challengeLinks;
   const practiceCount = practices.filter((practice) => (practice.positionIds || []).includes(entry.id)).length;
   const assumptionCount = (entry.assumptions || []).length;
+  const formation = positionFormation(entry);
   const updatedAge = daysSince(entry.dateUpdated || entry.dateCreated);
   const flags: string[] = [];
+  const evidenceDiversity = Math.min(new Set(entry.sourceIds || []).size, 4) * 5;
+  const supportQuality = Math.min((entry.evidenceFor || []).filter((item) => item.trim().length > 24).length, 3) * 8;
+  const challengePressure = Math.min(challengeCount, 3) * 8;
+  const challengeResponse = (entry.falsification || '').trim() ? 10 : 0;
+  const practiceSignal = Math.min(practiceCount, 2) * 6;
+  const claritySignal = Math.min(formation.completeness, 100) * 0.18;
+  const unansweredChallengePenalty = challengeCount > supportCount ? 12 : 0;
+  const recordedSupport = Math.max(0, Math.min(100, Math.round(evidenceDiversity + supportQuality + challengePressure + challengeResponse + practiceSignal + claritySignal - unansweredChallengePenalty)));
 
   if (supportCount === 0) flags.push('unsupported');
   if (challengeCount === 0) flags.push('under-challenged');
@@ -291,21 +301,27 @@ function diagnosePosition(entry: VaultEntry, links: PhilosophicalLink[], practic
 
   let label = 'balanced';
   let nextAction = 'Review the claim, then decide whether it should be tested, revised, or expressed.';
+  let readinessLabel = formation.missing.length ? `Developing · ${formation.missing.length} gaps` : 'Established';
   if (supportCount === 0) {
     label = 'needs evidence';
     nextAction = 'Add a source, annotation, or reason that directly supports the position.';
+    readinessLabel = 'Developing · needs support';
   } else if (challengeCount === 0 && (entry.confidence || 3) >= 4) {
     label = 'overconfident';
     nextAction = 'Add a serious objection before raising or keeping high confidence.';
+    readinessLabel = 'Needs challenge';
   } else if (challengeCount === 0) {
     label = 'under-challenged';
     nextAction = 'Write the strongest opposing case or link a challenging position.';
+    readinessLabel = 'Needs challenge';
   } else if (practiceCount === 0) {
     label = 'untested';
     nextAction = 'Create a practice or lived experiment that would test this position.';
+    readinessLabel = 'Ready to test';
   } else if (updatedAge > 90) {
     label = 'stale';
     nextAction = 'Revisit the wording, confidence, and evidence after a long quiet period.';
+    readinessLabel = 'Ready for review';
   } else if (assumptionCount === 0) {
     label = 'needs assumptions';
     nextAction = 'Name the assumptions this position depends on.';
@@ -320,6 +336,9 @@ function diagnosePosition(entry: VaultEntry, links: PhilosophicalLink[], practic
     practiceCount,
     assumptionCount,
     daysSinceUpdate: updatedAge,
+    completeness: formation.completeness,
+    recordedSupport,
+    readinessLabel,
     label,
     nextAction,
     flags,
@@ -514,7 +533,10 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     const recentCutoff = Date.now() - 1000 * 60 * 60 * 24 * 30;
     const viewOk =
       viewFilter === 'all' ||
-      (viewFilter === 'current' && ['active', 'tentative', 'developing', 'defended', 'draft', 'uncertain'].includes(e.status)) ||
+      (viewFilter === 'current' && ['active', 'defended', 'tentative'].includes(e.status)) ||
+      (viewFilter === 'developing' && (['draft', 'tentative', 'developing', 'uncertain'].includes(e.status) || diagnostic.completeness < 70)) ||
+      (viewFilter === 'retired' && ['abandoned', 'rejected', 'replaced', 'suspended', 'revised'].includes(e.status)) ||
+      (viewFilter === 'needs_attention' && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.recordedSupport < 45)) ||
       (viewFilter === 'emerging' && (['draft', 'tentative', 'developing'].includes(e.status) || e.confidence <= 2)) ||
       (viewFilter === 'needs_evidence' && !hasSupport) ||
       (viewFilter === 'needs_opposition' && !hasTension && !(e.evidenceAgainst || []).length) ||
@@ -543,6 +565,13 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     )).length;
     return {
       total: safeEntries.length,
+      current: safeEntries.filter((entry) => ['active', 'defended', 'tentative'].includes(entry.status)).length,
+      developing: safeEntries.filter((entry) => (positionDiagnostics.get(entry.id)?.completeness || 0) < 70 || ['draft', 'developing', 'uncertain'].includes(entry.status)).length,
+      retired: safeEntries.filter((entry) => ['abandoned', 'rejected', 'replaced', 'suspended', 'revised'].includes(entry.status)).length,
+      needsAttention: safeEntries.filter((entry) => {
+        const diagnostic = positionDiagnostics.get(entry.id);
+        return Boolean(diagnostic && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.recordedSupport < 45));
+      }).length,
       underReview: safeEntries.filter((entry) => ['challenged', 'uncertain', 'questioning', 'contested', 'unstable', 'suspended'].includes(entry.status)).length,
       unsupported: safeEntries.filter((entry) => !(entry.evidenceFor || []).length && !(entry.sourceIds || []).length).length,
       needsPractice: safeEntries.filter((entry) => positionDiagnostics.get(entry.id)?.flags.includes('untested')).length,
@@ -567,7 +596,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   ].filter(Boolean) as string[];
 
   const openEditor = (entry?: VaultEntry) => {
-    setDraftEntry(entry ? { ...entry } : { type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'tentative', positionKind: 'interpretive', tags: [], assumptions: [], consequences: [], applications: [] });
+    setDraftEntry(entry ? { ...entry } : { type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'developing', positionKind: 'interpretive', tags: [], assumptions: [], consequences: [], applications: [], evidenceFor: [], evidenceAgainst: [] });
     setEditorOpen(true);
   };
 
@@ -650,6 +679,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     const linkedUnknowns = unknowns.filter((item) => (item.positionIds || []).includes(selected.id));
     const positionSuggestions = suggestions.filter((item) => item.targetType === 'position' && item.targetId === selected.id);
     const formation = positionFormation(selected);
+    const diagnostic = positionDiagnostics.get(selected.id) || diagnosePosition(selected, links, practices);
     const firstLinkedSource = linkedSources[0];
     const strongestObjection = tensionLinks[0]?.note || selected.evidenceAgainst?.[0] || 'No direct objection has been articulated yet.';
     const strongestSupport = selected.evidenceFor?.[0] || linkedSources[0]?.title || 'No direct support has been recorded yet.';
@@ -976,7 +1006,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             <div className="mb-3 flex flex-wrap gap-2">
               <Badge variant="outline" className="font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
               <Badge variant="outline" className="font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.positionKind || 'interpretive').replace(/_/g, ' ')}</Badge>
-              <Badge variant="secondary" className="font-code uppercase rounded-full bg-accent/10 text-accent">{confidenceLabel(selected.confidence)} confidence</Badge>
+              <Badge variant="secondary" className="font-code uppercase rounded-full bg-accent/10 text-accent">personal confidence {selected.confidence}/5</Badge>
               <Badge
                 variant={formation.fullyFormed ? 'default' : 'outline'}
                 className={cn(
@@ -984,7 +1014,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                   formation.fullyFormed ? 'bg-emerald-600 text-white' : 'bg-amber-50 text-amber-900 border-amber-200'
                 )}
               >
-                {formation.fullyFormed ? 'Fully formed' : `Draft position ${formation.complete}/${formation.total}`}
+                {diagnostic.readinessLabel}
               </Badge>
             </div>
           <div className="flex flex-wrap items-start justify-between gap-5">
@@ -992,12 +1022,11 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               <h1 className="font-headline text-3xl font-bold leading-tight">{selected.title}</h1>
               <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>
             </div>
-            <div className="grid min-w-[260px] grid-cols-4 gap-2 rounded-xl border border-border/50 bg-muted/10 p-3 text-center">
+            <div className="grid min-w-[300px] grid-cols-3 gap-2 rounded-xl border border-border/50 bg-muted/10 p-3 text-center">
               {[
-                { label: 'Confidence', value: `${selected.confidence}/5` },
-                { label: 'Support', value: (selected.evidenceFor || []).length },
-                { label: 'Challenge', value: (selected.evidenceAgainst || []).length + tensionLinks.length },
-                { label: 'Tests', value: linkedPractices.length },
+                { label: 'Personal confidence', value: `${selected.confidence}/5` },
+                { label: 'Recorded support', value: `${diagnostic.recordedSupport}` },
+                { label: 'Completeness', value: `${diagnostic.completeness}%` },
               ].map((item) => (
                 <div key={item.label} className="rounded-lg bg-card px-2 py-2">
                   <div className="font-headline text-lg font-semibold italic">{item.value}</div>
@@ -1020,16 +1049,15 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         </Card>
 
         {!formation.fullyFormed && (
-          <Card className="mb-5 rounded-xl border-amber-200 bg-amber-50/80 p-4 shadow-sm">
-            <div className="font-code text-[9px] uppercase tracking-[0.18em] text-amber-800 font-bold">To fully form this position</div>
-            <p className="mt-2 text-sm leading-6 text-amber-950">
-              Complete {formation.missing.slice(0, 4).join(', ')}
-              {formation.missing.length > 4 ? `, and ${formation.missing.length - 4} more` : ''}.
-            </p>
-          </Card>
+          <details className="mb-5 rounded-xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
+            <summary className="cursor-pointer font-code text-[9px] uppercase tracking-[0.18em] text-amber-800 font-bold">Position readiness · {formation.missing.length} gaps</summary>
+            <ul className="mt-3 grid gap-2 text-sm leading-6 text-amber-950 sm:grid-cols-2">
+              {formation.missing.map((item) => <li key={item}>Add {item}</li>)}
+            </ul>
+          </details>
         )}
 
-        <div className="mb-5">
+        <div className="hidden">
           <NextPhilosophicalActionPanel
             compact
             status={selected.status}
@@ -1122,6 +1150,52 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             ]}
           />
         </div>
+
+        <NextMoveCard
+          className="mb-5"
+          recommended={diagnostic.nextAction}
+          actions={[
+            { label: 'Add support', onClick: () => setDetailTab('evidence') },
+            { label: 'Add challenge', onClick: () => setDetailTab('opposition') },
+            { label: 'Clarify terms', onClick: () => openEditor(selected) },
+            {
+              label: 'Test in practice',
+              onClick: () => onAddPractice({
+                title: `Test: ${selected.title.slice(0, 60)}`,
+                description: `This practice tests the position: "${selected.statement}"`,
+                type: 'experiment',
+                status: 'planned',
+                durationDays: 7,
+                positionIds: [selected.id],
+                conceptTags: selected.tags || [],
+                sourceIds: selected.sourceIds || [],
+              }),
+            },
+            {
+              label: 'Connect inquiry',
+              onClick: () => onAddQuestion({
+                text: `What would revise: ${selected.title}?`,
+                status: 'open',
+                beliefIds: [selected.id],
+                conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
+                sourceIds: selected.sourceIds || [],
+                evidenceIds: [],
+              }),
+            },
+            {
+              label: 'Revise position',
+              onClick: () => onUpdateEntry({
+                ...selected,
+                status: 'revised',
+                versionHistory: [
+                  ...(selected.versionHistory || []),
+                  { date: today(), eventType: 'revised', description: 'Marked as revised after review.' },
+                ],
+                dateUpdated: today(),
+              }),
+            },
+          ]}
+        />
 
         <div className="mb-6 flex flex-wrap gap-2">
           {reviewTabs.map((tab) => (
@@ -1300,7 +1374,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               </div>
             </Card>
 
-            <div className="mb-6">
+            <div className="hidden">
               <NextPhilosophicalActionPanel
                 status={selected.status}
                 title="Next Philosophical Action"
@@ -1756,10 +1830,10 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
       <div className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
         {[
-          { label: 'Needs review', value: positionStats.underReview, filter: 'under_review' as PositionViewFilter },
-          { label: 'Untested', value: positionStats.needsPractice, filter: 'needs_practice' as PositionViewFilter },
-          { label: 'Unsupported', value: positionStats.unsupported, filter: 'unsupported' as PositionViewFilter },
-          { label: 'Stale', value: positionStats.stale, filter: 'stale' as PositionViewFilter },
+          { label: 'Current', value: positionStats.current, filter: 'current' as PositionViewFilter },
+          { label: 'Developing', value: positionStats.developing, filter: 'developing' as PositionViewFilter },
+          { label: 'Retired', value: positionStats.retired, filter: 'retired' as PositionViewFilter },
+          { label: 'Needs attention', value: positionStats.needsAttention, filter: 'needs_attention' as PositionViewFilter },
         ].filter((item) => item.value > 0).map((item) => (
           <button
             key={item.filter}
@@ -1793,7 +1867,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 mb-1 font-bold">
                   {TYPE_LABELS[entry.type] || 'Position'}
                 </div>
-                <h3 className="font-headline text-xl font-bold italic leading-tight group-hover:text-accent transition-colors truncate text-primary">
+                <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors truncate text-primary">
                   {entry.title}
                 </h3>
               </div>
@@ -1802,7 +1876,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               </div>
             </div>
             
-            <p className="text-[13px] leading-relaxed text-muted-foreground font-body line-clamp-2 italic mb-6">
+            <p className="text-[13px] leading-relaxed text-muted-foreground font-body line-clamp-1 italic mb-4">
               {entry.statement || entry.description}
             </p>
 
@@ -1811,8 +1885,8 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{diagnostic.label}</Badge>
                 <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{diagnostic.daysSinceUpdate}d since review</span>
               </div>
-              <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Strongest next action</div>
-              <p className="text-xs italic leading-5 text-muted-foreground">{diagnostic.nextAction}</p>
+              <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Next move</div>
+              <p className="line-clamp-2 text-xs italic leading-5 text-muted-foreground">{diagnostic.nextAction}</p>
               {!!diagnostic.flags.length && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {diagnostic.flags.slice(0, 3).map((flag) => (
@@ -1841,7 +1915,10 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 'font-code text-[8px] uppercase tracking-widest px-2 py-0.5 rounded-full font-bold',
                 formation.fullyFormed ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'
               )}>
-                {formation.fullyFormed ? 'formed' : `${formation.complete}/${formation.total}`}
+                {diagnostic.completeness}% complete
+              </Badge>
+              <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 rounded-full font-bold">
+                support {diagnostic.recordedSupport}
               </Badge>
               <div className="flex items-center gap-1.5 ml-auto">
                 {(entry.tags || []).slice(0, 2).map(tag => (
@@ -2333,6 +2410,40 @@ function MiniMetricCard({ label, value, sub }: { label: string; value: number; s
   );
 }
 
+function NextMoveCard({ recommended, actions, className }: { recommended: string; actions: Array<{ label: string; onClick: () => void }>; className?: string }) {
+  const primary = actions.slice(0, 4);
+  const secondary = actions.slice(4);
+  return (
+    <Card className={cn("rounded-xl border-border/50 bg-white p-4 shadow-sm", className)}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Recommended next move</div>
+          <p className="mt-1 text-sm italic leading-6 text-foreground">{recommended}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {primary.map((action) => (
+            <Button key={action.label} size="sm" variant="outline" onClick={action.onClick} className="h-8 rounded-full bg-card font-code text-[9px] uppercase tracking-widest">
+              {action.label}
+            </Button>
+          ))}
+          {!!secondary.length && (
+            <details className="relative">
+              <summary className="flex h-8 cursor-pointer items-center rounded-full border border-border/60 bg-card px-3 font-code text-[9px] font-medium uppercase tracking-widest text-muted-foreground">More</summary>
+              <div className="absolute right-0 z-20 mt-2 min-w-44 rounded-xl border border-border/60 bg-white p-2 shadow-xl">
+                {secondary.map((action) => (
+                  <button key={action.label} type="button" onClick={action.onClick} className="block w-full rounded-lg px-3 py-2 text-left font-code text-[9px] uppercase tracking-widest text-muted-foreground hover:bg-accent/10 hover:text-accent">
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function EntityListPanel({
   title,
   items,
@@ -2443,26 +2554,34 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             </div>
           </div>
           <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">STATEMENT</Label>
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">POSITION STATEMENT</Label>
             <Textarea value={draft.statement || ''} onChange={(event) => setDraft((prev) => ({ ...prev, statement: event.target.value, description: prev.description || event.target.value }))} placeholder="The core position in one clear sentence..." className="min-h-[60px] italic text-base" />
           </div>
           <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">DESCRIPTION</Label>
-            <Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} placeholder="Elaborate on the reasoning, assumptions, or evidence..." className="min-h-[120px] italic text-base" />
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">WHAT DO YOU MEAN?</Label>
+            <Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} placeholder="Clarify scope, boundaries, and what this claim does not mean..." className="min-h-[90px] italic text-base" />
           </div>
           <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONFIDENCE REASONING</Label>
-            <Textarea value={draft.confidenceReasoning || ''} onChange={(event) => setDraft((prev) => ({ ...prev, confidenceReasoning: event.target.value }))} placeholder="Why this confidence level rather than lower or higher?" className="min-h-[80px] italic text-base" />
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">WHY DO YOU HOLD IT?</Label>
+            <Textarea value={draft.confidenceReasoning || ''} onChange={(event) => setDraft((prev) => ({ ...prev, confidenceReasoning: event.target.value, evidenceFor: prev.evidenceFor?.length ? prev.evidenceFor : splitLines(event.target.value) }))} placeholder="Add one or more concise reasons. Link evidence later if needed." className="min-h-[90px] italic text-base" />
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">ASSUMPTIONS</Label>
-              <Textarea value={joinLines(draft.assumptions)} onChange={(event) => setDraft((prev) => ({ ...prev, assumptions: splitLines(event.target.value) }))} placeholder="One load-bearing assumption per line..." className="min-h-[110px] italic text-base" />
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">WHAT COULD CHALLENGE IT?</Label>
+              <Textarea value={joinLines(draft.evidenceAgainst)} onChange={(event) => setDraft((prev) => ({ ...prev, evidenceAgainst: splitLines(event.target.value) }))} placeholder="One objection, uncertainty, or counterexample..." className="min-h-[100px] italic text-base" />
             </div>
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">FALSIFICATION</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">WHAT WOULD CHANGE YOUR MIND?</Label>
               <Textarea value={draft.falsification || ''} onChange={(event) => setDraft((prev) => ({ ...prev, falsification: event.target.value }))} placeholder="What would weaken, overturn, or force revision?" className="min-h-[110px] italic text-base" />
             </div>
+          </div>
+          <details className="rounded-2xl border border-border/50 bg-muted/10 p-4">
+            <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Optional structure and links</summary>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">ASSUMPTIONS</Label>
+                <Textarea value={joinLines(draft.assumptions)} onChange={(event) => setDraft((prev) => ({ ...prev, assumptions: splitLines(event.target.value) }))} placeholder="One load-bearing assumption per line..." className="min-h-[110px] italic text-base" />
+              </div>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONSEQUENCES</Label>
               <Textarea value={joinLines(draft.consequences)} onChange={(event) => setDraft((prev) => ({ ...prev, consequences: splitLines(event.target.value) }))} placeholder="What follows if this is true? One consequence per line..." className="min-h-[110px] italic text-base" />
@@ -2471,7 +2590,6 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">APPLICATIONS</Label>
               <Textarea value={joinLines(draft.applications)} onChange={(event) => setDraft((prev) => ({ ...prev, applications: splitLines(event.target.value) }))} placeholder="Where should this affect behavior, writing, practice, or decisions?" className="min-h-[110px] italic text-base" />
             </div>
-          </div>
           <div className="space-y-2">
             <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONCEPT TAGS</Label>
             <ConceptTagPicker concepts={concepts} value={draft.tags || []} onChange={(tags) => setDraft((prev) => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
@@ -2483,6 +2601,8 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             onToggle={toggleSource} 
             label="Supporting Sources"
           />
+            </div>
+          </details>
         </div>
         <DialogFooter className="pt-4"><Button onClick={onSave} className="bg-accent shadow-md shadow-accent/20 h-11 px-10 rounded-full font-bold">Save Position</Button></DialogFooter>
       </DialogContent>
