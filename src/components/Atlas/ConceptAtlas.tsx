@@ -1473,7 +1473,7 @@ export function ConceptAtlas({
   const atlasPanel = (
     <aside
       className={cn(
-        "z-20 flex h-full shrink-0 flex-col overflow-hidden border border-border bg-white shadow-sm",
+        "z-20 flex h-full shrink-0 flex-col overflow-hidden border border-border bg-card shadow-sm",
         isFullScreen
           ? "absolute inset-y-4 right-4 w-80 rounded-2xl"
           : "w-80 rounded-xl"
@@ -2096,7 +2096,7 @@ export function ConceptAtlas({
   }, [activeMapStyle.background.blur, activeMapStyle.background.opacity, mode]);
 
   const nodeCardClassName = (nodeStyle: AtlasMapNodeStyle | undefined, isSelected: boolean) => cn(
-    'border-accent/20 bg-white/95 shadow-md transition-all hover:-translate-y-1 hover:shadow-xl',
+    'border-accent/20 bg-card/95 shadow-md transition-all hover:-translate-y-1 hover:shadow-xl',
     nodeStyle === 'compact' && 'min-w-[112px] rounded-lg px-3 py-2',
     nodeStyle === 'pill' && 'min-w-[124px] rounded-full px-5 py-2.5',
     nodeStyle === 'card' && 'min-w-[152px] rounded-2xl px-4 py-4 shadow-lg',
@@ -2221,10 +2221,10 @@ export function ConceptAtlas({
       <header className="z-20 mb-1 flex flex-col gap-3 px-4 pt-4 md:px-8 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-headline text-[28px] font-semibold italic">Atlas</h1>
+            <h1 className="noesis-page-title text-[28px]">Atlas</h1>
             <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{atlasSectionMeta[atlasSection].label}</Badge>
           </div>
-          <p className="mt-1 max-w-3xl text-sm leading-5 text-muted-foreground">{atlasSectionMeta[atlasSection].description}</p>
+          <p className="noesis-page-description mt-1 max-w-3xl text-sm leading-5">{atlasSectionMeta[atlasSection].description}</p>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:items-center md:justify-end md:overflow-visible md:pb-0">
           {atlasSection === 'map' && (
@@ -2465,7 +2465,7 @@ export function ConceptAtlas({
               style={{ ...customMapBackgroundStyle, ...customMapBackgroundOverlayStyle }}
             />
           )}
-          <div className="absolute right-4 top-4 z-30 flex h-9 rounded-full border border-border/50 bg-white/90 p-1 shadow-md backdrop-blur">
+          <div className="absolute right-4 top-4 z-30 flex h-9 rounded-full border border-border/50 bg-card/90 p-1 shadow-md backdrop-blur">
             <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.max(ATLAS_MIN_ZOOM, z - ATLAS_ZOOM_STEP)); }} className="h-7 w-7 rounded-full font-bold">-</Button>
             <div className="flex w-10 items-center justify-center font-code text-[10px] font-bold text-primary/60">{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</div>
             <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.min(ATLAS_MAX_ZOOM, z + ATLAS_ZOOM_STEP)); }} className="h-7 w-7 rounded-full font-bold">+</Button>
@@ -2703,7 +2703,7 @@ export function ConceptAtlas({
                         "flex items-center justify-center gap-1.5",
                         isFullScreen
                           ? "mt-2"
-                          : "absolute left-1/2 top-full z-20 mt-1.5 -translate-x-1/2 rounded-full border border-border/70 bg-white/96 px-1.5 py-1 shadow-lg backdrop-blur-sm"
+                          : "absolute left-1/2 top-full z-20 mt-1.5 -translate-x-1/2 rounded-full border border-border/70 bg-card/96 px-1.5 py-1 shadow-lg backdrop-blur-sm"
                       )}
                     >
                       <Button
@@ -2749,7 +2749,7 @@ export function ConceptAtlas({
 
           {quickLinkSource && (
             <div
-              className="pointer-events-none absolute z-30 rounded-full border border-accent/30 bg-white/95 px-3 py-1.5 shadow-md"
+              className="pointer-events-none absolute z-30 rounded-full border border-accent/30 bg-card/95 px-3 py-1.5 shadow-md"
               style={{
                 left: Math.min((mapRef.current?.clientWidth || 0) - 220, Math.max(12, quickLinkCursor.x - (mapRef.current?.getBoundingClientRect().left || 0) + 14)),
                 top: Math.min((mapRef.current?.clientHeight || 0) - 48, Math.max(12, quickLinkCursor.y - (mapRef.current?.getBoundingClientRect().top || 0) + 14)),
@@ -3357,7 +3357,7 @@ export function ConceptAtlas({
               <select
                 value={linkDraft.to}
                 onChange={(event) => setLinkDraft((prev) => ({ ...prev, to: event.target.value }))}
-                className="h-10 w-full rounded-full border border-border/60 bg-white px-4 text-sm font-body shadow-sm appearance-none"
+                className="h-10 w-full rounded-full border border-border/60 bg-card px-4 text-sm font-body shadow-sm appearance-none"
               >
                 <option value="">Choose a concept...</option>
                 {linkTargets.map((name) => <option key={name} value={name}>{name}</option>)}
@@ -3395,7 +3395,7 @@ export function ConceptAtlas({
                   <select
                     value={linkDraft.type}
                     onChange={(event) => setLinkDraft((prev) => ({ ...prev, type: event.target.value as AtlasMapLinkType }))}
-                    className="h-10 w-full rounded-full border border-border/60 bg-white px-4 text-sm font-body shadow-sm appearance-none"
+                    className="h-10 w-full rounded-full border border-border/60 bg-card px-4 text-sm font-body shadow-sm appearance-none"
                   >
                     {linkTypes.map((type) => <option key={type} value={type}>{type}</option>)}
                   </select>
@@ -3420,7 +3420,7 @@ export function ConceptAtlas({
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="flex items-center gap-3 whitespace-nowrap rounded-full border border-border bg-white px-5 py-2 shadow-sm">
+    <div className="flex items-center gap-3 whitespace-nowrap rounded-full border border-border bg-card px-5 py-2 shadow-sm">
       <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</div>
       <div className="max-w-[120px] truncate font-headline text-lg font-bold italic text-primary">{value}</div>
     </div>

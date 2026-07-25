@@ -398,10 +398,10 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         className="mb-5"
         actions={
           <>
-          <Button variant="outline" onClick={copyAllCitations} size="sm" className="h-9 px-6 bg-white border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
+          <Button variant="outline" onClick={copyAllCitations} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
             <Copy className="size-4 mr-2" /> COPY BIBLIOGRAPHY
           </Button>
-          <Button variant="outline" size="sm" className="h-9 px-6 bg-white border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
+          <Button variant="outline" size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
             <Download className="size-4 mr-2" /> EXPORT BIBTEX
           </Button>
           </>
@@ -427,28 +427,28 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         className="mb-3"
       >
           <Select value={filterType} onValueChange={(v) => setFilterType(v as MediaType | 'all')}>
-            <SelectTrigger className="w-36 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Type" /></SelectTrigger>
+            <SelectTrigger className="w-36 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Type" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all" className="font-code text-[10px] uppercase">Type: All</SelectItem>
               {PRIMARY_SOURCE_TYPE_FILTERS.map(t => <SelectItem key={t} value={t} className="font-code text-[10px] uppercase">{MEDIA_LABELS[t]}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as MediaStatus | 'all')}>
-            <SelectTrigger className="w-40 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all" className="font-code text-[10px] uppercase">Status: All</SelectItem>
               {statuses.map(s => <SelectItem key={s} value={s} className="font-code text-[10px] uppercase">{s}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterConcept} onValueChange={setFilterConcept}>
-            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Concept" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Concept" /></SelectTrigger>
             <SelectContent className="max-h-80">
               <SelectItem value="all" className="font-code text-[10px] uppercase">Concept: All</SelectItem>
               {visibleConceptFilters.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={catalogFilter} onValueChange={(v) => setCatalogFilter(v as CatalogFilter)}>
-            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Catalog Health" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Catalog Health" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all" className="font-code text-[10px] uppercase">Catalog Health: All</SelectItem>
               <SelectItem value="missing_metadata" className="font-code text-[10px] uppercase">Missing Metadata</SelectItem>
@@ -459,7 +459,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             </SelectContent>
           </Select>
           <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
-            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Sort" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Sort" /></SelectTrigger>
             <SelectContent>
               {PRIMARY_SOURCE_SORTS.map((value) => (
                 <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{SOURCE_SORT_LABELS[value]}</SelectItem>
@@ -483,7 +483,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             onClick={() => setCatalogFilter(catalogFilter === stat.filter ? 'all' : stat.filter)}
             className={cn(
               "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
-              catalogFilter === stat.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+              catalogFilter === stat.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
             {stat.label} ({stat.value})
@@ -523,7 +523,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                 setFilterConcept(domain.name);
                 setView('table');
               }}
-              className="rounded-xl border border-border/40 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-1 hover:border-accent/40 hover:shadow-md"
+              className="rounded-xl border border-border/40 bg-card p-5 text-left shadow-sm transition-all hover:-translate-y-1 hover:border-accent/40 hover:shadow-md"
             >
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
@@ -567,7 +567,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       {view === 'timeline' && (
         <div className="mb-8 space-y-6">
           {timelineRows.map((period) => (
-            <section key={period.period} className="rounded-xl border border-border/40 bg-white p-5 shadow-sm">
+            <section key={period.period} className="rounded-xl border border-border/40 bg-card p-5 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Added Period</div>
@@ -615,7 +615,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         </div>
       )}
 
-      {!['covers', 'domains', 'timeline'].includes(view) && <div className="bg-white rounded-xl border border-border/40 shadow-md overflow-hidden">
+      {!['covers', 'domains', 'timeline'].includes(view) && <div className="bg-card rounded-xl border border-border/40 shadow-md overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/5 font-code text-[9px] uppercase tracking-[0.2em] font-bold">
             <TableRow>
@@ -661,7 +661,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                     </div>
                   </TableCell>
                   <TableCell className="py-2.5">
-                    <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full bg-white shadow-sm">{m.type}</Badge>
+                    <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full bg-card shadow-sm">{m.type}</Badge>
                   </TableCell>
                   <TableCell className="py-2.5 font-code text-[10px] text-muted-foreground/60">{m.year || '-'}</TableCell>
                   <TableCell className="py-2.5">

@@ -18,7 +18,7 @@ function iconForTension(type: AtlasSystemTensionItem['type']) {
     case 'region_conflict':
       return <ShieldAlert className="size-4 text-rose-600" />;
     case 'concept_ambiguity':
-      return <BrainCircuit className="size-4 text-violet-600" />;
+      return <BrainCircuit className="size-4 text-accent" />;
     case 'practice_gap':
       return <FlaskConical className="size-4 text-emerald-600" />;
     case 'one_sided_region':

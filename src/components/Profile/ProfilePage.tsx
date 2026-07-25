@@ -362,7 +362,7 @@ export function ProfilePage({
               </div>
               <div className="max-w-3xl">
                 <div className="font-code text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Thinker identity</div>
-                <h1 className="mt-2 font-headline text-3xl font-semibold italic text-foreground">
+                <h1 className="noesis-page-title mt-2 text-3xl">
                   {profileDraft.displayName || user?.displayName || 'Untitled Thinker'}
                 </h1>
                 <p className="mt-3 text-sm leading-7 text-muted-foreground">

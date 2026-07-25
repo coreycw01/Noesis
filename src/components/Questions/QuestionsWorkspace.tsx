@@ -322,7 +322,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
         className="mb-8"
       >
         <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
-          <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+          <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Inquiry View" />
           </SelectTrigger>
           <SelectContent>
@@ -353,7 +353,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
           const readinessScore = inquiryReadinessScore(question);
 
           return (
-            <Card key={question.id} className="border border-accent/15 bg-white/95 p-4 rounded-xl shadow-sm">
+            <Card key={question.id} className="border border-accent/15 bg-card/95 p-4 rounded-xl shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5">
@@ -1230,7 +1230,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
             </div>
           </Card>
 
-          <Card className="mb-6 rounded-2xl border border-accent/10 bg-white p-6 shadow-sm">
+          <Card className="mb-6 rounded-2xl border border-accent/10 bg-card p-6 shadow-sm">
             <div className="mb-5">
               <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">Candidate Answers</div>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">Keep possible answers visible, compare them honestly, and only adopt one provisionally when the inquiry has enough shape.</p>
@@ -1302,7 +1302,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
                         key={value}
                         type="button"
                         onClick={() => setCandidateDraft((prev) => ({ ...prev, confidence: value }))}
-                        className={cn('size-7 rounded-full font-code text-[10px] font-bold', candidateDraft.confidence === value ? 'bg-accent text-white' : 'bg-muted/30 text-muted-foreground')}
+                        className={cn('size-7 rounded-full font-code text-[10px] font-bold', candidateDraft.confidence === value ? 'bg-accent text-accent-foreground' : 'bg-muted/30 text-muted-foreground')}
                       >
                         {value}
                       </button>
@@ -1321,7 +1321,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
               <Badge variant="outline" className="font-code text-[10px] uppercase tracking-widest bg-muted/20 border-border/30 rounded-full px-4 py-1 font-bold">
                 {question.type || 'manual'}
               </Badge>
-              <h1 className="font-headline text-4xl italic text-primary leading-tight font-bold">{question.text}</h1>
+              <h1 className="noesis-page-title text-4xl">{question.text}</h1>
               <p className="text-sm text-muted-foreground font-body leading-relaxed">Use this space only for the current leading answer. Dialogue can explore possibilities, but the inquiry record changes only when you save or resolve it.</p>
               <div>
                 <Label className="readex-kicker mb-2 block">LEADING CANDIDATE ANSWER</Label>
@@ -1394,8 +1394,8 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
           )}
 
           {phase === 'probing' && (
-            <Card className="p-10 bg-white border border-accent/10 shadow-md rounded-2xl space-y-6">
-              <h1 className="font-headline text-3xl italic text-primary leading-tight font-bold">{question.text}</h1>
+            <Card className="p-10 bg-card border border-accent/10 shadow-md rounded-2xl space-y-6">
+              <h1 className="noesis-page-title text-3xl">{question.text}</h1>
 
               <div className="space-y-4">
                 <div className="bg-muted/10 rounded-xl p-5 border border-border/10">
@@ -1445,12 +1445,12 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
           )}
 
           {phase === 'ready' && positionDraft && (
-            <Card className="p-10 bg-white border border-accent/10 shadow-md rounded-2xl space-y-6">
+            <Card className="p-10 bg-card border border-accent/10 shadow-md rounded-2xl space-y-6">
               <div className="flex items-center gap-2">
                 <CheckCircle className="size-4 text-emerald-500" />
                 <span className="font-code text-[10px] uppercase tracking-widest text-emerald-600 font-bold">Position Crystallized</span>
               </div>
-              <h1 className="font-headline text-3xl italic text-primary leading-tight font-bold">{question.text}</h1>
+              <h1 className="noesis-page-title text-3xl">{question.text}</h1>
 
               <div className="space-y-5">
                 <div>
@@ -1487,7 +1487,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
                         className={cn(
                           "size-10 rounded-full font-code text-sm font-bold transition-all",
                           positionDraft.confidence === v
-                            ? "bg-accent text-white shadow-lg shadow-accent/30"
+                            ? "bg-accent text-accent-foreground shadow-lg shadow-accent/30"
                             : "bg-muted/20 text-muted-foreground hover:bg-muted/40"
                         )}
                       >
@@ -1506,7 +1506,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
         </div>
 
         <aside className="space-y-5">
-          <Card className="p-6 bg-white border border-accent/10 shadow-sm rounded-xl">
+          <Card className="p-6 bg-card border border-accent/10 shadow-sm rounded-xl">
             <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground/40 mb-4 font-bold">Investigation State</h3>
             <Badge variant="outline" className="mb-4 rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{question.status.replace(/_/g, ' ')}</Badge>
             <div className="grid gap-2">
@@ -1563,7 +1563,7 @@ function InquiryLane({ label, value, description, active, onClick }: { label: st
 
 function ContextPanel({ title, items }: { title: string; items: string[] }) {
   return (
-    <Card className="p-6 bg-white border border-accent/10 shadow-sm rounded-xl">
+    <Card className="p-6 bg-card border border-accent/10 shadow-sm rounded-xl">
       <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground/40 mb-5 font-bold">{title}</h3>
       <div className="space-y-3">
         {items.length ? items.map((item, index) => (

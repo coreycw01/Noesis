@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useNoesisWorkspaceData } from '@/hooks/use-noesis-workspace-data';
 import { PageErrorState, PageLoadingState } from '@/components/shared/PageState';
+import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
 import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
@@ -484,25 +485,18 @@ function ReadexWorkspace({
   }, [effectiveUid, isOfflineReviewPreview, isReviewIdentity, refs, reviewMode, user]);
 
   useEffect(() => {
-    const root = document.documentElement;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const applyTheme = () => {
-      const systemDark = mediaQuery.matches;
-      const dark = preferences.themeMode === 'dark' || (preferences.themeMode === 'system' && systemDark);
-      root.classList.toggle('dark', dark);
-      root.classList.toggle('high-contrast', appearanceSettings.highContrastMode);
-      root.classList.toggle('reduce-motion', appearanceSettings.reducedMotion);
-      root.dataset.theme = preferences.accentTheme;
-      root.dataset.headerFont = appearanceSettings.headerFont;
-      root.dataset.fontSize = appearanceSettings.fontSize;
-      window.localStorage.setItem('noesis:theme', JSON.stringify({
+      const snapshot = {
         themeMode: preferences.themeMode,
         accentTheme: preferences.accentTheme,
         headerFont: appearanceSettings.headerFont,
         fontSize: appearanceSettings.fontSize,
         highContrastMode: appearanceSettings.highContrastMode,
         reducedMotion: appearanceSettings.reducedMotion,
-      }));
+      };
+      applyAppearanceSettings(snapshot, mediaQuery.matches);
+      persistAppearanceSettings(snapshot);
     };
     applyTheme();
     mediaQuery.addEventListener('change', applyTheme);

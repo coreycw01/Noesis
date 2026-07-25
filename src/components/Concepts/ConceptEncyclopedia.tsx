@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 
@@ -844,7 +845,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           <div className="flex gap-2">
             {concept && (
               <>
-                <Button variant="outline" size="sm" onClick={() => openEditor(concept)} className="h-8 bg-white border-border/60 shadow-sm rounded-full">
+                <Button variant="outline" size="sm" onClick={() => openEditor(concept)} className="h-8 bg-card border-border/60 shadow-sm rounded-full">
                   <Edit className="size-4 mr-2" /> Edit
                 </Button>
                 <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(concept)} className="h-8 shadow-sm rounded-full">
@@ -858,9 +859,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         <div className="p-8 pt-10 max-w-5xl mx-auto">
           {/* Title + definition */}
           <div className="mb-8">
-            <h1 className="text-[42px] font-headline font-bold italic text-primary leading-none mb-4">{selectedName}</h1>
+            <h1 className="noesis-page-title mb-4 text-[42px]">{selectedName}</h1>
             {isDefinitionEditing ? (
-              <div className="max-w-3xl space-y-3 rounded-xl border border-accent/20 bg-white p-4 shadow-sm">
+              <div className="max-w-3xl space-y-3 rounded-xl border border-accent/20 bg-card p-4 shadow-sm">
                 <Textarea
                   value={definitionDraft}
                   onChange={(event) => setDefinitionDraft(event.target.value)}
@@ -899,7 +900,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               { label: 'Practices', n: r.practices.length },
               { label: 'Events', n: r.events.length },
             ].map(({ label, n }) => (
-              <div key={label} className="flex items-center gap-1.5 rounded-full border border-border/40 bg-white/80 px-3 py-1 shadow-sm">
+              <div key={label} className="flex items-center gap-1.5 rounded-full border border-border/40 bg-card/80 px-3 py-1 shadow-sm">
                 <span className="font-headline text-base font-bold text-accent">{n}</span>
                 <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</span>
               </div>
@@ -907,7 +908,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           </div>
 
           {/* Concept Anatomy */}
-          <div className="rounded-xl border border-border/30 bg-white shadow-sm p-6 mb-10">
+          <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
                 <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Concept Anatomy</h2>
@@ -1083,7 +1084,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           </div>
 
           {/* Boundary Test */}
-          <div className="rounded-xl border border-border/30 bg-white shadow-sm p-6 mb-10">
+          <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Boundary Test</h2>
@@ -1121,7 +1122,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                               className={cn(
                                 'rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-widest transition-colors',
                                 selected === value
-                                  ? 'border-accent bg-accent text-white'
+                                  ? 'border-accent bg-accent text-accent-foreground'
                                   : 'border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground'
                               )}
                             >
@@ -1159,13 +1160,13 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           </div>
 
           {/* Growth Diagnosis */}
-          <div className="rounded-xl border border-border/30 bg-white shadow-sm p-6 mb-10">
+          <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
                 <Brain className="size-4 text-muted-foreground/40" />
                 <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Growth Diagnosis</h2>
               </div>
-              <Button size="sm" onClick={handleStartClarityCheck} className="h-8 rounded-full bg-accent text-white shadow-sm font-code text-[10px] uppercase tracking-widest px-4">
+              <Button size="sm" onClick={handleStartClarityCheck} className="h-8 rounded-full bg-accent text-accent-foreground shadow-sm font-code text-[10px] uppercase tracking-widest px-4">
                 <GenerativeAiIcon className="mr-2 size-6" /> Clarity Check
               </Button>
             </div>
@@ -1288,7 +1289,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 ))}
 
                 {r.annotations.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={handleSuggestPositions} disabled={isDraftingPositions} className="w-full h-9 rounded-full bg-white border-accent/20 text-accent hover:bg-accent/5 font-code text-[10px] uppercase tracking-widest">
+                  <Button variant="outline" size="sm" onClick={handleSuggestPositions} disabled={isDraftingPositions} className="w-full h-9 rounded-full bg-card border-accent/20 text-accent hover:bg-accent/5 font-code text-[10px] uppercase tracking-widest">
                     {isDraftingPositions ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-6" />}
                     {isDraftingPositions ? 'Drafting…' : 'Suggest Positions from AI'}
                   </Button>
@@ -1300,7 +1301,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     <p className="text-sm font-body font-semibold text-primary mb-1">{draft.claim}</p>
                     <p className="text-xs text-muted-foreground font-body mb-2">{draft.supportSummary}</p>
                     <p className="text-[10px] text-amber-600/80 italic font-body mb-3">{draft.challengeToConsider}</p>
-                    <Button size="sm" onClick={() => savePositionDraft(draft.claim, draft.supportSummary)} className="h-7 px-4 rounded-full bg-accent text-white font-code text-[9px] uppercase tracking-widest">
+                    <Button size="sm" onClick={() => savePositionDraft(draft.claim, draft.supportSummary)} className="h-7 px-4 rounded-full bg-accent text-accent-foreground font-code text-[9px] uppercase tracking-widest">
                       Save as Position
                     </Button>
                   </div>
@@ -1364,7 +1365,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <div className="space-y-4">
                   {r.beliefs.slice(0, 4).map((a, ai) =>
                     r.beliefs.slice(ai + 1, ai + 2).map((b) => (
-                      <div key={`${a.id}-${b.id}`} className="rounded-lg bg-white/80 border border-amber-100 p-4">
+                      <div key={`${a.id}-${b.id}`} className="rounded-lg bg-card/80 border border-amber-100 p-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position A</p>
@@ -1397,7 +1398,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                                   size="sm"
                                   onClick={() => resolveConceptTension(selectedName, a, b, decision.id)}
                                   className={cn(
-                                    'h-auto justify-start rounded-lg px-3 py-2 text-left whitespace-normal border-amber-100 bg-white text-foreground hover:bg-amber-50',
+                                    'h-auto justify-start rounded-lg px-3 py-2 text-left whitespace-normal border-amber-100 bg-card text-foreground hover:bg-amber-50',
                                     selected && 'border-amber-400 bg-amber-100 text-amber-950 shadow-sm'
                                   )}
                                 >
@@ -1428,7 +1429,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <div className="relative pl-6 border-l-2 border-border/20 space-y-6">
                 {sortedEvents.map((event) => (
                   <div key={event.id} className="relative">
-                    <div className="absolute -left-[29px] size-3.5 rounded-full bg-white border-2 border-accent/40 shadow-sm" />
+                    <div className="absolute -left-[29px] size-3.5 rounded-full bg-card border-2 border-accent/40 shadow-sm" />
                     <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">
                       {event.date} · {event.eventType.replace(/_/g, ' ')}
                     </div>
@@ -1443,12 +1444,12 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
         {/* Concept editor dialog (accessible from detail page too) */}
         <Dialog open={editorOpen} onOpenChange={(open) => { setEditorOpen(open); if (!open) { setEditing(null); setDraftConcept({ name: '', description: '', sourceIds: [] }); } }}>
-          <DialogContent className="max-w-xl bg-white border-none shadow-2xl rounded-2xl">
+          <DialogContent className="max-w-xl bg-card border-none shadow-2xl rounded-2xl">
             <DialogHeader>
               <div className="flex items-center justify-between pr-8">
                 <DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle>
                 {draftConcept.name && (
-                <Button variant="outline" size="sm" onClick={handleSuggestDescription} disabled={isSuggesting} className="h-8 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-white shadow-sm rounded-full">
+                <Button variant="outline" size="sm" onClick={handleSuggestDescription} disabled={isSuggesting} className="h-8 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-card shadow-sm rounded-full">
                     {isSuggesting ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-6" />}
                     Suggest Description
                   </Button>
@@ -1480,7 +1481,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
         {/* Clarity Check dialog */}
         <Dialog open={clarityCheckOpen} onOpenChange={(open) => { setClarityCheckOpen(open); if (!open) { setShowReview(false); setClarityCheckQuestions([]); setClarityAnswers([]); setCurrentQIdx(0); } }}>
-          <DialogContent className="max-w-2xl border-none shadow-2xl rounded-2xl bg-white">
+          <DialogContent className="max-w-2xl border-none shadow-2xl rounded-2xl bg-card">
             {isLoadingCheck ? (
               <div className="py-20 flex flex-col items-center gap-4">
                 <Loader2 className="size-8 animate-spin text-accent/40" />
@@ -1569,7 +1570,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     <button
                       key={option.id}
                       onClick={() => handleSelectOption(clarityCheckQuestions[currentQIdx], option.isClosest)}
-                      className="w-full text-left rounded-xl bg-white border border-border/40 p-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
+                      className="w-full text-left rounded-xl bg-card border border-border/40 p-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
                     >
                       <span className="font-code text-[9px] uppercase font-bold text-muted-foreground/50 mr-2 group-hover:text-accent/70">{option.id.toUpperCase()}.</span>
                       <span className="font-body text-[15px] text-primary">{option.text}</span>
@@ -1586,18 +1587,16 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
   return (
     <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
-      <header className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div className="max-w-4xl">
-          <h1 className="text-[28px] font-headline font-semibold italic text-foreground/80">Concepts</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground font-body">Build the vocabulary lab for definitions, boundaries, consistency, and conceptual drift.</p>
-          <p className="mt-3 font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">{maturitySummary}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
+      <PageHeader
+        title="Concepts"
+        description="Build the vocabulary lab for definitions, boundaries, consistency, and conceptual drift."
+        meta={<p className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">{maturitySummary}</p>}
+        actions={
           <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 rounded-full h-9">
             <Plus className="size-4 mr-1.5" /> NEW CONCEPT
           </Button>
-        </div>
-      </header>
+        }
+      />
 
       <div className="mb-6 hidden grid-cols-1 gap-3 md:grid lg:grid-cols-[1fr_1.4fr]">
         <div className="grid grid-cols-3 gap-3">
@@ -1629,7 +1628,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               variant="outline"
               size="sm"
               onClick={() => setListView('needs_attention')}
-              className="h-8 rounded-full border-amber-300 bg-white/70 font-code text-[9px] uppercase tracking-widest text-amber-900 hover:bg-white"
+              className="h-8 rounded-full border-amber-300 bg-card/70 font-code text-[9px] uppercase tracking-widest text-amber-900 hover:bg-card"
             >
               Review them
             </Button>
@@ -1809,12 +1808,12 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       </div>
 
       <Dialog open={editorOpen} onOpenChange={(open) => { setEditorOpen(open); if (!open) { setEditing(null); setDraftConcept({ name: '', description: '', sourceIds: [] }); } }}>
-        <DialogContent className="max-w-xl bg-white border-none shadow-2xl rounded-2xl">
+        <DialogContent className="max-w-xl bg-card border-none shadow-2xl rounded-2xl">
           <DialogHeader>
             <div className="flex items-center justify-between pr-8">
               <DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle>
               {draftConcept.name && (
-                <Button variant="outline" size="sm" onClick={handleSuggestDescription} disabled={isSuggesting} className="h-8 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-white shadow-sm rounded-full">
+                <Button variant="outline" size="sm" onClick={handleSuggestDescription} disabled={isSuggesting} className="h-8 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-card shadow-sm rounded-full">
                   {isSuggesting ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-6" />}
                   Suggest Description
                 </Button>
@@ -1864,7 +1863,7 @@ function ConceptPageSection({ title, count, empty, children }: { title: string; 
 function Stat({ value, label, sub, tone = 'default' }: { value: number | string; label: string; sub: string; tone?: 'default' | 'warning' }) {
   return (
     <Card className={cn(
-      "bg-white border shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl",
+      "bg-card border shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl",
       tone === 'warning' ? "border-amber-200" : "border-accent/10"
     )}>
       <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</div>

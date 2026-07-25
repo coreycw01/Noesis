@@ -11,8 +11,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Spectral', 'Georgia', 'serif'],
-        headline: ['var(--font-headline)', 'serif'],
+        body: ['var(--font-body)', 'Georgia', 'serif'],
+        headline: ['var(--font-heading)', 'serif'],
+        interface: ['var(--font-interface)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         code: ['JetBrains Mono', 'monospace'],
       },
       colors: {
@@ -41,7 +42,14 @@ export default {
         accent: {
           DEFAULT: 'hsl(var(--accent))',
           foreground: 'hsl(var(--accent-foreground))',
+          muted: 'hsl(var(--accent-muted))',
+          border: 'hsl(var(--accent-border))',
         },
+        surface: {
+          DEFAULT: 'hsl(var(--surface))',
+          elevated: 'hsl(var(--surface-elevated))',
+        },
+        'page-tint': 'hsl(var(--page-tint))',
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
@@ -68,9 +76,15 @@ export default {
         },
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        lg: 'var(--card-radius)',
+        md: 'calc(var(--card-radius) - 2px)',
+        sm: 'calc(var(--card-radius) - 4px)',
+        card: 'var(--card-radius)',
+        button: 'var(--button-radius)',
+      },
+      boxShadow: {
+        card: 'var(--shadow-card)',
+        elevated: 'var(--shadow-elevated)',
       },
       keyframes: {
         'accordion-down': {

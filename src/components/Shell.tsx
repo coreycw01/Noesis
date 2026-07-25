@@ -610,7 +610,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
   return (
     <TooltipProvider delayDuration={160}>
-      <div className="flex h-screen w-full bg-background overflow-hidden">
+      <div className="noesis-app flex h-screen w-full overflow-hidden bg-background">
         {!isMobile && (
           <aside className={cn(
             "hidden md:flex bg-sidebar text-sidebar-foreground flex-col border-r border-sidebar-border shadow-2xl z-20 transition-[width] duration-300 ease-out",
@@ -655,7 +655,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           </>
         )}
 
-        <main className="flex-1 flex flex-col relative overflow-hidden bg-background min-w-0 pt-14 pb-16 md:pt-0 md:pb-0" aria-busy={Boolean(pendingPath)}>
+        <main className="noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-16 pt-14 md:pb-0 md:pt-0" aria-busy={Boolean(pendingPath)}>
           <button
             type="button"
             onClick={() => setCommandOpen(true)}

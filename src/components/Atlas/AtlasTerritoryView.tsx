@@ -317,7 +317,7 @@ export function AtlasTerritoryView({
               <div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <BrainCircuit className="size-4 text-violet-600" />
+                    <BrainCircuit className="size-4 text-accent" />
                     <h4 className="font-headline text-lg font-semibold italic text-foreground">Positions</h4>
                   </div>
                   {regionPositions.slice(0, 3).map((position) => (

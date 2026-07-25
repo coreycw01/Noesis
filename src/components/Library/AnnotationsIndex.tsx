@@ -791,7 +791,7 @@ export function AnnotationsIndex({
               onClick={() => setFilterType(button.id)}
               className={cn(
                 "px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all shadow-sm",
-                filterType === button.id ? "bg-accent text-white" : "bg-card text-muted-foreground border border-border/60 hover:text-foreground"
+                filterType === button.id ? "bg-accent text-accent-foreground" : "bg-card text-muted-foreground border border-border/60 hover:text-foreground"
               )}
             >
               {button.label} {button.count}

@@ -504,15 +504,15 @@ export function MediaLibrary({
           </div>
           <div className="flex items-center gap-3">
             <Select value={selected.status} onValueChange={(value) => updateSelected({ status: value as MediaStatus })}>
-              <SelectTrigger className="w-44 font-code text-[10px] uppercase h-9 bg-white shadow-sm border-border/60 rounded-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-44 font-code text-[10px] uppercase h-9 bg-card shadow-sm border-border/60 rounded-full"><SelectValue /></SelectTrigger>
               <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{status}</SelectItem>)}</SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={() => openEditor(selected)} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-white rounded-full">EDIT</Button>
-            <Button variant="outline" size="sm" onClick={() => setDeleteTarget({ type: 'source', item: selected })} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-white rounded-full">DELETE</Button>
+            <Button variant="outline" size="sm" onClick={() => openEditor(selected)} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-card rounded-full">EDIT</Button>
+            <Button variant="outline" size="sm" onClick={() => setDeleteTarget({ type: 'source', item: selected })} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-card rounded-full">DELETE</Button>
           </div>
         </header>
 
-        <div className="bg-white border border-border/50 rounded-xl p-8 mb-10 flex gap-10 shadow-sm">
+        <div className="bg-card border border-border/50 rounded-xl p-8 mb-10 flex gap-10 shadow-sm">
           <div className="size-56 bg-accent/5 rounded-lg shrink-0 flex items-center justify-center border border-border/30 overflow-hidden shadow-inner">
             {selected.thumbnailUrl ? (
               <img src={selected.thumbnailUrl} alt={selected.title} className="w-full h-full object-cover" />
@@ -523,7 +523,7 @@ export function MediaLibrary({
             )}
           </div>
           <div className="flex-1">
-            <h1 className="font-headline text-4xl font-bold mb-3 leading-tight">{selected.title}</h1>
+            <h1 className="noesis-page-title mb-3 text-4xl">{selected.title}</h1>
             <div className="flex items-center gap-4 mb-5">
               <span className="font-body text-xl italic text-muted-foreground">{selected.creator}</span>
               {selected.year && <span className="font-code text-xs text-muted-foreground/40 font-bold tracking-widest">{selected.year}</span>}
@@ -536,12 +536,12 @@ export function MediaLibrary({
                 <button
                   key={tag}
                   onClick={() => setConceptPopupName(tag)}
-                  className="inline-flex items-center rounded-full border px-4 py-1.5 font-code text-[9px] uppercase tracking-[0.18em] font-bold bg-white text-muted-foreground border-border/60 shadow-sm hover:bg-accent/10 hover:text-accent hover:border-accent/20 transition-all"
+                  className="inline-flex items-center rounded-full border px-4 py-1.5 font-code text-[9px] uppercase tracking-[0.18em] font-bold bg-card text-muted-foreground border-border/60 shadow-sm hover:bg-accent/10 hover:text-accent hover:border-accent/20 transition-all"
                 >
                   {tag}
                 </button>
               ))}
-              <Badge variant="outline" className="font-code text-[9px] uppercase tracking-[0.18em] px-4 py-1.5 bg-white border-border/60 shadow-sm rounded-full font-bold">
+              <Badge variant="outline" className="font-code text-[9px] uppercase tracking-[0.18em] px-4 py-1.5 bg-card border-border/60 shadow-sm rounded-full font-bold">
                 {selected.annotations?.length || 0} NOTES
               </Badge>
             </div>
@@ -560,7 +560,7 @@ export function MediaLibrary({
 
           <TabsContent value="overview" className="space-y-8">
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-              <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
+              <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
                 <div className="readex-kicker mb-3 opacity-50 font-bold">MEDIA SUMMARY</div>
                 <div className="grid gap-3 text-sm">
                   {[
@@ -579,7 +579,7 @@ export function MediaLibrary({
                 </div>
               </Card>
 
-              <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
+              <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
                 <div className="readex-kicker mb-3 opacity-50 font-bold">SOURCE PURPOSE</div>
                 <p className="font-headline text-2xl italic leading-snug text-primary/90">{sourcePurpose}</p>
                 <div className="mt-6 grid gap-3 md:grid-cols-2">
@@ -599,7 +599,7 @@ export function MediaLibrary({
             </div>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-              <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
+              <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
                 <div className="readex-kicker mb-4 opacity-50 font-bold">CONCEPTS IN THIS SOURCE</div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {(selected.tags || []).map((tag) => {
@@ -628,7 +628,7 @@ export function MediaLibrary({
                 </div>
               </Card>
 
-              <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
+              <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
                 <div className="readex-kicker mb-4 opacity-50 font-bold">HANDOFFS</div>
                 <div className="space-y-3">
                   {[
@@ -669,18 +669,18 @@ export function MediaLibrary({
                   { label: 'Inquiry opened', value: capture.after?.remainsUnanswered || capture.before?.openQuestion || 'No surviving question named yet.' },
                   { label: 'Next action', value: capture.after?.nextAction || 'Choose whether this should become a claim, inquiry, practice, work, or only a reference.' },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-xl border border-accent/15 bg-white p-4">
+                  <div key={item.label} className="rounded-xl border border-accent/15 bg-card p-4">
                     <div className="font-code text-[8px] uppercase tracking-widest text-accent/70 font-bold">{item.label}</div>
                     <p className="mt-2 text-sm leading-6 text-foreground/80">{item.value}</p>
                   </div>
                 ))}
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
-                <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="rounded-full bg-white text-accent border-accent/20">
+                <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="rounded-full bg-card text-accent border-accent/20">
                   {isDistilling ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
                   Extract Claims
                 </Button>
-                <Button variant="outline" onClick={() => setInsightOpen(true)} className="rounded-full bg-white">
+                <Button variant="outline" onClick={() => setInsightOpen(true)} className="rounded-full bg-card">
                   Create Claim
                 </Button>
               </div>
@@ -721,7 +721,7 @@ export function MediaLibrary({
                       onChange={(event) => setSessionTargetMinutes(event.target.value)}
                       className="h-8 w-28 rounded-full text-right font-code text-[10px]"
                     />
-                    <Button variant="outline" size="sm" onClick={startSession} className="h-8 px-5 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-white rounded-full font-bold">
+                    <Button variant="outline" size="sm" onClick={startSession} className="h-8 px-5 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-card rounded-full font-bold">
                       <Play className="mr-2 size-3.5" /> Start Session
                     </Button>
                   </div>
@@ -732,7 +732,7 @@ export function MediaLibrary({
                   <Card className="rounded-xl border-accent/25 bg-accent/[0.04] p-5 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <div className="flex items-center gap-4">
-                        <div className="flex size-12 items-center justify-center rounded-full bg-white text-accent shadow-sm">
+                        <div className="flex size-12 items-center justify-center rounded-full bg-card text-accent shadow-sm">
                           <Clock className="size-5" />
                         </div>
                         <div>
@@ -751,7 +751,7 @@ export function MediaLibrary({
                         {activeSession.status === 'paused' ? (
                           <Button onClick={resumeSession} className="rounded-full"><Play className="mr-2 size-4" /> Resume</Button>
                         ) : (
-                          <Button variant="outline" onClick={pauseSession} className="rounded-full bg-white"><Pause className="mr-2 size-4" /> Pause</Button>
+                          <Button variant="outline" onClick={pauseSession} className="rounded-full bg-card"><Pause className="mr-2 size-4" /> Pause</Button>
                         )}
                         <Button variant="destructive" onClick={openEndSession} className="rounded-full"><Square className="mr-2 size-4" /> End</Button>
                       </div>
@@ -764,7 +764,7 @@ export function MediaLibrary({
                     {[...(capture.sessions || [])]
                       .sort((a, b) => new Date(b.endedAt || b.date || b.startedAt || '').getTime() - new Date(a.endedAt || a.date || a.startedAt || '').getTime())
                       .map((session) => (
-                        <Card key={session.id} className="rounded-xl border-border/40 bg-white p-4 shadow-sm">
+                        <Card key={session.id} className="rounded-xl border-border/40 bg-card p-4 shadow-sm">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
                               <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -779,7 +779,7 @@ export function MediaLibrary({
                       ))}
                   </div>
                 ) : !activeSession && (
-                  <div className="bg-white border border-border/30 rounded-xl p-8 shadow-sm text-center">
+                  <div className="bg-card border border-border/30 rounded-xl p-8 shadow-sm text-center">
                     <p className="font-body text-base text-muted-foreground italic">Start a session to trace real engagement with this source.</p>
                   </div>
                 )}
@@ -809,7 +809,7 @@ export function MediaLibrary({
 
             <div className="flex gap-4 pt-10 border-t border-border/30">
               <Button onClick={() => updateSelected({ capture })} className="bg-accent px-10 h-11 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">SAVE CAPTURE</Button>
-              <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="h-11 px-10 font-code text-[11px] tracking-widest uppercase text-accent border-accent/20 shadow-sm bg-white rounded-full font-bold">
+              <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="h-11 px-10 font-code text-[11px] tracking-widest uppercase text-accent border-accent/20 shadow-sm bg-card rounded-full font-bold">
                 {isDistilling ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
                 EXTRACT CLAIMS
               </Button>
@@ -821,7 +821,7 @@ export function MediaLibrary({
               <div className="space-y-8">
                 <div className="flex gap-3">
                   <Select value={annotationDraft.type} onValueChange={(value) => setAnnotationDraft((prev) => ({ ...prev, type: value as Annotation['type'] }))}>
-                    <SelectTrigger className="w-48 font-code text-[10px] uppercase h-11 border-border/60 bg-white shadow-sm rounded-full font-bold"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-48 font-code text-[10px] uppercase h-11 border-border/60 bg-card shadow-sm rounded-full font-bold"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="highlight" className="font-code text-[10px] uppercase">Highlight</SelectItem>
                       <SelectItem value="thought" className="font-code text-[10px] uppercase">Thought</SelectItem>
@@ -834,7 +834,7 @@ export function MediaLibrary({
                 </div>
                 <div className="space-y-5">
                   {(selected.annotations || []).map((annotation) => (
-                    <div key={annotation.id} className="rounded-xl border border-border/30 bg-white p-8 shadow-sm hover:shadow-md transition-shadow">
+                    <div key={annotation.id} className="rounded-xl border border-border/30 bg-card p-8 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start mb-4">
                         <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold">
                           {annotation.type}
@@ -847,7 +847,7 @@ export function MediaLibrary({
                 </div>
               </div>
               <aside className="space-y-6">
-                <Button variant="outline" onClick={handleGenerateQuestions} disabled={isGeneratingQuestions} className="w-full h-12 font-code text-[11px] uppercase tracking-widest text-accent border-accent/20 bg-white shadow-sm rounded-full font-bold">
+                <Button variant="outline" onClick={handleGenerateQuestions} disabled={isGeneratingQuestions} className="w-full h-12 font-code text-[11px] uppercase tracking-widest text-accent border-accent/20 bg-card shadow-sm rounded-full font-bold">
                   {isGeneratingQuestions ? <Loader2 className="size-4 mr-2 animate-spin" /> : <HelpCircle className="size-4 mr-2" />}
                   GENERATE REFLECTIONS
                 </Button>
@@ -867,7 +867,7 @@ export function MediaLibrary({
 
             <div className="space-y-5">
               {linkedInsights.map((insight) => (
-                <Card key={insight.id} className="p-8 border-border/40 bg-white group relative shadow-sm hover:shadow-md transition-shadow rounded-xl">
+                <Card key={insight.id} className="p-8 border-border/40 bg-card group relative shadow-sm hover:shadow-md transition-shadow rounded-xl">
                   <h4 className="font-headline text-2xl font-bold italic mb-3 leading-tight text-primary">{insight.title}</h4>
                   <p className="font-body text-[17px] italic text-primary/80 mb-8 leading-relaxed">
                     {insight.description || insight.statement}
@@ -905,7 +905,7 @@ export function MediaLibrary({
               ))}
 
               {linkedInsights.length === 0 && (
-                <div className="py-24 text-center opacity-30 bg-white rounded-xl border border-dashed border-border/50 shadow-sm">
+                <div className="py-24 text-center opacity-30 bg-card rounded-xl border border-dashed border-border/50 shadow-sm">
                   <p className="font-headline text-2xl italic mb-3">No claims extracted yet.</p>
                   <p className="font-body text-base">Turn source evidence into explicit claims only when the source actually changes judgment.</p>
                 </div>
@@ -919,7 +919,7 @@ export function MediaLibrary({
               {linkedInsights.map((entry) => (
                 <Card 
                   key={entry.id} 
-                  className="group cursor-pointer hover:shadow-xl transition-all border-border/50 bg-white p-6 flex gap-6 shadow-sm rounded-xl"
+                  className="group cursor-pointer hover:shadow-xl transition-all border-border/50 bg-card p-6 flex gap-6 shadow-sm rounded-xl"
                   onClick={() => openSelectedSource(selected.id)}
                 >
                   <div className="size-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/50 shadow-sm">
@@ -964,7 +964,7 @@ export function MediaLibrary({
               ))}
 
               {linkedInsights.length === 0 && (
-                <div className="py-24 text-center opacity-30 bg-white rounded-xl border border-dashed border-border/50 shadow-sm">
+                <div className="py-24 text-center opacity-30 bg-card rounded-xl border border-dashed border-border/50 shadow-sm">
                   <p className="font-headline text-2xl italic mb-3">No source links established.</p>
                   <p className="font-body text-base">Create a position or link one to this source to see it here.</p>
                 </div>
@@ -973,7 +973,7 @@ export function MediaLibrary({
           </TabsContent>
 
           <TabsContent value="reflection" className="space-y-8">
-            <Card className="rounded-xl border border-border/40 bg-white p-6 shadow-sm">
+            <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
               <div className="readex-kicker mb-4 opacity-50 font-bold">AFTER-READING REFLECTION</div>
               <div className="grid gap-4 md:grid-cols-2">
                 {[
@@ -1013,7 +1013,7 @@ export function MediaLibrary({
                   { label: 'Question remaining', value: capture.after?.remainsUnanswered || capture.before?.openQuestion || 'No surviving question named yet.' },
                   { label: 'Next move', value: capture.after?.nextAction || 'Choose an inquiry, claim, practice, or work after reflection.' },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-xl border border-accent/15 bg-white p-4">
+                  <div key={item.label} className="rounded-xl border border-accent/15 bg-card p-4">
                     <div className="font-code text-[8px] uppercase tracking-widest text-accent/70 font-bold">{item.label}</div>
                     <p className="mt-2 text-sm leading-6 text-foreground/80">{item.value}</p>
                   </div>
@@ -1021,8 +1021,8 @@ export function MediaLibrary({
               </div>
             </Card>
             <div className="flex flex-wrap gap-3">
-              <Button variant="outline" onClick={() => updateSelected({ capture })} className="rounded-full bg-white">Save Reflection</Button>
-              <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="rounded-full bg-white text-accent border-accent/20">
+              <Button variant="outline" onClick={() => updateSelected({ capture })} className="rounded-full bg-card">Save Reflection</Button>
+              <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="rounded-full bg-card text-accent border-accent/20">
                 {isDistilling ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
                 Extract Claims
               </Button>
@@ -1044,7 +1044,7 @@ export function MediaLibrary({
         />
 
         <Dialog open={endSessionOpen} onOpenChange={setEndSessionOpen}>
-          <DialogContent className="max-w-lg border-none bg-white shadow-2xl rounded-2xl">
+          <DialogContent className="max-w-lg border-none bg-card shadow-2xl rounded-2xl">
             <DialogHeader>
               <DialogTitle className="font-headline text-3xl italic">End Reading Session</DialogTitle>
               <p className="text-sm italic text-muted-foreground">Total active time: {formatDuration(elapsed)}</p>
@@ -1060,7 +1060,7 @@ export function MediaLibrary({
             </div>
             <DialogFooter className="gap-2 pt-4">
               <Button variant="ghost" onClick={() => setEndSessionOpen(false)} className="rounded-full">Cancel</Button>
-              <Button variant="outline" onClick={() => saveSession('')} className="rounded-full bg-white">Skip Notes</Button>
+              <Button variant="outline" onClick={() => saveSession('')} className="rounded-full bg-card">Skip Notes</Button>
               <Button onClick={() => saveSession(endSessionNotes)} className="rounded-full bg-accent px-8">Save Session</Button>
             </DialogFooter>
           </DialogContent>
@@ -1145,7 +1145,7 @@ export function MediaLibrary({
         className="mb-6"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as LibraryViewFilter)}>
-          <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+          <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Attention" />
           </SelectTrigger>
           <SelectContent>
@@ -1155,7 +1155,7 @@ export function MediaLibrary({
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as MediaStatus | 'active' | 'all')}>
-          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -1167,7 +1167,7 @@ export function MediaLibrary({
           </SelectContent>
         </Select>
         <Select value={filter} onValueChange={(value) => setFilter(value as MediaType | 'all')}>
-          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent>
@@ -1278,10 +1278,10 @@ export function MediaLibrary({
         })}
 
         <Card 
-          className="aspect-[2/3] rounded-xl border-2 border-dashed border-border/50 bg-white/50 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-white transition-all group shadow-sm hover:shadow-xl hover:-translate-y-2"
+          className="aspect-[2/3] rounded-xl border-2 border-dashed border-border/50 bg-card/50 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-card transition-all group shadow-sm hover:shadow-xl hover:-translate-y-2"
           onClick={() => openEditor()}
         >
-          <div className="size-12 rounded-full bg-white flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-md border border-border/30">
+          <div className="size-12 rounded-full bg-card flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-md border border-border/30">
             <Plus className="size-6 text-muted-foreground" />
           </div>
           <div className="readex-kicker text-muted-foreground font-bold text-[10px]">ADD MEDIA</div>
@@ -1341,7 +1341,7 @@ function SourceLane({ label, value, description, active, onClick }: { label: str
 
 function CaptureRow({ label, value, placeholder, onChange }: { label: string; value?: string; placeholder: string; onChange: (val: string) => void }) {
   return (
-    <div className="flex items-center border-b border-border/30 last:border-b-0 min-h-[70px] bg-white">
+    <div className="flex items-center border-b border-border/30 last:border-b-0 min-h-[70px] bg-card">
       <div className="w-60 px-8 shrink-0">
         <span className="font-code text-[9px] uppercase tracking-[0.25em] text-muted-foreground font-bold">{label}</span>
       </div>
@@ -1450,7 +1450,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden border-none rounded-2xl shadow-2xl bg-white font-body">
+      <DialogContent className="max-w-xl p-0 overflow-hidden border-none rounded-2xl shadow-2xl bg-card font-body">
         <ScrollArea className="max-h-[85vh]">
           <div className="p-8">
             <DialogHeader className="mb-8">
@@ -1475,7 +1475,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                             setLocatorQuery(e.target.value);
                             handleLocateSource(e.target.value);
                           }}
-                          className="pl-9 h-11 text-sm italic rounded-full bg-white"
+                          className="pl-9 h-11 text-sm italic rounded-full bg-card"
                         />
                         {isLocating && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 size-4 animate-spin text-accent" />}
                       </div>
@@ -1485,7 +1485,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                             <button
                               key={idx}
                               onClick={() => selectLocatedSource(item)}
-                              className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-md transition-all text-left group border border-transparent hover:border-border/40"
+                              className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-card hover:shadow-md transition-all text-left group border border-transparent hover:border-border/40"
                             >
                               <div className="size-12 bg-muted/20 rounded shrink-0 overflow-hidden border border-border/20 flex items-center justify-center">
                                 {item.thumbnailUrl ? (
@@ -1516,7 +1516,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                           placeholder="Paste source URL for auto-metadata..." 
                           value={importUrl}
                           onChange={(e) => setImportUrl(e.target.value)}
-                          className="h-11 text-sm italic rounded-full bg-white"
+                          className="h-11 text-sm italic rounded-full bg-card"
                         />
                         <Button variant="outline" onClick={handleImportUrl} disabled={isImporting || !importUrl.trim()} className="h-11 px-6 rounded-full font-bold">
                           {isImporting ? <Loader2 className="size-4 animate-spin" /> : 'IMPORT'}
@@ -1540,8 +1540,8 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                         className={cn(
                           "flex items-center gap-2 px-4 py-2 rounded-full border transition-all font-code text-[9px] font-bold uppercase tracking-widest shadow-sm",
                           isActive 
-                            ? "bg-accent text-white border-accent" 
-                            : "bg-white text-muted-foreground border-border/60 hover:border-accent hover:text-accent"
+                            ? "bg-accent text-accent-foreground border-accent"
+                            : "bg-card text-muted-foreground border-border/60 hover:border-accent hover:text-accent"
                         )}
                       >
                         <Icon className="size-3.5" />
@@ -1622,7 +1622,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONCEPTS</Label>
                   <div className="flex flex-wrap gap-2">
                     {(draft.tags || []).map(tag => (
-                      <Badge key={tag} variant="secondary" className="px-4 py-1.5 font-code text-[9px] uppercase tracking-widest rounded-full border-border/60 bg-white shadow-sm font-bold">
+                      <Badge key={tag} variant="secondary" className="px-4 py-1.5 font-code text-[9px] uppercase tracking-widest rounded-full border-border/60 bg-card shadow-sm font-bold">
                         {tag}
                         <button onClick={() => removeTag(tag)} className="ml-2 hover:text-destructive transition-colors"><X className="size-3" /></button>
                       </Badge>
@@ -1636,7 +1636,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                       onKeyDown={(e) => e.key === 'Enter' && addTag()}
                       className="h-11 text-sm rounded-full"
                     />
-                    <Button variant="outline" onClick={addTag} className="h-11 font-code text-[10px] font-bold uppercase tracking-widest bg-white shadow-sm border-border/60 rounded-full px-6">ADD</Button>
+                    <Button variant="outline" onClick={addTag} className="h-11 font-code text-[10px] font-bold uppercase tracking-widest bg-card shadow-sm border-border/60 rounded-full px-6">ADD</Button>
                   </div>
                 </div>
 
@@ -1655,7 +1655,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   <select 
                     value={draft.status || 'Want to Read'}
                     onChange={(e) => setDraft(prev => ({ ...prev, status: e.target.value as MediaStatus }))}
-                    className="w-full h-11 rounded-full border border-border/60 bg-white px-5 text-sm font-body appearance-none focus:outline-none focus:ring-2 focus:ring-accent shadow-sm"
+                    className="w-full h-11 rounded-full border border-border/60 bg-card px-5 text-sm font-body appearance-none focus:outline-none focus:ring-2 focus:ring-accent shadow-sm"
                   >
                     {statuses.map(status => <option key={status} value={status}>{status}</option>)}
                   </select>
@@ -1707,7 +1707,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
           <div className="space-y-4">
             <h4 className="readex-kicker opacity-50 font-bold text-[10px]">INPUTS: SOURCES</h4>
             {related.sources.map(s => (
-              <Card key={s.id} className="p-5 bg-white border-border/40 flex gap-5 shadow-sm rounded-xl hover:shadow-md transition-shadow">
+              <Card key={s.id} className="p-5 bg-card border-border/40 flex gap-5 shadow-sm rounded-xl hover:shadow-md transition-shadow">
                 <div className="size-12 rounded-lg bg-muted/20 flex items-center justify-center shrink-0 shadow-inner">
                   {React.createElement(MEDIA_ICONS_COMP[s.type] || BookOpen, { className: "size-6 text-accent/40" })}
                 </div>
@@ -1725,8 +1725,8 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
           <div className="space-y-5">
             <h4 className="readex-kicker opacity-50 font-bold text-[10px]">INPUTS: ANNOTATIONS</h4>
             {related.annotations.map((a, i) => (
-              <Card key={i} className="p-6 bg-white border-border/40 shadow-sm rounded-xl">
-                <Badge variant="outline" className="mb-3 font-code text-[9px] uppercase tracking-widest border-border/60 shadow-sm bg-white rounded-full font-bold">{a.type}</Badge>
+              <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl">
+                <Badge variant="outline" className="mb-3 font-code text-[9px] uppercase tracking-widest border-border/60 shadow-sm bg-card rounded-full font-bold">{a.type}</Badge>
                 <p className="font-body italic text-base text-primary/90 leading-relaxed">"{a.text}"</p>
               </Card>
             ))}
@@ -1739,7 +1739,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
           <div className="space-y-5">
             <h4 className="readex-kicker opacity-50 font-bold text-[10px]">{activeTab.toUpperCase()}</h4>
             {items.map((item, i) => (
-              <Card key={i} className="p-6 bg-white border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
+              <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
                 <h5 className="font-headline font-bold text-xl italic mb-3 text-primary leading-tight">{item.title}</h5>
                 <p className="font-body text-base text-muted-foreground leading-relaxed italic">{item.description || item.statement || ''}</p>
               </Card>
@@ -1752,7 +1752,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
           <div className="space-y-5">
             <h4 className="readex-kicker opacity-50 font-bold text-[10px]">INQUIRIES</h4>
             {related.questions.map((q, i) => (
-              <Card key={i} className="p-6 bg-white border-border/40 shadow-sm rounded-xl">
+              <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl">
                 <p className="font-headline font-bold italic text-lg leading-relaxed text-primary">"{q.text}"</p>
                 {q.answer && <p className="font-body text-base text-muted-foreground mt-4 border-t border-border/20 pt-4 italic leading-relaxed">{q.answer}</p>}
               </Card>
@@ -1765,10 +1765,10 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
           <div className="space-y-5">
             <h4 className="readex-kicker opacity-50 font-bold text-[10px]">WORKS</h4>
             {related.drafts.map((d, i) => (
-              <Card key={i} className="p-6 bg-white border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
+              <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start mb-2">
                   <h5 className="font-headline font-bold text-xl italic text-primary leading-tight">{d.title}</h5>
-                  <Badge variant="outline" className="text-[9px] border-border/60 bg-white shadow-sm rounded-full font-bold uppercase tracking-widest">{d.status}</Badge>
+                  <Badge variant="outline" className="text-[9px] border-border/60 bg-card shadow-sm rounded-full font-bold uppercase tracking-widest">{d.status}</Badge>
                 </div>
                 <p className="text-[10px] font-code opacity-50 uppercase font-bold tracking-widest">{d.type}</p>
               </Card>
@@ -1781,10 +1781,10 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
           <div className="space-y-5">
             <h4 className="readex-kicker opacity-50 font-bold text-[10px]">PRACTICES</h4>
             {related.practices.map((practice, i) => (
-              <Card key={i} className="p-6 bg-white border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
+              <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start mb-2">
                   <h5 className="font-headline font-bold text-xl italic text-primary leading-tight">{practice.title}</h5>
-                  <Badge variant="outline" className="text-[9px] border-border/60 bg-white shadow-sm rounded-full font-bold uppercase tracking-widest">{practice.status}</Badge>
+                  <Badge variant="outline" className="text-[9px] border-border/60 bg-card shadow-sm rounded-full font-bold uppercase tracking-widest">{practice.status}</Badge>
                 </div>
                 <p className="font-body text-sm text-muted-foreground italic leading-relaxed">{practice.description || practice.type}</p>
               </Card>
@@ -1818,7 +1818,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
 
   return (
     <Dialog open={!!name} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-2xl bg-[#FAFAF7] font-body">
+      <DialogContent className="max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-2xl bg-background font-body">
         <div className="p-10">
           <DialogHeader className="mb-10">
             <DialogTitle className="text-5xl font-headline italic mb-2 text-primary/90 leading-tight">{name}</DialogTitle>
@@ -1833,15 +1833,15 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
                 className={cn(
                   "px-5 py-2 rounded-full border transition-all font-code text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 shadow-sm",
                   activeTab === tab.id 
-                    ? "bg-accent text-white border-accent shadow-md" 
-                    : "bg-white text-muted-foreground border-border/60 hover:border-accent/40"
+                    ? "bg-accent text-accent-foreground border-accent shadow-md"
+                    : "bg-card text-muted-foreground border-border/60 hover:border-accent/40"
                 )}
               >
                 {tab.label}
                 {tab.count !== null && (
                   <span className={cn(
                     "rounded-full px-2 py-0.5 text-[9px] font-bold",
-                    activeTab === tab.id ? "bg-white/20 text-white" : "bg-muted/50 text-muted-foreground/60"
+                    activeTab === tab.id ? "bg-card/20 text-white" : "bg-muted/50 text-muted-foreground/60"
                   )}>
                     {tab.count}
                   </span>
@@ -1858,7 +1858,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
         </div>
 
         <div className="p-8 pt-4 bg-muted/5 border-t border-border/20 flex justify-end">
-          <Button variant="outline" onClick={onClose} className="h-11 px-10 font-code text-[11px] font-bold uppercase tracking-widest bg-white border-border/60 shadow-sm rounded-full">CLOSE AUDIT</Button>
+          <Button variant="outline" onClick={onClose} className="h-11 px-10 font-code text-[11px] font-bold uppercase tracking-widest bg-card border-border/60 shadow-sm rounded-full">CLOSE AUDIT</Button>
         </div>
       </DialogContent>
     </Dialog>

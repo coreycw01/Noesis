@@ -208,7 +208,7 @@ function eventEvidenceQuality(event: DisplayEvent) {
     return {
       label: 'Provisional interpretation',
       detail: 'This is useful for reflection, but should remain reviewable and revisable.',
-      className: 'border-violet-200 bg-violet-50 text-violet-800',
+      className: 'border-accent-border bg-accent-muted text-foreground',
     };
   }
 
@@ -519,7 +519,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
             onClick={() => setView(option.value)}
             className={cn(
               'rounded-full border px-4 py-2 text-left font-code text-[10px] font-bold uppercase tracking-[0.14em] transition-all',
-              view === option.value ? 'border-accent bg-accent text-white shadow-sm' : 'border-border/50 bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground'
+              view === option.value ? 'border-accent bg-accent text-accent-foreground shadow-sm' : 'border-border/50 bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground'
             )}
           >
             {option.label}
@@ -723,7 +723,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
                       <MiniEvolutionStat label="Fractured" value={area.movements.fractured} />
                       <MiniEvolutionStat label="Stabilized" value={area.movements.stabilized} />
                     </div>
-                    <div className="mt-4 rounded-xl border border-white/60 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10">
+                    <div className="mt-4 rounded-xl border border-white/60 bg-card/50 p-3 dark:border-white/10 dark:bg-black/10">
                       <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Latest Evidence</div>
                       {area.latest ? (
                         <>
@@ -766,7 +766,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
             onClick={() => setFilter('all')}
             className={cn(
               'px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap',
-              filter === 'all' ? 'bg-accent text-white shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+              filter === 'all' ? 'bg-accent text-accent-foreground shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
             )}
           >
             All
@@ -781,7 +781,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
               onClick={() => setFilter(option.value)}
               className={cn(
                 'px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap',
-                filter === option.value ? 'bg-accent text-white shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                filter === option.value ? 'bg-accent text-accent-foreground shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
             >
               {option.label}
@@ -798,7 +798,7 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
                 onClick={() => setFilter(option.value)}
                 className={cn(
                   'px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap',
-                  filter === option.value ? 'bg-accent text-white shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                  filter === option.value ? 'bg-accent text-accent-foreground shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
                 )}
               >
                 {option.label}

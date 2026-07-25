@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { noesisGuide } from '@/lib/noesis-guide';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
 import {
   MEDIA_LABELS,
   WRITING_STYLE_LABELS,
@@ -124,7 +126,7 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
   account: {
     current: 'Controls sign-in actions, password reset, account export, and the handoff to the separate Profile surface.',
     affects: ['Authentication controls', 'Workspace export actions', 'Profile access from the utility area'],
-    limitations: ['Profile identity and philosophical portrait editing belongs on Profile, not Settings.'],
+    limitations: [],
   },
   appearance: {
     current: 'Previews theme, color, headline typography, interface size, contrast, and motion immediately, then persists them when saved.',
@@ -233,18 +235,8 @@ export function SettingsPage({
   );
 
   useEffect(() => {
-    const root = document.documentElement;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const applyTheme = () => {
-      const systemDark = mediaQuery.matches;
-      const dark = appearancePreview.themeMode === 'dark' || (appearancePreview.themeMode === 'system' && systemDark);
-      root.classList.toggle('dark', dark);
-      root.classList.toggle('high-contrast', appearancePreview.highContrastMode);
-      root.classList.toggle('reduce-motion', appearancePreview.reducedMotion);
-      root.dataset.theme = appearancePreview.accentTheme;
-      root.dataset.headerFont = appearancePreview.headerFont;
-      root.dataset.fontSize = appearancePreview.fontSize;
-    };
+    const applyTheme = () => applyAppearanceSettings(appearancePreview, mediaQuery.matches);
     applyTheme();
     mediaQuery.addEventListener('change', applyTheme);
     return () => mediaQuery.removeEventListener('change', applyTheme);
@@ -255,14 +247,14 @@ export function SettingsPage({
     try {
       await onSaveSection(section, drafts[section]);
       if (section === 'appearance') {
-        window.localStorage.setItem('noesis:theme', JSON.stringify({
+        persistAppearanceSettings({
           themeMode: drafts.appearance.themeMode,
           accentTheme: drafts.appearance.accentTheme,
           headerFont: drafts.appearance.headerFont,
           fontSize: drafts.appearance.fontSize,
           highContrastMode: drafts.appearance.highContrastMode,
           reducedMotion: drafts.appearance.reducedMotion,
-        }));
+        });
       }
       setLastSaved(section);
       toast({ title: `${sectionLabel(section)} saved`, description: `Your ${sectionLabel(section).toLowerCase()} settings are updated.` });
@@ -373,7 +365,7 @@ export function SettingsPage({
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Accent Color">
+                <Field label="Theme Palette">
                   <Select value={drafts.appearance.accentTheme} onValueChange={(value) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, accentTheme: value as AppearanceSettings['accentTheme'] } }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -426,7 +418,7 @@ export function SettingsPage({
                   <div className="min-w-0 flex-1 p-5">
                     <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Live theme preview</div>
                     <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">A workspace for living thought</div>
-                    <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">This preview uses the same background, card, border, text, and accent tokens as Noesis.</p>
+                    <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">This preview uses the same page, navigation, surface, border, typography, and accent tokens as every Noesis workspace.</p>
                     <div className="mt-4 flex flex-wrap items-center gap-3">
                       <Button size="sm" className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">Primary action</Button>
                       <div className="rounded-xl border border-border bg-card px-4 py-2 text-sm text-card-foreground">Readable card</div>
@@ -976,12 +968,10 @@ export function SettingsPage({
   return (
     <div className="flex-1 overflow-y-auto bg-background p-8 pt-8">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-8">
-          <h1 className="text-[28px] font-headline font-semibold italic text-foreground">Settings</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Control how Noesis behaves without crowding the main thinking surfaces. Settings stays organized by function, while Profile and Goals live where they belong in the day-to-day workspace.
-          </p>
-        </header>
+        <PageHeader
+          title="Settings"
+          description="Control how Noesis behaves without crowding the main thinking surfaces. Settings stays organized by function, while Profile and Goals live where they belong in the day-to-day workspace."
+        />
 
         <div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
           <Card className="h-fit rounded-2xl border-border bg-card p-3 shadow-sm">

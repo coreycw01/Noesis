@@ -1022,15 +1022,15 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         <div className="mb-5 flex items-center justify-between">
           <Button variant="ghost" onClick={closeEntry} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full"><ArrowLeft className="size-4 mr-2" /> Positions</Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => openEditor(selected)} className="h-8 bg-white border-border/60 shadow-sm rounded-full"><Edit className="size-4 mr-2" /> Edit</Button>
+            <Button variant="outline" onClick={() => openEditor(selected)} className="h-8 bg-card border-border/60 shadow-sm rounded-full"><Edit className="size-4 mr-2" /> Edit</Button>
             <Button variant="destructive" onClick={() => setDeleteTarget(selected)} className="h-8 shadow-sm rounded-full"><Trash2 className="size-4 mr-2" /> Delete</Button>
           </div>
         </div>
 
-        <Card className="mb-5 rounded-2xl border-border/50 bg-white p-5 shadow-sm">
+        <Card className="mb-5 rounded-2xl border-border/50 bg-card p-5 shadow-sm">
             <div className="mb-3 flex flex-wrap gap-2">
-              <Badge variant="outline" className="font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
-              <Badge variant="outline" className="font-code uppercase bg-white border-border/60 shadow-sm rounded-full">{(selected.positionKind || 'interpretive').replace(/_/g, ' ')}</Badge>
+              <Badge variant="outline" className="font-code uppercase bg-card border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
+              <Badge variant="outline" className="font-code uppercase bg-card border-border/60 shadow-sm rounded-full">{(selected.positionKind || 'interpretive').replace(/_/g, ' ')}</Badge>
               <Badge variant="secondary" className="font-code uppercase rounded-full bg-accent/10 text-accent">personal confidence {selected.confidence}/5</Badge>
               <Badge
                 variant={formation.fullyFormed ? 'default' : 'outline'}
@@ -1044,7 +1044,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             </div>
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="min-w-0 flex-1">
-              <h1 className="font-headline text-3xl font-bold leading-tight">{selected.title}</h1>
+              <h1 className="noesis-page-title text-3xl">{selected.title}</h1>
               <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>
             </div>
             <div className="min-w-[280px] rounded-xl border border-border/50 bg-muted/10 p-4">
@@ -1066,7 +1066,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               <button 
                 key={tag} 
                 onClick={() => setConceptPopupName(tag)}
-                className="font-code text-[9px] uppercase tracking-widest px-3 py-1 bg-white border border-border/60 shadow-sm rounded-full font-bold hover:bg-accent/10 hover:text-accent transition-all"
+                className="font-code text-[9px] uppercase tracking-widest px-3 py-1 bg-card border border-border/60 shadow-sm rounded-full font-bold hover:bg-accent/10 hover:text-accent transition-all"
               >
                 {tag}
               </button>
@@ -1246,7 +1246,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               onUpdateLink={onUpdateLink}
             />
 
-            <Card className="mb-6 rounded-xl border-border/50 bg-white p-5 shadow-sm">
+            <Card className="mb-6 rounded-xl border-border/50 bg-card p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Position Anatomy</div>
@@ -1273,7 +1273,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             </Card>
 
             <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-              <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
+              <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Position Pressure</div>
@@ -1294,7 +1294,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 </div>
               </Card>
 
-              <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
+              <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Object Flow</div>
@@ -1310,7 +1310,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               </Card>
             </div>
 
-            <Card className="mb-6 rounded-xl border-border/50 bg-white p-5 shadow-sm">
+            <Card className="mb-6 rounded-xl border-border/50 bg-card p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Stress-Test Mode</div>
@@ -1598,7 +1598,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
         {detailTab === 'history' && (
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-            <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
+            <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Belief Biography</div>
@@ -1620,7 +1620,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               </div>
             </Card>
 
-            <Card className="rounded-xl border-border/50 bg-white p-5 shadow-sm">
+            <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">AI Review</div>
@@ -1829,7 +1829,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         className="mb-3"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PositionViewFilter)}>
-          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Position View" />
           </SelectTrigger>
           <SelectContent>
@@ -1840,7 +1840,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         </Select>
 
         <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as VaultType | 'all')}>
-          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60">
+          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Position Type" />
           </SelectTrigger>
           <SelectContent>
@@ -1992,7 +1992,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       />
 
       <Dialog open={tensionDrawerOpen} onOpenChange={setTensionDrawerOpen}>
-        <DialogContent className="max-w-2xl max-h-[82vh] overflow-y-auto bg-white border-none shadow-2xl rounded-2xl">
+        <DialogContent className="max-w-2xl max-h-[82vh] overflow-y-auto bg-card border-none shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl italic">Possible tensions</DialogTitle>
           </DialogHeader>
@@ -2022,7 +2022,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                   {b.title}
                 </button>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" className="h-8 rounded-full bg-white" onClick={() => { setTensionDrawerOpen(false); openEntry(a.id); }}>
+                  <Button variant="outline" size="sm" className="h-8 rounded-full bg-card" onClick={() => { setTensionDrawerOpen(false); openEntry(a.id); }}>
                     Review tension
                   </Button>
                   <Button variant="ghost" size="sm" className="h-8 rounded-full" onClick={() => setViewFilter('tensions')}>
@@ -2044,7 +2044,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
       {/* Draft position pipeline dialog */}
       <Dialog open={ideaOpen} onOpenChange={(open) => { if (!open) setIdeaOpen(false); }}>
-        <DialogContent className="max-w-xl bg-white border-none shadow-2xl rounded-2xl">
+        <DialogContent className="max-w-xl bg-card border-none shadow-2xl rounded-2xl">
           <DialogHeader>
             <div className="flex items-center gap-2 mb-1">
               {[1, 2, 3].map((n) => (
@@ -2166,8 +2166,8 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                       className={cn(
                         'flex-1 h-9 rounded-full text-[11px] font-code font-bold uppercase tracking-wider transition-all border',
                         ideaPosition.confidence === n
-                          ? 'bg-accent text-white border-accent shadow-md'
-                          : 'bg-white text-muted-foreground border-border/60 hover:border-accent/40'
+                          ? 'bg-accent text-accent-foreground border-accent shadow-md'
+                          : 'bg-card text-muted-foreground border-border/60 hover:border-accent/40'
                       )}
                     >
                       {n}
@@ -2267,18 +2267,18 @@ function TensionResolutionPanel({
           <h2 className="font-code text-[10px] font-bold uppercase tracking-[0.2em] text-amber-700">Possible Tension Detected</h2>
           <p className="mt-1 text-sm italic leading-5 text-muted-foreground">Decide whether this relationship is compatible, opposed, or needs refinement.</p>
         </div>
-        <Badge variant="outline" className="rounded-full bg-white font-code text-[8px] uppercase tracking-widest">{tensionLinks.length} open</Badge>
+        <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{tensionLinks.length} open</Badge>
       </div>
       <div className="space-y-3">
         {tensionLinks.map((link) => {
           const otherLabel = link.fromId === selected.id ? link.toLabel || link.toType : link.fromLabel || link.fromType;
           return (
-            <div key={link.id} className="rounded-lg border border-amber-200/50 bg-white/80 p-3">
+            <div key={link.id} className="rounded-lg border border-amber-200/50 bg-card/80 p-3">
               <div className="mb-3 text-sm italic text-primary/80">
                 {otherLabel} is currently marked as <span className="font-code text-[10px] uppercase tracking-widest text-amber-700">{link.type}</span>.
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => updateLink(link, 'coheres', 'Reviewed and marked as not a contradiction.')} className="rounded-full bg-white">
+                <Button variant="outline" size="sm" onClick={() => updateLink(link, 'coheres', 'Reviewed and marked as not a contradiction.')} className="rounded-full bg-card">
                   Not A Contradiction
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => updateLink(link, 'contradicts', 'Confirmed as an active contradiction to examine.')} className="rounded-full border-destructive/25 text-destructive hover:text-destructive">
@@ -2406,7 +2406,7 @@ function PositionsTable({
 function EvidencePanel({ title, items, onAdd }: { title: string; items: string[]; onAdd: (text: string) => void }) {
   const [text, setText] = useState('');
   return (
-    <Card className="p-5 bg-white border-border/40 shadow-sm rounded-xl">
+    <Card className="p-5 bg-card border-border/40 shadow-sm rounded-xl">
       <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-bold">{title}</h3>
       <div className="space-y-2 mb-3">{items.map((item, index) => <div key={`${item}-${index}`} className="rounded-lg bg-muted/30 p-3 text-sm italic shadow-sm border border-border/10 leading-relaxed text-primary/80">{item}</div>)}</div>
       <div className="flex gap-2"><Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Add evidence..." className="h-9 rounded-full" /><Button onClick={() => { if (text.trim()) { onAdd(text.trim()); setText(''); } }} size="sm" className="h-9 px-4 rounded-full">Add</Button></div>
@@ -2416,7 +2416,7 @@ function EvidencePanel({ title, items, onAdd }: { title: string; items: string[]
 
 function InfoPanel({ title, items, empty }: { title: string; items: string[]; empty: string }) {
   return (
-    <Card className="p-5 bg-white border-border/40 shadow-sm rounded-xl">
+    <Card className="p-5 bg-card border-border/40 shadow-sm rounded-xl">
       <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-bold">{title}</h3>
       {items.length ? items.map((item) => (
         <div key={item} className="rounded-lg bg-muted/30 p-3 text-sm mb-2 italic shadow-sm border border-border/10 leading-relaxed text-primary/80">{item}</div>
@@ -2441,7 +2441,7 @@ function NextMoveCard({ recommended, actions, className }: { recommended: string
   const primary = actions.slice(0, 4);
   const secondary = actions.slice(4);
   return (
-    <Card className={cn("rounded-xl border-border/50 bg-white p-4 shadow-sm", className)}>
+    <Card className={cn("rounded-xl border-border/50 bg-card p-4 shadow-sm", className)}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Recommended next move</div>
@@ -2456,7 +2456,7 @@ function NextMoveCard({ recommended, actions, className }: { recommended: string
           {!!secondary.length && (
             <details className="relative">
               <summary className="flex h-8 cursor-pointer items-center rounded-full border border-border/60 bg-card px-3 font-code text-[9px] font-medium uppercase tracking-widest text-muted-foreground">More</summary>
-              <div className="absolute right-0 z-20 mt-2 min-w-44 rounded-xl border border-border/60 bg-white p-2 shadow-xl">
+              <div className="absolute right-0 z-20 mt-2 min-w-44 rounded-xl border border-border/60 bg-card p-2 shadow-xl">
                 {secondary.map((action) => (
                   <button key={action.label} type="button" onClick={action.onClick} className="block w-full rounded-lg px-3 py-2 text-left font-code text-[9px] uppercase tracking-widest text-muted-foreground hover:bg-accent/10 hover:text-accent">
                     {action.label}
@@ -2481,7 +2481,7 @@ function EntityListPanel({
   empty: string;
 }) {
   return (
-    <Card className="p-5 bg-white border-border/40 shadow-sm rounded-xl">
+    <Card className="p-5 bg-card border-border/40 shadow-sm rounded-xl">
       <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-bold">{title}</h3>
       {items.length ? (
         <div className="space-y-2">
@@ -2539,7 +2539,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto bg-white border-none shadow-2xl rounded-2xl">
+      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto bg-card border-none shadow-2xl rounded-2xl">
         <DialogHeader><DialogTitle className="font-headline text-2xl italic">{draft.id ? 'Edit Position' : 'Form Position'}</DialogTitle></DialogHeader>
         <div className="space-y-6 pt-2">
           <div className="grid grid-cols-2 gap-4">
@@ -2550,7 +2550,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">TYPE</Label>
               <Select value={draft.type || 'belief'} onValueChange={(value) => setDraft((prev) => ({ ...prev, type: value as VaultType }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-white shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
                 <SelectContent>{vaultTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{type.replace('_', ' ')}</SelectItem>)}</SelectContent>
               </Select>
             </div>
@@ -2559,21 +2559,21 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">POSITION KIND</Label>
               <Select value={draft.positionKind || 'interpretive'} onValueChange={(value) => setDraft((prev) => ({ ...prev, positionKind: value as PositionKind }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-white shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
                 <SelectContent>{positionKinds.map((kind) => <SelectItem key={kind.id} value={kind.id} className="font-code text-[10px] uppercase">{kind.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">STATE</Label>
               <Select value={draft.status || 'tentative'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as VaultEntry['status'] }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-white shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
                 <SelectContent>{positionStatuses.map((status) => <SelectItem key={status.id} value={status.id} className="font-code text-[10px] uppercase">{status.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONFIDENCE</Label>
               <Select value={String(draft.confidence || 3)} onValueChange={(value) => setDraft((prev) => ({ ...prev, confidence: Number(value) }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-white shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {[1, 2, 3, 4, 5].map((value) => <SelectItem key={value} value={String(value)} className="font-code text-[10px] uppercase">{value} - {confidenceLabel(value)}</SelectItem>)}
                 </SelectContent>

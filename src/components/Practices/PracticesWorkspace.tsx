@@ -328,20 +328,20 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
         className="mb-3"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PracticeViewFilter)}>
-          <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Views" /></SelectTrigger>
+          <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-card shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Views" /></SelectTrigger>
           <SelectContent>
             {practiceViewFilters.map((filter) => <SelectItem key={filter.value} value={filter.value} className="font-code text-[9px] uppercase">{filter.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as PracticeStatus | 'all')}>
-          <SelectTrigger className="w-48 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+          <SelectTrigger className="w-48 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-card shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Statuses" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="font-code text-[9px] uppercase">All Statuses</SelectItem>
             {statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[9px] uppercase">{status}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as PracticeType | 'all')}>
-          <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Types" /></SelectTrigger>
+          <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-card shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Types" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="font-code text-[9px] uppercase">All Practice Types</SelectItem>
             {practiceTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{simplifiedTypeLabels[type]}</SelectItem>)}
@@ -369,7 +369,7 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
             onClick={() => setViewFilter(viewFilter === item.filter ? 'all' : item.filter)}
             className={cn(
               "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
-              viewFilter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+              viewFilter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
             {item.label} {item.value}
@@ -396,7 +396,7 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
               <Repeat className="size-12 mx-auto mb-4 text-muted-foreground/30" />
               <h3 className="font-headline text-xl italic mb-2 text-primary/60">No lived tests initiated</h3>
               <p className="max-w-sm mx-auto text-sm text-muted-foreground italic mb-5">What does your current understanding require of you?</p>
-              <Button variant="outline" onClick={() => openEditor()} className="rounded-full px-8 font-bold border-border/60 shadow-sm bg-white">Initiate Practice</Button>
+              <Button variant="outline" onClick={() => openEditor()} className="rounded-full px-8 font-bold border-border/60 shadow-sm bg-card">Initiate Practice</Button>
             </Card>
           )}
         </div>
@@ -418,7 +418,7 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
                   onClick={() => setOtherStatus(status)}
                   className={cn(
                     "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
-                    otherStatus === status ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+                    otherStatus === status ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
                   )}
                 >
                   {status} {count}
@@ -498,7 +498,7 @@ function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDel
       <div className="mb-2 flex items-center gap-2">
         <span className="font-code text-[9px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{title}</span>
         <span className="h-px flex-1 bg-border/60" />
-        <Badge variant="outline" className="rounded-full bg-white font-code text-[8px] uppercase tracking-widest">{practices.length}</Badge>
+        <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{practices.length}</Badge>
       </div>
       <div className="space-y-2">
         {practices.map((practice) => (
@@ -634,12 +634,12 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
     setReviewOpen(false);
   };
   return (
-    <Card className={cn("group cursor-pointer transition-all border border-border/60 bg-white/95 rounded-xl shadow-sm hover:border-accent/30 hover:shadow-md", compact ? "p-3" : "p-4")}>
+    <Card className={cn("group cursor-pointer transition-all border border-border/60 bg-card/95 rounded-xl shadow-sm hover:border-accent/30 hover:shadow-md", compact ? "p-3" : "p-4")}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap gap-1.5 mb-1.5">
             <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5 shadow-sm">{simplifiedTypeLabels[visibleType]}</Badge>
-            <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-border/60 bg-white shadow-sm rounded-full font-bold px-2.5 py-0.5 shadow-sm">{visibleStatus}</Badge>
+            <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-border/60 bg-card shadow-sm rounded-full font-bold px-2.5 py-0.5 shadow-sm">{visibleStatus}</Badge>
             {needsLog && <Badge className="font-code text-[8px] uppercase tracking-widest bg-emerald-100 text-emerald-900 hover:bg-emerald-100 rounded-full font-bold px-2.5 py-0.5">log due</Badge>}
             {setupNeed && <Badge className="font-code text-[8px] uppercase tracking-widest bg-sky-100 text-sky-950 hover:bg-sky-100 rounded-full font-bold px-2.5 py-0.5">needs setup</Badge>}
             {recentlyConcluded && <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-accent/30 bg-accent/5 text-accent rounded-full font-bold px-2.5 py-0.5">recent result</Badge>}
@@ -705,17 +705,17 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="DATE">
-              <Input type="date" value={logDraft.date || todayKey} onChange={(event) => setLogDraft((prev) => ({ ...prev, date: event.target.value }))} className="h-10 rounded-full bg-white font-code text-xs" />
+              <Input type="date" value={logDraft.date || todayKey} onChange={(event) => setLogDraft((prev) => ({ ...prev, date: event.target.value }))} className="h-10 rounded-full bg-card font-code text-xs" />
             </Field>
             <Field label="CONFIDENCE IN OBSERVATION">
               <Select value={String(logDraft.confidence || 3)} onValueChange={(value) => setLogDraft((prev) => ({ ...prev, confidence: Number(value) }))}>
-                <SelectTrigger className="h-10 rounded-full bg-white font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10 rounded-full bg-card font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {[1, 2, 3, 4, 5].map((value) => <SelectItem key={value} value={String(value)} className="font-code text-[10px] uppercase">{value} / 5</SelectItem>)}
                 </SelectContent>
               </Select>
             </Field>
-            <label className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-white p-3 text-sm font-medium text-emerald-950 sm:col-span-2">
+            <label className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-card p-3 text-sm font-medium text-emerald-950 sm:col-span-2">
               <input
                 type="checkbox"
                 checked={logDraft.actionCompleted ?? true}
@@ -725,20 +725,20 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
               Action completed as intended
             </label>
             <Field label="CONTEXT">
-              <Textarea value={logDraft.context || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, context: event.target.value }))} placeholder="When, where, under what conditions?" className="min-h-20 bg-white" />
+              <Textarea value={logDraft.context || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, context: event.target.value }))} placeholder="When, where, under what conditions?" className="min-h-20 bg-card" />
             </Field>
             <Field label="OUTCOME">
-              <Textarea value={logDraft.outcome || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, outcome: event.target.value }))} placeholder="What happened?" className="min-h-20 bg-white" />
+              <Textarea value={logDraft.outcome || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, outcome: event.target.value }))} placeholder="What happened?" className="min-h-20 bg-card" />
             </Field>
             <Field label="OBSERVATIONS">
-              <Textarea value={logDraft.observations || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, observations: event.target.value }))} placeholder="Emotional, practical, or situational observations." className="min-h-20 bg-white" />
+              <Textarea value={logDraft.observations || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, observations: event.target.value }))} placeholder="Emotional, practical, or situational observations." className="min-h-20 bg-card" />
             </Field>
             <Field label="UNEXPECTED RESULT">
-              <Textarea value={logDraft.unexpectedResult || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, unexpectedResult: event.target.value }))} placeholder="What surprised you or complicated the hypothesis?" className="min-h-20 bg-white" />
+              <Textarea value={logDraft.unexpectedResult || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, unexpectedResult: event.target.value }))} placeholder="What surprised you or complicated the hypothesis?" className="min-h-20 bg-card" />
             </Field>
           </div>
           <div className="mt-3 flex justify-end gap-2">
-            <Button size="sm" variant="outline" onClick={() => setLogOpen(false)} className="h-8 rounded-full bg-white">Cancel</Button>
+            <Button size="sm" variant="outline" onClick={() => setLogOpen(false)} className="h-8 rounded-full bg-card">Cancel</Button>
             <Button size="sm" onClick={saveLog} className="h-8 rounded-full bg-emerald-700 hover:bg-emerald-800">Save Observation</Button>
           </div>
         </div>
@@ -767,14 +767,14 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
             value={reviewDraft.whatHappened}
             onChange={(event) => setReviewDraft((prev) => ({ ...prev, whatHappened: event.target.value }))}
             placeholder="What happened?"
-            className="mt-3 min-h-24 rounded-xl bg-white"
+            className="mt-3 min-h-24 rounded-xl bg-card"
           />
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Textarea value={reviewDraft.performedAsIntended} onChange={(event) => setReviewDraft((prev) => ({ ...prev, performedAsIntended: event.target.value }))} placeholder="Was the practice performed as intended?" className="min-h-20 rounded-xl bg-white" />
-            <Textarea value={reviewDraft.hypothesisSupported} onChange={(event) => setReviewDraft((prev) => ({ ...prev, hypothesisSupported: event.target.value }))} placeholder="Was the hypothesis supported, weakened, or complicated?" className="min-h-20 rounded-xl bg-white" />
-            <Textarea value={reviewDraft.alternativeExplanation} onChange={(event) => setReviewDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} placeholder="What alternative explanation exists?" className="min-h-20 rounded-xl bg-white" />
-            <Textarea value={reviewDraft.intellectualChange} onChange={(event) => setReviewDraft((prev) => ({ ...prev, intellectualChange: event.target.value }))} placeholder="What changed intellectually?" className="min-h-20 rounded-xl bg-white" />
-            <Textarea value={reviewDraft.shouldContinue} onChange={(event) => setReviewDraft((prev) => ({ ...prev, shouldContinue: event.target.value }))} placeholder="Should this continue, revise, integrate, or stop?" className="min-h-20 rounded-xl bg-white sm:col-span-2" />
+            <Textarea value={reviewDraft.performedAsIntended} onChange={(event) => setReviewDraft((prev) => ({ ...prev, performedAsIntended: event.target.value }))} placeholder="Was the practice performed as intended?" className="min-h-20 rounded-xl bg-card" />
+            <Textarea value={reviewDraft.hypothesisSupported} onChange={(event) => setReviewDraft((prev) => ({ ...prev, hypothesisSupported: event.target.value }))} placeholder="Was the hypothesis supported, weakened, or complicated?" className="min-h-20 rounded-xl bg-card" />
+            <Textarea value={reviewDraft.alternativeExplanation} onChange={(event) => setReviewDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} placeholder="What alternative explanation exists?" className="min-h-20 rounded-xl bg-card" />
+            <Textarea value={reviewDraft.intellectualChange} onChange={(event) => setReviewDraft((prev) => ({ ...prev, intellectualChange: event.target.value }))} placeholder="What changed intellectually?" className="min-h-20 rounded-xl bg-card" />
+            <Textarea value={reviewDraft.shouldContinue} onChange={(event) => setReviewDraft((prev) => ({ ...prev, shouldContinue: event.target.value }))} placeholder="Should this continue, revise, integrate, or stop?" className="min-h-20 rounded-xl bg-card sm:col-span-2" />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => saveConclusionReview('concluded')} disabled={!reviewDraft.whatHappened.trim()} className="h-8 rounded-full">
@@ -809,7 +809,7 @@ function PracticeEditor({ open, onOpenChange, draft, setDraft, concepts, media, 
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto bg-white border-none shadow-2xl rounded-2xl p-0">
+      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto bg-card border-none shadow-2xl rounded-2xl p-0">
         <div className="p-8">
           <DialogHeader className="mb-6"><DialogTitle className="font-headline text-3xl italic">{draft.id ? 'Refine Practice' : 'Start Practice'}</DialogTitle></DialogHeader>
           <div className="space-y-6">
@@ -827,19 +827,19 @@ function PracticeEditor({ open, onOpenChange, draft, setDraft, concepts, media, 
               <Field label="DURATION (DAYS)"><Input type="number" min={0} value={draft.durationDays || 0} onChange={(event) => setDraft((prev) => ({ ...prev, durationDays: Math.max(0, Number(event.target.value) || 0) }))} className="font-code rounded-full" /></Field>
               <Field label="PRACTICE TYPE">
                 <Select value={draft.type || 'experiment'} onValueChange={(value) => setDraft((prev) => ({ ...prev, type: value as PracticeType }))}>
-                  <SelectTrigger className="rounded-full bg-white border-border/60 shadow-sm font-code text-[10px] uppercase h-11"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm font-code text-[10px] uppercase h-11"><SelectValue /></SelectTrigger>
                   <SelectContent>{practiceTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{PRACTICE_LABELS[type]}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
               <Field label="STATUS">
                 <Select value={draft.status || 'planned'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as PracticeStatus }))}>
-                  <SelectTrigger className="rounded-full bg-white border-border/60 shadow-sm font-code text-[10px] uppercase h-11"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm font-code text-[10px] uppercase h-11"><SelectValue /></SelectTrigger>
                   <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{status}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
               <Field label="DURATION MODE">
                 <Select value={draft.durationMode || 'repeated'} onValueChange={(value) => setDraft((prev) => ({ ...prev, durationMode: value as Practice['durationMode'] }))}>
-                  <SelectTrigger className="rounded-full bg-white border-border/60 shadow-sm font-code text-[10px] uppercase h-11"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm font-code text-[10px] uppercase h-11"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="one_time" className="font-code text-[10px] uppercase">One Time</SelectItem>
                     <SelectItem value="repeated" className="font-code text-[10px] uppercase">Repeated</SelectItem>
@@ -902,7 +902,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function LinkGrid({ title, items, selected, onChange }: { title: string; items: { id: string; label: string }[]; selected: string[]; onChange: (ids: string[]) => void }) {
   return (
     <Field label={title}>
-      <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto rounded-xl border border-border/60 bg-white p-4 shadow-inner">
+      <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto rounded-xl border border-border/60 bg-card p-4 shadow-inner">
         {items.length ? items.map((item) => (
           <label key={item.id} className="flex items-center gap-3 text-sm cursor-pointer group py-1">
             <input 
