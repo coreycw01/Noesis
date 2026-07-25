@@ -117,19 +117,14 @@ function inquiryFrameGaps(question: Question) {
   return gaps;
 }
 
-function inquiryReadinessScore(question: Question) {
-  return Math.max(0, 6 - inquiryFrameGaps(question).length);
-}
-
-function inquiryDiagnosticFlags(question: Question) {
-  const flags: Array<{ id: string; label: string; detail: string; tone: 'urgent' | 'review' | 'growth' }> = [];
-  if (!question.whyItMatters?.trim()) flags.push({ id: 'stakes', label: 'Stakes', detail: 'Explain why this question matters before treating it as a serious investigation.', tone: 'review' });
-  if (inquiryNeedsAssumptions(question)) flags.push({ id: 'assumptions', label: 'Assumptions', detail: 'Name what the question is taking for granted.', tone: 'review' });
-  if (inquiryNeedsEvidence(question)) flags.push({ id: 'evidence', label: 'Evidence', detail: 'Attach sources, annotations, or examples that bear on this inquiry.', tone: 'urgent' });
-  if (inquiryNeedsCandidateAnswers(question)) flags.push({ id: 'candidates', label: 'Candidate', detail: 'Write at least one possible answer before resolving or forming a position.', tone: 'growth' });
-  if (inquiryReadyToResolve(question)) flags.push({ id: 'resolution', label: 'Summary', detail: 'This has an answer but needs a resolution summary or explicit outcome.', tone: 'review' });
-  if ((question.candidateAnswers || []).length > 1 && question.status !== 'comparing_answers') flags.push({ id: 'compare', label: 'Compare', detail: 'Multiple candidate answers are available; compare support, objections, and consequences.', tone: 'growth' });
-  return flags;
+function inquiryCardNextStep(question: Question) {
+  if (isInquiryClosed(question)) return 'Review the saved answer or reopen this inquiry when new evidence appears.';
+  if (!question.whyItMatters?.trim()) return 'Clarify why this question matters.';
+  if (inquiryNeedsEvidence(question)) return 'Add one source, observation, or counterexample.';
+  if (inquiryNeedsCandidateAnswers(question)) return 'Draft a possible answer to examine.';
+  if ((question.candidateAnswers || []).length > 1) return 'Compare the strongest candidate answers.';
+  if (inquiryReadyToResolve(question)) return 'Write the resolution summary and choose an outcome.';
+  return 'Continue developing the strongest unanswered part.';
 }
 
 export function QuestionsWorkspace({ questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
@@ -139,7 +134,6 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
   const [detailSection, setDetailSection] = useState<'investigation' | 'answer'>('investigation');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newQuestion, setNewQuestion] = useState({ text: '', sourceIds: [] as string[] });
-  const [deleteTarget, setDeleteTarget] = useState<Question | null>(null);
   const { toast } = useToast();
 
   const all = useMemo(() => allQuestions(media, questions), [media, questions]);
@@ -339,55 +333,10 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filtered.map((question) => {
           const sources = media.filter(m => (question.sourceIds || []).includes(m.id));
-          const draftLinks = drafts.filter(d => (d.questionIds || []).includes(question.id)).length;
-          const conceptNames = question.conceptIds || sources.flatMap((item) => item.tags || []);
-          const relatedBeliefs = vault.filter((entry) => (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => (question.sourceIds || []).includes(id)));
-          const relatedDrafts = drafts.filter((draft) => (draft.questionIds || []).includes(question.id));
-          const relatedPractices = practices.filter((practice) => (practice.questionIds || []).includes(question.id));
-          const inquiryType = inferInquiryType(question, conceptNames, sources);
-          const branches = investigationBranches(question, conceptNames, sources, relatedBeliefs, relatedDrafts, relatedPractices);
-          const activeBranches = branches.filter((branch) => branch.state === 'active').length;
-          const neededBranches = branches.filter((branch) => branch.state === 'needed').length;
-          const diagnosticFlags = inquiryDiagnosticFlags(question);
-          const frameGaps = inquiryFrameGaps(question);
-          const readinessScore = inquiryReadinessScore(question);
+          const nextStep = inquiryCardNextStep(question);
 
           return (
             <Card key={question.id} className="border border-accent/15 bg-card/95 p-4 rounded-xl shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5">
-                    {question.type || 'manual'}
-                  </Badge>
-                  <span className={cn(
-                    "font-code text-[8px] font-bold uppercase tracking-widest",
-                    isInquiryClosed(question) || question.status === 'provisionally_answered' ? "text-emerald-600/60" : "text-accent/60"
-                  )}>
-                    {question.status.replace(/_/g, ' ')}
-                  </span>
-                  {(question.beliefIds || []).length > 0 && (
-                    <span className="font-code text-[8px] font-bold uppercase tracking-widest text-emerald-600/80">· POSITION FORMED</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="font-code text-[8px] uppercase text-muted-foreground/40 font-bold">{draftLinks} WORKS LINKED</div>
-                  {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setDeleteTarget(question);
-                      }}
-                      aria-label="Delete inquiry"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-
               <button className="w-full text-left group" onClick={() => openQuestion(question.id)}>
                 <h3 className="text-xl font-headline font-bold italic group-hover:text-accent transition-colors leading-snug text-primary mb-3">
                   {question.text}
@@ -402,60 +351,12 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
                 )}
               </div>
 
-              <div className="mb-3 rounded-xl border border-border/40 bg-background/70 p-2.5">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Investigation Shape</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{inquiryType}</Badge>
-                    <Badge variant={readinessScore >= 5 ? 'outline' : 'secondary'} className="rounded-full font-code text-[8px] uppercase tracking-widest">{readinessScore}/6</Badge>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 text-center">
-                  <div className="rounded-lg border border-border/40 bg-card px-2 py-2">
-                    <div className="font-headline text-base font-bold text-accent">{activeBranches}</div>
-                    <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">active</div>
-                  </div>
-                  <div className="rounded-lg border border-border/40 bg-card px-2 py-2">
-                    <div className="font-headline text-base font-bold text-emerald-600">{branches.length - activeBranches - neededBranches}</div>
-                    <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">available</div>
-                  </div>
-                  <div className="rounded-lg border border-border/40 bg-card px-2 py-2">
-                    <div className="font-headline text-base font-bold text-amber-600">{neededBranches}</div>
-                    <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">needed</div>
-                  </div>
-                </div>
-                {!!frameGaps.length && (
-                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
-                    <span className="font-code text-[8px] uppercase tracking-widest">Frame gaps:</span> {frameGaps.slice(0, 4).join(', ')}
-                  </div>
-                )}
+              <div className="mb-4 border-l-2 border-accent bg-accent/5 px-3 py-2">
+                <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">Next investigation step</div>
+                <p className="mt-1 text-sm leading-5 text-muted-foreground">{nextStep}</p>
               </div>
 
-              {diagnosticFlags.length > 0 && (
-                <div className="mb-4 flex flex-wrap gap-1.5">
-                  {diagnosticFlags.slice(0, 4).map((flag) => (
-                    <span
-                      key={flag.id}
-                      title={flag.detail}
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 font-code text-[8px] font-bold uppercase tracking-widest",
-                        flag.tone === 'urgent' ? "border-rose-200 bg-rose-50 text-rose-800" :
-                        flag.tone === 'review' ? "border-amber-200 bg-amber-50 text-amber-800" :
-                        "border-border/40 bg-muted/20 text-muted-foreground"
-                      )}
-                    >
-                      {flag.label}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-3">
-                <div>
-                  <Badge variant="outline" className="shrink-0 rounded-full font-code text-[8px] uppercase tracking-widest">
-                    {(question.status || (question.answer ? 'answered' : 'open')).replace(/_/g, ' ')}
-                  </Badge>
-                </div>
+              <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/50 pt-3">
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => openQuestion(question.id, 'investigation')} className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">
                     Investigate
@@ -509,22 +410,6 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
           <DialogFooter className="pt-8"><Button onClick={createQuestion} className="w-full h-12 rounded-full font-bold shadow-lg shadow-accent/20">OPEN INVESTIGATION</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      <ConfirmActionDialog
-        open={Boolean(deleteTarget)}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
-        }}
-        title="Delete inquiry?"
-        description={`This removes "${deleteTarget?.text || 'this inquiry'}" from Inquiries. Linked sources, positions, works, and Evolution history will remain.`}
-        confirmLabel="Delete Inquiry"
-        destructive
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          onDeleteQuestion(deleteTarget.id);
-          if (selectedId === deleteTarget.id) closeQuestion();
-          setDeleteTarget(null);
-        }}
-      />
     </div>
   );
 }

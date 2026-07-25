@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { Archive, BookOpen, CheckCircle2, Edit, ExternalLink, GitBranch, Highlighter, Layers3, Loader2, MoreHorizontal, Quote, Trash2 } from 'lucide-react';
+import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, Loader2, MoreHorizontal, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -831,7 +831,7 @@ export function AnnotationsIndex({
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-8">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {filtered.map((annotation) => {
           const selectedEffect = selectedEffectForAnnotation(annotation);
           const relationLabels = [
@@ -842,10 +842,10 @@ export function AnnotationsIndex({
           ];
           return (
           <Card key={`${annotation.source.id}:${annotation.id}`} className={cn(
-            "p-4 md:p-5 bg-card border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all",
+            "p-3.5 sm:p-4 bg-card border border-accent/10 shadow-sm rounded-xl group hover:shadow-md transition-all",
             selectedKeys.includes(annotationKey(annotation)) && "border-accent/50 ring-2 ring-accent/10"
           )}>
-            <div className="flex justify-between items-start gap-4 mb-4">
+            <div className="flex items-start gap-3 mb-3">
               <div className="flex items-center gap-3">
                 <Checkbox
                   checked={selectedKeys.includes(annotationKey(annotation))}
@@ -866,26 +866,12 @@ export function AnnotationsIndex({
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-                <Button variant="ghost" size="icon" className="size-10 rounded-full text-accent hover:text-accent" onClick={() => suggestConsequences(annotation)} disabled={suggestingId === annotation.id} title="Ask Noesis AI">
-                  {suggestingId === annotation.id ? <Loader2 className="size-5 animate-spin" /> : <GenerativeAiIcon className="size-8" />}
-                </Button>
-                <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => setEditing(annotation)} title="Edit annotation">
-                  <Edit className="size-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => previewSource(annotation.source, annotation)} title="Preview source thread">
-                  <ExternalLink className="size-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="size-8 rounded-full text-destructive hover:text-destructive" onClick={() => setDeleteTarget(annotation)} title="Delete annotation">
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
             </div>
 
-            <div className="relative mb-4">
+            <button type="button" onClick={() => setEditing(annotation)} className="relative mb-3 block w-full text-left">
               <Quote className="absolute -left-6 -top-2 size-10 text-accent/5" />
-              <p className="font-body italic leading-relaxed text-[15px] text-primary/90 relative z-10 line-clamp-5 md:text-[16px]">"{annotation.text}"</p>
-            </div>
+              <p className="font-body italic leading-relaxed text-[15px] text-primary/90 relative z-10 line-clamp-4">"{annotation.text}"</p>
+            </button>
 
             <div className="flex flex-wrap gap-2 mb-3">
               {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).map((tag) => (
@@ -928,23 +914,19 @@ export function AnnotationsIndex({
                 <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-border bg-popover p-2 shadow-xl">
                   <button type="button" onClick={() => runConsequenceAction(annotation, 'clarifies')} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Clarify concept</button>
                   <button type="button" onClick={() => runConsequenceAction(annotation, 'reference')} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Save as reference</button>
-                  <button type="button" onClick={() => setEditing(annotation)} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Edit</button>
                   <button type="button" onClick={() => updateAnnotationConsequence(annotation, { philosophyStatus: 'archived' })} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Archive</button>
-                  <button type="button" onClick={() => setDeleteTarget(annotation)} className="block w-full rounded-lg px-3 py-2 text-left text-xs text-destructive hover:bg-destructive/10">Delete</button>
                 </div>
               </details>
             </div>
 
-            <div className="flex items-center justify-between gap-4 pt-4 border-t border-border/20 mt-4">
-              <button onClick={() => previewSource(annotation.source, annotation)} className="flex min-w-0 items-center gap-3 text-left">
-                <div className="size-8 rounded-lg bg-accent/5 flex items-center justify-center shrink-0 border border-accent/10">
-                  <BookOpen className="size-4 text-accent/40" />
+            <div className="flex min-w-0 items-center gap-2 border-t border-border/20 pt-2.5">
+                <div className="flex size-5 shrink-0 items-center justify-center rounded bg-muted/40">
+                  <BookOpen className="size-3 text-muted-foreground/60" />
                 </div>
                 <div className="min-w-0">
-                  <p className="font-headline font-bold italic text-sm text-primary leading-tight truncate">{annotation.source.title}</p>
-                  <p className="readex-kicker text-[8px] text-muted-foreground/60 uppercase tracking-widest font-bold truncate mt-1">{annotation.source.creator || MEDIA_LABELS[annotation.source.type]}</p>
+                  <p className="truncate text-[11px] font-medium leading-tight text-muted-foreground">{annotation.source.title}</p>
+                  <p className="mt-0.5 truncate font-code text-[8px] uppercase tracking-wider text-muted-foreground/50">{annotation.source.creator || MEDIA_LABELS[annotation.source.type]}</p>
                 </div>
-              </button>
             </div>
           </Card>
           );
@@ -1043,6 +1025,9 @@ export function AnnotationsIndex({
                     <Badge variant="secondary" className="rounded-full bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">{annotationLabel(annotationStatus(editing))}</Badge>
                   </div>
                   <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="size-9 rounded-full text-accent hover:text-accent" onClick={() => suggestConsequences(editing)} disabled={suggestingId === editing.id} title="Ask Noesis AI">
+                      {suggestingId === editing.id ? <Loader2 className="size-4 animate-spin" /> : <GenerativeAiIcon className="size-7" />}
+                    </Button>
                     <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => previewSource(editing.source, editing)} title="Open source">
                       <ExternalLink className="size-3.5" />
                     </Button>

@@ -36,6 +36,7 @@ export type NoesisWorkspaceDataKey =
   | 'thinkingMetrics'
   | 'goal'
   | 'preferences'
+  | 'appearance'
   | 'legacyProfile'
   | 'workspace'
   | 'workspaceSummary'
@@ -203,6 +204,8 @@ export const NOESIS_DETAIL_DATA_REQUIREMENTS: Record<NoesisRouteTargetType, Noes
 };
 
 export const NOESIS_SHELL_SUMMARY_REQUIREMENTS: NoesisWorkspaceDataKey[] = [
+  'preferences',
+  'appearance',
   'media',
   'concepts',
   'questions',
@@ -234,6 +237,7 @@ export const NOESIS_DATA_REQUIREMENT_LABELS: Record<NoesisWorkspaceDataKey, stri
   thinkingMetrics: 'Thinking metrics',
   goal: 'Goals',
   preferences: 'Preferences',
+  appearance: 'Appearance',
   legacyProfile: 'Profile',
   workspace: 'Workspace',
   workspaceSummary: 'Workspace summary',

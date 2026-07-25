@@ -106,11 +106,20 @@ function joinLines(value?: string[]) {
   return (value || []).join('\n');
 }
 
-function confidenceLabel(confidence = 3) {
-  if (confidence <= 1) return 'tentative';
-  if (confidence === 2) return 'low';
-  if (confidence === 3) return 'moderate';
-  if (confidence === 4) return 'strong';
+function confidencePercent(confidence?: number) {
+  if (!Number.isFinite(confidence)) return 60;
+  const value = Number(confidence);
+  if (value > 0 && value < 1) return Math.round(value * 100);
+  if (Number.isInteger(value) && value >= 1 && value <= 5) return value * 20;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function confidenceLabel(confidence = 60) {
+  const percent = confidencePercent(confidence);
+  if (percent <= 20) return 'tentative';
+  if (percent <= 40) return 'low';
+  if (percent <= 60) return 'moderate';
+  if (percent <= 80) return 'strong';
   return 'very strong';
 }
 
@@ -180,7 +189,7 @@ function safePosition(entry: VaultEntry): VaultEntry {
     type: (entry.type || 'belief') as VaultType,
     statement: entry.statement || entry.description || '',
     description: entry.description || entry.statement || '',
-    confidence: Number.isFinite(entry.confidence) ? entry.confidence : 3,
+    confidence: confidencePercent(entry.confidence),
     status: entry.status || 'active',
     positionKind: entry.positionKind || 'interpretive',
     confidenceReasoning: entry.confidenceReasoning || '',
@@ -209,7 +218,7 @@ function positionListReason(entry: VaultEntry, links: PhilosophicalLink[], viewF
     ['challenges', 'contradicts'].includes(link.type)
   );
   const hasSupport = (entry.evidenceFor || []).length > 0 || (entry.sourceIds || []).length > 0;
-  if (viewFilter === 'emerging') return entry.confidence <= 2 ? 'Low confidence signal: this claim needs evidence before becoming stable.' : 'Draft or early-stage claim.';
+  if (viewFilter === 'emerging') return entry.confidence <= 40 ? 'Low confidence signal: this claim needs evidence before becoming stable.' : 'Draft or early-stage claim.';
   if (viewFilter === 'needs_evidence') return hasSupport ? 'Evidence exists, but review its quality before raising confidence.' : 'No source or supporting evidence is linked yet.';
   if (viewFilter === 'needs_opposition') return hasTension || (entry.evidenceAgainst || []).length ? 'Opposition exists; decide whether it weakens, refines, or contradicts the claim.' : 'No serious objection, counterexample, or challenge has been recorded yet.';
   if (viewFilter === 'under_review') return 'This position is uncertain, challenged, or explicitly under review.';
@@ -296,7 +305,7 @@ function diagnosePosition(entry: VaultEntry, links: PhilosophicalLink[], practic
   if (challengeCount === 0) flags.push('under-challenged');
   if (practiceCount === 0 && !['abandoned', 'rejected', 'replaced'].includes(entry.status)) flags.push('untested');
   if (assumptionCount === 0) flags.push('assumptions missing');
-  if ((entry.confidence || 3) >= 4 && challengeCount === 0) flags.push('overconfident');
+  if (confidencePercent(entry.confidence) >= 80 && challengeCount === 0) flags.push('overconfident');
   if (updatedAge > 90 && !['abandoned', 'rejected', 'replaced'].includes(entry.status)) flags.push('stale');
   if (['challenged', 'contested', 'unstable', 'questioning'].includes(entry.status)) flags.push('under pressure');
 
@@ -307,7 +316,7 @@ function diagnosePosition(entry: VaultEntry, links: PhilosophicalLink[], practic
     label = 'needs evidence';
     nextAction = 'Add a source, annotation, or reason that directly supports the position.';
     readinessLabel = 'Developing · needs support';
-  } else if (challengeCount === 0 && (entry.confidence || 3) >= 4) {
+  } else if (challengeCount === 0 && confidencePercent(entry.confidence) >= 80) {
     label = 'overconfident';
     nextAction = 'Add a serious objection before raising or keeping high confidence.';
     readinessLabel = 'Needs challenge';
@@ -410,7 +419,7 @@ function buildStressStages({
     {
       title: 'Define falsification condition',
       prompt: 'What would need to happen for you to reduce confidence or abandon this position?',
-      signal: `Current confidence: ${selected.confidence || 3}/5.`,
+      signal: `Current confidence: ${confidencePercent(selected.confidence)}%.`,
     },
     {
       title: 'Examine practical consequences',
@@ -434,7 +443,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const [viewFilter, setViewFilter] = useState<PositionViewFilter>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'opposition' | 'relations' | 'history'>('overview');
-  const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'active', tags: [] });
+  const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', confidence: 60, status: 'active', tags: [] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VaultEntry | null>(null);
   const { toast } = useToast();
@@ -507,7 +516,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         title: ideaPosition.positionTitle,
         statement: ideaPosition.statement,
         description: ideaPosition.description,
-        confidence: ideaPosition.confidence,
+        confidence: confidencePercent(ideaPosition.confidence),
       },
     });
     setIdeaOpen(false);
@@ -546,7 +555,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       (viewFilter === 'developing' && (['draft', 'tentative', 'developing', 'uncertain'].includes(e.status) || diagnostic.completeness < 70)) ||
       (viewFilter === 'retired' && ['abandoned', 'rejected', 'replaced', 'suspended', 'revised'].includes(e.status)) ||
       (viewFilter === 'needs_attention' && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.recordedSupport < 45)) ||
-      (viewFilter === 'emerging' && (['draft', 'tentative', 'developing'].includes(e.status) || e.confidence <= 2)) ||
+      (viewFilter === 'emerging' && (['draft', 'tentative', 'developing'].includes(e.status) || e.confidence <= 40)) ||
       (viewFilter === 'needs_evidence' && !hasSupport) ||
       (viewFilter === 'needs_opposition' && !hasTension && !(e.evidenceAgainst || []).length) ||
       (viewFilter === 'needs_practice' && diagnostic.practiceCount === 0 && !['abandoned', 'rejected', 'replaced'].includes(e.status)) ||
@@ -554,8 +563,8 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       (viewFilter === 'revised' && e.status === 'revised') ||
       (viewFilter === 'abandoned' && ['abandoned', 'rejected', 'replaced'].includes(e.status)) ||
       (viewFilter === 'tensions' && hasTension) ||
-      (viewFilter === 'high_confidence' && e.confidence >= 4) ||
-      (viewFilter === 'low_confidence' && e.confidence <= 2) ||
+      (viewFilter === 'high_confidence' && e.confidence >= 80) ||
+      (viewFilter === 'low_confidence' && e.confidence <= 40) ||
       (viewFilter === 'overconfident' && diagnostic.flags.includes('overconfident')) ||
       (viewFilter === 'suspended' && e.status === 'suspended') ||
       (viewFilter === 'unsupported' && !hasSupport) ||
@@ -621,7 +630,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   ].filter(Boolean) as string[];
 
   const openEditor = (entry?: VaultEntry) => {
-    setDraftEntry(entry ? { ...entry } : { type: 'belief', title: '', statement: '', description: '', confidence: 3, status: 'developing', positionKind: 'interpretive', tags: [], assumptions: [], consequences: [], applications: [], evidenceFor: [], evidenceAgainst: [] });
+    setDraftEntry(entry ? { ...entry, confidence: confidencePercent(entry.confidence) } : { type: 'belief', title: '', statement: '', description: '', confidence: 60, status: 'developing', positionKind: 'interpretive', tags: [], assumptions: [], consequences: [], applications: [], evidenceFor: [], evidenceAgainst: [] });
     setEditorOpen(true);
   };
 
@@ -871,7 +880,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
           `Statement: ${selected.statement || 'No statement.'}`,
           selected.description ? `Scope: ${selected.description}` : '',
           `Status: ${selected.status}`,
-          `Confidence: ${selected.confidence}/5`,
+          `Confidence: ${confidencePercent(selected.confidence)}%`,
           selected.confidenceReasoning ? `Confidence reasoning: ${selected.confidenceReasoning}` : '',
           (selected.assumptions || []).length ? `Assumptions: ${(selected.assumptions || []).join('; ')}` : '',
         ].filter(Boolean),
@@ -1031,7 +1040,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             <div className="mb-3 flex flex-wrap gap-2">
               <Badge variant="outline" className="font-code uppercase bg-card border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
               <Badge variant="outline" className="font-code uppercase bg-card border-border/60 shadow-sm rounded-full">{(selected.positionKind || 'interpretive').replace(/_/g, ' ')}</Badge>
-              <Badge variant="secondary" className="font-code uppercase rounded-full bg-accent/10 text-accent">personal confidence {selected.confidence}/5</Badge>
+              <Badge variant="secondary" className="font-code uppercase rounded-full bg-accent/10 text-accent">personal confidence {confidencePercent(selected.confidence)}%</Badge>
               <Badge
                 variant={formation.fullyFormed ? 'default' : 'outline'}
                 className={cn(
@@ -1050,10 +1059,10 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             <div className="min-w-[280px] rounded-xl border border-border/50 bg-muted/10 p-4">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Confidence</span>
-                <span className="font-headline text-lg font-semibold italic">{selected.confidence}/5</span>
+                <span className="font-headline text-lg font-semibold italic">{confidencePercent(selected.confidence)}%</span>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.max(0, Math.min(100, (selected.confidence || 0) * 20))}%` }} />
+                <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${confidencePercent(selected.confidence)}%` }} />
               </div>
               <div className="mt-3 flex justify-between font-code text-[8px] uppercase tracking-widest text-muted-foreground">
                 <span>{diagnostic.recordedSupport} support</span>
@@ -1093,16 +1102,16 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               {
                 label: 'Raise Confidence',
                 tone: 'support',
-                disabled: selected.confidence >= 5,
+                disabled: confidencePercent(selected.confidence) >= 100,
                 description: 'Increase confidence in this position.',
-                onClick: () => onUpdateEntry({ ...selected, confidence: Math.min(5, (selected.confidence || 3) + 1), dateUpdated: today() }),
+                onClick: () => onUpdateEntry({ ...selected, confidence: Math.min(100, confidencePercent(selected.confidence) + 10), dateUpdated: today() }),
               },
               {
                 label: 'Lower Confidence',
                 tone: 'challenge',
-                disabled: selected.confidence <= 1,
+                disabled: confidencePercent(selected.confidence) <= 0,
                 description: 'Decrease confidence — add doubt before revising.',
-                onClick: () => onUpdateEntry({ ...selected, confidence: Math.max(1, (selected.confidence || 3) - 1), dateUpdated: today() }),
+                onClick: () => onUpdateEntry({ ...selected, confidence: Math.max(0, confidencePercent(selected.confidence) - 10), dateUpdated: today() }),
               },
               {
                 label: 'Turn into Essay',
@@ -1253,7 +1262,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                   <h3 className="mt-1 font-headline text-2xl font-bold italic">Scope, assumptions, opposition, and application</h3>
                 </div>
                 <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                  {selected.confidence}/5 confidence
+                  {confidencePercent(selected.confidence)}% confidence
                 </Badge>
               </div>
               <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1409,16 +1418,16 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                   {
                     label: 'Raise Confidence',
                     tone: 'support',
-                    disabled: selected.confidence >= 5,
+                    disabled: confidencePercent(selected.confidence) >= 100,
                     description: 'Increase confidence in this position.',
-                    onClick: () => onUpdateEntry({ ...selected, confidence: Math.min(5, (selected.confidence || 3) + 1), dateUpdated: today() }),
+                    onClick: () => onUpdateEntry({ ...selected, confidence: Math.min(100, confidencePercent(selected.confidence) + 10), dateUpdated: today() }),
                   },
                   {
                     label: 'Lower Confidence',
                     tone: 'challenge',
-                    disabled: selected.confidence <= 1,
+                    disabled: confidencePercent(selected.confidence) <= 0,
                     description: 'Decrease confidence and mark room for revision.',
-                    onClick: () => onUpdateEntry({ ...selected, confidence: Math.max(1, (selected.confidence || 3) - 1), dateUpdated: today() }),
+                    onClick: () => onUpdateEntry({ ...selected, confidence: Math.max(0, confidencePercent(selected.confidence) - 10), dateUpdated: today() }),
                   },
                   {
                     label: 'Turn into Essay',
@@ -1610,7 +1619,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <InfoPanel title="Created From" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
-                <InfoPanel title="Confidence History" items={[`Current confidence: ${selected.confidenceScore ?? selected.confidence ?? 3}/5`, `Evidence quality: ${beliefProfile?.evidenceQuality || selected.evidenceQuality || 'unscored'}`, `Stress tests: ${beliefProfile?.testingCount ?? selected.testingCount ?? 0}`]} empty="No confidence history yet." />
+                <InfoPanel title="Confidence History" items={[`Current confidence: ${confidencePercent(selected.confidenceScore ?? selected.confidence)}%`, `Evidence quality: ${beliefProfile?.evidenceQuality || selected.evidenceQuality || 'unscored'}`, `Stress tests: ${beliefProfile?.testingCount ?? selected.testingCount ?? 0}`]} empty="No confidence history yet." />
                 <InfoPanel title="Strengthened By" items={beliefProfile?.strengthenedBy || []} empty="No supporting developments recorded yet." />
                 <InfoPanel title="Challenged By" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
                 <InfoPanel title="Weakened By" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
@@ -1899,8 +1908,21 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             >
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex-1 min-w-0">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 mb-1 font-bold">
-                  {TYPE_LABELS[entry.type] || 'Position'}
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                  <span className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                    {TYPE_LABELS[entry.type] || 'Position'}
+                  </span>
+                  {(entry.tags || []).slice(0, 2).map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={(event) => { event.stopPropagation(); setConceptPopupName(tag); }}
+                      className="rounded-full border border-border/50 bg-muted/20 px-2 py-0.5 font-code text-[8px] font-bold uppercase tracking-wider text-muted-foreground hover:border-accent/40 hover:text-accent"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                  {(entry.tags || []).length > 2 && <span className="font-code text-[8px] text-muted-foreground">+{(entry.tags || []).length - 2}</span>}
                 </div>
                 <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors truncate text-primary">
                   {entry.title}
@@ -1935,10 +1957,10 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               <div className="w-28">
                 <div className="mb-1 flex items-center justify-between font-code text-[8px] uppercase tracking-widest text-muted-foreground">
                   <span>Confidence</span>
-                  <span>{entry.confidence || 3}/5</span>
+                  <span>{confidencePercent(entry.confidence)}%</span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(0, Math.min(100, (entry.confidence || 3) * 20))}%` }} />
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${confidencePercent(entry.confidence)}%` }} />
                 </div>
               </div>
               <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-emerald-100/40 text-emerald-700 border-emerald-200/50 rounded-full font-bold">
@@ -1947,17 +1969,6 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
               <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 rounded-full font-bold">
                 support {diagnostic.recordedSupport}
               </Badge>
-              <div className="flex items-center gap-1.5 ml-auto">
-                {(entry.tags || []).slice(0, 2).map(tag => (
-                  <button
-                    key={tag}
-                    onClick={(e) => { e.stopPropagation(); setConceptPopupName(tag); }}
-                    className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-muted/10 text-muted-foreground/40 rounded-full font-bold hover:bg-accent/10 hover:text-accent transition-all"
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
             </div>
           </Card>
           );
@@ -2157,23 +2168,20 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                 />
               </div>
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Confidence (1–5)</Label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => setIdeaPosition((p) => p ? { ...p, confidence: n } : p)}
-                      className={cn(
-                        'flex-1 h-9 rounded-full text-[11px] font-code font-bold uppercase tracking-wider transition-all border',
-                        ideaPosition.confidence === n
-                          ? 'bg-accent text-accent-foreground border-accent shadow-md'
-                          : 'bg-card text-muted-foreground border-border/60 hover:border-accent/40'
-                      )}
-                    >
-                      {n}
-                    </button>
-                  ))}
+                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Confidence percentage</Label>
+                <div className="flex items-center justify-end">
+                  <span className="font-code text-sm font-bold text-accent">{confidencePercent(ideaPosition.confidence)}%</span>
                 </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={confidencePercent(ideaPosition.confidence)}
+                  onChange={(event) => setIdeaPosition((position) => position ? { ...position, confidence: Number(event.target.value) } : position)}
+                  className="w-full accent-[hsl(var(--accent))]"
+                  aria-label="Position confidence percentage"
+                />
               </div>
               <DialogFooter className="pt-2">
                 <Button
@@ -2347,10 +2355,11 @@ function PositionsTable({
                 <TableCell className="font-code text-[10px] uppercase tracking-widest">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
                 <TableCell><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge></TableCell>
                 <TableCell>
-                  <div className="flex gap-1.5">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <div key={n} className={cn('size-2 rounded-full shadow-sm', n <= entry.confidence ? 'bg-accent' : 'bg-muted')} />
-                    ))}
+                  <div className="min-w-24">
+                    <div className="mb-1 font-code text-[10px] font-bold">{confidencePercent(entry.confidence)}%</div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-accent" style={{ width: `${confidencePercent(entry.confidence)}%` }} />
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -2393,7 +2402,7 @@ function PositionsTable({
               </p>
             </div>
             <div className="mt-4 flex justify-between font-code text-[9px] uppercase tracking-widest text-muted-foreground">
-              <span>{entry.confidence}/5 confidence</span>
+              <span>{confidencePercent(entry.confidence)}% confidence</span>
               <span>{(diagnostics.get(entry.id) || diagnosePosition(entry, links, practices)).supportCount} support</span>
             </div>
           </button>
@@ -2572,12 +2581,20 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             </div>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONFIDENCE</Label>
-              <Select value={String(draft.confidence || 3)} onValueChange={(value) => setDraft((prev) => ({ ...prev, confidence: Number(value) }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5].map((value) => <SelectItem key={value} value={String(value)} className="font-code text-[10px] uppercase">{value} - {confidenceLabel(value)}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-code text-[10px] font-bold text-accent">{confidencePercent(draft.confidence)}%</span>
+                <span className="font-code text-[9px] uppercase tracking-wider text-muted-foreground">{confidenceLabel(draft.confidence)}</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={confidencePercent(draft.confidence)}
+                onChange={(event) => setDraft((prev) => ({ ...prev, confidence: Number(event.target.value) }))}
+                className="h-6 w-full accent-[hsl(var(--accent))]"
+                aria-label="Position confidence percentage"
+              />
             </div>
           </div>
           <div className="space-y-2">

@@ -169,6 +169,14 @@ const ATLAS_MIN_ZOOM = 0.45;
 const ATLAS_MAX_ZOOM = 1.7;
 const ATLAS_ZOOM_STEP = 0.08;
 const ATLAS_ZOOM_STORAGE_KEY = 'noesis.atlas.zoom';
+
+function atlasConfidencePercent(confidence?: number) {
+  if (!Number.isFinite(confidence)) return 60;
+  const value = Number(confidence);
+  if (value > 0 && value < 1) return Math.round(value * 100);
+  if (Number.isInteger(value) && value >= 1 && value <= 5) return value * 20;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
 const atlasColorSwatches = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2', '#64748b'];
 
 const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'depends_on', 'explains', 'explained_by', 'derived_from', 'references', 'replaces', 'questions', 'expands', 'weakens', 'strengthens', 'relates', 'custom'];
@@ -321,7 +329,7 @@ export function ConceptAtlas({
   const [isDeleteAllLinksOpen, setIsDeleteAllLinksOpen] = useState(false);
   const [linkSort, setLinkSort] = useState<'alpha' | 'created' | 'interacted'>('alpha');
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [quickLinkSource, setQuickLinkSource] = useState<string | null>(null);
   const [quickLinkTarget, setQuickLinkTarget] = useState<string | null>(null);
   const [quickLinkHoverTarget, setQuickLinkHoverTarget] = useState<string | null>(null);
@@ -1473,10 +1481,10 @@ export function ConceptAtlas({
   const atlasPanel = (
     <aside
       className={cn(
-        "z-20 flex h-full shrink-0 flex-col overflow-hidden border border-border bg-card shadow-sm",
+        "z-40 flex shrink-0 flex-col overflow-hidden border border-border bg-card shadow-lg",
         isFullScreen
-          ? "absolute inset-y-4 right-4 w-80 rounded-2xl"
-          : "w-80 rounded-xl"
+          ? "absolute inset-x-2 bottom-2 h-[42%] rounded-xl sm:inset-y-4 sm:left-auto sm:right-4 sm:h-auto sm:w-80 sm:rounded-2xl"
+          : "absolute inset-x-2 bottom-2 h-[42%] rounded-xl sm:static sm:h-full sm:w-80"
       )}
     >
       {selectedName ? (
@@ -2224,17 +2232,17 @@ export function ConceptAtlas({
             <h1 className="noesis-page-title text-[28px]">Atlas</h1>
             <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{atlasSectionMeta[atlasSection].label}</Badge>
           </div>
-          <p className="noesis-page-description mt-1 max-w-3xl text-sm leading-5">{atlasSectionMeta[atlasSection].description}</p>
+          <p className="noesis-page-description mt-1 hidden max-w-3xl text-sm leading-5 sm:block">{atlasSectionMeta[atlasSection].description}</p>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:items-center md:justify-end md:overflow-visible md:pb-0">
           {atlasSection === 'map' && (
             <>
-              <div className="relative">
+              <div className="relative min-w-0 flex-1 sm:flex-none">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-56 pl-9 rounded-full" />
+                <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-full rounded-full pl-9 sm:w-56" />
               </div>
-              <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90 rounded-full">
-                <Plus className="mr-1.5 size-4" /> New Concept
+              <Button onClick={() => setIsAddOpen(true)} size="sm" className="size-9 shrink-0 rounded-full bg-accent p-0 hover:bg-accent/90 sm:w-auto sm:px-3">
+                <Plus className="size-4 sm:mr-1.5" /> <span className="hidden sm:inline">New Concept</span>
               </Button>
             </>
           )}
@@ -2267,12 +2275,12 @@ export function ConceptAtlas({
         {atlasSection === 'map' && (
         <>
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex w-max items-center gap-2 rounded-full border border-border bg-card p-1 shadow-sm">
+          <div className="hidden w-max items-center gap-2 rounded-full border border-border bg-card p-1 shadow-sm md:flex">
             <Button variant={mode === 'auto' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('auto')} className="h-8 rounded-full">Auto Map</Button>
             <Button variant={mode === 'custom' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('custom')} className="h-8 rounded-full">Custom Maps</Button>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:justify-end md:overflow-visible md:pb-0">
+          <div className="hidden gap-2 overflow-x-auto pb-1 md:flex md:flex-wrap md:justify-end md:overflow-visible md:pb-0">
             <Select value={viewMode} onValueChange={(value) => setViewMode(value as AtlasViewMode)}>
               <SelectTrigger className="h-8 w-36 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
                 <SelectValue placeholder="View Mode" />
@@ -2349,8 +2357,50 @@ export function ConceptAtlas({
             </DropdownMenu>
           </div>
 
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-wider md:hidden">
+                <SlidersHorizontal className="mr-1.5 size-3.5" /> Map options
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-[70dvh] w-64 overflow-y-auto rounded-xl">
+              <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Map source</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem checked={mode === 'auto'} onCheckedChange={() => setMode('auto')}>Auto map</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={mode === 'custom'} onCheckedChange={() => setMode('custom')}>Custom map</DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">View</DropdownMenuLabel>
+              {([
+                ['core', 'Core'],
+                ['conflict', 'Conflict'],
+                ['evidence', 'Evidence'],
+                ['practice', 'Practice / Test'],
+                ['evolution', 'Evolution'],
+                ['full', 'Full'],
+              ] as Array<[AtlasViewMode, string]>).map(([value, label]) => (
+                <DropdownMenuCheckboxItem key={value} checked={viewMode === value} onCheckedChange={() => setViewMode(value)}>
+                  {label}
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Connection strength</DropdownMenuLabel>
+              {([
+                ['strong', 'Strong only'],
+                ['moderate', 'Strong + moderate'],
+                ['all', 'All connections'],
+              ] as const).map(([value, label]) => (
+                <DropdownMenuCheckboxItem key={value} checked={autoConnectionFocus === value} onCheckedChange={() => setAutoConnectionFocus(value)}>
+                  {label}
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Relationship types</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem checked={relationshipFilterMode === 'recommended'} onCheckedChange={() => setRelationshipFilterMode('recommended')}>Recommended</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={relationshipFilterMode === 'all'} onCheckedChange={() => setRelationshipFilterMode('all')}>All relationships</DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {mode === 'custom' && (
-            <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
+            <div className="hidden gap-2 overflow-x-auto pb-1 md:flex md:flex-wrap md:overflow-visible md:pb-0">
               <select
                 value={activeMap?.id || ''}
                 onChange={(event) => setActiveMapId(event.target.value)}
@@ -2371,8 +2421,8 @@ export function ConceptAtlas({
           )}
         </div>
 
-        <div className="flex flex-col gap-2 pb-1 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
-          <div className="flex gap-4 overflow-x-auto scrollbar-hide">
+        <div className="hidden flex-col gap-2 pb-1 md:flex lg:flex-row lg:items-center lg:justify-between lg:gap-3">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
             <Stat value={nodes.length} label="Nodes" />
             <Stat value={visibleEdges.length} label="Visible Links" />
             <Stat value={visibleFamilies} label="Visible Families" />
@@ -2440,7 +2490,7 @@ export function ConceptAtlas({
 
       {atlasSection === 'map' && (
       <div className={cn(
-        "flex min-h-0 flex-1 gap-4",
+        "relative flex min-h-0 flex-1 gap-4",
         isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-hidden px-4 pb-4 md:px-8"
       )}>
         <div
@@ -2963,7 +3013,7 @@ export function ConceptAtlas({
                     </TableCell>
                     <TableCell className="font-code text-[10px] uppercase tracking-widest">{position.type.replace(/_/g, ' ')}</TableCell>
                     <TableCell><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{position.status}</Badge></TableCell>
-                    <TableCell className="font-code text-xs">{position.confidence}/5</TableCell>
+                    <TableCell className="font-code text-xs">{atlasConfidencePercent(position.confidence)}%</TableCell>
                     <TableCell className="font-code text-xs">{(position.sourceIds || []).length}</TableCell>
                     <TableCell className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{new Date(position.dateUpdated || position.dateCreated).toLocaleDateString()}</TableCell>
                   </TableRow>

@@ -102,7 +102,8 @@ export function useNoesisWorkspaceData({
   const needsThinkingPatterns = routeNeedsData(effectiveRouteState, 'thinkingPatterns');
   const needsThinkingMetrics = routeNeedsData(effectiveRouteState, 'thinkingMetrics');
   const needsGoalDoc = routeNeedsData(effectiveRouteState, 'goal');
-  const needsPreferencesDoc = routeNeedsData(effectiveRouteState, 'preferences');
+  const needsPreferencesDoc = routeNeedsData(effectiveRouteState, 'preferences') || shellNeedsSummaryData('preferences');
+  const needsAppearanceDoc = routeNeedsData(effectiveRouteState, 'appearance') || shellNeedsSummaryData('appearance');
   const needsLegacyProfileDoc = routeNeedsData(effectiveRouteState, 'legacyProfile') || shellNeedsSummaryData('legacyProfile');
   const needsProfileDocs = routeNeedsData(effectiveRouteState, 'profileDocs');
   const needsAllSettings = routeNeedsData(effectiveRouteState, 'allSettings');
@@ -138,7 +139,7 @@ export function useNoesisWorkspaceData({
   const { data: profilePrivacyDocLive, loading: profilePrivacyLoadingLive } = useDoc<ProfilePrivacySettings>(isOfflineReviewPreview || !needsProfileDocs ? null : refs.profilePrivacy as any);
   const { data: profileSummaryDocLive, loading: profileSummaryLoadingLive } = useDoc<ProfileMetacognitionSummary>(isOfflineReviewPreview || !needsProfileDocs ? null : refs.profileMetacognitionSummary as any);
   const { data: settingsAccountDocLive, loading: settingsAccountLoadingLive } = useDoc<AccountSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsAccount as any);
-  const { data: settingsAppearanceDocLive, loading: settingsAppearanceLoadingLive } = useDoc<AppearanceSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsAppearance as any);
+  const { data: settingsAppearanceDocLive, loading: settingsAppearanceLoadingLive } = useDoc<AppearanceSettings>(isOfflineReviewPreview || !needsAppearanceDoc ? null : refs.settingsAppearance as any);
   const { data: settingsWorkspacePrefsDocLive, loading: settingsWorkspacePrefsLoadingLive } = useDoc<WorkspacePreferenceSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsWorkspace as any);
   const { data: settingsAiDocLive, loading: settingsAiLoadingLive } = useDoc<AiSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsAi as any);
   const { data: settingsMetacognitionDocLive, loading: settingsMetacognitionLoadingLive } = useDoc<MetacognitionSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsMetacognition as any);
@@ -183,6 +184,7 @@ export function useNoesisWorkspaceData({
     thinkingMetrics: isOfflineReviewPreview ? false : thinkingMetricsLoadingLive,
     goal: isOfflineReviewPreview ? false : goalLoadingLive,
     preferences: isOfflineReviewPreview ? false : preferencesLoadingLive,
+    appearance: isOfflineReviewPreview ? false : settingsAppearanceLoadingLive,
     legacyProfile: isOfflineReviewPreview ? false : legacyProfileLoadingLive,
     workspace: isOfflineReviewPreview ? false : workspaceLoadingLive,
     profileDocs: isOfflineReviewPreview ? false : profileDocsLoading,

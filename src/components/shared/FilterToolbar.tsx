@@ -86,7 +86,7 @@ export function FilterToolbar({
   return (
     <section aria-label="Page filters and search" className={cn('sticky top-0 z-20 mb-5 border-b border-border/30 bg-background/95 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:mb-7', className)}>
       <div className="flex min-h-10 flex-wrap items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto sm:flex-1">
           {typeof search === 'string' && onSearchChange && (
           <div className="relative min-w-[180px] flex-1 md:max-w-xl">
             <label htmlFor={searchId} className="sr-only">{searchLabel}</label>
@@ -164,11 +164,12 @@ export function FilterToolbar({
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="h-9 shrink-0 justify-center rounded-full border-border/50 bg-card px-3 font-code text-[9px] uppercase tracking-widest"
+              size="icon"
+              className="size-9 shrink-0 justify-center rounded-full border-border/50 bg-card px-0 font-code text-[9px] uppercase tracking-widest sm:w-auto sm:px-3"
+              aria-label={resolvedActiveFilterCount ? `Filters, ${resolvedActiveFilterCount} active` : 'Filters'}
             >
-              <SlidersHorizontal className="mr-1.5 size-3.5" />
-              Filters{resolvedActiveFilterCount ? ` (${resolvedActiveFilterCount})` : ''}
+              <SlidersHorizontal className="size-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Filters{resolvedActiveFilterCount ? ` (${resolvedActiveFilterCount})` : ''}</span>
             </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -194,7 +195,7 @@ export function FilterToolbar({
           </Popover>
         )}
         {viewControl}
-        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="ml-auto hidden shrink-0 flex-wrap items-center justify-end gap-2 sm:flex">
           {typeof resultCount === 'number' && (
             <span className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
               {resultCount} {resultLabel}

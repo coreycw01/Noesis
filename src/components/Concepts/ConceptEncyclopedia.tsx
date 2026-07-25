@@ -1717,21 +1717,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                       </Button>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-1.5">
+                  <div className="mt-1.5 flex items-center gap-2">
                     <span className={cn('font-code text-[8px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full border', CLARITY_BG[diag.level])}>
                       {diag.level}
-                    </span>
-                    <span className={cn(
-                      'font-code text-[8px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full border',
-                      maturity.label === 'stable'
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                        : maturity.label === 'usable'
-                          ? 'border-blue-200 bg-blue-50 text-blue-800'
-                          : maturity.label === 'emerging'
-                            ? 'border-amber-200 bg-amber-50 text-amber-800'
-                            : 'border-rose-200 bg-rose-50 text-rose-800'
-                    )}>
-                      {maturity.label}
                     </span>
                     <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">
                       {connectionCount} links
@@ -1747,20 +1735,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 {concept?.description || 'Inspect linked sources, positions, works, inquiries, and practices.'}
               </p>
 
-              <div className="mb-4 rounded-xl border border-border/50 bg-background/70 px-3 py-2">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">
-                    {connectionCount} linked object{connectionCount === 1 ? '' : 's'}
-                  </div>
-                  <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                    {maturity.missing.length ? `${maturity.missing.length} gaps` : 'ready'}
-                  </Badge>
-                </div>
-                <p className="mt-2 text-xs leading-5 text-foreground/75">
-                  Next: {maturity.nextStep}
-                </p>
-              </div>
-
               {possibleDuplicates.length > 0 && (
                 <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
                   <div className="font-code text-[8px] uppercase tracking-widest text-amber-700 font-bold">Duplicate Review</div>
@@ -1770,29 +1744,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 </div>
               )}
 
-              {repairFlags.length > 0 && (
-                <div className="mb-4 flex flex-wrap gap-1.5">
-                  {repairFlags.slice(0, 4).map((flag) => (
-                    <span
-                      key={flag.id}
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 font-code text-[8px] font-bold uppercase tracking-widest",
-                        flag.tone === 'urgent' ? "border-rose-200 bg-rose-50 text-rose-800" :
-                        flag.tone === 'review' ? "border-amber-200 bg-amber-50 text-amber-800" :
-                        "border-border/40 bg-muted/20 text-muted-foreground"
-                      )}
-                      title={flag.detail}
-                    >
-                      {flag.label}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-1.5 border-t border-border/30 pt-4">
-                <Badge variant="outline" className="text-[8px] font-code uppercase tracking-tighter bg-muted/10 border-transparent rounded-full px-2.5 py-0.5 font-bold shadow-sm">{related.sources.length} SOURCES</Badge>
-                <Badge variant="outline" className="text-[8px] font-code uppercase tracking-tighter bg-muted/10 border-transparent rounded-full px-2.5 py-0.5 font-bold shadow-sm">{related.beliefs.length} POSITIONS</Badge>
-                <Badge variant="outline" className="text-[8px] font-code uppercase tracking-tighter bg-muted/10 border-transparent rounded-full px-2.5 py-0.5 font-bold shadow-sm">{related.drafts.length} WORKS</Badge>
+              <div className="border-t border-border/30 pt-3 font-code text-[8px] uppercase tracking-wider text-muted-foreground/60">
+                {related.sources.length} sources · {related.beliefs.length} positions · {related.drafts.length} works
               </div>
             </Card>
           );
