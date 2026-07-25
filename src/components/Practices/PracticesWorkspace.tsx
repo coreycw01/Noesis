@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { Edit, Plus, Repeat, Target, Trash2 } from 'lucide-react';
+import { CheckCircle2, Edit, PauseCircle, Play, Plus, Repeat, Target, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,20 +36,49 @@ interface PracticesWorkspaceProps {
   onOpenPracticeRoute?: (id: string | null) => void;
 }
 
-const practiceTypes: PracticeType[] = ['experiment', 'habit', 'commitment', 'observation', 'dialogue', 'reflection', 'restraint', 'exposure', 'decision_rule', 'ritual', 'challenge', 'discipline', 'reflection_prompt', 'rule'];
-const primaryPracticeTypeFilters: PracticeType[] = ['experiment', 'habit', 'commitment', 'observation', 'reflection', 'challenge'];
-const statuses: PracticeStatus[] = ['proposed', 'designed', 'planned', 'active', 'completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'paused', 'abandoned'];
-const primaryPracticeStatusFilters: PracticeStatus[] = ['planned', 'active', 'completed', 'paused', 'abandoned'];
-type PracticeViewFilter = 'all' | 'awaiting_log' | 'needs_basis' | 'needs_design' | 'needs_outcome' | 'needs_consequence' | 'testing_positions' | 'recently_concluded';
+const practiceTypes: PracticeType[] = ['habit', 'experiment', 'observation', 'reflection'];
+const statuses: PracticeStatus[] = ['planned', 'active', 'paused', 'completed', 'abandoned'];
+type PracticeViewFilter = 'all' | 'awaiting_log' | 'needs_setup' | 'ready_review' | 'testing_positions';
 
 const practiceViewFilters: Array<{ value: PracticeViewFilter; label: string }> = [
-  { value: 'all', label: 'All Practices' },
-  { value: 'awaiting_log', label: 'Awaiting Log' },
-  { value: 'needs_design', label: 'Needs Design' },
-  { value: 'needs_outcome', label: 'Needs Outcome' },
-  { value: 'testing_positions', label: 'Testing Positions' },
-  { value: 'recently_concluded', label: 'Recently Concluded' },
+  { value: 'all', label: 'All' },
+  { value: 'awaiting_log', label: 'Log due' },
+  { value: 'needs_setup', label: 'Needs setup' },
+  { value: 'ready_review', label: 'Ready review' },
+  { value: 'testing_positions', label: 'Testing positions' },
 ];
+
+const simplifiedTypeLabels: Record<PracticeType, string> = {
+  habit: 'Habit',
+  experiment: 'Experiment',
+  discipline: 'Habit',
+  reflection_prompt: 'Reflection',
+  commitment: 'Habit',
+  observation: 'Observation',
+  rule: 'Habit',
+  challenge: 'Experiment',
+  dialogue: 'Reflection',
+  reflection: 'Reflection',
+  restraint: 'Habit',
+  exposure: 'Experiment',
+  decision_rule: 'Experiment',
+  ritual: 'Habit',
+};
+
+function normalizePracticeType(type?: PracticeType): PracticeType {
+  if (type === 'observation') return 'observation';
+  if (type === 'reflection' || type === 'reflection_prompt' || type === 'dialogue') return 'reflection';
+  if (type === 'experiment' || type === 'challenge' || type === 'exposure' || type === 'decision_rule') return 'experiment';
+  return 'habit';
+}
+
+function normalizePracticeStatus(status?: PracticeStatus): PracticeStatus {
+  if (status === 'active') return 'active';
+  if (status === 'paused') return 'paused';
+  if (status === 'abandoned') return 'abandoned';
+  if (status === 'completed' || status === 'concluded' || status === 'failed' || status === 'failed_productively' || status === 'integrated') return 'completed';
+  return 'planned';
+}
 
 function dateKey(date = new Date()) {
   return date.toISOString().slice(0, 10);
@@ -149,12 +178,13 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
   const [statusFilter, setStatusFilter] = useState<PracticeStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<PracticeType | 'all'>('all');
   const [viewFilter, setViewFilter] = useState<PracticeViewFilter>('all');
+  const [otherStatus, setOtherStatus] = useState<PracticeStatus>('planned');
   const [search, setSearch] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Practice | null>(null);
-  const [draft, setDraft] = useState<Partial<Practice>>({ title: '', description: '', type: 'experiment', status: 'designed', durationDays: 7, durationMode: 'repeated', conceptTags: [] });
+  const [draft, setDraft] = useState<Partial<Practice>>({ title: '', description: '', type: 'experiment', status: 'planned', durationDays: 7, durationMode: 'repeated', conceptTags: [] });
   const questionList = useMemo(() => allQuestions(media, questions), [media, questions]);
-  const activePractices = practices.filter((practice) => practice.status === 'active' || practice.status === 'planned' || practice.status === 'designed');
+  const activeLoops = practices.filter((practice) => normalizePracticeStatus(practice.status) === 'active' && practice.durationMode !== 'one_time');
   const practiceState = useMemo(() => {
     const questionById = new Map(questionList.map((question) => [question.id, question]));
     const positionById = new Map(positions.map((position) => [position.id, position]));
@@ -193,18 +223,22 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
     const matchesView =
       viewFilter === 'all' ||
       (viewFilter === 'awaiting_log' && state?.needsLog) ||
-      (viewFilter === 'needs_basis' && !state?.hasBasis) ||
-      (viewFilter === 'needs_design' && state?.needsDesign) ||
-      (viewFilter === 'needs_outcome' && state?.needsOutcome) ||
-      (viewFilter === 'needs_consequence' && state?.needsConsequence) ||
-      (viewFilter === 'testing_positions' && (practice.positionIds || []).length > 0) ||
-      (viewFilter === 'recently_concluded' && state?.recentlyConcluded);
-    return matchesSearch && matchesView && (statusFilter === 'all' || practice.status === statusFilter) && (typeFilter === 'all' || practice.type === typeFilter);
+      (viewFilter === 'needs_setup' && (!state?.hasBasis || state?.needsDesign)) ||
+      (viewFilter === 'ready_review' && (state?.needsOutcome || state?.needsConsequence || state?.recentlyConcluded)) ||
+      (viewFilter === 'testing_positions' && (practice.positionIds || []).length > 0);
+    return matchesSearch && matchesView && (statusFilter === 'all' || normalizePracticeStatus(practice.status) === statusFilter) && (typeFilter === 'all' || normalizePracticeType(practice.type) === typeFilter);
   });
+  const otherPractices = filtered.filter((practice) => normalizePracticeStatus(practice.status) === otherStatus);
+  const needsAttentionLoops = activeLoops.filter((practice) => {
+    const state = practiceState.get(practice.id);
+    return state?.needsLog || !state?.hasBasis || state?.needsDesign;
+  });
+  const todayLoops = activeLoops.filter((practice) => practiceNeedsLog(practice));
+  const ongoingLoops = activeLoops.filter((practice) => !needsAttentionLoops.some((item) => item.id === practice.id));
   const practiceStats = useMemo(() => ({
     total: practices.length,
-    active: practices.filter((practice) => practice.status === 'active').length,
-    planned: practices.filter((practice) => practice.status === 'planned').length,
+    active: practices.filter((practice) => normalizePracticeStatus(practice.status) === 'active').length,
+    planned: practices.filter((practice) => normalizePracticeStatus(practice.status) === 'planned').length,
     testedPositions: new Set(practices.flatMap((practice) => practice.positionIds || [])).size,
     awaitingLog: practices.filter((practice) => practiceNeedsLog(practice)).length,
     needsDesign: practices.filter((practice) => practiceDesignGaps(practice).length > 0).length,
@@ -232,7 +266,7 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
   ].filter(Boolean) as string[];
 
   const openEditor = (practice?: Practice) => {
-    setDraft(practice ? { ...practice } : { title: '', description: '', type: 'experiment', status: 'designed', durationDays: 7, durationMode: 'repeated', startDate: today().slice(0, 10), endDate: '', conceptTags: [] });
+    setDraft(practice ? { ...practice, type: normalizePracticeType(practice.type), status: normalizePracticeStatus(practice.status) } : { title: '', description: '', type: 'experiment', status: 'planned', durationDays: 7, durationMode: 'repeated', startDate: today().slice(0, 10), endDate: '', conceptTags: [] });
     setEditorOpen(true);
   };
 
@@ -255,7 +289,7 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
     <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
       <PageHeader
         title="Practices"
-        description="Turn understanding into habits, experiments, disciplines, commitments, and lived tests."
+        description="Turn understanding into small lived tests, then reflect only when the action produces evidence."
         meta={
           <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
             {practiceStats.total} practices · {practiceStats.active} active · {practiceStats.needsDesign} need setup · {practiceStats.needsOutcome + practiceStats.needsConsequence} ready for review
@@ -292,23 +326,23 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
           <SelectTrigger className="w-48 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Statuses" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="font-code text-[9px] uppercase">All Statuses</SelectItem>
-            {primaryPracticeStatusFilters.map((status) => <SelectItem key={status} value={status} className="font-code text-[9px] uppercase">{status}</SelectItem>)}
+            {statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[9px] uppercase">{status}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as PracticeType | 'all')}>
           <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-white shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Types" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="font-code text-[9px] uppercase">All Practice Types</SelectItem>
-            {primaryPracticeTypeFilters.map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{PRACTICE_LABELS[type]}</SelectItem>)}
+            {practiceTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{simplifiedTypeLabels[type]}</SelectItem>)}
           </SelectContent>
         </Select>
       </FilterToolbar>
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {[
-          { label: 'Needs setup', value: practiceStats.needsDesign + practiceStats.needsBasis, filter: 'needs_design' as PracticeViewFilter },
+          { label: 'Needs setup', value: practiceStats.needsDesign + practiceStats.needsBasis, filter: 'needs_setup' as PracticeViewFilter },
           { label: 'Log due', value: practiceStats.awaitingLog, filter: 'awaiting_log' as PracticeViewFilter },
-          { label: 'Ready for review', value: practiceStats.needsOutcome + practiceStats.needsConsequence, filter: 'needs_outcome' as PracticeViewFilter },
+          { label: 'Ready for review', value: practiceStats.needsOutcome + practiceStats.needsConsequence, filter: 'ready_review' as PracticeViewFilter },
           { label: 'Testing positions', value: practiceStats.testedPositions, filter: 'testing_positions' as PracticeViewFilter },
         ].filter((item) => item.value > 0).map((item) => (
           <button
@@ -325,15 +359,20 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
         ))}
       </div>
 
-      <section className="mb-8 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-2">
-          <Repeat className="size-4 text-accent" />
-          <h2 className="font-headline text-xl font-bold italic text-primary/80">Active Loop</h2>
+      <section className="mb-6 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Repeat className="size-4 text-accent" />
+            <h2 className="font-headline text-xl font-bold italic text-primary/80">Active loops</h2>
+          </div>
+          <p className="max-w-xl text-xs italic leading-5 text-muted-foreground">
+            Log the action first. Reflect when the practice starts producing evidence.
+          </p>
         </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {(activePractices.length ? activePractices.slice(0, 4) : practices.slice(0, 4)).map((practice) => (
-            <PracticeCard key={`active-${practice.id}`} compact practice={practice} questions={questionList} positions={positions} onEdit={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onDelete={() => setDeleteTarget(practice)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
-          ))}
+        <div className="space-y-4">
+          <ActiveLoopGroup title="Needs attention" practices={needsAttentionLoops} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
+          <ActiveLoopGroup title="Today" practices={todayLoops.filter((practice) => !needsAttentionLoops.some((item) => item.id === practice.id))} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
+          <ActiveLoopGroup title="Ongoing" practices={ongoingLoops} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
           {!practices.length && (
             <Card className="border-dashed border-border/60 bg-muted/5 p-8 text-center shadow-inner md:col-span-2 xl:col-span-3 2xl:col-span-4 rounded-xl">
               <Repeat className="size-12 mx-auto mb-4 text-muted-foreground/30" />
@@ -345,21 +384,50 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {filtered.map((practice) => (
-          <PracticeCard key={practice.id} practice={practice} questions={questionList} positions={positions} onEdit={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onDelete={() => setDeleteTarget(practice)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
-        ))}
-        {filtered.length === 0 && (
-          <div className="md:col-span-2 xl:col-span-3 2xl:col-span-4">
+      <section className="rounded-2xl border border-border/50 bg-card/60 p-4 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-headline text-xl font-bold italic text-primary/80">Other practices</h2>
+            <p className="text-xs italic text-muted-foreground">Planned, paused, completed, and abandoned practices stay available without crowding the doing surface.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {statuses.filter((status) => status !== 'active').map((status) => {
+              const count = filtered.filter((practice) => normalizePracticeStatus(practice.status) === status).length;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setOtherStatus(status)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+                    otherStatus === status ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white text-muted-foreground hover:border-accent/40 hover:text-foreground"
+                  )}
+                >
+                  {status} {count}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3">
+          {otherPractices.map((practice) => (
+            <PracticeCard key={practice.id} compact practice={practice} questions={questionList} positions={positions} onEdit={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onDelete={() => setDeleteTarget(practice)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
+          ))}
+          {filtered.length === 0 && (
             <PageEmptyState
               icon={Repeat}
               title="No practices found"
               description="Clear filters or create a lived test that connects a position to behavior."
               action={practiceFiltersActive ? <Button variant="outline" onClick={clearPracticeFilters} className="rounded-full">Clear filters</Button> : <Button onClick={() => openEditor()} className="rounded-full"><Plus className="mr-1.5 size-4" /> New practice</Button>}
             />
-          </div>
-        )}
-      </div>
+          )}
+          {filtered.length > 0 && otherPractices.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border/60 bg-muted/5 p-6 text-center text-sm italic text-muted-foreground">
+              No {otherStatus} practices match the current filters.
+            </div>
+          )}
+        </div>
+      </section>
 
       <PracticeEditor
         open={editorOpen}
@@ -396,6 +464,43 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
   );
 }
 
+function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDelete, onUpdatePractice, onOpenPracticeRoute }: {
+  title: string;
+  practices: Practice[];
+  questions: Question[];
+  positions: VaultEntry[];
+  onEdit: (practice?: Practice) => void;
+  onDelete: (practice: Practice) => void;
+  onUpdatePractice: (practice: Practice) => void;
+  onOpenPracticeRoute?: (id: string | null) => void;
+}) {
+  if (!practices.length) return null;
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-2">
+        <span className="font-code text-[9px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{title}</span>
+        <span className="h-px flex-1 bg-border/60" />
+        <Badge variant="outline" className="rounded-full bg-white font-code text-[8px] uppercase tracking-widest">{practices.length}</Badge>
+      </div>
+      <div className="space-y-2">
+        {practices.map((practice) => (
+          <PracticeCard
+            key={`${title}-${practice.id}`}
+            compact
+            practice={practice}
+            questions={questions}
+            positions={positions}
+            onEdit={() => { onEdit(practice); onOpenPracticeRoute?.(practice.id); }}
+            onDelete={() => onDelete(practice)}
+            onUpdatePractice={onUpdatePractice}
+            onCreateLink={() => {}}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpdatePractice, onCreateLink, compact = false }: {
   practice: Practice;
   questions: Question[];
@@ -427,10 +532,33 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
     shouldContinue: practice.conclusion?.shouldContinue || '',
   });
   const setStatus = (status: PracticeStatus) => onUpdatePractice({ ...practice, status, dateUpdated: today() });
-  const meaningfulStreak = ['habit', 'discipline', 'ritual', 'rule', 'challenge'].includes(practice.type);
+  const visibleType = normalizePracticeType(practice.type);
+  const visibleStatus = normalizePracticeStatus(practice.status);
+  const meaningfulStreak = visibleType === 'habit' || visibleType === 'experiment';
   const durationText = practice.durationDays
     ? `Day ${Math.min(logDates.length || 0, practice.durationDays)} of ${practice.durationDays}`
     : practice.durationMode || 'Cadence unset';
+  const quickLog = () => {
+    if (!needsLog) return;
+    const nextLog: PracticeLog = {
+      id: uid(),
+      date: todayKey,
+      actionCompleted: true,
+      context: '',
+      outcome: '',
+      observations: '',
+      unexpectedResult: '',
+      confidence: 3,
+      mediaIds: [],
+    };
+    onUpdatePractice({
+      ...practice,
+      status: visibleStatus === 'planned' ? 'active' : practice.status,
+      logs: [...(practice.logs || []), nextLog],
+      logDates: Array.from(new Set([...logDates, todayKey])),
+      dateUpdated: today(),
+    });
+  };
   const setupNeed = !experimentShape.hasBasis
     ? 'Needs basis: link the idea, position, or inquiry this tests.'
     : experimentShape.designGaps.length
@@ -439,13 +567,13 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   const relationshipText = `Tests ${linkedPositions.length} position${linkedPositions.length === 1 ? '' : 's'} · connected to ${linkedQuestions.length} inquir${linkedQuestions.length === 1 ? 'y' : 'ies'}`;
   const nextAction =
     setupNeed ? { label: 'Finish setup', handler: onEdit, tone: 'setup' as const } :
-    practice.status === 'proposed' || practice.status === 'designed' || practice.status === 'planned' || practice.status === 'paused'
+    visibleStatus === 'planned' || visibleStatus === 'paused'
       ? { label: 'Start practice', handler: () => setStatus('active'), tone: 'start' as const } :
-    practice.status === 'active' && needsLog
-      ? { label: 'Log Observation', handler: () => setLogOpen(true), tone: 'log' as const } :
+    visibleStatus === 'active' && needsLog
+      ? { label: 'Log today', handler: quickLog, tone: 'log' as const } :
     isPracticeConcluded(practice) || experimentShape.needsOutcome || experimentShape.needsConsequence
       ? { label: 'Review evidence', handler: () => setReviewOpen(true), tone: 'review' as const } :
-    practice.status === 'completed' || practice.status === 'integrated'
+    visibleStatus === 'completed'
       ? { label: 'View conclusion', handler: () => setReviewOpen(true), tone: 'review' as const } :
       { label: 'Open', handler: onEdit, tone: 'open' as const };
   const saveLog = () => {
@@ -488,53 +616,59 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
     setReviewOpen(false);
   };
   return (
-    <Card className={cn("group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-white/95 rounded-xl shadow-md", compact ? "p-4" : "p-5")}>
-      <div className="flex items-start justify-between gap-4 mb-4">
+    <Card className={cn("group cursor-pointer transition-all border border-border/60 bg-white/95 rounded-xl shadow-sm hover:border-accent/30 hover:shadow-md", compact ? "p-3" : "p-4")}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap gap-2 mb-2">
-            <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5 shadow-sm">{PRACTICE_LABELS[practice.type]}</Badge>
-            <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-border/60 bg-white shadow-sm rounded-full font-bold px-2.5 py-0.5 shadow-sm">{practice.status}</Badge>
+          <div className="flex flex-wrap gap-1.5 mb-1.5">
+            <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5 shadow-sm">{simplifiedTypeLabels[visibleType]}</Badge>
+            <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-border/60 bg-white shadow-sm rounded-full font-bold px-2.5 py-0.5 shadow-sm">{visibleStatus}</Badge>
             {needsLog && <Badge className="font-code text-[8px] uppercase tracking-widest bg-emerald-100 text-emerald-900 hover:bg-emerald-100 rounded-full font-bold px-2.5 py-0.5">log due</Badge>}
             {setupNeed && <Badge className="font-code text-[8px] uppercase tracking-widest bg-sky-100 text-sky-950 hover:bg-sky-100 rounded-full font-bold px-2.5 py-0.5">needs setup</Badge>}
             {recentlyConcluded && <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-accent/30 bg-accent/5 text-accent rounded-full font-bold px-2.5 py-0.5">recent result</Badge>}
           </div>
-          <h3 className="font-headline text-xl font-bold italic leading-tight group-hover:text-accent transition-colors text-primary truncate">{practice.title}</h3>
+          <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors text-primary truncate">{practice.title}</h3>
+          <p className="mt-1 line-clamp-1 text-[12px] italic leading-5 text-muted-foreground">
+            {practice.action || practice.description || 'No action defined yet.'}
+          </p>
         </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex shrink-0 items-center gap-1">
+          {visibleStatus === 'active' && (
+            <Button size="sm" onClick={(event) => { event.stopPropagation(); quickLog(); }} disabled={!needsLog} className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest">
+              <CheckCircle2 className="mr-1.5 size-3.5" /> {needsLog ? 'Log' : 'Logged'}
+            </Button>
+          )}
+          {(visibleStatus === 'planned' || visibleStatus === 'paused') && (
+            <Button size="sm" onClick={(event) => { event.stopPropagation(); setStatus('active'); }} className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest">
+              <Play className="mr-1.5 size-3.5" /> Start
+            </Button>
+          )}
           <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={(e) => { e.stopPropagation(); onEdit(); }}><Edit className="size-3.5" /></Button>
           <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive rounded-full" onClick={(e) => { e.stopPropagation(); onDelete(); }}><Trash2 className="size-3.5" /></Button>
         </div>
       </div>
       
-      <p className="text-[13px] leading-relaxed text-muted-foreground font-body line-clamp-2 italic mb-4">
-        {practice.description || 'No requirement explicitly defined.'}
-      </p>
-
-      <div className="mb-4 rounded-xl border border-border/40 bg-card/80 p-3 text-[12px] leading-relaxed">
-        <div className="font-code text-[7px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold mb-1">Tests</div>
-        <p className="line-clamp-2 text-primary/80 italic">{practice.intellectualBasis || firstLinkedPosition?.title || linkedQuestions[0]?.text || 'No source idea named yet.'}</p>
-        <div className="mt-2 flex flex-wrap gap-2 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-          <span>{durationText}</span>
-          <span>{(practice.logs || []).length} observations</span>
-          {meaningfulStreak && <span>{streak}d streak</span>}
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">{relationshipText}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
+        <span className="min-w-0 max-w-xl truncate italic text-primary/80">{practice.intellectualBasis || firstLinkedPosition?.title || linkedQuestions[0]?.text || 'No linked idea named yet.'}</span>
+        <span className="font-code text-[8px] uppercase tracking-widest">{durationText}</span>
+        <span className="font-code text-[8px] uppercase tracking-widest">{(practice.logs || []).length} logs</span>
+        {meaningfulStreak && <span className="font-code text-[8px] uppercase tracking-widest">{streak}d streak</span>}
+        <span className="hidden sm:inline">{relationshipText}</span>
         {setupNeed && (
-          <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] leading-5 text-sky-950">{setupNeed}</p>
+          <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] leading-4 text-sky-950">{setupNeed}</span>
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-border/30 pt-4">
-        <Button size="sm" onClick={(event) => { event.stopPropagation(); nextAction.handler(); }} className="h-8 rounded-full font-code text-[9px] uppercase tracking-widest">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <Button size="sm" variant={nextAction.tone === 'log' ? 'default' : 'outline'} onClick={(event) => { event.stopPropagation(); nextAction.handler(); }} className="h-8 rounded-full bg-card font-code text-[9px] uppercase tracking-widest">
           {nextAction.label}
         </Button>
         <div className="flex gap-1">
-          <Button variant="ghost" size="sm" className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-            Open
+          <Button variant="ghost" size="sm" className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); setLogOpen((open) => !open); }}>
+            Note
           </Button>
-          {practice.status === 'active' && (
+          {visibleStatus === 'active' && (
             <Button variant="ghost" size="sm" className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); setStatus('paused'); }}>
-              Pause
+              <PauseCircle className="mr-1.5 size-3.5" /> Pause
             </Button>
           )}
         </div>
@@ -657,17 +791,17 @@ function PracticeEditor({ open, onOpenChange, draft, setDraft, concepts, media, 
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto bg-white border-none shadow-2xl rounded-2xl p-0">
+      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto bg-white border-none shadow-2xl rounded-2xl p-0">
         <div className="p-8">
-          <DialogHeader className="mb-8"><DialogTitle className="font-headline text-3xl italic">{draft.id ? 'Refine Practice' : 'Initiate Practice'}</DialogTitle></DialogHeader>
-          <div className="space-y-8">
+          <DialogHeader className="mb-6"><DialogTitle className="font-headline text-3xl italic">{draft.id ? 'Refine Practice' : 'Start Practice'}</DialogTitle></DialogHeader>
+          <div className="space-y-6">
             <div className="rounded-2xl border border-accent/20 bg-accent/5 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Target className="size-4 text-accent" />
-                <h3 className="font-headline text-xl italic font-bold text-primary">Field Experiment Design</h3>
+                <h3 className="font-headline text-xl italic font-bold text-primary">Practice loop</h3>
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground italic">
-                A practice should name the idea being tested, the action required, the observation method, and the conclusion that would matter later.
+                Name the action, why it exists, how often it repeats, and when you will review what it changed.
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -698,33 +832,40 @@ function PracticeEditor({ open, onOpenChange, draft, setDraft, concepts, media, 
               <Field label="START DATE"><Input type="date" value={draft.startDate || ''} onChange={(event) => setDraft((prev) => ({ ...prev, startDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
               <Field label="END DATE (EXPECTED)"><Input type="date" value={draft.endDate || ''} onChange={(event) => setDraft((prev) => ({ ...prev, endDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
             </div>
-            <Field label="DESCRIPTION / PURPOSE"><Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="Why this practice matters in the larger thinking system." /></Field>
+            <Field label="WHY THIS EXISTS"><Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[80px] italic text-base" placeholder="What position, inquiry, or tension made this worth trying?" /></Field>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <Field label="INTELLECTUAL BASIS"><Textarea value={draft.intellectualBasis || ''} onChange={(event) => setDraft((prev) => ({ ...prev, intellectualBasis: event.target.value }))} className="min-h-[120px] italic text-base" placeholder="What idea, position, inquiry, source, or uncertainty inspired this practice?" /></Field>
-              <Field label="HYPOTHESIS"><Textarea value={draft.hypothesis || ''} onChange={(event) => setDraft((prev) => ({ ...prev, hypothesis: event.target.value }))} className="min-h-[120px] italic text-base" placeholder="If I do this, what do I expect to happen or discover?" /></Field>
-              <Field label="ACTION"><Textarea value={draft.action || ''} onChange={(event) => setDraft((prev) => ({ ...prev, action: event.target.value }))} className="min-h-[120px] italic text-base" placeholder="What exactly will you do, avoid, observe, ask, or commit to?" /></Field>
-              <Field label="CONTEXT"><Textarea value={draft.context || ''} onChange={(event) => setDraft((prev) => ({ ...prev, context: event.target.value }))} className="min-h-[120px] italic text-base" placeholder="When, where, with whom, and under what conditions?" /></Field>
-              <Field label="OBSERVATION METHOD"><Textarea value={draft.observationMethod || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observationMethod: event.target.value }))} className="min-h-[120px] italic text-base" placeholder="How will you know what happened without overstating the evidence?" /></Field>
-              <Field label="EXPECTED OUTCOME"><Textarea value={draft.expectedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, expectedOutcome: event.target.value }))} className="min-h-[120px] italic text-base" placeholder="What would support, weaken, or complicate the hypothesis?" /></Field>
+              <Field label="WHAT YOU WILL DO"><Textarea value={draft.action || ''} onChange={(event) => setDraft((prev) => ({ ...prev, action: event.target.value }))} className="min-h-[100px] italic text-base" placeholder="What exactly will you do, avoid, observe, ask, or commit to?" /></Field>
+              <Field label="LINKED IDEA / REASON"><Textarea value={draft.intellectualBasis || ''} onChange={(event) => setDraft((prev) => ({ ...prev, intellectualBasis: event.target.value }))} className="min-h-[100px] italic text-base" placeholder="What idea, position, inquiry, source, or uncertainty is this testing?" /></Field>
             </div>
-            <div className="rounded-2xl border border-border/50 bg-muted/10 p-5">
-              <h3 className="mb-4 font-headline text-xl italic font-bold text-primary">Theory vs. Reality Review</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Field label="OBSERVED OUTCOME"><Textarea value={draft.observedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observedOutcome: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What has actually happened so far?" /></Field>
-                <Field label="INTERPRETATION"><Textarea value={draft.interpretation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, interpretation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What do you think the result means?" /></Field>
-                <Field label="ALTERNATIVE EXPLANATION"><Textarea value={draft.alternativeExplanation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What else could explain the result?" /></Field>
-                <Field label="EFFECT ON POSITION"><Textarea value={draft.effectOnPosition || ''} onChange={(event) => setDraft((prev) => ({ ...prev, effectOnPosition: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What position, inquiry, or concept should change because of this?" /></Field>
+            <details className="rounded-2xl border border-border/50 bg-muted/10 p-4">
+              <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">More options</summary>
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Field label="HYPOTHESIS"><Textarea value={draft.hypothesis || ''} onChange={(event) => setDraft((prev) => ({ ...prev, hypothesis: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="If I do this, what do I expect to happen or discover?" /></Field>
+                <Field label="CONTEXT"><Textarea value={draft.context || ''} onChange={(event) => setDraft((prev) => ({ ...prev, context: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="When, where, with whom, and under what conditions?" /></Field>
+                <Field label="OBSERVATION METHOD"><Textarea value={draft.observationMethod || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observationMethod: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="How will you know what happened without overstating the evidence?" /></Field>
+                <Field label="EXPECTED OUTCOME"><Textarea value={draft.expectedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, expectedOutcome: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What would support, weaken, or complicate the hypothesis?" /></Field>
               </div>
-            </div>
+            </details>
             <Field label="GENERAL NOTES"><Textarea value={draft.notes || ''} onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))} className="min-h-[100px] italic text-base" placeholder="Optional working notes or reflection that does not fit the structured fields." /></Field>
             <Field label="CONCEPTS TESTED"><ConceptTagPicker concepts={concepts} value={draft.conceptTags || []} onChange={(conceptTags) => setDraft((prev) => ({ ...prev, conceptTags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></Field>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <LinkGrid title="Linked Sources" items={media.map((item) => ({ id: item.id, label: item.title }))} selected={draft.sourceIds || []} onChange={(sourceIds) => setDraft((prev) => ({ ...prev, sourceIds }))} />
-              <LinkGrid title="Linked Inquiries" items={questions.map((item) => ({ id: item.id, label: item.text }))} selected={draft.questionIds || []} onChange={(questionIds) => setDraft((prev) => ({ ...prev, questionIds }))} />
-              <LinkGrid title="Linked Positions" items={positions.map((item) => ({ id: item.id, label: item.title }))} selected={draft.positionIds || []} onChange={(positionIds) => setDraft((prev) => ({ ...prev, positionIds }))} />
-              <LinkGrid title="Linked Works" items={drafts.map((item) => ({ id: item.id, label: item.title }))} selected={draft.draftIds || []} onChange={(draftIds) => setDraft((prev) => ({ ...prev, draftIds }))} />
-            </div>
+            <details className="rounded-2xl border border-border/50 bg-muted/10 p-4">
+              <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Review and links</summary>
+              <div className="mt-4 rounded-2xl border border-border/50 bg-card p-4">
+                <h3 className="mb-4 font-headline text-xl italic font-bold text-primary">Theory vs. reality review</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Field label="OBSERVED OUTCOME"><Textarea value={draft.observedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observedOutcome: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What has actually happened so far?" /></Field>
+                  <Field label="INTERPRETATION"><Textarea value={draft.interpretation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, interpretation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What do you think the result means?" /></Field>
+                  <Field label="ALTERNATIVE EXPLANATION"><Textarea value={draft.alternativeExplanation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What else could explain the result?" /></Field>
+                  <Field label="EFFECT ON POSITION"><Textarea value={draft.effectOnPosition || ''} onChange={(event) => setDraft((prev) => ({ ...prev, effectOnPosition: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What position, inquiry, or concept should change because of this?" /></Field>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <LinkGrid title="Linked Sources" items={media.map((item) => ({ id: item.id, label: item.title }))} selected={draft.sourceIds || []} onChange={(sourceIds) => setDraft((prev) => ({ ...prev, sourceIds }))} />
+                <LinkGrid title="Linked Inquiries" items={questions.map((item) => ({ id: item.id, label: item.text }))} selected={draft.questionIds || []} onChange={(questionIds) => setDraft((prev) => ({ ...prev, questionIds }))} />
+                <LinkGrid title="Linked Positions" items={positions.map((item) => ({ id: item.id, label: item.title }))} selected={draft.positionIds || []} onChange={(positionIds) => setDraft((prev) => ({ ...prev, positionIds }))} />
+                <LinkGrid title="Linked Works" items={drafts.map((item) => ({ id: item.id, label: item.title }))} selected={draft.draftIds || []} onChange={(draftIds) => setDraft((prev) => ({ ...prev, draftIds }))} />
+              </div>
+            </details>
           </div>
         </div>
         <div className="p-8 pt-4 bg-muted/10 border-t flex justify-end gap-3">
