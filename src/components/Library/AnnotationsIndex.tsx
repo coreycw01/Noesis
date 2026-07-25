@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { Archive, BookOpen, CheckCircle2, Edit, ExternalLink, GitBranch, Highlighter, Layers3, Loader2, Quote, Trash2 } from 'lucide-react';
+import { Archive, BookOpen, CheckCircle2, Edit, ExternalLink, GitBranch, Highlighter, Layers3, Loader2, MoreHorizontal, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -43,42 +43,45 @@ interface AnnotationsIndexProps {
 }
 
 type FlatAnnotation = Annotation & { source: Media };
-type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'unanswered' | 'needs_context' | 'source_context_missing' | 'needs_direction' | 'evidence_ready' | 'potentially_important' | 'recently_promoted';
+type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'has_relationships' | 'unanswered';
 type PreflightMode = 'position' | 'inquiry';
 type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'reference';
 type AnnotationSort = 'newest' | 'oldest' | 'source' | 'type' | 'status';
 
 const ANNOTATION_TYPES: Array<{ id: AnnotationType; label: string }> = [
-  { id: 'highlight', label: 'Highlight' },
+  { id: 'excerpt', label: 'Excerpt' },
   { id: 'thought', label: 'Thought' },
   { id: 'question', label: 'Question' },
   { id: 'claim', label: 'Claim' },
   { id: 'objection', label: 'Objection' },
   { id: 'definition', label: 'Definition' },
-  { id: 'example', label: 'Example' },
-  { id: 'connection', label: 'Connection' },
-  { id: 'personal_reflection', label: 'Personal Reflection' },
-  { id: 'observation', label: 'Observation' },
-  { id: 'excerpt', label: 'Excerpt' },
-  { id: 'voice_note', label: 'Voice Note' },
-  { id: 'drawing', label: 'Drawing' },
-  { id: 'image', label: 'Image' },
 ];
 
 const ANNOTATION_STATUSES: Array<{ id: AnnotationPhilosophyStatus; label: string }> = [
-  { id: 'raw', label: 'Unprocessed' },
-  { id: 'connected', label: 'Linked' },
-  { id: 'used_in_position', label: 'In Positions' },
+  { id: 'raw', label: 'Unreviewed' },
+  { id: 'reviewed', label: 'Reviewed' },
+  { id: 'used_in_position', label: 'Applied' },
   { id: 'reference_only', label: 'Reference' },
   { id: 'archived', label: 'Archived' },
 ];
 
+const normalizedAnnotationType = (value: AnnotationType): AnnotationType => {
+  if (value === 'highlight' || value === 'excerpt' || value === 'example') return 'excerpt';
+  if (value === 'personal_reflection' || value === 'observation' || value === 'connection') return 'thought';
+  if (value === 'voice_note' || value === 'drawing' || value === 'image') return 'thought';
+  return value;
+};
+
+const normalizedProcessingStatus = (value?: AnnotationPhilosophyStatus): AnnotationPhilosophyStatus => {
+  if (!value || value === 'raw') return 'raw';
+  if (value === 'connected' || value === 'questioned' || value === 'promoted' || value === 'used_in_position') return 'used_in_position';
+  if (value === 'dismissed' || value === 'archived') return 'archived';
+  if (value === 'reference_only') return 'reference_only';
+  return 'reviewed';
+};
+
 const annotationLabel = (value: string) => ANNOTATION_TYPES.find((type) => type.id === value)?.label
   || ANNOTATION_STATUSES.find((status) => status.id === value)?.label
-  || (value === 'questioned' ? 'Inquiry opened' : null)
-  || (value === 'reviewed' ? 'Reviewed' : null)
-  || (value === 'promoted' ? 'Sent onward' : null)
-  || (value === 'dismissed' ? 'Archived' : null)
   || value.replace(/_/g, ' ');
 
 interface PreflightDraft {
@@ -162,20 +165,21 @@ export function AnnotationsIndex({
 
   const annotations = useMemo(() => allAnnotations(media) as FlatAnnotation[], [media]);
   const annotationKey = (annotation: FlatAnnotation) => `${annotation.source.id}:${annotation.id}`;
-  const annotationStatus = (annotation: Annotation): AnnotationPhilosophyStatus => annotation.philosophyStatus || 'raw';
+  const annotationStatus = (annotation: Annotation): AnnotationPhilosophyStatus => normalizedProcessingStatus(annotation.philosophyStatus);
+  const annotationType = (annotation: Annotation): AnnotationType => normalizedAnnotationType(annotation.type);
   const annotationTags = (annotation: FlatAnnotation) => normalizeConceptTags(annotation.conceptTags || annotation.source.tags || []);
   const needsContext = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
     return !['archived', 'dismissed', 'promoted', 'used_in_position'].includes(status)
-      && (!annotationTags(annotation).length || !annotation.context?.trim());
+      && !annotationTags(annotation).length;
   };
   const isPotentiallyImportant = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
     if (['archived', 'dismissed', 'reference_only'].includes(status)) return false;
     return Boolean(
-      annotation.mattersBeyondSource
-      || ['claim', 'objection', 'definition', 'connection'].includes(annotation.type)
-      || ['evidence', 'claim', 'objection', 'definition'].includes(annotation.consequenceKind || '')
+      ['claim', 'objection', 'definition', 'question'].includes(annotationType(annotation))
+      || annotation.createdInquiryId
+      || annotation.createdPositionId
     );
   };
   const missingSourceContext = (annotation: FlatAnnotation) => {
@@ -184,20 +188,19 @@ export function AnnotationsIndex({
   };
   const needsSupportDirection = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
-    if (['archived', 'dismissed', 'reference_only', 'used_in_position', 'promoted'].includes(status)) return false;
-    const isEvidenceLike = ['claim', 'objection'].includes(annotation.type) || ['evidence', 'claim', 'objection'].includes(annotation.consequenceKind || '');
+    if (['archived', 'reference_only', 'used_in_position'].includes(status)) return false;
+    const isEvidenceLike = ['claim', 'objection'].includes(annotationType(annotation));
     return isEvidenceLike && !(annotation.linkedPositionIds || []).length && !annotation.createdPositionId;
   };
   const isEvidenceReady = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
     return !['archived', 'dismissed', 'reference_only'].includes(status)
-      && Boolean(annotation.consequenceNote?.trim())
       && annotationTags(annotation).length > 0
-      && ['claim', 'objection', 'definition', 'connection'].includes(annotation.type);
+      && ['claim', 'objection', 'definition'].includes(annotationType(annotation));
   };
   const isRecentlyPromoted = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
-    return Boolean(annotation.createdInquiryId || annotation.createdPositionId || ['promoted', 'used_in_position'].includes(status));
+    return Boolean(annotation.createdInquiryId || annotation.createdPositionId || status === 'used_in_position');
   };
   const annotationProcessingQuality = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
@@ -212,7 +215,7 @@ export function AnnotationsIndex({
     else missing.push('source context');
 
     if (
-      ['reviewed', 'connected', 'questioned', 'used_in_position', 'promoted', 'reference_only', 'archived', 'dismissed'].includes(status)
+      ['reviewed', 'used_in_position', 'reference_only', 'archived'].includes(status)
       || annotation.createdInquiryId
       || annotation.createdPositionId
     ) score += 1;
@@ -246,22 +249,12 @@ export function AnnotationsIndex({
       .filter((annotation) => {
         let typeOk = true;
         if (filterType === 'unanswered') {
-          typeOk = annotation.type === 'question' && !annotation.answer?.trim();
-        } else if (filterType === 'needs_context') {
-          typeOk = needsContext(annotation);
-        } else if (filterType === 'source_context_missing') {
-          typeOk = missingSourceContext(annotation);
-        } else if (filterType === 'needs_direction') {
-          typeOk = needsSupportDirection(annotation);
-        } else if (filterType === 'evidence_ready') {
-          typeOk = isEvidenceReady(annotation);
-        } else if (filterType === 'potentially_important') {
-          typeOk = isPotentiallyImportant(annotation);
-        } else if (filterType === 'recently_promoted') {
-          typeOk = isRecentlyPromoted(annotation);
+          typeOk = annotationType(annotation) === 'question' && !annotation.createdInquiryId;
+        } else if (filterType === 'has_relationships') {
+          typeOk = Boolean(annotation.createdInquiryId || annotation.createdPositionId || (annotation.linkedPositionIds || []).length);
         } else if (filterType !== 'all') {
           typeOk = ANNOTATION_TYPES.some((option) => option.id === filterType)
-            ? annotation.type === filterType
+            ? annotationType(annotation) === filterType
             : annotationStatus(annotation) === filterType;
         }
         const conceptOk = filterConcept === 'all' || annotationTags(annotation).map(conceptKey).includes(filterConcept);
@@ -272,7 +265,7 @@ export function AnnotationsIndex({
       .sort((a, b) => {
         if (sortBy === 'oldest') return new Date(a.date).getTime() - new Date(b.date).getTime();
         if (sortBy === 'source') return a.source.title.localeCompare(b.source.title) || new Date(b.date).getTime() - new Date(a.date).getTime();
-        if (sortBy === 'type') return annotationLabel(a.type).localeCompare(annotationLabel(b.type)) || new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (sortBy === 'type') return annotationLabel(annotationType(a)).localeCompare(annotationLabel(annotationType(b))) || new Date(b.date).getTime() - new Date(a.date).getTime();
         if (sortBy === 'status') return annotationLabel(annotationStatus(a)).localeCompare(annotationLabel(annotationStatus(b))) || new Date(b.date).getTime() - new Date(a.date).getTime();
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       });
@@ -301,10 +294,11 @@ export function AnnotationsIndex({
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {
       total: annotations.length,
-      unanswered: annotations.filter((annotation) => annotation.type === 'question' && !annotation.answer?.trim()).length,
+      unanswered: annotations.filter((annotation) => annotationType(annotation) === 'question' && !annotation.createdInquiryId).length,
+      has_relationships: annotations.filter((annotation) => annotation.createdInquiryId || annotation.createdPositionId || (annotation.linkedPositionIds || []).length).length,
     };
     ANNOTATION_TYPES.forEach((option) => {
-      counts[option.id] = annotations.filter((annotation) => annotation.type === option.id).length;
+      counts[option.id] = annotations.filter((annotation) => annotationType(annotation) === option.id).length;
     });
     ANNOTATION_STATUSES.forEach((option) => {
       counts[option.id] = annotations.filter((annotation) => annotationStatus(annotation) === option.id).length;
@@ -312,63 +306,12 @@ export function AnnotationsIndex({
     return counts;
   }, [annotations]);
 
-  const consequenceLanes = useMemo(() => [
-    {
-      label: 'Unprocessed',
-      value: typeCounts.raw,
-      description: 'Captured meaning that still needs classification or a next step.',
-      filter: 'raw' as AnnotationFilter,
-    },
-    {
-      label: 'Needs Context',
-      value: annotations.filter(needsContext).length,
-      description: 'Fragments missing concept tags or enough source context.',
-      filter: 'needs_context' as AnnotationFilter,
-    },
-    {
-      label: 'Potentially Important',
-      value: annotations.filter(isPotentiallyImportant).length,
-      description: 'Claims, objections, definitions, and connections likely to affect a position or inquiry.',
-      filter: 'potentially_important' as AnnotationFilter,
-    },
-    {
-      label: 'Needs Direction',
-      value: annotations.filter(needsSupportDirection).length,
-      description: 'Evidence-like captures that need support or challenge direction before judgment.',
-      filter: 'needs_direction' as AnnotationFilter,
-    },
-    {
-      label: 'Evidence Ready',
-      value: annotations.filter(isEvidenceReady).length,
-      description: 'Tagged, interpreted captures ready to become evidence, concept material, or inquiry fuel.',
-      filter: 'evidence_ready' as AnnotationFilter,
-    },
-    {
-      label: 'Recently Promoted',
-      value: annotations.filter(isRecentlyPromoted).length,
-      description: 'Annotations already routed into inquiries, positions, or promoted thinking objects.',
-      filter: 'recently_promoted' as AnnotationFilter,
-    },
-    {
-      label: 'Fully Processed',
-      value: annotations.filter((annotation) => annotationProcessingQuality(annotation).score >= 6).length,
-      description: 'Captures with tags, context, direction, and a clear next destination.',
-      filter: 'all' as AnnotationFilter,
-    },
-    {
-      label: 'Archived',
-      value: typeCounts.archived || 0,
-      description: 'Reference material deliberately removed from active processing.',
-      filter: 'archived' as AnnotationFilter,
-    },
-  ], [annotations, typeCounts.raw, typeCounts.archived]);
-
   const updateAnnotationConsequence = (annotation: FlatAnnotation, patch: Partial<Annotation>) => {
     const { source, ...annotationData } = annotation;
     onUpdateAnnotation(source.id, {
       ...annotationData,
       ...patch,
-      philosophyStatus: patch.philosophyStatus || annotationData.philosophyStatus || 'connected',
+      philosophyStatus: patch.philosophyStatus || annotationData.philosophyStatus || 'reviewed',
     });
   };
 
@@ -379,7 +322,7 @@ export function AnnotationsIndex({
       ...annotation,
       text: annotation.text.trim(),
       conceptTags: normalizeConceptTags(annotation.conceptTags || source.tags),
-      philosophyStatus: annotation.philosophyStatus || 'connected',
+      philosophyStatus: annotation.philosophyStatus || 'reviewed',
       date: annotation.date || today(),
     });
     setEditing(null);
@@ -489,7 +432,7 @@ export function AnnotationsIndex({
       sourceAnnotationId: annotation.id,
     });
     const { source, ...annotationData } = annotation;
-    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'questioned', createdInquiryId: created.id });
+    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'used_in_position', createdInquiryId: created.id });
     toast({ title: 'Inquiry draft created from annotation.', description: 'You can keep working it in Inquiries.' });
     if (navigateOnCreate) onNavigate?.('questions', created.id);
     setPendingAction(null);
@@ -592,11 +535,15 @@ export function AnnotationsIndex({
   const runConsequenceAction = (annotation: FlatAnnotation, action: ConsequenceAction) => {
     const { source, ...annotationData } = annotation;
     if (action === 'clarifies') {
-      onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'connected' });
-      toast({ title: 'Annotation marked as conceptual clarification.', description: 'It stays in the inbox as reviewed concept material.' });
+      onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'used_in_position' });
+      toast({ title: 'Annotation applied as conceptual clarification.', description: 'It remains discoverable through its source and concept tags.' });
       return;
     }
     if (action === 'raises_question') {
+      if (annotation.createdInquiryId) {
+        onNavigate?.('questions', annotation.createdInquiryId);
+        return;
+      }
       openPreflight(annotation, 'inquiry');
       return;
     }
@@ -616,8 +563,8 @@ export function AnnotationsIndex({
       }
       return;
     }
-    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'reference_only', consequenceKind: 'interpretation' });
-    toast({ title: 'Kept as reference.', description: 'This note will remain attached to the source without becoming a new object.' });
+    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'reference_only' });
+    toast({ title: 'Saved as reference.', description: 'This note remains searchable without becoming a position, inquiry, or concept change.' });
   };
 
   const consequenceQuestion = (annotation: FlatAnnotation) => {
@@ -717,21 +664,12 @@ export function AnnotationsIndex({
 
   const rawFilterButtons: { id: AnnotationFilter; label: string; count: number; always?: boolean }[] = [
     { id: 'all', label: 'All', count: typeCounts.total },
-    { id: 'raw', label: 'Unprocessed', count: typeCounts.raw || 0, always: true },
-    { id: 'needs_context', label: 'Needs Context', count: annotations.filter(needsContext).length },
-    { id: 'needs_direction', label: 'Needs Direction', count: annotations.filter(needsSupportDirection).length },
-    { id: 'evidence_ready', label: 'Evidence Ready', count: annotations.filter(isEvidenceReady).length },
-    { id: 'potentially_important', label: 'Important', count: annotations.filter(isPotentiallyImportant).length },
-    { id: 'recently_promoted', label: 'Promoted', count: annotations.filter(isRecentlyPromoted).length },
+    { id: 'raw', label: 'Unreviewed', count: typeCounts.raw || 0, always: true },
+    { id: 'reviewed', label: 'Reviewed', count: typeCounts.reviewed || 0 },
+    { id: 'used_in_position', label: 'Applied', count: typeCounts.used_in_position || 0 },
     { id: 'reference_only', label: 'Reference', count: typeCounts.reference_only || 0 },
     { id: 'archived', label: 'Archived', count: typeCounts.archived || 0 },
-    { id: 'highlight', label: 'Highlights', count: typeCounts.highlight || 0 },
-    { id: 'claim', label: 'Claims', count: typeCounts.claim || 0 },
-    { id: 'objection', label: 'Objections', count: typeCounts.objection || 0 },
-    { id: 'definition', label: 'Definitions', count: typeCounts.definition || 0 },
-    { id: 'question', label: 'Questions', count: typeCounts.question || 0 },
-    { id: 'unanswered', label: 'Unanswered', count: typeCounts.unanswered },
-    { id: 'connection', label: 'Connections', count: typeCounts.connection || 0 },
+    { id: 'has_relationships', label: 'Linked', count: typeCounts.has_relationships || 0 },
   ];
   const filterButtons = rawFilterButtons.filter((button) => button.id === 'all' || button.always || button.count > 0 || filterType === button.id);
 
@@ -768,11 +706,21 @@ export function AnnotationsIndex({
             <SelectValue placeholder="Sort" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="newest" className="font-code text-[10px] uppercase">Newest</SelectItem>
+            <SelectItem value="newest" className="font-code text-[10px] uppercase">Recently added</SelectItem>
+            <SelectItem value="status" className="font-code text-[10px] uppercase">Recently updated</SelectItem>
+            <SelectItem value="source" className="font-code text-[10px] uppercase">Source order</SelectItem>
             <SelectItem value="oldest" className="font-code text-[10px] uppercase">Oldest</SelectItem>
-            <SelectItem value="source" className="font-code text-[10px] uppercase">Source</SelectItem>
-            <SelectItem value="type" className="font-code text-[10px] uppercase">Type</SelectItem>
-            <SelectItem value="status" className="font-code text-[10px] uppercase">Status</SelectItem>
+            <SelectItem value="type" className="font-code text-[10px] uppercase">A-Z by type</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={ANNOTATION_TYPES.some((option) => option.id === filterType) ? filterType : 'all'} onValueChange={(value) => setFilterType(value as AnnotationFilter)}>
+          <SelectTrigger className="w-44 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="font-code text-[10px] uppercase">All types</SelectItem>
+            {ANNOTATION_TYPES.map((type) => <SelectItem key={type.id} value={type.id} className="font-code text-[10px] uppercase">{type.label}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -826,7 +774,7 @@ export function AnnotationsIndex({
               <Layers3 className="mr-1.5 size-3.5" /> Form position
             </Button>
             <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('reference_only')} className="rounded-full">
-              <Quote className="mr-1.5 size-3.5" /> Keep as reference
+              <Quote className="mr-1.5 size-3.5" /> Save as reference
             </Button>
             {selectedAnnotations.length > 0 && (
               <Button variant="ghost" size="sm" onClick={() => setSelectedKeys([])} className="rounded-full">
@@ -840,6 +788,12 @@ export function AnnotationsIndex({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-8">
         {filtered.map((annotation) => {
           const selectedEffect = selectedEffectForAnnotation(annotation);
+          const relationLabels = [
+            ...(annotation.createdPositionId ? ['Formed position'] : []),
+            ...(annotation.createdInquiryId ? ['Linked inquiry'] : []),
+            ...((annotation.linkedPositionIds || []).length ? [`${(annotation.linkedPositionIds || []).length} linked position${(annotation.linkedPositionIds || []).length === 1 ? '' : 's'}`] : []),
+            ...(annotationType(annotation) === 'definition' && annotationTags(annotation).length ? [`Clarifies ${annotationTags(annotation)[0]}`] : []),
+          ];
           return (
           <Card key={`${annotation.source.id}:${annotation.id}`} className={cn(
             "p-4 md:p-5 bg-card border border-accent/10 shadow-md rounded-2xl group hover:shadow-xl transition-all",
@@ -854,7 +808,7 @@ export function AnnotationsIndex({
                 />
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold px-3 py-1">
-                    {annotation.type}
+                    {annotationLabel(annotationType(annotation))}
                   </Badge>
                   <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest rounded-full bg-accent/5 text-accent font-bold">
                     {annotationLabel(annotationStatus(annotation))}
@@ -884,7 +838,7 @@ export function AnnotationsIndex({
 
             <div className="relative mb-4">
               <Quote className="absolute -left-6 -top-2 size-10 text-accent/5" />
-              <p className="font-body italic leading-relaxed text-[16px] text-primary/90 relative z-10 md:text-[18px]">"{annotation.text}"</p>
+              <p className="font-body italic leading-relaxed text-[15px] text-primary/90 relative z-10 line-clamp-5 md:text-[16px]">"{annotation.text}"</p>
             </div>
 
             <div className="flex flex-wrap gap-2 mb-3">
@@ -893,58 +847,46 @@ export function AnnotationsIndex({
               ))}
             </div>
 
-            <div className="mb-3 overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/10 via-card to-card shadow-sm">
-              <div className="border-b border-accent/10 px-4 py-3">
-                <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">How does this affect your thinking?</div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  {consequenceQuestion(annotation)}
-                </p>
+            {relationLabels.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {relationLabels.map((label) => (
+                  <Badge key={label} variant="outline" className="rounded-full border-accent/20 bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">
+                    {label}
+                  </Badge>
+                ))}
               </div>
-              <div className="space-y-3 p-3">
-                <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
-                  {([
-                    ['supports_claim', 'Supports a position'],
-                    ['challenges_claim', 'Challenges a position'],
-                    ['raises_question', 'Raises a question'],
-                    ['clarifies', 'Clarifies a concept'],
-                    ['reference', 'Keep as reference'],
-                  ] as Array<[ConsequenceAction, string]>).map(([action, label]) => (
-                    <Button
-                      key={action}
-                      type="button"
-                      variant={selectedEffect === action ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => runConsequenceAction(annotation, action)}
-                      className="h-8 rounded-full px-2 font-code text-[8px] uppercase tracking-widest sm:px-3"
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-                <div className="flex flex-col gap-2 rounded-xl border border-accent/15 bg-background/80 p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Destination</div>
-                    <p className="mt-1 text-xs text-muted-foreground">{nextActionLabelForEffect(annotation, selectedEffect)}</p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => runConsequenceAction(annotation, selectedEffect)}
-                    className="rounded-full"
-                  >
-                    {nextActionLabelForEffect(annotation, selectedEffect)}
-                  </Button>
-                </div>
+            )}
+
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {([
+                ['supports_claim', 'Support'],
+                ['challenges_claim', 'Challenge'],
+                ['raises_question', annotation.createdInquiryId ? 'Open inquiry' : 'Raise inquiry'],
+                ['supports_claim', 'Form position'],
+              ] as Array<[ConsequenceAction, string]>).map(([action, label]) => (
                 <Button
+                  key={`${action}-${label}`}
                   type="button"
-                  variant="ghost"
+                  variant={selectedEffect === action && label !== 'Form position' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => openPreflight(annotation, 'position')}
-                  className="self-start rounded-full px-0 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => label === 'Form position' ? openPreflight(annotation, 'position') : runConsequenceAction(annotation, action)}
+                  className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
                 >
-                  Form position instead
+                  {label}
                 </Button>
-              </div>
+              ))}
+              <details className="relative">
+                <summary className="flex h-8 list-none items-center gap-1 rounded-full border border-border bg-card px-3 font-code text-[8px] uppercase tracking-widest text-muted-foreground shadow-sm">
+                  <MoreHorizontal className="size-3.5" /> More
+                </summary>
+                <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-border bg-popover p-2 shadow-xl">
+                  <button type="button" onClick={() => runConsequenceAction(annotation, 'clarifies')} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Clarify concept</button>
+                  <button type="button" onClick={() => runConsequenceAction(annotation, 'reference')} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Save as reference</button>
+                  <button type="button" onClick={() => setEditing(annotation)} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Edit</button>
+                  <button type="button" onClick={() => updateAnnotationConsequence(annotation, { philosophyStatus: 'archived' })} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Archive</button>
+                  <button type="button" onClick={() => setDeleteTarget(annotation)} className="block w-full rounded-lg px-3 py-2 text-left text-xs text-destructive hover:bg-destructive/10">Delete</button>
+                </div>
+              </details>
             </div>
 
             <div className="flex items-center justify-between gap-4 pt-4 border-t border-border/20 mt-4">
@@ -957,11 +899,6 @@ export function AnnotationsIndex({
                   <p className="readex-kicker text-[8px] text-muted-foreground/60 uppercase tracking-widest font-bold truncate mt-1">{annotation.source.creator || MEDIA_LABELS[annotation.source.type]}</p>
                 </div>
               </button>
-              <div className="flex shrink-0 gap-2">
-                <Button variant="outline" size="icon" onClick={() => suggestConsequences(annotation)} disabled={suggestingId === annotation.id} className="size-11 rounded-full bg-card border-border/60" title="Ask Noesis AI">
-                  {suggestingId === annotation.id ? <Loader2 className="size-5 animate-spin" /> : <GenerativeAiIcon className="size-8" />}
-                </Button>
-              </div>
             </div>
           </Card>
           );
@@ -1026,7 +963,7 @@ export function AnnotationsIndex({
                       const { source, ...annotationData } = linkDialog.annotation;
                       onUpdateAnnotation(source.id, {
                         ...annotationData,
-                        philosophyStatus: linkDialog.linkType === 'supports' ? 'used_in_position' : 'questioned',
+                        philosophyStatus: 'used_in_position',
                         linkedPositionIds: Array.from(new Set([...(annotationData.linkedPositionIds || []), position.id])),
                       });
                       toast({ title: linkDialog.linkType === 'supports' ? 'Annotation linked as support for position.' : 'Annotation linked as a challenge to position.', description: position.title });
@@ -1050,11 +987,15 @@ export function AnnotationsIndex({
         <DialogContent className="max-w-2xl border-none shadow-2xl rounded-2xl">
           <DialogHeader><DialogTitle className="font-headline text-2xl italic">Edit Annotation</DialogTitle></DialogHeader>
           {editing && (
-            <div className="space-y-5 pt-2">
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label>Annotation content</Label>
+                <Textarea value={editing.text} onChange={(event) => setEditing((prev) => prev ? { ...prev, text: event.target.value } : prev)} className="min-h-[140px]" />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Type</Label>
-                  <Select value={editing.type} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, type: value as AnnotationType } : prev)}>
+                  <Select value={annotationType(editing)} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, type: value as AnnotationType } : prev)}>
                     <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {ANNOTATION_TYPES.map((type) => (
@@ -1075,29 +1016,10 @@ export function AnnotationsIndex({
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Source</Label>
-                <Input value={editing.source.title} disabled className="rounded-full" />
+              <div className="rounded-xl border border-border/50 bg-muted/10 p-3 text-xs text-muted-foreground">
+                Source: <span className="font-medium text-foreground">{editing.source.title}</span>
+                {editing.source.creator ? ` by ${editing.source.creator}` : ''}
               </div>
-              <div className="space-y-2">
-                <Label>Text</Label>
-                <Textarea value={editing.text} onChange={(event) => setEditing((prev) => prev ? { ...prev, text: event.target.value } : prev)} className="min-h-[140px]" />
-              </div>
-              <div className="space-y-2">
-                <Label>Optional Context</Label>
-                <Textarea
-                  value={editing.context || ''}
-                  onChange={(event) => setEditing((prev) => prev ? { ...prev, context: event.target.value } : prev)}
-                  placeholder="Add the surrounding passage or source context only if this note needs it."
-                  className="min-h-[100px]"
-                />
-              </div>
-              {editing.type === 'question' && (
-                <div className="space-y-2">
-                  <Label>Working Answer</Label>
-                  <Textarea value={editing.answer || ''} onChange={(event) => setEditing((prev) => prev ? { ...prev, answer: event.target.value } : prev)} className="min-h-[100px]" />
-                </div>
-              )}
               <div className="space-y-2">
                 <Label>Concepts</Label>
                 <ConceptTagPicker
@@ -1107,22 +1029,50 @@ export function AnnotationsIndex({
                   onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Interpretation</Label>
-                <Textarea
-                  value={editing.consequenceNote || ''}
-                  onChange={(event) => setEditing((prev) => prev ? { ...prev, consequenceNote: event.target.value } : prev)}
-                  placeholder="Optional: what does this note suggest, clarify, question, support, or challenge?"
-                  className="min-h-[90px]"
-                />
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Checkbox
-                    checked={Boolean(editing.mattersBeyondSource)}
-                    onCheckedChange={(checked) => setEditing((prev) => prev ? { ...prev, mattersBeyondSource: Boolean(checked) } : prev)}
-                  />
-                  This is my interpretation, not the author's claim.
-                </label>
-              </div>
+              <details className="rounded-xl border border-border/50 bg-background/60 p-3">
+                <summary className="cursor-pointer list-none font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Optional context and note
+                </summary>
+                <div className="mt-3 space-y-3">
+                  <div className="space-y-2">
+                    <Label>Surrounding context</Label>
+                    <Textarea
+                      value={editing.context || ''}
+                      onChange={(event) => setEditing((prev) => prev ? { ...prev, context: event.target.value } : prev)}
+                      placeholder="Add the surrounding passage only if this note cannot be understood without it."
+                      className="min-h-[90px]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Add your note</Label>
+                    <Textarea
+                      value={editing.consequenceNote || ''}
+                      onChange={(event) => setEditing((prev) => prev ? { ...prev, consequenceNote: event.target.value } : prev)}
+                      placeholder="Optional interpretation, limitation, or reminder."
+                      className="min-h-[80px]"
+                    />
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Checkbox
+                        checked={Boolean(editing.mattersBeyondSource)}
+                        onCheckedChange={(checked) => setEditing((prev) => prev ? { ...prev, mattersBeyondSource: Boolean(checked) } : prev)}
+                      />
+                      This is my interpretation, not the author's claim.
+                    </label>
+                  </div>
+                </div>
+              </details>
+              {annotationType(editing) === 'question' && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 p-3">
+                  <p className="text-sm text-muted-foreground">{editing.createdInquiryId ? 'This annotation is already linked to an inquiry.' : 'This question belongs in Inquiries when you are ready to work it.'}</p>
+                  <Button size="sm" variant="outline" onClick={() => {
+                    const current = editing;
+                    setEditing(null);
+                    runConsequenceAction(current, 'raises_question');
+                  }} className="rounded-full">
+                    {editing.createdInquiryId ? 'Open inquiry' : 'Raise inquiry'}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter className="pt-4">
