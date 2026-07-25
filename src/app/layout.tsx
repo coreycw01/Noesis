@@ -26,6 +26,8 @@ try {
   var accent = saved.accentTheme || 'violet';
   var dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.toggle('dark', dark);
+  document.documentElement.classList.toggle('high-contrast', Boolean(saved.highContrastMode));
+  document.documentElement.classList.toggle('reduce-motion', Boolean(saved.reducedMotion));
   document.documentElement.setAttribute('data-theme', accent);
 } catch (error) {
   console.warn('Theme init failed', error);

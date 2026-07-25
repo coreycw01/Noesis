@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import type { Draft, Media, MediaStatus, MediaType, Practice, Question, VaultEntry } from '@/lib/types';
 import { MEDIA_LABELS, conceptKey } from '@/lib/readex';
@@ -437,6 +437,13 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         activeFilterLabels={activeFilterLabels}
         onClear={clearFilters}
         clearDisabled={!filtersActive}
+        viewControl={
+          <ViewModeToggle
+            value={view === 'table' ? 'table' : 'grid'}
+            modes={['grid', 'table']}
+            onChange={(value) => setView(value === 'table' ? 'table' : 'covers')}
+          />
+        }
         className="mb-3"
       >
           <Select value={filterType} onValueChange={(v) => setFilterType(v as MediaType | 'all')}>

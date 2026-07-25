@@ -297,14 +297,6 @@ export function AnnotationsIndex({
     });
     return Array.from(tags).sort();
   }, [annotations]);
-  const visibleSourceFilters = useMemo(() => {
-    const selected = filterSource !== 'all' ? media.find((source) => source.id === filterSource) : null;
-    return Array.from(new Map([...(selected ? [selected] : []), ...media.slice(0, 5)].map((source) => [source.id, source])).values());
-  }, [filterSource, media]);
-  const visibleConceptFilters = useMemo(() => {
-    return Array.from(new Set([...(filterConcept !== 'all' ? [filterConcept] : []), ...allConcepts.slice(0, 5)]));
-  }, [allConcepts, filterConcept]);
-
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {
       total: annotations.length,
@@ -742,7 +734,31 @@ export function AnnotationsIndex({
         resultLabel="annotations"
         onClear={clearFilters}
         clearDisabled={!filtersActive}
-        sortLabel={`Sorted by ${sortBy.replace(/_/g, ' ')}`}
+        sortLabel={sortBy.replace(/_/g, ' ')}
+        relatedLookups={[
+          {
+            id: 'sources',
+            label: 'Sources',
+            value: filterSource,
+            onSelect: setFilterSource,
+            options: media.map((source) => ({
+              value: source.id,
+              label: source.title,
+              description: source.creator || MEDIA_LABELS[source.type],
+            })),
+          },
+          {
+            id: 'concepts',
+            label: 'Concepts',
+            value: filterConcept,
+            onSelect: setFilterConcept,
+            options: allConcepts.map((concept) => ({
+              value: concept,
+              label: concept,
+              description: 'Concept tag',
+            })),
+          },
+        ]}
         className="mb-5"
       >
         <Select value={sortBy} onValueChange={(value) => setSortBy(value as AnnotationSort)}>
@@ -768,7 +784,7 @@ export function AnnotationsIndex({
           </SelectContent>
         </Select>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {filterButtons.map((button) => (
             <button
               key={button.id}
@@ -783,20 +799,6 @@ export function AnnotationsIndex({
           ))}
         </div>
 
-          <Select value={filterSource} onValueChange={setFilterSource}>
-            <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Filter by Source" /></SelectTrigger>
-            <SelectContent className="max-h-80">
-              <SelectItem value="all" className="font-code text-[10px] uppercase">All Sources</SelectItem>
-              {visibleSourceFilters.map((source) => <SelectItem key={source.id} value={source.id} className="font-code text-[10px] uppercase">{source.title}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filterConcept} onValueChange={setFilterConcept}>
-            <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-white shadow-sm border-border/60"><SelectValue placeholder="Filter by Concept" /></SelectTrigger>
-            <SelectContent className="max-h-80">
-              <SelectItem value="all" className="font-code text-[10px] uppercase">All Concepts</SelectItem>
-              {visibleConceptFilters.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
       </FilterToolbar>
 
       <section className="mb-8 hidden rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:block">

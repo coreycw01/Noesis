@@ -411,16 +411,20 @@ function ReadexWorkspace({
       const systemDark = mediaQuery.matches;
       const dark = preferences.themeMode === 'dark' || (preferences.themeMode === 'system' && systemDark);
       root.classList.toggle('dark', dark);
+      root.classList.toggle('high-contrast', appearanceSettings.highContrastMode);
+      root.classList.toggle('reduce-motion', appearanceSettings.reducedMotion);
       root.dataset.theme = preferences.accentTheme;
       window.localStorage.setItem('noesis:theme', JSON.stringify({
         themeMode: preferences.themeMode,
         accentTheme: preferences.accentTheme,
+        highContrastMode: appearanceSettings.highContrastMode,
+        reducedMotion: appearanceSettings.reducedMotion,
       }));
     };
     applyTheme();
     mediaQuery.addEventListener('change', applyTheme);
     return () => mediaQuery.removeEventListener('change', applyTheme);
-  }, [preferences.themeMode, preferences.accentTheme]);
+  }, [appearanceSettings.highContrastMode, appearanceSettings.reducedMotion, preferences.themeMode, preferences.accentTheme]);
 
   const totalObjects = media.length + concepts.length + questions.length + vault.length + drafts.length + practices.length + timeline.length + insights.length + links.length + suggestions.length + atlasMaps.length + thinkingEvents.length + beliefProfiles.length + unknowns.length + thinkingPatterns.length;
 

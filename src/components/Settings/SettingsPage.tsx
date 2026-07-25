@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { sendPasswordResetEmail, signOut } from 'firebase/auth';
-import { Download, LogOut, RefreshCw, Save, Shield, Wrench } from 'lucide-react';
+import { Check, Download, LogOut, RefreshCw, Save, Shield, Wrench } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -211,9 +211,11 @@ export function SettingsPage({
   const { toast } = useToast();
   const [drafts, setDrafts] = useState<SettingsState>(settings);
   const [saving, setSaving] = useState<SettingsSectionKey | 'reset' | 'refresh-demo' | null>(null);
+  const [lastSaved, setLastSaved] = useState<SettingsSectionKey | null>(null);
   const [activePanel, setActivePanel] = useState<SettingsPanelId>('account');
 
-  useEffect(() => setDrafts(settings), [settings]);
+  const settingsSignature = JSON.stringify(settings);
+  useEffect(() => setDrafts(settings), [settingsSignature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const saved = window.localStorage.getItem(SETTINGS_SECTION_STORAGE_KEY) as SettingsPanelId | null;
@@ -230,6 +232,8 @@ export function SettingsPage({
     () => ({
       themeMode: drafts.appearance.themeMode,
       accentTheme: drafts.appearance.accentTheme,
+      highContrastMode: drafts.appearance.highContrastMode,
+      reducedMotion: drafts.appearance.reducedMotion,
     }),
     [drafts.appearance]
   );
@@ -241,6 +245,8 @@ export function SettingsPage({
       const systemDark = mediaQuery.matches;
       const dark = appearancePreview.themeMode === 'dark' || (appearancePreview.themeMode === 'system' && systemDark);
       root.classList.toggle('dark', dark);
+      root.classList.toggle('high-contrast', appearancePreview.highContrastMode);
+      root.classList.toggle('reduce-motion', appearancePreview.reducedMotion);
       root.dataset.theme = appearancePreview.accentTheme;
     };
     applyTheme();
@@ -252,6 +258,15 @@ export function SettingsPage({
     setSaving(section);
     try {
       await onSaveSection(section, drafts[section]);
+      if (section === 'appearance') {
+        window.localStorage.setItem('noesis:theme', JSON.stringify({
+          themeMode: drafts.appearance.themeMode,
+          accentTheme: drafts.appearance.accentTheme,
+          highContrastMode: drafts.appearance.highContrastMode,
+          reducedMotion: drafts.appearance.reducedMotion,
+        }));
+      }
+      setLastSaved(section);
       toast({ title: `${sectionLabel(section)} saved`, description: `Your ${sectionLabel(section).toLowerCase()} settings are updated.` });
     } catch {
       toast({ variant: 'destructive', title: 'Settings not saved', description: `Noesis could not save the ${sectionLabel(section).toLowerCase()} section.` });
@@ -399,7 +414,36 @@ export function SettingsPage({
                 <SwitchRow label="Sidebar collapsed by default" checked={drafts.appearance.sidebarCollapsedByDefault} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, sidebarCollapsedByDefault: checked } }))} />
                 <SwitchRow label="Show page descriptions" checked={drafts.appearance.showPageDescriptions} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, showPageDescriptions: checked } }))} />
               </div>
-              <SaveBar onSave={() => saveSection('appearance')} saving={saving === 'appearance'} />
+              <div className="mt-6 overflow-hidden rounded-2xl border-2 border-border bg-background shadow-sm" aria-label="Live theme preview">
+                <div className="flex min-h-48">
+                  <div className="w-20 border-r border-sidebar-border bg-sidebar p-3 text-sidebar-foreground">
+                    <div className="mb-5 h-7 w-7 rounded-md bg-sidebar-primary" />
+                    <div className="space-y-3">
+                      <div className="h-2 rounded bg-sidebar-foreground/85" />
+                      <div className="h-2 rounded bg-sidebar-foreground/45" />
+                      <div className="h-2 rounded bg-sidebar-foreground/45" />
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1 p-5">
+                    <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Live theme preview</div>
+                    <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">A workspace for living thought</div>
+                    <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">This preview uses the same background, card, border, text, and accent tokens as Noesis.</p>
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      <Button size="sm" className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">Primary action</Button>
+                      <div className="rounded-xl border border-border bg-card px-4 py-2 text-sm text-card-foreground">Readable card</div>
+                      <div className="rounded-full bg-muted px-3 py-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">
+                        {drafts.appearance.highContrastMode ? 'High contrast on' : 'Standard contrast'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <SaveBar
+                onSave={() => saveSection('appearance')}
+                saving={saving === 'appearance'}
+                dirty={JSON.stringify(drafts.appearance) !== JSON.stringify(settings.appearance)}
+                saved={lastSaved === 'appearance'}
+              />
             </SettingsCard>
           </div>
         );
@@ -1152,12 +1196,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function SaveBar({ onSave, saving }: { onSave: () => void; saving: boolean }) {
+function SaveBar({ onSave, saving, dirty = true, saved = false }: { onSave: () => void; saving: boolean; dirty?: boolean; saved?: boolean }) {
   return (
-    <div className="mt-6 flex justify-end">
-      <Button onClick={onSave} disabled={saving} className="rounded-full px-6 font-semibold">
-        <Save className="mr-2 size-4" />
-        {saving ? 'Saving' : 'Save Section'}
+    <div className="mt-6 flex items-center justify-end gap-3">
+      {!dirty && saved && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Check className="size-4 text-accent" /> Saved</span>}
+      <Button onClick={onSave} disabled={saving || !dirty} className="rounded-full px-6 font-semibold">
+        {saving ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}
+        {saving ? 'Saving' : dirty ? 'Save Appearance' : 'Saved'}
       </Button>
     </div>
   );

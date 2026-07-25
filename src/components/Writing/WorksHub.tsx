@@ -6,8 +6,6 @@ import {
   Camera,
   CirclePlay,
   Cloud,
-  Grid2X2,
-  List,
   NotebookPen,
   PencilLine,
   PenTool,
@@ -21,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { PageHeader } from '@/components/shared/PageHeader';
 import type { Concept, Draft, DraftStatus, DraftType, Media, Question, UserPreferences, VaultEntry, WorkCategory } from '@/lib/types';
@@ -250,6 +248,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         activeFilterLabels={activeFilterLabels}
         onClear={clearFilters}
         clearDisabled={!hasFilters}
+        viewControl={<ViewModeToggle value={view} onChange={(value) => setView(value === 'list' ? 'list' : 'grid')} />}
         className="mb-5"
       >
         <Select value={category} onValueChange={(value) => setCategory(value as HubCategory)}>
@@ -278,10 +277,6 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
             <SelectItem value="title" className="font-code text-[10px] uppercase">Title</SelectItem>
           </SelectContent>
         </Select>
-        <div className="hidden items-center gap-1 rounded-full border border-border/50 bg-card p-1 md:flex" aria-label="Work view">
-          <Button type="button" variant={view === 'grid' ? 'secondary' : 'ghost'} size="icon" className="size-7 rounded-full" onClick={() => setView('grid')} aria-label="Grid view"><Grid2X2 className="size-3.5" /></Button>
-          <Button type="button" variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" className="size-7 rounded-full" onClick={() => setView('list')} aria-label="List view"><List className="size-3.5" /></Button>
-        </div>
       </FilterToolbar>
 
       {visibleDrafts.length === 0 ? (

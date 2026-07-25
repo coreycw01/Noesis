@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, ChevronRight, Edit, LayoutGrid, Loader2, Plus, ShieldCheck, Table2, Trash2, Triangle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ChevronRight, Edit, Loader2, Plus, ShieldCheck, Trash2, Triangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,7 @@ import { aiClient } from '@/lib/ai-client';
 import { useToast } from '@/hooks/use-toast';
 import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { noesisUserError } from '@/lib/user-facing-errors';
@@ -1807,6 +1807,13 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         activeFilterLabels={activeFilterLabels}
         onClear={clearPositionFilters}
         clearDisabled={!positionFiltersActive}
+        viewControl={
+          <ViewModeToggle
+            value={viewMode === 'table' ? 'table' : 'grid'}
+            modes={['grid', 'table']}
+            onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')}
+          />
+        }
         className="mb-3"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PositionViewFilter)}>
@@ -1831,15 +1838,6 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             ))}
           </SelectContent>
         </Select>
-
-          <div className="flex rounded-full border border-border/60 bg-card p-1 shadow-sm">
-            <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('cards')} className="h-7 rounded-full px-3">
-              <LayoutGrid className="size-3.5" /> Cards
-            </Button>
-            <Button variant={viewMode === 'table' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('table')} className="h-7 rounded-full px-3">
-              <Table2 className="size-3.5" /> Table
-            </Button>
-          </div>
       </FilterToolbar>
 
       <div className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
