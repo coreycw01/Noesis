@@ -206,6 +206,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, concepts, 
             onDeleteQuestion(id);
             closeQuestion();
           }}
+          onAddDraft={onAddDraft}
           onFormPositionFromInquiry={onFormPositionFromInquiry}
           onAiFeedback={(title, description, variant) => toast({ title, description, ...(variant ? { variant } : {}) })}
           routeOwned={focusedQuestionId === selected.id}
@@ -522,24 +523,24 @@ function inferInquiryType(question: Question, concepts: string[], sources: Media
 function investigationBranches(question: Question, concepts: string[], sources: Media[], beliefs: VaultEntry[], drafts: Draft[]) {
   const branches = [
     {
-      label: 'Clarify Terms',
-      state: concepts.length ? 'available' : 'needed',
-      detail: concepts.length ? `Grounded in ${concepts.slice(0, 3).join(', ')}.` : 'No active concepts are attached yet.',
+      label: 'Clarify',
+      state: (question.whyItMatters || question.currentIntuition || concepts.length) ? 'active' : 'needed',
+      detail: question.whyItMatters ? 'The question has a working interpretation.' : 'Interpret what the question is really asking.',
     },
     {
-      label: 'Gather Evidence',
-      state: sources.length ? 'active' : 'needed',
-      detail: sources.length ? `${sources.length} source${sources.length === 1 ? '' : 's'} connected.` : 'Attach a source or annotation that bears on the question.',
+      label: 'Investigate',
+      state: sources.length || (question.candidateAnswers || []).some((candidate) => candidate.support || candidate.objection) ? 'active' : 'needed',
+      detail: sources.length ? `${sources.length} source${sources.length === 1 ? '' : 's'} connected.` : 'Add support, challenge, context, or an unknown.',
     },
     {
-      label: 'Compare Answers',
+      label: 'Compare',
       state: beliefs.length > 1 ? 'active' : beliefs.length === 1 ? 'available' : 'needed',
-      detail: beliefs.length ? `${beliefs.length} related position${beliefs.length === 1 ? '' : 's'} can be compared.` : 'No candidate position has formed yet.',
+      detail: (question.candidateAnswers || []).length > 1 ? `${question.candidateAnswers?.length} candidate answers can be compared.` : 'Add another candidate answer before comparing.',
     },
     {
-      label: 'Express / Test',
+      label: 'Test',
       state: drafts.length ? 'active' : question.answer ? 'available' : 'needed',
-      detail: drafts.length ? `${drafts.length} linked work${drafts.length === 1 ? '' : 's'} developing the answer.` : 'A work or practice can test the answer once it becomes clearer.',
+      detail: drafts.length ? `${drafts.length} linked work${drafts.length === 1 ? '' : 's'} developing or testing this inquiry.` : 'Turn a prediction or prompt into an editable test record.',
     },
   ];
   if (question.answer) {
@@ -553,23 +554,24 @@ function investigationBranches(question: Question, concepts: string[], sources: 
 }
 
 function branchStatus(label: string): Question['status'] {
-  if (label === 'Gather Evidence') return 'gathering_evidence';
-  if (label === 'Compare Answers') return 'under_tension';
-  if (label === 'Express / Test') return 'partially_answered';
+  if (label === 'Clarify') return 'clarifying';
+  if (label === 'Investigate') return 'gathering_evidence';
+  if (label === 'Compare') return 'comparing_answers';
+  if (label === 'Test') return 'partially_answered';
   if (label === 'Resolution Review') return 'partially_answered';
   return 'investigating';
 }
 
 function branchNextStep(label: string) {
-  if (label === 'Clarify Terms') return 'Define the key concepts and name the assumptions hidden in the wording.';
-  if (label === 'Gather Evidence') return 'Attach sources, annotations, or examples that could support or weaken a candidate answer.';
-  if (label === 'Compare Answers') return 'Write at least two candidate answers and compare what each explains or fails to explain.';
-  if (label === 'Express / Test') return 'Turn the provisional answer into a work, position, or practice so it can be examined.';
+  if (label === 'Clarify') return 'Define the question, key terms, scope, and what would count as an answer.';
+  if (label === 'Investigate') return 'Add one evidence record and separate direction from reliability.';
+  if (label === 'Compare') return 'Put candidate answers beside each other and name the real difference.';
+  if (label === 'Test') return 'Design one action, observation, conversation, or research test.';
   if (label === 'Resolution Review') return 'Decide whether the answer should be provisional, suspended, transformed, or resolved.';
   return 'Choose the next concrete investigation move.';
 }
 
-function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onDeleteQuestion, onFormPositionFromInquiry, onAiFeedback, routeOwned = false }: {
+function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, onUpdateQuestion, onDeleteQuestion, onAddDraft, onFormPositionFromInquiry, onAiFeedback, routeOwned = false }: {
   question: Question;
   sources: Media[];
   concepts: string[];
@@ -578,6 +580,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
   onBack: () => void;
   onUpdateQuestion: (question: Question) => void;
   onDeleteQuestion: (id: string) => void;
+  onAddDraft: (data: Partial<Draft>) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   onAiFeedback: (title: string, description: string, variant?: 'default' | 'destructive') => void;
   routeOwned?: boolean;
@@ -598,6 +601,8 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
     resolutionSummary: question.resolutionSummary || '',
   });
   const [candidateDraft, setCandidateDraft] = useState({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
+  const [evidenceDraft, setEvidenceDraft] = useState({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
+  const [testDraft, setTestDraft] = useState({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   React.useEffect(() => {
@@ -608,6 +613,8 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       resolutionSummary: question.resolutionSummary || '',
     });
     setCandidateDraft({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
+    setEvidenceDraft({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
+    setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
   }, [question.id, question.whyItMatters, question.currentIntuition, question.assumptions, question.resolutionSummary]);
   const inquiryType = inferInquiryType(question, concepts, sources);
   const branches = investigationBranches(question, concepts, sources, beliefs, drafts);
@@ -639,6 +646,35 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
     sources.length ? 'The connected sources are relevant enough to count as evidence.' : 'The inquiry can progress without outside evidence for now.',
     question.answer ? 'The provisional answer is worth stress-testing instead of only expanding.' : 'Progress requires a first answer, even if it is rough.',
   ];
+  const candidateAnswers = question.candidateAnswers || [];
+  const definedTerms = (question.assumptions || []).filter((item) => item.includes(':') || item.includes(' means '));
+  const inquiryGaps = inquiryFrameGaps(question);
+  const evidenceQualityScore = sources.length ? Math.min(25, 10 + sources.length * 5) : 4;
+  const counterEvidenceScore = candidateAnswers.some((candidate) => candidate.objection?.trim()) ? 15 : 3;
+  const comparisonScore = candidateAnswers.length > 1 ? 15 : candidateAnswers.length ? 7 : 0;
+  const assumptionsScore = storedAssumptions.length ? Math.min(10, storedAssumptions.length * 3) : 0;
+  const testingScore = drafts.length ? 15 : 0;
+  const unknownScore = inquiryGaps.length ? 2 : 5;
+  const inquiryStrength = Math.min(100, evidenceQualityScore + counterEvidenceScore + comparisonScore + assumptionsScore + testingScore + unknownScore);
+  const strengthLabel = inquiryStrength >= 76 ? 'Strong' : inquiryStrength >= 52 ? 'Developing' : inquiryStrength >= 30 ? 'Early' : 'Thin';
+  const strongestGap = inquiryGaps.includes('evidence')
+    ? 'No evidence has been connected.'
+    : candidateAnswers.length < 2
+      ? 'Only one candidate answer is visible.'
+      : !candidateAnswers.some((candidate) => candidate.objection?.trim())
+        ? 'No serious challenge has been recorded.'
+        : drafts.length === 0
+          ? 'No test or work has been created.'
+          : 'Ready for a sharper resolution decision.';
+  const recommendedMove = inquiryGaps.includes('evidence')
+    ? 'Investigate: add one strong source, observation, or counterexample.'
+    : candidateAnswers.length < 2
+      ? 'Compare: add a competing answer before resolving.'
+      : !candidateAnswers.some((candidate) => candidate.objection?.trim())
+        ? 'Investigate: add a credible challenge to the leading answer.'
+        : drafts.length === 0
+          ? 'Test: turn the inquiry into a concrete experiment or research action.'
+          : 'Adopt a provisional answer or resolve honestly.';
 
   const saveProvisionalAnswer = (status: Question['status'] = 'provisionally_answered') => {
     if (!initialAnswer.trim()) {
@@ -672,6 +708,18 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
     onAiFeedback('Investigation frame saved.', 'The inquiry now has clearer stakes, intuition, assumptions, and resolution criteria.');
   };
 
+  const saveClarifyBranch = () => {
+    onUpdateQuestion({
+      ...question,
+      whyItMatters: investigationDraft.whyItMatters.trim(),
+      currentIntuition: investigationDraft.currentIntuition.trim(),
+      assumptions: investigationDraft.assumptionsText.split('\n').map((item) => item.trim()).filter(Boolean),
+      status: 'clarifying',
+      dateUpdated: today(),
+    });
+    onAiFeedback('Clarification saved.', 'The inquiry now has a clearer interpretation, scope, and working terms.');
+  };
+
   const addCandidateAnswer = () => {
     if (!candidateDraft.statement.trim()) {
       onAiFeedback('Candidate answer required', 'Write the candidate answer before adding it.', 'destructive');
@@ -701,6 +749,62 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       candidateAnswers: (question.candidateAnswers || []).filter((candidate) => candidate.id !== id),
       dateUpdated: today(),
     });
+  };
+
+  const addEvidenceRecord = () => {
+    if (!evidenceDraft.claim.trim()) {
+      onAiFeedback('Evidence claim required', 'Write the claim, observation, excerpt, or unknown before adding it.', 'destructive');
+      return;
+    }
+    const targetCandidateId = evidenceDraft.candidateId || candidateAnswers[0]?.id || '';
+    const nextCandidates = targetCandidateId
+      ? candidateAnswers.map((candidate) => {
+          if (candidate.id !== targetCandidateId) return candidate;
+          const record = `${evidenceDraft.claim.trim()} (${evidenceDraft.type}; ${evidenceDraft.direction}; strength: ${evidenceDraft.strength}; reliability: ${evidenceDraft.reliability}${evidenceDraft.origin.trim() ? `; origin: ${evidenceDraft.origin.trim()}` : ''}${evidenceDraft.notes.trim() ? `; notes: ${evidenceDraft.notes.trim()}` : ''})`;
+          if (evidenceDraft.direction === 'challenges') return { ...candidate, objection: [candidate.objection, record].filter(Boolean).join('\n') };
+          if (evidenceDraft.direction === 'contextualizes') return { ...candidate, consequence: [candidate.consequence, record].filter(Boolean).join('\n') };
+          return { ...candidate, support: [candidate.support, record].filter(Boolean).join('\n') };
+        })
+      : candidateAnswers;
+    onUpdateQuestion({
+      ...question,
+      candidateAnswers: nextCandidates,
+      currentIntuition: targetCandidateId ? question.currentIntuition : [question.currentIntuition, `Evidence to classify: ${evidenceDraft.claim.trim()}`].filter(Boolean).join('\n'),
+      status: 'gathering_evidence',
+      dateUpdated: today(),
+    });
+    setEvidenceDraft({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
+    onAiFeedback('Evidence added.', targetCandidateId ? 'The evidence was attached to the selected candidate answer.' : 'Saved as inquiry evidence to classify later.');
+  };
+
+  const createTestRecord = () => {
+    if (!testDraft.title.trim() && !testDraft.method.trim()) {
+      onAiFeedback('Test required', 'Name the test or describe what action, observation, conversation, or research would test this inquiry.', 'destructive');
+      return;
+    }
+    const title = testDraft.title.trim() || `Test for: ${question.text.slice(0, 60)}`;
+    const body = [
+      `Inquiry: ${question.text}`,
+      testDraft.tested.trim() ? `What is being tested: ${testDraft.tested.trim()}` : '',
+      testDraft.predictionA.trim() ? `Prediction A: ${testDraft.predictionA.trim()}` : '',
+      testDraft.predictionB.trim() ? `Prediction B: ${testDraft.predictionB.trim()}` : '',
+      testDraft.method.trim() ? `Method: ${testDraft.method.trim()}` : '',
+      testDraft.reviewDate.trim() ? `Review date: ${testDraft.reviewDate.trim()}` : '',
+      testDraft.result.trim() ? `Result: ${testDraft.result.trim()}` : '',
+    ].filter(Boolean).join('\n\n');
+    onAddDraft({
+      title,
+      body,
+      type: 'field_note',
+      status: 'seed',
+      questionIds: [question.id],
+      conceptTags: concepts,
+      sourceIds: sources.map((source) => source.id),
+      beliefIds: beliefs.map((belief) => belief.id),
+    });
+    onUpdateQuestion({ ...question, status: 'partially_answered', dateUpdated: today() });
+    setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
+    onAiFeedback('Test created.', 'A linked field note was added to Works so this inquiry can be tested outside the page.');
   };
 
   const updateInvestigationStatus = (status: Question['status']) => {
@@ -785,13 +889,34 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
       <Button variant="ghost" onClick={onBack} className="mb-5 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50">
         <ArrowLeft className="size-4 mr-2" /> Back to Inquiries
       </Button>
+      <Card className="mb-5 rounded-2xl border border-accent/15 bg-card p-4 shadow-sm">
+        <div className="grid gap-3 text-sm md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
+          <div>
+            <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Current stage</div>
+            <p className="mt-1 font-medium text-foreground">{question.status.replace(/_/g, ' ')}</p>
+          </div>
+          <div>
+            <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Strongest gap</div>
+            <p className="mt-1 text-muted-foreground">{strongestGap}</p>
+          </div>
+          <div>
+            <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Recommended next move</div>
+            <p className="mt-1 text-muted-foreground">{recommendedMove}</p>
+          </div>
+          <div className="rounded-xl border border-border bg-background/70 px-4 py-3 text-center">
+            <div className="font-headline text-2xl font-bold italic text-accent">{inquiryStrength}</div>
+            <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Inquiry strength</div>
+            <div className="mt-1 text-[11px] text-muted-foreground">{strengthLabel}</div>
+          </div>
+        </div>
+      </Card>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
           <Card className="mb-5 rounded-2xl border border-accent/10 bg-white p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground/50">Inquiry Workbench</div>
-                <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Clarify the question, gather evidence, and name the answer only when the investigation has enough shape.</p>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Choose the next intellectual move this question needs, then add the minimum useful record.</p>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{inquiryType}</Badge>
@@ -809,7 +934,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
               </div>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
               <div className="rounded-xl border border-border/40 bg-background/70 p-4">
                 <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-3 font-bold">Branches</div>
                 <div className="grid gap-2">
@@ -840,26 +965,144 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                     </div>
                   ))}
                 </div>
-                {selectedBranch && (
-                  <div className="mt-3 rounded-xl border border-accent/20 bg-accent/5 p-3">
-                    <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold">Active Investigation Branch</div>
-                    <p className="mt-1 text-sm font-medium text-foreground">{selectedBranch.label}</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{branchNextStep(selectedBranch.label)}</p>
-                  </div>
-                )}
               </div>
 
               <div className="rounded-xl border border-border/40 bg-background/70 p-4">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-3 font-bold">Assumptions to Watch</div>
-                <ul className="space-y-2">
-                  {assumptions.map((assumption) => (
-                    <li key={assumption} className="flex gap-2 text-sm leading-5 text-muted-foreground">
-                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent" />
-                      {assumption}
-                    </li>
-                  ))}
-                </ul>
+                <details>
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">Assumptions</div>
+                        <p className="mt-1 text-sm font-medium text-foreground">{assumptions.length} to examine</p>
+                      </div>
+                      <Badge variant="outline" className="rounded-full text-[9px]">Expand</Badge>
+                    </div>
+                  </summary>
+                  <ul className="mt-3 space-y-2">
+                    {assumptions.map((assumption) => (
+                      <li key={assumption} className="flex gap-2 text-xs leading-5 text-muted-foreground">
+                        <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent" />
+                        {assumption}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-accent/15 bg-accent/5 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Active workspace</div>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedBranch?.label || 'Choose a branch'}</p>
+                </div>
+                <p className="max-w-xl text-xs leading-5 text-muted-foreground">{selectedBranch ? branchNextStep(selectedBranch.label) : 'Clarify, investigate, compare, or test. Each branch saves a real piece of inquiry work.'}</p>
+              </div>
+              {!selectedBranch && (
+                <p className="rounded-xl border border-border/40 bg-card p-3 text-sm text-muted-foreground">Select one branch above to reveal its focused workspace.</p>
+              )}
+              {selectedBranch?.label === 'Clarify' && (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="readex-kicker">Question interpretation</Label>
+                    <Textarea value={investigationDraft.whyItMatters} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, whyItMatters: event.target.value }))} placeholder="What is this question actually asking?" className="min-h-[92px]" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="readex-kicker">Scope</Label>
+                    <Textarea value={investigationDraft.currentIntuition} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, currentIntuition: event.target.value }))} placeholder="What is included, excluded, or context-bound?" className="min-h-[92px]" />
+                  </div>
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label className="readex-kicker">Key terms and answer criteria</Label>
+                    <Textarea value={investigationDraft.assumptionsText} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, assumptionsText: event.target.value }))} placeholder="Identity: working meaning, still contested.&#10;What would count as an answer: ..." className="min-h-[110px]" />
+                  </div>
+                  <div className="lg:col-span-2 flex justify-end"><Button onClick={saveClarifyBranch} className="rounded-full px-5">Save Clarification</Button></div>
+                </div>
+              )}
+              {selectedBranch?.label === 'Investigate' && (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label className="readex-kicker">Claim, observation, excerpt, or unknown</Label>
+                    <Textarea value={evidenceDraft.claim} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, claim: event.target.value }))} placeholder="What evidence or uncertainty should this inquiry now account for?" className="min-h-[90px]" />
+                  </div>
+                  <Input value={evidenceDraft.origin} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, origin: event.target.value }))} placeholder="Source or origin" />
+                  <Select value={evidenceDraft.candidateId || 'none'} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, candidateId: value === 'none' ? '' : value }))}>
+                    <SelectTrigger><SelectValue placeholder="Candidate answer affected" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Classify later</SelectItem>
+                      {candidateAnswers.map((candidate) => <SelectItem key={candidate.id} value={candidate.id}>{candidate.statement.slice(0, 72)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={evidenceDraft.direction} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, direction: value }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="supports">Supports</SelectItem>
+                      <SelectItem value="challenges">Challenges</SelectItem>
+                      <SelectItem value="contextualizes">Contextualizes</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <Select value={evidenceDraft.type} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, type: value }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="source excerpt">Source excerpt</SelectItem>
+                        <SelectItem value="personal observation">Personal observation</SelectItem>
+                        <SelectItem value="counterexample">Counterexample</SelectItem>
+                        <SelectItem value="unknown">Unknown</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={evidenceDraft.strength} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, strength: value }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="weak">Weak</SelectItem><SelectItem value="moderate">Moderate</SelectItem><SelectItem value="strong">Strong</SelectItem></SelectContent>
+                    </Select>
+                    <Select value={evidenceDraft.reliability} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, reliability: value }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="low">Low reliability</SelectItem><SelectItem value="moderate">Moderate reliability</SelectItem><SelectItem value="high">High reliability</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label className="readex-kicker">Notes</Label>
+                    <Textarea value={evidenceDraft.notes} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, notes: event.target.value }))} placeholder="Why this matters, limits, or what needs verification." className="min-h-[80px]" />
+                  </div>
+                  <div className="lg:col-span-2 flex justify-end"><Button onClick={addEvidenceRecord} className="rounded-full px-5">Add Evidence Record</Button></div>
+                </div>
+              )}
+              {selectedBranch?.label === 'Compare' && (
+                <div className="overflow-x-auto rounded-xl border border-border bg-card">
+                  <table className="w-full min-w-[760px] text-left text-sm">
+                    <thead className="bg-muted/30 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+                      <tr><th className="p-3">Dimension</th>{candidateAnswers.slice(0, 3).map((candidate) => <th key={candidate.id} className="p-3">{candidate.statement.slice(0, 38)}</th>)}</tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {['Main claim', 'Strongest evidence', 'Main weakness', 'Assumptions required', 'Explains well', 'Fails to explain', 'Testability', 'Current confidence'].map((dimension) => (
+                        <tr key={dimension}>
+                          <td className="p-3 font-medium text-foreground">{dimension}</td>
+                          {candidateAnswers.slice(0, 3).map((candidate) => (
+                            <td key={`${candidate.id}-${dimension}`} className="p-3 text-muted-foreground">
+                              {dimension === 'Main claim' ? candidate.statement : dimension === 'Strongest evidence' ? candidate.support || 'Not recorded.' : dimension === 'Main weakness' ? candidate.objection || 'Not recorded.' : dimension === 'Current confidence' ? `${candidate.confidence || 3}/5` : candidate.consequence || 'Not recorded.'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {candidateAnswers.length < 2 && <p className="p-4 text-sm text-muted-foreground">Add at least two candidate answers to make comparison meaningful.</p>}
+                </div>
+              )}
+              {selectedBranch?.label === 'Test' && (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <Input value={testDraft.title} onChange={(event) => setTestDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Test title" />
+                  <Input value={testDraft.reviewDate} onChange={(event) => setTestDraft((prev) => ({ ...prev, reviewDate: event.target.value }))} placeholder="Review date" />
+                  <Textarea value={testDraft.tested} onChange={(event) => setTestDraft((prev) => ({ ...prev, tested: event.target.value }))} placeholder="What is being tested?" className="min-h-[82px]" />
+                  <Textarea value={testDraft.method} onChange={(event) => setTestDraft((prev) => ({ ...prev, method: event.target.value }))} placeholder="What action, observation, conversation, or research would test it?" className="min-h-[82px]" />
+                  <Textarea value={testDraft.predictionA} onChange={(event) => setTestDraft((prev) => ({ ...prev, predictionA: event.target.value }))} placeholder="What would one answer predict?" className="min-h-[82px]" />
+                  <Textarea value={testDraft.predictionB} onChange={(event) => setTestDraft((prev) => ({ ...prev, predictionB: event.target.value }))} placeholder="What would another answer predict?" className="min-h-[82px]" />
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label className="readex-kicker">Result, if known</Label>
+                    <Textarea value={testDraft.result} onChange={(event) => setTestDraft((prev) => ({ ...prev, result: event.target.value }))} placeholder="What happened, and what changed afterward?" className="min-h-[82px]" />
+                  </div>
+                  <div className="lg:col-span-2 flex justify-end"><Button onClick={createTestRecord} className="rounded-full px-5">Turn Into Test</Button></div>
+                </div>
+              )}
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -880,67 +1123,37 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
 
           <Card className="mb-6 rounded-2xl border border-accent/10 bg-white p-6 shadow-sm">
             <div className="mb-5">
-              <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">Investigation Frame</div>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">State why this matters, what you currently suspect, what assumptions are active, and what answers are being compared.</p>
+              <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">Candidate Answers</div>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Keep possible answers visible, compare them honestly, and only adopt one provisionally when the inquiry has enough shape.</p>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="space-y-2">
-                <Label className="readex-kicker">WHY IT MATTERS</Label>
-                <Textarea
-                  value={investigationDraft.whyItMatters}
-                  onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, whyItMatters: event.target.value }))}
-                  placeholder="What personal, practical, or philosophical significance does this question carry?"
-                  className="min-h-[110px]"
-                />
+            <div className="mb-5 grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-border/40 bg-background/70 p-3">
+                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">What we have</div>
+                <p className="mt-1 text-sm text-foreground">{candidateAnswers.length} candidate answers · {sources.length} sources · {definedTerms.length || storedAssumptions.length} clarified terms/assumptions</p>
               </div>
-              <div className="space-y-2">
-                <Label className="readex-kicker">CURRENT INTUITION</Label>
-                <Textarea
-                  value={investigationDraft.currentIntuition}
-                  onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, currentIntuition: event.target.value }))}
-                  placeholder="What do you suspect before the investigation is finished?"
-                  className="min-h-[110px]"
-                />
+              <div className="rounded-xl border border-border/40 bg-background/70 p-3">
+                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">What is missing</div>
+                <p className="mt-1 text-sm text-foreground">{strongestGap}</p>
               </div>
-              <div className="space-y-2">
-                <Label className="readex-kicker">ASSUMPTIONS</Label>
-                <Textarea
-                  value={investigationDraft.assumptionsText}
-                  onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, assumptionsText: event.target.value }))}
-                  placeholder="One assumption per line."
-                  className="min-h-[130px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="readex-kicker">RESOLUTION SUMMARY</Label>
-                <Textarea
-                  value={investigationDraft.resolutionSummary}
-                  onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, resolutionSummary: event.target.value }))}
-                  placeholder="What would you say has been provisionally answered, transformed, suspended, or resolved?"
-                  className="min-h-[130px]"
-                />
+              <div className="rounded-xl border border-border/40 bg-background/70 p-3">
+                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">What should happen next</div>
+                <p className="mt-1 text-sm text-foreground">{recommendedMove}</p>
               </div>
             </div>
 
-            <div className="mt-4 flex justify-end">
-              <Button onClick={saveInvestigationFrame} className="rounded-full px-6">
-                Save Investigation Frame
-              </Button>
-            </div>
-
-            <div className="mt-6 rounded-xl border border-border/40 bg-background/70 p-4">
+            <div className="rounded-xl border border-border/40 bg-background/70 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">Candidate Answers</div>
-                  <p className="mt-1 text-sm text-muted-foreground">Compare possible answers before turning one into a position.</p>
+                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">Answer candidates</div>
+                  <p className="mt-1 text-sm text-muted-foreground">A candidate answer is not a final position. It is an explanation currently under test.</p>
                 </div>
-                <Badge variant="outline" className="rounded-full">{question.candidateAnswers?.length || 0} saved</Badge>
+                <Badge variant="outline" className="rounded-full">{candidateAnswers.length || 0} saved</Badge>
               </div>
 
-              {(question.candidateAnswers || []).length > 0 && (
+              {candidateAnswers.length > 0 && (
                 <div className="mb-4 grid gap-3">
-                  {(question.candidateAnswers || []).map((candidate) => (
+                  {candidateAnswers.map((candidate) => (
                     <div key={candidate.id} className="rounded-xl border border-border/40 bg-card p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -1000,14 +1213,14 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                 {question.type || 'manual'}
               </Badge>
               <h1 className="font-headline text-4xl italic text-primary leading-tight font-bold">{question.text}</h1>
-              <p className="text-sm text-muted-foreground font-body leading-relaxed">Write what you currently believe. Socrates will probe your thinking until you can crystallize a clear position.</p>
+              <p className="text-sm text-muted-foreground font-body leading-relaxed">Use this space only for the current leading answer. Dialogue can explore possibilities, but the inquiry record changes only when you save or resolve it.</p>
               <div>
-                <Label className="readex-kicker mb-2 block">PROVISIONAL ANSWER / RESOLUTION SUMMARY</Label>
+                <Label className="readex-kicker mb-2 block">LEADING CANDIDATE ANSWER</Label>
                 <Textarea
                   value={initialAnswer}
                   onChange={(e) => setInitialAnswer(e.target.value)}
                   className="min-h-[260px] text-[18px] leading-9 font-body italic"
-                  placeholder="What do you currently believe about this? What evidence would resolve or reopen it?"
+                  placeholder="What answer currently leads, and why does it remain revisable?"
                 />
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
@@ -1018,7 +1231,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                   variant="outline"
                   className="h-12 rounded-full px-6 font-bold"
                 >
-                  Save Provisional Answer
+                  Adopt As Provisional Answer
                 </Button>
                 <Button
                   onClick={startDialogue}
@@ -1030,12 +1243,22 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                 </Button>
               </div>
 
+              {candidateAnswers.length > 0 && (
               <div className="rounded-2xl border border-border/50 bg-background/70 p-4">
                 <div className="mb-3">
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">Resolution Options</div>
+                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">Resolve inquiry</div>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Avoid a false binary. Choose the outcome that honestly describes this investigation.
+                    Resolve only when at least one candidate answer exists. Add a resolution summary in the chosen outcome when the question is answered, reframed, suspended, or abandoned.
                   </p>
+                </div>
+                <div className="mb-3">
+                  <Label className="readex-kicker mb-2 block">RESOLUTION SUMMARY</Label>
+                  <Textarea
+                    value={investigationDraft.resolutionSummary}
+                    onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, resolutionSummary: event.target.value }))}
+                    placeholder="What evidence or reasoning mattered most? What remains uncertain?"
+                    className="min-h-[90px]"
+                  />
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
                   {RESOLUTION_OPTIONS.map((option) => (
@@ -1057,6 +1280,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, onBack, 
                   ))}
                 </div>
               </div>
+              )}
             </Card>
           )}
 
