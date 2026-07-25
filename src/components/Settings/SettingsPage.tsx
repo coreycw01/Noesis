@@ -99,29 +99,21 @@ const SETTINGS_SECTION_STORAGE_KEY = 'noesis:settings-section';
 const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: string }> = [
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
   { id: 'appearance', label: 'Appearance', description: 'Theme, typography, interface scale, contrast, and motion.' },
-  { id: 'workspace', label: 'Workspace', description: 'Navigation and general working behavior.' },
-  { id: 'capture', label: 'Capture Defaults', description: 'Source intake, annotations, and quick capture behavior.' },
-  { id: 'works', label: 'Writing Defaults', description: 'Work creation defaults and editor behavior.' },
-  { id: 'notifications', label: 'Notifications', description: 'Review reminders and intellectual follow-up prompts.' },
-  { id: 'ai', label: 'AI Preferences', description: 'Suggestion, analysis, and metacognition controls.' },
-  { id: 'experimental', label: 'Experimental Features', description: 'Metacognition, biographies, unknowns, and advanced relations.' },
-  { id: 'privacy', label: 'Privacy & Permissions', description: 'Visibility and sharing defaults.' },
-  { id: 'data', label: 'Privacy & Data', description: 'Export, review data, storage, and demo refresh tools.' },
-  { id: 'integrations', label: 'Integrations', description: 'External docs, capture, storage, and provider readiness.' },
-  { id: 'terminology', label: 'Terminology', description: 'Clarify Noesis language without changing internal schema.' },
-  { id: 'help', label: 'Help / Usage Guide', description: 'How the Noesis hierarchy fits together.' },
+  { id: 'works', label: 'Work Defaults', description: 'Starting type, status, paper, and editor feel for new Works.' },
+  { id: 'ai', label: 'Reflection', description: 'Evidence-backed intellectual history and metacognition controls.' },
+  { id: 'data', label: 'Data', description: 'Workspace export and demo refresh tools.' },
 ];
 
 const PANEL_SECTION_MAP: Record<SettingsPanelId, SettingsSectionKey[]> = {
-  account: ['account', 'data'],
+  account: [],
   appearance: ['appearance'],
   workspace: ['workspace'],
   capture: ['sourceIntake', 'workspace'],
   works: ['works'],
   notifications: ['notifications', 'goals'],
-  ai: ['ai', 'metacognition'],
+  ai: ['metacognition'],
   experimental: ['metacognition', 'atlas'],
-  data: ['data', 'developer'],
+  data: [],
   integrations: ['works', 'sourceIntake', 'data'],
   terminology: ['workspace'],
   privacy: ['privacy'],
@@ -682,13 +674,23 @@ export function SettingsPage({
       case 'works':
         return (
           <div className="space-y-6">
-            <SettingsCard title="Writing Defaults" description="Creation defaults for writing, drawing, notes, recordings, and connected documents.">
+            <SettingsCard title="Work Defaults" description="Choose how newly created Works begin. Existing Works keep their own saved settings.">
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Default work type">
                   <Select value={drafts.works.defaultWorkType} onValueChange={(value) => setDrafts((prev) => ({ ...prev, works: { ...prev.works, defaultWorkType: value as WorksSettings['defaultWorkType'] } }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {Object.entries(DRAFT_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Default status">
+                  <Select value={drafts.works.defaultDraftStatus} onValueChange={(value) => setDrafts((prev) => ({ ...prev, works: { ...prev.works, defaultDraftStatus: value as WorksSettings['defaultDraftStatus'] } }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="seed">Seed</SelectItem>
+                      <SelectItem value="developing">Developing</SelectItem>
+                      <SelectItem value="revising">Revising</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>
@@ -710,23 +712,13 @@ export function SettingsPage({
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Auto-save interval (seconds)">
-                  <Input
-                    type="number"
-                    min={1}
-                    value={String(drafts.works.autoSaveIntervalSeconds)}
-                    onChange={(event) => setDrafts((prev) => ({ ...prev, works: { ...prev.works, autoSaveIntervalSeconds: Number(event.target.value) || 1 } }))}
-                  />
-                </Field>
               </div>
-              <div className="mt-5 grid gap-3">
-                <SwitchRow label="External doc sync enabled" checked={drafts.works.externalDocSyncEnabled} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, works: { ...prev.works, externalDocSyncEnabled: checked } }))} />
-                <SwitchRow label="Show word count" checked={drafts.works.showWordCount} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, works: { ...prev.works, showWordCount: checked } }))} />
-                <SwitchRow label="Show linked concepts" checked={drafts.works.showLinkedConcepts} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, works: { ...prev.works, showLinkedConcepts: checked } }))} />
-                <SwitchRow label="Show linked positions" checked={drafts.works.showLinkedPositions} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, works: { ...prev.works, showLinkedPositions: checked } }))} />
-                <SwitchRow label="Show AI panel" checked={drafts.works.showAiPanel} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, works: { ...prev.works, showAiPanel: checked } }))} />
-              </div>
-              <SaveBar onSave={() => saveSection('works')} saving={saving === 'works'} />
+              <SaveBar
+                onSave={() => saveSection('works')}
+                saving={saving === 'works'}
+                dirty={JSON.stringify(drafts.works) !== JSON.stringify(settings.works)}
+                saved={lastSaved === 'works'}
+              />
             </SettingsCard>
           </div>
         );
@@ -760,56 +752,16 @@ export function SettingsPage({
       case 'ai':
         return (
           <div className="space-y-6">
-            <SettingsCard title="AI Preferences" description="Control the suggestion layer without letting AI silently become truth.">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Provider">
-                  <Input value={drafts.ai.provider} onChange={(event) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, provider: event.target.value } }))} />
-                </Field>
-                <Field label="Model">
-                  <Input value={drafts.ai.model} onChange={(event) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, model: event.target.value } }))} />
-                </Field>
-                <Field label="Reasoning Depth">
-                  <Select value={drafts.ai.reasoningDepth} onValueChange={(value) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, reasoningDepth: value as AiSettings['reasoningDepth'] } }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="standard">Standard</SelectItem>
-                      <SelectItem value="deep">Deep</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Memory Scope">
-                  <Select value={drafts.ai.memoryScope} onValueChange={(value) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, memoryScope: value as AiSettings['memoryScope'] } }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="current_object">Current object only</SelectItem>
-                      <SelectItem value="linked_objects">Linked objects</SelectItem>
-                      <SelectItem value="whole_workspace">Whole workspace</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-              <div className="mt-5 grid gap-3">
-                <SwitchRow label="Enable AI suggestions" checked={drafts.ai.enableAiSuggestions} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, enableAiSuggestions: checked } }))} />
-                <SwitchRow label="Question generation" checked={drafts.ai.autoGenerateQuestionsAfterSourceCapture} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, autoGenerateQuestionsAfterSourceCapture: checked } }))} />
-                <SwitchRow label="Possible tension detection" checked={drafts.ai.autoDetectPossibleTensions} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, autoDetectPossibleTensions: checked } }))} />
-                <SwitchRow label="Concept link suggestions" checked={drafts.ai.autoSuggestConceptLinks} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, autoSuggestConceptLinks: checked } }))} />
-                <SwitchRow label="Require approval before saving AI output" checked={drafts.ai.requireUserApprovalBeforeSavingAiOutput} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, requireUserApprovalBeforeSavingAiOutput: checked } }))} />
-              </div>
-              <SaveBar onSave={() => saveSection('ai')} saving={saving === 'ai'} />
-            </SettingsCard>
-
-            <SettingsCard title="Metacognition" description="Feature controls for thinking events, biographies, patterns, unknowns, and reflective metrics.">
+            <SettingsCard title="Reflection History" description="Control the event-backed history used by Evolution, belief biographies, and reflective metrics.">
               <div className="grid gap-3">
-                <SwitchRow label="Enable metacognition features" checked={drafts.metacognition.enableMetacognitionFeatures} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableMetacognitionFeatures: checked } }))} />
-                <SwitchRow label="Enable thinking events logging" checked={drafts.metacognition.enableThinkingEventsLogging} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableThinkingEventsLogging: checked } }))} />
+                <SwitchRow label="Record meaningful thinking changes" checked={drafts.metacognition.enableMetacognitionFeatures} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableMetacognitionFeatures: checked } }))} />
                 <SwitchRow label="Enable belief biographies" checked={drafts.metacognition.enableBeliefBiographies} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableBeliefBiographies: checked } }))} />
-                <SwitchRow label="Enable thinking pattern detection" checked={drafts.metacognition.enableThinkingPatternDetection} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableThinkingPatternDetection: checked } }))} />
-                <SwitchRow label="Enable unknowns tracking" checked={drafts.metacognition.enableUnknownsTracking} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableUnknownsTracking: checked } }))} />
-                <SwitchRow label="Enable cognition metrics" checked={drafts.metacognition.enableCognitionMetrics} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableCognitionMetrics: checked } }))} />
-                <SwitchRow label="Show metacognition on profile" checked={drafts.metacognition.showMetacognitionPanelsOnProfile} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, showMetacognitionPanelsOnProfile: checked } }))} />
+                <SwitchRow label="Compute reflective metrics" checked={drafts.metacognition.enableCognitionMetrics} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableCognitionMetrics: checked } }))} />
               </div>
-              <SaveBar onSave={() => saveSection('metacognition')} saving={saving === 'metacognition'} />
+              <div className="mt-4 rounded-xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
+                AI provider, model, quota, and billing are server configuration, not user preferences. AI suggestions remain reviewable and never save as truth automatically.
+              </div>
+              <SaveBar onSave={() => saveSection('metacognition')} saving={saving === 'metacognition'} dirty={JSON.stringify(drafts.metacognition) !== JSON.stringify(settings.metacognition)} saved={lastSaved === 'metacognition'} />
             </SettingsCard>
           </div>
         );
@@ -848,19 +800,8 @@ export function SettingsPage({
       case 'data':
         return (
           <div className="space-y-6">
-            <SettingsCard title="Data & Demo Workspace" description="Exports, safe resets, review data, and the dedicated mock workspace controls.">
+            <SettingsCard title="Workspace Data" description="Export your workspace or refresh the isolated demo workspace.">
               <div className="space-y-4">
-                <div className="rounded-2xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
-                  <div>Last export: {drafts.data.lastExportedAt || 'Not exported yet'}</div>
-                  {reviewMode && (
-                    <div className="mt-2 font-code text-[11px]">
-                      Demo seed status: {drafts.developer.demoWorkspaceSeedStatus ? 'seeded' : 'not seeded'}
-                    </div>
-                  )}
-                </div>
-                <SwitchRow label="Allow imports" checked={drafts.data.allowImport} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, data: { ...prev.data, allowImport: checked } }))} />
-                <SwitchRow label="Allow workspace reset" checked={drafts.data.allowWorkspaceReset} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, data: { ...prev.data, allowWorkspaceReset: checked } }))} />
-                <SwitchRow label="Allow clear demo data" checked={drafts.data.allowClearDemoData} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, data: { ...prev.data, allowClearDemoData: checked } }))} />
                 <div className="flex flex-wrap gap-3">
                   <Button variant="outline" onClick={onExportWorkspace} className="rounded-full bg-card">
                     <Download className="mr-2 size-4" />
@@ -874,7 +815,6 @@ export function SettingsPage({
                   )}
                 </div>
               </div>
-              <SaveBar onSave={() => saveSection('data')} saving={saving === 'data'} />
             </SettingsCard>
 
             {reviewMode && (
@@ -1209,7 +1149,7 @@ function SaveBar({ onSave, saving, dirty = true, saved = false }: { onSave: () =
       {!dirty && saved && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Check className="size-4 text-accent" /> Saved</span>}
       <Button onClick={onSave} disabled={saving || !dirty} className="rounded-full px-6 font-semibold">
         {saving ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}
-        {saving ? 'Saving' : dirty ? 'Save Appearance' : 'Saved'}
+        {saving ? 'Saving' : dirty ? 'Save Changes' : 'Saved'}
       </Button>
     </div>
   );
