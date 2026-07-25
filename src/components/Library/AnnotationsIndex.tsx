@@ -591,6 +591,36 @@ export function AnnotationsIndex({
     return 'Finish';
   };
 
+  const connectionsForAnnotation = (annotation: FlatAnnotation) => {
+    const linkedPositionIds = Array.from(new Set([...(annotation.linkedPositionIds || []), annotation.createdPositionId].filter(Boolean) as string[]));
+    const linkedPositions = positions.filter((position) => linkedPositionIds.includes(position.id));
+    const linkedInquiries = inquiries.filter((inquiry) => inquiry.id === annotation.createdInquiryId);
+    const linkedConcepts = annotationTags(annotation);
+    return [
+      {
+        label: 'Positions',
+        items: linkedPositions.map((position) => position.title),
+      },
+      {
+        label: 'Inquiries',
+        items: linkedInquiries.map((inquiry) => inquiry.text),
+      },
+      {
+        label: 'Concepts',
+        items: linkedConcepts,
+      },
+      {
+        label: 'Source',
+        items: [annotation.source.title],
+      },
+    ].filter((group) => group.items.length > 0);
+  };
+
+  const runDetailAction = (annotation: FlatAnnotation, action: ConsequenceAction) => {
+    setEditing(null);
+    runConsequenceAction(annotation, action);
+  };
+
   const createPositionFromSelection = () => {
     if (!selectedAnnotations.length) return;
     const sourceIds = Array.from(new Set(selectedAnnotations.map((annotation) => annotation.source.id)));
@@ -985,70 +1015,82 @@ export function AnnotationsIndex({
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="max-w-2xl border-none shadow-2xl rounded-2xl">
-          <DialogHeader><DialogTitle className="font-headline text-2xl italic">Edit Annotation</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl italic">Annotation Detail</DialogTitle>
+          </DialogHeader>
           {editing && (
             <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <Label>Annotation content</Label>
-                <Textarea value={editing.text} onChange={(event) => setEditing((prev) => prev ? { ...prev, text: event.target.value } : prev)} className="min-h-[140px]" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Type</Label>
-                  <Select value={annotationType(editing)} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, type: value as AnnotationType } : prev)}>
-                    <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {ANNOTATION_TYPES.map((type) => (
-                        <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Processing State</Label>
-                  <Select value={annotationStatus(editing)} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, philosophyStatus: value as AnnotationPhilosophyStatus } : prev)}>
-                    <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {ANNOTATION_STATUSES.map((status) => (
-                        <SelectItem key={status.id} value={status.id}>{status.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="rounded-xl border border-border/50 bg-muted/10 p-3 text-xs text-muted-foreground">
-                Source: <span className="font-medium text-foreground">{editing.source.title}</span>
-                {editing.source.creator ? ` by ${editing.source.creator}` : ''}
-              </div>
-              <div className="space-y-2">
-                <Label>Concepts</Label>
-                <ConceptTagPicker
-                  concepts={concepts}
-                  value={editing.conceptTags || editing.source.tags || []}
-                  onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)}
-                  onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
-                />
-              </div>
-              <details className="rounded-xl border border-border/50 bg-background/60 p-3">
-                <summary className="cursor-pointer list-none font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Optional context and note
-                </summary>
-                <div className="mt-3 space-y-3">
-                  <div className="space-y-2">
-                    <Label>Surrounding context</Label>
-                    <Textarea
-                      value={editing.context || ''}
-                      onChange={(event) => setEditing((prev) => prev ? { ...prev, context: event.target.value } : prev)}
-                      placeholder="Add the surrounding passage only if this note cannot be understood without it."
-                      className="min-h-[90px]"
-                    />
+              <section className="rounded-2xl border border-border bg-card p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{annotationLabel(annotationType(editing))}</Badge>
+                    <Badge variant="secondary" className="rounded-full bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">{annotationLabel(annotationStatus(editing))}</Badge>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Add your note</Label>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => previewSource(editing.source, editing)} title="Open source">
+                      <ExternalLink className="size-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="size-8 rounded-full text-destructive hover:text-destructive" onClick={() => { setDeleteTarget(editing); setEditing(null); }} title="Delete annotation">
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <p className="font-body text-lg italic leading-8 text-primary">"{editing.text}"</p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span>From <span className="font-medium text-foreground">{editing.source.title}</span>{editing.source.creator ? ` by ${editing.source.creator}` : ''}</span>
+                  <span>·</span>
+                  <span>{editing.date || 'Date unknown'}</span>
+                </div>
+                <details className="mt-4 rounded-xl border border-border/50 bg-background/60 p-3">
+                  <summary className="cursor-pointer list-none font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Edit annotation text and metadata
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    <Textarea value={editing.text} onChange={(event) => setEditing((prev) => prev ? { ...prev, text: event.target.value } : prev)} className="min-h-[120px]" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Select value={annotationType(editing)} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, type: value as AnnotationType } : prev)}>
+                        <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {ANNOTATION_TYPES.map((type) => (
+                            <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={annotationStatus(editing)} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, philosophyStatus: value as AnnotationPhilosophyStatus } : prev)}>
+                        <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {ANNOTATION_STATUSES.map((status) => (
+                            <SelectItem key={status.id} value={status.id}>{status.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </details>
+              </section>
+
+              <section className="rounded-2xl border border-border bg-card p-4">
+                <details open={Boolean(editing.consequenceNote || editing.context)}>
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Your note</div>
+                        <p className="mt-1 text-xs text-muted-foreground">{editing.consequenceNote || editing.context ? 'Personal context attached.' : 'Collapsed because no note has been added yet.'}</p>
+                      </div>
+                      <Badge variant="outline" className="rounded-full text-[9px]">Edit</Badge>
+                    </div>
+                  </summary>
+                  <div className="mt-3 space-y-3">
                     <Textarea
                       value={editing.consequenceNote || ''}
                       onChange={(event) => setEditing((prev) => prev ? { ...prev, consequenceNote: event.target.value } : prev)}
-                      placeholder="Optional interpretation, limitation, or reminder."
+                      placeholder="Your note, interpretation, limitation, or reminder."
+                      className="min-h-[90px]"
+                    />
+                    <Textarea
+                      value={editing.context || ''}
+                      onChange={(event) => setEditing((prev) => prev ? { ...prev, context: event.target.value } : prev)}
+                      placeholder="Optional surrounding source context."
                       className="min-h-[80px]"
                     />
                     <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -1059,20 +1101,85 @@ export function AnnotationsIndex({
                       This is my interpretation, not the author's claim.
                     </label>
                   </div>
+                </details>
+              </section>
+
+              <section className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">Next action</div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {connectionsForAnnotation(editing).some((group) => group.label !== 'Source')
+                        ? 'This annotation has already been applied. You can change action or add another connection.'
+                        : 'Choose where this annotation should go, or save it as reference.'}
+                    </p>
+                  </div>
+                  {connectionsForAnnotation(editing).some((group) => group.label !== 'Source') && (
+                    <Badge className="rounded-full bg-accent text-accent-foreground">Applied to philosophy</Badge>
+                  )}
                 </div>
-              </details>
-              {annotationType(editing) === 'question' && (
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/5 p-3">
-                  <p className="text-sm text-muted-foreground">{editing.createdInquiryId ? 'This annotation is already linked to an inquiry.' : 'This question belongs in Inquiries when you are ready to work it.'}</p>
-                  <Button size="sm" variant="outline" onClick={() => {
-                    const current = editing;
-                    setEditing(null);
-                    runConsequenceAction(current, 'raises_question');
-                  }} className="rounded-full">
-                    {editing.createdInquiryId ? 'Open inquiry' : 'Raise inquiry'}
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    ['supports_claim', 'Support a position'],
+                    ['challenges_claim', 'Challenge a position'],
+                    ['raises_question', editing.createdInquiryId ? 'Open inquiry' : 'Raise an inquiry'],
+                    ['clarifies', 'Clarify a concept'],
+                    ['reference', 'Save as reference'],
+                  ] as Array<[ConsequenceAction, string]>).map(([action, label]) => (
+                    <Button key={label} type="button" variant="outline" size="sm" onClick={() => runDetailAction(editing, action)} className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest">
+                      {label}
+                    </Button>
+                  ))}
+                  <Button type="button" size="sm" onClick={() => { const current = editing; setEditing(null); openPreflight(current, 'position'); }} className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest">
+                    Form a position
                   </Button>
                 </div>
-              )}
+              </section>
+
+              <section className="rounded-2xl border border-border bg-card p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Connections</div>
+                    <p className="mt-1 text-xs text-muted-foreground">What this annotation currently touches.</p>
+                  </div>
+                  <Badge variant="outline" className="rounded-full">{Math.max(0, connectionsForAnnotation(editing).reduce((total, group) => total + group.items.length, 0) - 1)} links</Badge>
+                </div>
+                <div className="space-y-2">
+                  {connectionsForAnnotation(editing).map((group) => (
+                    <div key={group.label} className="grid gap-2 rounded-xl border border-border/40 bg-background/70 p-3 sm:grid-cols-[120px_1fr]">
+                      <div className="font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">{group.label}</div>
+                      <div className="flex flex-wrap gap-2">
+                        {group.items.map((item) => (
+                          <Badge key={item} variant="secondary" className="rounded-full text-xs">{item}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <Label className="mb-2 block font-code text-[8px] uppercase tracking-widest text-muted-foreground">Concept tags</Label>
+                  <ConceptTagPicker
+                    concepts={concepts}
+                    value={editing.conceptTags || editing.source.tags || []}
+                    onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)}
+                    onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
+                  />
+                </div>
+              </section>
+
+              <details className="rounded-2xl border border-border bg-card p-4">
+                <summary className="cursor-pointer list-none font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                  History
+                </summary>
+                <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                  <p>Created from {editing.source.title}{editing.date ? ` on ${editing.date}` : ''}.</p>
+                  {editing.createdInquiryId && <p>Used to create an inquiry.</p>}
+                  {editing.createdPositionId && <p>Used to form a position.</p>}
+                  {(editing.linkedPositionIds || []).length > 0 && <p>Linked to {(editing.linkedPositionIds || []).length} position{(editing.linkedPositionIds || []).length === 1 ? '' : 's'}.</p>}
+                  {annotationStatus(editing) === 'reference_only' && <p>Saved as reference.</p>}
+                  {annotationStatus(editing) === 'archived' && <p>Archived.</p>}
+                </div>
+              </details>
             </div>
           )}
           <DialogFooter className="pt-4">
