@@ -137,13 +137,22 @@ function ReadexWorkspace({
   const focusedWorkId = focusedIdForNoesisView(routeState, 'writing');
   const focusedPracticeId = focusedIdForNoesisView(routeState, 'practices');
   const pendingNavigationRef = useRef<string | null>(null);
+  const pendingNavigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const lastReadyRouteContentRef = useRef<React.ReactNode>(null);
 
   useEffect(() => {
+    if (pendingNavigationTimerRef.current) {
+      clearTimeout(pendingNavigationTimerRef.current);
+      pendingNavigationTimerRef.current = null;
+    }
     pendingNavigationRef.current = null;
     setPendingPath(null);
   }, [pathname]);
+
+  useEffect(() => () => {
+    if (pendingNavigationTimerRef.current) clearTimeout(pendingNavigationTimerRef.current);
+  }, []);
 
   const navigateToView = useCallback((view: NoesisView, options?: {
     conceptId?: string | null;
@@ -165,7 +174,25 @@ function ReadexWorkspace({
     if (destination === pathname || pendingNavigationRef.current === destination) return;
     pendingNavigationRef.current = destination;
     setPendingPath(destination);
-    router.push(destination);
+    if (typeof window === 'undefined') {
+      router.push(destination);
+      return;
+    }
+
+    // Every Noesis route uses the same persistent client workspace. Updating
+    // browser history directly avoids waiting on an unnecessary RSC navigation,
+    // while Next's history integration keeps usePathname and back/forward synced.
+    window.history.pushState({ ...window.history.state, noesisPath: destination }, '', destination);
+    window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
+
+    pendingNavigationTimerRef.current = setTimeout(() => {
+      if (pendingNavigationRef.current !== destination) return;
+      pendingNavigationRef.current = null;
+      setPendingPath(null);
+      // Re-announce the current history entry if the route context missed the
+      // first event. The shell remains usable even if navigation cannot resolve.
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
+    }, 2000);
   }, [pathname, reviewMode, router]);
 
   const {

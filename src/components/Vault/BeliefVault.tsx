@@ -125,6 +125,7 @@ function confidenceLabel(confidence = 60) {
 
 type PositionViewFilter =
   | 'all'
+  | 'complete'
   | 'current'
   | 'developing'
   | 'retired'
@@ -152,6 +153,7 @@ type StressStage = {
 
 const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
   all: 'All',
+  complete: 'Complete',
   current: 'Current',
   developing: 'Developing',
   retired: 'Retired',
@@ -175,6 +177,7 @@ const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
 
 const PRIMARY_POSITION_VIEW_FILTERS: PositionViewFilter[] = [
   'current',
+  'complete',
   'developing',
   'retired',
   'needs_attention',
@@ -551,6 +554,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     const recentCutoff = Date.now() - 1000 * 60 * 60 * 24 * 30;
     const viewOk =
       viewFilter === 'all' ||
+      (viewFilter === 'complete' && positionFormation(e).fullyFormed) ||
       (viewFilter === 'current' && ['active', 'defended', 'tentative'].includes(e.status)) ||
       (viewFilter === 'developing' && (['draft', 'tentative', 'developing', 'uncertain'].includes(e.status) || diagnostic.completeness < 70)) ||
       (viewFilter === 'retired' && ['abandoned', 'rejected', 'replaced', 'suspended', 'revised'].includes(e.status)) ||
@@ -597,6 +601,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     )).length;
     return {
       total: safeEntries.length,
+      complete: safeEntries.filter((entry) => positionFormation(entry).fullyFormed).length,
       current: safeEntries.filter((entry) => ['active', 'defended', 'tentative'].includes(entry.status)).length,
       developing: safeEntries.filter((entry) => (positionDiagnostics.get(entry.id)?.completeness || 0) < 70 || ['draft', 'developing', 'uncertain'].includes(entry.status)).length,
       retired: safeEntries.filter((entry) => ['abandoned', 'rejected', 'replaced', 'suspended', 'revised'].includes(entry.status)).length,
@@ -1875,10 +1880,11 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       <div className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
         {[
           { label: 'Current', value: positionStats.current, filter: 'current' as PositionViewFilter },
+          { label: 'Complete', value: positionStats.complete, filter: 'complete' as PositionViewFilter },
           { label: 'Developing', value: positionStats.developing, filter: 'developing' as PositionViewFilter },
           { label: 'Retired', value: positionStats.retired, filter: 'retired' as PositionViewFilter },
           { label: 'Needs attention', value: positionStats.needsAttention, filter: 'needs_attention' as PositionViewFilter },
-        ].filter((item) => item.value > 0).map((item) => (
+        ].filter((item) => item.filter === 'complete' || item.value > 0).map((item) => (
           <button
             key={item.filter}
             type="button"

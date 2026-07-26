@@ -48,11 +48,12 @@ interface QuestionsWorkspaceProps {
   onOpenQuestionRoute?: (id: string | null) => void;
 }
 
-type FilterType = 'all' | 'active' | 'needs_frame' | 'awaiting_evidence' | 'needs_assumptions' | 'needs_candidates' | 'ready_to_resolve' | 'comparing_answers' | 'enduring' | 'partially_answered' | 'suspended' | 'resolved' | 'annotations';
+type FilterType = 'all' | 'active' | 'complete' | 'needs_frame' | 'awaiting_evidence' | 'needs_assumptions' | 'needs_candidates' | 'ready_to_resolve' | 'comparing_answers' | 'enduring' | 'partially_answered' | 'suspended' | 'resolved' | 'annotations';
 
 const INQUIRY_FILTER_LABELS: Record<FilterType, string> = {
   all: 'All',
   active: 'Active Investigations',
+  complete: 'Complete',
   needs_frame: 'Needs Frame',
   awaiting_evidence: 'Awaiting Evidence',
   needs_assumptions: 'Needs Assumptions',
@@ -69,10 +70,10 @@ const INQUIRY_FILTER_LABELS: Record<FilterType, string> = {
 const PRIMARY_INQUIRY_FILTERS: FilterType[] = [
   'all',
   'active',
+  'complete',
   'needs_frame',
   'awaiting_evidence',
   'ready_to_resolve',
-  'annotations',
 ];
 
 const RESOLUTION_OPTIONS: Array<{ status: Question['status']; label: string; description: string }> = [
@@ -104,6 +105,28 @@ function inquiryNeedsCandidateAnswers(question: Question) {
 
 function inquiryReadyToResolve(question: Question) {
   return Boolean(question.answer?.trim()) && !question.resolutionSummary?.trim() && !isInquiryClosed(question);
+}
+
+function inquiryFormation(question: Question) {
+  const candidates = question.candidateAnswers || [];
+  const checks = [
+    Boolean(question.text?.trim()),
+    Boolean(question.whyItMatters?.trim()),
+    Boolean(question.currentIntuition?.trim()),
+    (question.assumptions || []).some((item) => item.trim()),
+    [...(question.sourceIds || []), ...(question.evidenceIds || [])].length > 0 ||
+      candidates.some((candidate) => Boolean(candidate.support?.trim() || candidate.objection?.trim())),
+    candidates.some((candidate) => Boolean(candidate.statement?.trim())),
+    Boolean(question.answer?.trim()),
+    Boolean(question.resolutionSummary?.trim()),
+  ];
+  const complete = checks.filter(Boolean).length;
+  return {
+    complete,
+    total: checks.length,
+    fullyFormed: complete === checks.length,
+    completeness: Math.round((complete / checks.length) * 100),
+  };
 }
 
 function inquiryFrameGaps(question: Question) {
@@ -148,6 +171,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
   const filtered = all.filter((question) => {
     let typeOk = true;
     if (filter === 'active') typeOk = ['captured', 'clarifying', 'open', 'investigating', 'reopened', 'under_tension'].includes(question.status) || (!question.answer && !isInquiryClosed(question));
+    if (filter === 'complete') typeOk = inquiryFormation(question).fullyFormed;
     if (filter === 'needs_frame') typeOk = inquiryFrameGaps(question).length > 0 && !isInquiryClosed(question);
     if (filter === 'awaiting_evidence') typeOk = question.status === 'gathering_evidence' || inquiryNeedsEvidence(question);
     if (filter === 'needs_assumptions') typeOk = inquiryNeedsAssumptions(question);
@@ -248,6 +272,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
   const needsAssumptionsCount = all.filter(inquiryNeedsAssumptions).length;
   const needsEvidenceCount = all.filter(inquiryNeedsEvidence).length;
   const readyToResolveCount = all.filter(inquiryReadyToResolve).length;
+  const completeCount = all.filter((question) => inquiryFormation(question).fullyFormed).length;
   const linkedDraftCount = drafts.filter(d => (d.questionIds || []).length > 0).length;
   const clearInquiryFilters = () => {
     setSearch('');
@@ -273,35 +298,29 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
         }
       />
 
-      <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <InquiryLane
-          label="Needs Frame"
-          value={needsFrameCount}
-          description="Questions missing stakes, intuition, assumptions, or resolution criteria."
-          active={filter === 'needs_frame'}
-          onClick={() => setFilter(filter === 'needs_frame' ? 'all' : 'needs_frame')}
-        />
-        <InquiryLane
-          label="Needs Assumptions"
-          value={needsAssumptionsCount}
-          description="Questions whose hidden premises have not been named."
-          active={filter === 'needs_assumptions'}
-          onClick={() => setFilter(filter === 'needs_assumptions' ? 'all' : 'needs_assumptions')}
-        />
-        <InquiryLane
-          label="Needs Evidence"
-          value={needsEvidenceCount}
-          description="Open investigations without source or evidence anchors."
-          active={filter === 'awaiting_evidence'}
-          onClick={() => setFilter(filter === 'awaiting_evidence' ? 'all' : 'awaiting_evidence')}
-        />
-        <InquiryLane
-          label="Ready To Resolve"
-          value={readyToResolveCount}
-          description="Inquiries with an answer but no explicit outcome summary."
-          active={filter === 'ready_to_resolve'}
-          onClick={() => setFilter(filter === 'ready_to_resolve' ? 'all' : 'ready_to_resolve')}
-        />
+      <section className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0" aria-label="Inquiry summary filters">
+        {[
+          { label: 'Needs frame', value: needsFrameCount, filter: 'needs_frame' as FilterType },
+          { label: 'Needs assumptions', value: needsAssumptionsCount, filter: 'needs_assumptions' as FilterType },
+          { label: 'Needs evidence', value: needsEvidenceCount, filter: 'awaiting_evidence' as FilterType },
+          { label: 'Ready to resolve', value: readyToResolveCount, filter: 'ready_to_resolve' as FilterType },
+          { label: 'Complete', value: completeCount, filter: 'complete' as FilterType },
+        ].map((item) => (
+          <button
+            key={item.filter}
+            type="button"
+            onClick={() => setFilter(filter === item.filter ? 'all' : item.filter)}
+            aria-pressed={filter === item.filter}
+            className={cn(
+              'shrink-0 rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors',
+              filter === item.filter
+                ? 'border-accent bg-accent text-accent-foreground'
+                : 'border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground'
+            )}
+          >
+            {item.label} ({item.value})
+          </button>
+        ))}
       </section>
 
       <FilterToolbar
@@ -1422,27 +1441,6 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
         }}
       />
     </div>
-  );
-}
-
-function InquiryLane({ label, value, description, active, onClick }: { label: string; value: number; description: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
-        active ? "border-accent/50 bg-accent/10 ring-2 ring-accent/15" : "border-border/50 bg-card"
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-code text-[8px] font-bold uppercase tracking-[0.22em] text-muted-foreground/60">{label}</div>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
-        </div>
-        <div className="font-headline text-3xl font-bold italic leading-none text-primary">{value}</div>
-      </div>
-    </button>
   );
 }
 
