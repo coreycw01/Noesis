@@ -1429,14 +1429,14 @@ function ReadexWorkspace({
     }, { operation: 'update', data: nextSource });
   };
 
-  const deleteAnnotation = (sourceId: string, annotationId: string) => {
+  const deleteAnnotation = async (sourceId: string, annotationId: string) => {
     const source = media.find((item) => item.id === sourceId);
     if (!source) return;
     const existing = (source.annotations || []).find((item) => item.id === annotationId) || null;
     const annotations = (source.annotations || []).filter((item) => item.id !== annotationId);
     const mediaRef = doc(refs.media, sourceId);
     const nextSource = { ...source, annotations, dateUpdated: today() };
-    void commitAndReport({
+    await commitAndReport({
       db,
       ref: mediaRef as any,
       operation: 'update',
@@ -1454,7 +1454,7 @@ function ReadexWorkspace({
         relatedEntityIds: { sourceIds: [sourceId] },
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'update', data: nextSource });
+    }, { operation: 'update', data: nextSource, rethrow: true });
   };
 
   const addVaultEntry = (data: Partial<VaultEntry>) => {

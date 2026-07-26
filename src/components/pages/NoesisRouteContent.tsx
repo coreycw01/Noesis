@@ -125,7 +125,7 @@ export interface NoesisRouteContentProps {
   updateMedia: (media: Media) => void;
   deleteMedia: (id: string) => void;
   updateAnnotation: (sourceId: string, annotation: Annotation) => void;
-  deleteAnnotation: (sourceId: string, annotationId: string) => void;
+  deleteAnnotation: (sourceId: string, annotationId: string) => Promise<void>;
   createIdea: (data: {
     title: string;
     body: string;

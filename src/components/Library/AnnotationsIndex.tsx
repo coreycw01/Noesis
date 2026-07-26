@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, Loader2, MoreHorizontal, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -33,7 +33,7 @@ interface AnnotationsIndexProps {
   positions?: VaultEntry[];
   inquiries?: Question[];
   onUpdateAnnotation: (sourceId: string, annotation: Annotation) => void;
-  onDeleteAnnotation: (sourceId: string, annotationId: string) => void;
+  onDeleteAnnotation: (sourceId: string, annotationId: string) => Promise<void>;
   onOpenSource: (sourceId: string) => void;
   onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string; position?: { title: string; statement: string; description: string; confidence: number } }) => { positionId: string; insightId: string; title: string };
   onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string }) => Question;
@@ -128,6 +128,7 @@ export function AnnotationsIndex({
   const [linkDialog, setLinkDialog] = useState<{ annotation: FlatAnnotation; linkType: 'supports' | 'challenges' } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FlatAnnotation | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const pendingDetailDeleteRef = useRef<FlatAnnotation | null>(null);
   const { toast } = useToast();
 
   const previewSource = (source: Media, annotation?: FlatAnnotation) => {
@@ -951,10 +952,21 @@ export function AnnotationsIndex({
         description="This removes the annotation from its source thread. Any positions or inquiries already created from it will remain."
         confirmLabel="Delete"
         destructive
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteTarget) return;
-          onDeleteAnnotation(deleteTarget.source.id, deleteTarget.id);
+          const target = deleteTarget;
           setDeleteTarget(null);
+          setSelectedKeys((current) => current.filter((key) => key !== annotationKey(target)));
+          try {
+            await onDeleteAnnotation(target.source.id, target.id);
+            toast({ title: 'Annotation deleted.' });
+          } catch (error) {
+            toast({
+              variant: 'destructive',
+              title: 'Annotation could not be deleted',
+              description: noesisUserError(error, 'delete this annotation'),
+            });
+          }
         }}
       />
 
@@ -1012,7 +1024,16 @@ export function AnnotationsIndex({
       </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent className="max-w-2xl border-none shadow-2xl rounded-2xl">
+        <DialogContent
+          className="max-w-2xl border-none shadow-2xl rounded-2xl"
+          onCloseAutoFocus={(event) => {
+            const target = pendingDetailDeleteRef.current;
+            if (!target) return;
+            event.preventDefault();
+            pendingDetailDeleteRef.current = null;
+            requestAnimationFrame(() => setDeleteTarget(target));
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl italic">Annotation Detail</DialogTitle>
           </DialogHeader>
@@ -1031,7 +1052,16 @@ export function AnnotationsIndex({
                     <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => previewSource(editing.source, editing)} title="Open source">
                       <ExternalLink className="size-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="size-8 rounded-full text-destructive hover:text-destructive" onClick={() => { setDeleteTarget(editing); setEditing(null); }} title="Delete annotation">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 rounded-full text-destructive hover:text-destructive"
+                      onClick={() => {
+                        pendingDetailDeleteRef.current = editing;
+                        setEditing(null);
+                      }}
+                      title="Delete annotation"
+                    >
                       <Trash2 className="size-3.5" />
                     </Button>
                   </div>
