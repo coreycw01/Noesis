@@ -298,6 +298,32 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
         }
       />
 
+      <FilterToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search inquiries, answers, evidence..."
+        resultCount={filtered.length}
+        resultLabel="inquiries"
+        activeFilterLabels={activeFilterLabels}
+        onClear={clearInquiryFilters}
+        clearDisabled={!inquiryFiltersActive}
+        className="mb-3"
+      >
+        <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
+          <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+            <SelectValue placeholder="Inquiry View" />
+          </SelectTrigger>
+          <SelectContent>
+            {PRIMARY_INQUIRY_FILTERS.map((value) => (
+              <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{INQUIRY_FILTER_LABELS[value]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
+          {linkedDraftCount} linked works
+        </div>
+      </FilterToolbar>
+
       <section className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0" aria-label="Inquiry summary filters">
         {[
           { label: 'Needs frame', value: needsFrameCount, filter: 'needs_frame' as FilterType },
@@ -322,32 +348,6 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
           </button>
         ))}
       </section>
-
-      <FilterToolbar
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search inquiries, answers, evidence..."
-        resultCount={filtered.length}
-        resultLabel="inquiries"
-        activeFilterLabels={activeFilterLabels}
-        onClear={clearInquiryFilters}
-        clearDisabled={!inquiryFiltersActive}
-        className="mb-8"
-      >
-        <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
-          <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
-            <SelectValue placeholder="Inquiry View" />
-          </SelectTrigger>
-          <SelectContent>
-            {PRIMARY_INQUIRY_FILTERS.map((value) => (
-              <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{INQUIRY_FILTER_LABELS[value]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
-          {linkedDraftCount} linked works
-        </div>
-      </FilterToolbar>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filtered.map((question) => {
