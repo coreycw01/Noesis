@@ -1,14 +1,18 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
+  browserLocalPersistence,
   createUserWithEmailAndPassword,
+  getRedirectResult,
   GoogleAuthProvider,
   sendPasswordResetEmail,
+  setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   updateProfile,
 } from 'firebase/auth';
 import { Loader2, Eye, EyeOff, AlertCircle, ShieldAlert } from 'lucide-react';
@@ -38,6 +42,9 @@ function authMessage(error: unknown) {
   if (code.includes('auth/too-many-requests')) return 'Firebase temporarily blocked this sign-in attempt after too many tries. Wait a bit, then try again.';
   if (code.includes('auth/network-request-failed')) return 'Noesis could not reach Firebase Auth. Check your connection and try again.';
   if (code.includes('auth/popup-closed-by-user')) return 'Google sign-in was closed before it finished.';
+  if (code.includes('auth/account-exists-with-different-credential')) {
+    return 'An account already exists for this email with another sign-in method. Sign in that way first, then connect Google from your account.';
+  }
   if (code.includes('auth/operation-not-allowed')) return 'This sign-in method is not enabled in Firebase Auth. Please enable it in your Firebase Console.';
   if (code.includes('auth/user-not-found')) return 'No account found with this email.';
   if (code.includes('auth/wrong-password')) return 'Incorrect password.';
@@ -57,8 +64,28 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState<'email' | 'google' | 'reset' | null>(null);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
+  const redirectChecked = useRef(false);
 
   const logoData = placeholderData?.placeholderImages?.find(img => img.id === 'app-logo');
+
+  useEffect(() => {
+    if (redirectChecked.current) return;
+    redirectChecked.current = true;
+
+    void getRedirectResult(auth).catch((error) => {
+      const msg = authMessage(error);
+      setErrorStatus(msg);
+      if (!msg.startsWith('DOMAIN_ERROR')) {
+        toast({
+          variant: 'destructive',
+          title: 'Google sign in failed',
+          description: msg,
+        });
+      }
+    });
+  }, [auth, toast]);
+
+  const preparePersistentSession = () => setPersistence(auth, browserLocalPersistence);
 
   const submitEmail = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -69,6 +96,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
     }
     setBusy('email');
     try {
+      await preparePersistentSession();
       if (mode === 'signup') {
         const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
         if (displayName.trim()) await updateProfile(credential.user, { displayName: displayName.trim() });
@@ -94,10 +122,29 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
     setErrorStatus(null);
     setBusy('google');
     try {
+      await preparePersistentSession();
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, provider);
     } catch (error: any) {
+      const code = String(error?.code || '');
+      const shouldUseRedirect = [
+        'auth/popup-blocked',
+        'auth/cancelled-popup-request',
+        'auth/operation-not-supported-in-this-environment',
+      ].some((fallbackCode) => code.includes(fallbackCode));
+
+      if (shouldUseRedirect) {
+        try {
+          const provider = new GoogleAuthProvider();
+          provider.setCustomParameters({ prompt: 'select_account' });
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirectError) {
+          error = redirectError;
+        }
+      }
+
       const msg = authMessage(error);
       setErrorStatus(msg);
       if (!msg.startsWith('DOMAIN_ERROR')) {
@@ -120,6 +167,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
     }
     setBusy('reset');
     try {
+      await preparePersistentSession();
       await sendPasswordResetEmail(auth, email.trim());
       toast({ title: 'Reset email sent', description: 'Check your inbox for a password reset link.' });
     } catch (error) {
