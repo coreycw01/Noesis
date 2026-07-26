@@ -138,6 +138,7 @@ function ReadexWorkspace({
   const focusedPracticeId = focusedIdForNoesisView(routeState, 'practices');
   const pendingNavigationRef = useRef<string | null>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const lastReadyRouteContentRef = useRef<React.ReactNode>(null);
 
   useEffect(() => {
     pendingNavigationRef.current = null;
@@ -355,7 +356,9 @@ function ReadexWorkspace({
   const [isSeedingReview, setIsSeedingReview] = useState(false);
   const [syncIssue, setSyncIssue] = useState<FirestorePermissionError | null>(null);
   const autoSeedAttemptedRef = useRef(false);
-  const pageDataLoading = loading.page;
+  // Profile can render its identity shell from defaults immediately. Secondary
+  // tabs fill in as their scoped listeners resolve instead of blocking navigation.
+  const pageDataLoading = activeView === 'profile' ? false : loading.page;
   const shellDataLoading = loading.shell;
   const reviewDataLoading = pageDataLoading;
   const workspaceCounts = workspaceSummaryDoc?.counts;
@@ -485,6 +488,7 @@ function ReadexWorkspace({
   }, [effectiveUid, isOfflineReviewPreview, isReviewIdentity, refs, reviewMode, user]);
 
   useEffect(() => {
+    if (loading.requirements.appearance || loading.requirements.preferences) return;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const applyTheme = () => {
       const snapshot = {
@@ -501,7 +505,11 @@ function ReadexWorkspace({
     applyTheme();
     mediaQuery.addEventListener('change', applyTheme);
     return () => mediaQuery.removeEventListener('change', applyTheme);
-  }, [appearanceSettings.fontSize, appearanceSettings.headerFont, appearanceSettings.highContrastMode, appearanceSettings.reducedMotion, preferences.themeMode, preferences.accentTheme]);
+  }, [appearanceSettings.fontSize, appearanceSettings.headerFont, appearanceSettings.highContrastMode, appearanceSettings.reducedMotion, loading.requirements.appearance, loading.requirements.preferences, preferences.themeMode, preferences.accentTheme]);
+
+  useEffect(() => {
+    lastReadyRouteContentRef.current = null;
+  }, [effectiveUid]);
 
   const totalObjects = media.length + concepts.length + questions.length + vault.length + drafts.length + practices.length + timeline.length + insights.length + links.length + suggestions.length + atlasMaps.length + thinkingEvents.length + beliefProfiles.length + unknowns.length + thinkingPatterns.length;
 
@@ -1569,29 +1577,19 @@ function ReadexWorkspace({
     refreshBeliefProfile(entry, profilePatch);
   };
 
-  const deleteVaultEntry = (id: string) => {
+  const deleteVaultEntry = async (id: string) => {
     const existing = vault.find((item) => item.id === id);
     const vaultRef = doc(refs.vault, id);
-    void commitAndReport({
+    await commitAndReport({
       db,
       ref: vaultRef as any,
       operation: 'delete',
-      thinkingEvent: metacognitionEnabled && existing ? {
-        collection: refs.thinkingEvents as any,
-        userId: effectiveUid,
-        eventType: 'position_abandoned',
-        entityType: 'position',
-        entityId: id,
-        before: existing,
-        summary: `Deleted position: ${existing.title}`,
-        origin: 'user',
-        importance: 'major',
-        epistemicStatus: 'abandoned',
-        sourceActionId: makeActionId(),
-      } : null,
-    }, { operation: 'delete', data: existing || { id }, rethrow: true })
-      .then(() => cleanupDeletedEntityReferences('position', id))
-      .catch(() => undefined);
+    }, { operation: 'delete', data: existing || { id }, rethrow: true });
+    try {
+      await cleanupDeletedEntityReferences('position', id);
+    } catch {
+      // The position is already deleted. Orphan cleanup can be retried independently.
+    }
   };
 
   const createIdea = (data: { title: string; body: string; tags: string[]; sourceIds: string[]; position?: { title: string; statement: string; description: string; confidence: number }; sourceAnnotationId?: string; sourceWorkId?: string; sourceDocumentId?: string }) => {
@@ -2700,6 +2698,22 @@ function ReadexWorkspace({
 
   const renderRouteContent = () => {
     if (reviewDataLoading) {
+      if (lastReadyRouteContentRef.current) {
+        return (
+          <div className="relative flex min-h-0 flex-1 overflow-hidden">
+            <div className="pointer-events-none flex min-h-0 flex-1 select-none opacity-75" aria-hidden="true">
+              {lastReadyRouteContentRef.current}
+            </div>
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1 overflow-hidden bg-accent/15"
+              role="progressbar"
+              aria-label={`Loading ${NOESIS_PAGE_BY_VIEW[activeView].title}`}
+            >
+              <div className="h-full w-full animate-pulse bg-accent" />
+            </div>
+          </div>
+        );
+      }
       return (
         <NoesisPageLoading
           activeView={activeView}
@@ -2737,7 +2751,7 @@ function ReadexWorkspace({
       );
     }
 
-    return (
+    const routeContent = (
       <NoesisRouteContent
         activeView={activeView}
         user={user}
@@ -2831,6 +2845,8 @@ function ReadexWorkspace({
         seedReviewWorkspace={seedReviewWorkspace}
       />
     );
+    lastReadyRouteContentRef.current = routeContent;
+    return routeContent;
 
   };
 

@@ -43,7 +43,7 @@ interface MediaLibraryProps {
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
-  onDeleteVaultEntry: (id: string) => void;
+  onDeleteVaultEntry: (id: string) => Promise<void>;
   focusedSourceId?: string | null;
   onFocusedSourceHandled?: () => void;
   onOpenSourceRoute?: (id: string | null) => void;
@@ -1100,15 +1100,25 @@ export function MediaLibrary({
           }
           confirmLabel={deleteTarget?.type === 'source' ? 'Delete Source' : 'Delete Claim'}
           destructive
-          onConfirm={() => {
+          onConfirm={async () => {
             if (!deleteTarget) return;
-            if (deleteTarget.type === 'source') {
-              onDeleteMedia(deleteTarget.item.id);
-              if (selectedId === deleteTarget.item.id) closeSelectedSource();
-            } else {
-              onDeleteVaultEntry(deleteTarget.item.id);
-            }
+            const target = deleteTarget;
             setDeleteTarget(null);
+            try {
+              if (target.type === 'source') {
+                onDeleteMedia(target.item.id);
+                if (selectedId === target.item.id) closeSelectedSource();
+              } else {
+                await onDeleteVaultEntry(target.item.id);
+                toast({ title: 'Extracted claim deleted.' });
+              }
+            } catch (error) {
+              toast({
+                variant: 'destructive',
+                title: 'Item could not be deleted',
+                description: noesisUserError(error, 'delete this item'),
+              });
+            }
           }}
         />
         <MediaEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draft} setDraft={setDraft} onSave={saveMedia} />

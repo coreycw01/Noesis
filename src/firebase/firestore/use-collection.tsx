@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Query, 
   onSnapshot, 
@@ -23,9 +23,11 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const resolvedQueryRef = useRef<Query<T> | null>(null);
 
   useEffect(() => {
     if (!query) {
+      resolvedQueryRef.current = null;
       setData([]);
       setError(null);
       setLoading(false);
@@ -53,6 +55,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
           ...doc.data(),
           id: doc.id,
         }));
+        resolvedQueryRef.current = query;
         setData(items);
         setLoading(false);
       },
@@ -65,6 +68,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
           });
           errorEmitter.emit('permission-error', permissionError);
         }
+        resolvedQueryRef.current = query;
         setError(err);
         setLoading(false);
       }
@@ -81,5 +85,10 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
     };
   }, [query]);
 
-  return { data, loading, error };
+  const hasResolvedCurrentQuery = !query || resolvedQueryRef.current === query;
+  return {
+    data: hasResolvedCurrentQuery ? data : [],
+    loading: query && !hasResolvedCurrentQuery ? true : loading,
+    error: hasResolvedCurrentQuery ? error : null,
+  };
 }

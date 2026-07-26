@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { Progress } from '@/components/ui/progress';
@@ -395,15 +396,6 @@ export function ThinkingDesk({
       .slice(0, 3);
   }, [concepts, inquiries, links, media, mode, positions, practices, works]);
 
-  const primaryFocusTitle = {
-    continue: 'Continue this thought',
-    challenge: 'Pressure-test a position',
-    unfinished: 'Finish a loose thread',
-    recent: 'Reopen recent movement',
-    neglected: 'Revisit neglected material',
-    rediscover: 'Rediscover an older thread',
-  }[mode];
-
   const provocation = useMemo(() => {
     const untested = positions.find((position) => position.status !== 'abandoned' && !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
     if (untested && provocationAngle === 0) {
@@ -559,36 +551,33 @@ export function ThinkingDesk({
     return events;
   }, [thinkingEvents, timeline]);
 
-  const quietSignals = [
-    {
-      label: 'Unprocessed annotations',
-      value: annotations.filter((item) => !item.philosophyStatus || item.philosophyStatus === 'raw').length,
-      target: { view: 'annotations' as NoesisView },
-    },
-    {
-      label: 'Unsupported positions',
-      value: positions.filter((item) => item.status !== 'abandoned' && (item.sourceIds || []).length === 0 && (item.evidenceFor || []).length === 0).length,
-      target: { view: 'vault' as NoesisView },
-    },
-    {
-      label: 'Open unknowns',
-      value: unknowns.filter((item) => item.status === 'active' || item.status === 'exploring').length,
-      target: { view: 'profile' as NoesisView },
-    },
-    {
-      label: 'Untested positions',
-      value: positions.filter((position) => position.status !== 'abandoned' && !practices.some((practice) => (practice.positionIds || []).includes(position.id))).length,
-      target: { view: 'practices' as NoesisView },
-    },
-    {
-      label: 'Finished sources needing reflection',
-      value: media.filter((item) => item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange).length,
-      target: { view: 'library' as NoesisView },
-    },
-  ];
-  const visibleQuietSignals = quietSignals.filter((signal) => signal.value > 0).slice(0, 3);
   const primaryEdge = continueItems[0] || null;
   const secondaryEdges = continueItems.slice(1, 3);
+  const workspaceSnapshot = useMemo(() => {
+    const openInquiries = inquiries.filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status)).length;
+    const unprocessedAnnotations = annotations.filter((item) => !item.philosophyStatus || item.philosophyStatus === 'raw').length;
+    const undefinedConcepts = concepts.filter((item) => !item.description?.trim() || item.philosophyStatus === 'undefined').length;
+    const positionsNeedingEvidence = positions.filter((item) =>
+      !['abandoned', 'rejected', 'replaced'].includes(item.status)
+      && (item.sourceIds || []).length === 0
+      && (item.evidenceFor || []).length === 0
+    ).length;
+    const activeWorks = works.filter((item) => !['final', 'complete', 'completed', 'archived'].includes(item.status)).length;
+    const activePractices = practices.filter((item) => item.status === 'active').length;
+    const activeSources = media.filter((item) => ['Consuming', 'Want to Read', 'Paused'].includes(item.status)).length;
+    const openUnknowns = unknowns.filter((item) => item.status === 'active' || item.status === 'exploring').length;
+
+    return [
+      { label: 'Sources in motion', value: activeSources, view: 'library' as NoesisView, icon: BookOpen },
+      { label: 'Notes to process', value: unprocessedAnnotations, view: 'annotations' as NoesisView, icon: ClipboardCheck },
+      { label: 'Concepts to define', value: undefinedConcepts, view: 'concepts' as NoesisView, icon: Lightbulb },
+      { label: 'Open inquiries', value: openInquiries, view: 'questions' as NoesisView, icon: HelpCircle },
+      { label: 'Positions needing evidence', value: positionsNeedingEvidence, view: 'vault' as NoesisView, icon: ShieldCheck },
+      { label: 'Works in progress', value: activeWorks, view: 'writing' as NoesisView, icon: PenTool },
+      { label: 'Active practices', value: activePractices, view: 'practices' as NoesisView, icon: Repeat },
+      { label: 'Open unknowns', value: openUnknowns, view: 'profile' as NoesisView, icon: Compass },
+    ];
+  }, [annotations, concepts, inquiries, media, positions, practices, unknowns, works]);
 
   const hasWorkspace = media.length + concepts.length + inquiries.length + positions.length + works.length + practices.length > 0;
 
@@ -859,62 +848,153 @@ export function ThinkingDesk({
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
           <section className="space-y-5">
-          <Card className="rounded-2xl border-border bg-card p-5">
-            <div className="flex items-start gap-4">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-                <Brain className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Today's Provocation</div>
-                {provocationDismissed ? (
-                  <div className="mt-3 rounded-2xl border border-dashed border-border bg-background/60 p-4">
-                    <p className="text-sm leading-6 text-muted-foreground">
-                      Provocation dismissed for now. Home will keep prioritizing unfinished work without treating this as intellectual progress.
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setProvocationDismissed(false)}
-                      className="mt-3 rounded-full"
-                    >
-                      Restore Provocation
-                    </Button>
+            <Card className="overflow-hidden rounded-2xl border-accent/30 bg-card shadow-sm">
+              <div className="border-b border-border bg-accent/5 px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">What to do next</div>
+                    <p className="mt-1 text-xs text-muted-foreground">The strongest available move across your workspace.</p>
                   </div>
-                ) : (
+                  <Select value={mode} onValueChange={(value) => setMode(value as HomeMode)}>
+                    <SelectTrigger className="h-9 w-[190px] rounded-full bg-card text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {HOME_MODES.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="p-5">
+                {primaryEdge ? (
                   <>
-                    <p className="mt-2 font-headline text-2xl italic leading-snug text-foreground/85">{provocation.question}</p>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      <span className="font-medium text-foreground/70">Why this surfaced:</span> {provocation.evidence}
-                    </p>
-                    <Textarea
-                      value={briefAnswer}
-                      onChange={(event) => setBriefAnswer(event.target.value)}
-                      placeholder="Answer briefly without turning it into a full inquiry yet..."
-                      className="mt-4 min-h-[88px] rounded-2xl"
-                    />
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" onClick={turnProvocationIntoInquiry} className="rounded-full">Respond</Button>
-                      <Button size="sm" variant="outline" onClick={() => previewOrNavigate(provocation.target, { label: 'Explore further', description: 'Today provocation', reason: provocation.evidence })} className="rounded-full">Explore further</Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setProvocationAngle((angle) => angle + 1);
-                          setBriefAnswer('');
-                          setIrrelevantReason('');
-                        }}
-                        className="rounded-full"
-                      >
-                        Replace prompt
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setProvocationDismissed(true)} className="rounded-full">Not relevant</Button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate({ view: primaryEdge.view, targetId: primaryEdge.targetId })}
+                      className="group w-full rounded-2xl border border-border bg-background/60 p-5 text-left transition-all hover:border-accent/50 hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                          <primaryEdge.icon className="size-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-accent">{primaryEdge.eyebrow}</div>
+                          <h2 className="mt-1 font-headline text-2xl font-semibold italic leading-tight text-foreground">{primaryEdge.label}</h2>
+                          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{primaryEdge.reason}</p>
+                          <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-accent">
+                            {primaryEdge.action}
+                            <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                    {secondaryEdges.length > 0 && (
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        {secondaryEdges.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => onNavigate({ view: item.view, targetId: item.targetId })}
+                            className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-background/40 p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+                          >
+                            <item.icon className="size-4 shrink-0 text-accent" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-foreground">{item.label}</span>
+                              <span className="mt-0.5 block truncate text-xs text-muted-foreground">{item.eyebrow}</span>
+                            </span>
+                            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-border p-6 text-center">
+                    <ClipboardCheck className="mx-auto size-6 text-accent" />
+                    <h2 className="mt-3 font-headline text-xl font-semibold italic">Nothing urgent is waiting</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">Capture something new or review a recent milestone.</p>
+                  </div>
                 )}
               </div>
-            </div>
-          </Card>
-        </section>
+            </Card>
+
+            <Card className="rounded-2xl border-border bg-card p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Workspace at a glance</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Open any area that needs attention.</p>
+                </div>
+                <Compass className="size-4 text-accent" />
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {workspaceSnapshot.map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => onNavigate({ view: item.view })}
+                    className="min-w-0 rounded-xl border border-border bg-background/50 p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <item.icon className="size-4 text-accent" />
+                      <span className="font-code text-lg font-bold text-foreground">{item.value}</span>
+                    </div>
+                    <div className="mt-2 text-xs leading-4 text-muted-foreground">{item.label}</div>
+                  </button>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="rounded-2xl border-border bg-card p-5">
+              <div className="flex items-start gap-4">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <Brain className="size-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Think on this</div>
+                  {provocationDismissed ? (
+                    <button type="button" onClick={() => setProvocationDismissed(false)} className="mt-2 text-sm text-accent hover:underline">
+                      Restore today&apos;s reflection prompt
+                    </button>
+                  ) : (
+                    <>
+                      <p className="mt-1 font-headline text-xl italic leading-snug text-foreground/85">{provocation.question}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{provocation.evidence}</p>
+                      <details className="mt-3">
+                        <summary className="cursor-pointer text-sm font-medium text-accent">Write a response</summary>
+                        <Textarea
+                          value={briefAnswer}
+                          onChange={(event) => setBriefAnswer(event.target.value)}
+                          placeholder="Capture a brief response..."
+                          className="mt-3 min-h-[76px] rounded-xl"
+                        />
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button size="sm" onClick={turnProvocationIntoInquiry} className="rounded-full">Open as inquiry</Button>
+                          <Button size="sm" variant="outline" onClick={() => previewOrNavigate(provocation.target, { label: 'Explore further', description: 'Reflection prompt', reason: provocation.evidence })} className="rounded-full">Explore</Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setProvocationAngle((angle) => angle + 1);
+                              setBriefAnswer('');
+                              setIrrelevantReason('');
+                            }}
+                            className="rounded-full"
+                          >
+                            Replace
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setProvocationDismissed(true)} className="rounded-full">Dismiss</Button>
+                        </div>
+                      </details>
+                    </>
+                  )}
+                </div>
+              </div>
+            </Card>
+          </section>
 
         <aside className="space-y-5">
           <Card className="rounded-2xl border-border bg-card p-5">
@@ -944,16 +1024,6 @@ export function ThinkingDesk({
                       <div className="mt-2 font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{item.evidence}</div>
                     </div>
                   </div>
-                </button>
-              ))}
-              {visibleQuietSignals.map((signal) => (
-                <button
-                  key={signal.label}
-                  onClick={() => previewOrNavigate(signal.target, { label: signal.label, description: 'Thinking gap', reason: `${signal.value} item(s) need attention` })}
-                  className="flex w-full items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
-                >
-                  <span className="text-sm text-muted-foreground">{signal.label}</span>
-                  <Badge variant={signal.value ? 'secondary' : 'outline'} className="rounded-full">{signal.value}</Badge>
                 </button>
               ))}
             </div>

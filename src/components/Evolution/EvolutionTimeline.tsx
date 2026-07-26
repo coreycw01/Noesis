@@ -88,6 +88,90 @@ const VIEW_OPTIONS: Array<{ value: EvolutionView; label: string; description: st
   { value: 'change_map', label: 'Change Map', description: 'See which areas gained, weakened, fractured, or stabilized.' },
 ];
 
+const NOTABLE_THINKING_EVENT_TYPES = new Set<string>([
+  'position_created',
+  'position_formed',
+  'position_revised',
+  'position_replaced',
+  'position_abandoned',
+  'confidence_changed',
+  'evidence_added',
+  'challenge_added',
+  'assumption_challenged',
+  'contradiction_detected',
+  'contradiction_resolved',
+  'unknown_created',
+  'unknown_resolved',
+  'question_resolved',
+  'question_promoted',
+  'concept_defined',
+  'concept_redefined',
+  'source_distilled',
+  'work_revised',
+  'practice_concluded',
+  'stress_test_answered',
+  'suggestion_accepted',
+  'thinking_pattern_acknowledged',
+]);
+
+function isRoutineDeletion(summary?: string, metadata?: Record<string, unknown>) {
+  const text = String(summary || '').trim().toLowerCase();
+  return text.startsWith('deleted ')
+    || text.includes('hard delete')
+    || metadata?.operation === 'delete';
+}
+
+function isNotableThinkingEvent(event: ThinkingEvent) {
+  const eventType = String(event.eventType || event.actionType || '');
+  if (!eventType || isRoutineDeletion(event.summary, event.metadata)) return false;
+  return event.importance === 'major'
+    || event.importance === 'high'
+    || NOTABLE_THINKING_EVENT_TYPES.has(eventType);
+}
+
+function isNotableTimelineEvent(event: TimelineEvent) {
+  const text = `${event.eventType || ''} ${event.reason || ''} ${event.entityTitle || ''}`.toLowerCase();
+  if (text.includes('deleted') || text.includes('removed')) return false;
+  return [
+    'revised',
+    'resolved',
+    'abandoned',
+    'replaced',
+    'challenged',
+    'confidence',
+    'contradiction',
+    'position formed',
+    'source distilled',
+    'practice concluded',
+  ].some((signal) => text.includes(signal));
+}
+
+function normalizedEvolutionDate(value: unknown): string | null {
+  let date: Date | null = null;
+  if (value instanceof Date) {
+    date = value;
+  } else if (typeof value === 'string' || typeof value === 'number') {
+    date = new Date(value);
+  } else if (value && typeof value === 'object') {
+    const timestamp = value as { toDate?: () => Date; seconds?: number; _seconds?: number };
+    if (typeof timestamp.toDate === 'function') date = timestamp.toDate();
+    else {
+      const seconds = timestamp.seconds ?? timestamp._seconds;
+      if (typeof seconds === 'number') date = new Date(seconds * 1000);
+    }
+  }
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+}
+
+function safeEventDetail(value: unknown, fallback: string) {
+  if (!value || typeof value !== 'object') return fallback;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return fallback;
+  }
+}
+
 function mapThinkingEventToFilter(eventType: ThinkingEvent['eventType']): EvolutionFilter {
   if (['created', 'edited', 'revised', 'abandoned', 'position_created', 'position_revised', 'position_abandoned'].includes(eventType)) return 'belief_revisions';
   if (eventType === 'confidence_changed') return 'confidence';
@@ -115,18 +199,19 @@ function summarizeSnapshot(value: unknown): string | undefined {
 }
 
 function thinkingEventMeaning(event: ThinkingEvent): Pick<DisplayEvent, 'turningPoint' | 'trigger' | 'significance' | 'beforeLabel' | 'afterLabel'> {
-  const eventText = event.eventType.replace(/_/g, ' ');
+  const eventType = String(event.eventType || event.actionType || 'change');
+  const eventText = eventType.replace(/_/g, ' ');
   const turningPoint = event.importance === 'major'
     ? 'Major Turning Point'
-    : event.eventType.includes('revised') || event.eventType === 'confidence_changed'
+    : eventType.includes('revised') || eventType === 'confidence_changed'
       ? 'Revision'
-      : event.eventType.includes('resolved')
+      : eventType.includes('resolved')
         ? 'Resolution'
-        : event.eventType.includes('abandoned') || event.eventType.includes('replaced')
+        : eventType.includes('abandoned') || eventType.includes('replaced')
           ? 'Abandonment / Replacement'
-          : event.eventType.includes('challenge') || event.eventType.includes('contradiction')
+          : eventType.includes('challenge') || eventType.includes('contradiction')
             ? 'Challenge'
-            : event.eventType.includes('created')
+            : eventType.includes('created')
               ? 'Origin'
               : 'Meaningful Change';
   const trigger = event.userReason || event.aiReason || event.systemReason || event.metadata?.reason || `${event.sourceType} recorded ${eventText}`;
@@ -220,7 +305,7 @@ function eventEvidenceQuality(event: DisplayEvent) {
 }
 
 function targetTypeMatches(event: DisplayEvent, types: string[]) {
-  const target = event.targetType.toLowerCase();
+  const target = String(event.targetType || '').toLowerCase();
   return types.some((type) => target === type || target.includes(type));
 }
 
@@ -253,61 +338,62 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
   const [scrubberDate, setScrubberDate] = useState(() => dateInputValue(new Date().toISOString()));
 
   const displayEvents = useMemo<DisplayEvent[]>(() => {
-    const fromThinking = thinkingEvents.map((event) => ({
-      id: event.eventId,
+    const fromThinking = thinkingEvents.filter(isNotableThinkingEvent).map((event) => ({
+      id: event.eventId || event.id,
       kind: 'thinking' as const,
-      targetId: event.targetId,
-      targetType: event.targetType,
-      title: event.summary,
-      detail: typeof event.metadata === 'object' && event.metadata ? JSON.stringify(event.metadata) : `${event.targetType} · ${event.sourceType}`,
-      date: event.createdAt,
-      filter: mapThinkingEventToFilter(event.eventType),
-      chips: [event.actionType?.replace(/_/g, ' ') || event.eventType.replace(/_/g, ' '), event.sourceType, event.targetType],
+      targetId: event.targetId || event.entityId,
+      targetType: String(event.targetType || event.entityType || 'evolution'),
+      title: event.summary || 'Recorded intellectual milestone',
+      detail: safeEventDetail(event.metadata, `${event.targetType || event.entityType} · ${event.sourceType || event.origin || 'system'}`),
+      date: normalizedEvolutionDate(event.createdAt || event.updatedAt) || '',
+      filter: mapThinkingEventToFilter(event.eventType || event.actionType || 'revised'),
+      chips: [String(event.actionType || event.eventType || 'revised').replace(/_/g, ' '), event.sourceType || event.origin || 'system', String(event.targetType || event.entityType || 'evolution')],
       importance: event.importance,
       changedFields: event.changedFields,
       ...thinkingEventMeaning(event),
-    }));
+    })).filter((event) => Boolean(event.date));
 
-    const fromTimeline = events.map((event) => ({
+    const useLegacyFallback = fromThinking.length === 0;
+    const fromTimeline = useLegacyFallback ? events.filter(isNotableTimelineEvent).map((event) => ({
       id: event.id,
       kind: 'timeline' as const,
       targetId: event.entityId,
-      targetType: event.entityType,
-      title: event.entityTitle,
-      detail: event.reason,
-      date: event.date,
+      targetType: event.entityType || 'evolution',
+      title: event.entityTitle || 'Recorded milestone',
+      detail: event.reason || 'Legacy intellectual milestone.',
+      date: normalizedEvolutionDate(event.date) || '',
       filter: 'all' as const,
       chips: [event.eventType, event.entityType],
       sourceIds: event.influencedBy,
-    }));
+    })).filter((event) => Boolean(event.date)) : [];
 
-    const fromUnknowns = unknowns.map((item) => ({
+    const fromUnknowns = useLegacyFallback ? unknowns.filter((item) => item.status === 'resolved').map((item) => ({
       id: item.unknownId,
       kind: 'unknown' as const,
       targetId: item.unknownId,
       targetType: 'unknown',
       title: item.title,
       detail: item.resolutionSummary || item.description || 'Unknown recorded in the system.',
-      date: item.resolvedAt || item.dateUpdated || item.dateCreated,
+      date: normalizedEvolutionDate(item.resolvedAt || item.dateUpdated || item.dateCreated) || '',
       filter: 'unknowns' as const,
       chips: [item.status, item.importance, item.createdFrom],
       sourceIds: item.sourceIds,
-    }));
+    })).filter((event) => Boolean(event.date)) : [];
 
-    const fromPatterns = thinkingPatterns.map((pattern) => ({
+    const fromPatterns = useLegacyFallback ? thinkingPatterns.filter((pattern) => pattern.status === 'acknowledged').map((pattern) => ({
       id: pattern.patternId,
       kind: 'pattern' as const,
       targetId: pattern.patternId,
       targetType: 'thinking_pattern',
       title: pattern.label,
       detail: pattern.description,
-      date: pattern.dateUpdated || pattern.dateCreated,
+      date: normalizedEvolutionDate(pattern.dateUpdated || pattern.dateCreated) || '',
       filter: 'patterns' as const,
-      chips: [pattern.patternType.replace(/_/g, ' '), pattern.status, pattern.trendDirection],
-    }));
+      chips: [String(pattern.patternType || 'pattern').replace(/_/g, ' '), pattern.status, pattern.trendDirection],
+    })).filter((event) => Boolean(event.date)) : [];
 
     return [...fromThinking, ...fromTimeline, ...fromUnknowns, ...fromPatterns].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a, b) => eventTime(b.date) - eventTime(a.date)
     );
   }, [events, thinkingEvents, thinkingPatterns, unknowns]);
 

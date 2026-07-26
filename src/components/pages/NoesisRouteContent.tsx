@@ -151,7 +151,7 @@ export interface NoesisRouteContentProps {
   deleteAtlasMap: (id: string) => void;
   addVaultEntry: (data: Partial<VaultEntry>) => VaultEntry | void;
   updateVaultEntry: (entry: VaultEntry) => void;
-  deleteVaultEntry: (id: string) => void;
+  deleteVaultEntry: (id: string) => Promise<void>;
   addDraft: (data: Partial<Draft>) => Draft | void;
   updateDraft: (draft: Draft) => void;
   markDraftOpened: (draft: Draft) => void | Promise<void>;

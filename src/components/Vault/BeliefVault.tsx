@@ -44,7 +44,7 @@ interface BeliefVaultProps {
   suggestions: AiSuggestion[];
   onAddEntry: (data: Partial<VaultEntry>) => void;
   onUpdateEntry: (entry: VaultEntry) => void;
-  onDeleteEntry: (id: string) => void;
+  onDeleteEntry: (id: string) => Promise<void>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
@@ -2204,11 +2204,21 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
         description={`This removes "${deleteTarget?.title || 'this position'}" from Positions. Related sources, works, practices, and Evolution history will remain.`}
         confirmLabel="Delete Position"
         destructive
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteTarget) return;
-          if (selectedId === deleteTarget.id) closeEntry();
-          onDeleteEntry(deleteTarget.id);
+          const target = deleteTarget;
           setDeleteTarget(null);
+          try {
+            await onDeleteEntry(target.id);
+            if (selectedId === target.id) closeEntry();
+            toast({ title: 'Position deleted.' });
+          } catch (error) {
+            toast({
+              variant: 'destructive',
+              title: 'Position could not be deleted',
+              description: noesisUserError(error, 'delete this position'),
+            });
+          }
         }}
       />
     </div>

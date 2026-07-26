@@ -603,6 +603,24 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       </nav>
 
       <div className={cn("shrink-0 border-t border-sidebar-border bg-transparent", collapsed && !isMobile ? "p-3 text-center" : "p-4")}>
+        <button
+          type="button"
+          onClick={() => setCommandOpen(true)}
+          className={cn(
+            "mb-2 flex w-full items-center rounded-xl border border-white/10 bg-white/[0.04] text-sidebar-foreground/55 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white",
+            collapsed && !isMobile ? "justify-center p-2.5" : "gap-2 px-3 py-2"
+          )}
+          aria-label="Open command palette"
+          title="Open command palette (Ctrl K)"
+        >
+          <Command className="size-4 shrink-0" />
+          {(!collapsed || isMobile) && (
+            <>
+              <span className="flex-1 text-left font-code text-[8px] uppercase tracking-[0.14em]">Commands</span>
+              <span className="font-code text-[8px] uppercase tracking-[0.12em] text-sidebar-foreground/30">Ctrl K</span>
+            </>
+          )}
+        </button>
         <span className="text-[9px] font-code text-sidebar-foreground/20">v1.3.0 cloud</span>
       </div>
     </>
@@ -656,15 +674,6 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         )}
 
         <main className="noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-16 pt-14 md:pb-0 md:pt-0" aria-busy={Boolean(pendingPath)}>
-          <button
-            type="button"
-            onClick={() => setCommandOpen(true)}
-            className="absolute right-5 top-5 z-10 hidden items-center gap-2 rounded-full border border-border/60 bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur transition-colors hover:text-foreground lg:flex"
-            aria-label="Open command palette"
-          >
-            <Command className="size-3.5" />
-            <span className="font-code text-[9px] uppercase tracking-[0.16em]">Ctrl K</span>
-          </button>
           {children}
           {isMobile && (
             <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-2 py-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur md:hidden" aria-label="Primary mobile navigation">

@@ -18,7 +18,7 @@ export interface LibraryRoutePageProps {
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
-  onDeleteVaultEntry: (id: string) => void;
+  onDeleteVaultEntry: (id: string) => Promise<void>;
   onNavigate: (view: NoesisView, options?: { sourceId?: string | null }) => void;
 }
 
