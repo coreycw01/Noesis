@@ -15,11 +15,11 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const resolvedDocRef = useRef<DocumentReference<T> | null>(null);
+  const resolvedDocPathRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!docRef) {
-      resolvedDocRef.current = null;
+      resolvedDocPathRef.current = null;
       setData(null);
       setError(null);
       setLoading(false);
@@ -34,7 +34,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
       docRef,
       (snapshot: DocumentSnapshot<T>) => {
         if (!active) return;
-        resolvedDocRef.current = docRef;
+        resolvedDocPathRef.current = docRef.path;
         setData(snapshot.exists() ? { ...snapshot.data()!, id: snapshot.id } : null);
         setLoading(false);
       },
@@ -47,7 +47,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
           });
           errorEmitter.emit('permission-error', permissionError);
         }
-        resolvedDocRef.current = docRef;
+        resolvedDocPathRef.current = docRef.path;
         setError(err);
         setLoading(false);
       }
@@ -59,7 +59,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
     };
   }, [docRef]);
 
-  const hasResolvedCurrentDoc = !docRef || resolvedDocRef.current === docRef;
+  const hasResolvedCurrentDoc = !docRef || resolvedDocPathRef.current === docRef.path;
   return {
     data: hasResolvedCurrentDoc ? data : null,
     loading: docRef && !hasResolvedCurrentDoc ? true : loading,
