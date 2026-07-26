@@ -499,21 +499,22 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       <div className={cn("shrink-0 border-b border-sidebar-border", collapsed && !isMobile ? "p-3" : "p-5")}>
         <div className={cn("mb-2 flex", collapsed && !isMobile ? "flex-col items-center gap-3" : "items-start gap-3")}>
           <div className={cn("flex items-center", collapsed && !isMobile ? "justify-center" : "gap-3")}>
-            <div className="relative size-8 overflow-hidden rounded-lg border border-white/10 bg-white/[0.05] shrink-0">
+            <div className="relative size-11 shrink-0 overflow-hidden rounded-xl bg-[#f6f0df] shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_6px_18px_rgba(0,0,0,0.22)]">
               {logoData && (
                 <Image
                   src={logoData.imageUrl}
                   alt={logoData.description}
-                  width={32}
-                  height={32}
-                  className="object-cover"
+                  width={44}
+                  height={44}
+                  className="size-full object-contain"
                   data-ai-hint={logoData.imageHint}
+                  priority
                 />
               )}
             </div>
             {(!collapsed || isMobile) && (
               <div>
-                <span className="text-[22px] font-headline font-bold text-white tracking-tight">Noesis<span className="text-accent">.</span></span>
+                <span className="text-[25px] font-headline font-bold text-white tracking-tight">Noesis<span className="text-accent">.</span></span>
                 <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/35 font-medium">Turn thought into understanding.</p>
               </div>
             )}

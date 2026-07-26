@@ -145,15 +145,16 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
       <section className="relative hidden lg:flex flex-col justify-between border-r border-border bg-sidebar p-12 text-sidebar-foreground">
         <div>
           <div className="flex items-center gap-4">
-            <div className="relative size-12 overflow-hidden rounded-xl border border-white/10 bg-white/[0.05]">
+            <div className="relative size-14 overflow-hidden rounded-2xl bg-[#f6f0df] shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)]">
               {logoData && (
                 <Image
                   src={logoData.imageUrl}
                   alt={logoData.description}
-                  width={48}
-                  height={48}
-                  className="object-cover"
+                  width={56}
+                  height={56}
+                  className="size-full object-contain"
                   data-ai-hint={logoData.imageHint}
+                  priority
                 />
               )}
             </div>
@@ -184,15 +185,16 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
         <div className="w-full max-w-md">
           <div className="mb-10 lg:hidden">
             <div className="flex items-center gap-4 mb-6">
-              <div className="relative size-10 overflow-hidden rounded-lg bg-accent/10">
+              <div className="relative size-12 overflow-hidden rounded-xl bg-[#f6f0df] shadow-sm">
                 {logoData && (
                   <Image
                     src={logoData.imageUrl}
                     alt={logoData.description}
-                    width={40}
-                    height={40}
-                    className="object-cover"
+                    width={48}
+                    height={48}
+                    className="size-full object-contain"
                     data-ai-hint={logoData.imageHint}
+                    priority
                   />
                 )}
               </div>
