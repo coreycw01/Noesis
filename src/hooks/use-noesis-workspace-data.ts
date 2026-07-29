@@ -114,6 +114,12 @@ export function useNoesisWorkspaceData({
       : query(refs.thinkingEvents as any, orderBy('createdAt', 'desc'), limit(200)),
     [isOfflineReviewPreview, needsThinkingEvents, refs.thinkingEvents]
   );
+  const thinkingMetricsRef = useMemo(
+    () => isOfflineReviewPreview || !needsThinkingMetrics
+      ? null
+      : doc(refs.thinkingMetrics, 'summary') as any,
+    [isOfflineReviewPreview, needsThinkingMetrics, refs.thinkingMetrics]
+  );
 
   const { data: mediaLive = [], loading: mediaLoadingLive, error: mediaErrorLive } = useCollection<Media>(isOfflineReviewPreview || !needsMedia ? null : refs.media as any);
   const { data: vaultLive = [], loading: vaultLoadingLive, error: vaultErrorLive } = useCollection<VaultEntry>(isOfflineReviewPreview || !needsVault ? null : refs.vault as any);
@@ -130,7 +136,7 @@ export function useNoesisWorkspaceData({
   const { data: beliefProfilesLive = [], loading: beliefProfilesLoadingLive } = useCollection<BeliefProfile>(isOfflineReviewPreview || !needsBeliefProfiles ? null : refs.beliefProfiles as any);
   const { data: unknownsLive = [], loading: unknownsLoadingLive } = useCollection<Unknown>(isOfflineReviewPreview || !needsUnknowns ? null : refs.unknowns as any);
   const { data: thinkingPatternsLive = [], loading: thinkingPatternsLoadingLive } = useCollection<ThinkingPattern>(isOfflineReviewPreview || !needsThinkingPatterns ? null : refs.thinkingPatterns as any);
-  const { data: thinkingMetricsDocLive, loading: thinkingMetricsLoadingLive } = useDoc<ThinkingMetrics>(isOfflineReviewPreview || !needsThinkingMetrics ? null : doc(refs.thinkingMetrics, 'summary') as any);
+  const { data: thinkingMetricsDocLive, loading: thinkingMetricsLoadingLive } = useDoc<ThinkingMetrics>(thinkingMetricsRef);
   const { data: goalDocLive, loading: goalLoadingLive } = useDoc<GoalSettings>(isOfflineReviewPreview || !needsGoalDoc ? null : refs.settingsGoal as any);
   const { data: legacyPreferencesDocLive, loading: preferencesLoadingLive } = useDoc<UserPreferences>(isOfflineReviewPreview || !needsPreferencesDoc ? null : refs.settingsPreferences as any);
   const { data: legacyProfileDocLive, loading: legacyProfileLoadingLive } = useDoc<UserProfile>(isOfflineReviewPreview || !needsLegacyProfileDoc ? null : refs.legacySettingsProfile as any);

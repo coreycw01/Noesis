@@ -16,9 +16,13 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const resolvedDocPathRef = useRef<string | null>(null);
+  const latestDocRef = useRef(docRef);
+  latestDocRef.current = docRef;
+  const docPath = docRef?.path ?? null;
 
   useEffect(() => {
-    if (!docRef) {
+    const subscribedDocRef = latestDocRef.current;
+    if (!subscribedDocRef) {
       resolvedDocPathRef.current = null;
       setData(null);
       setError(null);
@@ -31,10 +35,10 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
     setError(null);
     setLoading(true);
     const unsubscribe = onSnapshot(
-      docRef,
+      subscribedDocRef,
       (snapshot: DocumentSnapshot<T>) => {
         if (!active) return;
-        resolvedDocPathRef.current = docRef.path;
+        resolvedDocPathRef.current = subscribedDocRef.path;
         setData(snapshot.exists() ? { ...snapshot.data()!, id: snapshot.id } : null);
         setLoading(false);
       },
@@ -42,12 +46,12 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
         if (!active) return;
         if ((err as { code?: string }).code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
-            path: docRef.path,
+            path: subscribedDocRef.path,
             operation: 'get',
           });
           errorEmitter.emit('permission-error', permissionError);
         }
-        resolvedDocPathRef.current = docRef.path;
+        resolvedDocPathRef.current = subscribedDocRef.path;
         setError(err);
         setLoading(false);
       }
@@ -57,9 +61,9 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
       active = false;
       unsubscribe();
     };
-  }, [docRef]);
+  }, [docPath]);
 
-  const hasResolvedCurrentDoc = !docRef || resolvedDocPathRef.current === docRef.path;
+  const hasResolvedCurrentDoc = !docPath || resolvedDocPathRef.current === docPath;
   return {
     data: hasResolvedCurrentDoc ? data : null,
     loading: docRef && !hasResolvedCurrentDoc ? true : loading,
