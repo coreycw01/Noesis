@@ -1,7 +1,7 @@
 "use client";
 
 import { AnnotationsIndex } from '@/components/Library/AnnotationsIndex';
-import type { Annotation, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
+import type { AiSettings, Annotation, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface AnnotationsRoutePageProps {
@@ -20,6 +20,7 @@ export interface AnnotationsRoutePageProps {
     sourceId?: string | null;
     positionId?: string | null;
   }) => void;
+  aiSettings?: AiSettings;
 }
 
 export function AnnotationsRoutePage({
@@ -34,6 +35,7 @@ export function AnnotationsRoutePage({
   onAddConcept,
   onCreateLink,
   onNavigate,
+  aiSettings,
 }: AnnotationsRoutePageProps) {
   return (
     <AnnotationsIndex
@@ -55,6 +57,7 @@ export function AnnotationsRoutePage({
           sourceId: nextView === 'library' ? targetId : null,
         });
       }}
+      aiSettings={aiSettings}
     />
   );
 }

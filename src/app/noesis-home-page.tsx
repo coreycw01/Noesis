@@ -20,6 +20,7 @@ import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appear
 import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
+  DEFAULT_AI_SETTINGS,
   DEFAULT_APPEARANCE_SETTINGS,
   DEFAULT_ATLAS_NODE_SETTINGS,
   DEFAULT_ATLAS_SETTINGS,
@@ -45,6 +46,7 @@ import {
 import { buildDemoWorkspace, buildReviewExport, REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS, REVIEW_WORKSPACE_UID } from '@/lib/demo-workspace';
 import type {
   AccountSettings,
+  AiSettings,
   Annotation,
   AppearanceSettings,
   AtlasMap,
@@ -220,6 +222,7 @@ function ReadexWorkspace({
     settingsAccountDoc,
     settingsAppearanceDoc,
     settingsWorkspacePrefsDoc,
+    settingsAiDoc,
     settingsMetacognitionDoc,
     settingsPrivacyDoc,
     settingsDataDoc,
@@ -310,6 +313,10 @@ function ReadexWorkspace({
     connectedLoginMethods: user?.providerData?.map((provider) => provider.providerId).filter(Boolean) || [],
     accountCreatedAt: user?.metadata?.creationTime || DEFAULT_ACCOUNT_SETTINGS.accountCreatedAt,
     ...(settingsAccountDoc || {}),
+  };
+  const aiSettings: AiSettings = {
+    ...DEFAULT_AI_SETTINGS,
+    ...(settingsAiDoc || {}),
   };
   const metacognitionSettings: MetacognitionSettings = {
     ...DEFAULT_METACOGNITION_SETTINGS,
@@ -466,6 +473,7 @@ function ReadexWorkspace({
         await setDefaultIfMissing(refs.settingsWorkspace, DEFAULT_WORKSPACE_SETTINGS);
         await setDefaultIfMissing(refs.settingsAccount, DEFAULT_ACCOUNT_SETTINGS);
         await setDefaultIfMissing(refs.settingsAppearance, DEFAULT_APPEARANCE_SETTINGS);
+        await setDefaultIfMissing(refs.settingsAi, DEFAULT_AI_SETTINGS);
         await setDefaultIfMissing(refs.settingsMetacognition, DEFAULT_METACOGNITION_SETTINGS);
         await setDefaultIfMissing(refs.settingsPrivacy, DEFAULT_PRIVACY_SETTINGS);
         await setDefaultIfMissing(refs.settingsData, DEFAULT_DATA_SETTINGS);
@@ -907,6 +915,26 @@ function ReadexWorkspace({
       },
     }).catch(() => emitError(refs.thinkingEvents.path, 'create', event));
   };
+
+  useEffect(() => {
+    const recordAcceptedAssistance = (event: Event) => {
+      const detail = (event as CustomEvent<{ action?: string; targetType?: string; targetId?: string; content?: string }>).detail;
+      if (!detail?.action || !detail.targetType || !detail.targetId) return;
+      createThinkingEvent({
+        eventType: 'edited',
+        entityType: detail.targetType === 'evolution' ? 'evolution' : detail.targetType as WriteThinkingEventInput['entityType'],
+        entityId: detail.targetId,
+        origin: 'ai-assisted',
+        summary: `Reviewed contextual assistance: ${detail.action.replace(/_/g, ' ')}`,
+        after: { reviewedText: detail.content || '' },
+        aiReason: 'Generated from bounded item-level context and explicitly accepted by the user.',
+        importance: 'medium',
+        metadata: { contextualAiAction: detail.action, acceptedAfterReview: true },
+      });
+    };
+    window.addEventListener('noesis:ai-assisted-accepted', recordAcceptedAssistance);
+    return () => window.removeEventListener('noesis:ai-assisted-accepted', recordAcceptedAssistance);
+  }, [effectiveUid, metacognitionEnabled]);
 
   const refreshBeliefProfile = (entry: VaultEntry, patch?: Partial<BeliefProfile>) => {
     if (!metacognitionEnabled || !featureFlags.beliefBiographiesEnabled) return;
@@ -2600,7 +2628,7 @@ function ReadexWorkspace({
     });
   };
 
-  const saveSettingsSection = async (section: 'account' | 'appearance' | 'workspace' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer', value: any) => {
+  const saveSettingsSection = async (section: 'account' | 'appearance' | 'workspace' | 'ai' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer', value: any) => {
     const stamped = { ...value, dateUpdated: today() };
     switch (section) {
       case 'account':
@@ -2617,6 +2645,9 @@ function ReadexWorkspace({
         break;
       case 'workspace':
         await saveWorkspaceDoc(refs.settingsWorkspace as any, stamped);
+        break;
+      case 'ai':
+        await saveWorkspaceDoc(refs.settingsAi as any, stamped);
         break;
       case 'metacognition':
         await saveWorkspaceDoc(refs.settingsMetacognition as any, stamped);
@@ -2782,6 +2813,7 @@ function ReadexWorkspace({
         accountSettings={accountSettings}
         appearanceSettings={appearanceSettings}
         workspacePreferences={workspacePreferences}
+        aiSettings={aiSettings}
         metacognitionSettings={metacognitionSettings}
         privacySettings={privacySettings}
         dataSettings={dataSettings}

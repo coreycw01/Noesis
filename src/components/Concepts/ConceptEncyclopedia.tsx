@@ -23,6 +23,9 @@ import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import type { ContextualAiAction } from '@/lib/contextual-ai';
+import type { AiSettings } from '@/lib/types';
 
 interface ConceptEncyclopediaProps {
   concepts: Concept[];
@@ -40,6 +43,7 @@ interface ConceptEncyclopediaProps {
   onCreateLink?: (data: Partial<PhilosophicalLink>, options?: { creationMethod?: string }) => void;
   focusedConceptId?: string | null;
   onOpenConceptRoute?: (id: string | null) => void;
+  aiSettings?: AiSettings;
 }
 
 type ConceptListView = 'all' | 'recent' | 'needs_attention' | 'connected' | 'undefined' | 'contested' | 'duplicates' | 'transformed' | 'neglected';
@@ -223,7 +227,7 @@ function conceptMaturityScore({
 }
 
 export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
-  const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept, onDeleteConcept, onCreateIdea, onCreateLink, focusedConceptId, onOpenConceptRoute } = props;
+  const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept, onDeleteConcept, onCreateIdea, onCreateLink, focusedConceptId, onOpenConceptRoute, aiSettings } = props;
   const [search, setSearch] = useState('');
   const [listView, setListView] = useState<ConceptListView>('all');
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -701,6 +705,25 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           <div className="flex gap-2">
             {concept && (
               <>
+                <ContextualAiPanel
+                  actions={['refine_concept_definition', 'clarify_concept_boundaries']}
+                  enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
+                  showContextBeforeSending={aiSettings?.showContextBeforeSending}
+                  reasoningDepth={aiSettings?.defaultReasoningDepth}
+                  retainAcceptedProvenance={aiSettings?.retainAcceptedAiProvenance}
+                  buildEnvelope={(action: ContextualAiAction) => ({
+                    action,
+                    targetType: 'concept',
+                    targetId: concept.id,
+                    scope: 'linked_items',
+                    itemMemory: [`Concept: ${concept.name}`, `Working definition: ${concept.description || 'Not defined.'}`],
+                    linkedMemory: [
+                      ...r.annotations.slice(0, 8).map((item) => `Annotation: ${item.text}`),
+                      ...r.beliefs.slice(0, 6).map((item) => `Position: ${item.statement || item.title}`),
+                    ],
+                  })}
+                  onAccept={(_, content) => onUpdateConcept({ ...concept, description: content })}
+                />
                 <Button variant="outline" size="sm" onClick={() => openEditor(concept)} className="h-8 bg-card border-border/60 shadow-sm rounded-full">
                   <Edit className="size-4 mr-2" /> Edit
                 </Button>

@@ -1,6 +1,7 @@
 import { collection, doc, type Firestore } from 'firebase/firestore';
 import type {
   AccountSettings,
+  AiSettings,
   AppearanceSettings,
   AtlasSettings,
   AtlasViewSettings,
@@ -54,6 +55,7 @@ export const READEX_SETTINGS_DOCS = {
   workspaceSummary: 'workspaceSummary',
   account: 'account',
   appearance: 'appearance',
+  ai: 'ai',
   metacognition: 'metacognition',
   privacy: 'privacy',
   data: 'data',
@@ -268,6 +270,13 @@ export const DEFAULT_WORKSPACE_PREFERENCES: WorkspacePreferenceSettings = {
   enableReviewPromptsAfterMajorEdits: true,
 };
 
+export const DEFAULT_AI_SETTINGS: AiSettings = {
+  aiAssistanceEnabled: false,
+  showContextBeforeSending: true,
+  defaultReasoningDepth: 'standard',
+  retainAcceptedAiProvenance: true,
+};
+
 export const DEFAULT_METACOGNITION_SETTINGS: MetacognitionSettings = {
   enableMetacognitionFeatures: false,
   enableThinkingEventsLogging: false,
@@ -429,6 +438,7 @@ export function readexRefs(db: Firestore, uid: string) {
     settingsWorkspaceSummary: settingsDoc('workspaceSummary'),
     settingsAccount: settingsDoc('account'),
     settingsAppearance: settingsDoc('appearance'),
+    settingsAi: settingsDoc('ai'),
     settingsMetacognition: settingsDoc('metacognition'),
     settingsPrivacy: settingsDoc('privacy'),
     settingsData: settingsDoc('data'),
@@ -483,6 +493,7 @@ export function readexSchemaDoc(uid: string) {
       workspace: `${userPath(uid)}/settings/workspace`,
       account: `${userPath(uid)}/settings/account`,
       appearance: `${userPath(uid)}/settings/appearance`,
+      ai: `${userPath(uid)}/settings/ai`,
       metacognition: `${userPath(uid)}/settings/metacognition`,
       privacy: `${userPath(uid)}/settings/privacy`,
       data: `${userPath(uid)}/settings/data`,

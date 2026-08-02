@@ -15,7 +15,7 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import type { Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink, ReadingSession } from '@/lib/types';
+import type { AiSettings, Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink, ReadingSession } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, today, uid, conceptKey, conceptRelated } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -27,6 +27,8 @@ import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import type { ContextualAiAction } from '@/lib/contextual-ai';
 
 interface MediaLibraryProps {
   media: Media[];
@@ -45,6 +47,7 @@ interface MediaLibraryProps {
   focusedSourceId?: string | null;
   onFocusedSourceHandled?: () => void;
   onOpenSourceRoute?: (id: string | null) => void;
+  aiSettings?: AiSettings;
 }
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
@@ -142,6 +145,7 @@ export function MediaLibrary({
   focusedSourceId,
   onFocusedSourceHandled,
   onOpenSourceRoute,
+  aiSettings,
 }: MediaLibraryProps) {
   const [filter, setFilter] = useState<MediaType | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<MediaStatus | 'active' | 'all'>('all');
@@ -437,6 +441,34 @@ export function MediaLibrary({
             </span>
           </div>
           <div className="flex items-center gap-3">
+            <ContextualAiPanel
+              actions={['summarize_source', 'extract_source_claims', 'propose_inquiry_prompts']}
+              enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
+              showContextBeforeSending={aiSettings?.showContextBeforeSending}
+              reasoningDepth={aiSettings?.defaultReasoningDepth}
+              retainAcceptedProvenance={aiSettings?.retainAcceptedAiProvenance}
+              buildEnvelope={(action: ContextualAiAction) => ({
+                action,
+                targetType: 'source',
+                targetId: selected.id,
+                scope: 'linked_items',
+                itemMemory: [
+                  `Source: ${selected.title}${selected.creator ? ` by ${selected.creator}` : ''}`,
+                  `Description: ${selected.description || 'None.'}`,
+                  `Capture: ${selected.capture?.after?.coreArgument || selected.capture?.after?.lasting || 'No completed reflection.'}`,
+                  ...(selected.annotations || []).slice(0, 10).map((annotation) => `${annotation.type}: ${annotation.text}`),
+                ],
+                linkedMemory: [
+                  ...vault.filter((entry) => (entry.sourceIds || []).includes(selected.id)).slice(0, 6).map((entry) => `Position: ${entry.statement || entry.title}`),
+                  ...questions.filter((question) => (question.sourceIds || []).includes(selected.id)).slice(0, 6).map((question) => `Inquiry: ${question.text}`),
+                ],
+              })}
+              onAccept={(result, content) => {
+                if (result.action === 'summarize_source') updateSelected({ description: content });
+                else if (result.action === 'extract_source_claims') onCreateIdea({ title: `Claims from ${selected.title}`, body: content, tags: selected.tags || [], sourceIds: [selected.id] });
+                else updateSelected({ annotations: [{ id: uid(), type: 'question', text: content, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'questioned' }, ...(selected.annotations || [])] });
+              }}
+            />
             <Select value={selected.status} onValueChange={(value) => updateSelected({ status: value as MediaStatus })}>
               <SelectTrigger className="w-44 font-code text-[10px] uppercase h-9 bg-card shadow-sm border-border/60 rounded-full"><SelectValue /></SelectTrigger>
               <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{status}</SelectItem>)}</SelectContent>

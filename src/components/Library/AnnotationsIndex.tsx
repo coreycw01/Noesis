@@ -17,13 +17,14 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import type { Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
+import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 
 interface AnnotationsIndexProps {
   media: Media[];
@@ -38,6 +39,7 @@ interface AnnotationsIndexProps {
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onNavigate?: (view: string, targetId?: string) => void;
+  aiSettings?: AiSettings;
 }
 
 type FlatAnnotation = Annotation & { source: Media };
@@ -111,6 +113,7 @@ export function AnnotationsIndex({
   onAddConcept,
   onCreateLink,
   onNavigate,
+  aiSettings,
 }: AnnotationsIndexProps) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<AnnotationFilter>('all');
@@ -971,6 +974,23 @@ export function AnnotationsIndex({
                     <Badge variant="secondary" className="rounded-full bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">{annotationLabel(annotationStatus(editing))}</Badge>
                   </div>
                   <div className="flex items-center gap-1">
+                    <ContextualAiPanel
+                      actions={['suggest_annotation_effect']}
+                      enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
+                      showContextBeforeSending={aiSettings?.showContextBeforeSending}
+                      reasoningDepth={aiSettings?.defaultReasoningDepth}
+                      retainAcceptedProvenance={aiSettings?.retainAcceptedAiProvenance}
+                      buttonLabel="Suggest Effect"
+                      buildEnvelope={(action) => ({
+                        action,
+                        targetType: 'annotation',
+                        targetId: `${editing.source.id}:${editing.id}`,
+                        scope: 'linked_items',
+                        itemMemory: [`Annotation: ${editing.text}`, `Type: ${editing.type}`, `Source: ${editing.source.title}`, editing.context ? `Context: ${editing.context}` : 'No surrounding context supplied.'],
+                        linkedMemory: [...(editing.conceptTags || []).map((tag) => `Concept: ${tag}`), ...(editing.linkedPositionIds || []).map((id) => `Linked position ID: ${id}`)],
+                      })}
+                      onAccept={(_, content) => onUpdateAnnotation(editing.source.id, { ...editing, answer: content, philosophyStatus: 'reviewed' })}
+                    />
                     <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => previewSource(editing.source, editing)} title="Open source">
                       <ExternalLink className="size-3.5" />
                     </Button>

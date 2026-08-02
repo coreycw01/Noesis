@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { noesisGuide } from '@/lib/noesis-guide';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
+import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import {
   MEDIA_LABELS,
   WRITING_STYLE_LABELS,
@@ -23,6 +24,7 @@ import {
 } from '@/lib/readex';
 import type {
   AccountSettings,
+  AiSettings,
   AppearanceSettings,
   AtlasSettings,
   DataSettings,
@@ -42,6 +44,7 @@ type SettingsState = {
   account: AccountSettings;
   appearance: AppearanceSettings;
   workspace: WorkspacePreferenceSettings;
+  ai: AiSettings;
   metacognition: MetacognitionSettings;
   privacy: PrivacySettings;
   data: DataSettings;
@@ -100,7 +103,7 @@ const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: 
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
   { id: 'appearance', label: 'Appearance', description: 'Theme, typography, interface scale, contrast, and motion.' },
   { id: 'works', label: 'Work Defaults', description: 'Starting type, status, paper, and editor feel for new Works.' },
-  { id: 'ai', label: 'Reflection', description: 'Event-backed intellectual history and metacognition controls.' },
+  { id: 'ai', label: 'AI Assistance', description: 'Manual, bounded assistance and context privacy.' },
   { id: 'data', label: 'Data', description: 'Workspace export and demo refresh tools.' },
 ];
 
@@ -111,7 +114,7 @@ const PANEL_SECTION_MAP: Record<SettingsPanelId, SettingsSectionKey[]> = {
   capture: ['sourceIntake', 'workspace'],
   works: ['works'],
   notifications: ['notifications', 'goals'],
-  ai: ['metacognition'],
+  ai: ['ai'],
   experimental: ['metacognition', 'atlas'],
   data: [],
   integrations: ['works', 'sourceIntake', 'data'],
@@ -152,9 +155,9 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
     limitations: ['Notifications should not fire unless they can identify the associated source, position, inquiry, practice, or unknown.'],
   },
   ai: {
-    current: 'Controls deterministic reflection features built from recorded thinking events.',
-    affects: ['Thinking event visibility', 'Belief biographies', 'Unknowns tracking', 'Reflective metrics'],
-    limitations: ['These observations depend on recorded activity and should remain provisional.'],
+    current: 'Controls manual item-level assistance and shows exactly what context is sent.',
+    affects: ['Assistance availability', 'Context preview', 'Reasoning depth', 'Accepted-output provenance'],
+    limitations: ['Assistance never runs automatically and cannot change user-authored objects without review.'],
   },
   experimental: {
     current: 'Turns reflective systems on or off behind feature gates so unstable intelligence never masquerades as truth.',
@@ -205,6 +208,18 @@ export function SettingsPage({
   const [saving, setSaving] = useState<SettingsSectionKey | 'reset' | 'refresh-demo' | null>(null);
   const [lastSaved, setLastSaved] = useState<SettingsSectionKey | null>(null);
   const [activePanel, setActivePanel] = useState<SettingsPanelId>('account');
+  const [aiConnection, setAiConnection] = useState<'idle' | 'checking' | 'configured' | 'not_configured' | 'unavailable'>('idle');
+
+  const checkAiConnection = async () => {
+    setAiConnection('checking');
+    try {
+      const response = await authenticatedFetch('/api/contextual-ai');
+      const data = await response.json().catch(() => ({}));
+      setAiConnection(response.ok && data.configured ? 'configured' : response.ok ? 'not_configured' : 'unavailable');
+    } catch {
+      setAiConnection('unavailable');
+    }
+  };
 
   const settingsSignature = JSON.stringify(settings);
   useEffect(() => setDrafts(settings), [settingsSignature]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -742,16 +757,37 @@ export function SettingsPage({
       case 'ai':
         return (
           <div className="space-y-6">
-            <SettingsCard title="Reflection History" description="Control the event-backed history used by Evolution, belief biographies, and reflective metrics.">
+            <SettingsCard title="Contextual AI Assistance" description="Enable specific, manually invoked tools on approved detail pages only.">
               <div className="grid gap-3">
-                <SwitchRow label="Record meaningful thinking changes" checked={drafts.metacognition.enableMetacognitionFeatures} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableMetacognitionFeatures: checked } }))} />
-                <SwitchRow label="Enable belief biographies" checked={drafts.metacognition.enableBeliefBiographies} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableBeliefBiographies: checked } }))} />
-                <SwitchRow label="Compute reflective metrics" checked={drafts.metacognition.enableCognitionMetrics} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableCognitionMetrics: checked } }))} />
+                <SwitchRow label="Enable contextual assistance" checked={drafts.ai.aiAssistanceEnabled} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, aiAssistanceEnabled: checked } }))} />
+                <SwitchRow label="Show context before sending" checked={drafts.ai.showContextBeforeSending} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, showContextBeforeSending: checked } }))} />
+                <SwitchRow label="Retain provenance on accepted text" checked={drafts.ai.retainAcceptedAiProvenance} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, retainAcceptedAiProvenance: checked } }))} />
+                <Field label="Reasoning depth">
+                  <Select value={drafts.ai.defaultReasoningDepth} onValueChange={(value) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, defaultReasoningDepth: value as AiSettings['defaultReasoningDepth'] } }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="standard">Standard</SelectItem>
+                      <SelectItem value="deep">Deep</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
               <div className="mt-4 rounded-xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
-                Reflection is derived from recorded changes. It does not generate or rewrite your ideas.
+                Context is limited to the current item and directly linked records. Keys, billing details, and raw provider errors are never shown here.
               </div>
-              <SaveBar onSave={() => saveSection('metacognition')} saving={saving === 'metacognition'} dirty={JSON.stringify(drafts.metacognition) !== JSON.stringify(settings.metacognition)} saved={lastSaved === 'metacognition'} />
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background/60 p-4">
+                <div>
+                  <div className="text-sm font-medium text-foreground">Connection status</div>
+                  <div className="text-xs text-muted-foreground">
+                    {aiConnection === 'configured' ? 'Server assistance is configured.' : aiConnection === 'not_configured' ? 'Server assistance is not configured.' : aiConnection === 'unavailable' ? 'Status could not be verified.' : aiConnection === 'checking' ? 'Checking securely...' : 'Not checked.'}
+                  </div>
+                </div>
+                <Button variant="outline" onClick={checkAiConnection} disabled={aiConnection === 'checking'} className="rounded-full">
+                  <RefreshCw className={`mr-2 size-4 ${aiConnection === 'checking' ? 'animate-spin' : ''}`} /> Check Connection
+                </Button>
+              </div>
+              <SaveBar onSave={() => saveSection('ai')} saving={saving === 'ai'} dirty={JSON.stringify(drafts.ai) !== JSON.stringify(settings.ai)} saved={lastSaved === 'ai'} />
             </SettingsCard>
           </div>
         );

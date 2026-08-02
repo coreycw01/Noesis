@@ -19,8 +19,10 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 
 interface PracticesWorkspaceProps {
+  aiSettings: import('@/lib/types').AiSettings;
   practices: Practice[];
   concepts: Concept[];
   media: Media[];
@@ -174,7 +176,7 @@ function practiceExperimentShape(practice: Practice, linkedQuestions: Question[]
   return { hypothesis, observation, nextStep, needsOutcome, needsConsequence, designGaps, readinessScore, hasBasis, logCount };
 }
 
-export function PracticesWorkspace({ practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute }: PracticesWorkspaceProps) {
+export function PracticesWorkspace({ aiSettings, practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute }: PracticesWorkspaceProps) {
   const [statusFilter, setStatusFilter] = useState<PracticeStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<PracticeType | 'all'>('all');
   const [conceptFilter, setConceptFilter] = useState('all');
@@ -448,6 +450,7 @@ export function PracticesWorkspace({ practices, concepts, media, questions, posi
       </section>
 
       <PracticeEditor
+        aiSettings={aiSettings}
         open={editorOpen}
         onOpenChange={(open) => {
           setEditorOpen(open);
@@ -793,7 +796,8 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   );
 }
 
-function PracticeEditor({ open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onSave, routeOwned = false }: {
+function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onSave, routeOwned = false }: {
+  aiSettings: import('@/lib/types').AiSettings;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   draft: Partial<Practice>;
@@ -811,7 +815,39 @@ function PracticeEditor({ open, onOpenChange, draft, setDraft, concepts, media, 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto bg-card border-none shadow-2xl rounded-2xl p-0">
         <div className="p-8">
-          <DialogHeader className="mb-6"><DialogTitle className="font-headline text-3xl italic">{draft.id ? 'Refine Practice' : 'Start Practice'}</DialogTitle></DialogHeader>
+          <DialogHeader className="mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <DialogTitle className="font-headline text-3xl italic">{draft.id ? 'Refine Practice' : 'Start Practice'}</DialogTitle>
+              <ContextualAiPanel
+                enabled={Boolean(aiSettings.aiAssistanceEnabled && draft.id && isPracticeConcluded(draft as Practice))}
+                showContextBeforeSending={aiSettings.showContextBeforeSending}
+                reasoningDepth={aiSettings.defaultReasoningDepth}
+                retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
+                actions={['synthesize_practice_outcome']}
+                buttonLabel="Synthesize Outcome"
+                buildEnvelope={() => ({
+                  action: 'synthesize_practice_outcome',
+                  scope: 'linked_items',
+                  targetType: 'practice',
+                  targetId: draft.id || '',
+                  itemMemory: [
+                    `Practice: ${draft.title || 'Untitled'}`,
+                    draft.hypothesis ? `Hypothesis: ${draft.hypothesis}` : '',
+                    draft.action ? `Method: ${draft.action}` : '',
+                    draft.expectedOutcome ? `Expected: ${draft.expectedOutcome}` : '',
+                    draft.observedOutcome ? `Observed: ${draft.observedOutcome}` : '',
+                    draft.interpretation ? `Interpretation: ${draft.interpretation}` : '',
+                    ...(draft.logs || []).slice(-8).map((log) => `Log ${log.date}: ${log.observations || log.outcome || log.context || 'completed'}`),
+                  ].filter(Boolean),
+                  linkedMemory: [
+                    ...positions.filter((position) => (draft.positionIds || []).includes(position.id)).slice(0, 4).map((position) => `Position: ${position.statement || position.title}`),
+                    ...questions.filter((question) => (draft.questionIds || []).includes(question.id)).slice(0, 4).map((question) => `Inquiry: ${question.text}`),
+                  ],
+                })}
+                onAccept={(_result, content) => setDraft((previous) => ({ ...previous, observedOutcome: content }))}
+              />
+            </div>
+          </DialogHeader>
           <div className="space-y-6">
             <div className="rounded-2xl border border-accent/20 bg-accent/5 p-5">
               <div className="flex items-center gap-2 mb-3">

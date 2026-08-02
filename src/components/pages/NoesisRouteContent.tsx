@@ -4,6 +4,7 @@ import type { User } from 'firebase/auth';
 import dynamic from 'next/dynamic';
 import type {
   AccountSettings,
+  AiSettings,
   Annotation,
   AppearanceSettings,
   AtlasMap,
@@ -84,6 +85,7 @@ export interface NoesisRouteContentProps {
   accountSettings: AccountSettings;
   appearanceSettings: AppearanceSettings;
   workspacePreferences: WorkspacePreferenceSettings;
+  aiSettings: AiSettings;
   metacognitionSettings: MetacognitionSettings;
   privacySettings: PrivacySettings;
   dataSettings: DataSettings;
@@ -160,7 +162,7 @@ export interface NoesisRouteContentProps {
   saveProfile: (profile: UserProfile) => Promise<void>;
   saveProfilePrivacy: (privacy: ProfilePrivacySettings) => Promise<void>;
   saveSettingsSection: (
-    section: 'account' | 'appearance' | 'workspace' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer',
+    section: 'account' | 'appearance' | 'workspace' | 'ai' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer',
     data: unknown,
   ) => Promise<void>;
   exportWorkspaceData: () => Promise<void>;
@@ -195,6 +197,7 @@ export function NoesisRouteContent({
   accountSettings,
   appearanceSettings,
   workspacePreferences,
+  aiSettings,
   metacognitionSettings,
   privacySettings,
   dataSettings,
@@ -307,6 +310,7 @@ export function NoesisRouteContent({
     case 'concepts':
       return (
         <ConceptsRoutePage
+          aiSettings={aiSettings}
           concepts={concepts}
           media={media}
           insights={insights}
@@ -327,6 +331,7 @@ export function NoesisRouteContent({
     case 'library':
       return (
         <LibraryRoutePage
+          aiSettings={aiSettings}
           media={media}
           concepts={concepts}
           vault={vault}
@@ -347,6 +352,7 @@ export function NoesisRouteContent({
     case 'annotations':
       return (
         <AnnotationsRoutePage
+          aiSettings={aiSettings}
           media={media}
           concepts={concepts}
           positions={vault}
@@ -393,6 +399,7 @@ export function NoesisRouteContent({
     case 'vault':
       return (
         <PositionsRoutePage
+          aiSettings={aiSettings}
           entries={vault}
           media={media}
           drafts={drafts}
@@ -417,13 +424,13 @@ export function NoesisRouteContent({
         />
       );
     case 'questions':
-      return <InquiriesRoutePage questions={questions} media={media} vault={vault} drafts={drafts} practices={practices} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={(data) => addDraft(data) as Draft} onUpdateDraft={updateDraft} onAddPractice={(data) => addPractice(data) as Practice} onUpdatePractice={updatePractice} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
+      return <InquiriesRoutePage aiSettings={aiSettings} questions={questions} media={media} vault={vault} drafts={drafts} practices={practices} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={(data) => addDraft(data) as Draft} onUpdateDraft={updateDraft} onAddPractice={(data) => addPractice(data) as Practice} onUpdatePractice={updatePractice} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
     case 'writing':
       return <WorksRoutePage uid={effectiveUid} drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={(data) => addDraft(data) as Draft} onUpdateDraft={updateDraft} onMarkDraftOpened={markDraftOpened} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
     case 'evolution':
-      return <EvolutionRoutePage events={timeline} media={media} thinkingEvents={thinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} />;
+      return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} />;
     case 'practices':
-      return <PracticesRoutePage practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
+      return <PracticesRoutePage aiSettings={aiSettings} practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
     case 'settings':
       return (
         <SettingsRoutePage
@@ -432,6 +439,7 @@ export function NoesisRouteContent({
             account: accountSettings,
             appearance: appearanceSettings,
             workspace: workspacePreferences,
+            ai: aiSettings,
             metacognition: metacognitionSettings,
             privacy: privacySettings,
             data: dataSettings,

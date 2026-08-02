@@ -1,10 +1,11 @@
 "use client";
 
 import { PracticesWorkspace } from '@/components/Practices/PracticesWorkspace';
-import type { Concept, Draft, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
+import type { AiSettings, Concept, Draft, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface PracticesRoutePageProps {
+  aiSettings: AiSettings;
   practices: Practice[];
   concepts: Concept[];
   media: Media[];
@@ -21,6 +22,7 @@ export interface PracticesRoutePageProps {
 }
 
 export function PracticesRoutePage({
+  aiSettings,
   practices,
   concepts,
   media,
@@ -37,6 +39,7 @@ export function PracticesRoutePage({
 }: PracticesRoutePageProps) {
   return (
     <PracticesWorkspace
+      aiSettings={aiSettings}
       practices={practices}
       concepts={concepts}
       media={media}

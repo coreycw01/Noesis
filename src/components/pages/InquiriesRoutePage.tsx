@@ -1,10 +1,11 @@
 "use client";
 
 import { QuestionsWorkspace } from '@/components/Questions/QuestionsWorkspace';
-import type { Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
+import type { AiSettings, Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface InquiriesRoutePageProps {
+  aiSettings: AiSettings;
   questions: Question[];
   media: Media[];
   vault: VaultEntry[];
@@ -25,6 +26,7 @@ export interface InquiriesRoutePageProps {
 }
 
 export function InquiriesRoutePage({
+  aiSettings,
   questions,
   media,
   vault,
@@ -45,6 +47,7 @@ export function InquiriesRoutePage({
 }: InquiriesRoutePageProps) {
   return (
     <QuestionsWorkspace
+      aiSettings={aiSettings}
       questions={questions}
       media={media}
       vault={vault}

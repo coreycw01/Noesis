@@ -2,6 +2,7 @@
 
 import { ConceptEncyclopedia } from '@/components/Concepts/ConceptEncyclopedia';
 import type {
+  AiSettings,
   Concept,
   Draft,
   Insight,
@@ -30,6 +31,7 @@ export interface ConceptsRoutePageProps {
   onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>, options?: { creationMethod?: string }) => void;
   onNavigate: (view: NoesisView, options?: { conceptId?: string | null }) => void;
+  aiSettings?: AiSettings;
 }
 
 export function ConceptsRoutePage({
@@ -48,6 +50,7 @@ export function ConceptsRoutePage({
   onCreateIdea,
   onCreateLink,
   onNavigate,
+  aiSettings,
 }: ConceptsRoutePageProps) {
   return (
     <ConceptEncyclopedia
@@ -66,6 +69,7 @@ export function ConceptsRoutePage({
       onCreateLink={onCreateLink}
       focusedConceptId={focusedConceptId}
       onOpenConceptRoute={(conceptId) => onNavigate('concepts', { conceptId })}
+      aiSettings={aiSettings}
     />
   );
 }

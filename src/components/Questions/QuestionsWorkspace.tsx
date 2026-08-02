@@ -21,8 +21,11 @@ import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { searchMatches } from '@/lib/search';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import type { AiContextEnvelope } from '@/lib/contextual-ai';
 
 interface QuestionsWorkspaceProps {
+  aiSettings: import('@/lib/types').AiSettings;
   questions: Question[];
   media: Media[];
   vault: VaultEntry[];
@@ -147,7 +150,7 @@ function inquiryCardNextStep(question: Question) {
   return 'Continue developing the strongest unanswered part.';
 }
 
-export function QuestionsWorkspace({ questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
+export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -237,6 +240,7 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
     const relatedPractices = practices.filter((practice) => (practice.questionIds || []).includes(selected.id));
     return (
         <QuestionDetail
+          aiSettings={aiSettings}
           question={selected}
           sources={relatedSources}
           concepts={conceptNames}
@@ -497,7 +501,8 @@ function branchNextStep(label: string) {
   return 'Choose the next concrete investigation move.';
 }
 
-function QuestionDetail({ question, sources, concepts, beliefs, drafts, practices, availableDrafts, availablePractices, onBack, onUpdateQuestion, onDeleteQuestion, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, onAiFeedback, routeOwned = false, initialSection = 'investigation' }: {
+function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, drafts, practices, availableDrafts, availablePractices, onBack, onUpdateQuestion, onDeleteQuestion, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, onAiFeedback, routeOwned = false, initialSection = 'investigation' }: {
+  aiSettings: import('@/lib/types').AiSettings;
   question: Question;
   sources: Media[];
   concepts: string[];
@@ -791,11 +796,47 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
     onAiFeedback('Investigation branch selected.', `${branch.label}: ${branchNextStep(branch.label)}`);
   };
 
+  const buildAiEnvelope = (): AiContextEnvelope => ({
+    action: 'socratic_inquiry_challenge',
+    scope: 'linked_items',
+    targetType: 'inquiry',
+    targetId: question.id,
+    itemMemory: [
+      `Inquiry: ${question.text}`,
+      question.whyItMatters ? `Why it matters: ${question.whyItMatters}` : '',
+      question.currentIntuition ? `Current intuition: ${question.currentIntuition}` : '',
+      (question.assumptions || []).length ? `Assumptions: ${(question.assumptions || []).join('; ')}` : '',
+      (question.candidateAnswers || []).length ? `Candidate answers: ${(question.candidateAnswers || []).map((item) => item.statement).join('; ')}` : '',
+      question.answer ? `Current answer: ${question.answer}` : '',
+    ].filter(Boolean),
+    linkedMemory: [
+      ...sources.slice(0, 8).map((source) => `Source: ${source.title} - ${source.description || source.capture?.after?.coreArgument || 'No summary'}`),
+      ...beliefs.slice(0, 6).map((position) => `Position: ${position.statement || position.title}`),
+      ...practices.slice(0, 4).map((practice) => `Practice: ${practice.title} - ${practice.observedOutcome || practice.status}`),
+    ],
+  });
+
   return (
     <div className="flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body">
       <Button variant="ghost" onClick={onBack} className="mb-5 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50">
         <ArrowLeft className="size-4 mr-2" /> Back to Inquiries
       </Button>
+      <div className="mb-5 flex justify-end">
+        <ContextualAiPanel
+          enabled={aiSettings.aiAssistanceEnabled}
+          showContextBeforeSending={aiSettings.showContextBeforeSending}
+          reasoningDepth={aiSettings.defaultReasoningDepth}
+          retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
+          actions={['socratic_inquiry_challenge']}
+          buildEnvelope={buildAiEnvelope}
+          buttonLabel="Socratic Challenge"
+          onAccept={(_result, content) => onUpdateQuestion({
+            ...question,
+            currentIntuition: [question.currentIntuition, `Reviewed challenge:\n${content}`].filter(Boolean).join('\n\n'),
+            dateUpdated: today(),
+          })}
+        />
+      </div>
       <Card className="mb-5 rounded-2xl border border-accent/15 bg-card p-4 shadow-sm">
         <div className="grid gap-3 text-sm md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
           <div>

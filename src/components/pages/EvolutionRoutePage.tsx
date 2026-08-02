@@ -1,9 +1,10 @@
 "use client";
 
 import { EvolutionTimeline } from '@/components/Evolution/EvolutionTimeline';
-import type { Media, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
+import type { AiSettings, Media, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
 
 export interface EvolutionRoutePageProps {
+  aiSettings: AiSettings;
   events: TimelineEvent[];
   media: Media[];
   thinkingEvents: ThinkingEvent[];
@@ -13,6 +14,7 @@ export interface EvolutionRoutePageProps {
 }
 
 export function EvolutionRoutePage({
+  aiSettings,
   events,
   media,
   thinkingEvents,
@@ -22,6 +24,7 @@ export function EvolutionRoutePage({
 }: EvolutionRoutePageProps) {
   return (
     <EvolutionTimeline
+      aiSettings={aiSettings}
       events={events}
       media={media}
       thinkingEvents={thinkingEvents}

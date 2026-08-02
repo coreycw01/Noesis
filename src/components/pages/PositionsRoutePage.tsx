@@ -3,6 +3,7 @@
 import { BeliefVault } from '@/components/Vault/BeliefVault';
 import type {
   BeliefProfile,
+  AiSettings,
   Concept,
   Draft,
   Media,
@@ -16,6 +17,7 @@ import type {
 import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface PositionsRoutePageProps {
+  aiSettings: AiSettings;
   entries: VaultEntry[];
   media: Media[];
   drafts: Draft[];
@@ -46,6 +48,7 @@ export interface PositionsRoutePageProps {
 }
 
 export function PositionsRoutePage({
+  aiSettings,
   entries,
   media,
   drafts,
@@ -70,6 +73,7 @@ export function PositionsRoutePage({
 }: PositionsRoutePageProps) {
   return (
     <BeliefVault
+      aiSettings={aiSettings}
       entries={entries}
       media={media}
       drafts={drafts}

@@ -1,7 +1,7 @@
 "use client";
 
 import { MediaLibrary } from '@/components/Library/MediaLibrary';
-import type { Concept, Draft, Media, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
+import type { AiSettings, Concept, Draft, Media, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface LibraryRoutePageProps {
@@ -20,6 +20,7 @@ export interface LibraryRoutePageProps {
   onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
   onDeleteVaultEntry: (id: string) => Promise<void>;
   onNavigate: (view: NoesisView, options?: { sourceId?: string | null }) => void;
+  aiSettings?: AiSettings;
 }
 
 export function LibraryRoutePage({
@@ -38,6 +39,7 @@ export function LibraryRoutePage({
   onCreateIdea,
   onDeleteVaultEntry,
   onNavigate,
+  aiSettings,
 }: LibraryRoutePageProps) {
   return (
     <MediaLibrary
@@ -56,6 +58,7 @@ export function LibraryRoutePage({
       onDeleteVaultEntry={onDeleteVaultEntry}
       focusedSourceId={focusedSourceId}
       onOpenSourceRoute={(sourceId) => onNavigate('library', { sourceId })}
+      aiSettings={aiSettings}
     />
   );
 }

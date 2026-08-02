@@ -27,8 +27,11 @@ import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
 
 interface BeliefVaultProps {
+  aiSettings: import('@/lib/types').AiSettings;
   entries: VaultEntry[];
   media: Media[];
   drafts: Draft[];
@@ -430,8 +433,9 @@ function buildStressStages({
   ];
 }
 
-export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled, onOpenEntryRoute }: BeliefVaultProps) {
+export function BeliefVault({ aiSettings, entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled, onOpenEntryRoute }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [comparePositionId, setComparePositionId] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | VaultType>('all');
@@ -954,11 +958,80 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       toast({ title: 'Stress test recorded', description: 'The answer has been added to this position history.' });
     };
 
+    const comparisonTarget = safeEntries.find((entry) => entry.id === comparePositionId) || null;
+    const buildPositionAiEnvelope = (action: ContextualAiAction): AiContextEnvelope | null => {
+      if (action === 'compare_selected_positions' && !comparisonTarget) return null;
+      return {
+        action,
+        scope: action === 'compare_selected_positions' ? 'selected_pair' : 'linked_items',
+        targetType: 'position',
+        targetId: selected.id,
+        itemMemory: [
+          `Position: ${selected.title}`,
+          `Statement: ${selected.statement || selected.description || 'No statement'}`,
+          selected.description ? `Scope: ${selected.description}` : '',
+          `Confidence: ${confidencePercent(selected.confidence)}%`,
+          (selected.assumptions || []).length ? `Assumptions: ${(selected.assumptions || []).join('; ')}` : '',
+          (selected.evidenceFor || []).length ? `Evidence for: ${(selected.evidenceFor || []).join('; ')}` : '',
+          (selected.evidenceAgainst || []).length ? `Evidence against: ${(selected.evidenceAgainst || []).join('; ')}` : '',
+          selected.falsification ? `Falsification condition: ${selected.falsification}` : '',
+        ].filter(Boolean),
+        linkedMemory: [
+          ...linkedSources.slice(0, 8).map((source) => `Source: ${source.title} - ${source.description || source.capture?.after?.coreArgument || 'No summary'}`),
+          ...linkedQuestions.slice(0, 5).map((question) => `Inquiry: ${question.text} - ${question.answer || question.status}`),
+          ...linkedPractices.slice(0, 5).map((practice) => `Practice: ${practice.title} - ${practice.observedOutcome || practice.status}`),
+        ],
+        secondaryTarget: comparisonTarget ? {
+          targetType: 'position',
+          targetId: comparisonTarget.id,
+          label: comparisonTarget.title,
+          memory: [comparisonTarget.title, comparisonTarget.statement || comparisonTarget.description || 'No statement'],
+        } : undefined,
+      };
+    };
+
+    const acceptPositionAiResult = (result: AiReviewResult, content: string) => {
+      const baseHistory = selected.versionHistory || [];
+      const reviewEntry = { date: today(), eventType: 'revised' as const, description: `Reviewed assistance (${result.action.replace(/_/g, ' ')}): ${content}` };
+      if (result.action === 'find_position_assumptions') {
+        onUpdateEntry({ ...selected, assumptions: Array.from(new Set([...(selected.assumptions || []), ...splitLines(content)])), versionHistory: [...baseHistory, reviewEntry], dateUpdated: today() });
+        return;
+      }
+      if (result.action === 'generate_position_counterargument' || result.action === 'identify_missing_position_evidence') {
+        onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), content], versionHistory: [...baseHistory, reviewEntry], dateUpdated: today() });
+        return;
+      }
+      onUpdateEntry({
+        ...selected,
+        testingCount: result.action === 'stress_test_position' ? (selected.testingCount || 0) + 1 : selected.testingCount,
+        versionHistory: [...baseHistory, reviewEntry],
+        dateUpdated: today(),
+      });
+    };
+
     return (
       <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
         <div className="mb-5 flex items-center justify-between">
           <Button variant="ghost" onClick={closeEntry} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full"><ArrowLeft className="size-4 mr-2" /> Positions</Button>
           <div className="flex gap-2">
+            {aiSettings.aiAssistanceEnabled && (
+              <Select value={comparePositionId} onValueChange={setComparePositionId}>
+                <SelectTrigger className="hidden h-8 w-48 rounded-full md:flex"><SelectValue placeholder="Compare position" /></SelectTrigger>
+                <SelectContent>
+                  {safeEntries.filter((entry) => entry.id !== selected.id).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.title}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            <ContextualAiPanel
+              enabled={aiSettings.aiAssistanceEnabled}
+              showContextBeforeSending={aiSettings.showContextBeforeSending}
+              reasoningDepth={aiSettings.defaultReasoningDepth}
+              retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
+              actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'stress_test_position', 'compare_selected_positions']}
+              buildEnvelope={buildPositionAiEnvelope}
+              buttonLabel="Test Position"
+              onAccept={acceptPositionAiResult}
+            />
             <Button variant="outline" onClick={() => openEditor(selected)} className="h-8 bg-card border-border/60 shadow-sm rounded-full"><Edit className="size-4 mr-2" /> Edit</Button>
             <Button variant="destructive" onClick={() => setDeleteTarget(selected)} className="h-8 shadow-sm rounded-full"><Trash2 className="size-4 mr-2" /> Delete</Button>
           </div>

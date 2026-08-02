@@ -4,9 +4,10 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { ApiError } from './api-security';
 import { adminFirestore } from './firebase-admin';
 
-export type UsageAction = 'source_search' | 'source_metadata' | 'document_import';
+export type UsageAction = 'ai' | 'source_search' | 'source_metadata' | 'document_import';
 
 const DEFAULT_LIMITS: Record<UsageAction, { minute: number; daily: number }> = {
+  ai: { minute: 5, daily: 50 },
   source_search: { minute: 30, daily: 1_000 },
   source_metadata: { minute: 10, daily: 300 },
   document_import: { minute: 5, daily: 100 },
@@ -26,11 +27,12 @@ export async function enforceUsageLimit(
   uid: string,
   action: UsageAction,
   weight = 1,
+  options: { tester?: boolean } = {},
 ) {
   const now = new Date();
   const windows = windowKeys(now);
   const limits = DEFAULT_LIMITS[action];
-  const dailyLimit = limits.daily;
+  const dailyLimit = options.tester && action === 'ai' ? 200 : limits.daily;
   const db = adminFirestore();
   const minuteRef = db.doc(`apiUsage/${safePart(uid)}_${action}_m_${windows.minute}`);
   const dayRef = db.doc(`apiUsage/${safePart(uid)}_${action}_d_${windows.day}`);
@@ -64,4 +66,19 @@ export async function enforceUsageLimit(
       expiresAt,
     }, { merge: true });
   });
+}
+
+const activeAiRequests = new Map<string, number>();
+
+export async function withUserAiConcurrency<T>(uid: string, operation: () => Promise<T>) {
+  const active = activeAiRequests.get(uid) || 0;
+  if (active >= 2) throw new ApiError(429, 'Two assistance requests are already running.', 'concurrency_limit', 5);
+  activeAiRequests.set(uid, active + 1);
+  try {
+    return await operation();
+  } finally {
+    const remaining = Math.max(0, (activeAiRequests.get(uid) || 1) - 1);
+    if (remaining) activeAiRequests.set(uid, remaining);
+    else activeAiRequests.delete(uid);
+  }
 }

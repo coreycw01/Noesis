@@ -9,8 +9,10 @@ import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 
 interface EvolutionTimelineProps {
+  aiSettings: import('@/lib/types').AiSettings;
   events: TimelineEvent[];
   media: Media[];
   thinkingEvents: ThinkingEvent[];
@@ -330,12 +332,18 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
   return 'gained';
 }
 
-export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thinkingPatterns, metrics }: EvolutionTimelineProps) {
+export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, unknowns, thinkingPatterns, metrics }: EvolutionTimelineProps) {
   const [view, setView] = useState<EvolutionView>('timeline');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
   const [visibleCount, setVisibleCount] = useState(12);
   const [scrubberDate, setScrubberDate] = useState(() => dateInputValue(new Date().toISOString()));
+  const [periodEnd, setPeriodEnd] = useState(() => dateInputValue(new Date().toISOString()));
+  const [periodStart, setPeriodStart] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return dateInputValue(date.toISOString());
+  });
 
   const displayEvents = useMemo<DisplayEvent[]>(() => {
     const fromThinking = thinkingEvents.filter(isNotableThinkingEvent).map((event) => ({
@@ -565,6 +573,10 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
     search.trim() ? `Search: ${search.trim()}` : null,
     filter !== 'all' ? `Change type: ${FILTER_OPTIONS.find((option) => option.value === filter)?.label || filter.replace(/_/g, ' ')}` : null,
   ].filter(Boolean) as string[];
+  const selectedPeriodEvents = displayEvents.filter((event) => {
+    const time = eventTime(event.date);
+    return time >= new Date(`${periodStart}T00:00:00`).getTime() && time <= new Date(`${periodEnd}T23:59:59`).getTime();
+  });
 
   return (
     <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
@@ -573,6 +585,37 @@ export function EvolutionTimeline({ events, media, thinkingEvents, unknowns, thi
         description="Trace meaningful changes in positions, concepts, inquiries, practices, unknowns, and thinking patterns over time."
         meta={`${filteredEvents.length} changes - ${eventCoverage.thinkingCount} event-backed - ${eventCoverage.provisionalCount} provisional`}
       />
+
+      {aiSettings.aiAssistanceEnabled && (
+        <section className="mb-5 flex flex-wrap items-end gap-2 rounded-xl border border-border/50 bg-card p-3">
+          <label className="space-y-1 text-xs text-muted-foreground">
+            <span className="font-code text-[8px] uppercase tracking-widest">Period start</span>
+            <input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} className="block h-9 rounded-md border border-border bg-background px-3 text-foreground" />
+          </label>
+          <label className="space-y-1 text-xs text-muted-foreground">
+            <span className="font-code text-[8px] uppercase tracking-widest">Period end</span>
+            <input type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} className="block h-9 rounded-md border border-border bg-background px-3 text-foreground" />
+          </label>
+          <ContextualAiPanel
+            enabled={selectedPeriodEvents.length > 0}
+            showContextBeforeSending={aiSettings.showContextBeforeSending}
+            reasoningDepth={aiSettings.defaultReasoningDepth}
+            retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
+            actions={['synthesize_evolution_period']}
+            buttonLabel="Synthesize Period"
+            buildEnvelope={() => ({
+              action: 'synthesize_evolution_period',
+              scope: 'selected_period',
+              targetType: 'evolution',
+              targetId: `${periodStart}:${periodEnd}`,
+              selectedRange: { from: periodStart, to: periodEnd },
+              itemMemory: [`Selected period: ${periodStart} through ${periodEnd}`, `${selectedPeriodEvents.length} meaningful recorded changes`],
+              linkedMemory: selectedPeriodEvents.slice(0, 20).map((event) => `${event.date}: ${event.title} - ${event.detail}`),
+            })}
+            onAccept={async () => undefined}
+          />
+        </section>
+      )}
 
       <section className={cn(
         "mb-5 rounded-xl border px-4 py-3 shadow-sm",

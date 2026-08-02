@@ -85,7 +85,7 @@ export type UnknownStatus = 'active' | 'exploring' | 'resolved' | 'archived';
 export type UnknownImportance = 'low' | 'medium' | 'high';
 export type BeliefProfileReviewStatus = 'current' | 'needs_review' | 'outdated' | 'abandoned';
 export type ThinkingEventEntityType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'atlasMap' | 'link' | 'unknown' | 'beliefProfile' | 'thinkingPattern' | 'metric' | 'suggestion' | 'evolution';
-export type ThinkingEventOrigin = 'user' | 'ai' | 'system';
+export type ThinkingEventOrigin = 'user' | 'ai-assisted' | 'ai' | 'system';
 export type ThinkingEventEpistemicStatus = 'raw_capture' | 'uncertain' | 'emerging' | 'working_belief' | 'strong_belief' | 'challenged' | 'abandoned' | 'resolved';
 export type ThinkingEventImportance = 'low' | 'medium' | 'high' | 'major';
 
@@ -768,6 +768,15 @@ export interface WorkspacePreferenceSettings {
   autoSaveBehavior: 'instant' | 'debounced' | 'manual_prompt';
   confirmBeforeDeletingObjects: boolean;
   enableReviewPromptsAfterMajorEdits: boolean;
+  dateUpdated?: string;
+}
+
+export interface AiSettings {
+  id?: string;
+  aiAssistanceEnabled: boolean;
+  showContextBeforeSending: boolean;
+  defaultReasoningDepth: 'light' | 'standard' | 'deep';
+  retainAcceptedAiProvenance: boolean;
   dateUpdated?: string;
 }
 
