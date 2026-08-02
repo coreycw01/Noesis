@@ -2,7 +2,6 @@
 
 import { BeliefVault } from '@/components/Vault/BeliefVault';
 import type {
-  AiSuggestion,
   BeliefProfile,
   Concept,
   Draft,
@@ -27,7 +26,6 @@ export interface PositionsRoutePageProps {
   links: PhilosophicalLink[];
   beliefProfiles: BeliefProfile[];
   unknowns: Unknown[];
-  suggestions: AiSuggestion[];
   focusedEntryId?: string | null;
   onAddEntry: (data: Partial<VaultEntry>) => void;
   onUpdateEntry: (entry: VaultEntry) => void;
@@ -37,11 +35,7 @@ export interface PositionsRoutePageProps {
   onAddDraft: (data: Partial<Draft>) => void;
   onAddPractice: (data: Partial<Practice>) => void;
   onAddQuestion: (data: Partial<Question>) => void;
-  onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; position?: { title: string; statement: string; description: string; confidence: number } }) => void;
   onUpdateLink: (link: PhilosophicalLink) => void;
-  onAddUnknown: (data: Partial<Unknown>) => Unknown;
-  onUpdateSuggestion: (suggestion: AiSuggestion) => void;
-  onCreateSuggestion: (suggestion: Partial<AiSuggestion>) => void;
   onNavigate: (view: NoesisView, options?: {
     questionId?: string | null;
     sourceId?: string | null;
@@ -62,7 +56,6 @@ export function PositionsRoutePage({
   links,
   beliefProfiles,
   unknowns,
-  suggestions,
   focusedEntryId,
   onAddEntry,
   onUpdateEntry,
@@ -72,11 +65,7 @@ export function PositionsRoutePage({
   onAddDraft,
   onAddPractice,
   onAddQuestion,
-  onCreateIdea,
   onUpdateLink,
-  onAddUnknown,
-  onUpdateSuggestion,
-  onCreateSuggestion,
   onNavigate,
 }: PositionsRoutePageProps) {
   return (
@@ -91,7 +80,6 @@ export function PositionsRoutePage({
       links={links}
       beliefProfiles={beliefProfiles}
       unknowns={unknowns}
-      suggestions={suggestions}
       onAddEntry={onAddEntry}
       onUpdateEntry={onUpdateEntry}
       onDeleteEntry={onDeleteEntry}
@@ -100,11 +88,7 @@ export function PositionsRoutePage({
       onAddDraft={onAddDraft}
       onAddPractice={onAddPractice}
       onAddQuestion={onAddQuestion}
-      onCreateIdea={onCreateIdea}
       onUpdateLink={onUpdateLink}
-      onAddUnknown={onAddUnknown}
-      onUpdateSuggestion={onUpdateSuggestion}
-      onCreateSuggestion={onCreateSuggestion}
       onOpenSource={(id) => onNavigate('library', { sourceId: id })}
       onOpenQuestion={(id) => onNavigate('questions', { questionId: id })}
       onOpenPractice={(id) => onNavigate('practices', { practiceId: id })}

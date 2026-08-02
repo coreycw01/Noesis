@@ -28,7 +28,6 @@ export type NoesisWorkspaceDataKey =
   | 'practices'
   | 'atlasMaps'
   | 'links'
-  | 'suggestions'
   | 'thinkingEvents'
   | 'beliefProfiles'
   | 'unknowns'
@@ -165,7 +164,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     view: 'settings',
     route: '/settings',
     title: 'Settings',
-    purpose: 'Control account, appearance, workspace, AI, privacy, data, and developer behavior.',
+    purpose: 'Control account, appearance, workspace, privacy, data, and developer behavior.',
     section: 'Utility',
     signatureExperience: 'A functional control room for app behavior.',
     loadingLayout: 'detail',
@@ -185,7 +184,7 @@ export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDa
   library: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline'],
   'source-index': ['media', 'questions', 'vault', 'drafts', 'practices'],
   annotations: ['media', 'concepts', 'questions', 'vault'],
-  vault: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'suggestions', 'beliefProfiles', 'unknowns'],
+  vault: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns'],
   writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'preferences'],
   practices: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
   evolution: ['media', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'thinkingMetrics'],
@@ -198,7 +197,7 @@ export const NOESIS_DETAIL_DATA_REQUIREMENTS: Record<NoesisRouteTargetType, Noes
   concept: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
   inquiry: ['media', 'concepts', 'questions', 'vault', 'drafts'],
   source: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices'],
-  position: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'suggestions', 'beliefProfiles', 'unknowns'],
+  position: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns'],
   work: ['media', 'concepts', 'questions', 'vault', 'drafts', 'preferences'],
   practice: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
 };
@@ -229,7 +228,6 @@ export const NOESIS_DATA_REQUIREMENT_LABELS: Record<NoesisWorkspaceDataKey, stri
   practices: 'Practices',
   atlasMaps: 'Atlas maps',
   links: 'Links',
-  suggestions: 'AI suggestions',
   thinkingEvents: 'Thinking events',
   beliefProfiles: 'Belief profiles',
   unknowns: 'Unknowns',

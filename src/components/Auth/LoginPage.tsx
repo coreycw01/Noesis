@@ -201,7 +201,6 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
                   width={56}
                   height={56}
                   className="size-full object-contain"
-                  data-ai-hint={logoData.imageHint}
                   priority
                 />
               )}
@@ -241,7 +240,6 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
                     width={48}
                     height={48}
                     className="size-full object-contain"
-                    data-ai-hint={logoData.imageHint}
                     priority
                   />
                 )}

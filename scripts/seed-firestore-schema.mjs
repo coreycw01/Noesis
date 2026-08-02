@@ -166,20 +166,6 @@ const collectionPlaceholders = {
     dateCreated: now,
     dateUpdated: now,
     _schemaPlaceholder: true
-  },
-  suggestions: {
-    targetType: 'annotation',
-    targetId: '_schema',
-    targetLabel: 'Placeholder annotation',
-    suggestionType: 'annotation_consequence',
-    title: 'Placeholder AI suggestion',
-    body: 'AI suggestions are stored here until accepted, rejected, ignored, or acted on.',
-    payload: {},
-    status: 'pending',
-    createdFrom: 'ai',
-    dateCreated: now,
-    dateUpdated: now,
-    _schemaPlaceholder: true
   }
 };
 

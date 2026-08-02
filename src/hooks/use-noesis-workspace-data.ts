@@ -14,8 +14,6 @@ import {
 } from '@/lib/noesis-page-definitions';
 import type {
   AccountSettings,
-  AiSuggestion,
-  AiSettings,
   AppearanceSettings,
   AtlasMap,
   AtlasSettings,
@@ -95,7 +93,6 @@ export function useNoesisWorkspaceData({
   const needsPractices = routeNeedsData(effectiveRouteState, 'practices') || needsShellBootstrap('practices');
   const needsAtlasMaps = routeNeedsData(effectiveRouteState, 'atlasMaps');
   const needsLinks = routeNeedsData(effectiveRouteState, 'links');
-  const needsSuggestions = routeNeedsData(effectiveRouteState, 'suggestions');
   const needsThinkingEvents = routeNeedsData(effectiveRouteState, 'thinkingEvents');
   const needsBeliefProfiles = routeNeedsData(effectiveRouteState, 'beliefProfiles');
   const needsUnknowns = routeNeedsData(effectiveRouteState, 'unknowns');
@@ -131,7 +128,6 @@ export function useNoesisWorkspaceData({
   const { data: practicesLive = [], loading: practicesLoadingLive, error: practicesErrorLive } = useCollection<Practice>(isOfflineReviewPreview || !needsPractices ? null : refs.practices as any);
   const { data: atlasMapsLive = [], loading: atlasMapsLoadingLive, error: atlasMapsErrorLive } = useCollection<AtlasMap>(isOfflineReviewPreview || !needsAtlasMaps ? null : refs.atlasMaps as any);
   const { data: linksLive = [], loading: linksLoadingLive, error: linksErrorLive } = useCollection<PhilosophicalLink>(isOfflineReviewPreview || !needsLinks ? null : refs.links as any);
-  const { data: suggestionsLive = [], loading: suggestionsLoadingLive } = useCollection<AiSuggestion>(isOfflineReviewPreview || !needsSuggestions ? null : refs.suggestions as any);
   const { data: thinkingEventsLive = [], loading: thinkingEventsLoadingLive } = useCollection<ThinkingEvent>(thinkingEventsQuery as any);
   const { data: beliefProfilesLive = [], loading: beliefProfilesLoadingLive } = useCollection<BeliefProfile>(isOfflineReviewPreview || !needsBeliefProfiles ? null : refs.beliefProfiles as any);
   const { data: unknownsLive = [], loading: unknownsLoadingLive } = useCollection<Unknown>(isOfflineReviewPreview || !needsUnknowns ? null : refs.unknowns as any);
@@ -147,7 +143,6 @@ export function useNoesisWorkspaceData({
   const { data: settingsAccountDocLive, loading: settingsAccountLoadingLive } = useDoc<AccountSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsAccount as any);
   const { data: settingsAppearanceDocLive, loading: settingsAppearanceLoadingLive } = useDoc<AppearanceSettings>(isOfflineReviewPreview || !needsAppearanceDoc ? null : refs.settingsAppearance as any);
   const { data: settingsWorkspacePrefsDocLive, loading: settingsWorkspacePrefsLoadingLive } = useDoc<WorkspacePreferenceSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsWorkspace as any);
-  const { data: settingsAiDocLive, loading: settingsAiLoadingLive } = useDoc<AiSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsAi as any);
   const { data: settingsMetacognitionDocLive, loading: settingsMetacognitionLoadingLive } = useDoc<MetacognitionSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsMetacognition as any);
   const { data: settingsPrivacyDocLive, loading: settingsPrivacyLoadingLive } = useDoc<PrivacySettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsPrivacy as any);
   const { data: settingsDataDocLive, loading: settingsDataLoadingLive } = useDoc<DataSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsData as any);
@@ -160,7 +155,6 @@ export function useNoesisWorkspaceData({
   const settingsLoading = settingsAccountLoadingLive ||
     settingsAppearanceLoadingLive ||
     settingsWorkspacePrefsLoadingLive ||
-    settingsAiLoadingLive ||
     settingsMetacognitionLoadingLive ||
     settingsPrivacyLoadingLive ||
     settingsDataLoadingLive ||
@@ -182,7 +176,6 @@ export function useNoesisWorkspaceData({
     practices: isOfflineReviewPreview ? false : practicesLoadingLive,
     atlasMaps: isOfflineReviewPreview ? false : atlasMapsLoadingLive,
     links: isOfflineReviewPreview ? false : linksLoadingLive,
-    suggestions: isOfflineReviewPreview ? false : suggestionsLoadingLive,
     thinkingEvents: isOfflineReviewPreview ? false : thinkingEventsLoadingLive,
     beliefProfiles: isOfflineReviewPreview ? false : beliefProfilesLoadingLive,
     unknowns: isOfflineReviewPreview ? false : unknownsLoadingLive,
@@ -225,7 +218,6 @@ export function useNoesisWorkspaceData({
     practices: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.practices || []) : practicesLive, uid),
     atlasMaps: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.atlasMaps || []) : atlasMapsLive, uid),
     links: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.links || []) : linksLive, uid),
-    suggestions: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.suggestions || []) : suggestionsLive, uid),
     thinkingEvents: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.thinkingEvents || []) : thinkingEventsLive, uid),
     beliefProfiles: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.beliefProfiles || []) : beliefProfilesLive, uid),
     unknowns: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.unknowns || []) : unknownsLive, uid),
@@ -242,7 +234,6 @@ export function useNoesisWorkspaceData({
     settingsAccountDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsAccount || null) : settingsAccountDocLive,
     settingsAppearanceDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsAppearance || null) : settingsAppearanceDocLive,
     settingsWorkspacePrefsDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsWorkspace || null) : settingsWorkspacePrefsDocLive,
-    settingsAiDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsAi || null) : settingsAiDocLive,
     settingsMetacognitionDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsMetacognition || null) : settingsMetacognitionDocLive,
     settingsPrivacyDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsPrivacy || null) : settingsPrivacyDocLive,
     settingsDataDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsData || null) : settingsDataDocLive,
@@ -263,7 +254,6 @@ export function useNoesisWorkspaceData({
       practices: isOfflineReviewPreview ? false : practicesLoadingLive,
       atlasMaps: isOfflineReviewPreview ? false : atlasMapsLoadingLive,
       links: isOfflineReviewPreview ? false : linksLoadingLive,
-      suggestions: isOfflineReviewPreview ? false : suggestionsLoadingLive,
       thinkingEvents: isOfflineReviewPreview ? false : thinkingEventsLoadingLive,
       beliefProfiles: isOfflineReviewPreview ? false : beliefProfilesLoadingLive,
       unknowns: isOfflineReviewPreview ? false : unknownsLoadingLive,
@@ -280,7 +270,6 @@ export function useNoesisWorkspaceData({
       settingsAccount: isOfflineReviewPreview ? false : settingsAccountLoadingLive,
       settingsAppearance: isOfflineReviewPreview ? false : settingsAppearanceLoadingLive,
       settingsWorkspacePrefs: isOfflineReviewPreview ? false : settingsWorkspacePrefsLoadingLive,
-      settingsAi: isOfflineReviewPreview ? false : settingsAiLoadingLive,
       settingsMetacognition: isOfflineReviewPreview ? false : settingsMetacognitionLoadingLive,
       settingsPrivacy: isOfflineReviewPreview ? false : settingsPrivacyLoadingLive,
       settingsData: isOfflineReviewPreview ? false : settingsDataLoadingLive,

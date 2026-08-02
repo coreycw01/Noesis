@@ -23,7 +23,6 @@ import {
 } from '@/lib/readex';
 import type {
   AccountSettings,
-  AiSettings,
   AppearanceSettings,
   AtlasSettings,
   DataSettings,
@@ -43,7 +42,6 @@ type SettingsState = {
   account: AccountSettings;
   appearance: AppearanceSettings;
   workspace: WorkspacePreferenceSettings;
-  ai: AiSettings;
   metacognition: MetacognitionSettings;
   privacy: PrivacySettings;
   data: DataSettings;
@@ -102,7 +100,7 @@ const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: 
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
   { id: 'appearance', label: 'Appearance', description: 'Theme, typography, interface scale, contrast, and motion.' },
   { id: 'works', label: 'Work Defaults', description: 'Starting type, status, paper, and editor feel for new Works.' },
-  { id: 'ai', label: 'Reflection', description: 'Evidence-backed intellectual history and metacognition controls.' },
+  { id: 'ai', label: 'Reflection', description: 'Event-backed intellectual history and metacognition controls.' },
   { id: 'data', label: 'Data', description: 'Workspace export and demo refresh tools.' },
 ];
 
@@ -154,9 +152,9 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
     limitations: ['Notifications should not fire unless they can identify the associated source, position, inquiry, practice, or unknown.'],
   },
   ai: {
-    current: 'Configures the suggestion layer while preserving the rule that AI proposes and the user decides.',
-    affects: ['AI provider and model preference', 'Reasoning depth', 'Workspace memory scope', 'Question, tension, and concept-link suggestions', 'Metacognition feature gates'],
-    limitations: ['AI settings do not add billing or provider credits. Provider failures should remain visible and recoverable.'],
+    current: 'Controls deterministic reflection features built from recorded thinking events.',
+    affects: ['Thinking event visibility', 'Belief biographies', 'Unknowns tracking', 'Reflective metrics'],
+    limitations: ['These observations depend on recorded activity and should remain provisional.'],
   },
   experimental: {
     current: 'Turns reflective systems on or off behind feature gates so unstable intelligence never masquerades as truth.',
@@ -176,7 +174,7 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
   terminology: {
     current: 'Documents user-facing language without changing existing Firestore collection names.',
     affects: ['Conceptual clarity for Positions, Inquiries, Works, and Sources', 'Future migration planning'],
-    limitations: ['Custom renaming is not editable until navigation, exports, command palette, and AI prompts can stay consistent.'],
+    limitations: ['Custom renaming is not editable until navigation, exports, and the command palette can stay consistent.'],
   },
   privacy: {
     current: 'Sets default visibility and permission posture for objects that may later support sharing.',
@@ -751,7 +749,7 @@ export function SettingsPage({
                 <SwitchRow label="Compute reflective metrics" checked={drafts.metacognition.enableCognitionMetrics} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableCognitionMetrics: checked } }))} />
               </div>
               <div className="mt-4 rounded-xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
-                AI provider, model, quota, and billing are server configuration, not user preferences. AI suggestions remain reviewable and never save as truth automatically.
+                Reflection is derived from recorded changes. It does not generate or rewrite your ideas.
               </div>
               <SaveBar onSave={() => saveSection('metacognition')} saving={saving === 'metacognition'} dirty={JSON.stringify(drafts.metacognition) !== JSON.stringify(settings.metacognition)} saved={lastSaved === 'metacognition'} />
             </SettingsCard>
@@ -772,7 +770,7 @@ export function SettingsPage({
               </div>
               <div className="mt-5 grid gap-3 md:grid-cols-2">
                 <LimitationCard title="Evidence required" body="Noesis should not display thinking patterns when the event sample is too small or disconnected from actual user actions." />
-                <LimitationCard title="Suggestion-only AI" body="AI may propose patterns, missing perspectives, or tensions, but the user must accept, edit, dismiss, or ignore every meaningful claim." />
+                <LimitationCard title="Recorded evidence only" body="Reflection should be traceable to real changes and never invent activity or conclusions." />
                 <LimitationCard title="Reversible defaults" body="Experimental surfaces must be safe to disable without breaking Positions, Atlas, Evolution, Profile, or demo data." />
                 <LimitationCard title="No identity labels" body="The app should say recent evidence suggests a tendency, never that the user is a fixed kind of thinker." />
               </div>
@@ -861,7 +859,7 @@ export function SettingsPage({
                 Limited renaming should be treated as a presentation layer. Internal collections like <span className="font-code">vault</span>, <span className="font-code">questions</span>, and <span className="font-code">drafts</span> remain stable so migrations do not break existing data.
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <ClassificationCard title="Concepts" body="Ideas with intellectual meaning: autonomy, justice, identity, consciousness, obligation. Concepts affect definitions, Atlas, AI analysis, and metacognition." />
+                <ClassificationCard title="Concepts" body="Ideas with intellectual meaning: autonomy, justice, identity, consciousness, obligation. Concepts affect definitions, Atlas, and metacognition." />
                 <ClassificationCard title="Domains" body="Broad philosophical territory: ethics, epistemology, metaphysics, philosophy of mind, religion, aesthetics, and social philosophy." />
                 <ClassificationCard title="Facets" body="Object characteristics: source type, annotation role, inquiry kind, position maturity, work format, practice outcome, confidence, or status." />
                 <ClassificationCard title="Labels" body="Temporary workflow organization: review next week, video idea, class project, private, priority. Labels should not shape worldview conclusions." />
@@ -875,7 +873,7 @@ export function SettingsPage({
                 <TerminologyCard term="Evolution" alt="History" body="Meaningful intellectual change, not generic app activity." />
               </div>
               <div className="rounded-2xl border border-dashed border-border bg-muted/15 p-4 text-sm italic leading-6 text-muted-foreground">
-                Custom renaming is intentionally not editable yet. It should only ship once every page can reflect terminology consistently across navigation, command palette, object previews, AI prompts, and exports.
+                Custom renaming is intentionally not editable yet. It should only ship once every page can reflect terminology consistently across navigation, command palette, object previews, and exports.
               </div>
             </SettingsCard>
           </div>
@@ -1219,8 +1217,6 @@ function ViewSelect({ value, onChange }: { value: string; onChange: (value: stri
 
 function sectionLabel(section: SettingsSectionKey) {
   switch (section) {
-    case 'ai':
-      return 'AI';
     case 'sourceIntake':
       return 'Source Intake';
     default:

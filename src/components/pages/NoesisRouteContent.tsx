@@ -4,8 +4,6 @@ import type { User } from 'firebase/auth';
 import dynamic from 'next/dynamic';
 import type {
   AccountSettings,
-  AiSettings,
-  AiSuggestion,
   Annotation,
   AppearanceSettings,
   AtlasMap,
@@ -73,7 +71,6 @@ export interface NoesisRouteContentProps {
   timeline: TimelineEvent[];
   atlasMaps: AtlasMap[];
   links: PhilosophicalLink[];
-  suggestions: AiSuggestion[];
   thinkingEvents: ThinkingEvent[];
   beliefProfiles: BeliefProfile[];
   unknowns: Unknown[];
@@ -87,7 +84,6 @@ export interface NoesisRouteContentProps {
   accountSettings: AccountSettings;
   appearanceSettings: AppearanceSettings;
   workspacePreferences: WorkspacePreferenceSettings;
-  aiSettings: AiSettings;
   metacognitionSettings: MetacognitionSettings;
   privacySettings: PrivacySettings;
   dataSettings: DataSettings;
@@ -139,8 +135,6 @@ export interface NoesisRouteContentProps {
       confidence: number;
     };
   }) => { positionId: string; insightId: string; title: string };
-  addAiSuggestion: (suggestion: Partial<AiSuggestion>) => void;
-  updateAiSuggestion: (suggestion: AiSuggestion) => void;
   addPhilosophicalLink: (data: Partial<PhilosophicalLink>) => void;
   addAtlasQuickLink: (data: Partial<PhilosophicalLink>) => void;
   updatePhilosophicalLink: (link: PhilosophicalLink) => void;
@@ -166,7 +160,7 @@ export interface NoesisRouteContentProps {
   saveProfile: (profile: UserProfile) => Promise<void>;
   saveProfilePrivacy: (privacy: ProfilePrivacySettings) => Promise<void>;
   saveSettingsSection: (
-    section: 'account' | 'appearance' | 'workspace' | 'ai' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer',
+    section: 'account' | 'appearance' | 'workspace' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer',
     data: unknown,
   ) => Promise<void>;
   exportWorkspaceData: () => Promise<void>;
@@ -188,7 +182,6 @@ export function NoesisRouteContent({
   timeline,
   atlasMaps,
   links,
-  suggestions,
   thinkingEvents,
   beliefProfiles,
   unknowns,
@@ -202,7 +195,6 @@ export function NoesisRouteContent({
   accountSettings,
   appearanceSettings,
   workspacePreferences,
-  aiSettings,
   metacognitionSettings,
   privacySettings,
   dataSettings,
@@ -235,8 +227,6 @@ export function NoesisRouteContent({
   updateAnnotation,
   deleteAnnotation,
   createIdea,
-  addAiSuggestion,
-  updateAiSuggestion,
   addPhilosophicalLink,
   addAtlasQuickLink,
   updatePhilosophicalLink,
@@ -366,7 +356,6 @@ export function NoesisRouteContent({
           onCreatePosition={createIdea}
           onCreateInquiry={(data) => addQuestion(data) as Question}
           onAddConcept={addConcept}
-          onCreateSuggestion={addAiSuggestion}
           onCreateLink={addPhilosophicalLink}
           onNavigate={navigateToView}
         />
@@ -414,7 +403,6 @@ export function NoesisRouteContent({
           links={links}
           beliefProfiles={beliefProfiles}
           unknowns={unknowns}
-          suggestions={suggestions}
           onAddEntry={addVaultEntry}
           onUpdateEntry={updateVaultEntry}
           onDeleteEntry={deleteVaultEntry}
@@ -423,11 +411,7 @@ export function NoesisRouteContent({
           onAddDraft={addDraft}
           onAddPractice={addPractice}
           onAddQuestion={(data) => addQuestion(data) as Question}
-          onCreateIdea={createIdea}
           onUpdateLink={updatePhilosophicalLink}
-          onAddUnknown={addUnknown}
-          onUpdateSuggestion={updateAiSuggestion}
-          onCreateSuggestion={addAiSuggestion}
           focusedEntryId={focusedPositionId}
           onNavigate={navigateToView}
         />
@@ -448,7 +432,6 @@ export function NoesisRouteContent({
             account: accountSettings,
             appearance: appearanceSettings,
             workspace: workspacePreferences,
-            ai: aiSettings,
             metacognition: metacognitionSettings,
             privacy: privacySettings,
             data: dataSettings,

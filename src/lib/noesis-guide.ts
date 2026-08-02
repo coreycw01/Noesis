@@ -58,7 +58,7 @@ export const noesisGuide = {
         'See growth areas and related history.',
       ],
       connectsTo: ['Annotations', 'Library', 'Inquiries', 'Positions', 'Works', 'Practices', 'Evolution'],
-      importantActions: ['Create concept', 'Edit definition', 'Open linked items', 'Generate description suggestion'],
+      importantActions: ['Create concept', 'Edit definition', 'Open linked items', 'Review definition boundaries'],
     },
     {
       id: 'inquiries',
@@ -128,7 +128,7 @@ export const noesisGuide = {
         'Link positions to concepts, inquiries, works, and practices.',
       ],
       connectsTo: ['Concepts', 'Annotations', 'Inquiries', 'Works', 'Practices', 'Evolution'],
-      importantActions: ['Create position', 'Edit position', 'Resolve tensions', 'Ask AI', 'Create links'],
+      importantActions: ['Create position', 'Edit position', 'Resolve tensions', 'Run a stress test', 'Create links'],
     },
     {
       id: 'works',
@@ -176,10 +176,10 @@ export const noesisGuide = {
       label: 'Settings',
       viewId: 'settings',
       section: 'System',
-      definition: 'The control surface for account behavior, appearance, defaults, privacy, AI, and system preferences.',
+      definition: 'The control surface for account behavior, appearance, defaults, privacy, and system preferences.',
       whatYouDo: [
         'Manage account access, appearance, and workspace defaults.',
-        'Control AI, metacognition, privacy, and export behavior.',
+        'Control metacognition, privacy, and export behavior.',
         'Tune source intake, works, Atlas, notifications, and developer review settings.',
       ],
       connectsTo: ['Works', 'Atlas', 'Profile access', 'Goals card'],

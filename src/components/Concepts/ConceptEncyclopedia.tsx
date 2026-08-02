@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, BookOpen, Brain, CheckCircle2, Edit, Plus, Trash2, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BookOpen, Brain, CheckCircle2, Edit, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,15 +16,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Concept, Draft, Insight, Media, PhilosophicalLink, PhilosophicalLinkType, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import { conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
 import { cn } from '@/lib/utils';
-import { aiClient, type ClarityCheckQuestion } from '@/lib/ai-client';
 import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
 import type { ClarityLevel } from '@/lib/clarity';
 import { useToast } from '@/hooks/use-toast';
-import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 
 interface ConceptEncyclopediaProps {
@@ -233,15 +230,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [editing, setEditing] = useState<Concept | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [draftConcept, setDraftConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
-  const [isSuggesting, setIsSuggesting] = useState(false);
-  const [isDraftingPositions, setIsDraftingPositions] = useState(false);
-  const [positionDrafts, setPositionDrafts] = useState<Array<{ claim: string; confidence: 'low' | 'medium' | 'high'; supportSummary: string; challengeToConsider: string }>>([]);
-  const [clarityCheckOpen, setClarityCheckOpen] = useState(false);
-  const [clarityCheckQuestions, setClarityCheckQuestions] = useState<ClarityCheckQuestion[]>([]);
-  const [currentQIdx, setCurrentQIdx] = useState(0);
-  const [clarityAnswers, setClarityAnswers] = useState<Array<{ dimension: string; isClosest: boolean; feedback: string }>>([]);
-  const [isLoadingCheck, setIsLoadingCheck] = useState(false);
-  const [showReview, setShowReview] = useState(false);
   const [boundaryAnswers, setBoundaryAnswers] = useState<Record<string, BoundaryAnswer>>({});
   const [boundaryRefinement, setBoundaryRefinement] = useState('');
   const [tensionDecisions, setTensionDecisions] = useState<Record<string, ConceptTensionDecision>>({});
@@ -264,7 +252,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     const focusedConcept = concepts.find((concept) => concept.id === focusedConceptId);
     if (focusedConcept && conceptKey(focusedConcept.name) !== conceptKey(selectedName || '')) {
       setSelectedName(focusedConcept.name);
-      setPositionDrafts([]);
     }
   }, [concepts, focusedConceptId, selectedName]);
   
@@ -362,43 +349,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
   const openConceptDetail = (name: string, concept?: Concept | null) => {
     setSelectedName(name);
-    setPositionDrafts([]);
     if (concept?.id) {
       onOpenConceptRoute?.(concept.id);
-    }
-  };
-
-  const handleSuggestDescription = async () => {
-    if (!draftConcept.name) return;
-    setIsSuggesting(true);
-    try {
-      const related = conceptRelated(draftConcept.name, { media, insights, vault, drafts, practices, questions, timeline });
-      const { suggestedDescription } = await aiClient.suggestConceptDescription({
-        conceptName: draftConcept.name,
-        currentDescription: draftConcept.description,
-        linkedSources: related.sources.map(s => ({ title: s.title, creator: s.creator, description: s.description })),
-        linkedIdeas: related.ideas.map(i => ({ title: i.title, body: i.body })),
-        linkedBeliefs: related.beliefs.map(b => ({ title: b.title, statement: b.statement, description: b.description })),
-        memoryContext: {
-          scope: 'linked_objects',
-          instruction: 'Define this concept from the current concept record and linked evidence. Do not use unrelated workspace material.',
-          itemMemory: [
-            `Concept: ${draftConcept.name}`,
-            draftConcept.description ? `Current definition: ${draftConcept.description}` : 'No current definition.',
-          ],
-          linkedMemory: [
-            ...related.sources.slice(0, 6).map((source) => `Source ${source.title}: ${source.description || source.capture?.after?.coreArgument || 'No summary.'}`),
-            ...related.annotations.slice(0, 8).map((annotation) => `Annotation: ${annotation.text}`),
-            ...related.beliefs.slice(0, 6).map((position) => `Position ${position.title}: ${position.statement || position.description || 'No statement.'}`),
-          ],
-        },
-      });
-      setDraftConcept(prev => ({ ...prev, description: suggestedDescription }));
-      toast({ title: "AI description ready.", description: "Noesis drafted a concept definition from your linked evidence." });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Suggestion Failed", description: noesisUserError(error, "AI could not generate a description at this time.") });
-    } finally {
-      setIsSuggesting(false);
     }
   };
 
@@ -441,7 +393,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         onDeleteConcept(deleteTarget.id);
         if (selectedName && conceptKey(selectedName) === conceptKey(deleteTarget.name)) {
           setSelectedName(null);
-          setPositionDrafts([]);
           setIsDefinitionEditing(false);
           onOpenConceptRoute?.(null);
         }
@@ -479,100 +430,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       title: 'Relationship recorded',
       description: `${type.replace(/_/g, ' ')} link created between these positions.`,
     });
-  };
-
-  const handleStartClarityCheck = async () => {
-    if (!selectedName || !selectedRelated) return;
-    const concept = concepts.find(c => conceptKey(c.name) === conceptKey(selectedName));
-    setClarityCheckOpen(true);
-    setCurrentQIdx(0);
-    setClarityAnswers([]);
-    setShowReview(false);
-    setClarityCheckQuestions([]);
-    setIsLoadingCheck(true);
-    try {
-      const diagnosis = computeConceptDiagnosis(selectedName, selectedRelated, concept?.description);
-      const result = await aiClient.generateClarityCheck({
-        conceptName: selectedName,
-        conceptDefinition: concept?.description,
-        positionStatements: selectedRelated.beliefs.slice(0, 4).map(b => b.statement || b.title),
-        annotationTexts: selectedRelated.annotations.slice(0, 5).map(a => a.text).filter((t): t is string => !!t),
-        relatedConcepts: diagnosis.areasToReview,
-        memoryContext: {
-          scope: 'current_object',
-          instruction: 'Generate questions only about this selected concept and its closest linked evidence.',
-          itemMemory: [
-            `Concept: ${selectedName}`,
-            concept?.description ? `Current definition: ${concept.description}` : 'No current definition.',
-            `Diagnosis: clarity ${diagnosis.clarity}, tension ${diagnosis.tension}, embodiment ${diagnosis.embodiment}.`,
-          ],
-          linkedMemory: [
-            ...selectedRelated.annotations.slice(0, 5).map((annotation) => `Annotation: ${annotation.text}`),
-            ...selectedRelated.beliefs.slice(0, 4).map((position) => `Position: ${position.statement || position.title}`),
-          ],
-        },
-      });
-      setClarityCheckQuestions(result.questions);
-      toast({ title: 'Clarity questions generated.', description: 'AI prepared a concept check based on your notes.' });
-    } catch (error) {
-      toast({ variant: 'destructive', title: 'Check Failed', description: noesisUserError(error, 'Could not generate questions right now.') });
-      setClarityCheckOpen(false);
-    } finally {
-      setIsLoadingCheck(false);
-    }
-  };
-
-  const handleSelectOption = (question: ClarityCheckQuestion, isClosest: boolean) => {
-    const newAnswers = [...clarityAnswers, { dimension: question.dimension, isClosest, feedback: question.feedback }];
-    setClarityAnswers(newAnswers);
-    if (currentQIdx + 1 < clarityCheckQuestions.length) {
-      setCurrentQIdx(prev => prev + 1);
-    } else {
-      setShowReview(true);
-    }
-  };
-
-  const handleSuggestPositions = async () => {
-    if (!selectedName || !selectedRelated) return;
-    const annotationTexts = selectedRelated.annotations.map((annotation) => annotation.text).filter(Boolean);
-    if (!annotationTexts.length) {
-      toast({ title: 'More evidence needed', description: 'Add annotations to this concept before drafting positions from it.' });
-      return;
-    }
-    setIsDraftingPositions(true);
-    try {
-      const result = await aiClient.suggestPositionDrafts({
-        conceptName: selectedName,
-        annotations: annotationTexts.slice(0, 16),
-        sourceTitles: selectedRelated.sources.map((source) => source.title).slice(0, 8),
-        memoryContext: {
-          scope: 'linked_objects',
-          instruction: 'Draft positions only from this concept, its annotations, and linked sources. Keep them provisional and editable.',
-          itemMemory: [`Concept: ${selectedName}`],
-          linkedMemory: [
-            ...selectedRelated.sources.slice(0, 8).map((source) => `Source ${source.title}: ${source.description || source.capture?.after?.coreArgument || 'No summary.'}`),
-            ...selectedRelated.beliefs.slice(0, 6).map((position) => `Existing position ${position.title}: ${position.statement || position.description || 'No statement.'}`),
-          ],
-        },
-      });
-      setPositionDrafts(result.drafts);
-      toast({ title: 'Position drafts ready.', description: 'Review the AI drafts and save only the claims you want to own.' });
-    } catch (error) {
-      toast({ variant: 'destructive', title: 'Builder Failed', description: noesisUserError(error, 'Noesis could not draft positions from this concept right now.') });
-    } finally {
-      setIsDraftingPositions(false);
-    }
-  };
-
-  const savePositionDraft = (claim: string, body: string) => {
-    if (!selectedName || !selectedRelated) return;
-    onCreateIdea({
-      title: claim.slice(0, 90),
-      body,
-      tags: [selectedName],
-      sourceIds: selectedRelated.sources.map((source) => source.id),
-    });
-    toast({ title: 'Position Saved', description: 'The draft is now a Position linked to this concept.' });
   };
 
   // ── Full concept detail page ──────────────────────────────────────
@@ -655,7 +512,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
     const back = () => {
       setSelectedName(null);
-      setPositionDrafts([]);
       setIsDefinitionEditing(false);
       onOpenConceptRoute?.(null);
     };
@@ -1089,7 +945,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <div>
                 <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Boundary Test</h2>
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Classify edge cases so this concept becomes clearer without letting AI or the app decide the definition for you.
+                  Classify edge cases so this concept becomes clearer while keeping the definition under your control.
                 </p>
               </div>
               <Badge variant="outline" className="w-fit rounded-full">
@@ -1166,9 +1022,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <Brain className="size-4 text-muted-foreground/40" />
                 <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Growth Diagnosis</h2>
               </div>
-              <Button size="sm" onClick={handleStartClarityCheck} className="h-8 rounded-full bg-accent text-accent-foreground shadow-sm font-code text-[10px] uppercase tracking-widest px-4">
-                <GenerativeAiIcon className="mr-2 size-6" /> Clarity Check
-              </Button>
             </div>
 
             <div className="flex items-center gap-3 mb-3">
@@ -1288,24 +1141,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   </button>
                 ))}
 
-                {r.annotations.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={handleSuggestPositions} disabled={isDraftingPositions} className="w-full h-9 rounded-full bg-card border-accent/20 text-accent hover:bg-accent/5 font-code text-[10px] uppercase tracking-widest">
-                    {isDraftingPositions ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-6" />}
-                    {isDraftingPositions ? 'Drafting…' : 'Suggest Positions from AI'}
-                  </Button>
-                )}
-
-                {positionDrafts.map((draft, i) => (
-                  <div key={i} className="rounded-xl bg-accent/5 border border-accent/20 p-4">
-                    <div className="font-code text-[8px] uppercase tracking-widest text-accent font-bold mb-2">AI Draft · {draft.confidence}</div>
-                    <p className="text-sm font-body font-semibold text-primary mb-1">{draft.claim}</p>
-                    <p className="text-xs text-muted-foreground font-body mb-2">{draft.supportSummary}</p>
-                    <p className="text-[10px] text-amber-600/80 italic font-body mb-3">{draft.challengeToConsider}</p>
-                    <Button size="sm" onClick={() => savePositionDraft(draft.claim, draft.supportSummary)} className="h-7 px-4 rounded-full bg-accent text-accent-foreground font-code text-[9px] uppercase tracking-widest">
-                      Save as Position
-                    </Button>
-                  </div>
-                ))}
               </div>
             </ConceptPageSection>
           </div>
@@ -1448,12 +1283,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             <DialogHeader>
               <div className="flex items-center justify-between pr-8">
                 <DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle>
-                {draftConcept.name && (
-                <Button variant="outline" size="sm" onClick={handleSuggestDescription} disabled={isSuggesting} className="h-8 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-card shadow-sm rounded-full">
-                    {isSuggesting ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-6" />}
-                    Suggest Description
-                  </Button>
-                )}
               </div>
             </DialogHeader>
             <div className="space-y-6 pt-2">
@@ -1479,108 +1308,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         </Dialog>
         {conceptDeleteDialog}
 
-        {/* Clarity Check dialog */}
-        <Dialog open={clarityCheckOpen} onOpenChange={(open) => { setClarityCheckOpen(open); if (!open) { setShowReview(false); setClarityCheckQuestions([]); setClarityAnswers([]); setCurrentQIdx(0); } }}>
-          <DialogContent className="max-w-2xl border-none shadow-2xl rounded-2xl bg-card">
-            {isLoadingCheck ? (
-              <div className="py-20 flex flex-col items-center gap-4">
-                <Loader2 className="size-8 animate-spin text-accent/40" />
-                <p className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Generating questions…</p>
-              </div>
-            ) : showReview ? (
-              <div className="space-y-6 py-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="size-5 text-emerald-500" />
-                  <span className="font-code text-[10px] uppercase tracking-widest text-emerald-600 font-bold">Clarity Check Complete</span>
-                </div>
-                <h2 className="font-headline text-3xl italic text-primary">{selectedName}</h2>
-
-                <div className="flex items-center gap-3">
-                  <span className={cn('font-code text-[10px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full border', CLARITY_BG[diagnosis.level])}>
-                    {diagnosis.level}
-                  </span>
-                  <span className="font-code text-[10px] text-muted-foreground/60 uppercase tracking-widest">
-                    {clarityAnswers.filter(a => a.isClosest).length}/{clarityAnswers.length} closest matched
-                  </span>
-                </div>
-
-                <p className="text-sm font-body text-muted-foreground italic">{diagnosis.why}</p>
-
-                {clarityAnswers.some(a => a.isClosest) && (
-                  <div className="space-y-2">
-                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">What Your Answers Reveal</div>
-                    {clarityAnswers.filter(a => a.isClosest).map((a, i) => (
-                      <div key={i} className="rounded-lg bg-emerald-50 border border-emerald-100 p-3 text-sm font-body text-emerald-800">{a.feedback}</div>
-                    ))}
-                  </div>
-                )}
-
-                {diagnosis.growthAreas.length > 0 && (
-                  <div>
-                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Growth Areas</div>
-                    <ul className="space-y-1.5">
-                      {diagnosis.growthAreas.map((area, i) => (
-                        <li key={i} className="text-sm font-body text-foreground/80 flex items-start gap-2">
-                          <span className="text-accent mt-0.5 shrink-0">→</span>{area}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="rounded-lg bg-accent/5 border border-accent/15 p-4">
-                  <div className="font-code text-[9px] uppercase tracking-widest text-accent/70 mb-1 font-bold">Next Action</div>
-                  <p className="text-sm font-body text-primary">{diagnosis.suggestedNextAction}</p>
-                </div>
-
-                {diagnosis.areasToReview.length > 0 && (
-                  <div>
-                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Areas to Review</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {diagnosis.areasToReview.map(area => (
-                        <span key={area} className="font-code text-[9px] uppercase tracking-widest bg-muted/20 text-muted-foreground/70 rounded-full px-2.5 py-1 border border-border/30">{area}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <DialogFooter>
-                  <Button onClick={() => setClarityCheckOpen(false)} className="rounded-full px-8 font-bold">Done</Button>
-                </DialogFooter>
-              </div>
-            ) : clarityCheckQuestions.length > 0 ? (
-              <div className="space-y-6 py-2">
-                <div className="flex items-center justify-between">
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">
-                    {currentQIdx + 1} / {clarityCheckQuestions.length}
-                  </div>
-                  <div className="font-code text-[9px] uppercase tracking-widest text-accent/70 font-bold">
-                    {clarityCheckQuestions[currentQIdx].dimension.replace('_', ' ')}
-                  </div>
-                </div>
-
-                <div className="w-full h-1 bg-muted/20 rounded-full overflow-hidden">
-                  <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${((currentQIdx) / clarityCheckQuestions.length) * 100}%` }} />
-                </div>
-
-                <h2 className="font-headline text-2xl italic text-primary leading-tight">{clarityCheckQuestions[currentQIdx].text}</h2>
-
-                <div className="space-y-3">
-                  {clarityCheckQuestions[currentQIdx].options.map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={() => handleSelectOption(clarityCheckQuestions[currentQIdx], option.isClosest)}
-                      className="w-full text-left rounded-xl bg-card border border-border/40 p-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
-                    >
-                      <span className="font-code text-[9px] uppercase font-bold text-muted-foreground/50 mr-2 group-hover:text-accent/70">{option.id.toUpperCase()}.</span>
-                      <span className="font-body text-[15px] text-primary">{option.text}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </DialogContent>
-        </Dialog>
       </div>
     );
   }
@@ -1765,12 +1492,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           <DialogHeader>
             <div className="flex items-center justify-between pr-8">
               <DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle>
-              {draftConcept.name && (
-                <Button variant="outline" size="sm" onClick={handleSuggestDescription} disabled={isSuggesting} className="h-8 font-code text-[10px] uppercase tracking-widest text-accent border-accent/20 bg-card shadow-sm rounded-full">
-                  {isSuggesting ? <Loader2 className="size-4 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-6" />}
-                  Suggest Description
-                </Button>
-              )}
             </div>
           </DialogHeader>
           <div className="space-y-6 pt-2">

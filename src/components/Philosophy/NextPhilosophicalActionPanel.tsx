@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 export interface PhilosophicalAction {
   label: string;
   description?: string;
-  tone?: 'default' | 'support' | 'challenge' | 'ai';
+  tone?: 'default' | 'support' | 'challenge';
   disabled?: boolean;
   icon?: React.ReactNode;
   hideArrow?: boolean;
@@ -53,7 +53,7 @@ export function NextPhilosophicalActionPanel({
           <Button
             key={action.label}
             type="button"
-            variant={action.tone === 'support' || action.tone === 'ai' ? 'default' : 'outline'}
+            variant={action.tone === 'support' ? 'default' : 'outline'}
             size="sm"
             disabled={action.disabled}
             onClick={action.onClick}
@@ -62,7 +62,6 @@ export function NextPhilosophicalActionPanel({
               'rounded-full font-code text-[9px] font-bold uppercase tracking-widest',
               compact ? 'h-7 px-2.5' : 'h-8',
               action.tone === 'challenge' && 'border-destructive/25 text-destructive hover:bg-destructive/10 hover:text-destructive',
-              action.tone === 'ai' && 'bg-accent shadow-sm shadow-accent/20'
             )}
           >
             {action.icon}

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, Loader2, MoreHorizontal, Quote, Trash2 } from 'lucide-react';
+import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,16 +13,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
-import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import type { AiSuggestion, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
+import type { Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { aiClient } from '@/lib/ai-client';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
@@ -38,7 +36,6 @@ interface AnnotationsIndexProps {
   onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string; position?: { title: string; statement: string; description: string; confidence: number } }) => { positionId: string; insightId: string; title: string };
   onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string }) => Question;
   onAddConcept: (data: Partial<Concept>) => void;
-  onCreateSuggestion: (data: Partial<AiSuggestion>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onNavigate?: (view: string, targetId?: string) => void;
 }
@@ -112,7 +109,6 @@ export function AnnotationsIndex({
   onCreatePosition,
   onCreateInquiry,
   onAddConcept,
-  onCreateSuggestion,
   onCreateLink,
   onNavigate,
 }: AnnotationsIndexProps) {
@@ -123,7 +119,6 @@ export function AnnotationsIndex({
   const [sortBy, setSortBy] = useState<AnnotationSort>('newest');
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
-  const [suggestingId, setSuggestingId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [linkDialog, setLinkDialog] = useState<{ annotation: FlatAnnotation; linkType: 'supports' | 'challenges' } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FlatAnnotation | null>(null);
@@ -444,76 +439,6 @@ export function AnnotationsIndex({
     if (navigateOnCreate) onNavigate?.('questions', created.id);
     setPendingAction(null);
     return created.id;
-  };
-
-  const suggestConsequences = async (annotation: FlatAnnotation) => {
-    setSuggestingId(annotation.id);
-    try {
-      const tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags);
-      const tagKeys = new Set(tags.map(conceptKey));
-      const linkedConcepts = concepts
-        .filter((concept) => tagKeys.has(conceptKey(concept.name)))
-        .slice(0, 6);
-      const linkedPositions = positions
-        .filter((position) => (position.tags || []).some((tag) => tagKeys.has(conceptKey(tag))) || (annotation.linkedPositionIds || []).includes(position.id))
-        .slice(0, 6);
-      const linkedInquiries = inquiries
-        .filter((inquiry) => (inquiry.conceptIds || []).some((id) => linkedConcepts.some((concept) => concept.id === id)) || (annotation.createdInquiryId && inquiry.id === annotation.createdInquiryId))
-        .slice(0, 6);
-      const suggestion = await aiClient.suggestAnnotationConsequences({
-        annotationText: annotation.text,
-        annotationType: annotation.type,
-        sourceTitle: annotation.source.title,
-        existingConcepts: linkedConcepts.map((concept) => concept.name),
-        existingInquiries: linkedInquiries.map((inquiry) => inquiry.text),
-        existingPositions: linkedPositions.map((position) => position.statement || position.title),
-        memoryContext: {
-          scope: 'linked_objects',
-          instruction: 'Use the annotation and its parent source first. Use linked concepts, positions, and inquiries only to choose the most relevant next move. Do not infer from unrelated workspace material.',
-          itemMemory: [
-            `Annotation text: ${annotation.text}`,
-            `Annotation type: ${annotation.type}`,
-            annotation.context ? `Annotation context: ${annotation.context}` : '',
-            annotation.answer ? `User interpretation or answer: ${annotation.answer}` : '',
-            `Parent source: ${annotation.source.title}${annotation.source.creator ? ` by ${annotation.source.creator}` : ''}`,
-            annotation.source.description ? `Source summary: ${annotation.source.description}` : '',
-            annotation.source.capture?.after?.coreArgument ? `Source core argument: ${annotation.source.capture.after.coreArgument}` : '',
-          ].filter(Boolean),
-          linkedMemory: [
-            ...linkedConcepts.map((concept) => `Concept ${concept.name}: ${concept.description || 'No definition yet.'}`),
-            ...linkedPositions.map((position) => `Position ${position.title}: ${position.statement || position.description || 'No statement yet.'}`),
-            ...linkedInquiries.map((inquiry) => `Inquiry ${inquiry.text}: ${inquiry.answer || inquiry.status || 'open'}`),
-          ],
-          workspaceMemory: [
-            `${concepts.length} total concepts`,
-            `${positions.length} total positions`,
-            `${inquiries.length} total inquiries`,
-          ],
-        },
-      });
-      onCreateSuggestion({
-        targetType: 'annotation',
-        targetId: `${annotation.source.id}:${annotation.id}`,
-        targetLabel: annotation.text.slice(0, 90),
-        suggestionType: 'annotation_consequence',
-        title: 'Suggested next move',
-        body: suggestion.rationale,
-        payload: {
-          ...suggestion,
-          sourceId: annotation.source.id,
-          annotationId: annotation.id,
-        },
-      });
-      toast({ title: 'Suggestion Saved', description: 'Noesis saved a possible next step for you to accept or ignore later.' });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Suggestion Failed',
-        description: noesisUserError(error, 'The assistant could not read this annotation right now.'),
-      });
-    } finally {
-      setSuggestingId(null);
-    }
   };
 
   const toggleSelected = (annotation: FlatAnnotation) => {
@@ -1046,9 +971,6 @@ export function AnnotationsIndex({
                     <Badge variant="secondary" className="rounded-full bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">{annotationLabel(annotationStatus(editing))}</Badge>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="size-9 rounded-full text-accent hover:text-accent" onClick={() => suggestConsequences(editing)} disabled={suggestingId === editing.id} title="Ask Noesis AI">
-                      {suggestingId === editing.id ? <Loader2 className="size-4 animate-spin" /> : <GenerativeAiIcon className="size-7" />}
-                    </Button>
                     <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => previewSource(editing.source, editing)} title="Open source">
                       <ExternalLink className="size-3.5" />
                     </Button>

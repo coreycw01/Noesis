@@ -1,7 +1,6 @@
 import { collection, doc, type Firestore } from 'firebase/firestore';
 import type {
   AccountSettings,
-  AiSettings,
   AppearanceSettings,
   AtlasSettings,
   AtlasViewSettings,
@@ -35,7 +34,6 @@ export const READEX_COLLECTIONS = {
   practices: 'practices',
   atlasMaps: 'atlasMaps',
   links: 'links',
-  suggestions: 'suggestions',
   timeline: 'timeline',
   insights: 'insights',
   thinkingEvents: 'thinkingEvents',
@@ -56,7 +54,6 @@ export const READEX_SETTINGS_DOCS = {
   workspaceSummary: 'workspaceSummary',
   account: 'account',
   appearance: 'appearance',
-  ai: 'ai',
   metacognition: 'metacognition',
   privacy: 'privacy',
   data: 'data',
@@ -228,7 +225,6 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   featureFlags: {
     reviewMode: false,
     demoWorkspaceSeed: false,
-    aiSuggestions: true,
     atlasCustomMaps: true,
     sourceIntakeProviders: true,
     worksMultimodal: true,
@@ -270,23 +266,6 @@ export const DEFAULT_WORKSPACE_PREFERENCES: WorkspacePreferenceSettings = {
   autoSaveBehavior: 'debounced',
   confirmBeforeDeletingObjects: true,
   enableReviewPromptsAfterMajorEdits: true,
-};
-
-export const DEFAULT_AI_SETTINGS: AiSettings = {
-  enableAiSuggestions: true,
-  provider: 'gemini',
-  model: '2.5-flash',
-  reasoningDepth: 'standard',
-  autoGenerateQuestionsAfterSourceCapture: true,
-  autoDetectPossibleTensions: true,
-  autoSuggestConceptLinks: true,
-  autoSuggestPositionLinks: true,
-  autoSummarizeEvolutionEvents: true,
-  requireUserApprovalBeforeSavingAiOutput: true,
-  saveAiSuggestionsAsDraftOnly: true,
-  memoryScope: 'linked_objects',
-  tone: 'socratic',
-  safetyMode: 'balanced',
 };
 
 export const DEFAULT_METACOGNITION_SETTINGS: MetacognitionSettings = {
@@ -435,7 +414,6 @@ export function readexRefs(db: Firestore, uid: string) {
     practices: userCollection('practices'),
     atlasMaps: userCollection('atlasMaps'),
     links: userCollection('links'),
-    suggestions: userCollection('suggestions'),
     timeline: userCollection('timeline'),
     insights: userCollection('insights'),
     thinkingEvents: userCollection('thinkingEvents'),
@@ -451,7 +429,6 @@ export function readexRefs(db: Firestore, uid: string) {
     settingsWorkspaceSummary: settingsDoc('workspaceSummary'),
     settingsAccount: settingsDoc('account'),
     settingsAppearance: settingsDoc('appearance'),
-    settingsAi: settingsDoc('ai'),
     settingsMetacognition: settingsDoc('metacognition'),
     settingsPrivacy: settingsDoc('privacy'),
     settingsData: settingsDoc('data'),
@@ -483,7 +460,6 @@ export function readexSchemaDoc(uid: string) {
       practices: `${userPath(uid)}/practices`,
       atlasMaps: `${userPath(uid)}/atlasMaps`,
       links: `${userPath(uid)}/links`,
-      suggestions: `${userPath(uid)}/suggestions`,
       timeline: `${userPath(uid)}/timeline`,
       insights: `${userPath(uid)}/insights`,
       thinkingEvents: `${userPath(uid)}/thinkingEvents`,
@@ -507,7 +483,6 @@ export function readexSchemaDoc(uid: string) {
       workspace: `${userPath(uid)}/settings/workspace`,
       account: `${userPath(uid)}/settings/account`,
       appearance: `${userPath(uid)}/settings/appearance`,
-      ai: `${userPath(uid)}/settings/ai`,
       metacognition: `${userPath(uid)}/settings/metacognition`,
       privacy: `${userPath(uid)}/settings/privacy`,
       data: `${userPath(uid)}/settings/data`,

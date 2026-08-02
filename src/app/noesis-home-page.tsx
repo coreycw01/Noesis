@@ -20,7 +20,6 @@ import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appear
 import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
-  DEFAULT_AI_SETTINGS,
   DEFAULT_APPEARANCE_SETTINGS,
   DEFAULT_ATLAS_NODE_SETTINGS,
   DEFAULT_ATLAS_SETTINGS,
@@ -46,8 +45,6 @@ import {
 import { buildDemoWorkspace, buildReviewExport, REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS, REVIEW_WORKSPACE_UID } from '@/lib/demo-workspace';
 import type {
   AccountSettings,
-  AiSuggestion,
-  AiSettings,
   Annotation,
   AppearanceSettings,
   AtlasMap,
@@ -207,7 +204,6 @@ function ReadexWorkspace({
     practices,
     atlasMaps,
     links: rawLinks,
-    suggestions,
     thinkingEvents,
     beliefProfiles,
     unknowns,
@@ -224,7 +220,6 @@ function ReadexWorkspace({
     settingsAccountDoc,
     settingsAppearanceDoc,
     settingsWorkspacePrefsDoc,
-    settingsAiDoc,
     settingsMetacognitionDoc,
     settingsPrivacyDoc,
     settingsDataDoc,
@@ -316,10 +311,6 @@ function ReadexWorkspace({
     accountCreatedAt: user?.metadata?.creationTime || DEFAULT_ACCOUNT_SETTINGS.accountCreatedAt,
     ...(settingsAccountDoc || {}),
   };
-  const aiSettings: AiSettings = {
-    ...DEFAULT_AI_SETTINGS,
-    ...(settingsAiDoc || {}),
-  };
   const metacognitionSettings: MetacognitionSettings = {
     ...DEFAULT_METACOGNITION_SETTINGS,
     ...(settingsMetacognitionDoc || {}),
@@ -362,7 +353,6 @@ function ReadexWorkspace({
     featureFlags: {
       ...DEFAULT_WORKSPACE_SETTINGS.featureFlags,
       ...(workspaceDoc?.featureFlags || {}),
-      aiSuggestions: aiSettings.enableAiSuggestions,
       metacognitionEnabled: metacognitionSettings.enableMetacognitionFeatures,
       beliefBiographiesEnabled: metacognitionSettings.enableBeliefBiographies,
       unknownsEnabled: metacognitionSettings.enableUnknownsTracking,
@@ -476,7 +466,6 @@ function ReadexWorkspace({
         await setDefaultIfMissing(refs.settingsWorkspace, DEFAULT_WORKSPACE_SETTINGS);
         await setDefaultIfMissing(refs.settingsAccount, DEFAULT_ACCOUNT_SETTINGS);
         await setDefaultIfMissing(refs.settingsAppearance, DEFAULT_APPEARANCE_SETTINGS);
-        await setDefaultIfMissing(refs.settingsAi, DEFAULT_AI_SETTINGS);
         await setDefaultIfMissing(refs.settingsMetacognition, DEFAULT_METACOGNITION_SETTINGS);
         await setDefaultIfMissing(refs.settingsPrivacy, DEFAULT_PRIVACY_SETTINGS);
         await setDefaultIfMissing(refs.settingsData, DEFAULT_DATA_SETTINGS);
@@ -538,7 +527,7 @@ function ReadexWorkspace({
     lastReadyRouteContentRef.current = null;
   }, [effectiveUid]);
 
-  const totalObjects = media.length + concepts.length + questions.length + vault.length + drafts.length + practices.length + timeline.length + insights.length + links.length + suggestions.length + atlasMaps.length + thinkingEvents.length + beliefProfiles.length + unknowns.length + thinkingPatterns.length;
+  const totalObjects = media.length + concepts.length + questions.length + vault.length + drafts.length + practices.length + timeline.length + insights.length + links.length + atlasMaps.length + thinkingEvents.length + beliefProfiles.length + unknowns.length + thinkingPatterns.length;
 
   const seedReviewWorkspace = async ({ force = false, preserveUserCreated = true, announce = false }: { force?: boolean; preserveUserCreated?: boolean; announce?: boolean } = {}) => {
     setIsSeedingReview(true);
@@ -576,7 +565,6 @@ function ReadexWorkspace({
       deleteStaleDemoDocs(timeline, new Set(demo.timeline.map((item) => item.id)), (item) => item.id, (id) => doc(refs.timeline, id));
       deleteStaleDemoDocs(insights, new Set(demo.insights.map((item) => item.id)), (item) => item.id, (id) => doc(refs.insights, id));
       deleteStaleDemoDocs(links, new Set(demo.links.map((item) => item.id)), (item) => item.id, (id) => doc(refs.links, id));
-      deleteStaleDemoDocs(suggestions, new Set(demo.suggestions.map((item) => item.id)), (item) => item.id, (id) => doc(refs.suggestions, id));
       deleteStaleDemoDocs(atlasMaps, new Set(demo.atlasMaps.map((item) => item.id)), (item) => item.id, (id) => doc(refs.atlasMaps, id));
       deleteStaleDemoDocs(thinkingEvents, new Set(demo.thinkingEvents.map((item) => item.id)), (item) => item.id, (id) => doc(refs.thinkingEvents, id));
       deleteStaleDemoDocs(beliefProfiles, new Set(demo.beliefProfiles.map((item) => item.positionId)), (item) => item.positionId, (id) => doc(refs.beliefProfiles, id));
@@ -598,7 +586,6 @@ function ReadexWorkspace({
       batch.set(refs.settingsWorkspace, demo.workspace, { merge: true });
       batch.set(refs.settingsAccount, demo.settingsAccount, { merge: true });
       batch.set(refs.settingsAppearance, demo.settingsAppearance, { merge: true });
-      batch.set(refs.settingsAi, demo.settingsAi, { merge: true });
       batch.set(refs.settingsMetacognition, demo.settingsMetacognition, { merge: true });
       batch.set(refs.settingsPrivacy, demo.settingsPrivacy, { merge: true });
       batch.set(refs.settingsData, demo.settingsData, { merge: true });
@@ -639,7 +626,6 @@ function ReadexWorkspace({
       demo.timeline.forEach((item) => batch.set(doc(refs.timeline, item.id), item));
       demo.insights.forEach((item) => batch.set(doc(refs.insights, item.id), item));
       demo.links.forEach((item) => batch.set(doc(refs.links, item.id), item));
-      demo.suggestions.forEach((item) => batch.set(doc(refs.suggestions, item.id), item));
       demo.atlasMaps.forEach((item) => batch.set(doc(refs.atlasMaps, item.id), item));
       demo.thinkingEvents.forEach((item) => batch.set(doc(refs.thinkingEvents, item.id), item));
       demo.beliefProfiles.forEach((item) => batch.set(doc(refs.beliefProfiles, item.positionId), item));
@@ -706,7 +692,6 @@ function ReadexWorkspace({
         works: drafts.length,
         practices: practices.length,
         evolutionEvents: timeline.length,
-        aiSuggestions: suggestions.length,
         atlasMaps: atlasMaps.length,
         typedLinks: links.length,
       },
@@ -738,7 +723,6 @@ function ReadexWorkspace({
         account: accountSettings,
         appearance: appearanceSettings,
         workspace: workspacePreferences,
-        ai: aiSettings,
         metacognition: metacognitionSettings,
         privacy: privacySettings,
         data: dataSettings,
@@ -758,7 +742,6 @@ function ReadexWorkspace({
         practices,
         timeline,
         links,
-        suggestions,
         atlasMaps,
         thinkingEvents,
         beliefProfiles,
@@ -2393,6 +2376,7 @@ function ReadexWorkspace({
     }, { operation: 'delete', data: existing || { id } });
   };
 
+  /* Persisted AI suggestion writes were removed in the AI-free release.
   const addAiSuggestion = (data: Partial<AiSuggestion>) => {
     if (!data.targetType || !data.targetId || !data.suggestionType) return;
     const suggestionRef = doc(refs.suggestions);
@@ -2471,6 +2455,7 @@ function ReadexWorkspace({
     }, { operation: 'update', data: nextSuggestion });
   };
 
+  */
   const addAtlasMap = (data: Partial<AtlasMap>) => {
     const mapRef = doc(refs.atlasMaps);
     const nodeNames = data.nodeNames || [];
@@ -2615,7 +2600,7 @@ function ReadexWorkspace({
     });
   };
 
-  const saveSettingsSection = async (section: 'account' | 'appearance' | 'workspace' | 'ai' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer', value: any) => {
+  const saveSettingsSection = async (section: 'account' | 'appearance' | 'workspace' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer', value: any) => {
     const stamped = { ...value, dateUpdated: today() };
     switch (section) {
       case 'account':
@@ -2632,16 +2617,6 @@ function ReadexWorkspace({
         break;
       case 'workspace':
         await saveWorkspaceDoc(refs.settingsWorkspace as any, stamped);
-        break;
-      case 'ai':
-        await saveWorkspaceDoc(refs.settingsAi as any, stamped);
-        await saveWorkspaceDoc(refs.settingsWorkspace as any, {
-          featureFlags: {
-            ...workspace.featureFlags,
-            aiSuggestions: stamped.enableAiSuggestions,
-          },
-          dateUpdated: today(),
-        });
         break;
       case 'metacognition':
         await saveWorkspaceDoc(refs.settingsMetacognition as any, stamped);
@@ -2794,7 +2769,6 @@ function ReadexWorkspace({
         timeline={timeline}
         atlasMaps={atlasMaps}
         links={links}
-        suggestions={suggestions}
         thinkingEvents={thinkingEvents}
         beliefProfiles={beliefProfiles}
         unknowns={unknowns}
@@ -2808,7 +2782,6 @@ function ReadexWorkspace({
         accountSettings={accountSettings}
         appearanceSettings={appearanceSettings}
         workspacePreferences={workspacePreferences}
-        aiSettings={aiSettings}
         metacognitionSettings={metacognitionSettings}
         privacySettings={privacySettings}
         dataSettings={dataSettings}
@@ -2841,8 +2814,6 @@ function ReadexWorkspace({
         updateAnnotation={updateAnnotation}
         deleteAnnotation={deleteAnnotation}
         createIdea={createIdea}
-        addAiSuggestion={addAiSuggestion}
-        updateAiSuggestion={updateAiSuggestion}
         addPhilosophicalLink={addPhilosophicalLink}
         addAtlasQuickLink={addAtlasQuickLink}
         updatePhilosophicalLink={updatePhilosophicalLink}
@@ -2910,7 +2881,6 @@ function ReadexWorkspace({
       practices={practices}
       unknowns={unknowns}
       links={links}
-      suggestionsCount={suggestions.length}
       user={user}
       onOpenCommandItem={(item) => {
         if (item.targetType && item.targetId) {
@@ -2981,7 +2951,6 @@ function readableWorkspaceArea(path: string) {
     thinkingEvents: 'Evolution history',
     unknowns: 'Unknowns',
     thinkingPatterns: 'Thinking profile',
-    suggestions: 'AI suggestions',
     settings: 'Settings',
     profile: 'Profile',
   };

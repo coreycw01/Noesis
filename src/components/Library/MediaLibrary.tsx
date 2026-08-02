@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { ArrowLeft, ChevronDown, Edit, Plus, Search, Trash2, MessageSquare, X, Loader2, HelpCircle, Triangle, BookOpen, FileText, Check, Globe, Link2, Clock, Pause, Play, Square } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Edit, Plus, Search, Trash2, MessageSquare, X, Loader2, Triangle, BookOpen, FileText, Check, Globe, Link2, Clock, Pause, Play, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,8 +20,6 @@ import { MEDIA_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, toda
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { sourceResultToMediaPatch, type NormalizedSourceResult } from '@/lib/source-intake';
-import { aiClient } from '@/lib/ai-client';
-import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
@@ -154,8 +152,6 @@ export function MediaLibrary({
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<Partial<Media>>({ type: 'book', title: '', creator: '', status: 'Want to Read', tags: [] });
   const [annotationDraft, setAnnotationDraft] = useState({ type: 'thought' as Annotation['type'], text: '' });
-  const [isDistilling, setIsDistilling] = useState(false);
-  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [insightOpen, setInsightOpen] = useState(false);
   const [insightDraft, setInsightDraft] = useState({ title: '', body: '', tags: [] as string[] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
@@ -403,68 +399,6 @@ export function MediaLibrary({
     setAnnotationDraft({ type: 'thought', text: '' });
   };
 
-  const handleDistill = async () => {
-    if (!selected) return;
-    setIsDistilling(true);
-    try {
-      const { coreClaim } = await aiClient.distillInsightsFromMedia({
-        mediaTitle: selected.title,
-        mediaCreator: selected.creator,
-        capturedNotes: selected.capture,
-        annotations: selected.annotations,
-      });
-      const capture = selected.capture || { sessions: [] };
-      const nextCapture = { ...capture, after: { ...capture.after, coreArgument: coreClaim }, sessions: capture.sessions || [] };
-      setCaptureDraft(nextCapture);
-      updateSelected({ capture: nextCapture });
-      toast({ title: "AI analysis complete.", description: "Noesis distilled a core position from this source." });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Distillation Failed",
-        description: noesisUserError(error, "The AI was unable to synthesize a claim at this time."),
-      });
-    } finally {
-      setIsDistilling(false);
-    }
-  };
-
-  const handleGenerateQuestions = async () => {
-    if (!selected) return;
-    setIsGeneratingQuestions(true);
-    try {
-      const questionsRes = await aiClient.generateReflectiveQuestions({
-        mediaTitle: selected.title,
-        beforePriorBeliefs: selected.capture?.before?.priorBeliefs,
-        beforeExpectation: selected.capture?.before?.expectation,
-        beforeOpenQuestion: selected.capture?.before?.openQuestion,
-        afterCoreArgument: selected.capture?.after?.coreArgument,
-        afterLastingIdea: selected.capture?.after?.lasting,
-        afterBeliefChange: selected.capture?.after?.beliefChange,
-      });
-      
-      const newAnnotations: Annotation[] = questionsRes.map(q => ({
-        id: uid(),
-        type: 'question',
-        text: q,
-        date: today(),
-        conceptTags: selected.tags,
-        philosophyStatus: 'questioned',
-      }));
-
-      updateSelected({ annotations: [...newAnnotations, ...(selected.annotations || [])] });
-      toast({ title: "Inquiries generated.", description: "New reflective questions were added to this source." });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Generation Failed",
-        description: noesisUserError(error, "AI reflective questions could not be created."),
-      });
-    } finally {
-      setIsGeneratingQuestions(false);
-    }
-  };
-
   const saveInsight = () => {
     if (!selected || !insightDraft.title.trim()) return;
     onCreateIdea({
@@ -676,10 +610,6 @@ export function MediaLibrary({
                 ))}
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
-                <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="rounded-full bg-card text-accent border-accent/20">
-                  {isDistilling ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
-                  Extract Claims
-                </Button>
                 <Button variant="outline" onClick={() => setInsightOpen(true)} className="rounded-full bg-card">
                   Create Claim
                 </Button>
@@ -809,10 +739,6 @@ export function MediaLibrary({
 
             <div className="flex gap-4 pt-10 border-t border-border/30">
               <Button onClick={() => updateSelected({ capture })} className="bg-accent px-10 h-11 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">SAVE CAPTURE</Button>
-              <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="h-11 px-10 font-code text-[11px] tracking-widest uppercase text-accent border-accent/20 shadow-sm bg-card rounded-full font-bold">
-                {isDistilling ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
-                EXTRACT CLAIMS
-              </Button>
             </div>
           </TabsContent>
 
@@ -847,10 +773,6 @@ export function MediaLibrary({
                 </div>
               </div>
               <aside className="space-y-6">
-                <Button variant="outline" onClick={handleGenerateQuestions} disabled={isGeneratingQuestions} className="w-full h-12 font-code text-[11px] uppercase tracking-widest text-accent border-accent/20 bg-card shadow-sm rounded-full font-bold">
-                  {isGeneratingQuestions ? <Loader2 className="size-4 mr-2 animate-spin" /> : <HelpCircle className="size-4 mr-2" />}
-                  GENERATE REFLECTIONS
-                </Button>
                 <Card className="p-6 bg-muted/5 border-dashed border-border/60 rounded-xl">
                   <h4 className="readex-kicker mb-3 opacity-50 font-bold">Extraction Tips</h4>
                   <p className="text-sm font-body italic text-muted-foreground leading-relaxed">Focus on claims that challenge your current understanding. Label them clearly to aid later synthesis.</p>
@@ -1022,10 +944,6 @@ export function MediaLibrary({
             </Card>
             <div className="flex flex-wrap gap-3">
               <Button variant="outline" onClick={() => updateSelected({ capture })} className="rounded-full bg-card">Save Reflection</Button>
-              <Button variant="outline" onClick={handleDistill} disabled={isDistilling} className="rounded-full bg-card text-accent border-accent/20">
-                {isDistilling ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
-                Extract Claims
-              </Button>
               <Button onClick={() => setInsightOpen(true)} className="rounded-full">Create Claim</Button>
             </div>
           </TabsContent>

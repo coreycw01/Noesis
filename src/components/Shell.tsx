@@ -507,7 +507,6 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                   width={44}
                   height={44}
                   className="size-full object-contain"
-                  data-ai-hint={logoData.imageHint}
                   priority
                 />
               )}
@@ -746,7 +745,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           <DialogContent className="max-w-xl rounded-3xl border-border bg-card p-0 shadow-2xl">
             <DialogHeader className="border-b border-border px-6 py-5">
               <DialogTitle className="font-headline text-2xl font-semibold italic">Command Palette</DialogTitle>
-              <DialogDescription>Search objects, jump to workspaces, or start structured Noesis actions. This is navigation and creation, not unrestricted AI chat.</DialogDescription>
+              <DialogDescription>Search objects, jump to workspaces, or start structured Noesis actions.</DialogDescription>
             </DialogHeader>
             <div className="p-4">
               <div className="relative">

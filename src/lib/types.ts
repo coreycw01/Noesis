@@ -77,8 +77,6 @@ export type AtlasMapFontFamily = 'system' | 'serif' | 'mono' | 'rounded' | 'cond
 export type AtlasMapNodeStyle = 'default' | 'compact' | 'pill' | 'card';
 export type AtlasMapMode = 'core' | 'conflict' | 'evidence' | 'practice' | 'evolution' | 'full' | 'custom';
 export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'itunes' | 'crossref' | 'internet_archive' | 'url_metadata' | 'manual';
-export type AiSuggestionType = 'annotation_consequence' | 'position_draft' | 'typed_link' | 'possible_tension' | 'evolution_summary' | 'daily_prompt' | 'missing_perspective' | 'blind_spot' | 'missing_question' | 'stress_test' | 'thinking_pattern' | 'unknown_candidate' | 'contradiction_cluster';
-export type AiSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'ignored' | 'dismissed' | 'outdated';
 export type ThinkingEventType = 'created' | 'edited' | 'revised' | 'challenged' | 'supported' | 'abandoned' | 'resolved' | 'linked' | 'unlinked' | 'link_removed' | 'tested' | 'synthesized' | 'confidence_changed' | 'evidence_added' | 'evidence_removed' | 'contradiction_detected' | 'contradiction_resolved' | 'unknown_created' | 'unknown_resolved' | 'question_created' | 'question_resolved' | 'position_formed' | 'practice_created' | 'source_distilled' | 'annotation_created' | 'ai_suggestion_generated' | 'ai_suggestion_accepted' | 'ai_suggestion_rejected' | 'position_created' | 'position_revised' | 'position_replaced' | 'position_abandoned' | 'question_promoted' | 'link_created' | 'suggestion_created' | 'suggestion_accepted' | 'suggestion_dismissed' | 'thinking_pattern_inferred' | 'thinking_pattern_acknowledged' | 'thinking_pattern_dismissed' | 'stress_test_generated' | 'stress_test_answered' | 'assumption_added' | 'assumption_challenged' | 'challenge_added' | 'source_created' | 'source_abandoned' | 'concept_defined' | 'concept_redefined' | 'concept_abandoned' | 'work_created' | 'work_revised' | 'work_abandoned' | 'practice_logged' | 'practice_concluded' | 'practice_abandoned';
 export type ThinkingPatternType = 'evidence_style' | 'reasoning_style' | 'questioning_style' | 'source_bias' | 'conceptual_gap' | 'revision_pattern' | 'contradiction_pattern' | 'certainty_pattern';
 export type ThinkingPatternStatus = 'pending' | 'acknowledged' | 'dismissed' | 'outdated';
@@ -470,25 +468,6 @@ export interface PhilosophicalLink {
   dateUpdated: string;
 }
 
-export interface AiSuggestion {
-  id: string;
-  targetType: PhilosophicalObjectType;
-  targetId: string;
-  targetLabel?: string;
-  suggestionType: AiSuggestionType;
-  title: string;
-  body: string;
-  description?: string;
-  reasoning?: string;
-  evidence?: string[];
-  confidence?: number;
-  payload?: Record<string, any>;
-  status: AiSuggestionStatus;
-  createdFrom: 'ai';
-  dateCreated: string;
-  dateUpdated: string;
-}
-
 export interface ThinkingEvent {
   id: string;
   eventId: string;
@@ -789,25 +768,6 @@ export interface WorkspacePreferenceSettings {
   autoSaveBehavior: 'instant' | 'debounced' | 'manual_prompt';
   confirmBeforeDeletingObjects: boolean;
   enableReviewPromptsAfterMajorEdits: boolean;
-  dateUpdated?: string;
-}
-
-export interface AiSettings {
-  id?: string;
-  enableAiSuggestions: boolean;
-  provider: string;
-  model: string;
-  reasoningDepth: 'light' | 'standard' | 'deep';
-  autoGenerateQuestionsAfterSourceCapture: boolean;
-  autoDetectPossibleTensions: boolean;
-  autoSuggestConceptLinks: boolean;
-  autoSuggestPositionLinks: boolean;
-  autoSummarizeEvolutionEvents: boolean;
-  requireUserApprovalBeforeSavingAiOutput: boolean;
-  saveAiSuggestionsAsDraftOnly: boolean;
-  memoryScope: 'current_object' | 'linked_objects' | 'whole_workspace';
-  tone: 'neutral' | 'socratic' | 'critical' | 'exploratory';
-  safetyMode: 'conservative' | 'balanced' | 'open_ended';
   dateUpdated?: string;
 }
 

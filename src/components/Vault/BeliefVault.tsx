@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, ChevronRight, Edit, Loader2, Plus, ShieldCheck, Trash2, Triangle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Edit, Plus, ShieldCheck, Trash2, Triangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,14 +14,12 @@ import { Label } from '@/components/ui/label';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { SourceLinker } from '@/components/SourceLinker';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { AiSuggestion, BeliefProfile, Concept, Draft, Media, PhilosophicalLink, PositionKind, PositionPhilosophyStatus, Practice, Question, TimelineEvent, Unknown, VaultEntry, VaultType } from '@/lib/types';
+import type { BeliefProfile, Concept, Draft, Media, PhilosophicalLink, PositionKind, PositionPhilosophyStatus, Practice, Question, TimelineEvent, Unknown, VaultEntry, VaultType } from '@/lib/types';
 import { normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
 import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
-import { aiClient } from '@/lib/ai-client';
 import { useToast } from '@/hooks/use-toast';
-import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
@@ -41,7 +39,6 @@ interface BeliefVaultProps {
   links: PhilosophicalLink[];
   beliefProfiles: BeliefProfile[];
   unknowns: Unknown[];
-  suggestions: AiSuggestion[];
   onAddEntry: (data: Partial<VaultEntry>) => void;
   onUpdateEntry: (entry: VaultEntry) => void;
   onDeleteEntry: (id: string) => Promise<void>;
@@ -50,10 +47,6 @@ interface BeliefVaultProps {
   onAddDraft: (data: Partial<Draft>) => void;
   onAddPractice: (data: Partial<Practice>) => void;
   onAddQuestion: (data: Partial<Question>) => void;
-  onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; position?: { title: string; statement: string; description: string; confidence: number } }) => void;
-  onAddUnknown: (data: Partial<Unknown>) => Unknown;
-  onUpdateSuggestion: (suggestion: AiSuggestion) => void;
-  onCreateSuggestion: (suggestion: Partial<AiSuggestion>) => void;
   onUpdateLink?: (link: PhilosophicalLink) => void;
   onOpenSource?: (id: string) => void;
   onOpenQuestion?: (id: string) => void;
@@ -437,7 +430,7 @@ function buildStressStages({
   ];
 }
 
-export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, suggestions, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onCreateIdea, onAddUnknown, onUpdateSuggestion, onCreateSuggestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled, onOpenEntryRoute }: BeliefVaultProps) {
+export function BeliefVault({ entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled, onOpenEntryRoute }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -451,80 +444,9 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
   const [deleteTarget, setDeleteTarget] = useState<VaultEntry | null>(null);
   const { toast } = useToast();
 
-  // Draft-position pipeline state
-  const [ideaOpen, setIdeaOpen] = useState(false);
-  const [ideaStep, setIdeaStep] = useState<1 | 2 | 3>(1);
-  const [ideaDraft, setIdeaDraft] = useState({ title: '', body: '' });
-  const [ideaQA, setIdeaQA] = useState<Array<{ question: string; focus: string; answer: string }>>([]);
-  const [ideaPosition, setIdeaPosition] = useState<{ positionTitle: string; statement: string; description: string; confidence: number } | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [stressTests, setStressTests] = useState<Array<{ kind: string; question: string }>>([]);
   const [stressAnswer, setStressAnswer] = useState('');
   const [stressStageIndex, setStressStageIndex] = useState(0);
   const [tensionDrawerOpen, setTensionDrawerOpen] = useState(false);
-
-  const openIdeaDialog = () => {
-    setIdeaDraft({ title: '', body: '' });
-    setIdeaQA([]);
-    setIdeaPosition(null);
-    setIdeaStep(1);
-    setIdeaOpen(true);
-  };
-
-  const handleGenerateQuestions = async () => {
-    if (!ideaDraft.title.trim()) return;
-    setIsGenerating(true);
-    try {
-      const result = await aiClient.generateIdeaQuestions({ ideaTitle: ideaDraft.title, ideaBody: ideaDraft.body });
-      setIdeaQA(result.questions.map((q) => ({ ...q, answer: '' })));
-      setIdeaStep(2);
-      toast({ title: 'Inquiries generated.', description: 'AI produced three clarifying questions for this draft position.' });
-    } catch (error) {
-      toast({ variant: 'destructive', title: 'AI Unavailable', description: noesisUserError(error, 'Could not generate questions. Try again.') });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleFormPosition = async () => {
-    if (ideaQA.some((q) => !q.answer.trim())) {
-      toast({ title: 'Answer all questions', description: 'Each question helps shape your position.' });
-      return;
-    }
-    setIsGenerating(true);
-    try {
-      const result = await aiClient.formPositionFromIdea({
-        ideaTitle: ideaDraft.title,
-        ideaBody: ideaDraft.body,
-        qa: ideaQA.map((q) => ({ question: q.question, answer: q.answer })),
-      });
-      setIdeaPosition(result);
-      setIdeaStep(3);
-      toast({ title: 'Position draft ready.', description: 'AI formed a draft position from your answers.' });
-    } catch (error) {
-      toast({ variant: 'destructive', title: 'AI Unavailable', description: noesisUserError(error, 'Could not form position. Try again.') });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleSaveIdeaPosition = () => {
-    if (!ideaPosition) return;
-    onCreateIdea({
-      title: ideaDraft.title,
-      body: ideaDraft.body,
-      tags: [],
-      sourceIds: [],
-      position: {
-        title: ideaPosition.positionTitle,
-        statement: ideaPosition.statement,
-        description: ideaPosition.description,
-        confidence: confidencePercent(ideaPosition.confidence),
-      },
-    });
-    setIdeaOpen(false);
-    toast({ title: 'Position Created', description: `"${ideaPosition.positionTitle}" added to your Positions.` });
-  };
 
   const safeEntries = useMemo(() => entries.filter((entry) => entry?.id).map(safePosition), [entries]);
   const conceptFilterOptions = useMemo(
@@ -716,7 +638,6 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
     );
     const beliefProfile = beliefProfiles.find((item) => item.positionId === selected.id);
     const linkedUnknowns = unknowns.filter((item) => (item.positionIds || []).includes(selected.id));
-    const positionSuggestions = suggestions.filter((item) => item.targetType === 'position' && item.targetId === selected.id);
     const formation = positionFormation(selected);
     const diagnostic = positionDiagnostics.get(selected.id) || diagnosePosition(selected, links, practices);
     const firstLinkedSource = linkedSources[0];
@@ -876,6 +797,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       });
     };
 
+    /* Release 1 removes the former persisted AI suggestion pipeline.
     const createMissingPerspective = async () => {
       const positionMemory = {
         scope: 'linked_objects' as const,
@@ -1015,6 +937,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
       }
     };
 
+    */
     const saveStressAnswer = () => {
       if (!stressAnswer.trim()) return;
       const stageTitle = selectedStressStage?.title || 'Stress test';
@@ -1330,7 +1253,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                   <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Stress-Test Mode</div>
                   <h3 className="mt-1 font-headline text-2xl font-bold italic">Pressure-test the claim before revising it</h3>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                    Move through the stages in order. AI may suggest pressure, but the user decides whether this position survives, weakens, changes, or should be abandoned.
+                    Move through the stages in order and decide whether this position survives, weakens, changes, or should be abandoned.
                   </p>
                 </div>
                 <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
@@ -1637,16 +1560,11 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">AI Review</div>
-                  <h3 className="mt-1 font-headline text-2xl font-bold italic">Pressure, questions, and perspective</h3>
+                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Stress Test</div>
+                  <h3 className="mt-1 font-headline text-2xl font-bold italic">Record what could change your mind</h3>
                 </div>
-                <GenerativeAiIcon className="size-10" />
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" className="rounded-full" onClick={createMissingPerspective}>Suggest Perspective</Button>
-                <Button size="sm" variant="outline" className="rounded-full" onClick={createMissingQuestions}>Suggest Question</Button>
-                <Button size="sm" className="rounded-full" onClick={createStressTests}>Generate Stress Test</Button>
-              </div>
+              {/* Persisted AI suggestions were removed in the AI-free release.
               {(stressTests.length > 0 || positionSuggestions.length > 0) && (
                 <div className="mt-4 space-y-3">
                   {stressTests.map((prompt) => (
@@ -1770,7 +1688,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
                     </div>
                   ))}
                 </div>
-              )}
+              )} */}
               <div className="mt-4">
                 <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">What would change your mind?</Label>
                 <Textarea value={stressAnswer} onChange={(event) => setStressAnswer(event.target.value)} className="mt-2 min-h-[110px]" placeholder="What prediction follows? What weakens this? What contrary evidence would matter?" />
@@ -2059,7 +1977,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
 
       <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} />
 
-      {/* Draft position pipeline dialog */}
+      {/* Draft position pipeline removed in the AI-free release.
       <Dialog open={ideaOpen} onOpenChange={(open) => { if (!open) setIdeaOpen(false); }}>
         <DialogContent className="max-w-xl bg-card border-none shadow-2xl rounded-2xl">
           <DialogHeader>
@@ -2200,7 +2118,7 @@ export function BeliefVault({ entries, media, drafts, practices, questions, time
             </div>
           )}
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
       <ConfirmActionDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {

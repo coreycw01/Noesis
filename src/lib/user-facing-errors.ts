@@ -8,7 +8,7 @@ export function noesisUserError(error: unknown, fallback: string) {
 
   if (!message) return fallback;
   if (lower.includes('resource_exhausted') || lower.includes('429') || lower.includes('too many requests') || lower.includes('quota')) {
-    return 'The AI provider is temporarily out of quota or rate-limited. Your data is still saved; try again after billing or quota is restored.';
+    return 'The service is temporarily rate-limited. Your data is still saved; try again shortly.';
   }
   if (lower.includes('permission') || lower.includes('unauthorized') || lower.includes('not authorized')) {
     return 'Noesis does not have permission to complete that action. Check account access, provider setup, or workspace rules.';

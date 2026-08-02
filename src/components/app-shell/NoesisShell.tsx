@@ -69,7 +69,6 @@ interface NoesisShellProps {
   practices: Practice[];
   unknowns: Unknown[];
   links: PhilosophicalLink[];
-  suggestionsCount: number;
   user: User | null;
   onOpenCommandItem?: (item: CommandPaletteItem) => void;
 }
@@ -98,7 +97,6 @@ export function NoesisShell({
   practices,
   unknowns,
   links,
-  suggestionsCount,
   onOpenCommandItem,
 }: NoesisShellProps) {
   const { activePage, dataRequirements, isDetailRoute, routeTarget } = useNoesisRoute();
@@ -680,7 +678,6 @@ export function NoesisShell({
                 <span>{drafts.length} works</span>
                 <span>{practices.length} practices</span>
                 <span>{links.length} typed links</span>
-                <span>{suggestionsCount} AI suggestions</span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">

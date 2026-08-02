@@ -1,7 +1,7 @@
 "use client";
 
 import { AnnotationsIndex } from '@/components/Library/AnnotationsIndex';
-import type { AiSuggestion, Annotation, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
+import type { Annotation, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface AnnotationsRoutePageProps {
@@ -14,7 +14,6 @@ export interface AnnotationsRoutePageProps {
   onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string }) => { positionId: string; insightId: string; title: string };
   onCreateInquiry: (data: { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string }) => Question;
   onAddConcept: (data: Partial<Concept>) => void;
-  onCreateSuggestion: (data: Partial<AiSuggestion>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onNavigate: (view: NoesisView, options?: {
     questionId?: string | null;
@@ -33,7 +32,6 @@ export function AnnotationsRoutePage({
   onCreatePosition,
   onCreateInquiry,
   onAddConcept,
-  onCreateSuggestion,
   onCreateLink,
   onNavigate,
 }: AnnotationsRoutePageProps) {
@@ -49,7 +47,6 @@ export function AnnotationsRoutePage({
       onCreatePosition={onCreatePosition}
       onCreateInquiry={onCreateInquiry}
       onAddConcept={onAddConcept}
-      onCreateSuggestion={onCreateSuggestion}
       onCreateLink={onCreateLink}
       onNavigate={(nextView, targetId) => {
         onNavigate(nextView as NoesisView, {

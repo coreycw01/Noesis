@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle, HelpCircle, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, HelpCircle, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,8 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SourceLinker } from '@/components/SourceLinker';
-import { GenerativeAiIcon } from '@/components/GenerativeAiIcon';
-import { aiClient } from '@/lib/ai-client';
 import type { Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, conceptKey, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
@@ -22,7 +20,6 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 
 interface QuestionsWorkspaceProps {
@@ -433,8 +430,6 @@ export function QuestionsWorkspace({ questions, media, vault, drafts, practices,
   );
 }
 
-type DialogPhase = 'write' | 'probing' | 'ready';
-
 function inferInquiryType(question: Question, concepts: string[], sources: Media[]) {
   const text = question.text.toLowerCase();
   if (/\bshould\b|\bought\b|\bright\b|\bwrong\b|\bmoral\b|\bethic/.test(text)) return 'normative';
@@ -527,13 +522,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
 }) {
   const investigationRef = useRef<HTMLDivElement>(null);
   const answerRef = useRef<HTMLDivElement>(null);
-  const [phase, setPhase] = useState<DialogPhase>('write');
   const [initialAnswer, setInitialAnswer] = useState(question.answer || '');
-  const [exchanges, setExchanges] = useState<{ probe: string; response: string }[]>([]);
-  const [currentProbe, setCurrentProbe] = useState('');
-  const [currentFocus, setCurrentFocus] = useState('');
-  const [probeResponse, setProbeResponse] = useState('');
-  const [positionDraft, setPositionDraft] = useState<{ title: string; statement: string; description: string; confidence: number } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedBranchLabel, setSelectedBranchLabel] = useState('');
   const [existingPracticeId, setExistingPracticeId] = useState('');
@@ -547,8 +536,6 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
   const [candidateDraft, setCandidateDraft] = useState({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
   const [evidenceDraft, setEvidenceDraft] = useState({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
   const [testDraft, setTestDraft] = useState({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   React.useEffect(() => {
     const target = initialSection === 'answer' ? answerRef.current : investigationRef.current;
     const frame = window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -802,71 +789,6 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
     const status = branchStatus(branch.label);
     onUpdateQuestion({ ...question, status, dateUpdated: today() });
     onAiFeedback('Investigation branch selected.', `${branch.label}: ${branchNextStep(branch.label)}`);
-  };
-
-  const startDialogue = async () => {
-    if (!initialAnswer.trim()) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await aiClient.socratesReflect({ question: question.text, initialAnswer, exchanges: undefined });
-      if (result.ready) {
-        setPositionDraft({
-          title: result.positionTitle || question.text.slice(0, 60),
-          statement: result.statement || initialAnswer,
-          description: result.description || '',
-          confidence: result.confidence || 3,
-        });
-        setPhase('ready');
-        onAiFeedback('Position crystallized.', 'AI synthesized a first position draft from your answer.');
-      } else {
-        setCurrentProbe(result.probe || '');
-        setCurrentFocus(result.focus || '');
-        setPhase('probing');
-        onAiFeedback('AI reflection complete.', 'A Socratic probe is ready for your next response.');
-      }
-    } catch (error) {
-      setError(noesisUserError(error, 'AI reflection failed. Please try again.'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const continueDialogue = async () => {
-    if (!probeResponse.trim()) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const newExchanges = [...exchanges, { probe: currentProbe, response: probeResponse }];
-      const result = await aiClient.socratesReflect({ question: question.text, initialAnswer, exchanges: newExchanges });
-      setExchanges(newExchanges);
-      setProbeResponse('');
-      if (result.ready) {
-        setPositionDraft({
-          title: result.positionTitle || question.text.slice(0, 60),
-          statement: result.statement || initialAnswer,
-          description: result.description || '',
-          confidence: result.confidence || 3,
-        });
-        setPhase('ready');
-        onAiFeedback('Position draft ready.', 'AI has enough to form a position from this inquiry.');
-      } else {
-        setCurrentProbe(result.probe || '');
-        setCurrentFocus(result.focus || '');
-        onAiFeedback('Another probe generated.', 'AI found one more tension to explore before forming a position.');
-      }
-    } catch (error) {
-      setError(noesisUserError(error, 'AI reflection failed. Please try again.'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const savePosition = () => {
-    if (!positionDraft) return;
-    const allAnswers = [initialAnswer, ...exchanges.map(e => e.response)].filter(Boolean).join('\n\n');
-    onFormPositionFromInquiry(question, positionDraft, allAnswers);
-    onBack();
   };
 
   return (
@@ -1220,8 +1142,7 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
             </div>
           </Card>
 
-          {phase === 'write' && (
-            <Card ref={answerRef} className="scroll-mt-6 space-y-6 rounded-2xl border border-accent/10 bg-card p-6 shadow-md sm:p-10">
+          <Card ref={answerRef} className="scroll-mt-6 space-y-6 rounded-2xl border border-accent/10 bg-card p-6 shadow-md sm:p-10">
               <Badge variant="outline" className="font-code text-[10px] uppercase tracking-widest bg-muted/20 border-border/30 rounded-full px-4 py-1 font-bold">
                 {question.type || 'manual'}
               </Badge>
@@ -1236,7 +1157,6 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
                   placeholder="What answer currently leads, and why does it remain revisable?"
                 />
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex flex-wrap gap-3">
                 <Button
                   onClick={() => saveProvisionalAnswer('provisionally_answered')}
@@ -1245,14 +1165,6 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
                   className="h-12 rounded-full px-6 font-bold"
                 >
                   Adopt As Provisional Answer
-                </Button>
-                <Button
-                  onClick={startDialogue}
-                  disabled={!initialAnswer.trim() || isLoading}
-                  className="h-12 px-10 rounded-full font-bold shadow-lg shadow-accent/20"
-                >
-                  {isLoading ? <Loader2 className="size-4 mr-2 animate-spin" /> : <MessageCircle className="size-4 mr-2" />}
-                  BEGIN DIALOGUE
                 </Button>
               </div>
 
@@ -1295,118 +1207,6 @@ function QuestionDetail({ question, sources, concepts, beliefs, drafts, practice
               </div>
               )}
             </Card>
-          )}
-
-          {phase === 'probing' && (
-            <Card className="p-10 bg-card border border-accent/10 shadow-md rounded-2xl space-y-6">
-              <h1 className="noesis-page-title text-3xl">{question.text}</h1>
-
-              <div className="space-y-4">
-                <div className="bg-muted/10 rounded-xl p-5 border border-border/10">
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 mb-2">YOUR INITIAL ANSWER</div>
-                  <p className="font-body italic text-[15px] text-primary/80 leading-relaxed">{initialAnswer}</p>
-                </div>
-                {exchanges.map((ex, i) => (
-                  <React.Fragment key={i}>
-                    <div className="bg-accent/5 rounded-xl p-5 border border-accent/10">
-                      <div className="font-code text-[9px] uppercase tracking-widest text-accent/60 mb-2">SOCRATIC PROBE</div>
-                      <p className="font-body text-[15px] text-primary leading-relaxed">{ex.probe}</p>
-                    </div>
-                    <div className="bg-muted/10 rounded-xl p-5 border border-border/10">
-                      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 mb-2">YOUR RESPONSE</div>
-                      <p className="font-body italic text-[15px] text-primary/80 leading-relaxed">{ex.response}</p>
-                    </div>
-                  </React.Fragment>
-                ))}
-              </div>
-
-              <div className="bg-accent/10 rounded-xl p-6 border border-accent/20">
-                {currentFocus && (
-                  <div className="font-code text-[9px] uppercase tracking-widest text-accent/70 mb-2">{currentFocus}</div>
-                )}
-                <p className="font-body text-[16px] text-primary leading-relaxed font-medium">{currentProbe}</p>
-              </div>
-
-              <div>
-                <Label className="readex-kicker mb-2 block">YOUR RESPONSE</Label>
-                <Textarea
-                  value={probeResponse}
-                  onChange={(e) => setProbeResponse(e.target.value)}
-                  className="min-h-[160px] text-[16px] leading-8 font-body italic"
-                  placeholder="Respond to the probe..."
-                />
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button
-                onClick={continueDialogue}
-                disabled={!probeResponse.trim() || isLoading}
-                className="h-12 px-10 rounded-full font-bold shadow-lg shadow-accent/20"
-              >
-                {isLoading ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
-                CONTINUE
-              </Button>
-            </Card>
-          )}
-
-          {phase === 'ready' && positionDraft && (
-            <Card className="p-10 bg-card border border-accent/10 shadow-md rounded-2xl space-y-6">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="size-4 text-emerald-500" />
-                <span className="font-code text-[10px] uppercase tracking-widest text-emerald-600 font-bold">Position Crystallized</span>
-              </div>
-              <h1 className="noesis-page-title text-3xl">{question.text}</h1>
-
-              <div className="space-y-5">
-                <div>
-                  <Label className="readex-kicker mb-2 block">POSITION TITLE</Label>
-                  <Input
-                    value={positionDraft.title}
-                    onChange={(e) => setPositionDraft(prev => prev ? { ...prev, title: e.target.value } : null)}
-                    className="font-headline text-xl italic h-auto p-4"
-                  />
-                </div>
-                <div>
-                  <Label className="readex-kicker mb-2 block">CORE STATEMENT</Label>
-                  <Textarea
-                    value={positionDraft.statement}
-                    onChange={(e) => setPositionDraft(prev => prev ? { ...prev, statement: e.target.value } : null)}
-                    className="font-body text-base min-h-[100px]"
-                  />
-                </div>
-                <div>
-                  <Label className="readex-kicker mb-2 block">DESCRIPTION</Label>
-                  <Textarea
-                    value={positionDraft.description}
-                    onChange={(e) => setPositionDraft(prev => prev ? { ...prev, description: e.target.value } : null)}
-                    className="font-body text-base min-h-[140px]"
-                  />
-                </div>
-                <div>
-                  <Label className="readex-kicker mb-3 block">CONFIDENCE</Label>
-                  <div className="flex gap-2">
-                    {([1, 2, 3, 4, 5] as const).map((v) => (
-                      <button
-                        key={v}
-                        onClick={() => setPositionDraft(prev => prev ? { ...prev, confidence: v } : null)}
-                        className={cn(
-                          "size-10 rounded-full font-code text-sm font-bold transition-all",
-                          positionDraft.confidence === v
-                            ? "bg-accent text-accent-foreground shadow-lg shadow-accent/30"
-                            : "bg-muted/20 text-muted-foreground hover:bg-muted/40"
-                        )}
-                      >
-                        {v}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <Button onClick={savePosition} className="h-12 px-10 rounded-full font-bold shadow-lg shadow-accent/20">
-                <CheckCircle className="size-4 mr-2" /> SAVE POSITION
-              </Button>
-            </Card>
-          )}
         </div>
 
         <aside className="space-y-5">
