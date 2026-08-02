@@ -29,8 +29,10 @@ function bearerToken(request: Request) {
 }
 
 function appCheckRequired() {
-  if (process.env.NOESIS_REQUIRE_APP_CHECK === 'false') return false;
-  return process.env.NODE_ENV === 'production' || process.env.NOESIS_REQUIRE_APP_CHECK === 'true';
+  // App Check needs a public reCAPTCHA site key embedded in the client build.
+  // Enforce it only after the deployment explicitly enables it; authentication,
+  // verified email, and server-side usage limits still protect every API call.
+  return process.env.NOESIS_REQUIRE_APP_CHECK === 'true';
 }
 
 export async function requireApiUser(

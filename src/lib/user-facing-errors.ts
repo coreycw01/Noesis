@@ -13,7 +13,10 @@ export function noesisUserError(error: unknown, fallback: string) {
   if (lower.includes('permission') || lower.includes('unauthorized') || lower.includes('not authorized')) {
     return 'Noesis does not have permission to complete that action. Check account access, provider setup, or workspace rules.';
   }
-  if (lower.includes('api key') || lower.includes('apikey') || lower.includes('credential')) {
+  if (lower.includes('app verification') || lower.includes('app_check') || lower.includes('app check')) {
+    return 'App verification is not configured correctly for this deployment. Refresh after the latest rollout or check Firebase App Check settings.';
+  }
+  if (lower.includes('api key') || lower.includes('api_key') || lower.includes('apikey') || lower.includes('credential')) {
     return 'The provider credentials are missing or invalid. Check the server environment settings before retrying.';
   }
   if (lower.includes('network') || lower.includes('fetch') || lower.includes('timeout')) {
