@@ -100,7 +100,7 @@ function aiConfigError() {
   return NextResponse.json(
     {
       error:
-        'AI service is not configured. Add GEMINI_API_KEY, GOOGLE_API_KEY, GOOGLE_GENAI_API_KEY, or GOOGLE_GENERATIVE_AI_API_KEY on the server before using AI features.',
+        'AI service is not configured. Add GEMINI_API_KEY to the Firebase App Hosting environment, then create a new rollout.',
     },
     { status: 503 },
   );

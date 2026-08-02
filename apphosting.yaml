@@ -7,3 +7,11 @@ runConfig:
   minInstances: 0
   maxInstances: 3
   concurrency: 40
+
+# Keep API keys in Firebase App Hosting environment variables or Secret Manager.
+# This non-secret value pins the server-side Genkit model for every rollout.
+env:
+  - variable: GEMINI_MODEL
+    value: googleai/gemini-2.5-flash
+    availability:
+      - RUNTIME
