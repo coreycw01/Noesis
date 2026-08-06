@@ -559,8 +559,14 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   const durationText = practice.durationDays
     ? `Day ${Math.min(logDates.length || 0, practice.durationDays)} of ${practice.durationDays}`
     : practice.durationMode || 'Cadence unset';
+  const setupNeed = !experimentShape.hasBasis
+    ? 'Needs basis: link the idea, position, or inquiry this tests.'
+    : experimentShape.designGaps.length
+      ? `Needs setup: add ${experimentShape.designGaps[0]}.`
+      : '';
+  const canActivate = !setupNeed;
   const quickLog = () => {
-    if (!needsLog) return;
+    if (!needsLog || !canActivate) return;
     const nextLog: PracticeLog = {
       id: uid(),
       date: todayKey,
@@ -580,11 +586,6 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       dateUpdated: today(),
     });
   };
-  const setupNeed = !experimentShape.hasBasis
-    ? 'Needs basis: link the idea, position, or inquiry this tests.'
-    : experimentShape.designGaps.length
-      ? `Needs setup: add ${experimentShape.designGaps[0]}.`
-      : '';
   const relationshipText = `Tests ${linkedPositions.length} position${linkedPositions.length === 1 ? '' : 's'} · connected to ${linkedQuestions.length} inquir${linkedQuestions.length === 1 ? 'y' : 'ies'}`;
   const nextAction =
     setupNeed ? { label: 'Finish setup', handler: onEdit, tone: 'setup' as const } :
@@ -598,6 +599,10 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       ? { label: 'View conclusion', handler: () => setReviewOpen(true), tone: 'review' as const } :
       { label: 'Open', handler: onEdit, tone: 'open' as const };
   const saveLog = () => {
+    if (!canActivate) {
+      onEdit();
+      return;
+    }
     const date = (logDraft.date || todayKey).slice(0, 10);
     const nextLog: PracticeLog = {
       id: uid(),
@@ -642,10 +647,18 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap gap-1.5 mb-1.5">
             <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5 shadow-sm">{simplifiedTypeLabels[visibleType]}</Badge>
-            <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-border/60 bg-card shadow-sm rounded-full font-bold px-2.5 py-0.5 shadow-sm">{visibleStatus}</Badge>
-            {needsLog && <Badge className="font-code text-[8px] uppercase tracking-widest bg-emerald-100 text-emerald-900 hover:bg-emerald-100 rounded-full font-bold px-2.5 py-0.5">log due</Badge>}
-            {setupNeed && <Badge className="font-code text-[8px] uppercase tracking-widest bg-sky-100 text-sky-950 hover:bg-sky-100 rounded-full font-bold px-2.5 py-0.5">needs setup</Badge>}
-            {recentlyConcluded && <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest border-accent/30 bg-accent/5 text-accent rounded-full font-bold px-2.5 py-0.5">recent result</Badge>}
+            <Badge
+              variant="outline"
+              className={cn(
+                'rounded-full px-2.5 py-0.5 font-code text-[8px] font-bold uppercase tracking-widest',
+                setupNeed ? 'border-sky-400/50 bg-sky-100 text-sky-950' :
+                  recentlyConcluded ? 'border-accent/30 bg-accent/5 text-accent' :
+                    needsLog ? 'border-emerald-500/40 bg-emerald-100 text-emerald-950' :
+                      'border-border/60 bg-card text-muted-foreground',
+              )}
+            >
+              {setupNeed ? 'Needs setup' : recentlyConcluded ? 'Review result' : needsLog ? 'Log due' : visibleStatus}
+            </Badge>
           </div>
           <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors text-primary truncate">{practice.title}</h3>
           <p className="mt-1 line-clamp-1 text-[12px] italic leading-5 text-muted-foreground">
@@ -654,17 +667,17 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {visibleStatus === 'active' && (
-            <Button size="sm" onClick={(event) => { event.stopPropagation(); quickLog(); }} disabled={!needsLog} className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest">
+            <Button size="sm" onClick={(event) => { event.stopPropagation(); quickLog(); }} disabled={!needsLog || !canActivate} className="h-10 rounded-full px-4 font-code text-[9px] uppercase tracking-widest">
               <CheckCircle2 className="mr-1.5 size-3.5" /> {needsLog ? 'Log' : 'Logged'}
             </Button>
           )}
           {(visibleStatus === 'planned' || visibleStatus === 'paused') && (
-            <Button size="sm" onClick={(event) => { event.stopPropagation(); setStatus('active'); }} className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest">
+            <Button size="sm" onClick={(event) => { event.stopPropagation(); if (canActivate) setStatus('active'); else onEdit(); }} className="h-10 rounded-full px-4 font-code text-[9px] uppercase tracking-widest">
               <Play className="mr-1.5 size-3.5" /> Start
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={(e) => { e.stopPropagation(); onEdit(); }}><Edit className="size-3.5" /></Button>
-          <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive rounded-full" onClick={(e) => { e.stopPropagation(); onDelete(); }}><Trash2 className="size-3.5" /></Button>
+          <Button variant="ghost" size="icon" aria-label={`Edit ${practice.title}`} className="size-10 rounded-full" onClick={(e) => { e.stopPropagation(); onEdit(); }}><Edit className="size-4" /></Button>
+          <Button variant="ghost" size="icon" aria-label={`Delete ${practice.title}`} className="size-10 text-destructive hover:text-destructive rounded-full" onClick={(e) => { e.stopPropagation(); onDelete(); }}><Trash2 className="size-4" /></Button>
         </div>
       </div>
       

@@ -8,7 +8,7 @@ import { Shell } from '@/components/Shell';
 import type { MovementMetrics } from '@/components/Shell';
 import type { CommandPaletteItem } from '@/components/Shell';
 import { Toaster } from '@/components/ui/toaster';
-import { allAnnotations } from '@/lib/readex';
+import { allAnnotations, allQuestions } from '@/lib/readex';
 import type {
   Draft,
   Concept,
@@ -673,7 +673,7 @@ export function NoesisShell({
               <div className="mt-1 flex flex-wrap gap-2 font-code text-[10px] uppercase tracking-wider text-muted-foreground">
                 <span>{media.length} sources</span>
                 <span>{allAnnotations(media).length} annotations</span>
-                <span>{questions.length} inquiries</span>
+                <span>{allQuestions(media, questions).length} inquiries</span>
                 <span>{vault.length} positions</span>
                 <span>{drafts.length} works</span>
                 <span>{practices.length} practices</span>

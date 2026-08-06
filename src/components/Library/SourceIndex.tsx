@@ -26,6 +26,19 @@ interface SourceIndexProps {
   onOpenSource: (sourceId: string) => void;
 }
 
+function SourceIndexCover({ source }: { source: Media }) {
+  const [failed, setFailed] = useState(false);
+  if (source.thumbnailUrl && !failed) {
+    return <img src={source.thumbnailUrl} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />;
+  }
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 bg-muted/30 p-3 text-center text-muted-foreground">
+      <Library className="size-7 text-accent/70" aria-hidden="true" />
+      <span className="line-clamp-2 font-headline text-xs font-semibold italic text-foreground/75">{source.title}</span>
+    </div>
+  );
+}
+
 type SourceIndexView = 'table' | 'covers' | 'timeline' | 'influence' | 'domains' | 'unfinished' | 'recent';
 type SortKey = 'creator' | 'dateAdded' | 'title' | 'year' | 'influence' | 'annotations' | 'connected' | 'progress';
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'creator_asc' | 'connected_desc' | 'influence_desc' | 'health_asc' | 'manual';
@@ -496,7 +509,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           {sourceRows.map(({ source: m, influence, connected, catalogState }) => (
             <button key={m.id} type="button" onClick={() => previewSource(m)} className="group min-w-0 rounded-lg border border-border/40 bg-card p-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
               <div className="mb-2.5 aspect-[4/5] overflow-hidden rounded-md border border-border/30 bg-muted/20">
-                {m.thumbnailUrl ? <img src={m.thumbnailUrl} alt={m.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-muted-foreground"><Library className="size-7" /></div>}
+                <SourceIndexCover source={m} />
               </div>
               <div className="line-clamp-2 font-headline text-base font-bold leading-5 text-foreground group-hover:text-accent">{m.title}</div>
               <div className="mt-1 truncate text-xs text-muted-foreground">{m.creator || 'Unknown creator'}</div>

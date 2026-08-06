@@ -1202,17 +1202,21 @@ export function MediaLibrary({
         {filtered.map((item) => {
           const influence = sourceInfluenceCount(item, vault, drafts, practices, questions);
           return (
-          <Card key={item.id} className="cursor-pointer border-none shadow-none bg-transparent group" onClick={() => openSelectedSource(item.id)}>
+          <Card
+            key={item.id}
+            role="button"
+            tabIndex={0}
+            aria-label={`Open ${item.title}`}
+            className="cursor-pointer border-none shadow-none bg-transparent group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            onClick={() => openSelectedSource(item.id)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              openSelectedSource(item.id);
+            }}
+          >
             <div className="aspect-[4/5] overflow-hidden rounded-lg border border-border/30 bg-card shadow-sm mb-3 transition-all group-hover:-translate-y-1 group-hover:shadow-lg">
-              {item.thumbnailUrl ? (
-                <img src={item.thumbnailUrl} alt={item.title} className="h-full w-full object-cover" />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center p-8 text-center">
-                  <div className="size-12 bg-muted/20 rounded-lg flex items-center justify-center mb-4 shadow-inner">
-                    {React.createElement(MEDIA_ICONS_COMP[item.type], { className: "size-7 text-accent/40" })}
-                  </div>
-                </div>
-              )}
+              <SourceCover item={item} />
             </div>
             <div className="space-y-1.5">
               <div className="readex-kicker opacity-50 font-bold text-[9px]">{MEDIA_LABELS[item.type].toUpperCase()}</div>
@@ -1228,8 +1232,8 @@ export function MediaLibrary({
                   {item.status}
                 </Badge>
                 <div className="flex items-center gap-3 text-muted-foreground/70">
-                  {item.annotations?.length > 0 && <span className="flex items-center gap-1"><MessageSquare className="size-3.5" /><span className="font-code text-[9px] font-bold">{item.annotations.length}</span></span>}
-                  {influence > 0 && <span className="flex items-center gap-1"><Link2 className="size-3.5" /><span className="font-code text-[9px] font-bold">{influence}</span></span>}
+                  {item.annotations?.length > 0 && <span className="flex items-center gap-1" title={`${item.annotations.length} annotations`} aria-label={`${item.annotations.length} annotations`}><MessageSquare className="size-3.5" /><span className="font-code text-[9px] font-bold">{item.annotations.length}</span></span>}
+                  {influence > 0 && <span className="flex items-center gap-1" title={`${influence} connected objects`} aria-label={`${influence} connected objects`}><Link2 className="size-3.5" /><span className="font-code text-[9px] font-bold">{influence}</span></span>}
                 </div>
               </div>
             </div>
@@ -1265,6 +1269,23 @@ export function MediaLibrary({
       </div>
 
       <MediaEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draft} setDraft={setDraft} onSave={saveMedia} />
+    </div>
+  );
+}
+
+function SourceCover({ item }: { item: Media }) {
+  const [failed, setFailed] = useState(false);
+  if (item.thumbnailUrl && !failed) {
+    return <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />;
+  }
+
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center bg-muted/30 p-5 text-center">
+      <div className="flex size-12 items-center justify-center rounded-lg border border-border/50 bg-background/80 shadow-sm">
+        {React.createElement(MEDIA_ICONS_COMP[item.type], { className: 'size-7 text-accent/70' })}
+      </div>
+      <div className="mt-4 line-clamp-3 font-headline text-sm font-semibold italic leading-5 text-foreground/80">{item.title}</div>
+      <div className="mt-2 font-code text-[8px] uppercase tracking-widest text-muted-foreground">{MEDIA_LABELS[item.type]}</div>
     </div>
   );
 }

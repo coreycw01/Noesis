@@ -23,6 +23,17 @@ import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import type { AiContextEnvelope } from '@/lib/contextual-ai';
+import {
+  inquiryCandidateCount,
+  inquiryFormation,
+  inquiryFrameGaps,
+  inquiryNeedsAssumptions,
+  inquiryNeedsCandidateAnswers,
+  inquiryNeedsEvidence,
+  inquiryNextMove,
+  inquiryReadyToResolve,
+  isInquiryClosed,
+} from '@/lib/inquiry-state';
 
 interface QuestionsWorkspaceProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -85,69 +96,8 @@ const RESOLUTION_OPTIONS: Array<{ status: Question['status']; label: string; des
   { status: 'resolved', label: 'Resolved', description: 'A resolution summary exists and the current investigation can close.' },
 ];
 
-const CLOSED_INQUIRY_STATUSES = new Set<Question['status']>(['answered', 'resolved', 'archived', 'converted', 'no_longer_meaningful']);
-
-function isInquiryClosed(question: Question) {
-  return CLOSED_INQUIRY_STATUSES.has(question.status) || (!!question.answer && question.status === 'resolved');
-}
-
-function inquiryNeedsEvidence(question: Question) {
-  return (question.sourceIds || question.evidenceIds || []).length === 0 && !isInquiryClosed(question);
-}
-
-function inquiryNeedsAssumptions(question: Question) {
-  return (question.assumptions || []).length === 0 && !isInquiryClosed(question);
-}
-
-function inquiryNeedsCandidateAnswers(question: Question) {
-  return (question.candidateAnswers || []).length === 0 && !question.answer?.trim() && !isInquiryClosed(question);
-}
-
-function inquiryReadyToResolve(question: Question) {
-  return Boolean(question.answer?.trim()) && !question.resolutionSummary?.trim() && !isInquiryClosed(question);
-}
-
-function inquiryFormation(question: Question) {
-  const candidates = question.candidateAnswers || [];
-  const checks = [
-    Boolean(question.text?.trim()),
-    Boolean(question.whyItMatters?.trim()),
-    Boolean(question.currentIntuition?.trim()),
-    (question.assumptions || []).some((item) => item.trim()),
-    [...(question.sourceIds || []), ...(question.evidenceIds || [])].length > 0 ||
-      candidates.some((candidate) => Boolean(candidate.support?.trim() || candidate.objection?.trim())),
-    candidates.some((candidate) => Boolean(candidate.statement?.trim())),
-    Boolean(question.answer?.trim()),
-    Boolean(question.resolutionSummary?.trim()),
-  ];
-  const complete = checks.filter(Boolean).length;
-  return {
-    complete,
-    total: checks.length,
-    fullyFormed: complete === checks.length,
-    completeness: Math.round((complete / checks.length) * 100),
-  };
-}
-
-function inquiryFrameGaps(question: Question) {
-  const gaps: string[] = [];
-  if (!question.whyItMatters?.trim()) gaps.push('stakes');
-  if (!question.currentIntuition?.trim() && !question.answer?.trim()) gaps.push('intuition');
-  if (inquiryNeedsAssumptions(question)) gaps.push('assumptions');
-  if (inquiryNeedsEvidence(question)) gaps.push('evidence');
-  if (inquiryNeedsCandidateAnswers(question)) gaps.push('candidate answer');
-  if (question.answer?.trim() && !question.resolutionSummary?.trim()) gaps.push('resolution summary');
-  return gaps;
-}
-
 function inquiryCardNextStep(question: Question) {
-  if (isInquiryClosed(question)) return 'Review the saved answer or reopen this inquiry when new evidence appears.';
-  if (!question.whyItMatters?.trim()) return 'Clarify why this question matters.';
-  if (inquiryNeedsEvidence(question)) return 'Add one source, observation, or counterexample.';
-  if (inquiryNeedsCandidateAnswers(question)) return 'Draft a possible answer to examine.';
-  if ((question.candidateAnswers || []).length > 1) return 'Compare the strongest candidate answers.';
-  if (inquiryReadyToResolve(question)) return 'Write the resolution summary and choose an outcome.';
-  return 'Continue developing the strongest unanswered part.';
+  return inquiryNextMove(question);
 }
 
 export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
@@ -177,7 +127,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
     if (filter === 'needs_assumptions') typeOk = inquiryNeedsAssumptions(question);
     if (filter === 'needs_candidates') typeOk = inquiryNeedsCandidateAnswers(question);
     if (filter === 'ready_to_resolve') typeOk = inquiryReadyToResolve(question);
-    if (filter === 'comparing_answers') typeOk = question.status === 'comparing_answers' || (question.candidateAnswers || []).length > 1;
+    if (filter === 'comparing_answers') typeOk = question.status === 'comparing_answers' || inquiryCandidateCount(question) > 1;
     if (filter === 'enduring') typeOk = question.status === 'enduring';
     if (filter === 'partially_answered') typeOk = question.status === 'partially_answered' || question.status === 'provisionally_answered';
     if (filter === 'suspended') typeOk = question.status === 'suspended' || question.status === 'archived';
@@ -234,7 +184,8 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
   if (selected) {
     const sourceIds = selected.sourceIds || selected.evidenceIds || [];
     const relatedSources = media.filter((item) => sourceIds.includes(item.id));
-    const conceptNames = selected.conceptIds || relatedSources.flatMap((item) => item.tags || []);
+    const conceptNames = (selected.conceptIds || relatedSources.flatMap((item) => item.tags || []))
+      .map((value) => concepts.find((concept) => concept.id === value)?.name || value);
     const relatedBeliefs = vault.filter((entry) => (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => sourceIds.includes(id)));
     const relatedDrafts = drafts.filter((draft) => (draft.questionIds || []).includes(selected.id) || (draft.conceptTags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))));
     const relatedPractices = practices.filter((practice) => (practice.questionIds || []).includes(selected.id));
@@ -482,15 +433,6 @@ function investigationBranches(question: Question, concepts: string[], sources: 
   return branches;
 }
 
-function branchStatus(label: string): Question['status'] {
-  if (label === 'Clarify') return 'clarifying';
-  if (label === 'Investigate') return 'gathering_evidence';
-  if (label === 'Compare') return 'comparing_answers';
-  if (label === 'Test' || label === 'Expand') return 'investigating';
-  if (label === 'Resolution Review') return 'partially_answered';
-  return 'investigating';
-}
-
 function branchNextStep(label: string) {
   if (label === 'Clarify') return 'Define the question, key terms, scope, and what would count as an answer.';
   if (label === 'Investigate') return 'Add one evidence record and separate direction from reliability.';
@@ -559,7 +501,12 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   }, [question.id, question.whyItMatters, question.currentIntuition, question.assumptions, question.resolutionSummary]);
   const inquiryType = inferInquiryType(question, concepts, sources);
   const branches = investigationBranches(question, concepts, sources, beliefs, drafts, practices);
-  const selectedBranch = branches.find((branch) => branch.label === selectedBranchLabel) || null;
+  const recommendedBranch = branches.find((branch) => branch.state === 'active')
+    || branches.find((branch) => branch.label === (inquiryNeedsEvidence(question) ? 'Investigate' : inquiryCandidateCount(question) > 1 ? 'Compare' : 'Clarify'))
+    || branches[0];
+  const selectedBranch = branches.find((branch) => branch.label === selectedBranchLabel) || recommendedBranch || null;
+  const primaryBranches = [recommendedBranch, ...branches.filter((branch) => branch.label !== recommendedBranch?.label)].filter(Boolean).slice(0, 3) as typeof branches;
+  const moreBranches = branches.filter((branch) => !primaryBranches.some((primary) => primary.label === branch.label));
   const evidenceLanes = [
     {
       label: 'Supports candidate answer',
@@ -588,19 +535,14 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     question.answer ? 'The provisional answer is worth stress-testing instead of only expanding.' : 'Progress requires a first answer, even if it is rough.',
   ];
   const candidateAnswers = question.candidateAnswers || [];
+  const candidateAnswerCount = inquiryCandidateCount(question);
   const definedTerms = (question.assumptions || []).filter((item) => item.includes(':') || item.includes(' means '));
   const inquiryGaps = inquiryFrameGaps(question);
-  const evidenceQualityScore = sources.length ? Math.min(25, 10 + sources.length * 5) : 4;
-  const counterEvidenceScore = candidateAnswers.some((candidate) => candidate.objection?.trim()) ? 15 : 3;
-  const comparisonScore = candidateAnswers.length > 1 ? 15 : candidateAnswers.length ? 7 : 0;
-  const assumptionsScore = storedAssumptions.length ? Math.min(10, storedAssumptions.length * 3) : 0;
-  const testingScore = drafts.length ? 15 : 0;
-  const unknownScore = inquiryGaps.length ? 2 : 5;
-  const inquiryStrength = Math.min(100, evidenceQualityScore + counterEvidenceScore + comparisonScore + assumptionsScore + testingScore + unknownScore);
-  const strengthLabel = inquiryStrength >= 76 ? 'Strong' : inquiryStrength >= 52 ? 'Developing' : inquiryStrength >= 30 ? 'Early' : 'Thin';
   const strongestGap = inquiryGaps.includes('evidence')
     ? 'No evidence has been connected.'
-    : candidateAnswers.length < 2
+    : candidateAnswerCount === 0
+      ? 'No candidate answer has been written.'
+      : candidateAnswerCount < 2
       ? 'Only one candidate answer is visible.'
       : !candidateAnswers.some((candidate) => candidate.objection?.trim())
         ? 'No serious challenge has been recorded.'
@@ -609,7 +551,9 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           : 'Ready for a sharper resolution decision.';
   const recommendedMove = inquiryGaps.includes('evidence')
     ? 'Investigate: add one strong source, observation, or counterexample.'
-    : candidateAnswers.length < 2
+    : candidateAnswerCount === 0
+      ? 'Write answer: draft the first plausible response without treating it as final.'
+      : candidateAnswerCount < 2
       ? 'Compare: add a competing answer before resolving.'
       : !candidateAnswers.some((candidate) => candidate.objection?.trim())
         ? 'Investigate: add a credible challenge to the leading answer.'
@@ -791,9 +735,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
 
   const chooseBranch = (branch: ReturnType<typeof investigationBranches>[number]) => {
     setSelectedBranchLabel(branch.label);
-    const status = branchStatus(branch.label);
-    onUpdateQuestion({ ...question, status, dateUpdated: today() });
-    onAiFeedback('Investigation branch selected.', `${branch.label}: ${branchNextStep(branch.label)}`);
   };
 
   const buildAiEnvelope = (): AiContextEnvelope => ({
@@ -816,8 +757,42 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     ],
   });
 
+  if (question.status === 'archived') {
+    return (
+      <div className="flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body" data-noesis-scroll-region>
+        <Button variant="ghost" onClick={onBack} className="mb-5 h-9 rounded-full font-code text-[10px] uppercase tracking-widest">
+          <ArrowLeft className="mr-2 size-4" /> Back to Inquiries
+        </Button>
+        <Card className="mx-auto max-w-5xl space-y-6 rounded-2xl border border-border bg-card p-6 sm:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-3xl">
+              <Badge variant="outline" className="mb-3 rounded-full">Archived inquiry</Badge>
+              <h1 className="noesis-page-title text-3xl sm:text-4xl">{question.text}</h1>
+              <p className="mt-4 text-sm leading-7 text-muted-foreground">This inquiry is preserved as a read-only record. Reopen it before changing its investigation or answer.</p>
+            </div>
+            <Button onClick={() => updateInvestigationStatus('reopened')} className="rounded-full">Reopen Inquiry</Button>
+          </div>
+          <section className="rounded-xl border border-border bg-background/60 p-5">
+            <div className="readex-kicker">Saved answer</div>
+            <p className="mt-3 whitespace-pre-wrap text-base leading-7 text-foreground">{question.answer?.trim() || 'No answer was saved before this inquiry was archived.'}</p>
+          </section>
+          {question.resolutionSummary?.trim() && (
+            <section className="rounded-xl border border-border bg-background/60 p-5">
+              <div className="readex-kicker">Resolution context</div>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{question.resolutionSummary}</p>
+            </section>
+          )}
+          <div className="grid gap-4 md:grid-cols-2">
+            <ContextPanel title="Evidence Sources" items={sources.map((source) => source.title)} />
+            <ContextPanel title="Related Positions" items={beliefs.map((belief) => belief.title)} />
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body">
+    <div className="flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body" data-noesis-scroll-region>
       <Button variant="ghost" onClick={onBack} className="mb-5 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50">
         <ArrowLeft className="size-4 mr-2" /> Back to Inquiries
       </Button>
@@ -837,24 +812,24 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           })}
         />
       </div>
-      <Card className="mb-5 rounded-2xl border border-accent/15 bg-card p-4 shadow-sm">
-        <div className="grid gap-3 text-sm md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
-          <div>
-            <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Current stage</div>
-            <p className="mt-1 font-medium text-foreground">{question.status.replace(/_/g, ' ')}</p>
+      <Card className="mb-5 rounded-2xl border border-accent/15 bg-card p-5 shadow-sm sm:p-7">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="rounded-full">{question.status.replace(/_/g, ' ')}</Badge>
+          {!!sources.length && <span className="text-xs text-muted-foreground">From {sources[0].title}</span>}
+        </div>
+        <h1 className="noesis-page-title mt-4 max-w-5xl text-3xl sm:text-4xl">{question.text}</h1>
+        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(220px,.8fr)_minmax(220px,.8fr)]">
+          <div className="rounded-xl border border-border bg-background/65 p-4">
+            <div className="readex-kicker">Current answer</div>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{question.answer?.trim() || 'No leading answer has been written yet.'}</p>
           </div>
-          <div>
-            <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Strongest gap</div>
-            <p className="mt-1 text-muted-foreground">{strongestGap}</p>
+          <div className="rounded-xl border border-border bg-background/65 p-4">
+            <div className="readex-kicker">Strongest gap</div>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{strongestGap}</p>
           </div>
-          <div>
-            <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Recommended next move</div>
-            <p className="mt-1 text-muted-foreground">{recommendedMove}</p>
-          </div>
-          <div className="rounded-xl border border-border bg-background/70 px-4 py-3 text-center">
-            <div className="font-headline text-2xl font-bold italic text-accent">{inquiryStrength}</div>
-            <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Inquiry strength</div>
-            <div className="mt-1 text-[11px] text-muted-foreground">{strengthLabel}</div>
+          <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
+            <div className="readex-kicker text-accent">Recommended next move</div>
+            <p className="mt-2 text-sm leading-6 text-foreground">{recommendedMove}</p>
           </div>
         </div>
       </Card>
@@ -884,15 +859,15 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
 
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
               <div className="rounded-xl border border-border/40 bg-background/70 p-4">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-3 font-bold">Branches</div>
+                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-3 font-bold">Recommended approach</div>
                 <div className="grid gap-2">
-                  {branches.map((branch) => (
+                  {primaryBranches.map((branch, index) => (
                     <div key={branch.label} className={cn(
                       'rounded-lg border bg-card px-3 py-2 transition-colors',
                       selectedBranch?.label === branch.label ? 'border-accent/50 bg-accent/5' : 'border-border/30'
                     )}>
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-medium text-foreground/80">{branch.label}</div>
+                        <div className="text-sm font-medium text-foreground/80">{branch.label}{index === 0 ? ' · Recommended' : ''}</div>
                         <span className={cn(
                           'rounded-full px-2 py-0.5 font-code text-[8px] uppercase tracking-widest',
                           branch.state === 'active' ? 'bg-accent/10 text-accent' : branch.state === 'available' ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'
@@ -912,6 +887,19 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                       </div>
                     </div>
                   ))}
+                  {!!moreBranches.length && (
+                    <details className="rounded-lg border border-border/30 bg-card px-3 py-2">
+                      <summary className="cursor-pointer font-code text-[9px] uppercase tracking-widest text-muted-foreground">More approaches</summary>
+                      <div className="mt-3 grid gap-2">
+                        {moreBranches.map((branch) => (
+                          <button key={branch.label} type="button" onClick={() => chooseBranch(branch)} className="rounded-lg border border-border/40 p-3 text-left hover:border-accent/40 hover:bg-accent/5">
+                            <span className="text-sm font-medium text-foreground">{branch.label}</span>
+                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">{branchNextStep(branch.label)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
               </div>
 
@@ -942,13 +930,10 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Active workspace</div>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedBranch?.label || 'Choose a branch'}</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedBranch?.label || 'Recommended approach'}</p>
                 </div>
                 <p className="max-w-xl text-xs leading-5 text-muted-foreground">{selectedBranch ? branchNextStep(selectedBranch.label) : 'Clarify, investigate, compare, or test. Each branch saves a real piece of inquiry work.'}</p>
               </div>
-              {!selectedBranch && (
-                <p className="rounded-xl border border-border/40 bg-card p-3 text-sm text-muted-foreground">Select one branch above to reveal its focused workspace.</p>
-              )}
               {selectedBranch?.label === 'Clarify' && (
                 <div className="grid gap-3 lg:grid-cols-2">
                   <div className="space-y-2">
@@ -1033,7 +1018,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                       ))}
                     </tbody>
                   </table>
-                  {candidateAnswers.length < 2 && <p className="p-4 text-sm text-muted-foreground">Add at least two candidate answers to make comparison meaningful.</p>}
+                  {candidateAnswerCount < 2 && <p className="p-4 text-sm text-muted-foreground">Add at least two candidate answers to make comparison meaningful.</p>}
                 </div>
               )}
               {selectedBranch?.label === 'Test' && (
@@ -1106,7 +1091,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             <div className="mb-5 grid gap-3 md:grid-cols-3">
               <div className="rounded-xl border border-border/40 bg-background/70 p-3">
                 <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">What we have</div>
-                <p className="mt-1 text-sm text-foreground">{candidateAnswers.length} candidate answers · {sources.length} sources · {definedTerms.length || storedAssumptions.length} clarified terms/assumptions</p>
+                <p className="mt-1 text-sm text-foreground">{candidateAnswerCount} candidate answer{candidateAnswerCount === 1 ? '' : 's'} · {sources.length} sources · {definedTerms.length || storedAssumptions.length} clarified terms or assumptions</p>
               </div>
               <div className="rounded-xl border border-border/40 bg-background/70 p-3">
                 <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">What is missing</div>
@@ -1124,7 +1109,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                   <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">Answer candidates</div>
                   <p className="mt-1 text-sm text-muted-foreground">A candidate answer is not a final position. It is an explanation currently under test.</p>
                 </div>
-                <Badge variant="outline" className="rounded-full">{candidateAnswers.length || 0} saved</Badge>
+                <Badge variant="outline" className="rounded-full">{candidateAnswerCount} saved</Badge>
               </div>
 
               {candidateAnswers.length > 0 && (
@@ -1209,7 +1194,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                 </Button>
               </div>
 
-              {candidateAnswers.length > 0 && (
+              {candidateAnswerCount > 0 && (
               <div className="rounded-2xl border border-border/50 bg-background/70 p-4">
                 <div className="mb-3">
                   <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">Resolve inquiry</div>

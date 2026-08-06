@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useNoesisWorkspaceData } from '@/hooks/use-noesis-workspace-data';
 import { PageErrorState, PageLoadingState } from '@/components/shared/PageState';
 import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
-import { MEDIA_TYPES, allAnnotations, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
+import { MEDIA_TYPES, allAnnotations, allQuestions, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
   DEFAULT_AI_SETTINGS,
@@ -414,7 +414,9 @@ function ReadexWorkspace({
     assign('media', media.length, 'media');
     assign('annotations', allAnnotations(media).length, 'media');
     assign('concepts', concepts.length, 'concepts');
-    assign('questions', questions.length, 'questions');
+    if (isBootstrap || (required.has('questions') && required.has('media'))) {
+      nextCounts.questions = allQuestions(media, questions).length;
+    }
     assign('vault', vault.length, 'vault');
     assign('drafts', drafts.length, 'drafts');
     assign('practices', practices.length, 'practices');
@@ -615,7 +617,7 @@ function ReadexWorkspace({
         console.info('[DemoSeed] Writing collections', {
           media: demo.media.length,
           concepts: demo.concepts.length,
-          questions: demo.questions.length,
+          questions: allQuestions(demo.media, demo.questions).length,
           vault: demo.vault.length,
           drafts: demo.drafts.length,
           practices: demo.practices.length,
@@ -695,7 +697,7 @@ function ReadexWorkspace({
         concepts: concepts.length,
         sources: media.length,
         annotations: allAnnotations(media).length,
-        inquiries: questions.length,
+        inquiries: allQuestions(media, questions).length,
         positions: vault.length,
         works: drafts.length,
         practices: practices.length,
@@ -2888,7 +2890,7 @@ function ReadexWorkspace({
       onOpenProfile={() => navigateToView('profile')}
       counts={{
         concepts: workspaceCounts?.concepts ?? concepts.length,
-        questions: workspaceCounts?.questions ?? questions.length,
+        questions: workspaceCounts?.questions ?? allQuestions(media, questions).length,
         media: workspaceCounts?.media ?? media.length,
         vault: workspaceCounts?.vault ?? vault.length,
         drafts: workspaceCounts?.drafts ?? drafts.length,

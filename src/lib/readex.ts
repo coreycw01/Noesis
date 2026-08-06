@@ -147,6 +147,10 @@ export function allAnnotations(media: Media[]) {
 }
 
 export function allQuestions(media: Media[], questions: Question[]) {
+  const persistedIds = new Set(questions.map((question) => question.id));
+  const persistedAnnotationIds = new Set(
+    questions.map((question) => question.sourceAnnotationId).filter((id): id is string => Boolean(id)),
+  );
   const captureQuestions: Question[] = media
     .map((source) => ({
       id: `open:${source.id}`,
@@ -162,7 +166,11 @@ export function allQuestions(media: Media[], questions: Question[]) {
     .filter((q) => q.text);
 
   const annotationQuestions: Question[] = allAnnotations(media)
-    .filter((annotation) => annotation.type === 'question')
+    .filter((annotation) => {
+      if (annotation.type !== 'question') return false;
+      if (annotation.createdInquiryId && persistedIds.has(annotation.createdInquiryId)) return false;
+      return !persistedAnnotationIds.has(annotation.id);
+    })
     .map((annotation) => ({
       id: `annotation:${annotation.source.id}:${annotation.id}`,
       text: annotation.text,
@@ -175,7 +183,23 @@ export function allQuestions(media: Media[], questions: Question[]) {
       dateCreated: annotation.date,
     }));
 
-  return [...questions, ...captureQuestions, ...annotationQuestions];
+  const candidates = [...questions, ...captureQuestions, ...annotationQuestions];
+  const seenIds = new Set<string>();
+  const seenDemoTitles = new Set<string>();
+
+  return candidates.filter((question) => {
+    if (seenIds.has(question.id)) return false;
+    seenIds.add(question.id);
+
+    // Title-based deduplication is deliberately limited to seeded demo records.
+    // Real user inquiries are distinct records even when their wording matches.
+    const demoSeed = Boolean((question as Question & { demoSeed?: boolean }).demoSeed);
+    if (!demoSeed) return true;
+    const titleKey = question.text.trim().toLocaleLowerCase().replace(/\s+/g, ' ');
+    if (!titleKey || seenDemoTitles.has(titleKey)) return false;
+    seenDemoTitles.add(titleKey);
+    return true;
+  });
 }
 
 export function conceptTerms(concepts: Concept[], media: Media[], insights: Insight[], vault: VaultEntry[], drafts: Draft[], practices: Practice[] = []) {

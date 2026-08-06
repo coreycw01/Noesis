@@ -41,6 +41,7 @@ import type {
   WorkspaceSettings,
 } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
+import { allQuestions } from '@/lib/readex';
 
 const HomeRoutePage = dynamic(() => import('./HomeRoutePage').then((module) => module.HomeRoutePage));
 const AtlasRoutePage = dynamic(() => import('./AtlasRoutePage').then((module) => module.AtlasRoutePage), { ssr: false });
@@ -258,6 +259,7 @@ export function NoesisRouteContent({
   exportWorkspaceData,
   seedReviewWorkspace,
 }: NoesisRouteContentProps) {
+  const canonicalInquiries = allQuestions(media, questions);
   switch (activeView) {
     case 'home':
       return (
@@ -265,7 +267,7 @@ export function NoesisRouteContent({
           profile={profile}
           concepts={concepts}
           media={media}
-          inquiries={questions}
+          inquiries={canonicalInquiries}
           positions={vault}
           works={drafts}
           practices={practices}

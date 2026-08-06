@@ -441,7 +441,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [typeFilter, setTypeFilter] = useState<'all' | VaultType>('all');
   const [conceptFilter, setConceptFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState<PositionViewFilter>('all');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'opposition' | 'relations' | 'history'>('overview');
   const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', confidence: 60, status: 'active', tags: [] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);

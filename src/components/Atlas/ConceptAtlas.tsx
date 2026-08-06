@@ -309,7 +309,7 @@ export function ConceptAtlas({
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
   const [linkSearch, setLinkSearch] = useState('');
-  const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('moderate');
+  const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('strong');
   const [viewMode, setViewMode] = useState<AtlasViewMode>('core');
   const [relationshipFilterMode, setRelationshipFilterMode] = useState<AtlasRelationshipFilterMode>('recommended');
   const [customRelationshipTypes, setCustomRelationshipTypes] = useState<PhilosophicalLinkType[]>([]);
@@ -1001,6 +1001,29 @@ export function ConceptAtlas({
 
     return strengthFiltered;
   }, [activeMapStyle.showWeakLinks, activeRelationshipTypes, autoConnectionFocus, edges, mode, selectedName, viewMode]);
+
+  const renderedNodes = useMemo(() => {
+    if (mode === 'custom' || selectedName || selectedRegion || search.trim()) return nodes;
+    const keys = new Set<string>();
+    for (const edge of visibleEdges) {
+      if (keys.size >= 12 && (!keys.has(conceptKey(edge.from)) || !keys.has(conceptKey(edge.to)))) continue;
+      keys.add(conceptKey(edge.from));
+      keys.add(conceptKey(edge.to));
+      if (keys.size >= 12) break;
+    }
+    if (keys.size < 8) {
+      [...nodes].sort((a, b) => b.count - a.count).forEach((node) => {
+        if (keys.size < Math.min(8, nodes.length)) keys.add(conceptKey(node.name));
+      });
+    }
+    return nodes.filter((node) => keys.has(conceptKey(node.name))).slice(0, 12);
+  }, [mode, nodes, search, selectedName, selectedRegion, visibleEdges]);
+
+  const renderedNodeKeys = useMemo(() => new Set(renderedNodes.map((node) => conceptKey(node.name))), [renderedNodes]);
+  const renderedEdges = useMemo(
+    () => visibleEdges.filter((edge) => renderedNodeKeys.has(conceptKey(edge.from)) && renderedNodeKeys.has(conceptKey(edge.to))),
+    [renderedNodeKeys, visibleEdges],
+  );
 
   const visibleFamilies = useMemo(() => {
     const families = new Set();
@@ -2218,7 +2241,7 @@ export function ConceptAtlas({
     });
   };
 
-  const isMapEmpty = visibleEdges.length === 0;
+  const isMapEmpty = renderedEdges.length === 0;
 
   return (
     <div className={cn(
@@ -2423,8 +2446,8 @@ export function ConceptAtlas({
 
         <div className="hidden flex-col gap-2 pb-1 md:flex lg:flex-row lg:items-center lg:justify-between lg:gap-3">
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-            <Stat value={nodes.length} label="Nodes" />
-            <Stat value={visibleEdges.length} label="Visible Links" />
+            <Stat value={renderedNodes.length} label="Nodes" />
+            <Stat value={renderedEdges.length} label="Visible Links" />
             <Stat value={visibleFamilies} label="Visible Families" />
             <Stat value={selectedName || 'None'} label="Active" />
           </div>
@@ -2558,7 +2581,7 @@ export function ConceptAtlas({
             }}
           >
             <svg className="pointer-events-none absolute inset-0 h-full w-full">
-              {visibleEdges.map((edge, index) => {
+              {renderedEdges.map((edge, index) => {
                 const from = nodes.find((node) => conceptKey(node.name) === conceptKey(edge.from));
                 const to = nodes.find((node) => conceptKey(node.name) === conceptKey(edge.to));
                 if (!from || !to) return null;
@@ -2678,7 +2701,7 @@ export function ConceptAtlas({
               );
             })()}
 
-            {nodes.map((node) => (
+            {renderedNodes.map((node) => (
               <button
                 key={node.name}
                 className={cn(

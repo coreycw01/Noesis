@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { NoesisRouteProvider } from '@/lib/noesis-route-context';
@@ -48,6 +48,16 @@ function isNoesisWorkspacePath(pathname: string) {
 export function NoesisPersistentWorkspace({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const routeState = useMemo(() => parseNoesisRoute(pathname), [pathname]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const main = document.querySelector<HTMLElement>('.noesis-app-main');
+      const scrollRegion = main?.querySelector<HTMLElement>('[data-noesis-scroll-region], .overflow-y-auto');
+      if (scrollRegion) scrollRegion.scrollTo({ top: 0, behavior: 'auto' });
+      else main?.scrollTo({ top: 0, behavior: 'auto' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [pathname]);
 
   if (!isNoesisWorkspacePath(pathname)) return <>{children}</>;
 

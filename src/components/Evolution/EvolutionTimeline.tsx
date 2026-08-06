@@ -440,12 +440,13 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
       const text = `${event.turningPoint || ''} ${event.chips.join(' ')} ${event.title}`.toLowerCase();
       return event.importance === 'major' ||
         event.importance === 'high' ||
-        ['belief_revisions', 'confidence', 'unknowns', 'contradictions', 'replacements'].includes(event.filter) ||
+        event.filter === 'replacements' ||
         text.includes('revised') ||
-        text.includes('resolved') ||
         text.includes('abandoned') ||
-        text.includes('challenge') ||
-        text.includes('contradiction');
+        text.includes('replaced') ||
+        text.includes('contradiction resolved') ||
+        text.includes('inquiry resolved') ||
+        (event.filter === 'confidence' && Boolean(event.beforeLabel && event.afterLabel));
     }).slice(0, 8);
   }, [displayEvents]);
 

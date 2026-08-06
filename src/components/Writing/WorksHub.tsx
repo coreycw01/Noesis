@@ -6,11 +6,16 @@ import {
   Camera,
   CirclePlay,
   Cloud,
+  FileText,
+  Mic,
+  MoreVertical,
   NotebookPen,
+  Palette,
   PencilLine,
   PenTool,
   Plus,
   Trash2,
+  Video,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -119,8 +125,10 @@ function workLabel(draft: Draft) {
 
 function workIcon(draft: Draft) {
   const category = draft.workCategory || workCategoryForDraft(draft.type);
-  if (category === 'writing') return PencilLine;
-  if (category === 'drawing') return PenTool;
+  if (draft.type === 'voice_note' || draft.type === 'talk_to_text') return Mic;
+  if (draft.type === 'recording') return Video;
+  if (category === 'writing') return FileText;
+  if (category === 'drawing') return Palette;
   if (category === 'recording') return CirclePlay;
   return NotebookPen;
 }
@@ -353,12 +361,20 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
             return (
               <Card
                 key={draft.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${draft.title || 'untitled work'}`}
                 className={cn('group border-border/60 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-lg', view === 'grid' ? 'overflow-hidden rounded-2xl' : 'rounded-xl')}
                 onClick={() => openDraft(draft)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  openDraft(draft);
+                }}
               >
                 <div className={cn('flex gap-4', view === 'grid' ? 'flex-col' : 'items-center p-3')}>
                   {view === 'grid' && (
-                    <div className="relative flex h-40 items-center justify-center overflow-hidden border-b border-border/50 bg-muted/15">
+                    <div className="relative flex h-32 items-center justify-center overflow-hidden border-b border-border/50 bg-muted/15">
                       <DraftThumbnail draft={draft} Icon={Icon} />
                       {isRecording && <span className="absolute bottom-3 left-3 rounded-full border border-border/60 bg-background/90 px-2.5 py-1 font-code text-[9px] font-bold uppercase tracking-widest text-foreground">{durationLabel(draft.durationSeconds)}</span>}
                     </div>
@@ -372,7 +388,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                           <Badge variant="outline" className="rounded-full border-border/70 font-code text-[8px] uppercase tracking-wider">{draft.status}</Badge>
                           {draft.externalDoc && <Cloud className="size-3.5 text-accent" aria-label="External document linked" />}
                         </div>
-                        <h2 className="mt-2 truncate font-headline text-xl font-bold italic text-foreground transition-colors group-hover:text-accent">{draft.title || 'Untitled work'}</h2>
+                        <h2 className="mt-2 line-clamp-2 font-headline text-xl font-bold italic text-foreground transition-colors group-hover:text-accent">{draft.title || 'Untitled work'}</h2>
                       </div>
                     </div>
                     <p className={cn('mt-3 text-sm leading-6 text-muted-foreground', view === 'list' && 'line-clamp-1 md:mt-0 md:max-w-xl')}>{text || 'A blank creative surface waiting for its first mark.'}</p>
@@ -387,7 +403,18 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                         {(draft.conceptTags || []).slice(0, 3).map((tag) => <Badge key={tag} variant="secondary" className="rounded-full bg-muted/45 font-code text-[8px] uppercase tracking-wider text-muted-foreground">{tag}</Badge>)}
                         {draft.writingStyle && (draft.workCategory || workCategoryForDraft(draft.type)) === 'writing' && <Badge variant="secondary" className="rounded-full bg-accent/8 font-code text-[8px] uppercase tracking-wider text-accent">{WRITING_STYLE_LABELS[draft.writingStyle]}</Badge>}
                       </div>
-                      <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Delete ${draft.title || 'work'}`} onClick={(event) => { event.stopPropagation(); setDeleteTarget(draft); }}><Trash2 className="size-3.5" /></Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 rounded-full text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`} onClick={(event) => event.stopPropagation()}>
+                            <MoreVertical className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
+                          <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteTarget(draft)}>
+                            <Trash2 className="mr-2 size-4" /> Delete work
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                   {view === 'list' && <ArrowUpRight className="mr-4 size-4 shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />}

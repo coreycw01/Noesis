@@ -304,11 +304,6 @@ export function SettingsPage({
     }
   };
 
-  const currentPanel = SETTINGS_PANELS.find((panel) => panel.id === activePanel) || SETTINGS_PANELS[0];
-  const activeImpact = useMemo(
-    () => buildSettingsImpact(activePanel, settings, drafts),
-    [activePanel, settings, drafts]
-  );
   const helpSections = noesisGuide.sections.filter((section) => !['profile', 'goals'].includes(section.id));
 
   const renderPanel = () => {
@@ -341,7 +336,7 @@ export function SettingsPage({
                   <Input value={(drafts.account.connectedLoginMethods || []).join(', ') || 'password'} disabled />
                 </Field>
                 <Field label="Account Created">
-                  <Input value={drafts.account.accountCreatedAt || user?.metadata?.creationTime || 'Unknown'} disabled />
+                  <Input value={formatAccountDate(drafts.account.accountCreatedAt || user?.metadata?.creationTime)} disabled />
                 </Field>
                 <Field label="Authentication Status">
                   <Input value={user ? 'Signed in' : 'Signed out'} disabled />
@@ -1045,11 +1040,6 @@ export function SettingsPage({
           </Card>
 
           <div className="min-w-0 space-y-6">
-            <div className="rounded-2xl border border-border bg-muted/15 px-5 py-4">
-              <div className="font-headline text-xl font-semibold italic text-foreground">{currentPanel.label}</div>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">{currentPanel.description}</p>
-            </div>
-            <BehaviorPreview impact={activeImpact} />
             {renderPanel()}
           </div>
         </div>
@@ -1222,12 +1212,20 @@ function ClassificationCard({ title, body }: { title: string; body: string }) {
 }
 
 function SwitchRow({ label, checked, onCheckedChange }: { label: string; checked: boolean; onCheckedChange: (checked: boolean) => void }) {
+  const id = React.useId();
   return (
     <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-background/60 px-4 py-3">
-      <span className="text-sm text-foreground">{label}</span>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <Label htmlFor={id} className="cursor-pointer text-sm text-foreground">{label}</Label>
+      <Switch id={id} aria-label={label} checked={checked} onCheckedChange={onCheckedChange} />
     </div>
   );
+}
+
+function formatAccountDate(value?: string | null) {
+  if (!value) return 'Unknown';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown';
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(date);
 }
 
 function ViewSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
