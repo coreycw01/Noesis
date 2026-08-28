@@ -169,6 +169,47 @@ const ATLAS_MIN_ZOOM = 0.45;
 const ATLAS_MAX_ZOOM = 1.7;
 const ATLAS_ZOOM_STEP = 0.08;
 const ATLAS_ZOOM_STORAGE_KEY = 'noesis.atlas.zoom';
+const ATLAS_NODE_BOUNDS = { minX: 6, maxX: 94, minY: 8, maxY: 92 } as const;
+
+function atlasAutoNodePosition(index: number, total: number) {
+  if (total <= 1) return { x: 50, y: 50 };
+  if (total === 2) {
+    return { x: index === 0 ? 18 : 82, y: 50 };
+  }
+  if (total === 3) {
+    return [
+      { x: 14, y: 18 },
+      { x: 86, y: 18 },
+      { x: 50, y: 84 },
+    ][index];
+  }
+  if (total === 4) {
+    return [
+      { x: 14, y: 18 },
+      { x: 86, y: 18 },
+      { x: 14, y: 84 },
+      { x: 86, y: 84 },
+    ][index];
+  }
+
+  const columns = Math.max(2, Math.round(Math.sqrt(total * 1.35)));
+  const rows = Math.ceil(total / columns);
+  const row = Math.floor(index / columns);
+  const column = index % columns;
+  const itemsInRow = Math.min(columns, total - row * columns);
+  const rowOffset = (columns - itemsInRow) / 2;
+  const xRange = ATLAS_NODE_BOUNDS.maxX - ATLAS_NODE_BOUNDS.minX;
+  const yRange = ATLAS_NODE_BOUNDS.maxY - ATLAS_NODE_BOUNDS.minY;
+
+  return {
+    x: columns === 1
+      ? 50
+      : ATLAS_NODE_BOUNDS.minX + ((column + rowOffset) / (columns - 1)) * xRange,
+    y: rows === 1
+      ? 50
+      : ATLAS_NODE_BOUNDS.minY + (row / (rows - 1)) * yRange,
+  };
+}
 
 function atlasConfidencePercent(confidence?: number) {
   if (!Number.isFinite(confidence)) return 60;
@@ -524,16 +565,15 @@ export function ConceptAtlas({
     const filtered = visibleTerms.filter((name) => !search || name.toLowerCase().includes(search.toLowerCase()));
     return filtered.map((name, index) => {
       const concept = concepts.find((c) => conceptKey(c.name) === conceptKey(name));
-      const angle = -Math.PI / 2 + (Math.PI * 2 * index) / Math.max(1, filtered.length);
-      const radius = filtered.length <= 2 ? 22 : 34 + (index % 2) * 7;
+      const autoPosition = atlasAutoNodePosition(index, filtered.length);
       const count = taggedItemsForConcept(name, media, insights, vault, drafts, practices).length;
       const customPosition = activeMap?.nodePositions?.[conceptKey(name)];
       return {
         name,
         concept,
         count,
-        x: draftPositions[conceptKey(name)]?.x ?? customPosition?.x ?? concept?.x ?? 50 + Math.cos(angle) * radius,
-        y: draftPositions[conceptKey(name)]?.y ?? customPosition?.y ?? concept?.y ?? 50 + Math.sin(angle) * radius,
+        x: draftPositions[conceptKey(name)]?.x ?? customPosition?.x ?? concept?.x ?? autoPosition.x,
+        y: draftPositions[conceptKey(name)]?.y ?? customPosition?.y ?? concept?.y ?? autoPosition.y,
       };
     });
   }, [activeMap, concepts, drafts, draftPositions, insights, media, practices, search, vault, visibleTerms]);
@@ -1956,8 +1996,9 @@ export function ConceptAtlas({
   const moveNode = (name: string, clientX: number, clientY: number) => {
     const rect = mapRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = Math.min(94, Math.max(6, ((clientX - rect.left - pan.x) / (rect.width * zoom)) * 100));
-    const y = Math.min(92, Math.max(8, ((clientY - rect.top - pan.y) / (rect.height * zoom)) * 100));
+    const effectiveZoom = zoom / ATLAS_BASE_ZOOM;
+    const x = Math.min(ATLAS_NODE_BOUNDS.maxX, Math.max(ATLAS_NODE_BOUNDS.minX, ((clientX - rect.left - pan.x) / (rect.width * effectiveZoom)) * 100));
+    const y = Math.min(ATLAS_NODE_BOUNDS.maxY, Math.max(ATLAS_NODE_BOUNDS.minY, ((clientY - rect.top - pan.y) / (rect.height * effectiveZoom)) * 100));
     setDraftPositions((prev) => ({ ...prev, [conceptKey(name)]: { x, y } }));
   };
 
@@ -2241,7 +2282,6 @@ export function ConceptAtlas({
     });
   };
 
-  const isMapEmpty = renderedEdges.length === 0;
 
   return (
     <div className={cn(
@@ -2551,18 +2591,6 @@ export function ConceptAtlas({
             </Button>
           </div>
 
-          {isMapEmpty && (
-            <div className="absolute left-4 top-14 z-20 max-w-[calc(100%-2rem)] rounded-2xl border border-border bg-card/95 p-4 shadow-lg backdrop-blur md:top-4 md:max-w-sm">
-              <div className="font-headline text-lg font-semibold italic">Not enough strong connections yet.</div>
-              <p className="mt-1 text-sm italic leading-5 text-muted-foreground">Create links, interact with nodes, or lower the strength filter to reveal weaker relationships.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" className="rounded-full" onClick={() => setAutoConnectionFocus('moderate')}>Show Strong + Moderate</Button>
-                <Button size="sm" variant="outline" className="rounded-full" onClick={() => setAutoConnectionFocus('all')}>Show All Connections</Button>
-                <Button size="sm" className="rounded-full" onClick={() => setIsLinkOpen(true)} disabled={!selectedName}>Create Link</Button>
-              </div>
-            </div>
-          )}
-
           {mode === 'custom' && !activeMap && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70">
               <Card className="max-w-sm rounded-2xl p-8 text-center shadow-2xl border-none">
@@ -2576,6 +2604,8 @@ export function ConceptAtlas({
           <div
             className="absolute inset-0 h-full w-full"
             style={{
+              width: `${100 / ATLAS_BASE_ZOOM}%`,
+              height: `${100 / ATLAS_BASE_ZOOM}%`,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
             }}
@@ -2681,8 +2711,9 @@ export function ConceptAtlas({
               const sourceNode = nodes.find((node) => conceptKey(node.name) === conceptKey(quickLinkSource));
               const rect = mapRef.current?.getBoundingClientRect();
               if (!sourceNode || !rect) return null;
-              const cursorX = ((quickLinkCursor.x - rect.left - pan.x) / (rect.width * zoom)) * 100;
-              const cursorY = ((quickLinkCursor.y - rect.top - pan.y) / (rect.height * zoom)) * 100;
+              const effectiveZoom = zoom / ATLAS_BASE_ZOOM;
+              const cursorX = ((quickLinkCursor.x - rect.left - pan.x) / (rect.width * effectiveZoom)) * 100;
+              const cursorY = ((quickLinkCursor.y - rect.top - pan.y) / (rect.height * effectiveZoom)) * 100;
               const ghost = edgePoints(sourceNode, { name: '', count: 0, x: cursorX, y: cursorY });
               return (
                 <g>
