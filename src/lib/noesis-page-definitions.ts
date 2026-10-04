@@ -177,15 +177,15 @@ export const NOESIS_PAGE_BY_VIEW = NOESIS_PAGE_DEFINITIONS.reduce((acc, page) =>
 }, {} as Record<NoesisView, NoesisPageDefinition>);
 
 export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDataKey[]> = {
-  home: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'thinkingEvents', 'unknowns', 'goal', 'workspace'],
+  home: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'thinkingEvents', 'unknowns', 'goal'],
   atlas: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'atlasMaps', 'links', 'thinkingEvents', 'unknowns'],
   concepts: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'links'],
-  questions: ['media', 'concepts', 'questions', 'vault', 'drafts'],
-  library: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline'],
+  questions: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
+  library: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links'],
   'source-index': ['media', 'questions', 'vault', 'drafts', 'practices'],
   annotations: ['media', 'concepts', 'questions', 'vault'],
   vault: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns'],
-  writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'preferences'],
+  writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences'],
   practices: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
   evolution: ['media', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'thinkingMetrics'],
   profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs'],
@@ -195,10 +195,10 @@ export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDa
 
 export const NOESIS_DETAIL_DATA_REQUIREMENTS: Record<NoesisRouteTargetType, NoesisWorkspaceDataKey[]> = {
   concept: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
-  inquiry: ['media', 'concepts', 'questions', 'vault', 'drafts'],
-  source: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices'],
+  inquiry: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
+  source: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
   position: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns'],
-  work: ['media', 'concepts', 'questions', 'vault', 'drafts', 'preferences'],
+  work: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences'],
   practice: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
 };
 

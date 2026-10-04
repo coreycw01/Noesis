@@ -51,7 +51,7 @@ export interface DrawingDocumentState {
   activeLayerId: string;
   layers: DrawingLayer[];
 }
-export type RecordingType = 'video' | 'screen';
+export type RecordingType = 'video' | 'audio' | 'screen';
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type AccentTheme = 'violet' | 'sage' | 'blue' | 'amber' | 'rose' | 'mono';
 export type HeaderFont = 'editorial' | 'literary' | 'classic' | 'modern' | 'mono';
@@ -84,7 +84,7 @@ export type ThinkingPatternUserResponse = 'confirmed' | 'partially_agree' | 'rej
 export type UnknownStatus = 'active' | 'exploring' | 'resolved' | 'archived';
 export type UnknownImportance = 'low' | 'medium' | 'high';
 export type BeliefProfileReviewStatus = 'current' | 'needs_review' | 'outdated' | 'abandoned';
-export type ThinkingEventEntityType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'atlasMap' | 'link' | 'unknown' | 'beliefProfile' | 'thinkingPattern' | 'metric' | 'suggestion' | 'evolution';
+export type ThinkingEventEntityType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'insight' | 'atlasMap' | 'link' | 'unknown' | 'beliefProfile' | 'thinkingPattern' | 'metric' | 'suggestion' | 'evolution';
 export type ThinkingEventOrigin = 'user' | 'ai-assisted' | 'ai' | 'system';
 export type ThinkingEventEpistemicStatus = 'raw_capture' | 'uncertain' | 'emerging' | 'working_belief' | 'strong_belief' | 'challenged' | 'abandoned' | 'resolved';
 export type ThinkingEventImportance = 'low' | 'medium' | 'high' | 'major';
@@ -219,7 +219,8 @@ export interface VaultEntry {
   evidenceFor?: string[];
   evidenceAgainst?: string[];
   versionHistory?: VaultVersion[];
-  createdFrom?: 'manual' | 'idea';
+  createdFrom?: 'manual' | 'idea' | 'inquiry' | 'annotation' | 'work';
+  sourceInquiryId?: string;
   sourceAnnotationId?: string;
   sourceWorkId?: string;
   sourceDocumentId?: string;
@@ -272,6 +273,12 @@ export interface Question {
   answer?: string;
   whyItMatters?: string;
   currentIntuition?: string;
+  investigationNotes?: Array<{
+    id: string;
+    text: string;
+    origin: 'user' | 'ai-assisted';
+    date: string;
+  }>;
   assumptions?: string[];
   candidateAnswers?: Array<{
     id: string;

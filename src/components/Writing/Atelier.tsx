@@ -18,6 +18,7 @@ import {
   Link2,
   Mic,
   Minus,
+  MoreHorizontal,
   MoveUpRight,
   NotebookPen,
   PencilLine,
@@ -42,6 +43,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { FormattingToolbar } from './FormattingToolbar';
 import { DocumentCanvas } from './DocumentCanvas';
@@ -57,7 +60,7 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
-import { persistInlineDraftAssets } from '@/lib/storage-assets';
+import { cleanupReplacedDraftAssets, persistInlineDraftAssets, uploadPrivateAsset } from '@/lib/storage-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 
 export type PageViewMode = 'vertical-continuous' | 'vertical-single' | 'horizontal-single';
@@ -312,6 +315,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
   const [writingStrokeSize, setWritingStrokeSize] = useState(3);
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const latestDraftRef = useRef<Draft | null>(null);
 
@@ -448,6 +452,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
       const persistedDraft = await persistInlineDraftAssets(uid, nextDraft);
       setDraftBuffer(persistedDraft);
       await onUpdateDraft(persistedDraft);
+      await cleanupReplacedDraftAssets(active, persistedDraft).catch(() => undefined);
       setDirty(false);
       setSaveStatus('saved');
       return persistedDraft;
@@ -512,7 +517,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
       workCategory: category,
       paperType: writingDefaults.writingStyle,
       activeRibbon: type === 'drawing' || type === 'drawing_note' ? 'drawing' : 'writing',
-      recordingType: type === 'recording' || type === 'voice_note' ? 'screen' : undefined,
+      recordingType: type === 'voice_note' ? 'audio' : type === 'recording' ? 'video' : undefined,
       status: writingDefaults.status,
       writingStyle: writingDefaults.writingStyle,
       drawingState: type === 'drawing' || type === 'drawing_note' ? {
@@ -666,6 +671,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
             dateUpdated: today(),
           });
           await onUpdateDraft(persisted);
+          await cleanupReplacedDraftAssets(activeFromStore || latest, persisted).catch(() => undefined);
           setDraftBuffer((current) => {
             if (!current || current.id !== persisted.id) return current;
             return draftSaveSignature(current) === signatureBeforeSave ? persisted : current;
@@ -688,6 +694,17 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
     }, 750);
     return () => window.clearTimeout(timeout);
   }, [activeStoreSignature, draftBuffer, draftBufferSignature, dirty, onUpdateDraft, toast, uid]);
+
+  useEffect(() => {
+    if (!active) return;
+    const handleSaveShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') return;
+      event.preventDefault();
+      void saveActive();
+    };
+    window.addEventListener('keydown', handleSaveShortcut);
+    return () => window.removeEventListener('keydown', handleSaveShortcut);
+  }, [active, saveActive]);
 
   useEffect(() => {
     if (!active?.externalDoc?.autoSync || active.externalDoc.syncStatus === 'syncing') return;
@@ -777,7 +794,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                 placeholder={`Untitled ${activeTypeLabel}`}
               />
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <div className="flex items-center gap-2 rounded-full border border-border/30 bg-muted/10 px-3 py-1.5">
+                <div className="hidden items-center gap-2 rounded-full border border-border/30 bg-muted/10 px-3 py-1.5 sm:flex">
                   <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
                   <span className="font-code text-[8px] uppercase tracking-widest font-bold text-muted-foreground">
                     {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}
@@ -787,29 +804,46 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                   <Save className="size-4 mr-2" /> {dirty ? 'Save*' : 'Save'}
                 </Button>
                 {activeCategory === 'writing' && (
-                  <Button variant="outline" size="sm" onClick={() => setIsVersionHistoryOpen(true)} className="h-9 px-3 rounded-full font-bold shadow-sm bg-card border-border/60" title="Version history">
+                  <Button variant="outline" size="sm" onClick={() => setIsVersionHistoryOpen(true)} className="hidden h-9 rounded-full border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" title="Version history">
                     <History className="size-4" /><span className="ml-2 hidden xl:inline">Versions</span>
                   </Button>
                 )}
                 {activeCategory === 'writing' && (
-                  <Button variant="outline" size="sm" onClick={() => window.print()} className="h-9 px-3 rounded-full font-bold shadow-sm bg-card border-border/60" title="Print">
+                  <Button variant="outline" size="sm" onClick={() => window.print()} className="hidden h-9 rounded-full border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" title="Print">
                     <Printer className="size-4" />
                   </Button>
                 )}
                 {activeCategory === 'writing' && (
-                  <Button variant="outline" size="sm" onClick={exportManuscript} className="h-9 px-4 rounded-full font-bold shadow-sm bg-card border-border/60">
+                  <Button variant="outline" size="sm" onClick={exportManuscript} className="hidden h-9 rounded-full border-border/60 bg-card px-4 font-bold shadow-sm md:inline-flex">
                     <Download className="size-4 mr-2" /> Export
                   </Button>
                 )}
-                <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(active)} className="h-9 w-9 rounded-full shadow-sm">
-                  <Trash2 className="size-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" className="size-9 rounded-full border-border/60 bg-card" aria-label="More work actions">
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {activeCategory === 'writing' && (
+                      <>
+                        <DropdownMenuItem className="md:hidden" onSelect={() => setIsVersionHistoryOpen(true)}><History className="mr-2 size-4" /> Version history</DropdownMenuItem>
+                        <DropdownMenuItem className="md:hidden" onSelect={() => window.print()}><Printer className="mr-2 size-4" /> Print</DropdownMenuItem>
+                        <DropdownMenuItem className="md:hidden" onSelect={exportManuscript}><Download className="mr-2 size-4" /> Export</DropdownMenuItem>
+                        <DropdownMenuSeparator className="md:hidden" />
+                      </>
+                    )}
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteTarget(active)}>
+                      <Trash2 className="mr-2 size-4" /> Delete work
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/10 pt-2">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex rounded-full border border-border/60 bg-card p-1 shadow-sm">
+                {activeCategory === 'writing' && <div className="flex rounded-full border border-border/60 bg-card p-1 shadow-sm">
                   {(['draft', 'final'] as const).map((mode) => (
                     <button
                       key={mode}
@@ -822,7 +856,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                       {mode === 'draft' ? 'Drafting' : 'Final'}
                     </button>
                   ))}
-                </div>
+                </div>}
                 <div className="flex items-center gap-2">
                   <Select value={active.status} onValueChange={(value) => updateActive({ status: value as DraftStatus })}>
                     <SelectTrigger className="h-8 border-border/40 bg-background shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-32 px-3 font-bold">
@@ -868,6 +902,29 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
               </div>
             </div>
 
+            <div className="flex justify-end lg:hidden">
+              <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 rounded-full bg-card">
+                    <NotebookPen className="mr-2 size-4" /> Studio context
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto rounded-t-2xl border-border bg-background p-4">
+                  <SheetHeader className="pb-3 text-left">
+                    <SheetTitle className="font-headline text-2xl font-bold italic">Studio context</SheetTitle>
+                  </SheetHeader>
+                  <WorkRailContent
+                    sources={activeSources}
+                    positions={activePositions}
+                    inquiries={activeInquiries}
+                    concepts={workConcepts}
+                    annotations={unusedAnnotations}
+                    coherenceSignals={coherenceSignals}
+                  />
+                </SheetContent>
+              </Sheet>
+            </div>
+
             <div className="flex flex-col gap-2">
               {showExternalDocControls && active.externalDoc && (
                 <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 flex flex-wrap items-center justify-between gap-3">
@@ -910,7 +967,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                 </div>
               )}
               {showPaperControls && (
-                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/30 bg-card/80 px-4 py-3">
+                <div className="hidden flex-wrap items-center gap-3 rounded-xl border border-border/30 bg-card/80 px-4 py-3 md:flex">
                   <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">PENCIL</span>
                   <Button variant={writingTool === 'text' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('text')} className="rounded-full">
                     <Type className="mr-2 size-4" /> Type
@@ -927,6 +984,21 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                     <Square className="mr-2 size-4" /> Clear Marks
                   </Button>
                 </div>
+              )}
+              {showPaperControls && (
+                <details className="rounded-xl border border-border/30 bg-card/80 md:hidden">
+                  <summary className="cursor-pointer list-none px-4 py-3 font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Pencil overlay
+                  </summary>
+                  <div className="flex flex-wrap items-center gap-2 border-t border-border/30 p-3">
+                    <Button variant={writingTool === 'text' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('text')} className="rounded-full"><Type className="mr-2 size-4" /> Type</Button>
+                    <Button variant={writingTool === 'pencil' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('pencil')} className="rounded-full"><PencilLine className="mr-2 size-4" /> Pencil</Button>
+                    <Button variant={writingTool === 'eraser' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('eraser')} className="rounded-full"><Eraser className="mr-2 size-4" /> Erase</Button>
+                    <input type="color" value={writingStrokeColor} onChange={(event) => setWritingStrokeColor(event.target.value)} className="h-9 w-11 rounded border border-border bg-background p-1" aria-label="Pencil color" />
+                    <input type="range" min={1} max={14} value={writingStrokeSize} onChange={(event) => setWritingStrokeSize(Number(event.target.value))} className="w-24" aria-label="Pencil size" />
+                    <Button variant="outline" size="sm" onClick={() => updateActive({ writingOverlayData: '' })} className="rounded-full bg-card"><Square className="mr-2 size-4" /> Clear</Button>
+                  </div>
+                </details>
               )}
 
             </div>
@@ -958,9 +1030,9 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                 />
               </>
             ) : active.type === 'recording' ? (
-              <RecordingStudio draft={active} updateActive={updateActive} />
+              <RecordingStudio uid={uid} draft={active} updateActive={updateActive} onSave={saveActive} />
             ) : active.type === 'voice_note' ? (
-              <RecordingStudio draft={active} updateActive={updateActive} audioOnly />
+              <RecordingStudio uid={uid} draft={active} updateActive={updateActive} onSave={saveActive} audioOnly />
             ) : active.type === 'drawing' ? (
               <DrawingStudio draft={active} updateActive={updateActive} />
             ) : active.type === 'drawing_note' ? (
@@ -1561,12 +1633,16 @@ function QuickNoteStudio({
 }
 
 function RecordingStudio({
+  uid,
   draft,
   updateActive,
+  onSave,
   audioOnly = false,
 }: {
+  uid: string;
   draft: Draft;
   updateActive: (patch: Partial<Draft>) => void;
+  onSave: (patch?: Partial<Draft>) => Promise<Draft | null>;
   audioOnly?: boolean;
 }) {
   const { url: storedRecordingUrl, error: storedRecordingError } = usePrivateAssetUrl(
@@ -1578,18 +1654,66 @@ function RecordingStudio({
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const [state, setState] = useState<'idle' | 'requesting' | 'ready' | 'recording' | 'stopped' | 'saving' | 'saved' | 'error'>(
+  const discardOnStopRef = useRef(false);
+  const stagedUrlRef = useRef('');
+  const [state, setState] = useState<'idle' | 'requesting' | 'ready' | 'recording' | 'paused' | 'stopped' | 'saving' | 'saved' | 'error'>(
     draft.fileUrl || draft.asset?.storagePath || draft.storagePath ? 'saved' : 'idle',
   );
   const [error, setError] = useState('');
   const [duration, setDuration] = useState(draft.durationSeconds || 0);
   const durationRef = useRef(draft.durationSeconds || 0);
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
+  const [microphoneDevices, setMicrophoneDevices] = useState<MediaDeviceInfo[]>([]);
+  const [cameraId, setCameraId] = useState('');
+  const [microphoneId, setMicrophoneId] = useState('');
+  const [previewUrl, setPreviewUrl] = useState('');
+
+  const stopStream = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
+
+  const refreshDevices = useCallback(async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cameras = devices.filter((device) => device.kind === 'videoinput');
+    const microphones = devices.filter((device) => device.kind === 'audioinput');
+    setCameraDevices(cameras);
+    setMicrophoneDevices(microphones);
+    setCameraId((current) => current || cameras[0]?.deviceId || '');
+    setMicrophoneId((current) => current || microphones[0]?.deviceId || '');
+  }, []);
 
   useEffect(() => {
     return () => {
-      streamRef.current?.getTracks().forEach((track) => track.stop());
+      if (recorderRef.current?.state !== 'inactive') {
+        discardOnStopRef.current = true;
+        recorderRef.current?.stop();
+      }
+      stopStream();
+      if (stagedUrlRef.current) URL.revokeObjectURL(stagedUrlRef.current);
     };
-  }, []);
+  }, [stopStream]);
+
+  useEffect(() => {
+    stopStream();
+    if (stagedUrlRef.current) URL.revokeObjectURL(stagedUrlRef.current);
+    stagedUrlRef.current = '';
+    setPreviewUrl('');
+    const savedDuration = draft.durationSeconds || 0;
+    durationRef.current = savedDuration;
+    setDuration(savedDuration);
+    setError('');
+    setState(draft.fileUrl || draft.asset?.storagePath || draft.storagePath ? 'saved' : 'idle');
+  }, [draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const mediaDevices = navigator.mediaDevices;
+    if (!mediaDevices?.addEventListener) return;
+    const handleDeviceChange = () => void refreshDevices().catch(() => {});
+    mediaDevices.addEventListener('devicechange', handleDeviceChange);
+    return () => mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+  }, [refreshDevices]);
 
   useEffect(() => {
     let timer: number | undefined;
@@ -1604,24 +1728,35 @@ function RecordingStudio({
     };
   }, [state]);
 
-  const requestMedia = async () => {
+  const requestMedia = async (nextCameraId = cameraId, nextMicrophoneId = microphoneId) => {
     setState('requesting');
     setError('');
     try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+        throw new Error('This browser does not provide camera recording support.');
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: audioOnly ? false : true,
-        audio: true,
+        video: audioOnly ? false : nextCameraId ? { deviceId: { exact: nextCameraId } } : { facingMode: 'user' },
+        audio: nextMicrophoneId ? { deviceId: { exact: nextMicrophoneId } } : true,
       });
-      streamRef.current?.getTracks().forEach((track) => track.stop());
+      stopStream();
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         void videoRef.current.play().catch(() => {});
       }
+      await refreshDevices();
       setState('ready');
-    } catch (err) {
+    } catch (reason) {
       setState('error');
-      setError(audioOnly ? 'Microphone access was denied. Please allow permission to record voice notes.' : 'Camera or microphone access was denied. Please allow permission to record video.');
+      const name = reason instanceof DOMException ? reason.name : '';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        setError(audioOnly ? 'Microphone permission is blocked. Allow it in the browser or device settings, then try again.' : 'Camera or microphone permission is blocked. Allow it in the browser or device settings, then try again.');
+      } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+        setError(audioOnly ? 'No usable microphone was found.' : 'The selected camera or microphone is unavailable. Choose another input.');
+      } else {
+        setError(reason instanceof Error ? reason.message : 'The selected recording inputs could not be started.');
+      }
     }
   };
 
@@ -1629,6 +1764,7 @@ function RecordingStudio({
     if (!streamRef.current) return;
     try {
       chunksRef.current = [];
+      discardOnStopRef.current = false;
       const mimeType = audioOnly
         ? (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '')
         : (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus' : 'video/webm');
@@ -1638,21 +1774,53 @@ function RecordingStudio({
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onstop = async () => {
-        setState('saving');
-        const blob = new Blob(chunksRef.current, { type: audioOnly ? 'audio/webm' : 'video/webm' });
-        const fileUrl = await blobToDataUrl(blob);
-        updateActive({
-          fileUrl,
-          durationSeconds: durationRef.current,
-        });
-        streamRef.current?.getTracks().forEach((track) => track.stop());
-        if (previewRef.current) {
-          previewRef.current.src = fileUrl;
+        if (discardOnStopRef.current) {
+          chunksRef.current = [];
+          return;
         }
-        setState('stopped');
+        try {
+          setState('saving');
+          const contentType = recorder.mimeType.split(';')[0] || (audioOnly ? 'audio/webm' : 'video/webm');
+          const blob = new Blob(chunksRef.current, { type: contentType });
+          if (!blob.size) throw new Error('The recorder did not produce any media.');
+          if (stagedUrlRef.current) URL.revokeObjectURL(stagedUrlRef.current);
+          const stagedUrl = URL.createObjectURL(blob);
+          stagedUrlRef.current = stagedUrl;
+          setPreviewUrl(stagedUrl);
+          const asset = await uploadPrivateAsset({
+            uid,
+            area: 'works',
+            entityId: draft.id,
+            blob,
+            originalName: `${draft.title || (audioOnly ? 'voice-note' : 'recording')}.${audioOnly ? 'webm' : 'webm'}`,
+            durationSeconds: durationRef.current,
+          });
+          const patch: Partial<Draft> = {
+            asset,
+            storagePath: asset.storagePath,
+            fileUrl: '',
+            durationSeconds: durationRef.current,
+            recordingType: audioOnly ? 'audio' : 'video',
+          };
+          updateActive(patch);
+          const saved = await onSave(patch);
+          if (!saved) throw new Error('The media uploaded, but the Work record was not saved. Retry Save before leaving.');
+          setState('saved');
+        } catch (reason) {
+          setState('error');
+          setError(reason instanceof Error ? reason.message : 'The recording could not be saved.');
+        } finally {
+          stopStream();
+        }
+      };
+      recorder.onerror = () => {
+        setState('error');
+        setError('The recorder stopped unexpectedly. Your existing saved recording was not replaced.');
+        stopStream();
       };
       setDuration(0);
-      recorder.start();
+      durationRef.current = 0;
+      recorder.start(1000);
       setState('recording');
     } catch (err) {
       setState('error');
@@ -1661,15 +1829,40 @@ function RecordingStudio({
   };
 
   const stopRecording = () => {
-    recorderRef.current?.stop();
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
+  };
+
+  const togglePause = () => {
+    const recorder = recorderRef.current;
+    if (!recorder) return;
+    if (recorder.state === 'recording') {
+      recorder.pause();
+      setState('paused');
+    } else if (recorder.state === 'paused') {
+      recorder.resume();
+      setState('recording');
+    }
   };
 
   const rerecord = () => {
-    updateActive({ fileUrl: '', durationSeconds: 0 });
+    stopStream();
+    if (stagedUrlRef.current) URL.revokeObjectURL(stagedUrlRef.current);
+    stagedUrlRef.current = '';
+    setPreviewUrl('');
     durationRef.current = 0;
     setDuration(0);
     setState('idle');
     setError('');
+  };
+
+  const changeCamera = async (value: string) => {
+    setCameraId(value);
+    if (['ready', 'requesting'].includes(state)) await requestMedia(value, microphoneId);
+  };
+
+  const changeMicrophone = async (value: string) => {
+    setMicrophoneId(value);
+    if (['ready', 'requesting'].includes(state)) await requestMedia(cameraId, value);
   };
 
   return (
@@ -1697,16 +1890,16 @@ function RecordingStudio({
         <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
           {!audioOnly ? (
             <div className="aspect-video overflow-hidden rounded-2xl border border-border bg-foreground">
-              {storedRecordingUrl && (state === 'saved' || state === 'stopped') ? (
-                <video ref={previewRef} src={storedRecordingUrl} controls className="h-full w-full object-contain" />
+              {(previewUrl || storedRecordingUrl) && (state === 'saved' || state === 'stopped') ? (
+                <video ref={previewRef} src={previewUrl || storedRecordingUrl} controls playsInline className="h-full w-full object-contain" />
               ) : (
-                <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
+                <video ref={videoRef} muted playsInline autoPlay className="h-full w-full object-cover" />
               )}
             </div>
           ) : (
             <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-border bg-background">
-              {storedRecordingUrl && (state === 'saved' || state === 'stopped') ? (
-                <audio controls src={storedRecordingUrl} className="w-full max-w-md" />
+              {(previewUrl || storedRecordingUrl) && (state === 'saved' || state === 'stopped') ? (
+                <audio controls src={previewUrl || storedRecordingUrl} className="w-full max-w-md" />
               ) : (
                 <div className="text-center">
                   <Mic className="mx-auto size-10 text-accent" />
@@ -1730,9 +1923,32 @@ function RecordingStudio({
             <p>{state === 'idle' && 'Waiting for permission.'}</p>
             <p>{state === 'ready' && 'Camera and microphone are ready.'}</p>
             <p>{state === 'recording' && 'Recording is in progress.'}</p>
+            <p>{state === 'paused' && 'Recording is paused. Resume when you are ready.'}</p>
             <p>{state === 'saving' && 'Preparing recorded media...'}</p>
             <p>{state === 'stopped' && 'Recording is staged. Use the top Save button to persist it.'}</p>
             <p>{state === 'saved' && 'Recording saved. You can reopen it later from Works.'}</p>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {!audioOnly && (
+              <div className="space-y-2">
+                <Label htmlFor={`camera-${draft.id}`} className="readex-kicker text-[9px] font-bold uppercase">Camera</Label>
+                <Select value={cameraId} onValueChange={(value) => void changeCamera(value)} disabled={state === 'recording' || state === 'paused' || state === 'saving'}>
+                  <SelectTrigger id={`camera-${draft.id}`} className="bg-background"><SelectValue placeholder="Default camera" /></SelectTrigger>
+                  <SelectContent>
+                    {cameraDevices.map((device, index) => <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || `Camera ${index + 1}`}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor={`microphone-${draft.id}`} className="readex-kicker text-[9px] font-bold uppercase">Microphone</Label>
+              <Select value={microphoneId} onValueChange={(value) => void changeMicrophone(value)} disabled={state === 'recording' || state === 'paused' || state === 'saving'}>
+                <SelectTrigger id={`microphone-${draft.id}`} className="bg-background"><SelectValue placeholder="Default microphone" /></SelectTrigger>
+                <SelectContent>
+                  {microphoneDevices.map((device, index) => <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || `Microphone ${index + 1}`}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="mt-6 space-y-2">
             <Label className="readex-kicker text-[9px] font-bold uppercase">Recording Notes</Label>
@@ -1744,13 +1960,17 @@ function RecordingStudio({
             />
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button onClick={requestMedia} variant="outline" className="rounded-full bg-background">
+            <Button onClick={() => void requestMedia()} disabled={state === 'requesting' || state === 'recording' || state === 'paused' || state === 'saving'} variant="outline" className="rounded-full bg-background">
               <Camera className="mr-2 size-4" /> {audioOnly ? 'Enable Microphone' : 'Enable Camera'}
             </Button>
             <Button onClick={startRecording} disabled={state !== 'ready'} className="rounded-full">
               <Video className="mr-2 size-4" /> Start Recording
             </Button>
-            <Button onClick={stopRecording} disabled={state !== 'recording'} variant="outline" className="rounded-full bg-background">
+            <Button onClick={togglePause} disabled={state !== 'recording' && state !== 'paused'} variant="outline" className="rounded-full bg-background">
+              {state === 'paused' ? <CirclePlay className="mr-2 size-4" /> : <CirclePause className="mr-2 size-4" />}
+              {state === 'paused' ? 'Resume' : 'Pause'}
+            </Button>
+            <Button onClick={stopRecording} disabled={state !== 'recording' && state !== 'paused'} variant="outline" className="rounded-full bg-background">
               Stop Recording
             </Button>
             {(state === 'stopped' || state === 'saved') && (
@@ -1808,6 +2028,50 @@ function drawShape(
   ctx.restore();
 }
 
+function renderDrawingStrokes(
+  ctx: CanvasRenderingContext2D,
+  state: DrawingDocumentState,
+  targetWidth: number,
+  targetHeight: number,
+) {
+  const scaleX = targetWidth / Math.max(1, state.width);
+  const scaleY = targetHeight / Math.max(1, state.height);
+  state.layers.filter((layer) => layer.visible).forEach((layer) => {
+    layer.strokes.forEach((stroke) => {
+      if (!stroke.points.length) return;
+      const points = stroke.points.map((point) => ({ x: point.x * scaleX, y: point.y * scaleY }));
+      const width = stroke.width * Math.min(scaleX, scaleY);
+      if (stroke.tool === 'text' && stroke.text) {
+        ctx.save();
+        ctx.globalAlpha = stroke.opacity;
+        ctx.fillStyle = stroke.color;
+        ctx.font = `${Math.max(14, width * 4)}px Georgia, serif`;
+        ctx.textBaseline = 'top';
+        ctx.fillText(stroke.text, points[0].x, points[0].y);
+        ctx.restore();
+        return;
+      }
+      if (['line', 'rectangle', 'ellipse', 'arrow'].includes(stroke.tool) && points[1]) {
+        drawShape(ctx, stroke.tool, points[0], points[1], stroke.color, width, stroke.opacity);
+        return;
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = width;
+      ctx.strokeStyle = stroke.color;
+      ctx.globalAlpha = stroke.opacity;
+      ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+      ctx.moveTo(points[0].x, points[0].y);
+      points.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
+      if (points.length === 1) ctx.lineTo(points[0].x + 0.01, points[0].y + 0.01);
+      ctx.stroke();
+      ctx.restore();
+    });
+  });
+}
+
 function DrawingStudio({
   draft,
   updateActive,
@@ -1831,7 +2095,7 @@ function DrawingStudio({
   const [brushSize, setBrushSize] = useState(4);
   const [opacity, setOpacity] = useState(1);
   const [showGrid, setShowGrid] = useState(false);
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<Array<{ image: string; strokes: DrawingStroke[] }>>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [canvasSize, setCanvasSize] = useState({ width: compact ? 720 : 1120, height: compact ? 420 : 680 });
   const strokesRef = useRef<DrawingStroke[]>(draft.drawingState?.layers.flatMap((layer) => layer.strokes) || []);
@@ -1849,8 +2113,12 @@ function DrawingStudio({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const data = canvas.toDataURL('image/png');
+    const strokes = strokesRef.current.map((stroke) => ({
+      ...stroke,
+      points: stroke.points.map((point) => ({ ...point })),
+    }));
     setHistory((prev) => {
-      const next = [...prev.slice(0, historyIndex + 1), data];
+      const next = [...prev.slice(0, historyIndex + 1), { image: data, strokes }].slice(-60);
       setHistoryIndex(next.length - 1);
       return next;
     });
@@ -1896,10 +2164,18 @@ function DrawingStudio({
     ctx.scale(ratio, ratio);
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, width, height);
+    const vectorState = draft.drawingState;
+    const hasVectorStrokes = Boolean(vectorState?.layers.some((layer) => layer.strokes.length));
     if (storedCanvasUrl) {
       const image = new Image();
-      image.onload = () => ctx.drawImage(image, 0, 0, width, height);
+      image.onload = () => {
+        ctx.drawImage(image, 0, 0, width, height);
+        window.setTimeout(snapshot, 0);
+      };
       image.src = storedCanvasUrl;
+    } else if (vectorState && hasVectorStrokes) {
+      renderDrawingStrokes(ctx, vectorState, width, height);
+      window.setTimeout(snapshot, 0);
     } else {
       snapshot();
     }
@@ -1977,8 +2253,11 @@ function DrawingStudio({
   };
 
   const onPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
     drawingRef.current = false;
-    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
     if (currentStrokeRef.current) {
       strokesRef.current = [...strokesRef.current, currentStrokeRef.current];
       currentStrokeRef.current = null;
@@ -2004,7 +2283,11 @@ function DrawingStudio({
       ctx.drawImage(image, 0, 0, parseInt(canvas.style.width, 10), parseInt(canvas.style.height, 10));
       window.setTimeout(saveDrawing, 0);
     };
-    image.src = history[index];
+    image.src = history[index].image;
+    strokesRef.current = history[index].strokes.map((stroke) => ({
+      ...stroke,
+      points: stroke.points.map((point) => ({ ...point })),
+    }));
     setHistoryIndex(index);
   };
 
@@ -2089,7 +2372,7 @@ function DrawingStudio({
               ['arrow', 'Arrow', MoveUpRight],
               ['text', 'Text', Type],
             ] as const).map(([value, label, Icon]) => (
-              <Button key={value} variant={tool === value ? 'default' : 'outline'} size="sm" onClick={() => setTool(value)} className="h-9 rounded-lg px-2.5" title={label}>
+              <Button key={value} variant={tool === value ? 'default' : 'outline'} size="sm" onClick={() => setTool(value)} className="h-9 rounded-lg px-2.5" title={label} aria-label={`${label} tool`}>
                 <Icon className="size-4" /><span className="ml-1.5 hidden 2xl:inline">{label}</span>
               </Button>
             ))}
@@ -2105,23 +2388,23 @@ function DrawingStudio({
             <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-2 text-[10px] font-bold uppercase text-muted-foreground">
               Flow <input type="range" min={0.1} max={1} step={0.1} value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} className="w-14" aria-label="Brush opacity" />
             </label>
-            <Button variant={showGrid ? 'default' : 'outline'} size="icon" onClick={() => setShowGrid((value) => !value)} className="size-9 rounded-lg" title="Toggle grid">
+            <Button variant={showGrid ? 'default' : 'outline'} size="icon" onClick={() => setShowGrid((value) => !value)} className="size-9 rounded-lg" title="Toggle grid" aria-label="Toggle drawing grid">
               <Grid3X3 className="size-4" />
             </Button>
             <label className="flex size-9 cursor-pointer items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" title="Import image">
               <ImageIcon className="size-4" />
               <input type="file" accept="image/*" className="sr-only" onChange={(event) => importDrawingImage(event.target.files?.[0])} />
             </label>
-            <Button variant="outline" size="icon" onClick={() => restoreHistory(Math.max(0, historyIndex - 1))} disabled={historyIndex <= 0} className="size-9 rounded-lg bg-background" title="Undo">
+            <Button variant="outline" size="icon" onClick={() => restoreHistory(Math.max(0, historyIndex - 1))} disabled={historyIndex <= 0} className="size-9 rounded-lg bg-background" title="Undo" aria-label="Undo drawing action">
               <Undo2 className="size-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={() => restoreHistory(Math.min(history.length - 1, historyIndex + 1))} disabled={historyIndex >= history.length - 1} className="size-9 rounded-lg bg-background" title="Redo">
+            <Button variant="outline" size="icon" onClick={() => restoreHistory(Math.min(history.length - 1, historyIndex + 1))} disabled={historyIndex >= history.length - 1} className="size-9 rounded-lg bg-background" title="Redo" aria-label="Redo drawing action">
               <Redo2 className="size-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={exportDrawing} className="size-9 rounded-lg bg-background" title="Export PNG">
+            <Button variant="outline" size="icon" onClick={exportDrawing} className="size-9 rounded-lg bg-background" title="Export PNG" aria-label="Export drawing as PNG">
               <Download className="size-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={clearCanvas} className="size-9 rounded-lg bg-background" title="Clear canvas">
+            <Button variant="outline" size="icon" onClick={clearCanvas} className="size-9 rounded-lg bg-background" title="Clear canvas" aria-label="Clear drawing canvas">
               <Trash2 className="size-4" />
             </Button>
           </div>
@@ -2136,9 +2419,7 @@ function DrawingStudio({
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
-              onPointerLeave={() => {
-                drawingRef.current = false;
-              }}
+              onPointerCancel={onPointerUp}
               className="block max-h-full max-w-full rounded-xl border border-border bg-card touch-none"
             />
             {showGrid && <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] [background-size:24px_24px]" />}
@@ -2186,19 +2467,6 @@ function WorkIntellectualRail({
   onCollapsedChange: (collapsed: boolean) => void;
 }) {
   const category = active.workCategory || workCategoryForDraft(active.type);
-  const supportingMaterial = [
-    ...sources.slice(0, 4).map((source) => `${source.title}${source.creator ? ` - ${source.creator}` : ''}`),
-    ...positions.flatMap((position) => position.evidenceFor || []).slice(0, 3),
-  ];
-  const objections = [
-    ...positions.flatMap((position) => position.evidenceAgainst || []),
-    ...positions.filter((position) => ['challenged', 'uncertain', 'revised'].includes(position.status)).map((position) => `${position.title} is currently ${position.status}.`),
-  ].slice(0, 5);
-  const relatedClaims = positions.slice(0, 5).map((position) => position.statement || position.title);
-  const unresolvedInquiries = inquiries
-    .filter((question) => !['resolved', 'archived'].includes(question.status))
-    .slice(0, 4)
-    .map((question) => question.text);
 
   return (
     <aside className={cn(
@@ -2252,63 +2520,60 @@ function WorkIntellectualRail({
           </p>
         </Card>
 
-        <RailSection
-          title="Claims Expressed"
-          empty="No linked positions yet. Link a Position when this work starts arguing for something."
-          items={relatedClaims}
-        />
-        <RailSection
-          title="Supporting Material"
-          empty="No linked sources or supporting evidence yet."
-          items={supportingMaterial}
-        />
-        <RailSection
-          title="Unresolved Objections"
-          empty="No objections are attached to the linked positions yet."
-          items={objections}
-          tone="warning"
-        />
-        <RailSection
-          title="Relevant Concepts"
-          empty="No concepts linked yet."
-          items={concepts}
-          compact
-        />
-        <RailSection
-          title="Open Inquiries"
-          empty="No inquiries are linked to this work."
-          items={unresolvedInquiries}
-        />
-        <RailSection
-          title="Unused Annotations"
-          empty="No nearby annotations found from linked sources or concepts."
-          items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)}
-        />
-
-        <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
-          <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Coherence Review</div>
-          <div className="mt-3 space-y-3">
-            {coherenceSignals.length ? coherenceSignals.map((signal) => (
-              <div
-                key={`${signal.label}:${signal.detail}`}
-                className={cn(
-                  'rounded-xl border p-3',
-                  signal.tone === 'warning' && 'border-destructive/30 bg-destructive/10 text-destructive',
-                  signal.tone === 'support' && 'border-accent/30 bg-accent/10 text-accent',
-                  signal.tone === 'neutral' && 'border-border/60 bg-muted/10 text-foreground'
-                )}
-              >
-                <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] opacity-70">{signal.label}</div>
-                <p className="mt-1 text-sm leading-5">{signal.detail}</p>
-              </div>
-            )) : (
-              <p className="text-sm italic leading-6 text-muted-foreground">No coherence warnings yet. Add linked claims, concepts, sources, or inquiries to make the review sharper.</p>
-            )}
-          </div>
-        </Card>
+        <WorkRailContent sources={sources} positions={positions} inquiries={inquiries} concepts={concepts} annotations={annotations} coherenceSignals={coherenceSignals} hideIntro />
       </div>
       )}
     </aside>
+  );
+}
+
+function WorkRailContent({
+  sources,
+  positions,
+  inquiries,
+  concepts,
+  annotations,
+  coherenceSignals,
+  hideIntro = false,
+}: {
+  sources: Media[];
+  positions: VaultEntry[];
+  inquiries: Question[];
+  concepts: string[];
+  annotations: WorkRailAnnotation[];
+  coherenceSignals: Array<{ label: string; tone: 'support' | 'warning' | 'neutral'; detail: string }>;
+  hideIntro?: boolean;
+}) {
+  const supportingMaterial = [
+    ...sources.slice(0, 4).map((source) => `${source.title}${source.creator ? ` - ${source.creator}` : ''}`),
+    ...positions.flatMap((position) => position.evidenceFor || []).slice(0, 3),
+  ];
+  const objections = [
+    ...positions.flatMap((position) => position.evidenceAgainst || []),
+    ...positions.filter((position) => ['challenged', 'uncertain', 'revised'].includes(position.status)).map((position) => `${position.title} is currently ${position.status}.`),
+  ].slice(0, 5);
+  const relatedClaims = positions.slice(0, 5).map((position) => position.statement || position.title);
+  const unresolvedInquiries = inquiries.filter((question) => !['resolved', 'archived'].includes(question.status)).slice(0, 4).map((question) => question.text);
+  return (
+    <div className={cn('space-y-4', !hideIntro && 'pb-safe')}>
+      <RailSection title="Claims Expressed" empty="No linked positions yet." items={relatedClaims} />
+      <RailSection title="Supporting Material" empty="No linked sources or supporting evidence yet." items={supportingMaterial} />
+      <RailSection title="Unresolved Objections" empty="No objections are attached to linked positions." items={objections} tone="warning" />
+      <RailSection title="Relevant Concepts" empty="No concepts linked yet." items={concepts} compact />
+      <RailSection title="Open Inquiries" empty="No inquiries are linked to this work." items={unresolvedInquiries} />
+      <RailSection title="Nearby Annotations" empty="No nearby annotations found." items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)} />
+      <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
+        <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Coherence Review</div>
+        <div className="mt-3 space-y-3">
+          {coherenceSignals.length ? coherenceSignals.map((signal) => (
+            <div key={`${signal.label}:${signal.detail}`} className={cn('rounded-xl border p-3', signal.tone === 'warning' && 'border-destructive/30 bg-destructive/10 text-destructive', signal.tone === 'support' && 'border-accent/30 bg-accent/10 text-accent', signal.tone === 'neutral' && 'border-border/60 bg-muted/10 text-foreground')}>
+              <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] opacity-70">{signal.label}</div>
+              <p className="mt-1 text-sm leading-5">{signal.detail}</p>
+            </div>
+          )) : <p className="text-sm italic leading-6 text-muted-foreground">No coherence warnings yet.</p>}
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -2354,15 +2619,6 @@ function RailSection({
       )}
     </Card>
   );
-}
-
-async function blobToDataUrl(blob: Blob) {
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(String(reader.result || ''));
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
 }
 
 function PaperPreview({ styleName }: { styleName: WritingStyle }) {

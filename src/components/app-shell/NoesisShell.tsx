@@ -20,7 +20,7 @@ import type {
   UserProfile,
   VaultEntry,
 } from '@/lib/types';
-import { Download, FlaskConical } from 'lucide-react';
+import { ChevronDown, Download, FlaskConical } from 'lucide-react';
 import { REVIEW_ACCOUNT_EMAIL } from '@/lib/demo-workspace';
 import { deriveAtlasRegions } from '@/components/Atlas/atlas-diagnostics';
 import { useNoesisRoute } from '@/lib/noesis-route-context';
@@ -99,6 +99,7 @@ export function NoesisShell({
   links,
   onOpenCommandItem,
 }: NoesisShellProps) {
+  const [reviewDetailsOpen, setReviewDetailsOpen] = React.useState(false);
   const { activePage, dataRequirements, isDetailRoute, routeTarget } = useNoesisRoute();
   const routeRequirementLabels = dataRequirements.map((key) => NOESIS_DATA_REQUIREMENT_LABELS[key] || key);
   const atlasRegions = React.useMemo(() => deriveAtlasRegions({
@@ -648,11 +649,28 @@ export function NoesisShell({
       onCommandSelect={onOpenCommandItem}
     >
       {isReviewWorkspace && (
-        <div className="border-b border-amber-500/15 bg-amber-500/6 px-6 py-2.5">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+        <div className="border-b border-amber-500/15 bg-amber-500/6 px-3 py-2 md:px-6">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex min-w-0 items-center gap-2">
+              <Badge className="shrink-0 rounded-full bg-amber-500 text-black">Demo</Badge>
+              <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                Local review workspace · {media.length} sources · {concepts.length} concepts · {vault.length} positions
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setReviewDetailsOpen((open) => !open)}
+                aria-expanded={reviewDetailsOpen}
+                className="h-8 shrink-0 rounded-full px-2 text-xs"
+              >
+                Details
+                <ChevronDown className={`ml-1 size-3.5 transition-transform ${reviewDetailsOpen ? 'rotate-180' : ''}`} />
+              </Button>
+            </div>
+            {reviewDetailsOpen && <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-amber-500/15 pt-2">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge className="rounded-full bg-amber-500 text-black">Review Workspace</Badge>
                 <Badge variant="outline" className="rounded-full">Role: demo</Badge>
                 <Badge variant="outline" className="rounded-full">
                   Route: {activePage.title}{isDetailRoute && routeTarget ? ` / ${routeTarget.type}` : ''}
@@ -667,7 +685,7 @@ export function NoesisShell({
               </div>
               {!canSeedReviewWorkspace && (
                 <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
-                  Sign in with <span className="font-code">{REVIEW_ACCOUNT_EMAIL}</span> or use demo mode to refresh the dedicated review dataset.
+                  This preview uses a local deterministic dataset. Sign in with <span className="font-code">{REVIEW_ACCOUNT_EMAIL}</span> to reseed the Firestore review workspace.
                 </p>
               )}
               <div className="mt-1 flex flex-wrap gap-2 font-code text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -689,6 +707,7 @@ export function NoesisShell({
                 <Download className="mr-1.5 size-3.5" /> Export Architecture
               </Button>
             </div>
+          </div>}
           </div>
         </div>
       )}

@@ -722,7 +722,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                       ...r.beliefs.slice(0, 6).map((item) => `Position: ${item.statement || item.title}`),
                     ],
                   })}
-                  onAccept={(_, content) => onUpdateConcept({ ...concept, description: content })}
+                  onAccept={(result, content) => onUpdateConcept(result.action === 'clarify_concept_boundaries'
+                    ? { ...concept, notSameAs: Array.from(new Set([...(concept.notSameAs || []), content])) }
+                    : { ...concept, description: content })}
                 />
                 <Button variant="outline" size="sm" onClick={() => openEditor(concept)} className="h-8 bg-card border-border/60 shadow-sm rounded-full">
                   <Edit className="size-4 mr-2" /> Edit

@@ -10,7 +10,11 @@ export async function requestContextualAi(envelope: AiContextEnvelope): Promise<
     body: JSON.stringify(envelope),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'Noesis assistance is unavailable right now.');
-  return data.result as AiReviewResult;
+  if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Noesis assistance is unavailable right now.');
+  const result = data.result;
+  if (!result || typeof result.content !== 'string' || typeof result.title !== 'string' || result.action !== envelope.action || result.targetId !== envelope.targetId) {
+    throw new Error('Noesis received an invalid assistance response. Your data was not changed.');
+  }
+  return result as AiReviewResult;
 }
 

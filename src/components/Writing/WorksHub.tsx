@@ -157,7 +157,7 @@ function createDraftPayload(type: DraftType, defaults: UserPreferences['writingD
     workCategory: category,
     paperType: defaults.writingStyle,
     activeRibbon: category === 'drawing' ? 'drawing' : 'writing',
-    recordingType: type === 'recording' || type === 'voice_note' ? 'screen' : undefined,
+    recordingType: type === 'voice_note' ? 'audio' : type === 'recording' ? 'video' : undefined,
     status: defaults.status,
     writingStyle: defaults.writingStyle,
     drawingState: type === 'drawing' || type === 'drawing_note' ? {
@@ -358,6 +358,8 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
             const text = cleanText(draft);
             const linkCount = (draft.conceptTags || []).length + (draft.sourceIds || []).length + (draft.questionIds || []).length + (draft.beliefIds || []).length;
             const isRecording = draft.type === 'recording' || draft.type === 'voice_note';
+            const category = draft.workCategory || workCategoryForDraft(draft.type);
+            const hasVisualPreview = category === 'drawing' || category === 'recording';
             return (
               <Card
                 key={draft.id}
@@ -373,8 +375,8 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                 }}
               >
                 <div className={cn('flex gap-4', view === 'grid' ? 'flex-col' : 'items-center p-3')}>
-                  {view === 'grid' && (
-                    <div className="relative flex h-32 items-center justify-center overflow-hidden border-b border-border/50 bg-muted/15">
+                  {view === 'grid' && hasVisualPreview && (
+                    <div className="relative flex h-20 items-center justify-center overflow-hidden border-b border-border/50 bg-muted/15 sm:h-24">
                       <DraftThumbnail draft={draft} Icon={Icon} />
                       {isRecording && <span className="absolute bottom-3 left-3 rounded-full border border-border/60 bg-background/90 px-2.5 py-1 font-code text-[9px] font-bold uppercase tracking-widest text-foreground">{durationLabel(draft.durationSeconds)}</span>}
                     </div>

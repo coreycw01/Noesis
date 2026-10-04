@@ -29,6 +29,7 @@ import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import type { ContextualAiAction } from '@/lib/contextual-ai';
+import { inquirySourceIds } from '@/lib/inquiry-state';
 
 interface MediaLibraryProps {
   media: Media[];
@@ -42,7 +43,7 @@ interface MediaLibraryProps {
   onUpdateMedia: (media: Media) => void;
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
-  onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
+  onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
   onDeleteVaultEntry: (id: string) => Promise<void>;
   focusedSourceId?: string | null;
   onFocusedSourceHandled?: () => void;
@@ -99,7 +100,7 @@ function sourceInfluenceCount(item: Media, vault: VaultEntry[], drafts: Draft[],
   return vault.filter((entry) => (entry.sourceIds || []).includes(item.id)).length +
     drafts.filter((draft) => (draft.sourceIds || []).includes(item.id)).length +
     practices.filter((practice) => (practice.sourceIds || []).includes(item.id)).length +
-    questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id)).length;
+    questions.filter((question) => inquirySourceIds(question).includes(item.id)).length;
 }
 
 function formatDuration(totalSeconds = 0) {
@@ -110,6 +111,14 @@ function formatDuration(totalSeconds = 0) {
   return h > 0
     ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
     : `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function generatedListItems(content: string, maxItems = 8) {
+  const lines = content
+    .split(/\n+|(?<=\?)\s+(?=[A-Z])/)
+    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
+    .filter((line) => line.length > 3 && !/^(claims?|questions?|inquiry prompts?)\s*:?s*$/i.test(line));
+  return Array.from(new Set(lines.length ? lines : [content.trim()])).slice(0, maxItems);
 }
 
 const TYPE_TERMINOLOGY: Record<MediaType, { creator: string; publisher: string; genre: string; identifier: string }> = {
@@ -140,7 +149,7 @@ export function MediaLibrary({
   onUpdateMedia, 
   onDeleteMedia, 
   onAddConcept,
-  onCreateIdea,
+  onCreateClaim,
   onDeleteVaultEntry,
   focusedSourceId,
   onFocusedSourceHandled,
@@ -175,7 +184,7 @@ export function MediaLibrary({
     const typeOk = filter === 'all' || item.type === filter;
     const activeOk = ['Want to Read', 'Consuming', 'Paused'].includes(item.status);
     const statusOk = statusFilter === 'all' || (statusFilter === 'active' ? activeOk : item.status === statusFilter);
-    const inquiryDriven = questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status));
+    const inquiryDriven = questions.some((question) => inquirySourceIds(question).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status));
     const viewOk =
       viewFilter === 'all' ||
       (viewFilter === 'continue' && (item.status === 'Consuming' || item.status === 'Paused')) ||
@@ -214,13 +223,13 @@ export function MediaLibrary({
     needsSession: media.filter((item) => sourceWorkGaps(item).includes('session')).length,
     needsAnnotations: media.filter((item) => sourceWorkGaps(item).includes('annotations')).length,
     awaitingReflection: media.filter(sourceNeedsReflection).length,
-    inquiryDriven: media.filter((item) => questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status))).length,
+    inquiryDriven: media.filter((item) => questions.some((question) => inquirySourceIds(question).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status))).length,
     influential: media.filter((item) => sourceInfluenceCount(item, vault, drafts, practices, questions) > 0).length,
   }), [media, questions, vault, drafts, practices]);
 
   const readingRoomQueue = useMemo(() => {
     const needsReflection = (item: Media) => item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange;
-    const hasActiveQuestion = (item: Media) => questions.some((question) => (question.sourceIds || question.evidenceIds || []).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status));
+    const hasActiveQuestion = (item: Media) => questions.some((question) => inquirySourceIds(question).includes(item.id) && !['resolved', 'answered', 'archived', 'converted'].includes(question.status));
     return {
       continueConsuming: media
         .filter((item) => item.status === 'Consuming' || item.status === 'Paused')
@@ -403,21 +412,21 @@ export function MediaLibrary({
     setAnnotationDraft({ type: 'thought', text: '' });
   };
 
-  const saveInsight = () => {
+  const saveClaim = () => {
     if (!selected || !insightDraft.title.trim()) return;
-    onCreateIdea({
+    onCreateClaim({
       ...insightDraft,
       sourceIds: [selected.id]
     });
     setInsightDraft({ title: '', body: '', tags: [] });
     setInsightOpen(false);
-    toast({ title: "Insight Saved", description: "New breakthrough anchored to this source." });
+    toast({ title: 'Claim saved', description: 'A developing position was anchored to this source for later review.' });
   };
 
   if (selected) {
     const linkedInsights = vault.filter((entry) => (entry.sourceIds || []).includes(selected.id));
     const capture = captureDraft || selected.capture || { sessions: [] };
-    const relatedQuestions = questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(selected.id));
+    const relatedQuestions = questions.filter((question) => inquirySourceIds(question).includes(selected.id));
     const relatedDrafts = drafts.filter((draft) => (draft.sourceIds || []).includes(selected.id));
     const relatedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(selected.id));
     const captureMilestones = [
@@ -460,13 +469,23 @@ export function MediaLibrary({
                 ],
                 linkedMemory: [
                   ...vault.filter((entry) => (entry.sourceIds || []).includes(selected.id)).slice(0, 6).map((entry) => `Position: ${entry.statement || entry.title}`),
-                  ...questions.filter((question) => (question.sourceIds || []).includes(selected.id)).slice(0, 6).map((question) => `Inquiry: ${question.text}`),
+                  ...questions.filter((question) => inquirySourceIds(question).includes(selected.id)).slice(0, 6).map((question) => `Inquiry: ${question.text}`),
                 ],
               })}
               onAccept={(result, content) => {
                 if (result.action === 'summarize_source') updateSelected({ description: content });
-                else if (result.action === 'extract_source_claims') onCreateIdea({ title: `Claims from ${selected.title}`, body: content, tags: selected.tags || [], sourceIds: [selected.id] });
-                else updateSelected({ annotations: [{ id: uid(), type: 'question', text: content, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'questioned' }, ...(selected.annotations || [])] });
+                else if (result.action === 'extract_source_claims') updateSelected({
+                  annotations: [
+                    ...generatedListItems(content).map((text) => ({ id: uid(), type: 'claim' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'raw' as const })),
+                    ...(selected.annotations || []),
+                  ],
+                });
+                else updateSelected({
+                  annotations: [
+                    ...generatedListItems(content, 6).map((text) => ({ id: uid(), type: 'question' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'questioned' as const })),
+                    ...(selected.annotations || []),
+                  ],
+                });
               }}
             />
             <Select value={selected.status} onValueChange={(value) => updateSelected({ status: value as MediaStatus })}>
@@ -1021,7 +1040,7 @@ export function MediaLibrary({
             <DialogHeader><DialogTitle className="font-headline text-3xl italic">New Position</DialogTitle></DialogHeader>
             <div className="space-y-6 pt-4">
               <div className="space-y-2">
-                <Label className="readex-kicker">Insight Title</Label>
+                <Label className="readex-kicker">Claim title</Label>
                 <Input value={insightDraft.title} onChange={(e) => setInsightDraft(prev => ({ ...prev, title: e.target.value }))} placeholder="Brief synthesis of the breakthrough..." />
               </div>
               <div className="space-y-2">
@@ -1033,7 +1052,7 @@ export function MediaLibrary({
                 <ConceptTagPicker concepts={concepts} value={insightDraft.tags} onChange={(tags) => setInsightDraft(prev => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
               </div>
             </div>
-            <DialogFooter className="pt-6"><Button onClick={saveInsight} className="rounded-full px-10 h-11 font-bold">Archive Insight</Button></DialogFooter>
+            <DialogFooter className="pt-6"><Button onClick={saveClaim} className="rounded-full px-10 h-11 font-bold">Save developing claim</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 

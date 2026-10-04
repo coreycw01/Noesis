@@ -627,6 +627,29 @@
       hsl(var(--background));
   }
 
+  .noesis-mobile-header {
+    height: calc(3.5rem + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .noesis-mobile-nav {
+    padding-bottom: max(.375rem, env(safe-area-inset-bottom));
+  }
+
+  @media (max-width: 767px) {
+    .noesis-app-main {
+      padding-top: calc(3.5rem + env(safe-area-inset-top));
+      padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+    }
+  }
+
+  @media (pointer: coarse) {
+    .noesis-app button,
+    .noesis-app [role="button"] {
+      min-height: 44px;
+    }
+  }
+
   .noesis-page-header {
     border-color: hsl(var(--accent-border) / .28);
   }

@@ -59,3 +59,28 @@ export const CONTEXTUAL_AI_LABELS: Record<ContextualAiAction, string> = {
   synthesize_practice_outcome: 'Synthesize Outcome',
   synthesize_evolution_period: 'Synthesize Period',
 };
+
+export const CONTEXTUAL_AI_POLICIES: Record<ContextualAiAction, {
+  targetType: AiContextEnvelope['targetType'];
+  scope: ContextualAiScope;
+}> = {
+  summarize_source: { targetType: 'source', scope: 'linked_items' },
+  extract_source_claims: { targetType: 'source', scope: 'linked_items' },
+  propose_inquiry_prompts: { targetType: 'source', scope: 'linked_items' },
+  suggest_annotation_effect: { targetType: 'annotation', scope: 'linked_items' },
+  refine_concept_definition: { targetType: 'concept', scope: 'linked_items' },
+  clarify_concept_boundaries: { targetType: 'concept', scope: 'linked_items' },
+  socratic_inquiry_challenge: { targetType: 'inquiry', scope: 'linked_items' },
+  find_position_assumptions: { targetType: 'position', scope: 'linked_items' },
+  generate_position_counterargument: { targetType: 'position', scope: 'linked_items' },
+  identify_missing_position_evidence: { targetType: 'position', scope: 'linked_items' },
+  stress_test_position: { targetType: 'position', scope: 'linked_items' },
+  compare_selected_positions: { targetType: 'position', scope: 'selected_pair' },
+  synthesize_practice_outcome: { targetType: 'practice', scope: 'linked_items' },
+  synthesize_evolution_period: { targetType: 'evolution', scope: 'selected_period' },
+};
+
+export function isContextualAiRequestCompatible(input: Pick<AiContextEnvelope, 'action' | 'targetType' | 'scope'>) {
+  const policy = CONTEXTUAL_AI_POLICIES[input.action];
+  return policy.targetType === input.targetType && policy.scope === input.scope;
+}

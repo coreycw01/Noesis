@@ -437,7 +437,7 @@ export function AnnotationsIndex({
       sourceAnnotationId: annotation.id,
     });
     const { source, ...annotationData } = annotation;
-    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'used_in_position', createdInquiryId: created.id });
+    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'questioned', createdInquiryId: created.id });
     toast({ title: 'Inquiry draft created from annotation.', description: 'You can keep working it in Inquiries.' });
     if (navigateOnCreate) onNavigate?.('questions', created.id);
     setPendingAction(null);
@@ -470,7 +470,7 @@ export function AnnotationsIndex({
   const runConsequenceAction = (annotation: FlatAnnotation, action: ConsequenceAction) => {
     const { source, ...annotationData } = annotation;
     if (action === 'clarifies') {
-      onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'used_in_position' });
+      onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'connected' });
       toast({ title: 'Annotation applied as conceptual clarification.', description: 'It remains discoverable through its source and concept tags.' });
       return;
     }
@@ -732,15 +732,19 @@ export function AnnotationsIndex({
 
       <section className="mb-8 hidden rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:block">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <button onClick={toggleVisibleSelection} className="flex items-center gap-3 text-left">
-            <Checkbox checked={filtered.length > 0 && filtered.every((annotation) => selectedKeys.includes(annotationKey(annotation)))} />
+          <div className="flex items-center gap-3 text-left">
+            <Checkbox
+              checked={filtered.length > 0 && filtered.every((annotation) => selectedKeys.includes(annotationKey(annotation)))}
+              onCheckedChange={toggleVisibleSelection}
+              aria-label={filtered.length > 0 && filtered.every((annotation) => selectedKeys.includes(annotationKey(annotation))) ? 'Clear visible annotation selection' : 'Select all visible annotations'}
+            />
             <div>
               <p className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Processing Inbox</p>
               <p className="text-xs text-muted-foreground">
                 {selectedAnnotations.length ? `${selectedAnnotations.length} selected` : 'Select notes to tag, open as inquiries, or form a position together.'}
               </p>
             </div>
-          </button>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={createInquiryFromSelection} className="rounded-full">
               <GitBranch className="mr-1.5 size-3.5" /> Create inquiry
@@ -987,9 +991,15 @@ export function AnnotationsIndex({
                         targetId: `${editing.source.id}:${editing.id}`,
                         scope: 'linked_items',
                         itemMemory: [`Annotation: ${editing.text}`, `Type: ${editing.type}`, `Source: ${editing.source.title}`, editing.context ? `Context: ${editing.context}` : 'No surrounding context supplied.'],
-                        linkedMemory: [...(editing.conceptTags || []).map((tag) => `Concept: ${tag}`), ...(editing.linkedPositionIds || []).map((id) => `Linked position ID: ${id}`)],
+                        linkedMemory: [
+                          ...(editing.conceptTags || []).map((tag) => `Concept: ${tag}`),
+                          ...(editing.linkedPositionIds || []).map((id) => {
+                            const position = positions.find((item) => item.id === id);
+                            return position ? `Position: ${position.statement || position.title}` : 'A previously linked position is no longer available.';
+                          }),
+                        ],
                       })}
-                      onAccept={(_, content) => onUpdateAnnotation(editing.source.id, { ...editing, answer: content, philosophyStatus: 'reviewed' })}
+                      onAccept={(_, content) => onUpdateAnnotation(editing.source.id, { ...editing, consequenceNote: content, philosophyStatus: 'reviewed' })}
                     />
                     <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => previewSource(editing.source, editing)} title="Open source">
                       <ExternalLink className="size-3.5" />

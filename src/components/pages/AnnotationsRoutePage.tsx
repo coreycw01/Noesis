@@ -11,7 +11,14 @@ export interface AnnotationsRoutePageProps {
   inquiries: Question[];
   onUpdateAnnotation: (sourceId: string, annotation: Annotation) => void;
   onDeleteAnnotation: (sourceId: string, annotationId: string) => Promise<void>;
-  onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string }) => { positionId: string; insightId: string; title: string };
+  onCreatePosition: (data: {
+    title: string;
+    body: string;
+    tags: string[];
+    sourceIds: string[];
+    sourceAnnotationId?: string;
+    position?: { title: string; statement: string; description: string; confidence: number };
+  }) => { positionId: string; insightId: string; title: string };
   onCreateInquiry: (data: { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string }) => Question;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;

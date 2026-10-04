@@ -1,4 +1,5 @@
-import type { Concept, Draft, Insight, Media, MediaType, Practice, Question, QuestionStatus, TimelineEvent, VaultEntry, WritingStyle } from './types';
+import type { Concept, Draft, Insight, Media, MediaType, Practice, Question, TimelineEvent, VaultEntry, WritingStyle } from './types';
+import { inquirySourceIds } from './inquiry-state';
 import { Book, Headphones, Mic, Play, Film, FileText, GraduationCap, School, Clapperboard, MessageSquare, Users, File, Paperclip } from 'lucide-react';
 
 export const UNSORTED_CONCEPT = 'Unsorted Ideas';
@@ -146,44 +147,11 @@ export function allAnnotations(media: Media[]) {
   return media.flatMap((source) => (source.annotations || []).map((annotation) => ({ ...annotation, source })));
 }
 
-export function allQuestions(media: Media[], questions: Question[]) {
-  const persistedIds = new Set(questions.map((question) => question.id));
-  const persistedAnnotationIds = new Set(
-    questions.map((question) => question.sourceAnnotationId).filter((id): id is string => Boolean(id)),
-  );
-  const captureQuestions: Question[] = media
-    .map((source) => ({
-      id: `open:${source.id}`,
-      text: source.capture?.before?.openQuestion || '',
-      answer: source.capture?.before?.openAnswer || '',
-      sourceIds: [source.id],
-      evidenceIds: [source.id],
-      conceptIds: source.tags || [],
-      status: (source.capture?.before?.openAnswer ? 'answered' : 'open') as QuestionStatus,
-      type: 'open' as const,
-      dateCreated: source.dateAdded,
-    }))
-    .filter((q) => q.text);
-
-  const annotationQuestions: Question[] = allAnnotations(media)
-    .filter((annotation) => {
-      if (annotation.type !== 'question') return false;
-      if (annotation.createdInquiryId && persistedIds.has(annotation.createdInquiryId)) return false;
-      return !persistedAnnotationIds.has(annotation.id);
-    })
-    .map((annotation) => ({
-      id: `annotation:${annotation.source.id}:${annotation.id}`,
-      text: annotation.text,
-      answer: annotation.answer || '',
-      sourceIds: [annotation.source.id],
-      evidenceIds: [annotation.source.id],
-      conceptIds: annotation.conceptTags || annotation.source.tags || [],
-      status: (annotation.answer ? 'answered' : 'open') as QuestionStatus,
-      type: 'annotation' as const,
-      dateCreated: annotation.date,
-    }));
-
-  const candidates = [...questions, ...captureQuestions, ...annotationQuestions];
+export function allQuestions(_media: Media[], questions: Question[]) {
+  // Inquiries are deliberate, persisted objects. Source capture prompts and raw
+  // question annotations remain in their own workflows until the user promotes
+  // them through the explicit inquiry handoff.
+  const candidates = questions;
   const seenIds = new Set<string>();
   const seenDemoTitles = new Set<string>();
 
@@ -254,7 +222,7 @@ export function conceptRelated(name: string, data: {
 
   const sources = data.media.filter((item) => sourceIds.has(item.id) || (item.tags || []).map(conceptKey).includes(key));
   const annotations = allAnnotations(data.media).filter((annotation) => sourceIds.has(annotation.source.id) || (annotation.conceptTags || []).map(conceptKey).includes(key));
-  const questions = allQuestions(data.media, data.questions).filter((question) => (question.conceptIds || []).map(conceptKey).includes(key) || (question.sourceIds || []).some((id) => sourceIds.has(id)));
+  const questions = allQuestions(data.media, data.questions).filter((question) => (question.conceptIds || []).map(conceptKey).includes(key) || inquirySourceIds(question).some((id) => sourceIds.has(id)));
   const relatedIds = new Set([...sources.map((x) => x.id), ...ideas.map((x) => x.id), ...beliefs.map((x) => x.id), ...drafts.map((x) => x.id), ...practices.map((x) => x.id)]);
   const events = data.timeline.filter((event) => relatedIds.has(event.entityId) || (event.influencedBy || []).some((id) => relatedIds.has(id)));
 

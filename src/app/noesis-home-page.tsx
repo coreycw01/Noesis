@@ -103,6 +103,8 @@ import {
   type NoesisView,
 } from '@/lib/noesis-routes';
 import { commitWorkspaceMutation } from '@/lib/workspace-mutations';
+import { cleanupReplacedDraftAssets } from '@/lib/storage-assets';
+import { inquirySourceIds } from '@/lib/inquiry-state';
 import { NOESIS_DATA_REQUIREMENT_LABELS, NOESIS_PAGE_BY_VIEW, type NoesisWorkspaceDataKey } from '@/lib/noesis-page-definitions';
 import { NoesisRouteProvider, useNoesisRoute } from '@/lib/noesis-route-context';
 
@@ -373,9 +375,11 @@ function ReadexWorkspace({
   const activeReviewWorkspaceUid = reviewWorkspaceUid || REVIEW_WORKSPACE_UID;
   const isReviewWorkspace = Boolean(reviewMode);
   const canSeedReviewWorkspace = Boolean(
-    isReviewIdentity ||
-    (user?.uid && effectiveUid === user.uid) ||
-    effectiveUid === activeReviewWorkspaceUid
+    user && (
+      isReviewIdentity ||
+      effectiveUid === user.uid ||
+      user.uid === activeReviewWorkspaceUid
+    )
   );
   const [isSeedingReview, setIsSeedingReview] = useState(false);
   const [syncIssue, setSyncIssue] = useState<FirestorePermissionError | null>(null);
@@ -386,6 +390,26 @@ function ReadexWorkspace({
   const shellDataLoading = loading.shell;
   const reviewDataLoading = pageDataLoading;
   const workspaceCounts = workspaceSummaryDoc?.counts;
+  const activeRequirementSet = new Set<NoesisWorkspaceDataKey>(loading.activePageRequirements);
+  const resolvedCount = (key: NoesisWorkspaceDataKey, live: number, summary?: number) =>
+    activeRequirementSet.has(key) && !loading.requirements[key] ? live : (summary ?? live);
+  const resolvedWorkspaceCounts = {
+    concepts: resolvedCount('concepts', concepts.length, workspaceCounts?.concepts),
+    questions: activeRequirementSet.has('questions')
+      && activeRequirementSet.has('media')
+      && !loading.requirements.questions
+      && !loading.requirements.media
+      ? allQuestions(media, questions).length
+      : (workspaceCounts?.questions ?? allQuestions(media, questions).length),
+    media: resolvedCount('media', media.length, workspaceCounts?.media),
+    vault: resolvedCount('vault', vault.length, workspaceCounts?.vault),
+    drafts: resolvedCount('drafts', drafts.length, workspaceCounts?.drafts),
+    timeline: resolvedCount('timeline', timeline.length, workspaceCounts?.timeline),
+    practices: resolvedCount('practices', practices.length, workspaceCounts?.practices),
+    annotations: activeRequirementSet.has('media') && !loading.requirements.media
+      ? allAnnotations(media).length
+      : (workspaceCounts?.annotations ?? allAnnotations(media).length),
+  };
 
   useEffect(() => {
     setGoalState(goal);
@@ -680,8 +704,9 @@ function ReadexWorkspace({
   const metacognitionEnabled = Boolean(featureFlags.metacognitionEnabled);
 
   useEffect(() => {
+    if (isOfflineReviewPreview) return;
     refreshThinkingMetrics();
-  }, [metacognitionEnabled, featureFlags.thinkingMetricsEnabled, questions.length, vault.length, links.length, media, insights.length, unknowns, thinkingEvents]);
+  }, [isOfflineReviewPreview, metacognitionEnabled, featureFlags.thinkingMetricsEnabled, questions.length, vault.length, links.length, media, insights.length, unknowns, thinkingEvents]);
 
   const exportReviewArchitecture = () => {
     const payload = buildReviewExport({
@@ -857,12 +882,13 @@ function ReadexWorkspace({
   };
 
   useEffect(() => {
+    if (isOfflineReviewPreview) return;
     return errorEmitter.on('permission-error', (error) => {
       if (error instanceof FirestorePermissionError) {
         setSyncIssue(error);
       }
     });
-  }, []);
+  }, [isOfflineReviewPreview]);
 
   const normalizeThinkingEventType = (
     eventType: NonNullable<ThinkingEvent['eventType']>,
@@ -922,7 +948,9 @@ function ReadexWorkspace({
     const recordAcceptedAssistance = (event: Event) => {
       const detail = (event as CustomEvent<{ action?: string; targetType?: string; targetId?: string; content?: string }>).detail;
       if (!detail?.action || !detail.targetType || !detail.targetId) return;
-      createThinkingEvent({
+      writeThinkingEvent({
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
         eventType: 'edited',
         entityType: detail.targetType === 'evolution' ? 'evolution' : detail.targetType as WriteThinkingEventInput['entityType'],
         entityId: detail.targetId,
@@ -932,11 +960,11 @@ function ReadexWorkspace({
         aiReason: 'Generated from bounded item-level context and explicitly accepted by the user.',
         importance: 'medium',
         metadata: { contextualAiAction: detail.action, acceptedAfterReview: true },
-      });
+      }).catch(() => emitError(refs.thinkingEvents.path, 'create', detail));
     };
     window.addEventListener('noesis:ai-assisted-accepted', recordAcceptedAssistance);
     return () => window.removeEventListener('noesis:ai-assisted-accepted', recordAcceptedAssistance);
-  }, [effectiveUid, metacognitionEnabled]);
+  }, [effectiveUid, refs.thinkingEvents]);
 
   const refreshBeliefProfile = (entry: VaultEntry, patch?: Partial<BeliefProfile>) => {
     if (!metacognitionEnabled || !featureFlags.beliefBiographiesEnabled) return;
@@ -1138,7 +1166,7 @@ function ReadexWorkspace({
   };
 
   const refreshThinkingMetrics = (overrides?: Partial<ThinkingMetrics>) => {
-    if (!metacognitionEnabled || !featureFlags.thinkingMetricsEnabled) return;
+    if (isOfflineReviewPreview || !metacognitionEnabled || !featureFlags.thinkingMetricsEnabled) return;
     const metricsRef = doc(refs.thinkingMetrics, 'summary');
     const payload: ThinkingMetrics = {
       questionsAsked: thinkingEvents.filter((item) => item.eventType === 'question_created').length || questions.length,
@@ -1543,7 +1571,7 @@ function ReadexWorkspace({
       thinkingEvent: metacognitionEnabled ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
-        eventType: 'work_created',
+        eventType: 'position_created',
         entityType: 'position',
         entityId: payload.id,
         after: payload,
@@ -1636,65 +1664,41 @@ function ReadexWorkspace({
     const tags = normalizeConceptTags(data.tags);
     ensureConcepts(tags);
     const insightRef = doc(refs.insights);
-    const beliefRef = doc(refs.vault);
-    const posTitle = data.position?.title || data.title;
-    const batch = writeBatch(db);
-    batch.set(insightRef, {
+    const payload: Insight = {
       id: insightRef.id,
       title: data.title,
       body: data.body,
       sourceIds: data.sourceIds || [],
       tags,
       categories: [],
-      connections: [beliefRef.id],
-      beliefId: beliefRef.id,
+      connections: [],
       dateCreated: today(),
       dateUpdated: today(),
-    });
-    batch.set(beliefRef, {
-      id: beliefRef.id,
-      title: posTitle,
-      type: 'belief',
-      statement: data.position?.statement || data.title,
-      description: data.position?.description || data.body,
-      confidence: data.position?.confidence ?? 3,
-      status: 'active',
-      tags,
-      sourceIds: data.sourceIds || [],
-      insightIds: [insightRef.id],
-      evidenceFor: [],
-      evidenceAgainst: [],
-      versionHistory: [],
-      createdFrom: 'idea',
-      sourceAnnotationId: data.sourceAnnotationId || '',
-      sourceWorkId: data.sourceWorkId || '',
-      sourceDocumentId: data.sourceDocumentId || '',
-      dateCreated: today(),
-      dateUpdated: today(),
-    });
-    const eventRef = doc(refs.timeline);
-    batch.set(eventRef, { id: eventRef.id, entityId: beliefRef.id, entityType: 'vault', entityTitle: posTitle, eventType: 'created', reason: 'Draft position formed', influencedBy: data.sourceIds || [], date: today() });
-    batch.commit().catch(() => emitError('batch', 'write', data));
-    createThinkingEvent({
-      eventType: 'position_formed',
-      entityType: 'position',
-      entityId: beliefRef.id,
-      after: {
-        title: posTitle,
-        statement: data.position?.statement || data.title,
-        description: data.position?.description || data.body,
-      },
-      origin: 'user',
-      summary: `Draft position formed: ${posTitle}`,
-      importance: 'high',
-      relatedEntityIds: {
-        sourceIds: data.sourceIds || [],
-        annotationIds: data.sourceAnnotationId ? [data.sourceAnnotationId] : [],
-        workIds: data.sourceWorkId ? [data.sourceWorkId] : [],
-      },
-      sourceActionId: makeActionId(),
-    });
-    return { positionId: beliefRef.id, insightId: insightRef.id, title: posTitle };
+    };
+    void commitAndReport({
+      db,
+      ref: insightRef as any,
+      operation: 'set',
+      data: payload,
+      thinkingEvent: metacognitionEnabled ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
+        eventType: 'synthesized',
+        entityType: 'insight',
+        entityId: insightRef.id,
+        after: payload,
+        origin: 'user',
+        summary: `Source insight saved: ${data.title}`,
+        importance: 'medium',
+        relatedEntityIds: {
+          sourceIds: data.sourceIds || [],
+          annotationIds: data.sourceAnnotationId ? [data.sourceAnnotationId] : [],
+          workIds: data.sourceWorkId ? [data.sourceWorkId] : [],
+        },
+        sourceActionId: makeActionId(),
+      } : null,
+    }, { operation: 'create', data: payload });
+    return { positionId: '', insightId: insightRef.id, title: data.title };
   };
 
   const formPositionFromInquiry = (
@@ -1704,32 +1708,49 @@ function ReadexWorkspace({
   ) => {
     const batch = writeBatch(db);
     const vaultRef = doc(refs.vault);
-    batch.set(vaultRef, {
+    const sourceIds = inquirySourceIds(question).filter((id) => media.some((source) => source.id === id));
+    const tags = (question.conceptIds || []).flatMap((conceptId) => {
+      const concept = concepts.find((item) => item.id === conceptId || conceptKey(item.name) === conceptKey(conceptId));
+      return concept ? [concept.name] : [];
+    });
+    const candidateAnswers = question.candidateAnswers || [];
+    const positionPayload: VaultEntry = {
       id: vaultRef.id,
       title: position.title,
       type: 'belief',
       statement: position.statement,
       description: position.description,
       confidence: position.confidence,
-      status: 'active',
-      tags: [],
-      sourceIds: question.sourceIds || [],
-      evidenceFor: [],
-      evidenceAgainst: [],
-      versionHistory: [],
+      status: 'developing',
+      positionKind: 'interpretive',
+      confidenceReasoning: finalAnswer.trim(),
+      assumptions: question.assumptions || [],
+      falsification: '',
+      consequences: [],
+      applications: [],
+      tags,
+      sourceIds,
+      evidenceFor: candidateAnswers.map((candidate) => candidate.support?.trim()).filter(Boolean) as string[],
+      evidenceAgainst: candidateAnswers.map((candidate) => candidate.objection?.trim()).filter(Boolean) as string[],
+      versionHistory: [{
+        description: `Formed from inquiry: ${question.text}`,
+        eventType: 'created',
+        date: today(),
+      }],
       createdFrom: 'inquiry',
+      sourceInquiryId: question.id,
       dateCreated: today(),
       dateUpdated: today(),
+    };
+    batch.set(vaultRef, positionPayload);
+    const questionRef = doc(refs.questions, question.id);
+    batch.update(questionRef as any, {
+      status: 'converted',
+      answer: finalAnswer,
+      resolutionSummary: question.resolutionSummary?.trim() || `Converted into the developing position “${position.title}”.`,
+      beliefIds: [...new Set([...(question.beliefIds || []), vaultRef.id])],
+      dateUpdated: today(),
     });
-    if (!question.id.startsWith('open:') && !question.id.startsWith('annotation:')) {
-      const questionRef = doc(refs.questions, question.id);
-      batch.update(questionRef as any, {
-        status: 'answered',
-        answer: finalAnswer,
-        beliefIds: [...(question.beliefIds || []), vaultRef.id],
-        dateUpdated: today(),
-      });
-    }
     const eventRef = doc(refs.timeline);
     batch.set(eventRef, {
       id: eventRef.id,
@@ -1737,21 +1758,21 @@ function ReadexWorkspace({
       entityType: 'vault',
       entityTitle: position.title,
       eventType: 'created',
-      reason: 'Position formed from Socratic inquiry',
-      influencedBy: question.sourceIds || [],
+      reason: 'Position formed from inquiry',
+      influencedBy: sourceIds,
       date: today(),
     });
     createThinkingEvent({
       eventType: 'position_formed',
       entityType: 'position',
       entityId: vaultRef.id,
-      after: position as any,
-      origin: 'system',
+      after: positionPayload as any,
+      origin: 'user',
       summary: `Inquiry promoted into position: ${position.title}`,
       importance: 'high',
       relatedEntityIds: {
         inquiryIds: [question.id],
-        sourceIds: question.sourceIds || [],
+        sourceIds,
       },
       sourceActionId: makeActionId(),
     });
@@ -1852,7 +1873,7 @@ function ReadexWorkspace({
         origin: 'user',
         importance: 'medium',
         relatedEntityIds: {
-          sourceIds: existing.sourceIds || existing.evidenceIds || [],
+          sourceIds: inquirySourceIds(existing).filter((sourceId) => media.some((source) => source.id === sourceId)),
           positionIds: existing.beliefIds || [],
           workIds: existing.draftIds || [],
           annotationIds: existing.sourceAnnotationId ? [existing.sourceAnnotationId] : [],
@@ -2008,7 +2029,10 @@ function ReadexWorkspace({
         sourceActionId: makeActionId(),
       } : null,
     }, { operation: 'delete', data: existing || { id }, rethrow: true })
-      .then(() => cleanupDeletedEntityReferences('work', id))
+      .then(async () => {
+        await cleanupDeletedEntityReferences('work', id);
+        if (existing) await cleanupReplacedDraftAssets(existing, { id });
+      })
       .catch(() => undefined);
   };
 
@@ -2178,7 +2202,7 @@ function ReadexWorkspace({
       const inquiry = questions.find((item) => item.id === id);
       return {
         conceptTags: (inquiry?.conceptIds || []).map((conceptId) => concepts.find((item) => item.id === conceptId)?.name || conceptId),
-        sourceIds: inquiry?.sourceIds || inquiry?.evidenceIds || [],
+        sourceIds: inquiry ? inquirySourceIds(inquiry).filter((sourceId) => media.some((source) => source.id === sourceId)) : [],
         evidenceCount: (inquiry?.evidenceIds || []).length,
         date: inquiry?.dateUpdated || inquiry?.dateCreated || '',
       };
@@ -2406,86 +2430,6 @@ function ReadexWorkspace({
     }, { operation: 'delete', data: existing || { id } });
   };
 
-  /* Persisted AI suggestion writes were removed in the AI-free release.
-  const addAiSuggestion = (data: Partial<AiSuggestion>) => {
-    if (!data.targetType || !data.targetId || !data.suggestionType) return;
-    const suggestionRef = doc(refs.suggestions);
-    const payload = {
-      id: suggestionRef.id,
-      targetType: data.targetType,
-      targetId: data.targetId,
-      targetLabel: data.targetLabel || '',
-      suggestionType: data.suggestionType,
-      title: data.title || 'Suggested next action',
-      body: data.body || '',
-      payload: data.payload || {},
-      status: data.status || 'pending',
-      createdFrom: 'ai',
-      dateCreated: today(),
-      dateUpdated: today(),
-    };
-    void commitAndReport({
-      db,
-      ref: suggestionRef as any,
-      operation: 'set',
-      data: payload,
-      thinkingEvent: metacognitionEnabled ? {
-        collection: refs.thinkingEvents as any,
-        userId: effectiveUid,
-        eventType: 'ai_suggestion_generated',
-        entityType: 'suggestion',
-        entityId: payload.id,
-        after: payload,
-        origin: 'ai',
-        summary: `Suggestion created: ${payload.title}`,
-        importance: 'medium',
-        relatedEntityIds: {
-          sourceIds: data.targetType === 'source' ? [data.targetId] : [],
-          inquiryIds: data.targetType === 'inquiry' ? [data.targetId] : [],
-          positionIds: data.targetType === 'position' ? [data.targetId] : [],
-        },
-        sourceActionId: makeActionId(),
-      } : null,
-    }, { operation: 'create', data: payload });
-  };
-
-  const updateAiSuggestion = (suggestion: AiSuggestion) => {
-    const suggestionRef = doc(refs.suggestions, suggestion.id);
-    const previous = suggestions.find((item) => item.id === suggestion.id);
-    const nextSuggestion = { ...suggestion, dateUpdated: today() };
-    const suggestionEventType = suggestion.status === 'accepted'
-      ? 'ai_suggestion_accepted'
-      : suggestion.status === 'dismissed' || suggestion.status === 'ignored'
-        ? 'ai_suggestion_rejected'
-        : 'edited';
-    const shouldRecordSuggestionEvent = suggestion.status === 'accepted' || suggestion.status === 'dismissed' || suggestion.status === 'ignored';
-    void commitAndReport({
-      db,
-      ref: suggestionRef as any,
-      operation: 'update',
-      data: nextSuggestion,
-      thinkingEvent: metacognitionEnabled && shouldRecordSuggestionEvent ? {
-        collection: refs.thinkingEvents as any,
-        userId: effectiveUid,
-        eventType: suggestionEventType,
-        entityType: 'suggestion',
-        entityId: suggestion.id,
-        before: previous || null,
-        after: nextSuggestion,
-        origin: 'user',
-        summary: suggestion.status === 'accepted' ? `Suggestion accepted: ${suggestion.title}` : `Suggestion dismissed: ${suggestion.title}`,
-        importance: suggestion.status === 'accepted' ? 'medium' : 'low',
-        relatedEntityIds: {
-          sourceIds: suggestion.targetType === 'source' ? [suggestion.targetId] : [],
-          inquiryIds: suggestion.targetType === 'inquiry' ? [suggestion.targetId] : [],
-          positionIds: suggestion.targetType === 'position' ? [suggestion.targetId] : [],
-        },
-        sourceActionId: makeActionId(),
-      } : null,
-    }, { operation: 'update', data: nextSuggestion });
-  };
-
-  */
   const addAtlasMap = (data: Partial<AtlasMap>) => {
     const mapRef = doc(refs.atlasMaps);
     const nodeNames = data.nodeNames || [];
@@ -2888,16 +2832,7 @@ function ReadexWorkspace({
       pendingPath={pendingPath}
       onViewChange={(nextView) => navigateToView(nextView as NoesisView)}
       onOpenProfile={() => navigateToView('profile')}
-      counts={{
-        concepts: workspaceCounts?.concepts ?? concepts.length,
-        questions: workspaceCounts?.questions ?? allQuestions(media, questions).length,
-        media: workspaceCounts?.media ?? media.length,
-        vault: workspaceCounts?.vault ?? vault.length,
-        drafts: workspaceCounts?.drafts ?? drafts.length,
-        timeline: workspaceCounts?.timeline ?? timeline.length,
-        practices: workspaceCounts?.practices ?? practices.length,
-        annotations: workspaceCounts?.annotations ?? allAnnotations(media).length
-      }}
+      counts={resolvedWorkspaceCounts}
       movement={movement}
       profile={profile}
       workspaceMode={workspace.workspaceMode}
@@ -2935,7 +2870,7 @@ function ReadexWorkspace({
         });
       }}
     >
-      {syncIssue && (
+      {syncIssue && !isOfflineReviewPreview && (
         <SyncIssueBanner
           issue={syncIssue}
           onDismiss={() => setSyncIssue(null)}

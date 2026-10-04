@@ -345,7 +345,16 @@ export function NoesisRouteContent({
           onUpdateMedia={updateMedia}
           onDeleteMedia={deleteMedia}
           onAddConcept={addConcept}
-          onCreateIdea={createIdea}
+          onCreateClaim={(data) => addVaultEntry({
+            title: data.title,
+            statement: data.title,
+            description: data.body,
+            confidence: 60,
+            status: 'developing',
+            tags: data.tags,
+            sourceIds: data.sourceIds,
+            createdFrom: 'manual',
+          })}
           onDeleteVaultEntry={deleteVaultEntry}
           focusedSourceId={focusedSourceId}
           onNavigate={navigateToView}
@@ -361,7 +370,20 @@ export function NoesisRouteContent({
           inquiries={questions}
           onUpdateAnnotation={updateAnnotation}
           onDeleteAnnotation={deleteAnnotation}
-          onCreatePosition={createIdea}
+          onCreatePosition={(data) => {
+            const created = addVaultEntry({
+              title: data.position?.title || data.title,
+              statement: data.position?.statement || data.title,
+              description: data.position?.description || data.body,
+              confidence: data.position?.confidence ?? 60,
+              status: 'developing',
+              tags: data.tags,
+              sourceIds: data.sourceIds,
+              sourceAnnotationId: data.sourceAnnotationId,
+              createdFrom: 'annotation',
+            }) as VaultEntry;
+            return { positionId: created.id, insightId: '', title: created.title };
+          }}
           onCreateInquiry={(data) => addQuestion(data) as Question}
           onAddConcept={addConcept}
           onCreateLink={addPhilosophicalLink}

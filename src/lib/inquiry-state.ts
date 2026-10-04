@@ -12,13 +12,22 @@ export function isInquiryClosed(question: Question) {
   return CLOSED_INQUIRY_STATUSES.has(question.status);
 }
 
+export function inquirySourceIds(question: Question) {
+  return Array.from(new Set([...(question.sourceIds || []), ...(question.evidenceIds || [])]));
+}
+
+export function isInquiryActive(question: Question) {
+  return ['captured', 'clarifying', 'open', 'investigating', 'gathering_evidence', 'comparing_answers', 'reopened', 'under_tension']
+    .includes(question.status);
+}
+
 export function inquiryCandidateCount(question: Question) {
   const saved = (question.candidateAnswers || []).filter((candidate) => candidate.statement.trim()).length;
   return saved || (question.answer?.trim() ? 1 : 0);
 }
 
 export function inquiryNeedsEvidence(question: Question) {
-  return [...(question.sourceIds || []), ...(question.evidenceIds || [])].length === 0 && !isInquiryClosed(question);
+  return inquirySourceIds(question).length === 0 && !isInquiryClosed(question);
 }
 
 export function inquiryNeedsAssumptions(question: Question) {
@@ -40,7 +49,7 @@ export function inquiryFormation(question: Question) {
     Boolean(question.whyItMatters?.trim()),
     Boolean(question.currentIntuition?.trim()),
     (question.assumptions || []).some((item) => item.trim()),
-    [...(question.sourceIds || []), ...(question.evidenceIds || [])].length > 0
+    inquirySourceIds(question).length > 0
       || candidates.some((candidate) => Boolean(candidate.support?.trim() || candidate.objection?.trim())),
     inquiryCandidateCount(question) > 0,
     Boolean(question.answer?.trim()),

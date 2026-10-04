@@ -6,6 +6,12 @@ import { NoesisPersistentWorkspace } from './noesis-persistent-workspace';
 export const metadata: Metadata = {
   title: 'Noesis - Turn thought into understanding',
   description: 'A personal philosophy workspace for mapping concepts, examining positions, building works, and testing practices.',
+  applicationName: 'Noesis',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: '/icon.png',
+    apple: '/icon.png',
+  },
 };
 
 export default function RootLayout({
@@ -37,6 +43,37 @@ try {
 } catch (error) {
   console.warn('Theme init failed', error);
 }
+            `.trim(),
+          }}
+        />
+        <Script
+          id="chunk-recovery"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+(function () {
+  var key = 'noesis:chunk-recovery';
+  var recovering = false;
+  function textFor(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    return String(value.message || value.reason || value.name || value);
+  }
+  function isChunkFailure(value) {
+    var text = textFor(value);
+    return /ChunkLoadError|Loading chunk [\\w-]+ failed|Failed to fetch dynamically imported module/i.test(text);
+  }
+  function recover(value) {
+    if (recovering || !isChunkFailure(value)) return;
+    recovering = true;
+    var previous = Number(sessionStorage.getItem(key) || 0);
+    if (Date.now() - previous < 30000) return;
+    sessionStorage.setItem(key, String(Date.now()));
+    window.location.reload();
+  }
+  window.addEventListener('error', function (event) { recover(event.error || event.message); }, true);
+  window.addEventListener('unhandledrejection', function (event) { recover(event.reason); });
+})();
             `.trim(),
           }}
         />

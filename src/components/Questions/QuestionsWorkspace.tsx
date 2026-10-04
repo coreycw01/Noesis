@@ -32,6 +32,8 @@ import {
   inquiryNeedsEvidence,
   inquiryNextMove,
   inquiryReadyToResolve,
+  inquirySourceIds,
+  isInquiryActive,
   isInquiryClosed,
 } from '@/lib/inquiry-state';
 
@@ -73,7 +75,7 @@ const INQUIRY_FILTER_LABELS: Record<FilterType, string> = {
   comparing_answers: 'Comparing Answers',
   enduring: 'Enduring Questions',
   partially_answered: 'Partially Answered',
-  suspended: 'Suspended',
+  suspended: 'Suspended / Archived',
   resolved: 'Resolved',
   annotations: 'From Annotations',
 };
@@ -100,6 +102,15 @@ function inquiryCardNextStep(question: Question) {
   return inquiryNextMove(question);
 }
 
+function conceptReferenceLabel(reference: string, concepts: Concept[]) {
+  const matched = concepts.find((concept) => concept.id === reference || conceptKey(concept.name) === conceptKey(reference));
+  if (matched) return matched.name;
+  return reference
+    .replace(/^c[_-]/i, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
@@ -120,7 +131,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
   }, [focusedQuestionId, onFocusedQuestionHandled]);
   const filtered = all.filter((question) => {
     let typeOk = true;
-    if (filter === 'active') typeOk = ['captured', 'clarifying', 'open', 'investigating', 'reopened', 'under_tension'].includes(question.status) || (!question.answer && !isInquiryClosed(question));
+    if (filter === 'active') typeOk = isInquiryActive(question);
     if (filter === 'complete') typeOk = inquiryFormation(question).fullyFormed;
     if (filter === 'needs_frame') typeOk = inquiryFrameGaps(question).length > 0 && !isInquiryClosed(question);
     if (filter === 'awaiting_evidence') typeOk = question.status === 'gathering_evidence' || inquiryNeedsEvidence(question);
@@ -131,9 +142,9 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
     if (filter === 'enduring') typeOk = question.status === 'enduring';
     if (filter === 'partially_answered') typeOk = question.status === 'partially_answered' || question.status === 'provisionally_answered';
     if (filter === 'suspended') typeOk = question.status === 'suspended' || question.status === 'archived';
-    if (filter === 'resolved') typeOk = isInquiryClosed(question) || question.status === 'provisionally_answered';
+    if (filter === 'resolved') typeOk = isInquiryClosed(question);
     if (filter === 'annotations') typeOk = question.type === 'annotation';
-    const relatedSources = media.filter((source) => (question.sourceIds || question.evidenceIds || []).includes(source.id));
+    const relatedSources = media.filter((source) => inquirySourceIds(question).includes(source.id));
     const relatedConcepts = concepts.filter((concept) => (question.conceptIds || []).includes(concept.id));
     const searchOk = searchMatches(search, [
       { value: question.text, label: 'question' },
@@ -182,10 +193,12 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
   };
 
   if (selected) {
-    const sourceIds = selected.sourceIds || selected.evidenceIds || [];
+    const sourceIds = inquirySourceIds(selected);
     const relatedSources = media.filter((item) => sourceIds.includes(item.id));
-    const conceptNames = (selected.conceptIds || relatedSources.flatMap((item) => item.tags || []))
-      .map((value) => concepts.find((concept) => concept.id === value)?.name || value);
+    const conceptReferences = selected.conceptIds?.length
+      ? selected.conceptIds
+      : relatedSources.flatMap((item) => item.tags || []);
+    const conceptNames = conceptReferences.map((value) => conceptReferenceLabel(value, concepts));
     const relatedBeliefs = vault.filter((entry) => (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => sourceIds.includes(id)));
     const relatedDrafts = drafts.filter((draft) => (draft.questionIds || []).includes(selected.id) || (draft.conceptTags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))));
     const relatedPractices = practices.filter((practice) => (practice.questionIds || []).includes(selected.id));
@@ -276,14 +289,14 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
         </div>
       </FilterToolbar>
 
-      <section className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0" aria-label="Inquiry summary filters">
+      <section className="scrollbar-hide mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0" aria-label="Inquiry summary filters">
         {[
           { label: 'Needs frame', value: needsFrameCount, filter: 'needs_frame' as FilterType },
           { label: 'Needs assumptions', value: needsAssumptionsCount, filter: 'needs_assumptions' as FilterType },
           { label: 'Needs evidence', value: needsEvidenceCount, filter: 'awaiting_evidence' as FilterType },
           { label: 'Ready to resolve', value: readyToResolveCount, filter: 'ready_to_resolve' as FilterType },
           { label: 'Complete', value: completeCount, filter: 'complete' as FilterType },
-        ].map((item) => (
+        ].filter((item) => item.value > 0).map((item) => (
           <button
             key={item.filter}
             type="button"
@@ -303,8 +316,9 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filtered.map((question) => {
-          const sources = media.filter(m => (question.sourceIds || []).includes(m.id));
+          const sources = media.filter(m => inquirySourceIds(question).includes(m.id));
           const nextStep = inquiryCardNextStep(question);
+          const closed = isInquiryClosed(question);
 
           return (
             <Card key={question.id} className="border border-accent/15 bg-card/95 p-4 rounded-xl shadow-sm">
@@ -329,18 +343,26 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
 
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/50 pt-3">
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => openQuestion(question.id, 'investigation')} className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">
-                    Investigate
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={question.id.startsWith('open:') || question.id.startsWith('annotation:')}
-                    onClick={() => openQuestion(question.id, 'answer')}
-                    className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest"
-                  >
-                    Write answer
-                  </Button>
+                  {closed ? (
+                    <Button size="sm" variant="outline" onClick={() => openQuestion(question.id, 'answer')} className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">
+                      Review inquiry
+                    </Button>
+                  ) : (
+                    <>
+                      <Button size="sm" onClick={() => openQuestion(question.id, 'investigation')} className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">
+                        Investigate
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={question.id.startsWith('open:') || question.id.startsWith('annotation:')}
+                        onClick={() => openQuestion(question.id, 'answer')}
+                        className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest"
+                      >
+                        Write answer
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </Card>
@@ -489,6 +511,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     return () => window.cancelAnimationFrame(frame);
   }, [initialSection, question.id]);
   React.useEffect(() => {
+    setInitialAnswer(question.answer || '');
     setInvestigationDraft({
       whyItMatters: question.whyItMatters || '',
       currentIntuition: question.currentIntuition || '',
@@ -498,7 +521,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     setCandidateDraft({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
     setEvidenceDraft({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
     setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
-  }, [question.id, question.whyItMatters, question.currentIntuition, question.assumptions, question.resolutionSummary]);
+  }, [question.id]);
   const inquiryType = inferInquiryType(question, concepts, sources);
   const branches = investigationBranches(question, concepts, sources, beliefs, drafts, practices);
   const recommendedBranch = branches.find((branch) => branch.state === 'active')
@@ -546,8 +569,10 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       ? 'Only one candidate answer is visible.'
       : !candidateAnswers.some((candidate) => candidate.objection?.trim())
         ? 'No serious challenge has been recorded.'
-        : drafts.length === 0
-          ? 'No test or work has been created.'
+        : practices.length === 0
+          ? 'No lived test or observation has been created.'
+          : drafts.length === 0
+            ? 'No Work has been linked for deeper expression.'
           : 'Ready for a sharper resolution decision.';
   const recommendedMove = inquiryGaps.includes('evidence')
     ? 'Investigate: add one strong source, observation, or counterexample.'
@@ -557,9 +582,11 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       ? 'Compare: add a competing answer before resolving.'
       : !candidateAnswers.some((candidate) => candidate.objection?.trim())
         ? 'Investigate: add a credible challenge to the leading answer.'
-        : drafts.length === 0
+        : practices.length === 0
           ? 'Test: turn the inquiry into a concrete experiment or research action.'
-          : 'Adopt a provisional answer or resolve honestly.';
+          : drafts.length === 0
+            ? 'Expand: develop the inquiry in a Work without treating it as evidence.'
+            : 'Adopt a provisional answer or resolve honestly.';
 
   const saveProvisionalAnswer = (status: Question['status'] = 'provisionally_answered') => {
     if (!initialAnswer.trim()) {
@@ -807,7 +834,10 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           buttonLabel="Socratic Challenge"
           onAccept={(_result, content) => onUpdateQuestion({
             ...question,
-            currentIntuition: [question.currentIntuition, `Reviewed challenge:\n${content}`].filter(Boolean).join('\n\n'),
+            investigationNotes: [
+              ...(question.investigationNotes || []),
+              { id: crypto.randomUUID(), text: content, origin: 'ai-assisted', date: today() },
+            ],
             dateUpdated: today(),
           })}
         />
@@ -925,6 +955,22 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                 </details>
               </div>
             </div>
+
+            {!!question.investigationNotes?.length && (
+              <details className="mt-4 rounded-xl border border-border/40 bg-background/70 p-4">
+                <summary className="cursor-pointer font-code text-[9px] uppercase tracking-widest text-muted-foreground">
+                  Reviewed investigation notes ({question.investigationNotes.length})
+                </summary>
+                <div className="mt-3 space-y-3">
+                  {question.investigationNotes.map((note) => (
+                    <div key={note.id} className="rounded-lg border border-border/40 bg-card p-3">
+                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{note.origin.replace('-', ' ')} · {note.date}</div>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{note.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
 
             <div className="mt-4 rounded-2xl border border-accent/15 bg-accent/5 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

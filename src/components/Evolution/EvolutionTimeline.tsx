@@ -613,7 +613,6 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
               itemMemory: [`Selected period: ${periodStart} through ${periodEnd}`, `${selectedPeriodEvents.length} meaningful recorded changes`],
               linkedMemory: selectedPeriodEvents.slice(0, 20).map((event) => `${event.date}: ${event.title} - ${event.detail}`),
             })}
-            onAccept={async () => undefined}
           />
         </section>
       )}

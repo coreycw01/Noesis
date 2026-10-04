@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inquiryCandidateCount, inquiryFormation, inquiryNeedsCandidateAnswers } from '../../src/lib/inquiry-state';
+import {
+  inquiryCandidateCount,
+  inquiryFormation,
+  inquiryNeedsCandidateAnswers,
+  inquirySourceIds,
+  isInquiryActive,
+} from '../../src/lib/inquiry-state';
 import type { Question } from '../../src/lib/types';
 
 function inquiry(overrides: Partial<Question> = {}): Question {
@@ -26,4 +32,15 @@ test('empty candidate records do not inflate candidate totals', () => {
   const value = inquiry({ candidateAnswers: [{ id: 'c1', statement: '   ' }] });
   assert.equal(inquiryCandidateCount(value), 0);
   assert.equal(inquiryNeedsCandidateAnswers(value), true);
+});
+
+test('source and legacy evidence references are merged without duplicates', () => {
+  const value = inquiry({ sourceIds: ['source-1'], evidenceIds: ['source-1', 'source-2'] });
+  assert.deepEqual(inquirySourceIds(value), ['source-1', 'source-2']);
+});
+
+test('suspended and provisionally answered inquiries are not active investigations', () => {
+  assert.equal(isInquiryActive(inquiry({ status: 'suspended' })), false);
+  assert.equal(isInquiryActive(inquiry({ status: 'provisionally_answered' })), false);
+  assert.equal(isInquiryActive(inquiry({ status: 'gathering_evidence' })), true);
 });
