@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, type Transaction } from 'firebase-admin/firestore';
 import { ApiError } from './api-security';
 import { adminFirestore } from './firebase-admin';
 
@@ -37,7 +37,7 @@ export async function enforceUsageLimit(
   const minuteRef = db.doc(`apiUsage/${safePart(uid)}_${action}_m_${windows.minute}`);
   const dayRef = db.doc(`apiUsage/${safePart(uid)}_${action}_d_${windows.day}`);
 
-  await db.runTransaction(async (transaction) => {
+  await db.runTransaction(async (transaction: Transaction) => {
     const [minuteSnap, daySnap] = await Promise.all([
       transaction.get(minuteRef),
       transaction.get(dayRef),
