@@ -162,7 +162,7 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
   },
   experimental: {
     current: 'Turns reflective systems on or off behind feature gates so unstable intelligence never masquerades as truth.',
-    affects: ['Thinking event visibility', 'Belief biographies', 'Unknowns tracking', 'Thinking pattern detection', 'Advanced Atlas overlays'],
+    affects: ['Belief biographies', 'Unknowns tracking', 'Thinking pattern detection', 'Cognition metrics', 'Advanced Atlas overlays'],
     limitations: ['Every metacognitive claim must remain evidence-backed, dismissible, and safe to disable.'],
   },
   data: {
@@ -822,7 +822,6 @@ export function SettingsPage({
             <SettingsCard title="Experimental Features" description="Enable reflective systems only when their limitations are visible and their outputs remain reviewable.">
               <div className="grid gap-3">
                 <SwitchRow label="Metacognition layer" checked={drafts.metacognition.enableMetacognitionFeatures} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableMetacognitionFeatures: checked } }))} />
-                <SwitchRow label="Thinking events logging" checked={drafts.metacognition.enableThinkingEventsLogging} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableThinkingEventsLogging: checked } }))} />
                 <SwitchRow label="Belief biographies" checked={drafts.metacognition.enableBeliefBiographies} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableBeliefBiographies: checked } }))} />
                 <SwitchRow label="Unknowns tracking" checked={drafts.metacognition.enableUnknownsTracking} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableUnknownsTracking: checked } }))} />
                 <SwitchRow label="Thinking pattern detection" checked={drafts.metacognition.enableThinkingPatternDetection} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableThinkingPatternDetection: checked } }))} />

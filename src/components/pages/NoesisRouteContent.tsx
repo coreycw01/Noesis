@@ -113,7 +113,7 @@ export interface NoesisRouteContentProps {
     workId?: string | null;
     practiceId?: string | null;
   }) => void;
-  addQuestion: (data: Partial<Question>) => Question | void;
+  addQuestion: (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Question | void;
   updateQuestion: (question: Question) => void;
   deleteQuestion: (id: string) => void;
   formPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
@@ -146,7 +146,7 @@ export interface NoesisRouteContentProps {
   addAtlasMap: (data: Partial<AtlasMap>) => AtlasMap | void;
   updateAtlasMap: (map: AtlasMap) => void;
   deleteAtlasMap: (id: string) => void;
-  addVaultEntry: (data: Partial<VaultEntry>) => VaultEntry | void;
+  addVaultEntry: (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => VaultEntry | void;
   updateVaultEntry: (entry: VaultEntry) => void;
   deleteVaultEntry: (id: string) => Promise<void>;
   addDraft: (data: Partial<Draft>) => Draft | void;
@@ -380,6 +380,7 @@ export function NoesisRouteContent({
               tags: data.tags,
               sourceIds: data.sourceIds,
               sourceAnnotationId: data.sourceAnnotationId,
+              annotationRefs: data.annotationRefs,
               createdFrom: 'annotation',
             }) as VaultEntry;
             return { positionId: created.id, insightId: '', title: created.title };

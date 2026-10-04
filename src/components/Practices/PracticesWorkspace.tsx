@@ -20,6 +20,7 @@ import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 
 interface PracticesWorkspaceProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -114,15 +115,6 @@ function hasPracticeBasis(practice: Practice, linkedQuestions: Question[] = [], 
 
 function practiceNeedsOutcome(practice: Practice) {
   return isPracticeConcluded(practice) && !(practice.conclusion?.whatHappened || practice.observedOutcome || practice.notes)?.trim();
-}
-
-function practiceDesignGaps(practice: Practice) {
-  const gaps: string[] = [];
-  if (!practice.hypothesis?.trim()) gaps.push('hypothesis');
-  if (!practice.action?.trim()) gaps.push('action');
-  if (!practice.observationMethod?.trim()) gaps.push('observation');
-  if (!practice.expectedOutcome?.trim()) gaps.push('expected outcome');
-  return gaps;
 }
 
 function practiceNeedsConsequence(practice: Practice) {
@@ -291,7 +283,11 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
 
   const handleSave = () => {
     if (!draft.title?.trim()) return;
-    const payload = { ...draft, conceptTags: normalizeConceptTags(draft.conceptTags) };
+    const payload = {
+      ...draft,
+      status: normalizePracticeStatusForSave(draft),
+      conceptTags: normalizeConceptTags(draft.conceptTags),
+    };
     if (draft.id) onUpdatePractice(payload as Practice);
     else onAddPractice(payload);
     setEditorOpen(false);

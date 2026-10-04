@@ -89,7 +89,7 @@ import { arrayRemove, doc, getDoc, setDoc, writeBatch, deleteDoc, type DocumentD
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { classifyThinkingChange } from '@/lib/thinkingEvents/classifyThinkingChange';
-import { writeThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
+import { queueThinkingEvent, writeThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
 import {
   focusedIdForNoesisView,
   getNoesisRouteTarget,
@@ -107,6 +107,7 @@ import { cleanupReplacedDraftAssets } from '@/lib/storage-assets';
 import { inquirySourceIds } from '@/lib/inquiry-state';
 import { NOESIS_DATA_REQUIREMENT_LABELS, NOESIS_PAGE_BY_VIEW, type NoesisWorkspaceDataKey } from '@/lib/noesis-page-definitions';
 import { NoesisRouteProvider, useNoesisRoute } from '@/lib/noesis-route-context';
+import { normalizePositionConfidence, normalizePracticeStatusForSave, uniqueIds } from '@/lib/workflow-integrity';
 
 function ReadexWorkspace({
   user,
@@ -836,7 +837,7 @@ function ReadexWorkspace({
   };
 
   const cleanupDeletedEntityReferences = async (
-    entityType: 'source' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice',
+    entityType: 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice',
     entityId: string,
     conceptName?: string
   ) => {
@@ -860,6 +861,16 @@ function ReadexWorkspace({
       vault.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.vault, item.id, 'sourceIds', entityId));
       drafts.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.drafts, item.id, 'sourceIds', entityId));
       practices.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'sourceIds', entityId));
+    } else if (entityType === 'annotation') {
+      questions.filter((item) => (item.evidenceIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'evidenceIds', entityId));
+      questions.filter((item) => item.sourceAnnotationId === entityId).forEach((item) => {
+        batch.update(doc(refs.questions, item.id), { sourceAnnotationId: '', dateUpdated: today() });
+        changes += 1;
+      });
+      vault.filter((item) => item.sourceAnnotationId === entityId).forEach((item) => {
+        batch.update(doc(refs.vault, item.id), { sourceAnnotationId: '', dateUpdated: today() });
+        changes += 1;
+      });
     } else if (entityType === 'concept' && conceptName) {
       vault.filter((item) => (item.tags || []).includes(conceptName)).forEach((item) => updateArray(refs.vault, item.id, 'tags', conceptName));
       drafts.filter((item) => (item.conceptTags || []).includes(conceptName)).forEach((item) => updateArray(refs.drafts, item.id, 'conceptTags', conceptName));
@@ -876,6 +887,8 @@ function ReadexWorkspace({
     } else if (entityType === 'work') {
       questions.filter((item) => (item.draftIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'draftIds', entityId));
       practices.filter((item) => (item.draftIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'draftIds', entityId));
+    } else if (entityType === 'practice') {
+      questions.filter((item) => (item.practiceIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'practiceIds', entityId));
     }
 
     if (changes > 0) await batch.commit();
@@ -889,60 +902,6 @@ function ReadexWorkspace({
       }
     });
   }, [isOfflineReviewPreview]);
-
-  const normalizeThinkingEventType = (
-    eventType: NonNullable<ThinkingEvent['eventType']>,
-    entityType?: WriteThinkingEventInput['entityType']
-  ): NonNullable<ThinkingEvent['eventType']> => {
-    if (entityType === 'position') {
-      if (eventType === 'created') return 'position_created';
-      if (eventType === 'revised' || eventType === 'edited') return 'position_revised';
-      if (eventType === 'abandoned') return 'position_abandoned';
-      if (eventType === 'challenged') return 'challenge_added';
-    }
-    if (entityType === 'suggestion') {
-      if (eventType === 'ai_suggestion_generated') return 'suggestion_created';
-      if (eventType === 'ai_suggestion_accepted') return 'suggestion_accepted';
-      if (eventType === 'ai_suggestion_rejected') return 'suggestion_dismissed';
-    }
-    if (entityType === 'link' && eventType === 'linked') return 'link_created';
-    return eventType;
-  };
-
-  const createThinkingEvent = (event: Partial<ThinkingEvent> & { entityType?: WriteThinkingEventInput['entityType']; entityId?: string; relatedEntityIds?: WriteThinkingEventInput['relatedEntityIds']; before?: Record<string, any> | null; after?: Record<string, any> | null; origin?: WriteThinkingEventInput['origin']; importance?: WriteThinkingEventInput['importance']; confidenceBefore?: number | null; confidenceAfter?: number | null; epistemicStatus?: WriteThinkingEventInput['epistemicStatus']; sourceActionId?: string | null; idempotencyKey?: string | null; userReason?: string | null; aiReason?: string | null; systemReason?: string | null }) => {
-    const entityType = event.entityType || (event.targetType === 'thinking_pattern' ? 'thinkingPattern' : event.targetType === 'unknown' ? 'unknown' : event.targetType === 'suggestion' ? 'suggestion' : event.targetType);
-    const entityId = event.entityId || event.targetId;
-    if (!metacognitionEnabled || !event.eventType || !entityType || !entityId) return;
-    const normalizedEventType = normalizeThinkingEventType(event.eventType, entityType);
-    writeThinkingEvent({
-      collection: refs.thinkingEvents as any,
-      userId: effectiveUid,
-      eventType: normalizedEventType,
-      entityType,
-      entityId,
-      relatedEntityIds: event.relatedEntityIds,
-      before: event.before,
-      after: event.after,
-      summary: event.summary || '',
-      userReason: event.userReason,
-      aiReason: event.aiReason,
-      systemReason: event.systemReason,
-      origin: event.origin || event.sourceType || 'system',
-      confidenceBefore: event.confidenceBefore,
-      confidenceAfter: event.confidenceAfter,
-      epistemicStatus: event.epistemicStatus,
-      importance: event.importance,
-      sourceActionId: event.sourceActionId,
-      idempotencyKey: event.idempotencyKey,
-      visibility: event.visibility,
-      metadata: {
-        ...(event.metadata || {}),
-        legacyEventType: normalizedEventType !== event.eventType ? event.eventType : undefined,
-        relatedTargetType: event.relatedTargetType,
-        relatedTargetId: event.relatedTargetId,
-      },
-    }).catch(() => emitError(refs.thinkingEvents.path, 'create', event));
-  };
 
   useEffect(() => {
     const recordAcceptedAssistance = (event: Event) => {
@@ -1054,7 +1013,7 @@ function ReadexWorkspace({
       ref: unknownRef as any,
       operation: 'set',
       data: payload,
-      thinkingEvent: metacognitionEnabled ? {
+      thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'unknown_created',
@@ -1066,7 +1025,7 @@ function ReadexWorkspace({
         importance: 'medium',
         relatedEntityIds: { sourceIds: payload.sourceIds || [], positionIds: payload.positionIds || [], inquiryIds: payload.inquiryIds || [] },
         sourceActionId: makeActionId(),
-      } : null,
+      },
     }, { operation: 'create', data: payload });
     return payload;
   };
@@ -1295,7 +1254,7 @@ function ReadexWorkspace({
       ref: conceptRef as any,
       operation: 'set',
       data: payload,
-      thinkingEvent: metacognitionEnabled ? {
+      thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: payload.description ? 'concept_defined' : 'created',
@@ -1306,7 +1265,7 @@ function ReadexWorkspace({
         origin: payload.createdFrom === 'manual' ? 'user' : 'system',
         importance: 'medium',
         sourceActionId: makeActionId(),
-      } : null,
+      },
     }, { operation: 'create', data: payload });
   };
 
@@ -1322,7 +1281,7 @@ function ReadexWorkspace({
       ref: conceptRef as any,
       operation: 'update',
       data: nextConcept,
-      thinkingEvent: metacognitionEnabled && (definitionChanged || conceptStatusChanged || conceptSourcesChanged) ? {
+      thinkingEvent: (definitionChanged || conceptStatusChanged || conceptSourcesChanged) ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: definitionChanged ? 'concept_redefined' : 'edited',
@@ -1345,7 +1304,7 @@ function ReadexWorkspace({
       db,
       ref: conceptRef as any,
       operation: 'delete',
-      thinkingEvent: metacognitionEnabled && existing ? {
+      thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'concept_abandoned',
@@ -1395,7 +1354,7 @@ function ReadexWorkspace({
       ref: mediaRef as any,
       operation: 'set',
       data: payload,
-      thinkingEvent: metacognitionEnabled ? {
+      thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'source_created',
@@ -1406,9 +1365,10 @@ function ReadexWorkspace({
         origin: 'user',
         importance: 'medium',
         sourceActionId: makeActionId(),
-      } : null,
-    }, { operation: 'create', data: payload });
-    createTimelineEvent({ entityId: mediaRef.id, entityType: 'media', entityTitle: payload.title, eventType: 'created', reason: 'Source added to Noesis' });
+      },
+    }, { operation: 'create', data: payload, rethrow: true })
+      .then(() => createTimelineEvent({ entityId: mediaRef.id, entityType: 'media', entityTitle: payload.title, eventType: 'created', reason: 'Source added to Noesis' }))
+      .catch(() => undefined);
   };
 
   const updateMedia = (item: Media) => {
@@ -1432,7 +1392,7 @@ function ReadexWorkspace({
       ref: mediaRef as any,
       operation: 'update',
       data: nextItem,
-      thinkingEvent: metacognitionEnabled ? {
+      thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: sourceEventType,
@@ -1448,7 +1408,7 @@ function ReadexWorkspace({
         origin: 'user',
         importance: sourceEventImportance,
         sourceActionId: makeActionId(),
-      } : null,
+      },
     }, { operation: 'update', data: nextItem });
   };
 
@@ -1459,7 +1419,7 @@ function ReadexWorkspace({
       db,
       ref: mediaRef as any,
       operation: 'delete',
-      thinkingEvent: metacognitionEnabled && existing ? {
+      thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'source_abandoned',
@@ -1488,7 +1448,7 @@ function ReadexWorkspace({
       ref: mediaRef as any,
       operation: 'update',
       data: nextSource,
-      thinkingEvent: metacognitionEnabled ? {
+      thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: previous ? 'edited' : 'annotation_created',
@@ -1501,7 +1461,7 @@ function ReadexWorkspace({
         importance: previous ? 'low' : 'medium',
         relatedEntityIds: { sourceIds: [sourceId], conceptIds: normalizeConceptTags(annotation.conceptTags).map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[] },
         sourceActionId: makeActionId(),
-      } : null,
+      },
     }, { operation: 'update', data: nextSource });
   };
 
@@ -1517,7 +1477,7 @@ function ReadexWorkspace({
       ref: mediaRef as any,
       operation: 'update',
       data: nextSource,
-      thinkingEvent: metacognitionEnabled && existing ? {
+      thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'abandoned',
@@ -1531,9 +1491,14 @@ function ReadexWorkspace({
         sourceActionId: makeActionId(),
       } : null,
     }, { operation: 'update', data: nextSource, rethrow: true });
+    try {
+      await cleanupDeletedEntityReferences('annotation', annotationId);
+    } catch {
+      // The annotation is already deleted. Orphan cleanup can be retried independently.
+    }
   };
 
-  const addVaultEntry = (data: Partial<VaultEntry>) => {
+  const addVaultEntry = (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => {
     const tags = normalizeConceptTags(data.tags);
     ensureConcepts(tags);
     const vaultRef = doc(refs.vault);
@@ -1543,7 +1508,7 @@ function ReadexWorkspace({
       type: data.type || 'belief',
       statement: data.statement || data.description || '',
       description: data.description || data.statement || '',
-      confidence: data.confidence || 3,
+      confidence: normalizePositionConfidence(data.confidence),
       status: data.status || 'active',
       positionKind: data.positionKind || 'interpretive',
       confidenceReasoning: data.confidenceReasoning || '',
@@ -1552,7 +1517,7 @@ function ReadexWorkspace({
       consequences: data.consequences || [],
       applications: data.applications || [],
       tags,
-      sourceIds: data.sourceIds || [],
+      sourceIds: uniqueIds(data.sourceIds || []),
       evidenceFor: data.evidenceFor || [],
       evidenceAgainst: data.evidenceAgainst || [],
       versionHistory: data.versionHistory || [],
@@ -1563,27 +1528,57 @@ function ReadexWorkspace({
       dateCreated: today(),
       dateUpdated: today(),
     };
-    void commitAndReport({
-      db,
-      ref: vaultRef as any,
-      operation: 'set',
-      data: payload,
-      thinkingEvent: metacognitionEnabled ? {
-        collection: refs.thinkingEvents as any,
-        userId: effectiveUid,
-        eventType: 'position_created',
-        entityType: 'position',
-        entityId: payload.id,
-        after: payload,
-        summary: `Position created: ${payload.title}`,
-        origin: payload.createdFrom === 'manual' ? 'user' : 'system',
-        importance: 'high',
-        relatedEntityIds: { sourceIds: payload.sourceIds, conceptIds: tags.map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[] },
-        sourceActionId: makeActionId(),
-      } : null,
-    }, { operation: 'create', data: payload });
-    createTimelineEvent({ entityId: vaultRef.id, entityType: 'vault', entityTitle: payload.title, eventType: 'created', reason: 'Position formed', influencedBy: data.sourceIds });
-    refreshBeliefProfile(payload as VaultEntry, { originSummary: payload.statement || payload.description });
+    const positionEvent: WriteThinkingEventInput = {
+      collection: refs.thinkingEvents as any,
+      userId: effectiveUid,
+      eventType: 'position_created',
+      entityType: 'position',
+      entityId: payload.id,
+      after: payload,
+      summary: `Position created: ${payload.title}`,
+      origin: 'user',
+      importance: 'high',
+      relatedEntityIds: {
+        sourceIds: payload.sourceIds,
+        conceptIds: tags.map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[],
+        annotationIds: uniqueIds(data.annotationRefs?.map((item) => item.annotationId) || (payload.sourceAnnotationId ? [payload.sourceAnnotationId] : [])),
+      },
+      sourceActionId: makeActionId(),
+    };
+    const annotationRefs = data.annotationRefs || [];
+    let persistence: Promise<unknown>;
+    if (annotationRefs.length) {
+      const batch = writeBatch(db);
+      batch.set(vaultRef, payload);
+      new Set(annotationRefs.map((item) => item.sourceId)).forEach((sourceId) => {
+        const source = media.find((item) => item.id === sourceId);
+        if (!source) return;
+        const annotationIds = new Set(annotationRefs.filter((item) => item.sourceId === sourceId).map((item) => item.annotationId));
+        batch.update(doc(refs.media, sourceId), {
+          annotations: (source.annotations || []).map((annotation) => annotationIds.has(annotation.id) ? {
+            ...annotation,
+            philosophyStatus: 'used_in_position',
+            createdPositionId: annotation.createdPositionId || payload.id,
+            linkedPositionIds: uniqueIds([...(annotation.linkedPositionIds || []), payload.id]),
+          } : annotation),
+          dateUpdated: today(),
+        });
+      });
+      queueThinkingEvent(batch, positionEvent);
+      persistence = batch.commit();
+    } else {
+      persistence = commitAndReport({
+        db,
+        ref: vaultRef as any,
+        operation: 'set',
+        data: payload,
+        thinkingEvent: positionEvent,
+      }, { operation: 'create', data: payload, rethrow: true });
+    }
+    void persistence.then(() => {
+      createTimelineEvent({ entityId: vaultRef.id, entityType: 'vault', entityTitle: payload.title, eventType: 'created', reason: 'Position formed', influencedBy: data.sourceIds });
+      refreshBeliefProfile(payload as VaultEntry, { originSummary: payload.statement || payload.description });
+    }).catch(() => emitError(annotationRefs.length ? 'annotation-position-promotion' : vaultRef.path, 'write', payload));
     return payload as VaultEntry;
   };
 
@@ -1592,7 +1587,6 @@ function ReadexWorkspace({
     const vaultRef = doc(refs.vault, entry.id);
     const previous = vault.find((item) => item.id === entry.id);
     const nextEntry = { ...entry, dateUpdated: today() };
-    createTimelineEvent({ entityId: entry.id, entityType: 'vault', entityTitle: entry.title, eventType: 'refined', reason: 'Position refined', influencedBy: entry.sourceIds });
     const profilePatch: Partial<BeliefProfile> = {
       confidenceScore: entry.confidenceScore ?? entry.confidence,
       evidenceQuality: entry.evidenceQuality,
@@ -1640,9 +1634,11 @@ function ReadexWorkspace({
       ref: vaultRef as any,
       operation: 'update',
       data: nextEntry,
-      thinkingEvents: metacognitionEnabled ? positionEvents : [],
-    }, { operation: 'update', data: nextEntry });
-    refreshBeliefProfile(entry, profilePatch);
+      thinkingEvents: positionEvents,
+    }, { operation: 'update', data: nextEntry, rethrow: true }).then(() => {
+      createTimelineEvent({ entityId: entry.id, entityType: 'vault', entityTitle: entry.title, eventType: 'refined', reason: 'Position refined', influencedBy: entry.sourceIds });
+      refreshBeliefProfile(entry, profilePatch);
+    }).catch(() => undefined);
   };
 
   const deleteVaultEntry = async (id: string) => {
@@ -1652,6 +1648,19 @@ function ReadexWorkspace({
       db,
       ref: vaultRef as any,
       operation: 'delete',
+      thinkingEvent: existing ? {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
+        eventType: 'position_abandoned',
+        entityType: 'position',
+        entityId: id,
+        before: existing,
+        summary: `Deleted position: ${existing.title}`,
+        origin: 'user',
+        importance: 'high',
+        relatedEntityIds: { sourceIds: existing.sourceIds || [] },
+        sourceActionId: makeActionId(),
+      } : null,
     }, { operation: 'delete', data: existing || { id }, rethrow: true });
     try {
       await cleanupDeletedEntityReferences('position', id);
@@ -1708,7 +1717,7 @@ function ReadexWorkspace({
   ) => {
     const batch = writeBatch(db);
     const vaultRef = doc(refs.vault);
-    const sourceIds = inquirySourceIds(question).filter((id) => media.some((source) => source.id === id));
+    const sourceIds = uniqueIds(inquirySourceIds(question).filter((id) => media.some((source) => source.id === id)));
     const tags = (question.conceptIds || []).flatMap((conceptId) => {
       const concept = concepts.find((item) => item.id === conceptId || conceptKey(item.name) === conceptKey(conceptId));
       return concept ? [concept.name] : [];
@@ -1720,7 +1729,7 @@ function ReadexWorkspace({
       type: 'belief',
       statement: position.statement,
       description: position.description,
-      confidence: position.confidence,
+      confidence: normalizePositionConfidence(position.confidence),
       status: 'developing',
       positionKind: 'interpretive',
       confidenceReasoning: finalAnswer.trim(),
@@ -1762,7 +1771,9 @@ function ReadexWorkspace({
       influencedBy: sourceIds,
       date: today(),
     });
-    createThinkingEvent({
+    queueThinkingEvent(batch, {
+      collection: refs.thinkingEvents as any,
+      userId: effectiveUid,
       eventType: 'position_formed',
       entityType: 'position',
       entityId: vaultRef.id,
@@ -1779,7 +1790,7 @@ function ReadexWorkspace({
     batch.commit().catch(() => emitError('batch', 'write', position));
   };
 
-  const addQuestion = (data: Partial<Question>) => {
+  const addQuestion = (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => {
     const questionRef = doc(refs.questions);
     const payload = {
       id: questionRef.id,
@@ -1791,11 +1802,11 @@ function ReadexWorkspace({
       assumptions: data.assumptions || [],
       candidateAnswers: data.candidateAnswers || [],
       resolutionSummary: data.resolutionSummary || '',
-      evidenceIds: data.evidenceIds || [],
-      conceptIds: data.conceptIds || [],
-      sourceIds: data.sourceIds || [],
-      beliefIds: data.beliefIds || [],
-      draftIds: data.draftIds || [],
+      evidenceIds: uniqueIds(data.evidenceIds || []),
+      conceptIds: uniqueIds(data.conceptIds || []),
+      sourceIds: uniqueIds(data.sourceIds || []),
+      beliefIds: uniqueIds(data.beliefIds || []),
+      draftIds: uniqueIds(data.draftIds || []),
       type: data.type || 'manual',
       sourceAnnotationId: data.sourceAnnotationId || '',
       sourceWorkId: data.sourceWorkId || '',
@@ -1803,29 +1814,51 @@ function ReadexWorkspace({
       dateCreated: today(),
       dateUpdated: today(),
     };
-    void commitAndReport({
-      db,
-      ref: questionRef as any,
-      operation: 'set',
-      data: payload,
-      thinkingEvent: metacognitionEnabled ? {
-        collection: refs.thinkingEvents as any,
-        userId: effectiveUid,
-        eventType: 'question_created',
-        entityType: 'inquiry',
-        entityId: payload.id,
-        after: payload,
-        summary: `Inquiry created: ${payload.text}`,
-        origin: 'user',
-        importance: 'medium',
-        relatedEntityIds: {
-          sourceIds: payload.sourceIds || [],
-          positionIds: payload.beliefIds || [],
-          annotationIds: payload.sourceAnnotationId ? [payload.sourceAnnotationId] : [],
-        },
-        sourceActionId: makeActionId(),
-      } : null,
-    }, { operation: 'create', data: payload });
+    const inquiryEvent: WriteThinkingEventInput = {
+      collection: refs.thinkingEvents as any,
+      userId: effectiveUid,
+      eventType: 'question_created',
+      entityType: 'inquiry',
+      entityId: payload.id,
+      after: payload,
+      summary: `Inquiry created: ${payload.text}`,
+      origin: 'user',
+      importance: 'medium',
+      relatedEntityIds: {
+        sourceIds: payload.sourceIds || [],
+        positionIds: payload.beliefIds || [],
+        annotationIds: uniqueIds(data.annotationRefs?.map((item) => item.annotationId) || (payload.sourceAnnotationId ? [payload.sourceAnnotationId] : [])),
+      },
+      sourceActionId: makeActionId(),
+    };
+    const annotationRefs = data.annotationRefs || [];
+    if (annotationRefs.length) {
+      const batch = writeBatch(db);
+      batch.set(questionRef, payload);
+      new Set(annotationRefs.map((item) => item.sourceId)).forEach((sourceId) => {
+        const source = media.find((item) => item.id === sourceId);
+        if (!source) return;
+        const annotationIds = new Set(annotationRefs.filter((item) => item.sourceId === sourceId).map((item) => item.annotationId));
+        batch.update(doc(refs.media, sourceId), {
+          annotations: (source.annotations || []).map((annotation) => annotationIds.has(annotation.id) ? {
+            ...annotation,
+            philosophyStatus: 'questioned',
+            createdInquiryId: annotation.createdInquiryId || payload.id,
+          } : annotation),
+          dateUpdated: today(),
+        });
+      });
+      queueThinkingEvent(batch, inquiryEvent);
+      void batch.commit().catch(() => emitError('annotation-inquiry-promotion', 'write', payload));
+    } else {
+      void commitAndReport({
+        db,
+        ref: questionRef as any,
+        operation: 'set',
+        data: payload,
+        thinkingEvent: inquiryEvent,
+      }, { operation: 'create', data: payload });
+    }
     return payload as Question;
   };
 
@@ -1839,7 +1872,7 @@ function ReadexWorkspace({
       ref: questionRef as any,
       operation: 'update',
       data: nextQuestion,
-      thinkingEvent: metacognitionEnabled ? {
+      thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: resolved ? 'question_resolved' : 'edited',
@@ -1851,7 +1884,7 @@ function ReadexWorkspace({
         origin: 'user',
         importance: resolved ? 'high' : 'low',
         sourceActionId: makeActionId(),
-      } : null,
+      },
     }, { operation: 'update', data: nextQuestion });
   };
 
@@ -1862,7 +1895,7 @@ function ReadexWorkspace({
       db,
       ref: questionRef as any,
       operation: 'delete',
-      thinkingEvent: metacognitionEnabled && existing ? {
+      thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'abandoned',
@@ -1921,9 +1954,9 @@ function ReadexWorkspace({
       writingStyle: data.writingStyle || preferences.writingDefaults.writingStyle,
       externalDoc: data.externalDoc || null,
       conceptTags,
-      sourceIds: data.sourceIds || [],
-      questionIds: data.questionIds || [],
-      beliefIds: data.beliefIds || [],
+      sourceIds: uniqueIds(data.sourceIds || []),
+      questionIds: uniqueIds(data.questionIds || []),
+      beliefIds: uniqueIds(data.beliefIds || []),
       dateCreated: today(),
       dateUpdated: today(),
     };
@@ -1932,7 +1965,7 @@ function ReadexWorkspace({
       ref: draftRef as any,
       operation: 'set',
       data: payload,
-      thinkingEvent: metacognitionEnabled ? {
+      thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'created',
@@ -1944,9 +1977,10 @@ function ReadexWorkspace({
         importance: 'medium',
         relatedEntityIds: { conceptIds: conceptTags.map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[], inquiryIds: payload.questionIds || [], positionIds: payload.beliefIds || [], sourceIds: payload.sourceIds || [] },
         sourceActionId: makeActionId(),
-      } : null,
-    }, { operation: 'create', data: payload });
-    createTimelineEvent({ entityId: draftRef.id, entityType: 'draft', entityTitle: payload.title, eventType: 'created', reason: 'Work draft created' });
+      },
+    }, { operation: 'create', data: payload, rethrow: true })
+      .then(() => createTimelineEvent({ entityId: draftRef.id, entityType: 'draft', entityTitle: payload.title, eventType: 'created', reason: 'Work draft created' }))
+      .catch(() => undefined);
     return payload as Draft;
   };
 
@@ -1971,7 +2005,7 @@ function ReadexWorkspace({
       ref: draftRef as any,
       operation: 'update',
       data: nextDraft,
-      thinkingEvent: metacognitionEnabled && meaningfulWorkChange ? {
+      thinkingEvent: meaningfulWorkChange ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'work_revised',
@@ -2015,7 +2049,7 @@ function ReadexWorkspace({
       db,
       ref: draftRef as any,
       operation: 'delete',
-      thinkingEvent: metacognitionEnabled && existing ? {
+      thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'work_abandoned',
@@ -2045,7 +2079,7 @@ function ReadexWorkspace({
       title: data.title || 'Untitled Practice',
       description: data.description || '',
       type: data.type || 'experiment',
-      status: data.status || 'planned',
+      status: normalizePracticeStatusForSave(data),
       durationDays: data.durationDays || 7,
       startDate: data.startDate || today().slice(0, 10),
       endDate: data.endDate || '',
@@ -2062,10 +2096,10 @@ function ReadexWorkspace({
       alternativeExplanation: data.alternativeExplanation || '',
       conclusion: data.conclusion || {},
       conceptTags: tags,
-      sourceIds: data.sourceIds || [],
-      questionIds: data.questionIds || [],
-      positionIds: data.positionIds || [],
-      draftIds: data.draftIds || [],
+      sourceIds: uniqueIds(data.sourceIds || []),
+      questionIds: uniqueIds(data.questionIds || []),
+      positionIds: uniqueIds(data.positionIds || []),
+      draftIds: uniqueIds(data.draftIds || []),
       notes: data.notes || '',
       logs: data.logs || [],
       logDates: data.logDates || [],
@@ -2077,7 +2111,7 @@ function ReadexWorkspace({
       ref: practiceRef as any,
       operation: 'set',
       data: payload,
-      thinkingEvent: metacognitionEnabled ? {
+      thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'practice_created',
@@ -2089,16 +2123,17 @@ function ReadexWorkspace({
         importance: 'medium',
         relatedEntityIds: { positionIds: payload.positionIds || [], inquiryIds: payload.questionIds || [], sourceIds: payload.sourceIds || [] },
         sourceActionId: makeActionId(),
-      } : null,
-    }, { operation: 'create', data: payload });
-    createTimelineEvent({ entityId: practiceRef.id, entityType: 'practice', entityTitle: payload.title, eventType: 'created', reason: 'New practice initiated' });
+      },
+    }, { operation: 'create', data: payload, rethrow: true })
+      .then(() => createTimelineEvent({ entityId: practiceRef.id, entityType: 'practice', entityTitle: payload.title, eventType: 'created', reason: 'New practice initiated' }))
+      .catch(() => undefined);
   };
 
   const updatePractice = (practice: Practice) => {
     ensureConcepts(practice.conceptTags || []);
     const practiceRef = doc(refs.practices, practice.id);
     const previous = practices.find((item) => item.id === practice.id);
-    const nextPractice = { ...practice, dateUpdated: today() };
+    const nextPractice = { ...practice, status: normalizePracticeStatusForSave(practice), dateUpdated: today() };
     const previousLogs = Math.max(previous?.logDates?.length || 0, previous?.logs?.length || 0);
     const nextLogs = Math.max(practice.logDates?.length || 0, practice.logs?.length || 0);
     const concluded = ['completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'abandoned'].includes(practice.status);
@@ -2112,7 +2147,7 @@ function ReadexWorkspace({
       ref: practiceRef as any,
       operation: 'update',
       data: nextPractice,
-      thinkingEvent: metacognitionEnabled && eventType !== 'edited' ? {
+      thinkingEvent: eventType !== 'edited' ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType,
@@ -2146,7 +2181,7 @@ function ReadexWorkspace({
       db,
       ref: practiceRef as any,
       operation: 'delete',
-      thinkingEvent: metacognitionEnabled && existing ? {
+      thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'practice_abandoned',
@@ -2333,7 +2368,7 @@ function ReadexWorkspace({
       ref: linkRef as any,
       operation: 'set',
       data: payload,
-      thinkingEvent: metacognitionEnabled ? {
+      thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: payload.type === 'contradicts' ? 'contradiction_detected' : 'link_created',
@@ -2351,7 +2386,7 @@ function ReadexWorkspace({
         importance: payload.type === 'contradicts' ? 'high' : 'medium',
         metadata: { method: options?.creationMethod || 'philosophical_link_create', relationshipType: payload.type, sourceId: payload.fromId, targetId: payload.toId },
         sourceActionId: makeActionId(),
-      } : null,
+      },
     }, { operation: 'create', data: payload });
   };
 
@@ -2373,7 +2408,7 @@ function ReadexWorkspace({
       ref: linkRef as any,
       operation: 'update',
       data: nextLink,
-      thinkingEvent: metacognitionEnabled ? {
+      thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: previous?.type !== link.type && link.type === 'contradicts' ? 'contradiction_detected' : 'edited',
@@ -2392,7 +2427,7 @@ function ReadexWorkspace({
         },
         metadata: { method: 'philosophical_link_update', relationshipType: link.type, sourceId: link.fromId, targetId: link.toId },
         sourceActionId: makeActionId(),
-      } : null,
+      },
     }, { operation: 'update', data: nextLink });
   };
 
@@ -2403,7 +2438,7 @@ function ReadexWorkspace({
       db,
       ref: linkRef as any,
       operation: 'delete',
-      thinkingEvent: metacognitionEnabled && existing ? {
+      thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
         eventType: 'link_removed',

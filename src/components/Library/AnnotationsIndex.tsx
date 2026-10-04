@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Quote, Trash2 } from 'lucide-react';
+import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,8 +34,8 @@ interface AnnotationsIndexProps {
   onUpdateAnnotation: (sourceId: string, annotation: Annotation) => void;
   onDeleteAnnotation: (sourceId: string, annotationId: string) => Promise<void>;
   onOpenSource: (sourceId: string) => void;
-  onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string; position?: { title: string; statement: string; description: string; confidence: number } }) => { positionId: string; insightId: string; title: string };
-  onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string }) => Question;
+  onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }>; position?: { title: string; statement: string; description: string; confidence: number } }) => { positionId: string; insightId: string; title: string };
+  onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Question;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onNavigate?: (view: string, targetId?: string) => void;
@@ -354,7 +354,7 @@ export function AnnotationsIndex({
       description: `Formed from an annotation in ${sourceLabel}.\n\nAnnotation:\n${annotation.text}${annotation.context ? `\n\nContext:\n${annotation.context}` : ''}`,
       supportNote: annotation.type === 'objection' || annotation.consequenceKind === 'objection' ? '' : annotation.text,
       challengeNote: annotation.type === 'objection' || annotation.consequenceKind === 'objection' ? annotation.text : '',
-      confidence: 3,
+      confidence: 60,
       tags,
     });
   };
@@ -394,15 +394,14 @@ export function AnnotationsIndex({
       tags,
       sourceIds: [annotation.source.id],
       sourceAnnotationId: annotation.id,
+      annotationRefs: [{ sourceId: annotation.source.id, annotationId: annotation.id }],
       position: {
         title,
         statement: body,
         description: shaped?.description || `Formed from annotation: ${annotation.text}`,
-        confidence: shaped?.confidence || 3,
+        confidence: shaped?.confidence || 60,
       },
     });
-    const { source, ...annotationData } = annotation;
-    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'used_in_position', createdPositionId: created.positionId });
     toast({ title: 'Position draft created from annotation.', description: `Saved as "${created.title}".` });
     if (navigateOnCreate) onNavigate?.('vault', created.positionId);
     setPendingAction(null);
@@ -435,9 +434,8 @@ export function AnnotationsIndex({
       evidenceIds: [annotation.id],
       type: 'annotation',
       sourceAnnotationId: annotation.id,
+      annotationRefs: [{ sourceId: annotation.source.id, annotationId: annotation.id }],
     });
-    const { source, ...annotationData } = annotation;
-    onUpdateAnnotation(source.id, { ...annotationData, philosophyStatus: 'questioned', createdInquiryId: created.id });
     toast({ title: 'Inquiry draft created from annotation.', description: 'You can keep working it in Inquiries.' });
     if (navigateOnCreate) onNavigate?.('questions', created.id);
     setPendingAction(null);
@@ -571,21 +569,13 @@ export function AnnotationsIndex({
       tags,
       sourceIds,
       sourceAnnotationId: first.id,
+      annotationRefs: selectedAnnotations.map((annotation) => ({ sourceId: annotation.source.id, annotationId: annotation.id })),
       position: {
         title: first.text.slice(0, 90),
         statement: first.answer || first.text,
         description: `Formed from ${selectedAnnotations.length} annotation${selectedAnnotations.length === 1 ? '' : 's'} across ${sourceIds.length} source${sourceIds.length === 1 ? '' : 's'}.\n\n${sourceContext}`,
-        confidence: 3,
+        confidence: 60,
       },
-    });
-    selectedAnnotations.forEach((selectedAnnotation) => {
-      const { source, ...annotationData } = selectedAnnotation;
-      onUpdateAnnotation(source.id, {
-        ...annotationData,
-        philosophyStatus: 'used_in_position',
-        linkedPositionIds: Array.from(new Set([...(annotationData.linkedPositionIds || []), created.positionId])),
-        createdPositionId: annotationData.createdPositionId || created.positionId,
-      });
     });
     toast({ title: 'Position created from selected annotations.', description: created.title });
     setSelectedKeys([]);
@@ -613,14 +603,7 @@ export function AnnotationsIndex({
       evidenceIds,
       type: 'annotation',
       sourceAnnotationId: selectedAnnotations[0].id,
-    });
-    selectedAnnotations.forEach((selectedAnnotation) => {
-      const { source, ...annotationData } = selectedAnnotation;
-      onUpdateAnnotation(source.id, {
-        ...annotationData,
-        philosophyStatus: 'questioned',
-        createdInquiryId: annotationData.createdInquiryId || created.id,
-      });
+      annotationRefs: selectedAnnotations.map((annotation) => ({ sourceId: annotation.source.id, annotationId: annotation.id })),
     });
     toast({ title: 'Inquiry created from selected annotations.', description: created.text.slice(0, 90) });
     setSelectedKeys([]);
@@ -822,34 +805,20 @@ export function AnnotationsIndex({
               </div>
             )}
 
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              {([
-                ['supports_claim', 'Support'],
-                ['challenges_claim', 'Challenge'],
-                ['raises_question', annotation.createdInquiryId ? 'Open inquiry' : 'Raise inquiry'],
-                ['supports_claim', 'Form position'],
-              ] as Array<[ConsequenceAction, string]>).map(([action, label]) => (
-                <Button
-                  key={`${action}-${label}`}
-                  type="button"
-                  variant={selectedEffect === action && label !== 'Form position' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => label === 'Form position' ? openPreflight(annotation, 'position') : runConsequenceAction(annotation, action)}
-                  className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
-                >
-                  {label}
-                </Button>
-              ))}
-              <details className="relative">
-                <summary className="flex h-8 list-none items-center gap-1 rounded-full border border-border bg-card px-3 font-code text-[8px] uppercase tracking-widest text-muted-foreground shadow-sm">
-                  <MoreHorizontal className="size-3.5" /> More
-                </summary>
-                <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-border bg-popover p-2 shadow-xl">
-                  <button type="button" onClick={() => runConsequenceAction(annotation, 'clarifies')} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Clarify concept</button>
-                  <button type="button" onClick={() => runConsequenceAction(annotation, 'reference')} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Save as reference</button>
-                  <button type="button" onClick={() => updateAnnotationConsequence(annotation, { philosophyStatus: 'archived' })} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-muted">Archive</button>
-                </div>
-              </details>
+            <div className="mb-3 flex items-center gap-2">
+              <Button
+                type="button"
+                variant={selectedEffect ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  if (annotation.createdInquiryId) onNavigate?.('questions', annotation.createdInquiryId);
+                  else if (annotation.createdPositionId) onNavigate?.('vault', annotation.createdPositionId);
+                  else setEditing(annotation);
+                }}
+                className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
+              >
+                {annotation.createdInquiryId ? 'Open inquiry' : annotation.createdPositionId ? 'Open position' : 'Review impact'}
+              </Button>
             </div>
 
             <div className="flex min-w-0 items-center gap-2 border-t border-border/20 pt-2.5">
