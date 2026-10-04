@@ -16,10 +16,15 @@ function source(annotation: Record<string, unknown>): Media {
   } as unknown as Media;
 }
 
-test('a promoted annotation is not projected as a duplicate inquiry', () => {
+test('a promoted annotation resolves to its one persisted inquiry', () => {
   const persisted = question({ id: 'q-promoted', type: 'annotation', sourceAnnotationId: 'a1' });
   const result = allQuestions([source({ createdInquiryId: 'q-promoted' })], [persisted]);
   assert.deepEqual(result.map((item) => item.id), ['q-promoted']);
+});
+
+test('raw question annotations are not silently promoted into inquiries', () => {
+  const result = allQuestions([source({})], []);
+  assert.deepEqual(result, []);
 });
 
 test('matching real user inquiry titles remain distinct records', () => {

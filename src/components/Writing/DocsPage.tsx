@@ -188,9 +188,15 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       <div 
         ref={editorRef}
         contentEditable={isEditable}
+        suppressContentEditableWarning
+        role="textbox"
+        aria-label="Document body"
+        aria-multiline="true"
+        spellCheck
+        data-placeholder="Start writing…"
         onInput={(e) => onContentChange(sanitizeHtml(e.currentTarget.innerHTML))}
         className={cn(
-          "flex-1 p-24 focus:outline-none font-body text-[18px] italic leading-[2.4]",
+          "relative flex-1 p-24 focus:outline-none font-body text-[18px] italic leading-[2.4] empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)]",
           !isEditable && "pointer-events-none opacity-20",
           paperPattern === 'notebook' && "pl-28",
           writingStyle === 'cornell_notes' && "pl-[240px] pb-36",

@@ -997,13 +997,21 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         onUpdateEntry({ ...selected, assumptions: Array.from(new Set([...(selected.assumptions || []), ...splitLines(content)])), versionHistory: [...baseHistory, reviewEntry], dateUpdated: today() });
         return;
       }
-      if (result.action === 'generate_position_counterargument' || result.action === 'identify_missing_position_evidence') {
+      if (result.action === 'generate_position_counterargument') {
         onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), content], versionHistory: [...baseHistory, reviewEntry], dateUpdated: today() });
+        return;
+      }
+      if (result.action === 'identify_missing_position_evidence') {
+        onUpdateEntry({
+          ...selected,
+          confidenceReasoning: [selected.confidenceReasoning, `Missing evidence review: ${content}`].filter(Boolean).join('\n\n'),
+          versionHistory: [...baseHistory, reviewEntry],
+          dateUpdated: today(),
+        });
         return;
       }
       onUpdateEntry({
         ...selected,
-        testingCount: result.action === 'stress_test_position' ? (selected.testingCount || 0) + 1 : selected.testingCount,
         versionHistory: [...baseHistory, reviewEntry],
         dateUpdated: today(),
       });

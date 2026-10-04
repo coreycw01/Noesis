@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { sendPasswordResetEmail, signOut } from 'firebase/auth';
-import { Check, Download, LogOut, RefreshCw, Save, Shield, Wrench } from 'lucide-react';
+import { Check, Download, LogOut, RefreshCw, Save, Shield, Trash2, Wrench } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { noesisGuide } from '@/lib/noesis-guide';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import {
@@ -161,7 +162,7 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
   },
   experimental: {
     current: 'Turns reflective systems on or off behind feature gates so unstable intelligence never masquerades as truth.',
-    affects: ['Thinking event visibility', 'Belief biographies', 'Unknowns tracking', 'Thinking pattern detection', 'Advanced Atlas overlays'],
+    affects: ['Belief biographies', 'Unknowns tracking', 'Thinking pattern detection', 'Cognition metrics', 'Advanced Atlas overlays'],
     limitations: ['Every metacognitive claim must remain evidence-backed, dismissible, and safe to disable.'],
   },
   data: {
@@ -209,6 +210,8 @@ export function SettingsPage({
   const [lastSaved, setLastSaved] = useState<SettingsSectionKey | null>(null);
   const [activePanel, setActivePanel] = useState<SettingsPanelId>('account');
   const [aiConnection, setAiConnection] = useState<'idle' | 'checking' | 'configured' | 'not_configured' | 'unavailable'>('idle');
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const checkAiConnection = async () => {
     setAiConnection('checking');
@@ -304,6 +307,27 @@ export function SettingsPage({
     }
   };
 
+  const deleteAccount = async () => {
+    if (!user || reviewMode || deletingAccount) return;
+    setDeletingAccount(true);
+    try {
+      const response = await authenticatedFetch('/api/account/delete', { method: 'POST' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Account deletion failed.');
+      setDeleteAccountOpen(false);
+      await signOut(auth).catch(() => undefined);
+      toast({ title: 'Account deleted', description: 'Your Noesis workspace and sign-in account were deleted.' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Account not deleted',
+        description: error instanceof Error ? error.message : 'Noesis could not delete the account. It is safe to retry.',
+      });
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   const helpSections = noesisGuide.sections.filter((section) => !['profile', 'goals'].includes(section.id));
 
   const renderPanel = () => {
@@ -354,6 +378,12 @@ export function SettingsPage({
                   <LogOut className="mr-2 size-4" />
                   Sign Out
                 </Button>
+                {!reviewMode && user && (
+                  <Button variant="ghost" onClick={() => setDeleteAccountOpen(true)} className="rounded-full text-destructive hover:text-destructive">
+                    <Trash2 className="mr-2 size-4" />
+                    Delete Account and Workspace
+                  </Button>
+                )}
               </div>
             </SettingsCard>
           </div>
@@ -773,13 +803,13 @@ export function SettingsPage({
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background/60 p-4">
                 <div>
-                  <div className="text-sm font-medium text-foreground">Connection status</div>
+                  <div className="text-sm font-medium text-foreground">Server configuration</div>
                   <div className="text-xs text-muted-foreground">
-                    {aiConnection === 'configured' ? 'Server assistance is configured.' : aiConnection === 'not_configured' ? 'Server assistance is not configured.' : aiConnection === 'unavailable' ? 'Status could not be verified.' : aiConnection === 'checking' ? 'Checking securely...' : 'Not checked.'}
+                    {aiConnection === 'configured' ? 'A server-side AI key is configured. Provider billing and quota are verified only when an assistance action runs.' : aiConnection === 'not_configured' ? 'No server-side AI key is configured.' : aiConnection === 'unavailable' ? 'Configuration status could not be verified.' : aiConnection === 'checking' ? 'Checking securely...' : 'Not checked.'}
                   </div>
                 </div>
                 <Button variant="outline" onClick={checkAiConnection} disabled={aiConnection === 'checking'} className="rounded-full">
-                  <RefreshCw className={`mr-2 size-4 ${aiConnection === 'checking' ? 'animate-spin' : ''}`} /> Check Connection
+                  <RefreshCw className={`mr-2 size-4 ${aiConnection === 'checking' ? 'animate-spin' : ''}`} /> Check Configuration
                 </Button>
               </div>
               <SaveBar onSave={() => saveSection('ai')} saving={saving === 'ai'} dirty={JSON.stringify(drafts.ai) !== JSON.stringify(settings.ai)} saved={lastSaved === 'ai'} />
@@ -792,7 +822,6 @@ export function SettingsPage({
             <SettingsCard title="Experimental Features" description="Enable reflective systems only when their limitations are visible and their outputs remain reviewable.">
               <div className="grid gap-3">
                 <SwitchRow label="Metacognition layer" checked={drafts.metacognition.enableMetacognitionFeatures} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableMetacognitionFeatures: checked } }))} />
-                <SwitchRow label="Thinking events logging" checked={drafts.metacognition.enableThinkingEventsLogging} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableThinkingEventsLogging: checked } }))} />
                 <SwitchRow label="Belief biographies" checked={drafts.metacognition.enableBeliefBiographies} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableBeliefBiographies: checked } }))} />
                 <SwitchRow label="Unknowns tracking" checked={drafts.metacognition.enableUnknownsTracking} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableUnknownsTracking: checked } }))} />
                 <SwitchRow label="Thinking pattern detection" checked={drafts.metacognition.enableThinkingPatternDetection} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, metacognition: { ...prev.metacognition, enableThinkingPatternDetection: checked } }))} />
@@ -995,7 +1024,8 @@ export function SettingsPage({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background p-8 pt-8">
+    <>
+    <div className="flex-1 overflow-y-auto bg-background p-4 pt-6 md:p-8 md:pt-8">
       <div className="mx-auto max-w-7xl">
         <PageHeader
           title="Settings"
@@ -1045,6 +1075,16 @@ export function SettingsPage({
         </div>
       </div>
     </div>
+    <ConfirmActionDialog
+      open={deleteAccountOpen}
+      onOpenChange={setDeleteAccountOpen}
+      title="Delete your Noesis account?"
+      description="This permanently deletes your profile, sources, annotations, concepts, inquiries, positions, works, practices, settings, and sign-in account. Export your data first if you need a copy. This cannot be undone."
+      confirmLabel={deletingAccount ? 'Deleting…' : 'Delete Account'}
+      destructive
+      onConfirm={() => void deleteAccount()}
+    />
+    </>
   );
 }
 

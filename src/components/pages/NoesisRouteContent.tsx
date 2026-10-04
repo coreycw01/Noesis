@@ -113,7 +113,7 @@ export interface NoesisRouteContentProps {
     workId?: string | null;
     practiceId?: string | null;
   }) => void;
-  addQuestion: (data: Partial<Question>) => Question | void;
+  addQuestion: (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Question | void;
   updateQuestion: (question: Question) => void;
   deleteQuestion: (id: string) => void;
   formPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
@@ -146,7 +146,7 @@ export interface NoesisRouteContentProps {
   addAtlasMap: (data: Partial<AtlasMap>) => AtlasMap | void;
   updateAtlasMap: (map: AtlasMap) => void;
   deleteAtlasMap: (id: string) => void;
-  addVaultEntry: (data: Partial<VaultEntry>) => VaultEntry | void;
+  addVaultEntry: (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => VaultEntry | void;
   updateVaultEntry: (entry: VaultEntry) => void;
   deleteVaultEntry: (id: string) => Promise<void>;
   addDraft: (data: Partial<Draft>) => Draft | void;
@@ -345,7 +345,16 @@ export function NoesisRouteContent({
           onUpdateMedia={updateMedia}
           onDeleteMedia={deleteMedia}
           onAddConcept={addConcept}
-          onCreateIdea={createIdea}
+          onCreateClaim={(data) => addVaultEntry({
+            title: data.title,
+            statement: data.title,
+            description: data.body,
+            confidence: 60,
+            status: 'developing',
+            tags: data.tags,
+            sourceIds: data.sourceIds,
+            createdFrom: 'manual',
+          })}
           onDeleteVaultEntry={deleteVaultEntry}
           focusedSourceId={focusedSourceId}
           onNavigate={navigateToView}
@@ -361,7 +370,21 @@ export function NoesisRouteContent({
           inquiries={questions}
           onUpdateAnnotation={updateAnnotation}
           onDeleteAnnotation={deleteAnnotation}
-          onCreatePosition={createIdea}
+          onCreatePosition={(data) => {
+            const created = addVaultEntry({
+              title: data.position?.title || data.title,
+              statement: data.position?.statement || data.title,
+              description: data.position?.description || data.body,
+              confidence: data.position?.confidence ?? 60,
+              status: 'developing',
+              tags: data.tags,
+              sourceIds: data.sourceIds,
+              sourceAnnotationId: data.sourceAnnotationId,
+              annotationRefs: data.annotationRefs,
+              createdFrom: 'annotation',
+            }) as VaultEntry;
+            return { positionId: created.id, insightId: '', title: created.title };
+          }}
           onCreateInquiry={(data) => addQuestion(data) as Question}
           onAddConcept={addConcept}
           onCreateLink={addPhilosophicalLink}

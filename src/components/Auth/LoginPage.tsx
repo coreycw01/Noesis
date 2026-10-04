@@ -3,6 +3,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
@@ -304,6 +305,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
                   >
                     {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -343,6 +345,11 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
               )}
             </div>
           </div>
+          <nav className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground" aria-label="Legal and account links">
+            <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
+            <Link href="/terms" className="hover:text-foreground">Terms</Link>
+            <Link href="/account-deletion" className="hover:text-foreground">Delete account</Link>
+          </nav>
         </div>
       </section>
     </div>

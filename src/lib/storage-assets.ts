@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  deleteObject,
   getBlob,
   getStorage,
   ref,
@@ -73,6 +74,33 @@ export async function privateAssetObjectUrl(storagePath: string) {
   return URL.createObjectURL(blob);
 }
 
+export async function deletePrivateAsset(storagePath?: string) {
+  if (!storagePath) return;
+  const storage = getStorage(initializeFirebase().firebaseApp);
+  try {
+    await deleteObject(ref(storage, storagePath));
+  } catch (error) {
+    const code = (error as { code?: string })?.code;
+    if (code !== 'storage/object-not-found') throw error;
+  }
+}
+
+export async function cleanupReplacedDraftAssets(previous: DraftAssetInput, next: DraftAssetInput) {
+  const previousPaths = [
+    previous.asset?.storagePath || previous.storagePath,
+    previous.canvasAsset?.storagePath,
+    previous.overlayAsset?.storagePath,
+  ].filter(Boolean) as string[];
+  const retainedPaths = new Set([
+    next.asset?.storagePath || next.storagePath,
+    next.canvasAsset?.storagePath,
+    next.overlayAsset?.storagePath,
+  ].filter(Boolean) as string[]);
+  await Promise.all(previousPaths
+    .filter((path) => !retainedPaths.has(path))
+    .map((path) => deletePrivateAsset(path)));
+}
+
 export async function persistInlineDraftAssets<T extends DraftAssetInput>(uid: string, draft: T): Promise<T> {
   const next = { ...draft } as T;
   if (next.fileUrl?.startsWith('data:')) {
@@ -112,5 +140,4 @@ type DraftAssetInput = {
   thumbnailUrl?: string;
   writingOverlayData?: string;
   overlayAsset?: StoredAsset;
-  [key: string]: unknown;
 };

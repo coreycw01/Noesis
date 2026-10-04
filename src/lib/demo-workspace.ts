@@ -1211,6 +1211,14 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     { id: 'p_belief_challenge', title: 'Weekly belief challenge', description: 'Choose one live position each week and write the strongest case against it.', type: 'reflection_prompt', status: 'active', durationDays: 28, startDate: iso(24), endDate: iso(52), conceptTags: ['Truth', 'Humility', 'Practice'], sourceIds: ['m_nietzsche', 'm_hooks'], questionIds: ['q_belief_worth_keeping'], positionIds: ['v_worldview_editable', 'v_practice_before_claim'], draftIds: ['d_belief_biography'], notes: 'This is the main anti-decorative-philosophy practice in the demo workspace.', logDates: [iso(24), iso(25)], dateCreated: iso(24), dateUpdated: iso(26) }
   );
 
+  practices.forEach((practice) => {
+    practice.intellectualBasis ||= 'Tests whether the linked position or inquiry survives contact with repeated action.';
+    practice.hypothesis ||= `If this practice is carried out consistently, it should produce observable evidence about ${practice.conceptTags.slice(0, 2).join(' and ').toLowerCase() || 'the linked idea'}.`;
+    practice.action ||= practice.description;
+    practice.observationMethod ||= 'After each session, record what happened, what resisted the action, and what changed in the linked idea.';
+    practice.expectedOutcome ||= 'Repeated logs reveal a consistent result that can strengthen, weaken, or qualify the linked position.';
+  });
+
   links.push(
     { id: 'l13', fromType: 'concept', fromId: 'c_agency', fromLabel: 'Agency', toType: 'concept', toId: 'c_freedom', toLabel: 'Freedom', type: 'defines', note: 'Agency is one route to a practiced concept of freedom.', createdFrom: 'manual', dateCreated: iso(16), dateUpdated: iso(26) },
     { id: 'l14', fromType: 'source', fromId: 'm_epictetus', fromLabel: 'Enchiridion', toType: 'position', toId: 'v_attention_rule', toLabel: 'Attention must be protected before it can be directed', type: 'supports', note: 'Control language supports attention discipline.', createdFrom: 'system', dateCreated: iso(16), dateUpdated: iso(26) },

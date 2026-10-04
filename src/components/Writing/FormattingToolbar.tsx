@@ -24,6 +24,7 @@ import {
   Pilcrow,
   RotateCcw,
   RotateCw,
+  Replace,
   Smile,
   Strikethrough,
   Subscript,
@@ -56,18 +57,45 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
   const [highlightColor, setHighlightColor] = useState('#fef3c7');
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const selectionRef = useRef<Range | null>(null);
+
+  const rememberSelection = () => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    const container = range.commonAncestorContainer instanceof Element
+      ? range.commonAncestorContainer
+      : range.commonAncestorContainer.parentElement;
+    if (container?.closest('[contenteditable="true"]')) selectionRef.current = range.cloneRange();
+  };
+
+  const restoreSelection = () => {
+    const range = selectionRef.current;
+    if (!range) return;
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  };
 
   const applyFormat = (command: string, value?: string) => {
+    restoreSelection();
     document.execCommand('styleWithCSS', false, 'true');
     document.execCommand(command, false, value);
+    rememberSelection();
   };
 
   const insertHtml = (html: string) => {
+    restoreSelection();
     document.execCommand('insertHTML', false, html);
+    rememberSelection();
   };
 
   const applyLineSpacing = (value: string) => {
-    insertHtml(`<div style="line-height:${value};"><br></div>`);
+    restoreSelection();
+    const selection = window.getSelection();
+    const anchor = selection?.anchorNode instanceof Element ? selection.anchorNode : selection?.anchorNode?.parentElement;
+    const block = anchor?.closest('p, div, blockquote, li, h1, h2, h3') as HTMLElement | null;
+    if (block?.closest('[contenteditable="true"]')) block.style.lineHeight = value;
   };
 
   const insertImage = () => {
@@ -96,6 +124,30 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
   const findInDocument = () => {
     const query = window.prompt('Find in this work:');
     if (query) (window as unknown as { find: (text: string) => boolean }).find(query);
+  };
+
+  const replaceInDocument = () => {
+    const query = window.prompt('Find text to replace:');
+    if (!query) return;
+    const replacement = window.prompt(`Replace “${query}” with:`, '');
+    if (replacement === null) return;
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    if (!editor) return;
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    const matches: Text[] = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      if (node.data.includes(query)) matches.push(node);
+    }
+    matches.forEach((node) => {
+      node.data = node.data.split(query).join(replacement);
+    });
+    if (matches.length) {
+      editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText' }));
+      toast({ title: 'Text replaced', description: `${matches.length} text block${matches.length === 1 ? '' : 's'} updated.` });
+    } else {
+      toast({ title: 'No matches found', description: `“${query}” does not appear in this work.` });
+    }
   };
 
   const insertIcon = () => {
@@ -167,7 +219,7 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
 
         <div className="flex items-center px-3 border-r border-border/40 gap-2">
           <Type className="size-3.5 text-muted-foreground" />
-          <select defaultValue="P" onChange={(event) => applyFormat('formatBlock', event.target.value)} className="bg-transparent text-[11px] font-body italic text-foreground/80 outline-none" title="Paragraph style">
+          <select aria-label="Paragraph style" defaultValue="P" onPointerDown={rememberSelection} onChange={(event) => applyFormat('formatBlock', event.target.value)} className="bg-transparent text-[11px] font-body italic text-foreground/80 outline-none" title="Paragraph style">
             <option value="P">Paragraph</option>
             <option value="H1">Heading 1</option>
             <option value="H2">Heading 2</option>
@@ -176,9 +228,24 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
           </select>
         </div>
 
+        <div className="flex items-center gap-2 border-r border-border/40 px-3">
+          <select aria-label="Font family" defaultValue="Georgia" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontName', event.target.value)} className="max-w-24 bg-transparent text-[11px] text-foreground/80 outline-none" title="Font family">
+            <option value="Georgia">Georgia</option>
+            <option value="Arial">Arial</option>
+            <option value="Times New Roman">Times</option>
+            <option value="Courier New">Mono</option>
+          </select>
+          <select aria-label="Font size" defaultValue="3" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontSize', event.target.value)} className="bg-transparent text-[11px] text-foreground/80 outline-none" title="Font size">
+            <option value="2">Small</option>
+            <option value="3">Body</option>
+            <option value="4">Large</option>
+            <option value="5">Display</option>
+          </select>
+        </div>
+
         <div className="flex items-center px-3 border-r border-border/40 gap-2">
           <Pilcrow className="size-3.5 text-muted-foreground" />
-          <select defaultValue="normal" onChange={(event) => applyLineSpacing(event.target.value)} className="bg-transparent text-[11px] font-code font-bold text-foreground/80 outline-none" title="Line spacing">
+          <select aria-label="Line spacing" defaultValue="1.6" onPointerDown={rememberSelection} onChange={(event) => applyLineSpacing(event.target.value)} className="bg-transparent text-[11px] font-code font-bold text-foreground/80 outline-none" title="Line spacing">
             <option value="1.2">Single</option>
             <option value="1.6">1.5</option>
             <option value="2">Double</option>
@@ -228,6 +295,7 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
           <ToolbarButton icon={ChartColumn} onClick={insertChart} title="Insert chart" />
           <ToolbarButton icon={Pilcrow} onClick={insertDivider} title="Insert divider" />
           <ToolbarButton icon={FileSearch} onClick={findInDocument} title="Find in document" />
+          <ToolbarButton icon={Replace} onClick={replaceInDocument} title="Find and replace" />
           <ToolbarButton icon={Mic} onClick={toggleTalkToText} active={listening} title="Talk to Text" />
         </div>
       </div>
@@ -240,6 +308,7 @@ function ColorButton({ icon: Icon, value, onChange, title }: { icon: any; value:
     <label title={title} className="size-8 rounded-full flex items-center justify-center transition-all hover:bg-muted text-muted-foreground cursor-pointer relative">
       <Icon className="size-3.5" />
       <input
+        aria-label={title}
         type="color"
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -258,6 +327,7 @@ function ToolbarButton({ icon: Icon, onClick, active, title }: { icon: any, onCl
         onClick?.();
       }}
       title={title}
+      aria-label={title || 'Formatting action'}
       className={cn(
         "size-8 rounded-full flex items-center justify-center transition-all hover:bg-muted",
         active ? "bg-accent/10 text-accent" : "text-muted-foreground"

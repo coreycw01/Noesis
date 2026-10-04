@@ -17,7 +17,7 @@ export interface LibraryRoutePageProps {
   onUpdateMedia: (media: Media) => void;
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
-  onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
+  onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
   onDeleteVaultEntry: (id: string) => Promise<void>;
   onNavigate: (view: NoesisView, options?: { sourceId?: string | null }) => void;
   aiSettings?: AiSettings;
@@ -36,7 +36,7 @@ export function LibraryRoutePage({
   onUpdateMedia,
   onDeleteMedia,
   onAddConcept,
-  onCreateIdea,
+  onCreateClaim,
   onDeleteVaultEntry,
   onNavigate,
   aiSettings,
@@ -54,7 +54,7 @@ export function LibraryRoutePage({
       onUpdateMedia={onUpdateMedia}
       onDeleteMedia={onDeleteMedia}
       onAddConcept={onAddConcept}
-      onCreateIdea={onCreateIdea}
+      onCreateClaim={onCreateClaim}
       onDeleteVaultEntry={onDeleteVaultEntry}
       focusedSourceId={focusedSourceId}
       onOpenSourceRoute={(sourceId) => onNavigate('library', { sourceId })}

@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
+import { inquirySourceIds } from '@/lib/inquiry-state';
 
 interface SourceIndexProps {
   media: Media[];
@@ -144,7 +145,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
     const linkedPositions = vault.filter((entry) => (entry.sourceIds || []).includes(source.id)).length;
     const linkedWorks = drafts.filter((draft) => (draft.sourceIds || []).includes(source.id)).length;
     const linkedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(source.id)).length;
-    const linkedQuestions = questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(source.id)).length;
+    const linkedQuestions = questions.filter((question) => inquirySourceIds(question).includes(source.id)).length;
     const catalogState = sourceCatalogState(source);
     openNoesisObjectPreview({
       id: `source-index-${source.id}`,
@@ -193,7 +194,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       const linkedPositions = vault.filter((entry) => (entry.sourceIds || []).includes(m.id)).length;
       const linkedWorks = drafts.filter((draft) => (draft.sourceIds || []).includes(m.id)).length;
       const linkedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(m.id)).length;
-      const linkedQuestions = questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(m.id)).length;
+      const linkedQuestions = questions.filter((question) => inquirySourceIds(question).includes(m.id)).length;
       const annotationScore = Math.min((m.annotations || []).length, 12);
       const reflectionScore = [
         m.capture?.after?.beliefChange,
@@ -207,7 +208,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       vault.filter((entry) => (entry.sourceIds || []).includes(m.id)).length +
       drafts.filter((draft) => (draft.sourceIds || []).includes(m.id)).length +
       practices.filter((practice) => (practice.sourceIds || []).includes(m.id)).length +
-      questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(m.id)).length;
+      questions.filter((question) => inquirySourceIds(question).includes(m.id)).length;
     const progressScore = (m: Media) => {
       if (m.status === 'Finished') return 100;
       if (m.status === 'Consuming') return 65;
@@ -233,7 +234,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         const linkedPositions = vault.filter((entry) => (entry.sourceIds || []).includes(m.id));
         const linkedWorks = drafts.filter((draft) => (draft.sourceIds || []).includes(m.id));
         const linkedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(m.id));
-        const linkedQuestions = questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(m.id));
+        const linkedQuestions = questions.filter((question) => inquirySourceIds(question).includes(m.id));
         const searchOk = searchMatches(search, [
           { value: m.title, label: 'title' },
           { value: m.creator, label: 'creator' },
@@ -269,7 +270,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         linkedPositions: vault.filter((entry) => (entry.sourceIds || []).includes(source.id)).length,
         linkedWorks: drafts.filter((draft) => (draft.sourceIds || []).includes(source.id)).length,
         linkedPractices: practices.filter((practice) => (practice.sourceIds || []).includes(source.id)).length,
-        linkedQuestions: questions.filter((question) => (question.sourceIds || question.evidenceIds || []).includes(source.id)).length,
+        linkedQuestions: questions.filter((question) => inquirySourceIds(question).includes(source.id)).length,
       }))
       .sort((a, b) => {
         if (sortOption !== 'manual') {

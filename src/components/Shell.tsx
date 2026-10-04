@@ -628,7 +628,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
   return (
     <TooltipProvider delayDuration={160}>
-      <div className="noesis-app flex h-screen w-full overflow-hidden bg-background">
+      <div className="noesis-app flex h-[100dvh] w-full overflow-hidden bg-background">
         {!isMobile && (
           <aside className={cn(
             "hidden md:flex bg-sidebar text-sidebar-foreground flex-col border-r border-sidebar-border shadow-2xl z-20 transition-[width] duration-300 ease-out",
@@ -640,7 +640,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
         {isMobile && (
           <>
-            <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-2 border-b border-border/70 bg-background/95 px-3 shadow-sm backdrop-blur md:hidden">
+            <div className="noesis-mobile-header fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-2 border-b border-border/70 bg-background/95 px-3 shadow-sm backdrop-blur md:hidden">
               <Button
                 variant="outline"
                 size="icon"
@@ -676,7 +676,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         <main className="noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-16 pt-14 md:pb-0 md:pt-0" aria-busy={Boolean(pendingPath)}>
           {children}
           {isMobile && (
-            <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-2 py-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur md:hidden" aria-label="Primary mobile navigation">
+            <nav className="noesis-mobile-nav fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-2 py-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur md:hidden" aria-label="Primary mobile navigation">
               <div className="grid grid-cols-5 gap-1">
                 {mobilePrimaryNav.map((item) => {
                   const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];

@@ -55,6 +55,7 @@ import { cn } from '@/lib/utils';
 import { deleteObject, getStorage, ref as storageRef } from 'firebase/storage';
 import { uploadPrivateAsset } from '@/lib/storage-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   AtlasSection,
   deriveAtlasRegions,
@@ -171,7 +172,18 @@ const ATLAS_ZOOM_STEP = 0.08;
 const ATLAS_ZOOM_STORAGE_KEY = 'noesis.atlas.zoom';
 const ATLAS_NODE_BOUNDS = { minX: 6, maxX: 94, minY: 8, maxY: 92 } as const;
 
-function atlasAutoNodePosition(index: number, total: number) {
+function atlasAutoNodePosition(index: number, total: number, compact = false) {
+  if (compact) {
+    if (total <= 1) return { x: 50, y: 50 };
+    const columns = 2;
+    const rows = Math.ceil(total / columns);
+    const row = Math.floor(index / columns);
+    const isUnpairedLastNode = total % columns === 1 && index === total - 1;
+    return {
+      x: isUnpairedLastNode ? 50 : index % columns === 0 ? 24 : 76,
+      y: rows === 1 ? 50 : 22 + (row / (rows - 1)) * 66,
+    };
+  }
   if (total <= 1) return { x: 50, y: 50 };
   if (total === 2) {
     return { x: index === 0 ? 18 : 82, y: 50 };
@@ -343,6 +355,7 @@ export function ConceptAtlas({
   onOpenWriting,
   onOpenPractices,
 }: ConceptAtlasProps) {
+  const isMobile = useIsMobile();
   const [zoom, setZoom] = useState(ATLAS_BASE_ZOOM);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
@@ -563,20 +576,32 @@ export function ConceptAtlas({
 
   const nodes = useMemo<MapNode[]>(() => {
     const filtered = visibleTerms.filter((name) => !search || name.toLowerCase().includes(search.toLowerCase()));
-    return filtered.map((name, index) => {
+    const displayedTerms = isMobile && mode === 'auto' && !search && filtered.length > 8
+      ? [...filtered]
+          .sort((left, right) => (
+            taggedItemsForConcept(right, media, insights, vault, drafts, practices).length
+            - taggedItemsForConcept(left, media, insights, vault, drafts, practices).length
+          ))
+          .slice(0, 8)
+      : filtered;
+    return displayedTerms.map((name, index) => {
       const concept = concepts.find((c) => conceptKey(c.name) === conceptKey(name));
-      const autoPosition = atlasAutoNodePosition(index, filtered.length);
+      const autoPosition = atlasAutoNodePosition(index, displayedTerms.length, isMobile);
       const count = taggedItemsForConcept(name, media, insights, vault, drafts, practices).length;
       const customPosition = activeMap?.nodePositions?.[conceptKey(name)];
       return {
         name,
         concept,
         count,
-        x: draftPositions[conceptKey(name)]?.x ?? customPosition?.x ?? concept?.x ?? autoPosition.x,
-        y: draftPositions[conceptKey(name)]?.y ?? customPosition?.y ?? concept?.y ?? autoPosition.y,
+        x: isMobile && mode === 'auto'
+          ? autoPosition.x
+          : draftPositions[conceptKey(name)]?.x ?? customPosition?.x ?? concept?.x ?? autoPosition.x,
+        y: isMobile && mode === 'auto'
+          ? autoPosition.y
+          : draftPositions[conceptKey(name)]?.y ?? customPosition?.y ?? concept?.y ?? autoPosition.y,
       };
     });
-  }, [activeMap, concepts, drafts, draftPositions, insights, media, practices, search, vault, visibleTerms]);
+  }, [activeMap, concepts, drafts, draftPositions, insights, isMobile, media, mode, practices, search, vault, visibleTerms]);
 
   const relatedByNode = useMemo(() => {
     return new Map(nodes.map((node) => [

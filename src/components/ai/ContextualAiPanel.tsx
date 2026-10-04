@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { BrainCircuit, Check, Loader2, X } from 'lucide-react';
+import { BrainCircuit, Check, ClipboardCopy, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -36,6 +36,7 @@ export function ContextualAiPanel({
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState<ContextualAiAction>(actions[0]!);
   const [loading, setLoading] = useState(false);
+  const [accepting, setAccepting] = useState(false);
   const [result, setResult] = useState<AiReviewResult | null>(null);
   const [editedContent, setEditedContent] = useState('');
   const envelope = useMemo(() => buildEnvelope(action), [action, buildEnvelope]);
@@ -62,21 +63,42 @@ export function ContextualAiPanel({
   };
 
   const accept = async () => {
-    if (!result || !editedContent.trim() || !onAccept) return;
-    await onAccept(result, editedContent.trim());
-    if (retainAcceptedProvenance) {
-      window.dispatchEvent(new CustomEvent('noesis:ai-assisted-accepted', {
-        detail: {
-          action: result.action,
-          targetType: result.targetType,
-          targetId: result.targetId,
-          content: editedContent.trim(),
-        },
-      }));
+    if (!result || !editedContent.trim() || !onAccept || accepting) return;
+    setAccepting(true);
+    try {
+      await onAccept(result, editedContent.trim());
+      if (retainAcceptedProvenance) {
+        window.dispatchEvent(new CustomEvent('noesis:ai-assisted-accepted', {
+          detail: {
+            action: result.action,
+            targetType: result.targetType,
+            targetId: result.targetId,
+            content: editedContent.trim(),
+          },
+        }));
+      }
+      toast({ title: 'Reviewed result applied', description: 'The reviewed text was applied through this item\'s normal editing flow.' });
+      setOpen(false);
+      setResult(null);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not apply reviewed text',
+        description: error instanceof Error ? error.message : 'Your existing data was not changed.',
+      });
+    } finally {
+      setAccepting(false);
     }
-    toast({ title: 'Reviewed result applied', description: 'The accepted text was saved through the normal workspace flow.' });
-    setOpen(false);
-    setResult(null);
+  };
+
+  const copyResult = async () => {
+    if (!editedContent.trim()) return;
+    try {
+      await navigator.clipboard.writeText(editedContent.trim());
+      toast({ title: 'Result copied', description: 'Nothing was added to your workspace.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Copy failed', description: 'Select the text and copy it manually.' });
+    }
   };
 
   return (
@@ -84,7 +106,7 @@ export function ContextualAiPanel({
       <Button variant="outline" size="sm" className="rounded-full" onClick={() => setOpen(true)}>
         <BrainCircuit className="mr-2 size-4" /> {buttonLabel}
       </Button>
-      <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) setResult(null); }}>
+      <Dialog open={open} onOpenChange={(next) => { if (loading || accepting) return; setOpen(next); if (!next) { setResult(null); setEditedContent(''); } }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Contextual Assistance</DialogTitle>
@@ -103,14 +125,14 @@ export function ContextualAiPanel({
                 <div>
                   <div className="text-xs font-medium text-foreground">Current item</div>
                   <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
-                    {envelope.itemMemory.map((line) => <li key={line}>• {line}</li>)}
+                    {envelope.itemMemory.map((line, index) => <li key={`${index}-${line}`}>• {line}</li>)}
                   </ul>
                 </div>
                 {!!envelope.linkedMemory.length && (
                   <details>
                     <summary className="cursor-pointer text-xs font-medium text-foreground">{envelope.linkedMemory.length} linked context items</summary>
                     <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                      {envelope.linkedMemory.map((line) => <li key={line}>• {line}</li>)}
+                      {envelope.linkedMemory.map((line, index) => <li key={`${index}-${line}`}>• {line}</li>)}
                     </ul>
                   </details>
                 )}
@@ -132,9 +154,13 @@ export function ContextualAiPanel({
                   <Button variant="ghost" onClick={() => { setResult(null); setEditedContent(''); }} className="rounded-full">
                     <X className="mr-2 size-4" /> Dismiss
                   </Button>
-                  {onAccept && (
-                    <Button onClick={accept} className="rounded-full">
-                      <Check className="mr-2 size-4" /> Apply Reviewed Text
+                  {onAccept ? (
+                    <Button onClick={accept} disabled={accepting || !editedContent.trim()} className="rounded-full">
+                      {accepting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Check className="mr-2 size-4" />} Apply Reviewed Text
+                    </Button>
+                  ) : (
+                    <Button onClick={copyResult} disabled={!editedContent.trim()} className="rounded-full">
+                      <ClipboardCopy className="mr-2 size-4" /> Copy Text
                     </Button>
                   )}
                 </div>
