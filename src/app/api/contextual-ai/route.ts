@@ -95,6 +95,23 @@ async function generateText(prompt: string) {
     });
     if (!response.ok) {
       if (response.status === 429) throw new ApiError(429, 'Noesis assistance is temporarily at capacity.', 'provider_rate_limit', 60);
+      const providerError = await response.json().catch(() => null) as {
+        error?: { status?: string; message?: string };
+      } | null;
+      console.error('Contextual AI provider request failed', {
+        status: response.status,
+        providerStatus: providerError?.error?.status || 'unknown',
+        model,
+      });
+      if (response.status === 400) {
+        throw new ApiError(503, 'The configured AI model rejected this request. Check the Gemini model setting.', 'provider_invalid_request');
+      }
+      if (response.status === 401 || response.status === 403) {
+        throw new ApiError(503, 'The Gemini key or API access needs attention in App Hosting.', 'provider_access_denied');
+      }
+      if (response.status === 404) {
+        throw new ApiError(503, 'The configured Gemini model is unavailable. Check the GEMINI_MODEL setting.', 'provider_model_unavailable');
+      }
       throw new ApiError(503, 'Noesis assistance is temporarily unavailable.', 'provider_unavailable');
     }
     const payload = await response.json();
