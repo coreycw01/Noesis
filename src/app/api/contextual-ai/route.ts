@@ -80,20 +80,56 @@ function buildPrompt(input: z.infer<typeof requestSchema>) {
 async function generateText(prompt: string) {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw new ApiError(503, 'Noesis assistance is not connected.', 'ai_not_configured');
-  const model = (process.env.GEMINI_MODEL || 'gemini-3.8-flash').replace(/^googleai\//, '');
+  const configuredModel = (process.env.GEMINI_MODEL || 'gemini-3.6-flash').replace(/^googleai\//, '').replace(/^models\//, '');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 45_000);
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+    const preferredModels = Array.from(new Set([
+      configuredModel,
+      'gemini-3.8-flash',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-flash',
+    ]));
+    let models = preferredModels;
+    const modelResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100', {
+      headers: { 'x-goog-api-key': apiKey },
       signal: controller.signal,
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.35, maxOutputTokens: 1_500 },
-      }),
     });
-    if (!response.ok) {
+    if (modelResponse.ok) {
+      const catalog = await modelResponse.json() as {
+        models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>;
+      };
+      const available = (catalog.models || [])
+        .filter((model) => model.supportedGenerationMethods?.includes('generateContent'))
+        .map((model) => (model.name || '').replace(/^models\//, ''))
+        .filter(Boolean);
+      const availableSet = new Set(available);
+      models = preferredModels.filter((model) => availableSet.has(model));
+      if (!models.length) models = available.filter((model) => /flash/i.test(model)).slice(0, 4);
+    }
+
+    for (const model of models) {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.35, maxOutputTokens: 1_500 },
+        }),
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        const text = payload?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('\n').trim();
+        if (!text) throw new ApiError(422, 'No usable assistance was returned.', 'empty_ai_result');
+        return text;
+      }
+      if (response.status === 404) {
+        console.warn('Contextual AI model unavailable for this key', { model });
+        continue;
+      }
       if (response.status === 429) throw new ApiError(429, 'Noesis assistance is temporarily at capacity.', 'provider_rate_limit', 60);
       const providerError = await response.json().catch(() => null) as {
         error?: { status?: string; message?: string };
@@ -103,21 +139,11 @@ async function generateText(prompt: string) {
         providerStatus: providerError?.error?.status || 'unknown',
         model,
       });
-      if (response.status === 400) {
-        throw new ApiError(503, 'The configured AI model rejected this request. Check the Gemini model setting.', 'provider_invalid_request');
-      }
-      if (response.status === 401 || response.status === 403) {
-        throw new ApiError(503, 'The Gemini key or API access needs attention in App Hosting.', 'provider_access_denied');
-      }
-      if (response.status === 404) {
-        throw new ApiError(503, 'The configured Gemini model is unavailable. Check the GEMINI_MODEL setting.', 'provider_model_unavailable');
-      }
+      if (response.status === 400) throw new ApiError(503, 'The configured AI model rejected this request. Check the Gemini model setting.', 'provider_invalid_request');
+      if (response.status === 401 || response.status === 403) throw new ApiError(503, 'The Gemini key or API access needs attention in App Hosting.', 'provider_access_denied');
       throw new ApiError(503, 'Noesis assistance is temporarily unavailable.', 'provider_unavailable');
     }
-    const payload = await response.json();
-    const text = payload?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('\n').trim();
-    if (!text) throw new ApiError(422, 'No usable assistance was returned.', 'empty_ai_result');
-    return text;
+    throw new ApiError(503, 'No compatible Gemini text model is available for this API key.', 'provider_model_unavailable');
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if ((error as Error)?.name === 'AbortError') throw new ApiError(504, 'Noesis assistance timed out safely.', 'ai_timeout');
