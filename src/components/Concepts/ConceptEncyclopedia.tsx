@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, BookOpen, Brain, CheckCircle2, Edit, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BookOpen, Brain, CheckCircle2, ChevronDown, Edit, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -788,6 +788,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             ))}
           </div>
 
+          <details className="group rounded-2xl border border-border bg-card shadow-sm">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
+              <div>
+                <div className="text-sm font-semibold text-foreground">More tools</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Boundaries, examples, related objects, tensions, diagnostics, and definition history.</p>
+              </div>
+              <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t border-border p-4 sm:p-6">
           {/* Concept Anatomy */}
           <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
             <div className="mb-5 flex items-center justify-between gap-3">
@@ -1300,6 +1309,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               </div>
             </section>
           )}
+            </div>
+          </details>
         </div>
 
         {/* Concept editor dialog (accessible from detail page too) */}

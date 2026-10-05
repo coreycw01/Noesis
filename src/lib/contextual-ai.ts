@@ -11,7 +11,6 @@ export type ContextualAiAction =
   | 'find_position_assumptions'
   | 'generate_position_counterargument'
   | 'identify_missing_position_evidence'
-  | 'stress_test_position'
   | 'compare_selected_positions'
   | 'synthesize_practice_outcome'
   | 'synthesize_evolution_period';
@@ -54,7 +53,6 @@ export const CONTEXTUAL_AI_LABELS: Record<ContextualAiAction, string> = {
   find_position_assumptions: 'Find Assumptions',
   generate_position_counterargument: 'Generate Counterargument',
   identify_missing_position_evidence: 'Identify Missing Evidence',
-  stress_test_position: 'Stress-Test Position',
   compare_selected_positions: 'Compare Positions',
   synthesize_practice_outcome: 'Synthesize Outcome',
   synthesize_evolution_period: 'Synthesize Period',
@@ -74,7 +72,6 @@ export const CONTEXTUAL_AI_POLICIES: Record<ContextualAiAction, {
   find_position_assumptions: { targetType: 'position', scope: 'linked_items' },
   generate_position_counterargument: { targetType: 'position', scope: 'linked_items' },
   identify_missing_position_evidence: { targetType: 'position', scope: 'linked_items' },
-  stress_test_position: { targetType: 'position', scope: 'linked_items' },
   compare_selected_positions: { targetType: 'position', scope: 'selected_pair' },
   synthesize_practice_outcome: { targetType: 'practice', scope: 'linked_items' },
   synthesize_evolution_period: { targetType: 'evolution', scope: 'selected_period' },

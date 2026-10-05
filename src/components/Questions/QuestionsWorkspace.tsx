@@ -422,11 +422,6 @@ function inferInquiryType(question: Question, concepts: string[], sources: Media
 function investigationBranches(question: Question, concepts: string[], sources: Media[], beliefs: VaultEntry[], drafts: Draft[], practices: Practice[]) {
   const branches = [
     {
-      label: 'Clarify',
-      state: (question.whyItMatters || question.currentIntuition || concepts.length) ? 'active' : 'needed',
-      detail: question.whyItMatters ? 'The question has a working interpretation.' : 'Interpret what the question is really asking.',
-    },
-    {
       label: 'Investigate',
       state: sources.length || (question.candidateAnswers || []).some((candidate) => candidate.support || candidate.objection) ? 'active' : 'needed',
       detail: sources.length ? `${sources.length} source${sources.length === 1 ? '' : 's'} connected.` : 'Add support, challenge, context, or an unknown.',
@@ -458,7 +453,6 @@ function investigationBranches(question: Question, concepts: string[], sources: 
 }
 
 function branchNextStep(label: string) {
-  if (label === 'Clarify') return 'Define the question, key terms, scope, and what would count as an answer.';
   if (label === 'Investigate') return 'Add one evidence record and separate direction from reliability.';
   if (label === 'Compare') return 'Put candidate answers beside each other and name the real difference.';
   if (label === 'Test') return 'Design one action, observation, conversation, or research test.';
@@ -501,7 +495,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     whyItMatters: question.whyItMatters || '',
     currentIntuition: question.currentIntuition || '',
     uncertainty: question.uncertainty || '',
-    assumptionsText: (question.assumptions || []).join('\n'),
     resolutionSummary: question.resolutionSummary || '',
   });
   const [candidateDraft, setCandidateDraft] = useState({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
@@ -519,7 +512,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       whyItMatters: question.whyItMatters || '',
       currentIntuition: question.currentIntuition || '',
       uncertainty: question.uncertainty || '',
-      assumptionsText: (question.assumptions || []).join('\n'),
       resolutionSummary: question.resolutionSummary || '',
     });
     setCandidateDraft({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
@@ -621,19 +613,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       dateUpdated: today(),
     });
     onAiFeedback('Context saved.', 'Your stakes, current view, and remaining uncertainty are now part of this inquiry.');
-  };
-
-  const saveClarifyBranch = () => {
-    onUpdateQuestion({
-      ...question,
-      whyItMatters: investigationDraft.whyItMatters.trim(),
-      currentIntuition: investigationDraft.currentIntuition.trim(),
-      uncertainty: investigationDraft.uncertainty.trim(),
-      assumptions: investigationDraft.assumptionsText.split('\n').map((item) => item.trim()).filter(Boolean),
-      status: 'clarifying',
-      dateUpdated: today(),
-    });
-    onAiFeedback('Clarification saved.', 'The inquiry now has a clearer interpretation, scope, and working terms.');
   };
 
   const addCandidateAnswer = () => {
@@ -1017,23 +996,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                 </div>
                 <p className="max-w-xl text-xs leading-5 text-muted-foreground">{branchNextStep(selectedBranch.label)}</p>
               </div>
-              {selectedBranch?.label === 'Clarify' && (
-                <div className="grid gap-3 lg:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="readex-kicker">Question interpretation</Label>
-                    <Textarea value={investigationDraft.whyItMatters} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, whyItMatters: event.target.value }))} placeholder="What is this question actually asking?" className="min-h-[92px]" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="readex-kicker">Scope</Label>
-                    <Textarea value={investigationDraft.currentIntuition} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, currentIntuition: event.target.value }))} placeholder="What is included, excluded, or context-bound?" className="min-h-[92px]" />
-                  </div>
-                  <div className="space-y-2 lg:col-span-2">
-                    <Label className="readex-kicker">Key terms and answer criteria</Label>
-                    <Textarea value={investigationDraft.assumptionsText} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, assumptionsText: event.target.value }))} placeholder="Identity: working meaning, still contested.&#10;What would count as an answer: ..." className="min-h-[110px]" />
-                  </div>
-                  <div className="lg:col-span-2 flex justify-end"><Button onClick={saveClarifyBranch} className="rounded-full px-5">Save Clarification</Button></div>
-                </div>
-              )}
               {selectedBranch?.label === 'Investigate' && (
                 <div className="grid gap-3 lg:grid-cols-2">
                   <div className="space-y-2 lg:col-span-2">
@@ -1306,18 +1268,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
         </div>
 
         <aside className="space-y-5">
-          <Card className="p-6 bg-card border border-accent/10 shadow-sm rounded-xl">
-            <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground/40 mb-4 font-bold">Investigation State</h3>
-            <Badge variant="outline" className="mb-4 rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{question.status.replace(/_/g, ' ')}</Badge>
-            <div className="grid gap-2">
-              <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('gathering_evidence')} className="justify-start rounded-full">Gathering evidence</Button>
-              <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('comparing_answers')} className="justify-start rounded-full">Comparing answers</Button>
-              <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('under_tension')} className="justify-start rounded-full">Under tension</Button>
-              <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('suspended')} className="justify-start rounded-full">Suspend</Button>
-              <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('enduring')} className="justify-start rounded-full">Enduring question</Button>
-              <Button variant="outline" size="sm" onClick={() => updateInvestigationStatus('reopened')} className="justify-start rounded-full">Reopen</Button>
-            </div>
-          </Card>
           <ContextPanel title="Evidence Sources" items={sources.map((s) => s.title)} />
           <ContextPanel title="Active Concepts" items={Array.from(new Set(concepts))} />
           <ContextPanel title="Related Positions" items={beliefs.map((e) => e.title)} />

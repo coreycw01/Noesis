@@ -18,7 +18,6 @@ import type { BeliefProfile, Concept, Draft, Media, PhilosophicalLink, PositionK
 import { normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
-import { NextPhilosophicalActionPanel } from '@/components/Philosophy/NextPhilosophicalActionPanel';
 import { useToast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
@@ -1035,7 +1034,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               showContextBeforeSending={aiSettings.showContextBeforeSending}
               reasoningDepth={aiSettings.defaultReasoningDepth}
               retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
-              actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'stress_test_position', 'compare_selected_positions']}
+              actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'compare_selected_positions']}
               buildEnvelope={buildPositionAiEnvelope}
               buttonLabel="Test Position"
               onAccept={acceptPositionAiResult}
@@ -1101,99 +1100,15 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </details>
         )}
 
-        <div className="hidden">
-          <NextPhilosophicalActionPanel
-            compact
-            status={selected.status}
-            title="Next Philosophical Action"
-            description="Positions are the center of gravity: support them, challenge them, express them, or test them."
-            actions={[
-              {
-                label: 'Raise Confidence',
-                tone: 'support',
-                disabled: confidencePercent(selected.confidence) >= 100,
-                description: 'Increase confidence in this position.',
-                onClick: () => onUpdateEntry({ ...selected, confidence: Math.min(100, confidencePercent(selected.confidence) + 10), dateUpdated: today() }),
-              },
-              {
-                label: 'Lower Confidence',
-                tone: 'challenge',
-                disabled: confidencePercent(selected.confidence) <= 0,
-                description: 'Decrease confidence — add doubt before revising.',
-                onClick: () => onUpdateEntry({ ...selected, confidence: Math.max(0, confidencePercent(selected.confidence) - 10), dateUpdated: today() }),
-              },
-              {
-                label: 'Turn into Essay',
-                description: 'Open this position as an essay draft.',
-                onClick: () => onAddDraft({
-                  title: selected.title,
-                  body: `**Position:** ${selected.statement}\n\n**Reasoning:**\n${selected.description || ''}`,
-                  type: 'essay',
-                  status: 'seed',
-                  beliefIds: [selected.id],
-                  sourceIds: selected.sourceIds || [],
-                  conceptTags: selected.tags || [],
-                }),
-              },
-              {
-                label: 'Start Practice',
-                description: 'Create a behavioral experiment to test this position.',
-                onClick: () => onAddPractice({
-                  title: `Test: ${selected.title.slice(0, 60)}`,
-                  description: `This practice tests the position: "${selected.statement}"`,
-                  type: 'experiment',
-                  status: 'planned',
-                  durationDays: 7,
-                  positionIds: [selected.id],
-                  conceptTags: selected.tags || [],
-                  sourceIds: selected.sourceIds || [],
-                }),
-              },
-              {
-                label: 'Mark Challenged',
-                tone: 'challenge',
-                disabled: selected.status === 'challenged',
-                onClick: () => onUpdateEntry({
-                  ...selected,
-                  status: 'challenged',
-                  versionHistory: [
-                    ...(selected.versionHistory || []),
-                    { date: today(), eventType: 'challenged', description: 'Marked as challenged for further examination.' },
-                  ],
-                  dateUpdated: today(),
-                }),
-              },
-              {
-                label: 'Mark Revised',
-                disabled: selected.status === 'revised',
-                onClick: () => onUpdateEntry({
-                  ...selected,
-                  status: 'revised',
-                  versionHistory: [
-                    ...(selected.versionHistory || []),
-                    { date: today(), eventType: 'revised', description: 'Marked as revised after reflection.' },
-                  ],
-                  dateUpdated: today(),
-                }),
-              },
-              {
-                label: 'Reject',
-                tone: 'challenge',
-                disabled: selected.status === 'rejected',
-                description: 'Mark this position as rejected after examination.',
-                onClick: () => onUpdateEntry({
-                  ...selected,
-                  status: 'rejected',
-                  versionHistory: [
-                    ...(selected.versionHistory || []),
-                    { date: today(), eventType: 'revised', description: 'Position rejected after examination.' },
-                  ],
-                  dateUpdated: today(),
-                }),
-              },
-            ]}
-          />
-        </div>
+        <details className="group rounded-2xl border border-border bg-card shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
+            <div>
+              <div className="text-sm font-semibold text-foreground">More tools</div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Evidence, objections, assumptions, relationships, stress tests, revision history, and status controls.</p>
+            </div>
+            <Triangle className="size-4 shrink-0 rotate-180 text-muted-foreground transition-transform group-open:rotate-0" />
+          </summary>
+          <div className="border-t border-border p-4 sm:p-5">
 
         <NextMoveCard
           className="mb-5"
@@ -1418,81 +1333,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               </div>
             </Card>
 
-            <div className="hidden">
-              <NextPhilosophicalActionPanel
-                status={selected.status}
-                title="Next Philosophical Action"
-                description="Positions are the center of gravity: support them, challenge them, express them, or test them."
-                actions={[
-                  {
-                    label: 'Raise Confidence',
-                    tone: 'support',
-                    disabled: confidencePercent(selected.confidence) >= 100,
-                    description: 'Increase confidence in this position.',
-                    onClick: () => onUpdateEntry({ ...selected, confidence: Math.min(100, confidencePercent(selected.confidence) + 10), dateUpdated: today() }),
-                  },
-                  {
-                    label: 'Lower Confidence',
-                    tone: 'challenge',
-                    disabled: confidencePercent(selected.confidence) <= 0,
-                    description: 'Decrease confidence and mark room for revision.',
-                    onClick: () => onUpdateEntry({ ...selected, confidence: Math.max(0, confidencePercent(selected.confidence) - 10), dateUpdated: today() }),
-                  },
-                  {
-                    label: 'Turn into Essay',
-                    description: 'Open this position as an essay draft.',
-                    onClick: () => onAddDraft({
-                      title: selected.title,
-                      body: `**Position:** ${selected.statement}\n\n**Reasoning:**\n${selected.description || ''}`,
-                      type: 'essay',
-                      status: 'seed',
-                      beliefIds: [selected.id],
-                      sourceIds: selected.sourceIds || [],
-                      conceptTags: selected.tags || [],
-                    }),
-                  },
-                  {
-                    label: 'Start Practice',
-                    description: 'Create a behavioral experiment to test this position.',
-                    onClick: () => onAddPractice({
-                      title: `Test: ${selected.title.slice(0, 60)}`,
-                      description: `This practice tests the position: "${selected.statement}"`,
-                      type: 'experiment',
-                      status: 'planned',
-                      durationDays: 7,
-                      positionIds: [selected.id],
-                      conceptTags: selected.tags || [],
-                      sourceIds: selected.sourceIds || [],
-                    }),
-                  },
-                  {
-                    label: 'Open Inquiry',
-                    description: 'Turn pressure into a named question.',
-                    onClick: () => onAddQuestion({
-                      text: `What would revise: ${selected.title}?`,
-                      status: 'open',
-                      beliefIds: [selected.id],
-                      conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
-                      sourceIds: selected.sourceIds || [],
-                      evidenceIds: [],
-                    }),
-                  },
-                  {
-                    label: 'Mark Revised',
-                    disabled: selected.status === 'revised',
-                    onClick: () => onUpdateEntry({
-                      ...selected,
-                      status: 'revised',
-                      versionHistory: [
-                        ...(selected.versionHistory || []),
-                        { date: today(), eventType: 'revised', description: 'Marked as revised after reflection.' },
-                      ],
-                      dateUpdated: today(),
-                    }),
-                  },
-                ]}
-              />
-            </div>
           </>
         )}
 
@@ -1781,6 +1621,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </div>
         )}
         
+          </div>
+        </details>
+
         <ConceptDetailDialog 
           name={conceptPopupName} 
           onClose={() => setConceptPopupName(null)}
