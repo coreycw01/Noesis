@@ -80,7 +80,7 @@ function buildPrompt(input: z.infer<typeof requestSchema>) {
 async function generateText(prompt: string) {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw new ApiError(503, 'Noesis assistance is not connected.', 'ai_not_configured');
-  const model = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').replace(/^googleai\//, '');
+  const model = (process.env.GEMINI_MODEL || 'gemini-3.8-flash').replace(/^googleai\//, '');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 45_000);
   try {
