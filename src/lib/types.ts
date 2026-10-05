@@ -273,6 +273,7 @@ export interface Question {
   answer?: string;
   whyItMatters?: string;
   currentIntuition?: string;
+  uncertainty?: string;
   investigationNotes?: Array<{
     id: string;
     text: string;

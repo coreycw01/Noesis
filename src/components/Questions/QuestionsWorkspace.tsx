@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, HelpCircle, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, HelpCircle, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,9 @@ import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import type { AiContextEnvelope } from '@/lib/contextual-ai';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
+  inquiryAiItemMemory,
   inquiryCandidateCount,
   inquiryFormation,
   inquiryFrameGaps,
@@ -489,7 +491,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   routeOwned?: boolean;
   initialSection?: 'investigation' | 'answer';
 }) {
-  const investigationRef = useRef<HTMLDivElement>(null);
   const answerRef = useRef<HTMLDivElement>(null);
   const [initialAnswer, setInitialAnswer] = useState(question.answer || '');
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -499,6 +500,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const [investigationDraft, setInvestigationDraft] = useState({
     whyItMatters: question.whyItMatters || '',
     currentIntuition: question.currentIntuition || '',
+    uncertainty: question.uncertainty || '',
     assumptionsText: (question.assumptions || []).join('\n'),
     resolutionSummary: question.resolutionSummary || '',
   });
@@ -506,7 +508,8 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const [evidenceDraft, setEvidenceDraft] = useState({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
   const [testDraft, setTestDraft] = useState({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
   React.useEffect(() => {
-    const target = initialSection === 'answer' ? answerRef.current : investigationRef.current;
+    if (initialSection !== 'answer') return;
+    const target = answerRef.current;
     const frame = window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     return () => window.cancelAnimationFrame(frame);
   }, [initialSection, question.id]);
@@ -515,6 +518,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     setInvestigationDraft({
       whyItMatters: question.whyItMatters || '',
       currentIntuition: question.currentIntuition || '',
+      uncertainty: question.uncertainty || '',
       assumptionsText: (question.assumptions || []).join('\n'),
       resolutionSummary: question.resolutionSummary || '',
     });
@@ -527,7 +531,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const recommendedBranch = branches.find((branch) => branch.state === 'active')
     || branches.find((branch) => branch.label === (inquiryNeedsEvidence(question) ? 'Investigate' : inquiryCandidateCount(question) > 1 ? 'Compare' : 'Clarify'))
     || branches[0];
-  const selectedBranch = branches.find((branch) => branch.label === selectedBranchLabel) || recommendedBranch || null;
+  const selectedBranch = branches.find((branch) => branch.label === selectedBranchLabel) || null;
   const primaryBranches = [recommendedBranch, ...branches.filter((branch) => branch.label !== recommendedBranch?.label)].filter(Boolean).slice(0, 3) as typeof branches;
   const moreBranches = branches.filter((branch) => !primaryBranches.some((primary) => primary.label === branch.label));
   const evidenceLanes = [
@@ -613,11 +617,10 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       ...question,
       whyItMatters: investigationDraft.whyItMatters.trim(),
       currentIntuition: investigationDraft.currentIntuition.trim(),
-      assumptions: investigationDraft.assumptionsText.split('\n').map((item) => item.trim()).filter(Boolean),
-      resolutionSummary: investigationDraft.resolutionSummary.trim(),
+      uncertainty: investigationDraft.uncertainty.trim(),
       dateUpdated: today(),
     });
-    onAiFeedback('Investigation frame saved.', 'The inquiry now has clearer stakes, intuition, assumptions, and resolution criteria.');
+    onAiFeedback('Context saved.', 'Your stakes, current view, and remaining uncertainty are now part of this inquiry.');
   };
 
   const saveClarifyBranch = () => {
@@ -625,6 +628,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       ...question,
       whyItMatters: investigationDraft.whyItMatters.trim(),
       currentIntuition: investigationDraft.currentIntuition.trim(),
+      uncertainty: investigationDraft.uncertainty.trim(),
       assumptions: investigationDraft.assumptionsText.split('\n').map((item) => item.trim()).filter(Boolean),
       status: 'clarifying',
       dateUpdated: today(),
@@ -769,14 +773,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     scope: 'linked_items',
     targetType: 'inquiry',
     targetId: question.id,
-    itemMemory: [
-      `Inquiry: ${question.text}`,
-      question.whyItMatters ? `Why it matters: ${question.whyItMatters}` : '',
-      question.currentIntuition ? `Current intuition: ${question.currentIntuition}` : '',
-      (question.assumptions || []).length ? `Assumptions: ${(question.assumptions || []).join('; ')}` : '',
-      (question.candidateAnswers || []).length ? `Candidate answers: ${(question.candidateAnswers || []).map((item) => item.statement).join('; ')}` : '',
-      question.answer ? `Current answer: ${question.answer}` : '',
-    ].filter(Boolean),
+    itemMemory: inquiryAiItemMemory(question),
     linkedMemory: [
       ...sources.slice(0, 8).map((source) => `Source: ${source.title} - ${source.description || source.capture?.after?.coreArgument || 'No summary'}`),
       ...beliefs.slice(0, 6).map((position) => `Position: ${position.statement || position.title}`),
@@ -820,52 +817,118 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
 
   return (
     <div className="flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body" data-noesis-scroll-region>
-      <Button variant="ghost" onClick={onBack} className="mb-5 h-9 text-[10px] font-code uppercase tracking-widest rounded-full hover:bg-muted/50">
-        <ArrowLeft className="size-4 mr-2" /> Back to Inquiries
-      </Button>
-      <div className="mb-5 flex justify-end">
-        <ContextualAiPanel
-          enabled={aiSettings.aiAssistanceEnabled}
-          showContextBeforeSending={aiSettings.showContextBeforeSending}
-          reasoningDepth={aiSettings.defaultReasoningDepth}
-          retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
-          actions={['socratic_inquiry_challenge']}
-          buildEnvelope={buildAiEnvelope}
-          buttonLabel="Socratic Challenge"
-          onAccept={(_result, content) => onUpdateQuestion({
-            ...question,
-            investigationNotes: [
-              ...(question.investigationNotes || []),
-              { id: crypto.randomUUID(), text: content, origin: 'ai-assisted', date: today() },
-            ],
-            dateUpdated: today(),
-          })}
-        />
-      </div>
-      <Card className="mb-5 rounded-2xl border border-accent/15 bg-card p-5 shadow-sm sm:p-7">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="rounded-full">{question.status.replace(/_/g, ' ')}</Badge>
-          {!!sources.length && <span className="text-xs text-muted-foreground">From {sources[0].title}</span>}
+      <header className="mb-6 border-b border-border/70 pb-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" onClick={onBack} className="h-9 rounded-full px-3 font-code text-[10px] uppercase tracking-widest hover:bg-muted/50">
+              <ArrowLeft className="mr-2 size-4" /> Back
+            </Button>
+            <Badge variant="outline" className="rounded-full capitalize">{question.status.replace(/_/g, ' ')}</Badge>
+            {!!sources.length && <span className="max-w-[260px] truncate text-xs text-muted-foreground">From {sources[0].title}</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <ContextualAiPanel
+              enabled={aiSettings.aiAssistanceEnabled}
+              showContextBeforeSending={aiSettings.showContextBeforeSending}
+              reasoningDepth={aiSettings.defaultReasoningDepth}
+              retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
+              actions={['socratic_inquiry_challenge']}
+              buildEnvelope={buildAiEnvelope}
+              buttonLabel="Socratic Challenge"
+              onAccept={(_result, content) => onUpdateQuestion({
+                ...question,
+                investigationNotes: [
+                  ...(question.investigationNotes || []),
+                  { id: crypto.randomUUID(), text: content, origin: 'ai-assisted', date: today() },
+                ],
+                dateUpdated: today(),
+              })}
+            />
+            {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="size-9 rounded-full" aria-label="Inquiry actions">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setDeleteOpen(true)} className="text-destructive focus:text-destructive">
+                    <Trash2 className="mr-2 size-4" /> Delete inquiry
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
-        <h1 className="noesis-page-title mt-4 max-w-5xl text-3xl sm:text-4xl">{question.text}</h1>
-        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(220px,.8fr)_minmax(220px,.8fr)]">
-          <div className="rounded-xl border border-border bg-background/65 p-4">
-            <div className="readex-kicker">Current answer</div>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{question.answer?.trim() || 'No leading answer has been written yet.'}</p>
+        <h1 className="noesis-page-title mt-5 max-w-5xl text-3xl leading-tight sm:text-4xl">{question.text}</h1>
+      </header>
+
+      <div className="mx-auto max-w-5xl space-y-5">
+        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+          <div className="mb-4">
+            <div className="readex-kicker">Your thinking</div>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">Socratic Challenge can start from the question alone. These optional fields make its challenge more precise without turning the inquiry into a worksheet.</p>
           </div>
-          <div className="rounded-xl border border-border bg-background/65 p-4">
-            <div className="readex-kicker">Strongest gap</div>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{strongestGap}</p>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor={`why-${question.id}`}>Why does this matter?</Label>
+              <Textarea id={`why-${question.id}`} value={investigationDraft.whyItMatters} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, whyItMatters: event.target.value }))} placeholder="Name the stakes, if useful." className="min-h-[108px]" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`view-${question.id}`}>What do you currently think?</Label>
+              <Textarea id={`view-${question.id}`} value={investigationDraft.currentIntuition} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, currentIntuition: event.target.value }))} placeholder="Your present view can be tentative." className="min-h-[108px]" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`uncertainty-${question.id}`}>What remains uncertain?</Label>
+              <Textarea id={`uncertainty-${question.id}`} value={investigationDraft.uncertainty} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, uncertainty: event.target.value }))} placeholder="Name the part you cannot settle yet." className="min-h-[108px]" />
+            </div>
           </div>
-          <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
-            <div className="readex-kicker text-accent">Recommended next move</div>
-            <p className="mt-2 text-sm leading-6 text-foreground">{recommendedMove}</p>
+          <div className="mt-4 flex justify-end">
+            <Button onClick={saveInvestigationFrame} className="rounded-full px-5">Save Context</Button>
           </div>
-        </div>
-      </Card>
+        </Card>
+
+        <Card ref={answerRef} className="scroll-mt-6 rounded-2xl border border-accent/20 bg-card p-5 shadow-sm sm:p-6">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="readex-kicker text-accent">Current answer</div>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Write the answer that leads right now. Saving it marks the inquiry provisionally answered, not permanently settled.</p>
+            </div>
+            {question.answer?.trim() && <Badge variant="outline" className="rounded-full">Saved</Badge>}
+          </div>
+          <Textarea value={initialAnswer} onChange={(event) => setInitialAnswer(event.target.value)} className="min-h-[180px] text-base leading-8" placeholder="What answer currently leads, and why does it remain revisable?" />
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground"><span className="font-medium text-foreground">Next:</span> {recommendedMove}</p>
+            <Button onClick={() => saveProvisionalAnswer('provisionally_answered')} disabled={!initialAnswer.trim()} className="rounded-full px-5">Save Answer</Button>
+          </div>
+        </Card>
+
+        {!!question.investigationNotes?.length && (
+          <details className="rounded-2xl border border-border bg-card px-5 py-4">
+            <summary className="cursor-pointer font-code text-[10px] uppercase tracking-widest text-muted-foreground">Reviewed challenge notes ({question.investigationNotes.length})</summary>
+            <div className="mt-4 space-y-3">
+              {question.investigationNotes.map((note) => (
+                <div key={note.id} className="rounded-xl border border-border/60 bg-background/60 p-4">
+                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{note.origin.replace('-', ' ')} · {note.date}</div>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{note.text}</p>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
+        <details className="group rounded-2xl border border-border bg-card shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
+            <div>
+              <div className="text-sm font-semibold text-foreground">More tools</div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Assumptions, evidence, candidate comparisons, tests, linked objects, resolution, and status.</p>
+            </div>
+            <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="border-t border-border p-4 sm:p-5">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
-          <Card ref={investigationRef} className="mb-5 scroll-mt-6 rounded-2xl border border-accent/10 bg-card p-4 shadow-sm sm:p-5">
+          <Card className="mb-5 rounded-2xl border border-accent/10 bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground/50">Inquiry Workbench</div>
@@ -873,17 +936,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{inquiryType}</Badge>
-                {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setDeleteOpen(true)}
-                    className="size-9 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    aria-label="Delete inquiry"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -956,29 +1008,14 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               </div>
             </div>
 
-            {!!question.investigationNotes?.length && (
-              <details className="mt-4 rounded-xl border border-border/40 bg-background/70 p-4">
-                <summary className="cursor-pointer font-code text-[9px] uppercase tracking-widest text-muted-foreground">
-                  Reviewed investigation notes ({question.investigationNotes.length})
-                </summary>
-                <div className="mt-3 space-y-3">
-                  {question.investigationNotes.map((note) => (
-                    <div key={note.id} className="rounded-lg border border-border/40 bg-card p-3">
-                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{note.origin.replace('-', ' ')} · {note.date}</div>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{note.text}</p>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
-
+            {selectedBranch ? (
             <div className="mt-4 rounded-2xl border border-accent/15 bg-accent/5 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Active workspace</div>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedBranch?.label || 'Recommended approach'}</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedBranch.label}</p>
                 </div>
-                <p className="max-w-xl text-xs leading-5 text-muted-foreground">{selectedBranch ? branchNextStep(selectedBranch.label) : 'Clarify, investigate, compare, or test. Each branch saves a real piece of inquiry work.'}</p>
+                <p className="max-w-xl text-xs leading-5 text-muted-foreground">{branchNextStep(selectedBranch.label)}</p>
               </div>
               {selectedBranch?.label === 'Clarify' && (
                 <div className="grid gap-3 lg:grid-cols-2">
@@ -1111,6 +1148,11 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                 </div>
               )}
             </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                Choose an approach above to open its focused workspace. Recommended: <span className="font-medium text-foreground">{recommendedBranch?.label}</span>.
+              </div>
+            )}
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {evidenceLanes.map((lane) => (
@@ -1214,32 +1256,11 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             </div>
           </Card>
 
-          <Card ref={answerRef} className="scroll-mt-6 space-y-6 rounded-2xl border border-accent/10 bg-card p-6 shadow-md sm:p-10">
-              <Badge variant="outline" className="font-code text-[10px] uppercase tracking-widest bg-muted/20 border-border/30 rounded-full px-4 py-1 font-bold">
-                {question.type || 'manual'}
-              </Badge>
-              <h1 className="noesis-page-title text-4xl">{question.text}</h1>
-              <p className="text-sm text-muted-foreground font-body leading-relaxed">Use this space only for the current leading answer. Dialogue can explore possibilities, but the inquiry record changes only when you save or resolve it.</p>
+          <Card className="rounded-2xl border border-accent/10 bg-card p-5 shadow-sm sm:p-6">
               <div>
-                <Label className="readex-kicker mb-2 block">LEADING CANDIDATE ANSWER</Label>
-                <Textarea
-                  value={initialAnswer}
-                  onChange={(e) => setInitialAnswer(e.target.value)}
-                  className="min-h-[260px] text-[18px] leading-9 font-body italic"
-                  placeholder="What answer currently leads, and why does it remain revisable?"
-                />
+                <div className="readex-kicker">Resolution and outcome</div>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Use these controls only when the current answer is ready for an explicit outcome.</p>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  onClick={() => saveProvisionalAnswer('provisionally_answered')}
-                  disabled={!initialAnswer.trim()}
-                  variant="outline"
-                  className="h-12 rounded-full px-6 font-bold"
-                >
-                  Adopt As Provisional Answer
-                </Button>
-              </div>
-
               {candidateAnswerCount > 0 && (
               <div className="rounded-2xl border border-border/50 bg-background/70 p-4">
                 <div className="mb-3">
@@ -1278,6 +1299,9 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                 </div>
               </div>
               )}
+              {candidateAnswerCount === 0 && (
+                <p className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">Save a current answer or add a candidate answer before choosing an outcome.</p>
+              )}
             </Card>
         </div>
 
@@ -1299,6 +1323,9 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           <ContextPanel title="Related Positions" items={beliefs.map((e) => e.title)} />
           <ContextPanel title="Linked Works" items={drafts.map((d) => d.title)} />
         </aside>
+      </div>
+          </div>
+        </details>
       </div>
       <ConfirmActionDialog
         open={deleteOpen}

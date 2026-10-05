@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   inquiryCandidateCount,
+  inquiryAiItemMemory,
   inquiryFormation,
   inquiryNeedsCandidateAnswers,
   inquirySourceIds,
@@ -43,4 +44,29 @@ test('suspended and provisionally answered inquiries are not active investigatio
   assert.equal(isInquiryActive(inquiry({ status: 'suspended' })), false);
   assert.equal(isInquiryActive(inquiry({ status: 'provisionally_answered' })), false);
   assert.equal(isInquiryActive(inquiry({ status: 'gathering_evidence' })), true);
+});
+
+test('question-only inquiries produce a valid bounded AI memory', () => {
+  assert.deepEqual(inquiryAiItemMemory(inquiry()), ['Inquiry: What should change?']);
+});
+
+test('AI memory includes saved context and advanced inquiry material', () => {
+  const memory = inquiryAiItemMemory(inquiry({
+    whyItMatters: 'It changes how I act.',
+    currentIntuition: 'I think restraint matters.',
+    uncertainty: 'I do not know when restraint becomes avoidance.',
+    assumptions: ['Action reveals commitment.'],
+    candidateAnswers: [{ id: 'c1', statement: 'Act despite uncertainty.' }],
+    answer: 'Begin with a reversible action.',
+  }));
+
+  assert.deepEqual(memory, [
+    'Inquiry: What should change?',
+    'Why it matters: It changes how I act.',
+    'Current view: I think restraint matters.',
+    'Remaining uncertainty: I do not know when restraint becomes avoidance.',
+    'Assumptions: Action reveals commitment.',
+    'Candidate answers: Act despite uncertainty.',
+    'Current answer: Begin with a reversible action.',
+  ]);
 });

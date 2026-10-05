@@ -84,3 +84,19 @@ export function inquiryNextMove(question: Question) {
   if (inquiryReadyToResolve(question)) return 'Write the resolution summary and choose an outcome.';
   return 'Continue developing the strongest unanswered part.';
 }
+
+export function inquiryAiItemMemory(question: Question) {
+  return [
+    `Inquiry: ${question.text}`,
+    question.whyItMatters?.trim() ? `Why it matters: ${question.whyItMatters.trim()}` : '',
+    question.currentIntuition?.trim() ? `Current view: ${question.currentIntuition.trim()}` : '',
+    question.uncertainty?.trim() ? `Remaining uncertainty: ${question.uncertainty.trim()}` : '',
+    (question.assumptions || []).some((item) => item.trim())
+      ? `Assumptions: ${(question.assumptions || []).filter((item) => item.trim()).join('; ')}`
+      : '',
+    (question.candidateAnswers || []).some((item) => item.statement.trim())
+      ? `Candidate answers: ${(question.candidateAnswers || []).filter((item) => item.statement.trim()).map((item) => item.statement.trim()).join('; ')}`
+      : '',
+    question.answer?.trim() ? `Current answer: ${question.answer.trim()}` : '',
+  ].filter(Boolean);
+}
