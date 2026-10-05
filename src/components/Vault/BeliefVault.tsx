@@ -981,7 +981,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           ...linkedQuestions.slice(0, 5).map((question) => `Inquiry: ${question.text} - ${question.answer || question.status}`),
           ...linkedPractices.slice(0, 5).map((practice) => `Practice: ${practice.title} - ${practice.observedOutcome || practice.status}`),
         ],
-        secondaryTarget: comparisonTarget ? {
+        secondaryTarget: action === 'compare_selected_positions' && comparisonTarget ? {
           targetType: 'position',
           targetId: comparisonTarget.id,
           label: comparisonTarget.title,
