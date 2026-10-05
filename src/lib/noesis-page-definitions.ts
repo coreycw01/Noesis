@@ -40,6 +40,7 @@ export type NoesisWorkspaceDataKey =
   | 'workspace'
   | 'workspaceSummary'
   | 'profileDocs'
+  | 'aiSettings'
   | 'allSettings';
 
 export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
@@ -179,27 +180,27 @@ export const NOESIS_PAGE_BY_VIEW = NOESIS_PAGE_DEFINITIONS.reduce((acc, page) =>
 export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDataKey[]> = {
   home: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'thinkingEvents', 'unknowns', 'goal'],
   atlas: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'atlasMaps', 'links', 'thinkingEvents', 'unknowns'],
-  concepts: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'links'],
-  questions: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
-  library: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links'],
+  concepts: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'links', 'aiSettings'],
+  questions: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
+  library: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'aiSettings'],
   'source-index': ['media', 'questions', 'vault', 'drafts', 'practices'],
-  annotations: ['media', 'concepts', 'questions', 'vault'],
-  vault: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns'],
+  annotations: ['media', 'concepts', 'questions', 'vault', 'aiSettings'],
+  vault: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns', 'aiSettings'],
   writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences'],
-  practices: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
-  evolution: ['media', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'thinkingMetrics'],
+  practices: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
+  evolution: ['media', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'aiSettings'],
   profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs'],
   goals: ['media', 'questions', 'vault', 'drafts', 'practices', 'goal'],
   settings: ['preferences', 'legacyProfile', 'workspace', 'allSettings'],
 };
 
 export const NOESIS_DETAIL_DATA_REQUIREMENTS: Record<NoesisRouteTargetType, NoesisWorkspaceDataKey[]> = {
-  concept: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
-  inquiry: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
-  source: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
-  position: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns'],
+  concept: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
+  inquiry: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
+  source: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
+  position: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns', 'aiSettings'],
   work: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences'],
-  practice: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links'],
+  practice: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
 };
 
 export const NOESIS_SHELL_SUMMARY_REQUIREMENTS: NoesisWorkspaceDataKey[] = [
@@ -240,6 +241,7 @@ export const NOESIS_DATA_REQUIREMENT_LABELS: Record<NoesisWorkspaceDataKey, stri
   workspace: 'Workspace',
   workspaceSummary: 'Workspace summary',
   profileDocs: 'Profile docs',
+  aiSettings: 'AI settings',
   allSettings: 'Settings',
 };
 

@@ -105,6 +105,7 @@ export function useNoesisWorkspaceData({
   const needsLegacyProfileDoc = routeNeedsData(effectiveRouteState, 'legacyProfile') || shellNeedsSummaryData('legacyProfile');
   const needsProfileDocs = routeNeedsData(effectiveRouteState, 'profileDocs');
   const needsAllSettings = routeNeedsData(effectiveRouteState, 'allSettings');
+  const needsAiSettings = routeNeedsData(effectiveRouteState, 'aiSettings') || needsAllSettings;
   const needsWorkspaceDoc = routeNeedsData(effectiveRouteState, 'workspace') || shellNeedsSummaryData('workspace');
   const thinkingEventsQuery = useMemo(
     () => isOfflineReviewPreview || !needsThinkingEvents
@@ -144,7 +145,7 @@ export function useNoesisWorkspaceData({
   const { data: settingsAccountDocLive, loading: settingsAccountLoadingLive } = useDoc<AccountSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsAccount as any);
   const { data: settingsAppearanceDocLive, loading: settingsAppearanceLoadingLive } = useDoc<AppearanceSettings>(isOfflineReviewPreview || !needsAppearanceDoc ? null : refs.settingsAppearance as any);
   const { data: settingsWorkspacePrefsDocLive, loading: settingsWorkspacePrefsLoadingLive } = useDoc<WorkspacePreferenceSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsWorkspace as any);
-  const { data: settingsAiDocLive, loading: settingsAiLoadingLive } = useDoc<AiSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsAi as any);
+  const { data: settingsAiDocLive, loading: settingsAiLoadingLive } = useDoc<AiSettings>(isOfflineReviewPreview || !needsAiSettings ? null : refs.settingsAi as any);
   const { data: settingsMetacognitionDocLive, loading: settingsMetacognitionLoadingLive } = useDoc<MetacognitionSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsMetacognition as any);
   const { data: settingsPrivacyDocLive, loading: settingsPrivacyLoadingLive } = useDoc<PrivacySettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsPrivacy as any);
   const { data: settingsDataDocLive, loading: settingsDataLoadingLive } = useDoc<DataSettings>(isOfflineReviewPreview || !needsAllSettings ? null : refs.settingsData as any);
@@ -190,6 +191,7 @@ export function useNoesisWorkspaceData({
     legacyProfile: isOfflineReviewPreview ? false : legacyProfileLoadingLive,
     workspace: isOfflineReviewPreview ? false : workspaceLoadingLive,
     profileDocs: isOfflineReviewPreview ? false : profileDocsLoading,
+    aiSettings: isOfflineReviewPreview ? false : settingsAiLoadingLive,
     allSettings: isOfflineReviewPreview ? false : settingsLoading,
     workspaceSummary: isOfflineReviewPreview ? false : workspaceSummaryLoadingLive,
   };
