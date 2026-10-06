@@ -11,7 +11,7 @@ const actions = [
   'suggest_annotation_effect', 'refine_concept_definition', 'clarify_concept_boundaries',
   'socratic_inquiry_challenge', 'find_position_assumptions',
   'generate_position_counterargument', 'identify_missing_position_evidence',
-  'stress_test_position', 'compare_selected_positions', 'synthesize_practice_outcome',
+  'compare_selected_positions', 'synthesize_practice_outcome',
   'synthesize_evolution_period',
 ] as const;
 
@@ -60,7 +60,6 @@ const instructions: Record<(typeof actions)[number], string> = {
   find_position_assumptions: 'Identify the hidden assumptions required by this position and explain why each matters.',
   generate_position_counterargument: 'Construct the strongest grounded counterargument to this exact position.',
   identify_missing_position_evidence: 'Identify the most important missing evidence and what would count as useful evidence.',
-  stress_test_position: 'Give falsification, prediction, opposite-case, and weakening-evidence tests for this position.',
   compare_selected_positions: 'Compare only the two selected positions: agreement, conflict, dependency, and a possible distinction.',
   synthesize_practice_outcome: 'Synthesize what the completed practice logs support, weaken, or leave unresolved. Do not overclaim causality.',
   synthesize_evolution_period: 'Summarize meaningful changes in the selected period, using only the supplied event records.',

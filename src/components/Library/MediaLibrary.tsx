@@ -439,8 +439,8 @@ export function MediaLibrary({
     
     return (
       <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
-        <header className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
             <button onClick={closeSelectedSource} className="font-code text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground flex items-center transition-colors">
               <ArrowLeft className="size-3 mr-2" /> LIBRARY
             </button>
@@ -449,7 +449,7 @@ export function MediaLibrary({
               {MEDIA_LABELS[selected.type]}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <ContextualAiPanel
               actions={['summarize_source', 'extract_source_claims', 'propose_inquiry_prompts']}
               enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
@@ -489,31 +489,31 @@ export function MediaLibrary({
               }}
             />
             <Select value={selected.status} onValueChange={(value) => updateSelected({ status: value as MediaStatus })}>
-              <SelectTrigger className="w-44 font-code text-[10px] uppercase h-9 bg-card shadow-sm border-border/60 rounded-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-36 sm:w-44 font-code text-[10px] uppercase h-9 bg-card shadow-sm border-border/60 rounded-full"><SelectValue /></SelectTrigger>
               <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{status}</SelectItem>)}</SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={() => openEditor(selected)} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-card rounded-full">EDIT</Button>
-            <Button variant="outline" size="sm" onClick={() => setDeleteTarget({ type: 'source', item: selected })} className="h-9 px-6 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-card rounded-full">DELETE</Button>
+            <Button variant="outline" size="sm" onClick={() => openEditor(selected)} className="h-9 px-4 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-card rounded-full">EDIT</Button>
+            <Button variant="outline" size="sm" onClick={() => setDeleteTarget({ type: 'source', item: selected })} className="h-9 px-4 font-code text-[10px] tracking-widest uppercase text-destructive border-destructive/20 hover:bg-destructive/10 shadow-sm bg-card rounded-full">DELETE</Button>
           </div>
         </header>
 
-        <div className="bg-card border border-border/50 rounded-xl p-8 mb-10 flex gap-10 shadow-sm">
-          <div className="size-56 bg-accent/5 rounded-lg shrink-0 flex items-center justify-center border border-border/30 overflow-hidden shadow-inner">
+        <div className="mb-6 flex flex-col gap-5 rounded-xl border border-border/50 bg-card p-5 shadow-sm sm:flex-row sm:p-6">
+          <div className="h-40 w-full shrink-0 overflow-hidden rounded-lg border border-border/30 bg-accent/5 shadow-inner sm:size-44">
             {selected.thumbnailUrl ? (
               <img src={selected.thumbnailUrl} alt={selected.title} className="w-full h-full object-cover" />
             ) : (
-              <div className="size-20 rounded bg-accent/10 flex items-center justify-center">
+              <div className="flex h-full w-full items-center justify-center bg-accent/10">
                 {React.createElement(MEDIA_ICONS_COMP[selected.type], { className: "size-10 text-accent/40" })}
               </div>
             )}
           </div>
-          <div className="flex-1">
-            <h1 className="noesis-page-title mb-3 text-4xl">{selected.title}</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="noesis-page-title mb-3 break-words text-3xl sm:text-4xl">{selected.title}</h1>
             <div className="flex items-center gap-4 mb-5">
               <span className="font-body text-xl italic text-muted-foreground">{selected.creator}</span>
               {selected.year && <span className="font-code text-xs text-muted-foreground/40 font-bold tracking-widest">{selected.year}</span>}
             </div>
-            <p className="font-body text-lg italic text-primary/80 mb-8 max-w-3xl leading-relaxed">
+            <p className="mb-5 max-w-3xl font-body text-base italic leading-relaxed text-primary/80 sm:text-lg">
               {selected.description || "A placeholder for the central thesis or importance of this scholarly source."}
             </p>
             <div className="flex flex-wrap gap-2.5">
@@ -534,7 +534,7 @@ export function MediaLibrary({
         </div>
 
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="bg-transparent border-b border-border/50 rounded-none h-14 w-full justify-start gap-10 p-0 mb-10">
+          <TabsList className="mb-6 h-14 w-full justify-start gap-5 overflow-x-auto rounded-none border-b border-border/50 bg-transparent p-0 sm:gap-8">
             <TabsTrigger value="overview" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">OVERVIEW</TabsTrigger>
             <TabsTrigger value="capture" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CAPTURE</TabsTrigger>
             <TabsTrigger value="annotations" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">ANNOTATIONS</TabsTrigger>

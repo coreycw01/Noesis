@@ -47,7 +47,7 @@ import type {
 
 export const REVIEW_ACCOUNT_EMAIL = 'noesisdev4@gmail.com';
 export const REVIEW_WORKSPACE_UID = 'DxhP1l3gE7SZFRgUKdLcI2AD9Nr2';
-export const DEMO_SEED_VERSION = 1;
+export const DEMO_SEED_VERSION = 2;
 
 export const REVIEW_FEATURE_FLAGS = {
   reviewMode: true,
@@ -1210,6 +1210,32 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     { id: 'p_community_feedback', title: 'Community feedback session', description: 'Present one live position to another person and ask what evidence they think is missing.', type: 'commitment', status: 'planned', durationDays: 30, startDate: iso(28), endDate: iso(58), conceptTags: ['Community', 'Truth', 'Care'], sourceIds: ['m_hooks'], questionIds: ['q_honest_community'], positionIds: ['v_community_honesty', 'v_worldview_editable'], draftIds: ['d_belief_biography'], notes: 'Designed to prevent private certainty from becoming sealed conviction.', logDates: [], dateCreated: iso(26), dateUpdated: iso(26) },
     { id: 'p_belief_challenge', title: 'Weekly belief challenge', description: 'Choose one live position each week and write the strongest case against it.', type: 'reflection_prompt', status: 'active', durationDays: 28, startDate: iso(24), endDate: iso(52), conceptTags: ['Truth', 'Humility', 'Practice'], sourceIds: ['m_nietzsche', 'm_hooks'], questionIds: ['q_belief_worth_keeping'], positionIds: ['v_worldview_editable', 'v_practice_before_claim'], draftIds: ['d_belief_biography'], notes: 'This is the main anti-decorative-philosophy practice in the demo workspace.', logDates: [iso(24), iso(25)], dateCreated: iso(24), dateUpdated: iso(26) }
   );
+
+  const conceptNamesById = new Map(concepts.map((concept) => [concept.id, concept.name]));
+  const positionTitlesById = new Map(vault.map((position) => [position.id, position.title]));
+  const sourceTitlesById = new Map(media.map((source) => [source.id, source.title]));
+
+  questions.forEach((question) => {
+    const conceptNames = question.conceptIds
+      .map((conceptId) => conceptNamesById.get(conceptId))
+      .filter((name): name is string => Boolean(name));
+    const sourceNames = (question.sourceIds || [])
+      .map((sourceId) => sourceTitlesById.get(sourceId))
+      .filter((name): name is string => Boolean(name));
+    const positionTitle = (question.beliefIds || [])
+      .map((positionId) => positionTitlesById.get(positionId))
+      .find((title): title is string => Boolean(title));
+    const conceptPhrase = conceptNames.length > 1
+      ? `${conceptNames.slice(0, -1).join(', ')} and ${conceptNames.at(-1)}`
+      : conceptNames[0] || 'the connected ideas';
+    const sourcePhrase = sourceNames.length > 1
+      ? `${sourceNames.slice(0, -1).join(' and ')} and ${sourceNames.at(-1)}`
+      : sourceNames[0] || 'the linked evidence';
+
+    question.whyItMatters ||= `This inquiry tests how ${conceptPhrase} should shape ${positionTitle ? `the position “${positionTitle}”` : 'the next judgment'} instead of remaining an abstract concern.`;
+    question.currentIntuition ||= question.answer || `The working view is that ${conceptPhrase} should be examined in relation to lived consequences before a conclusion is adopted.`;
+    question.uncertainty ||= `It remains unclear whether ${sourcePhrase} support a durable conclusion or only a context-specific interpretation.`;
+  });
 
   practices.forEach((practice) => {
     practice.intellectualBasis ||= 'Tests whether the linked position or inquiry survives contact with repeated action.';

@@ -999,20 +999,12 @@ export function AnnotationsIndex({
                   </summary>
                   <div className="mt-3 space-y-3">
                     <Textarea value={editing.text} onChange={(event) => setEditing((prev) => prev ? { ...prev, text: event.target.value } : prev)} className="min-h-[120px]" />
-                    <div className="grid grid-cols-2 gap-3">
+                    <div>
                       <Select value={annotationType(editing)} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, type: value as AnnotationType } : prev)}>
                         <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {ANNOTATION_TYPES.map((type) => (
                             <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select value={annotationStatus(editing)} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, philosophyStatus: value as AnnotationPhilosophyStatus } : prev)}>
-                        <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {ANNOTATION_STATUSES.map((status) => (
-                            <SelectItem key={status.id} value={status.id}>{status.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1088,14 +1080,17 @@ export function AnnotationsIndex({
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-border bg-card p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
+              <details className="rounded-2xl border border-border bg-card p-4">
+                <summary className="cursor-pointer list-none">
+                <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Connections</div>
-                    <p className="mt-1 text-xs text-muted-foreground">What this annotation currently touches.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Concept tags and the objects this annotation currently touches.</p>
                   </div>
                   <Badge variant="outline" className="rounded-full">{Math.max(0, connectionsForAnnotation(editing).reduce((total, group) => total + group.items.length, 0) - 1)} links</Badge>
                 </div>
+                </summary>
+                <div className="mt-4">
                 <div className="space-y-2">
                   {connectionsForAnnotation(editing).map((group) => (
                     <div key={group.label} className="grid gap-2 rounded-xl border border-border/40 bg-background/70 p-3 sm:grid-cols-[120px_1fr]">
@@ -1117,7 +1112,8 @@ export function AnnotationsIndex({
                     onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
                   />
                 </div>
-              </section>
+                </div>
+              </details>
 
               <details className="rounded-2xl border border-border bg-card p-4">
                 <summary className="cursor-pointer list-none font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
