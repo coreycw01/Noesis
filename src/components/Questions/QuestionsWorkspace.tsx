@@ -409,56 +409,50 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
   );
 }
 
-function inferInquiryType(question: Question, concepts: string[], sources: Media[]) {
-  const text = question.text.toLowerCase();
-  if (/\bshould\b|\bought\b|\bright\b|\bwrong\b|\bmoral\b|\bethic/.test(text)) return 'normative';
-  if (/\bmean\b|\bdefinition\b|\bwhat is\b|\bconcept\b/.test(text)) return 'conceptual';
-  if (/\bhow do i\b|\bpractice\b|\bact\b|\bapply\b/.test(text)) return 'practical';
-  if (/\bwho am i\b|\bmeaning\b|\bdeath\b|\bpurpose\b|\bexist/.test(text)) return 'existential';
-  if (sources.length > 0 && concepts.length > 0) return 'mixed';
-  return 'open';
-}
+type InquiryTool = 'Clarify question' | 'Add evidence' | 'Compare answers' | 'Test in practice' | 'Develop a work' | 'Decide outcome';
 
-function investigationBranches(question: Question, concepts: string[], sources: Media[], beliefs: VaultEntry[], drafts: Draft[], practices: Practice[]) {
-  const branches = [
-    {
-      label: 'Investigate',
-      state: sources.length || (question.candidateAnswers || []).some((candidate) => candidate.support || candidate.objection) ? 'active' : 'needed',
-      detail: sources.length ? `${sources.length} source${sources.length === 1 ? '' : 's'} connected.` : 'Add support, challenge, context, or an unknown.',
-    },
-    {
-      label: 'Compare',
-      state: beliefs.length > 1 ? 'active' : beliefs.length === 1 ? 'available' : 'needed',
-      detail: (question.candidateAnswers || []).length > 1 ? `${question.candidateAnswers?.length} candidate answers can be compared.` : 'Add another candidate answer before comparing.',
-    },
-    {
-      label: 'Test',
-      state: practices.length ? 'active' : question.answer ? 'available' : 'needed',
-      detail: practices.length ? `${practices.length} linked practice${practices.length === 1 ? '' : 's'} testing this inquiry.` : 'Turn a prediction into a practice or observation.',
-    },
-    {
-      label: 'Expand',
-      state: drafts.length ? 'active' : question.answer ? 'available' : 'needed',
-      detail: drafts.length ? `${drafts.length} linked work${drafts.length === 1 ? '' : 's'} developing this inquiry.` : 'Develop the inquiry as writing, a note, drawing, or recording.',
-    },
-  ];
-  if (question.answer) {
-    branches.push({
-      label: 'Resolution Review',
-      state: question.status === 'resolved' ? 'active' : 'available',
-      detail: question.status === 'resolved' ? 'This inquiry has a stored resolution summary.' : 'Review whether the provisional answer is strong enough to resolve.',
-    });
-  }
-  return branches;
-}
+const INQUIRY_TOOL_COPY: Record<InquiryTool, { description: string; instruction: string }> = {
+  'Clarify question': {
+    description: 'Name one term or assumption that needs to be clearer.',
+    instruction: 'Write the term or assumption you need to make explicit.',
+  },
+  'Add evidence': {
+    description: 'Save one source, observation, counterexample, or unknown.',
+    instruction: 'Write what you found, then say whether it supports or challenges the inquiry.',
+  },
+  'Compare answers': {
+    description: 'Put possible answers beside each other before choosing one.',
+    instruction: 'Write one possible answer. Support and objection are optional, but useful.',
+  },
+  'Test in practice': {
+    description: 'Turn the question into a concrete action or observation.',
+    instruction: 'Say what you want to learn and what you will do or observe.',
+  },
+  'Develop a work': {
+    description: 'Explore this question through writing, a note, a drawing, or a recording.',
+    instruction: 'Create a new Work or attach one you already started.',
+  },
+  'Decide outcome': {
+    description: 'Choose an honest next status after you have written an answer.',
+    instruction: 'Add a short summary, then choose the outcome that best fits right now.',
+  },
+};
 
-function branchNextStep(label: string) {
-  if (label === 'Investigate') return 'Add one evidence record and separate direction from reliability.';
-  if (label === 'Compare') return 'Put candidate answers beside each other and name the real difference.';
-  if (label === 'Test') return 'Design one action, observation, conversation, or research test.';
-  if (label === 'Expand') return 'Develop this inquiry in a linked Work without treating the Work as a test.';
-  if (label === 'Resolution Review') return 'Decide whether the answer should be provisional, suspended, transformed, or resolved.';
-  return 'Choose the next concrete investigation move.';
+function investigationTools(question: Question, drafts: Draft[], practices: Practice[]) {
+  const tools: InquiryTool[] = ['Clarify question', 'Add evidence', 'Compare answers', 'Test in practice', 'Develop a work'];
+  if (question.answer?.trim()) tools.push('Decide outcome');
+  const recommended: InquiryTool = inquiryNeedsEvidence(question)
+    ? 'Add evidence'
+    : inquiryCandidateCount(question) < 2
+      ? 'Compare answers'
+      : practices.length === 0
+        ? 'Test in practice'
+        : drafts.length === 0
+          ? 'Develop a work'
+          : question.answer?.trim()
+            ? 'Decide outcome'
+            : 'Clarify question';
+  return { tools, recommended };
 }
 
 function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, drafts, practices, availableDrafts, availablePractices, onBack, onUpdateQuestion, onDeleteQuestion, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, onAiFeedback, routeOwned = false, initialSection = 'investigation' }: {
@@ -488,7 +482,8 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const answerRef = useRef<HTMLDivElement>(null);
   const [initialAnswer, setInitialAnswer] = useState(question.answer || '');
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [selectedBranchLabel, setSelectedBranchLabel] = useState('');
+  const [selectedTool, setSelectedTool] = useState<InquiryTool | null>(null);
+  const [clarificationDraft, setClarificationDraft] = useState('');
   const [existingPracticeId, setExistingPracticeId] = useState('');
   const [existingWorkId, setExistingWorkId] = useState('');
   const [investigationDraft, setInvestigationDraft] = useState({
@@ -514,75 +509,15 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       uncertainty: question.uncertainty || '',
       resolutionSummary: question.resolutionSummary || '',
     });
+    setClarificationDraft('');
     setCandidateDraft({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
     setEvidenceDraft({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
     setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
   }, [question.id]);
-  const inquiryType = inferInquiryType(question, concepts, sources);
-  const branches = investigationBranches(question, concepts, sources, beliefs, drafts, practices);
-  const recommendedBranch = branches.find((branch) => branch.state === 'active')
-    || branches.find((branch) => branch.label === (inquiryNeedsEvidence(question) ? 'Investigate' : inquiryCandidateCount(question) > 1 ? 'Compare' : 'Clarify'))
-    || branches[0];
-  const selectedBranch = branches.find((branch) => branch.label === selectedBranchLabel) || null;
-  const primaryBranches = [recommendedBranch, ...branches.filter((branch) => branch.label !== recommendedBranch?.label)].filter(Boolean).slice(0, 3) as typeof branches;
-  const moreBranches = branches.filter((branch) => !primaryBranches.some((primary) => primary.label === branch.label));
-  const evidenceLanes = [
-    {
-      label: 'Supports candidate answer',
-      items: [
-        ...sources.slice(0, 4).map((source) => source.title),
-        ...beliefs.filter((belief) => (belief.evidenceFor || []).length > 0).slice(0, 3).map((belief) => belief.title),
-      ],
-    },
-    {
-      label: 'Challenges candidate answer',
-      items: beliefs.filter((belief) => (belief.evidenceAgainst || []).length > 0 || belief.status === 'challenged').slice(0, 4).map((belief) => belief.title),
-    },
-    {
-      label: 'Unresolved / needs verification',
-      items: [
-        ...(!question.answer ? ['No provisional answer has been written yet.'] : []),
-        ...(sources.length === 0 ? ['No evidence source is linked yet.'] : []),
-        ...(beliefs.length === 0 ? ['No candidate position has formed from this inquiry.'] : []),
-      ],
-    },
-  ];
-  const storedAssumptions = question.assumptions || [];
-  const assumptions = storedAssumptions.length ? storedAssumptions : [
-    concepts.length ? `The key terms are stable enough to investigate: ${concepts.slice(0, 3).join(', ')}.` : 'The question needs at least one named concept before its terms are stable.',
-    sources.length ? 'The connected sources are relevant enough to count as evidence.' : 'The inquiry can progress without outside evidence for now.',
-    question.answer ? 'The provisional answer is worth stress-testing instead of only expanding.' : 'Progress requires a first answer, even if it is rough.',
-  ];
+  const { tools, recommended } = investigationTools(question, drafts, practices);
   const candidateAnswers = question.candidateAnswers || [];
   const candidateAnswerCount = inquiryCandidateCount(question);
-  const definedTerms = (question.assumptions || []).filter((item) => item.includes(':') || item.includes(' means '));
-  const inquiryGaps = inquiryFrameGaps(question);
-  const strongestGap = inquiryGaps.includes('evidence')
-    ? 'No evidence has been connected.'
-    : candidateAnswerCount === 0
-      ? 'No candidate answer has been written.'
-      : candidateAnswerCount < 2
-      ? 'Only one candidate answer is visible.'
-      : !candidateAnswers.some((candidate) => candidate.objection?.trim())
-        ? 'No serious challenge has been recorded.'
-        : practices.length === 0
-          ? 'No lived test or observation has been created.'
-          : drafts.length === 0
-            ? 'No Work has been linked for deeper expression.'
-          : 'Ready for a sharper resolution decision.';
-  const recommendedMove = inquiryGaps.includes('evidence')
-    ? 'Investigate: add one strong source, observation, or counterexample.'
-    : candidateAnswerCount === 0
-      ? 'Write answer: draft the first plausible response without treating it as final.'
-      : candidateAnswerCount < 2
-      ? 'Compare: add a competing answer before resolving.'
-      : !candidateAnswers.some((candidate) => candidate.objection?.trim())
-        ? 'Investigate: add a credible challenge to the leading answer.'
-        : practices.length === 0
-          ? 'Test: turn the inquiry into a concrete experiment or research action.'
-          : drafts.length === 0
-            ? 'Expand: develop the inquiry in a Work without treating it as evidence.'
-            : 'Adopt a provisional answer or resolve honestly.';
+  const recommendedMove = INQUIRY_TOOL_COPY[recommended].description;
 
   const saveProvisionalAnswer = (status: Question['status'] = 'provisionally_answered') => {
     if (!initialAnswer.trim()) {
@@ -613,6 +548,21 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       dateUpdated: today(),
     });
     onAiFeedback('Context saved.', 'Your stakes, current view, and remaining uncertainty are now part of this inquiry.');
+  };
+
+  const addClarification = () => {
+    const clarification = clarificationDraft.trim();
+    if (!clarification) {
+      onAiFeedback('Clarification required', 'Name one term or assumption before saving it.', 'destructive');
+      return;
+    }
+    onUpdateQuestion({
+      ...question,
+      assumptions: Array.from(new Set([...(question.assumptions || []), clarification])),
+      dateUpdated: today(),
+    });
+    setClarificationDraft('');
+    onAiFeedback('Clarification saved.', 'This term or assumption is now part of the inquiry record.');
   };
 
   const addCandidateAnswer = () => {
@@ -673,7 +623,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   };
 
   const createTestRecord = () => {
-    if (!testDraft.title.trim() && !testDraft.method.trim()) {
+    if (!testDraft.tested.trim() || !testDraft.method.trim()) {
       onAiFeedback('Test required', 'Name the test or describe what action, observation, conversation, or research would test this inquiry.', 'destructive');
       return;
     }
@@ -741,10 +691,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const updateInvestigationStatus = (status: Question['status']) => {
     onUpdateQuestion({ ...question, status, dateUpdated: today() });
     onAiFeedback('Inquiry status updated.', `Marked as ${status.replace(/_/g, ' ')}.`);
-  };
-
-  const chooseBranch = (branch: ReturnType<typeof investigationBranches>[number]) => {
-    setSelectedBranchLabel(branch.label);
   };
 
   const buildAiEnvelope = (): AiContextEnvelope => ({
@@ -900,380 +846,129 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
             <div>
               <div className="text-sm font-semibold text-foreground">More tools</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">Assumptions, evidence, candidate comparisons, tests, linked objects, resolution, and status.</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose one focused action when you are ready to take the inquiry further.</p>
             </div>
             <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
           </summary>
           <div className="border-t border-border p-4 sm:p-5">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div>
-          <Card className="mb-5 rounded-2xl border border-accent/10 bg-card p-4 shadow-sm sm:p-5">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground/50">Inquiry Workbench</div>
-                <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Choose the next intellectual move this question needs, then add the minimum useful record.</p>
+            <section className="rounded-xl border border-accent/20 bg-accent/5 p-4">
+              <div className="readex-kicker text-accent">Recommended next step</div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                <p className="max-w-2xl text-sm leading-6 text-foreground">{INQUIRY_TOOL_COPY[recommended].description}</p>
+                <Button onClick={() => setSelectedTool(recommended)} className="rounded-full px-4">Open {recommended}</Button>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{inquiryType}</Badge>
-              </div>
-            </div>
+            </section>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-3 font-bold">Recommended approach</div>
-                <div className="grid gap-2">
-                  {primaryBranches.map((branch, index) => (
-                    <div key={branch.label} className={cn(
-                      'rounded-lg border bg-card px-3 py-2 transition-colors',
-                      selectedBranch?.label === branch.label ? 'border-accent/50 bg-accent/5' : 'border-border/30'
-                    )}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-medium text-foreground/80">{branch.label}{index === 0 ? ' · Recommended' : ''}</div>
-                        <span className={cn(
-                          'rounded-full px-2 py-0.5 font-code text-[8px] uppercase tracking-widest',
-                          branch.state === 'active' ? 'bg-accent/10 text-accent' : branch.state === 'available' ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'
-                        )}>{branch.state}</span>
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{branch.detail}</p>
-                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-[11px] leading-5 text-muted-foreground">{branchNextStep(branch.label)}</p>
-                        <Button
-                          size="sm"
-                          variant={selectedBranch?.label === branch.label ? 'default' : 'outline'}
-                          onClick={() => chooseBranch(branch)}
-                          className="h-7 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
-                        >
-                          {selectedBranch?.label === branch.label ? 'Chosen' : 'Choose'}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  {!!moreBranches.length && (
-                    <details className="rounded-lg border border-border/30 bg-card px-3 py-2">
-                      <summary className="cursor-pointer font-code text-[9px] uppercase tracking-widest text-muted-foreground">More approaches</summary>
-                      <div className="mt-3 grid gap-2">
-                        {moreBranches.map((branch) => (
-                          <button key={branch.label} type="button" onClick={() => chooseBranch(branch)} className="rounded-lg border border-border/40 p-3 text-left hover:border-accent/40 hover:bg-accent/5">
-                            <span className="text-sm font-medium text-foreground">{branch.label}</span>
-                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">{branchNextStep(branch.label)}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </details>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {tools.map((tool) => (
+                <button
+                  key={tool}
+                  type="button"
+                  onClick={() => setSelectedTool(tool)}
+                  className={cn(
+                    'min-h-20 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    selectedTool === tool ? 'border-accent bg-accent/10' : 'border-border bg-background/60 hover:border-accent/50 hover:bg-accent/5'
                   )}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
-                <details>
-                  <summary className="cursor-pointer list-none">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">Assumptions</div>
-                        <p className="mt-1 text-sm font-medium text-foreground">{assumptions.length} to examine</p>
-                      </div>
-                      <Badge variant="outline" className="rounded-full text-[9px]">Expand</Badge>
-                    </div>
-                  </summary>
-                  <ul className="mt-3 space-y-2">
-                    {assumptions.map((assumption) => (
-                      <li key={assumption} className="flex gap-2 text-xs leading-5 text-muted-foreground">
-                        <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent" />
-                        {assumption}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              </div>
-            </div>
-
-            {selectedBranch ? (
-            <div className="mt-4 rounded-2xl border border-accent/15 bg-accent/5 p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Active workspace</div>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedBranch.label}</p>
-                </div>
-                <p className="max-w-xl text-xs leading-5 text-muted-foreground">{branchNextStep(selectedBranch.label)}</p>
-              </div>
-              {selectedBranch?.label === 'Investigate' && (
-                <div className="grid gap-3 lg:grid-cols-2">
-                  <div className="space-y-2 lg:col-span-2">
-                    <Label className="readex-kicker">Claim, observation, excerpt, or unknown</Label>
-                    <Textarea value={evidenceDraft.claim} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, claim: event.target.value }))} placeholder="What evidence or uncertainty should this inquiry now account for?" className="min-h-[90px]" />
-                  </div>
-                  <Input value={evidenceDraft.origin} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, origin: event.target.value }))} placeholder="Source or origin" />
-                  <Select value={evidenceDraft.candidateId || 'none'} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, candidateId: value === 'none' ? '' : value }))}>
-                    <SelectTrigger><SelectValue placeholder="Candidate answer affected" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Classify later</SelectItem>
-                      {candidateAnswers.map((candidate) => <SelectItem key={candidate.id} value={candidate.id}>{candidate.statement.slice(0, 72)}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Select value={evidenceDraft.direction} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, direction: value }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="supports">Supports</SelectItem>
-                      <SelectItem value="challenges">Challenges</SelectItem>
-                      <SelectItem value="contextualizes">Contextualizes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <Select value={evidenceDraft.type} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, type: value }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="source excerpt">Source excerpt</SelectItem>
-                        <SelectItem value="personal observation">Personal observation</SelectItem>
-                        <SelectItem value="counterexample">Counterexample</SelectItem>
-                        <SelectItem value="unknown">Unknown</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={evidenceDraft.strength} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, strength: value }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="weak">Weak</SelectItem><SelectItem value="moderate">Moderate</SelectItem><SelectItem value="strong">Strong</SelectItem></SelectContent>
-                    </Select>
-                    <Select value={evidenceDraft.reliability} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, reliability: value }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="low">Low reliability</SelectItem><SelectItem value="moderate">Moderate reliability</SelectItem><SelectItem value="high">High reliability</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2 lg:col-span-2">
-                    <Label className="readex-kicker">Notes</Label>
-                    <Textarea value={evidenceDraft.notes} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, notes: event.target.value }))} placeholder="Why this matters, limits, or what needs verification." className="min-h-[80px]" />
-                  </div>
-                  <div className="lg:col-span-2 flex justify-end"><Button onClick={addEvidenceRecord} className="rounded-full px-5">Add Evidence Record</Button></div>
-                </div>
-              )}
-              {selectedBranch?.label === 'Compare' && (
-                <div className="overflow-x-auto rounded-xl border border-border bg-card">
-                  <table className="w-full min-w-[760px] text-left text-sm">
-                    <thead className="bg-muted/30 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                      <tr><th className="p-3">Dimension</th>{candidateAnswers.slice(0, 3).map((candidate) => <th key={candidate.id} className="p-3">{candidate.statement.slice(0, 38)}</th>)}</tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40">
-                      {['Main claim', 'Strongest evidence', 'Main weakness', 'Assumptions required', 'Explains well', 'Fails to explain', 'Testability', 'Current confidence'].map((dimension) => (
-                        <tr key={dimension}>
-                          <td className="p-3 font-medium text-foreground">{dimension}</td>
-                          {candidateAnswers.slice(0, 3).map((candidate) => (
-                            <td key={`${candidate.id}-${dimension}`} className="p-3 text-muted-foreground">
-                              {dimension === 'Main claim' ? candidate.statement : dimension === 'Strongest evidence' ? candidate.support || 'Not recorded.' : dimension === 'Main weakness' ? candidate.objection || 'Not recorded.' : dimension === 'Current confidence' ? `${candidate.confidence || 3}/5` : candidate.consequence || 'Not recorded.'}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {candidateAnswerCount < 2 && <p className="p-4 text-sm text-muted-foreground">Add at least two candidate answers to make comparison meaningful.</p>}
-                </div>
-              )}
-              {selectedBranch?.label === 'Test' && (
-                <div className="grid gap-3 lg:grid-cols-2">
-                  <Input value={testDraft.title} onChange={(event) => setTestDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Test title" />
-                  <Input value={testDraft.reviewDate} onChange={(event) => setTestDraft((prev) => ({ ...prev, reviewDate: event.target.value }))} placeholder="Review date" />
-                  <Textarea value={testDraft.tested} onChange={(event) => setTestDraft((prev) => ({ ...prev, tested: event.target.value }))} placeholder="What is being tested?" className="min-h-[82px]" />
-                  <Textarea value={testDraft.method} onChange={(event) => setTestDraft((prev) => ({ ...prev, method: event.target.value }))} placeholder="What action, observation, conversation, or research would test it?" className="min-h-[82px]" />
-                  <Textarea value={testDraft.predictionA} onChange={(event) => setTestDraft((prev) => ({ ...prev, predictionA: event.target.value }))} placeholder="What would one answer predict?" className="min-h-[82px]" />
-                  <Textarea value={testDraft.predictionB} onChange={(event) => setTestDraft((prev) => ({ ...prev, predictionB: event.target.value }))} placeholder="What would another answer predict?" className="min-h-[82px]" />
-                  <div className="space-y-2 lg:col-span-2">
-                    <Label className="readex-kicker">Result, if known</Label>
-                    <Textarea value={testDraft.result} onChange={(event) => setTestDraft((prev) => ({ ...prev, result: event.target.value }))} placeholder="What happened, and what changed afterward?" className="min-h-[82px]" />
-                  </div>
-                  <div className="lg:col-span-2 flex flex-wrap justify-end gap-2"><Button onClick={createTestRecord} className="rounded-full px-5">Create Practice Test</Button></div>
-                  <div className="lg:col-span-2 rounded-xl border border-border/50 bg-background/70 p-3">
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Select value={existingPracticeId} onValueChange={setExistingPracticeId}>
-                        <SelectTrigger className="flex-1"><SelectValue placeholder="Link an existing practice" /></SelectTrigger>
-                        <SelectContent>
-                          {availablePractices.filter((item) => !(item.questionIds || []).includes(question.id)).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <Button variant="outline" onClick={linkExistingPractice} disabled={!existingPracticeId}>Link Practice</Button>
-                    </div>
-                    {!!practices.length && <div className="mt-3 flex flex-wrap gap-2">{practices.map((practice) => <Button key={practice.id} variant="ghost" size="sm" onClick={() => onOpenPractice(practice.id)}>Open: {practice.title}</Button>)}</div>}
-                  </div>
-                </div>
-              )}
-              {selectedBranch?.label === 'Expand' && (
-                <div className="space-y-3">
-                  <p className="text-sm leading-6 text-muted-foreground">Develop this inquiry as a creative Work. The inquiry remains open until you write and save an answer here.</p>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button onClick={createExpandedWork}>Create Work</Button>
-                    <Select value={existingWorkId} onValueChange={setExistingWorkId}>
-                      <SelectTrigger className="flex-1"><SelectValue placeholder="Link an existing work" /></SelectTrigger>
-                      <SelectContent>
-                        {availableDrafts.filter((item) => !(item.questionIds || []).includes(question.id)).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Button variant="outline" onClick={linkExistingWork} disabled={!existingWorkId}>Link Work</Button>
-                  </div>
-                  {!!drafts.length && <div className="flex flex-wrap gap-2">{drafts.map((work) => <Button key={work.id} variant="ghost" size="sm" onClick={() => onOpenWork(work.id)}>Open: {work.title}</Button>)}</div>}
-                </div>
-              )}
-            </div>
-            ) : (
-              <div className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-                Choose an approach above to open its focused workspace. Recommended: <span className="font-medium text-foreground">{recommendedBranch?.label}</span>.
-              </div>
-            )}
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {evidenceLanes.map((lane) => (
-                <div key={lane.label} className="rounded-xl border border-border/40 bg-background/70 p-4">
-                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">{lane.label}</div>
-                  <div className="space-y-2">
-                    {lane.items.length ? lane.items.slice(0, 4).map((item) => (
-                      <div key={item} className="rounded-lg border border-border/30 bg-card px-3 py-2 text-xs leading-5 text-muted-foreground">{item}</div>
-                    )) : (
-                      <p className="text-xs leading-5 text-muted-foreground">No items in this lane yet.</p>
-                    )}
-                  </div>
-                </div>
+                >
+                  <span className="block text-sm font-semibold text-foreground">{tool}</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{INQUIRY_TOOL_COPY[tool].description}</span>
+                </button>
               ))}
             </div>
-          </Card>
 
-          <Card className="mb-6 rounded-2xl border border-accent/10 bg-card p-6 shadow-sm">
-            <div className="mb-5">
-              <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/50">Candidate Answers</div>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">Keep possible answers visible, compare them honestly, and only adopt one provisionally when the inquiry has enough shape.</p>
-            </div>
-
-            <div className="mb-5 grid gap-3 md:grid-cols-3">
-              <div className="rounded-xl border border-border/40 bg-background/70 p-3">
-                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">What we have</div>
-                <p className="mt-1 text-sm text-foreground">{candidateAnswerCount} candidate answer{candidateAnswerCount === 1 ? '' : 's'} · {sources.length} sources · {definedTerms.length || storedAssumptions.length} clarified terms or assumptions</p>
-              </div>
-              <div className="rounded-xl border border-border/40 bg-background/70 p-3">
-                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">What is missing</div>
-                <p className="mt-1 text-sm text-foreground">{strongestGap}</p>
-              </div>
-              <div className="rounded-xl border border-border/40 bg-background/70 p-3">
-                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">What should happen next</div>
-                <p className="mt-1 text-sm text-foreground">{recommendedMove}</p>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border/40 bg-background/70 p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">Answer candidates</div>
-                  <p className="mt-1 text-sm text-muted-foreground">A candidate answer is not a final position. It is an explanation currently under test.</p>
+            {selectedTool && (
+              <section className="mt-4 rounded-xl border border-border bg-background/60 p-4">
+                <div className="mb-4">
+                  <div className="readex-kicker">{selectedTool}</div>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{INQUIRY_TOOL_COPY[selectedTool].instruction}</p>
                 </div>
-                <Badge variant="outline" className="rounded-full">{candidateAnswerCount} saved</Badge>
-              </div>
 
-              {candidateAnswers.length > 0 && (
-                <div className="mb-4 grid gap-3">
-                  {candidateAnswers.map((candidate) => (
-                    <div key={candidate.id} className="rounded-xl border border-border/40 bg-card p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{candidate.statement}</p>
-                          <div className="mt-2 grid gap-2 text-xs leading-5 text-muted-foreground md:grid-cols-3">
-                            <p><span className="font-semibold text-foreground/70">Support:</span> {candidate.support || 'Not named yet.'}</p>
-                            <p><span className="font-semibold text-foreground/70">Objection:</span> {candidate.objection || 'Not named yet.'}</p>
-                            <p><span className="font-semibold text-foreground/70">Consequence:</span> {candidate.consequence || 'Not named yet.'}</p>
-                          </div>
-                        </div>
-                        <button type="button" onClick={() => removeCandidateAnswer(candidate.id)} className="rounded-full border border-border px-2 py-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground hover:border-destructive/40 hover:text-destructive">
-                          Remove
-                        </button>
-                      </div>
+                {selectedTool === 'Clarify question' && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor={`clarify-${question.id}`}>Term or assumption to clarify</Label>
+                      <Textarea id={`clarify-${question.id}`} value={clarificationDraft} onChange={(event) => setClarificationDraft(event.target.value)} placeholder="For example: What does “growth” mean in this question?" className="min-h-[96px]" />
                     </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="grid gap-3">
-                <Textarea
-                  value={candidateDraft.statement}
-                  onChange={(event) => setCandidateDraft((prev) => ({ ...prev, statement: event.target.value }))}
-                  placeholder="Candidate answer statement"
-                  className="min-h-[80px]"
-                />
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Input value={candidateDraft.support} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, support: event.target.value }))} placeholder="Support" />
-                  <Input value={candidateDraft.objection} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, objection: event.target.value }))} placeholder="Objection" />
-                  <Input value={candidateDraft.consequence} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, consequence: event.target.value }))} placeholder="Consequence" />
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Confidence</span>
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setCandidateDraft((prev) => ({ ...prev, confidence: value }))}
-                        className={cn('size-7 rounded-full font-code text-[10px] font-bold', candidateDraft.confidence === value ? 'bg-accent text-accent-foreground' : 'bg-muted/30 text-muted-foreground')}
-                      >
-                        {value}
-                      </button>
-                    ))}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">{(question.assumptions || []).length} clarification{(question.assumptions || []).length === 1 ? '' : 's'} saved.</p>
+                      <Button onClick={addClarification} disabled={!clarificationDraft.trim()} className="rounded-full px-4">Save clarification</Button>
+                    </div>
+                    {(question.assumptions || []).length > 0 && (
+                      <div className="flex flex-wrap gap-2">{question.assumptions?.map((assumption) => <Badge key={assumption} variant="outline" className="max-w-full whitespace-normal text-left">{assumption}</Badge>)}</div>
+                    )}
                   </div>
-                  <Button type="button" variant="outline" onClick={addCandidateAnswer} disabled={!candidateDraft.statement.trim()} className="rounded-full px-5">
-                    Add Candidate Answer
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </Card>
+                )}
 
-          <Card className="rounded-2xl border border-accent/10 bg-card p-5 shadow-sm sm:p-6">
-              <div>
-                <div className="readex-kicker">Resolution and outcome</div>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">Use these controls only when the current answer is ready for an explicit outcome.</p>
-              </div>
-              {candidateAnswerCount > 0 && (
-              <div className="rounded-2xl border border-border/50 bg-background/70 p-4">
-                <div className="mb-3">
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">Resolve inquiry</div>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Resolve only when at least one candidate answer exists. Add a resolution summary in the chosen outcome when the question is answered, reframed, suspended, or abandoned.
-                  </p>
-                </div>
-                <div className="mb-3">
-                  <Label className="readex-kicker mb-2 block">RESOLUTION SUMMARY</Label>
-                  <Textarea
-                    value={investigationDraft.resolutionSummary}
-                    onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, resolutionSummary: event.target.value }))}
-                    placeholder="What evidence or reasoning mattered most? What remains uncertain?"
-                    className="min-h-[90px]"
-                  />
-                </div>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {RESOLUTION_OPTIONS.map((option) => (
-                    <button
-                      key={option.status}
-                      type="button"
-                      onClick={() => saveProvisionalAnswer(option.status)}
-                      disabled={!initialAnswer.trim()}
-                      className={cn(
-                        'rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-                        question.status === option.status
-                          ? 'border-accent bg-accent/10'
-                          : 'border-border bg-card hover:border-accent/40 hover:bg-accent/5'
-                      )}
-                    >
-                      <div className="font-code text-[9px] uppercase tracking-widest text-foreground/70 font-bold">{option.label}</div>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              )}
-              {candidateAnswerCount === 0 && (
-                <p className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">Save a current answer or add a candidate answer before choosing an outcome.</p>
-              )}
-            </Card>
-        </div>
+                {selectedTool === 'Add evidence' && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor={`evidence-${question.id}`}>What did you find?</Label>
+                      <Textarea id={`evidence-${question.id}`} value={evidenceDraft.claim} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, claim: event.target.value }))} placeholder="A source claim, observation, counterexample, or unanswered fact." className="min-h-[96px]" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>How does it affect this inquiry?</Label>
+                      <Select value={evidenceDraft.direction} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, direction: value }))}>
+                        <SelectTrigger aria-label="Evidence direction"><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="supports">Supports an answer</SelectItem><SelectItem value="challenges">Challenges an answer</SelectItem><SelectItem value="contextualizes">Adds context</SelectItem></SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`origin-${question.id}`}>Where is it from? <span className="font-normal text-muted-foreground">Optional</span></Label>
+                      <Input id={`origin-${question.id}`} value={evidenceDraft.origin} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, origin: event.target.value }))} placeholder="Source, conversation, or observation" />
+                    </div>
+                    {candidateAnswers.length > 0 && (
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>Which answer does it affect? <span className="font-normal text-muted-foreground">Optional</span></Label>
+                        <Select value={evidenceDraft.candidateId || 'none'} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, candidateId: value === 'none' ? '' : value }))}>
+                          <SelectTrigger><SelectValue placeholder="Leave unassigned for now" /></SelectTrigger>
+                          <SelectContent><SelectItem value="none">Leave unassigned for now</SelectItem>{candidateAnswers.map((candidate) => <SelectItem key={candidate.id} value={candidate.id}>{candidate.statement.slice(0, 72)}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <details className="md:col-span-2 rounded-lg border border-border/70 px-3 py-2">
+                      <summary className="cursor-pointer text-sm text-muted-foreground">Optional evidence details</summary>
+                      <div className="mt-3 grid gap-3 md:grid-cols-3">
+                        <Select value={evidenceDraft.type} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, type: value }))}><SelectTrigger aria-label="Evidence type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="source excerpt">Source excerpt</SelectItem><SelectItem value="personal observation">Personal observation</SelectItem><SelectItem value="counterexample">Counterexample</SelectItem><SelectItem value="unknown">Unknown</SelectItem></SelectContent></Select>
+                        <Select value={evidenceDraft.strength} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, strength: value }))}><SelectTrigger aria-label="Evidence strength"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="weak">Weak support</SelectItem><SelectItem value="moderate">Moderate support</SelectItem><SelectItem value="strong">Strong support</SelectItem></SelectContent></Select>
+                        <Select value={evidenceDraft.reliability} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, reliability: value }))}><SelectTrigger aria-label="Evidence reliability"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Low reliability</SelectItem><SelectItem value="moderate">Moderate reliability</SelectItem><SelectItem value="high">High reliability</SelectItem></SelectContent></Select>
+                      </div>
+                    </details>
+                    <div className="flex justify-end md:col-span-2"><Button onClick={addEvidenceRecord} disabled={!evidenceDraft.claim.trim()} className="rounded-full px-4">Save evidence</Button></div>
+                  </div>
+                )}
 
-        <aside className="space-y-5">
-          <ContextPanel title="Evidence Sources" items={sources.map((s) => s.title)} />
-          <ContextPanel title="Active Concepts" items={Array.from(new Set(concepts))} />
-          <ContextPanel title="Related Positions" items={beliefs.map((e) => e.title)} />
-          <ContextPanel title="Linked Works" items={drafts.map((d) => d.title)} />
-        </aside>
-      </div>
+                {selectedTool === 'Compare answers' && (
+                  <div className="space-y-4">
+                    {candidateAnswers.length > 0 && <div className="grid gap-2">{candidateAnswers.map((candidate) => <div key={candidate.id} className="rounded-lg border border-border bg-card p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-foreground">{candidate.statement}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{candidate.support ? `Support: ${candidate.support}` : 'No supporting reason recorded.'}{candidate.objection ? ` · Objection: ${candidate.objection}` : ''}</p></div><Button type="button" variant="ghost" size="sm" onClick={() => removeCandidateAnswer(candidate.id)} className="text-destructive hover:text-destructive">Remove</Button></div></div>)}</div>}
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-2 md:col-span-2"><Label htmlFor={`candidate-${question.id}`}>Possible answer</Label><Textarea id={`candidate-${question.id}`} value={candidateDraft.statement} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, statement: event.target.value }))} placeholder="One answer worth comparing, not a final conclusion." className="min-h-[88px]" /></div>
+                      <div className="space-y-2"><Label htmlFor={`candidate-support-${question.id}`}>Why might it be true? <span className="font-normal text-muted-foreground">Optional</span></Label><Input id={`candidate-support-${question.id}`} value={candidateDraft.support} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, support: event.target.value }))} placeholder="A reason or source" /></div>
+                      <div className="space-y-2"><Label htmlFor={`candidate-objection-${question.id}`}>What could be wrong with it? <span className="font-normal text-muted-foreground">Optional</span></Label><Input id={`candidate-objection-${question.id}`} value={candidateDraft.objection} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, objection: event.target.value }))} placeholder="A limitation or counterexample" /></div>
+                      <div className="space-y-2 md:col-span-2"><div className="flex items-center justify-between"><Label htmlFor={`candidate-confidence-${question.id}`}>How likely does this currently seem?</Label><span className="text-sm font-semibold text-foreground">{candidateDraft.confidence * 20}%</span></div><input id={`candidate-confidence-${question.id}`} type="range" min="1" max="5" step="1" value={candidateDraft.confidence} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, confidence: Number(event.target.value) }))} className="w-full accent-[hsl(var(--accent))]" aria-label="Candidate answer confidence" /></div>
+                    </div>
+                    <div className="flex justify-end"><Button onClick={addCandidateAnswer} disabled={!candidateDraft.statement.trim()} className="rounded-full px-4">Save possible answer</Button></div>
+                  </div>
+                )}
+
+                {selectedTool === 'Test in practice' && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2"><Label htmlFor={`test-question-${question.id}`}>What are you trying to learn?</Label><Textarea id={`test-question-${question.id}`} value={testDraft.tested} onChange={(event) => setTestDraft((prev) => ({ ...prev, tested: event.target.value }))} placeholder="The claim or pattern you want to test." className="min-h-[92px]" /></div>
+                    <div className="space-y-2"><Label htmlFor={`test-method-${question.id}`}>What will you do or observe?</Label><Textarea id={`test-method-${question.id}`} value={testDraft.method} onChange={(event) => setTestDraft((prev) => ({ ...prev, method: event.target.value }))} placeholder="One concrete action, observation, conversation, or research step." className="min-h-[92px]" /></div>
+                    <details className="md:col-span-2 rounded-lg border border-border/70 px-3 py-2"><summary className="cursor-pointer text-sm text-muted-foreground">Optional test details</summary><div className="mt-3 grid gap-3 md:grid-cols-2"><Input value={testDraft.title} onChange={(event) => setTestDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Practice name" /><Input value={testDraft.reviewDate} onChange={(event) => setTestDraft((prev) => ({ ...prev, reviewDate: event.target.value }))} placeholder="When will you review it?" /><Textarea value={testDraft.predictionA} onChange={(event) => setTestDraft((prev) => ({ ...prev, predictionA: event.target.value }))} placeholder="What would you expect to see?" /><Textarea value={testDraft.result} onChange={(event) => setTestDraft((prev) => ({ ...prev, result: event.target.value }))} placeholder="Result, if already known" /></div></details>
+                    <div className="flex flex-wrap justify-end gap-2 md:col-span-2"><Button onClick={createTestRecord} disabled={!testDraft.tested.trim() || !testDraft.method.trim()} className="rounded-full px-4">Create practice</Button></div>
+                    <div className="rounded-lg border border-border/70 p-3 md:col-span-2"><Label className="mb-2 block">Already have a practice?</Label><div className="flex flex-col gap-2 sm:flex-row"><Select value={existingPracticeId} onValueChange={setExistingPracticeId}><SelectTrigger className="flex-1"><SelectValue placeholder="Choose a practice to link" /></SelectTrigger><SelectContent>{availablePractices.filter((item) => !(item.questionIds || []).includes(question.id)).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select><Button variant="outline" onClick={linkExistingPractice} disabled={!existingPracticeId}>Link practice</Button></div></div>
+                  </div>
+                )}
+
+                {selectedTool === 'Develop a work' && (
+                  <div className="space-y-3"><div className="flex flex-col gap-2 sm:flex-row"><Button onClick={createExpandedWork}>Create a work</Button><Select value={existingWorkId} onValueChange={setExistingWorkId}><SelectTrigger className="flex-1"><SelectValue placeholder="Or choose a work to link" /></SelectTrigger><SelectContent>{availableDrafts.filter((item) => !(item.questionIds || []).includes(question.id)).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select><Button variant="outline" onClick={linkExistingWork} disabled={!existingWorkId}>Link work</Button></div>{drafts.length > 0 && <p className="text-xs text-muted-foreground">Linked work: {drafts.map((work) => work.title).join(', ')}</p>}</div>
+                )}
+
+                {selectedTool === 'Decide outcome' && (
+                  <div className="space-y-3"><div className="space-y-2"><Label htmlFor={`resolution-${question.id}`}>What led you here?</Label><Textarea id={`resolution-${question.id}`} value={investigationDraft.resolutionSummary} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, resolutionSummary: event.target.value }))} placeholder="What mattered most, and what remains open?" className="min-h-[96px]" /></div><div className="grid gap-2 md:grid-cols-2">{RESOLUTION_OPTIONS.map((option) => <button key={option.status} type="button" onClick={() => saveProvisionalAnswer(option.status)} disabled={!initialAnswer.trim()} className={cn('rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50', question.status === option.status ? 'border-accent bg-accent/10' : 'border-border bg-card hover:border-accent/40 hover:bg-accent/5')}><div className="text-sm font-semibold text-foreground">{option.label}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</p></button>)}</div></div>
+                )}
+              </section>
+            )}
           </div>
         </details>
       </div>

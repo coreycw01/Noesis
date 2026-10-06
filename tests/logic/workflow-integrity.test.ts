@@ -55,3 +55,15 @@ test('the demo workspace never presents an incomplete practice as active', () =>
   ));
   assert.deepEqual(invalidActive, []);
 });
+
+test('the demo workspace populates focused inquiry context without inventing answers', () => {
+  const workspace = buildDemoWorkspace('demo-test-user');
+
+  for (const inquiry of workspace.questions) {
+    assert.ok(inquiry.whyItMatters?.trim(), `${inquiry.id} needs a stake`);
+    assert.ok(inquiry.currentIntuition?.trim(), `${inquiry.id} needs a current view`);
+    assert.ok(inquiry.uncertainty?.trim(), `${inquiry.id} needs a remaining uncertainty`);
+  }
+
+  assert.equal(workspace.questions.find((inquiry) => inquiry.id === 'q_comfort_growth')?.answer, '');
+});
