@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { Download, Copy, ArrowUpDown, ExternalLink, MessageSquare, Library } from 'lucide-react';
+import { Download, Copy, ArrowUpDown, ExternalLink, MessageSquare, Library, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,12 +11,15 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import type { Draft, Media, MediaStatus, MediaType, Practice, Question, VaultEntry } from '@/lib/types';
-import { MEDIA_LABELS, conceptKey } from '@/lib/readex';
+import { MEDIA_LABELS, MEDIA_STATUS_LABELS, conceptKey } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { inquirySourceIds } from '@/lib/inquiry-state';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { usePersistentView } from '@/hooks/use-persistent-view';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface SourceIndexProps {
   media: Media[];
@@ -43,7 +46,7 @@ function SourceIndexCover({ source }: { source: Media }) {
 type SourceIndexView = 'table' | 'covers' | 'timeline' | 'influence' | 'domains' | 'unfinished' | 'recent';
 type SortKey = 'creator' | 'dateAdded' | 'title' | 'year' | 'influence' | 'annotations' | 'connected' | 'progress';
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'creator_asc' | 'connected_desc' | 'influence_desc' | 'health_asc' | 'manual';
-type CatalogFilter = 'all' | 'missing_metadata' | 'no_annotations' | 'high_influence' | 'unfinished' | 'ready_to_cite';
+type CatalogFilter = 'all' | 'missing_metadata' | 'no_annotations' | 'high_influence' | 'unfinished' | 'recent';
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
 const PRIMARY_SOURCE_TYPE_FILTERS: MediaType[] = ['book', 'article', 'paper', 'video', 'podcast'];
@@ -58,6 +61,65 @@ const SOURCE_SORT_LABELS: Record<SortOption, string> = {
   health_asc: 'Catalog Health',
   manual: 'Column Sort',
 };
+
+const APA_MEDIA_LABELS: Partial<Record<MediaType, string>> = {
+  audiobook: 'Audiobook',
+  podcast: 'Audio podcast',
+  video: 'Video',
+  movie: 'Film',
+  course: 'Course',
+  lecture: 'Lecture',
+  documentary: 'Documentary',
+  interview: 'Interview',
+  conversation: 'Conversation',
+};
+
+function terminalPeriod(value: string) {
+  const trimmed = value.trim();
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function countLabel(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function sourceCreator(source: Media) {
+  const creators = (source.creators || []).map((creator) => creator.trim()).filter(Boolean);
+  if (creators.length) return creators.join(', ');
+  return source.creator?.trim() || 'Unknown author';
+}
+
+function creatorSortKey(source: Media) {
+  const firstCreator = (source.creators?.[0] || source.creator || 'Unknown author').trim();
+  const words = firstCreator.split(/\s+/).filter(Boolean);
+  return `${words.at(-1) || firstCreator} ${firstCreator}`.toLocaleLowerCase();
+}
+
+function publicationYear(source: Media) {
+  const year = source.year?.trim();
+  const bce = year?.match(/^-(\d+)$/);
+  if (bce) return `${bce[1]} BCE`;
+  return year || 'n.d.';
+}
+
+function sourceLocator(source: Media) {
+  if (source.doi) return source.doi.startsWith('http') ? source.doi : `https://doi.org/${source.doi.replace(/^doi:\s*/i, '')}`;
+  return source.url?.trim() || '';
+}
+
+function apaCitation(source: Media) {
+  const creator = sourceCreator(source);
+  const year = publicationYear(source);
+  const title = source.title.trim();
+  const mediaLabel = APA_MEDIA_LABELS[source.type];
+  const publisher = source.publisher?.trim() || source.platform?.trim() || '';
+  const locator = sourceLocator(source);
+  return [
+    `${creator} (${year}). ${mediaLabel ? `${title} [${mediaLabel}].` : terminalPeriod(title)}`,
+    publisher ? terminalPeriod(publisher) : '',
+    locator,
+  ].filter(Boolean).join(' ');
+}
 const HIGH_INFLUENCE_SCORE = 10;
 
 function sourceMetadataGaps(m: Media) {
@@ -117,7 +179,7 @@ function sourceCatalogState(m: Media) {
   if (health >= 80) {
     return {
       label: 'cataloged',
-      nextAction: 'Use as evidence or citation',
+    nextAction: 'Connect to a position or work',
       tone: 'stable' as const,
     };
   }
@@ -130,7 +192,7 @@ function sourceCatalogState(m: Media) {
 }
 
 export function SourceIndex({ media, vault, drafts, practices, questions, onOpenSource }: SourceIndexProps) {
-  const [view, setView] = useState<SourceIndexView>('table');
+  const [view, setView] = usePersistentView<SourceIndexView>('noesis:source-index-view', 'table', ['table', 'covers']);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<MediaType | 'all'>('all');
   const [filterStatus, setFilterStatus] = useState<MediaStatus | 'all'>('all');
@@ -139,6 +201,8 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
   const [sortKey, setSortKey] = useState<SortKey>('dateAdded');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [sortOption, setSortOption] = useState<SortOption>('date_desc');
+  const [exportPreviewOpen, setExportPreviewOpen] = useState(false);
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const { toast } = useToast();
 
   const previewSource = (source: Media) => {
@@ -229,7 +293,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           (catalogFilter === 'no_annotations' && (m.annotations || []).length === 0) ||
           (catalogFilter === 'high_influence' && influence >= HIGH_INFLUENCE_SCORE) ||
           (catalogFilter === 'unfinished' && ['Want to Read', 'Consuming', 'Paused'].includes(m.status)) ||
-          (catalogFilter === 'ready_to_cite' && sourceCatalogState(m).label === 'cataloged');
+          (catalogFilter === 'recent' && Date.now() - new Date(m.dateAdded || m.dateUpdated || '').getTime() <= 30 * 24 * 60 * 60 * 1000);
         const ids = Object.values(m.externalIds || {}).join(' ');
         const linkedPositions = vault.filter((entry) => (entry.sourceIds || []).includes(m.id));
         const linkedWorks = drafts.filter((draft) => (draft.sourceIds || []).includes(m.id));
@@ -371,16 +435,57 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
     }
   };
 
-  const copyCitation = (m: Media) => {
-    const citation = `${m.creator || 'Unknown'} (${m.year || 'n.d.'}). ${m.title}.${m.publisher ? ` ${m.publisher}.` : ''}`;
-    navigator.clipboard.writeText(citation);
-    toast({ title: "Citation Copied", description: "APA format ready for manuscript." });
+  const selectedSourceSet = new Set(selectedSourceIds);
+  const visibleSourceIds = sourceRows.map(({ source }) => source.id);
+  const allVisibleSelected = visibleSourceIds.length > 0 && visibleSourceIds.every((id) => selectedSourceSet.has(id));
+  const someVisibleSelected = visibleSourceIds.some((id) => selectedSourceSet.has(id));
+  const toggleSourceSelection = (sourceId: string) => {
+    setSelectedSourceIds((current) => current.includes(sourceId) ? current.filter((id) => id !== sourceId) : [...current, sourceId]);
+  };
+  const toggleVisibleSelection = () => {
+    setSelectedSourceIds((current) => {
+      const currentSet = new Set(current);
+      if (visibleSourceIds.length > 0 && visibleSourceIds.every((id) => currentSet.has(id))) {
+        return current.filter((id) => !visibleSourceIds.includes(id));
+      }
+      return Array.from(new Set([...current, ...visibleSourceIds]));
+    });
   };
 
-  const copyAllCitations = () => {
-    const citations = filtered.map(m => `${m.creator || 'Unknown'} (${m.year || 'n.d.'}). ${m.title}.${m.publisher ? ` ${m.publisher}.` : ''}`).join('\n');
-    navigator.clipboard.writeText(citations);
-    toast({ title: "Bibliography Copied", description: `${filtered.length} citations exported to clipboard.` });
+  const copyCitation = (m: Media) => {
+    const citation = apaCitation(m);
+    navigator.clipboard.writeText(citation);
+    toast({ title: 'Citation copied', description: 'APA-style entry ready for your references page.' });
+  };
+
+  const escapeBibtex = (value: string) => value.replace(/[{}]/g, '').replace(/([#%&_])/g, '\\$1');
+  const bibtexFor = (source: Media) => {
+    const key = `${(source.creator || 'source').split(/\s+/).at(-1)?.replace(/[^a-z0-9]/gi, '') || 'source'}${source.year || ''}`;
+    const type = source.type === 'book' ? 'book' : source.type === 'paper' ? 'article' : 'misc';
+    const fields = [
+      ['title', source.title], ['author', source.creator || (source.creators || []).join(' and ')],
+      ['year', source.year], ['publisher', source.publisher], ['url', source.url], ['doi', source.doi],
+    ].filter(([, value]) => Boolean(value)).map(([name, value]) => `  ${name} = {${escapeBibtex(String(value))}}`).join(',\n');
+    return `@${type}{${key},\n${fields}\n}`;
+  };
+  const exportSources = selectedSourceIds.length ? media.filter((source) => selectedSourceSet.has(source.id)) : filtered;
+  const bibliographySources = [...exportSources].sort((a, b) => creatorSortKey(a).localeCompare(creatorSortKey(b)) || publicationYear(a).localeCompare(publicationYear(b)) || a.title.localeCompare(b.title));
+  const citationPreview = `References\n\n${bibliographySources.map(apaCitation).join('\n\n')}`;
+  const bibtexPreview = bibliographySources.map(bibtexFor).join('\n\n');
+  const copyAllCitations = async () => {
+    await navigator.clipboard.writeText(citationPreview);
+    toast({ title: 'Bibliography copied', description: `${bibliographySources.length} entries copied.` });
+  };
+  const downloadBibtex = () => {
+    const blob = new Blob([bibtexPreview], { type: 'application/x-bibtex;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'noesis-sources.bib';
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setExportPreviewOpen(false);
+    toast({ title: 'BibTeX exported', description: `${bibliographySources.length} entries downloaded.` });
   };
 
   const clearFilters = () => {
@@ -400,7 +505,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
     catalogFilter !== 'all' ? `Catalog: ${catalogFilter.replace(/_/g, ' ')}` : null,
   ].filter(Boolean) as string[];
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+    <div className="noesis-page">
       <PageHeader
         title="Source Index"
         description="Browse, cite, and manage every source feeding your thinking."
@@ -412,10 +517,10 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         className="mb-5"
         actions={
           <>
-          <Button variant="outline" onClick={copyAllCitations} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
+          <Button variant="outline" onClick={() => setExportPreviewOpen(true)} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
             <Copy className="size-4 mr-2" /> COPY BIBLIOGRAPHY
           </Button>
-          <Button variant="outline" size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
+          <Button variant="outline" onClick={() => setExportPreviewOpen(true)} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
             <Download className="size-4 mr-2" /> EXPORT BIBTEX
           </Button>
           </>
@@ -451,7 +556,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             <SelectTrigger className="w-40 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all" className="font-code text-[10px] uppercase">Status: All</SelectItem>
-              {statuses.map(s => <SelectItem key={s} value={s} className="font-code text-[10px] uppercase">{s}</SelectItem>)}
+              {statuses.map(s => <SelectItem key={s} value={s} className="font-code text-[10px] uppercase">{MEDIA_STATUS_LABELS[s]}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterConcept} onValueChange={setFilterConcept}>
@@ -469,7 +574,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               <SelectItem value="no_annotations" className="font-code text-[10px] uppercase">No Annotations</SelectItem>
               <SelectItem value="high_influence" className="font-code text-[10px] uppercase">High Influence</SelectItem>
               <SelectItem value="unfinished" className="font-code text-[10px] uppercase">Unfinished Sources</SelectItem>
-              <SelectItem value="ready_to_cite" className="font-code text-[10px] uppercase">Ready To Cite</SelectItem>
+              <SelectItem value="recent" className="font-code text-[10px] uppercase">Recently Added</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
@@ -482,6 +587,27 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           </Select>
       </FilterToolbar>
 
+      <div className="mb-3 flex min-h-9 flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-card/70 px-3 py-2">
+        <Checkbox
+          checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
+          onCheckedChange={toggleVisibleSelection}
+          aria-label={allVisibleSelected ? 'Clear visible source selection' : 'Select all visible sources'}
+        />
+        <span className="text-sm text-foreground">
+          {selectedSourceIds.length ? `${selectedSourceIds.length} selected for export` : 'Select sources to export, or export the current filtered view.'}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={toggleVisibleSelection} disabled={!visibleSourceIds.length} className="rounded-full text-xs">
+            {allVisibleSelected ? 'Clear visible' : `Select visible (${visibleSourceIds.length})`}
+          </Button>
+          {selectedSourceIds.length > 0 && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedSourceIds([])} className="rounded-full text-xs text-muted-foreground">
+              Clear all
+            </Button>
+          )}
+        </div>
+      </div>
+
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <span className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground/60">Quick views:</span>
         {[
@@ -489,7 +615,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           { label: 'Unfinished', value: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length, filter: 'unfinished' as CatalogFilter },
           { label: 'No annotations', value: media.filter((item) => !(item.annotations || []).length).length, filter: 'no_annotations' as CatalogFilter },
           { label: 'High influence', value: sourceRows.filter((row) => row.influence >= HIGH_INFLUENCE_SCORE).length, filter: 'high_influence' as CatalogFilter },
-          { label: 'Ready to cite', value: sourceRows.filter((row) => row.catalogState.label === 'cataloged').length, filter: 'ready_to_cite' as CatalogFilter },
+          { label: 'Recently added', value: sourceRows.filter((row) => Date.now() - new Date(row.source.dateAdded || row.source.dateUpdated || '').getTime() <= 30 * 24 * 60 * 60 * 1000).length, filter: 'recent' as CatalogFilter },
         ].map((stat) => (
           <button
             key={stat.label}
@@ -508,21 +634,29 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       {view === 'covers' && (
         <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           {sourceRows.map(({ source: m, influence, connected, catalogState }) => (
-            <button key={m.id} type="button" onClick={() => previewSource(m)} className="group min-w-0 rounded-lg border border-border/40 bg-card p-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
-              <div className="mb-2.5 aspect-[4/5] overflow-hidden rounded-md border border-border/30 bg-muted/20">
-                <SourceIndexCover source={m} />
-              </div>
-              <div className="line-clamp-2 font-headline text-base font-bold leading-5 text-foreground group-hover:text-accent">{m.title}</div>
-              <div className="mt-1 truncate text-xs text-muted-foreground">{m.creator || 'Unknown creator'}</div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                <Badge variant="outline" className="rounded-full px-2 py-0 text-[8px]">{MEDIA_LABELS[m.type]}</Badge>
-                <Badge variant="outline" className="rounded-full px-2 py-0 text-[8px]">{connected} links</Badge>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/30 pt-2 font-code text-[8px] uppercase tracking-wider text-muted-foreground">
-                <span className="truncate">{catalogState.label}</span>
-                <span className="shrink-0">{influence} influence</span>
-              </div>
-            </button>
+            <article key={m.id} className={cn("group relative min-w-0 rounded-lg border bg-card p-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md", selectedSourceSet.has(m.id) ? "border-accent ring-1 ring-accent/30" : "border-border/40 hover:border-accent/40")}>
+              <Checkbox
+                checked={selectedSourceSet.has(m.id)}
+                onCheckedChange={() => toggleSourceSelection(m.id)}
+                aria-label={`Select ${m.title} for export`}
+                className="absolute right-4 top-4 z-10 size-5 border-background bg-background/90 shadow-sm"
+              />
+              <button type="button" onClick={() => previewSource(m)} className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
+                <div className="mb-2.5 aspect-[4/5] overflow-hidden rounded-md border border-border/30 bg-muted/20">
+                  <SourceIndexCover source={m} />
+                </div>
+                <div className="line-clamp-2 font-headline text-base font-bold leading-5 text-foreground group-hover:text-accent">{m.title}</div>
+                <div className="mt-1 truncate text-xs text-muted-foreground">{m.creator || 'Unknown creator'}</div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <Badge variant="outline" className="rounded-full px-2 py-0 text-[8px]">{MEDIA_LABELS[m.type]}</Badge>
+                  <Badge variant="outline" className="rounded-full px-2 py-0 text-[8px]">{connected} links</Badge>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/30 pt-2 font-code text-[8px] uppercase tracking-wider text-muted-foreground">
+                  <span className="truncate">{catalogState.label}</span>
+                  <span className="shrink-0">{influence} influence</span>
+                </div>
+              </button>
+            </article>
           ))}
         </div>
       )}
@@ -606,12 +740,12 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                         <div className="truncate text-sm font-semibold text-foreground/85">{source.title}</div>
                         <div className="mt-1 text-xs text-muted-foreground">{source.creator || MEDIA_LABELS[source.type]}</div>
                       </div>
-                      <Badge variant="outline" className="shrink-0 rounded-full">{source.status}</Badge>
+                      <Badge variant="outline" className="shrink-0 rounded-full">{MEDIA_STATUS_LABELS[source.status]}</Badge>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       <Badge variant="secondary" className="rounded-full text-[8px]">{influence} influence</Badge>
                       <Badge variant="secondary" className="rounded-full text-[8px]">{connected} links</Badge>
-                      <Badge variant="secondary" className="rounded-full text-[8px]">{source.annotations?.length || 0} notes</Badge>
+                      <Badge variant="secondary" className="rounded-full text-[8px]">{countLabel(source.annotations?.length || 0, 'note')}</Badge>
                     </div>
                   </button>
                 ))}
@@ -633,6 +767,13 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         <Table>
           <TableHeader className="bg-muted/5 font-code text-[9px] uppercase tracking-[0.2em] font-bold">
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
+                  onCheckedChange={toggleVisibleSelection}
+                  aria-label={allVisibleSelected ? 'Clear visible source selection' : 'Select all visible sources'}
+                />
+              </TableHead>
               <TableHead className="min-w-[320px] cursor-pointer" onClick={() => toggleSort('title')}>
                 Source <ArrowUpDown className="inline size-3 ml-1" />
               </TableHead>
@@ -649,7 +790,14 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           <TableBody className="font-body text-[13px]">
             {sourceRows.map(({ source: m, influence, connected, progress, metadataGaps, health, catalogState, linkedPositions, linkedWorks, linkedPractices, linkedQuestions }) => {
               return (
-                <TableRow key={m.id} className="group h-16 cursor-pointer transition-colors hover:bg-muted/5" onClick={() => previewSource(m)}>
+                <TableRow key={m.id} data-state={selectedSourceSet.has(m.id) ? 'selected' : undefined} className="group h-16 cursor-pointer transition-colors hover:bg-muted/5" onClick={() => previewSource(m)}>
+                  <TableCell className="w-12 py-2.5" onClick={(event) => event.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedSourceSet.has(m.id)}
+                      onCheckedChange={() => toggleSourceSelection(m.id)}
+                      aria-label={`Select ${m.title} for export`}
+                    />
+                  </TableCell>
                   <TableCell className="py-2.5">
                     <div className="font-semibold italic leading-5 text-primary/90">{m.title}</div>
                     <div className="mt-0.5 text-xs text-muted-foreground">{m.creator || (m.creators || []).join(', ') || 'Unknown creator'}</div>
@@ -658,17 +806,17 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                         <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-tighter rounded-full bg-muted/20 text-muted-foreground">{tag}</Badge>
                       ))}
                       {metadataGaps.length > 0 && (
-                        <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full border-amber-200 bg-amber-50 text-amber-800">
+                        <Badge variant="outline" className="noesis-status-badge font-code text-[8px] uppercase tracking-tighter rounded-full">
                           {metadataGaps.length} gaps
                         </Badge>
                       )}
                       {!(m.annotations || []).length && (
-                        <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full border-rose-200 bg-rose-50 text-rose-800">
+                        <Badge variant="outline" className="noesis-status-badge font-code text-[8px] uppercase tracking-tighter rounded-full">
                           no notes
                         </Badge>
                       )}
                       {influence >= HIGH_INFLUENCE_SCORE && (
-                        <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full border-emerald-200 bg-emerald-50 text-emerald-800">
+                        <Badge variant="outline" className="noesis-status-badge font-code text-[8px] uppercase tracking-tighter rounded-full">
                           influential
                         </Badge>
                       )}
@@ -683,21 +831,21 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       {m.isbn || m.doi || m.publisher || m.platform || '-'}
                     </div>
                     {metadataGaps.length > 0 && (
-                      <div className="mt-1 max-w-[170px] truncate font-code text-[8px] uppercase tracking-widest text-amber-700" title={`Missing: ${metadataGaps.join(', ')}`}>
+                      <div className="mt-1 max-w-[170px] truncate font-code text-[8px] uppercase tracking-widest text-muted-foreground" title={`Missing: ${metadataGaps.join(', ')}`}>
                         missing {metadataGaps.slice(0, 2).join(', ')}{metadataGaps.length > 2 ? '...' : ''}
                       </div>
                     )}
                   </TableCell>
                   <TableCell className="py-2.5">
                     <div className="whitespace-nowrap text-xs text-muted-foreground" title={`Influence ${influence}; ${connected} total linked objects`}>
-                      <MessageSquare className="mr-1 inline size-3.5" />{(m.annotations || []).length} notes · {linkedQuestions} inquiries · {linkedPositions} positions · {linkedWorks} works · {linkedPractices} practices
+                      <MessageSquare className="mr-1 inline size-3.5" />{countLabel((m.annotations || []).length, 'note')} · {countLabel(linkedQuestions, 'inquiry', 'inquiries')} · {countLabel(linkedPositions, 'position')} · {countLabel(linkedWorks, 'work')} · {countLabel(linkedPractices, 'practice', 'practices')}
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2" title={`Influence ${influence} · Connected ${connected} · Progress ${progress}%`}>
                       <div className="w-16 h-1 bg-muted rounded-full overflow-hidden">
                         <div 
-                          className={cn("h-full transition-all", health > 70 ? "bg-emerald-500" : health > 40 ? "bg-amber-500" : "bg-red-400")} 
+                          className="noesis-status-progress h-full transition-all"
                           style={{ width: `${health}%` }} 
                         />
                       </div>
@@ -705,10 +853,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                     </div>
                     <Badge variant="outline" className={cn(
                       "mt-2 rounded-full font-code text-[8px] uppercase tracking-widest",
-                      catalogState.tone === 'stable' ? "border-emerald-200 bg-emerald-50 text-emerald-800" :
-                      catalogState.tone === 'urgent' ? "border-rose-200 bg-rose-50 text-rose-800" :
-                      catalogState.tone === 'growth' ? "border-blue-200 bg-blue-50 text-blue-800" :
-                      "border-amber-200 bg-amber-50 text-amber-800"
+                      "noesis-status-badge"
                     )}>
                       {catalogState.label}
                     </Badge>
@@ -733,7 +878,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             })}
             {sourceRows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="p-8">
+                <TableCell colSpan={8} className="p-8">
                   <PageEmptyState
                     icon={Library}
                     title="No sources match this view"
@@ -746,6 +891,36 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           </TableBody>
         </Table>
       </div>}
+      <Dialog open={exportPreviewOpen} onOpenChange={setExportPreviewOpen}>
+        <DialogContent className="max-w-3xl border-border bg-card">
+          <DialogHeader>
+            <DialogTitle>Preview bibliography</DialogTitle>
+            <DialogDescription>
+              {selectedSourceIds.length
+                ? `${bibliographySources.length} selected sources, alphabetized and formatted for an essay references page.`
+                : `${bibliographySources.length} source records matching the current search and filters, alphabetized and formatted for an essay references page.`}
+            </DialogDescription>
+          </DialogHeader>
+          <section className="max-h-[55vh] overflow-auto rounded-lg border border-border bg-background px-5 py-6 text-foreground sm:px-8" aria-label="Bibliography preview">
+            {bibliographySources.length ? (
+              <>
+                <h3 className="text-center font-body text-base font-semibold">References</h3>
+                <div className="mt-6 space-y-4 font-body text-sm leading-7">
+                  {bibliographySources.map((source) => (
+                    <p key={source.id} className="pl-6 -indent-6 break-words">{apaCitation(source)}</p>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">No source records match the current view.</p>
+            )}
+          </section>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button type="button" variant="outline" onClick={() => void copyAllCitations()} disabled={!bibliographySources.length} className="rounded-full">Copy references</Button>
+            <Button type="button" onClick={downloadBibtex} disabled={!bibliographySources.length} className="rounded-full"><Download className="mr-2 size-4" /> Download BibTeX</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, Quote, Trash2 } from 'lucide-react';
+import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,7 @@ import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface AnnotationsIndexProps {
   media: Media[];
@@ -60,7 +61,7 @@ const ANNOTATION_TYPES: Array<{ id: AnnotationType; label: string }> = [
 const ANNOTATION_STATUSES: Array<{ id: AnnotationPhilosophyStatus; label: string }> = [
   { id: 'raw', label: 'Unreviewed' },
   { id: 'reviewed', label: 'Reviewed' },
-  { id: 'used_in_position', label: 'Applied' },
+  { id: 'used_in_position', label: 'Connected' },
   { id: 'reference_only', label: 'Reference' },
   { id: 'archived', label: 'Archived' },
 ];
@@ -121,6 +122,8 @@ export function AnnotationsIndex({
   const [filterSource, setFilterSource] = useState<string>('all');
   const [sortBy, setSortBy] = useState<AnnotationSort>('newest');
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
+  const [editingMetadata, setEditingMetadata] = useState(false);
+  const [detailEffect, setDetailEffect] = useState<ConsequenceAction>('reference');
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [linkDialog, setLinkDialog] = useState<{ annotation: FlatAnnotation; linkType: 'supports' | 'challenges' } | null>(null);
@@ -492,7 +495,7 @@ export function AnnotationsIndex({
       if (positions.length) {
         setLinkDialog({ annotation, linkType: 'challenges' });
       } else {
-        openPreflight(annotation, 'inquiry');
+        openPreflight(annotation, 'position');
       }
       return;
     }
@@ -516,10 +519,16 @@ export function AnnotationsIndex({
     return 'reference';
   };
 
+  const openAnnotationDetail = (annotation: FlatAnnotation) => {
+    setDetailEffect(selectedEffectForAnnotation(annotation));
+    setEditingMetadata(false);
+    setEditing(annotation);
+  };
+
   const nextActionLabelForEffect = (annotation: FlatAnnotation, action: ConsequenceAction) => {
-    if (action === 'raises_question') return annotation.createdInquiryId ? 'Open inquiry' : 'Open inquiry';
-    if (action === 'supports_claim') return positions.length ? 'Select position' : 'Form position';
-    if (action === 'challenges_claim') return positions.length ? 'Select position' : 'Open inquiry';
+    if (action === 'raises_question') return annotation.createdInquiryId ? 'Open inquiry' : 'Start inquiry';
+    if (action === 'supports_claim') return positions.length ? 'Choose a position' : 'Create position draft';
+    if (action === 'challenges_claim') return positions.length ? 'Choose a position' : 'Create position draft';
     if (action === 'clarifies') return 'Select concept';
     return 'Finish';
   };
@@ -631,7 +640,7 @@ export function AnnotationsIndex({
   const filtersActive = Boolean(search || filterType !== 'all' || filterConcept !== 'all' || filterSource !== 'all');
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+    <div className="noesis-page">
       <PageHeader
         title="Annotations"
         description="Review and refine captured highlights, thoughts, questions, and connections across all sources."
@@ -757,7 +766,12 @@ export function AnnotationsIndex({
             ...(annotationType(annotation) === 'definition' && annotationTags(annotation).length ? [`Clarifies ${annotationTags(annotation)[0]}`] : []),
           ];
           return (
-          <Card key={`${annotation.source.id}:${annotation.id}`} className={cn(
+          <Card key={`${annotation.source.id}:${annotation.id}`} role="group" aria-label={`Annotation: ${annotation.text.slice(0, 80)}`} tabIndex={0} onClick={(event) => {
+            if ((event.target as HTMLElement).closest('button,a,input,textarea,[role="checkbox"],[role="combobox"]')) return;
+            openAnnotationDetail(annotation);
+          }} onKeyDown={(event) => {
+            if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openAnnotationDetail(annotation); }
+          }} className={cn(
             "p-3.5 sm:p-4 bg-card border border-accent/10 shadow-sm rounded-xl group hover:shadow-md transition-all",
             selectedKeys.includes(annotationKey(annotation)) && "border-accent/50 ring-2 ring-accent/10"
           )}>
@@ -784,7 +798,7 @@ export function AnnotationsIndex({
               </div>
             </div>
 
-            <button type="button" onClick={() => setEditing(annotation)} className="relative mb-3 block w-full text-left">
+            <button type="button" onClick={() => openAnnotationDetail(annotation)} className="relative mb-3 block w-full text-left">
               <Quote className="absolute -left-6 -top-2 size-10 text-accent/5" />
               <p className="font-body italic leading-relaxed text-[15px] text-primary/90 relative z-10 line-clamp-4">"{annotation.text}"</p>
             </button>
@@ -813,7 +827,7 @@ export function AnnotationsIndex({
                 onClick={() => {
                   if (annotation.createdInquiryId) onNavigate?.('questions', annotation.createdInquiryId);
                   else if (annotation.createdPositionId) onNavigate?.('vault', annotation.createdPositionId);
-                  else setEditing(annotation);
+                  else openAnnotationDetail(annotation);
                 }}
                 className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
               >
@@ -970,30 +984,35 @@ export function AnnotationsIndex({
                       })}
                       onAccept={(_, content) => onUpdateAnnotation(editing.source.id, { ...editing, consequenceNote: content, philosophyStatus: 'reviewed' })}
                     />
-                    <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => previewSource(editing.source, editing)} title="Open source">
-                      <ExternalLink className="size-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 rounded-full text-destructive hover:text-destructive"
-                      onClick={() => {
-                        pendingDetailDeleteRef.current = editing;
-                        setEditing(null);
-                      }}
-                      title="Delete annotation"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label="Annotation actions">
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={() => setEditingMetadata(true)}>Edit annotation</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => previewSource(editing.source, editing)}><ExternalLink className="mr-2 size-4" /> Open source</DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => {
+                            pendingDetailDeleteRef.current = editing;
+                            setEditing(null);
+                          }}
+                        >
+                          <Trash2 className="mr-2 size-4" /> Delete annotation
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
                 <p className="font-body text-lg italic leading-8 text-primary">"{editing.text}"</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
                   <span>From <span className="font-medium text-foreground">{editing.source.title}</span>{editing.source.creator ? ` by ${editing.source.creator}` : ''}</span>
                   <span>·</span>
-                  <span>{editing.date || 'Date unknown'}</span>
+                  <span>{editing.date && !Number.isNaN(Date.parse(editing.date)) ? new Date(editing.date).toLocaleDateString() : 'Date unknown'}</span>
                 </div>
-                <details className="mt-4 rounded-xl border border-border/50 bg-background/60 p-3">
+                <details open={editingMetadata} onToggle={(event) => setEditingMetadata((event.currentTarget as HTMLDetailsElement).open)} className="mt-4 rounded-xl border border-border/50 bg-background/60 p-3">
                   <summary className="cursor-pointer list-none font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
                     Edit annotation text and metadata
                   </summary>
@@ -1051,32 +1070,44 @@ export function AnnotationsIndex({
               <section className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">Next action</div>
+                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">How does this affect your thinking?</div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {connectionsForAnnotation(editing).some((group) => group.label !== 'Source')
-                        ? 'This annotation has already been applied. You can change action or add another connection.'
-                        : 'Choose where this annotation should go, or save it as reference.'}
+                      Choose the effect that best describes this note. Noesis will ask only for the destination needed to apply it.
                     </p>
                   </div>
-                  {connectionsForAnnotation(editing).some((group) => group.label !== 'Source') && (
-                    <Badge className="rounded-full bg-accent text-accent-foreground">Applied to philosophy</Badge>
-                  )}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                {(editing.createdInquiryId || editing.createdPositionId || (editing.linkedPositionIds || []).length > 0) && (
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    Linked to {[
+                      editing.createdInquiryId ? 'an inquiry' : '',
+                      editing.createdPositionId || (editing.linkedPositionIds || []).length ? 'a position' : '',
+                    ].filter(Boolean).join(' and ')}. Open Connections below to see the exact item.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Annotation effect">
                   {([
-                    ['supports_claim', 'Support a position'],
-                    ['challenges_claim', 'Challenge a position'],
-                    ['raises_question', editing.createdInquiryId ? 'Open inquiry' : 'Raise an inquiry'],
-                    ['clarifies', 'Clarify a concept'],
-                    ['reference', 'Save as reference'],
+                    ['supports_claim', 'Supports'],
+                    ['challenges_claim', 'Challenges'],
+                    ['raises_question', 'Raises a question'],
+                    ['clarifies', 'Clarifies'],
+                    ['reference', 'Reference'],
                   ] as Array<[ConsequenceAction, string]>).map(([action, label]) => (
-                    <Button key={label} type="button" variant="outline" size="sm" onClick={() => runDetailAction(editing, action)} className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest">
+                    <Button key={label} type="button" aria-pressed={detailEffect === action} variant={detailEffect === action ? 'default' : 'outline'} size="sm" onClick={() => setDetailEffect(action)} className="h-9 rounded-full px-3 text-xs">
                       {label}
                     </Button>
                   ))}
-                  <Button type="button" size="sm" onClick={() => { const current = editing; setEditing(null); openPreflight(current, 'position'); }} className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest">
-                    Form a position
+                </div>
+                {detailEffect === 'clarifies' && (
+                  <div className="mt-3">
+                    <Label className="mb-2 block text-xs text-muted-foreground">Which concept does this clarify?</Label>
+                    <ConceptTagPicker concepts={concepts} value={editing.conceptTags || editing.source.tags || []} onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)} />
+                  </div>
+                )}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Button type="button" size="sm" onClick={() => runDetailAction(editing, detailEffect)} disabled={detailEffect === 'clarifies' && !(editing.conceptTags || editing.source.tags || []).length} className="h-9 rounded-full px-4">
+                    {nextActionLabelForEffect(editing, detailEffect)}
                   </Button>
+                  <span className="text-xs text-muted-foreground">{detailEffect === 'supports_claim' ? 'Connect this note to a position it supports.' : detailEffect === 'challenges_claim' ? 'Connect it to the position it questions, or create a draft first.' : detailEffect === 'raises_question' ? 'Carry the question into an inquiry with its source context.' : detailEffect === 'clarifies' ? 'Keep the note attached to the concept it explains.' : 'Keep it searchable without creating another object.'}</span>
                 </div>
               </section>
 
@@ -1087,7 +1118,7 @@ export function AnnotationsIndex({
                     <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Connections</div>
                     <p className="mt-1 text-xs text-muted-foreground">Concept tags and the objects this annotation currently touches.</p>
                   </div>
-                  <Badge variant="outline" className="rounded-full">{Math.max(0, connectionsForAnnotation(editing).reduce((total, group) => total + group.items.length, 0) - 1)} links</Badge>
+                  <Badge variant="outline" className="rounded-full">{Math.max(0, connectionsForAnnotation(editing).reduce((total, group) => total + group.items.length, 0) - 1)} related items</Badge>
                 </div>
                 </summary>
                 <div className="mt-4">

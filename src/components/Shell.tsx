@@ -21,7 +21,8 @@ import {
   Table as TableIcon,
   Highlighter,
   Home,
-  Search
+  Search,
+  WifiOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -223,6 +224,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const [previewItem, setPreviewItem] = useState<CommandPaletteItem | null>(null);
   const [recentCommandItems, setRecentCommandItems] = useState<CommandPaletteItem[]>([]);
   const [attentionOpen, setAttentionOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const navItems = [
     { id: 'home', icon: Home },
     { id: 'atlas', icon: MapIcon },
@@ -237,6 +239,17 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'evolution', icon: History, count: counts.timeline },
     { id: 'settings', icon: Settings },
   ];
+
+  useEffect(() => {
+    const updateConnectivity = () => setIsOnline(navigator.onLine);
+    updateConnectivity();
+    window.addEventListener('online', updateConnectivity);
+    window.addEventListener('offline', updateConnectivity);
+    return () => {
+      window.removeEventListener('online', updateConnectivity);
+      window.removeEventListener('offline', updateConnectivity);
+    };
+  }, []);
 
   const logoData = placeholderData.placeholderImages.find(img => img.id === 'app-logo');
   const profileInitials = useMemo(() => {
@@ -616,7 +629,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           <Command className="size-4 shrink-0" />
           {(!collapsed || isMobile) && (
             <>
-              <span className="flex-1 text-left font-code text-[8px] uppercase tracking-[0.14em]">Commands</span>
+              <span className="flex-1 text-left font-code text-[8px] uppercase tracking-[0.14em]">Search</span>
               <span className="font-code text-[8px] uppercase tracking-[0.12em] text-sidebar-foreground/30">Ctrl K</span>
             </>
           )}
@@ -674,6 +687,12 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         )}
 
         <main className="noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-16 pt-14 md:pb-0 md:pt-0" aria-busy={Boolean(pendingPath)}>
+          {!isOnline && (
+            <div role="status" className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs leading-5 text-foreground sm:px-6">
+              <WifiOff className="size-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+              <span><strong className="font-medium">You&apos;re offline.</strong> Recent workspace data remains available; saved changes will sync when you reconnect.</span>
+            </div>
+          )}
           {children}
           {isMobile && (
             <nav className="noesis-mobile-nav fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-2 py-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur md:hidden" aria-label="Primary mobile navigation">
@@ -744,8 +763,8 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
           <DialogContent className="max-w-xl rounded-3xl border-border bg-card p-0 shadow-2xl">
             <DialogHeader className="border-b border-border px-6 py-5">
-              <DialogTitle className="font-headline text-2xl font-semibold italic">Command Palette</DialogTitle>
-              <DialogDescription>Search objects, jump to workspaces, or start structured Noesis actions.</DialogDescription>
+              <DialogTitle className="font-headline text-2xl font-semibold italic">Search Noesis</DialogTitle>
+              <DialogDescription>Find an item, open a workspace, or start a new thought.</DialogDescription>
             </DialogHeader>
             <div className="p-4">
               <div className="relative">

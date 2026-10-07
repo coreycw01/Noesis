@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, BookOpen, Brain, CheckCircle2, ChevronDown, Edit, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Brain, ChevronDown, Edit, Plus, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { ContextualAiAction } from '@/lib/contextual-ai';
 import type { AiSettings } from '@/lib/types';
 
@@ -324,7 +325,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     setSearch('');
     setListView('all');
   };
-  const totalConceptCount = allTerms.filter((name) => conceptKey(name) !== conceptKey(UNSORTED_CONCEPT)).length;
+  // The list already excludes tag-only placeholders and non-displayable
+  // records. Its unfiltered default is the same user-ready set represented by
+  // the shell count, so the page headline must use that set too.
+  const totalConceptCount = conceptRows.length;
   const needsAttentionRows = conceptRows.filter((row) => row.repairFlags.length > 0 || row.maturity.label === 'beginning' || row.maturity.label === 'emerging');
   const matureConceptCount = conceptRows.filter((row) => row.maturity.label === 'stable').length;
   const developingConceptCount = conceptRows.filter((row) => row.maturity.label === 'usable').length;
@@ -726,12 +730,13 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     ? { ...concept, notSameAs: Array.from(new Set([...(concept.notSameAs || []), content])) }
                     : { ...concept, description: content })}
                 />
-                <Button variant="outline" size="sm" onClick={() => openEditor(concept)} className="h-8 bg-card border-border/60 shadow-sm rounded-full">
-                  <Edit className="size-4 mr-2" /> Edit
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(concept)} className="h-8 shadow-sm rounded-full">
-                  <Trash2 className="size-4 mr-2" /> Delete
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Concept actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => openEditor(concept)}><Edit className="mr-2 size-4" /> Edit concept</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setDeleteTarget(concept)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete concept</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             )}
           </div>
@@ -774,12 +779,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           <div className="flex flex-wrap gap-2 mb-10">
             {[
               { label: 'Sources', n: r.sources.length },
-              { label: 'Annotations', n: r.annotations.length },
               { label: 'Inquiries', n: r.questions.length },
               { label: 'Positions', n: r.beliefs.length },
-              { label: 'Works', n: r.drafts.length },
-              { label: 'Practices', n: r.practices.length },
-              { label: 'Events', n: r.events.length },
             ].map(({ label, n }) => (
               <div key={label} className="flex items-center gap-1.5 rounded-full border border-border/40 bg-card/80 px-3 py-1 shadow-sm">
                 <span className="font-headline text-base font-bold text-accent">{n}</span>
@@ -788,15 +789,12 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             ))}
           </div>
 
-          <details className="group rounded-2xl border border-border bg-card shadow-sm">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
-              <div>
-                <div className="text-sm font-semibold text-foreground">More tools</div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">Boundaries, examples, related objects, tensions, diagnostics, and definition history.</p>
-              </div>
-              <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+          <details className="group mb-6 rounded-xl border border-border/60 bg-card/70">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
+              <span>Meaning, boundaries, and usage</span>
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
-            <div className="border-t border-border p-4 sm:p-6">
+            <div className="border-t border-border/50 p-4">
           {/* Concept Anatomy */}
           <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
             <div className="mb-5 flex items-center justify-between gap-3">
@@ -973,6 +971,18 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </div>
 
+            </div>
+          </details>
+
+          <details className="group mb-6 rounded-2xl border border-border bg-card shadow-sm">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
+              <div>
+                <div className="text-sm font-semibold text-foreground">Boundary test</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Try edge cases, then save a clearer boundary in your own words.</p>
+              </div>
+              <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t border-border p-4 sm:p-6">
           {/* Boundary Test */}
           <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1049,6 +1059,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </div>
 
+            </div>
+          </details>
+
+          <details className="group mb-6 rounded-xl border border-border/60 bg-card/70">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
+              <span>Definition health</span>
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t border-border/50 p-4">
           {/* Growth Diagnosis */}
           <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
             <div className="flex items-center justify-between mb-4">
@@ -1114,6 +1133,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             )}
           </div>
 
+            </div>
+          </details>
+
+          <details className="group mb-6 rounded-xl border border-border/60 bg-card/70">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
+              <span>Where this concept appears</span>
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t border-border/50 p-4">
           {/* Sources + Annotations */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
             <ConceptPageSection title="Related Sources" count={r.sources.length} empty="No sources tagged with this concept yet.">
@@ -1220,6 +1248,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           )}
 
+            </div>
+          </details>
+
+          <details className="group mb-6 rounded-xl border border-border/60 bg-card/70">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
+              <span>Compare positions using this concept</span>
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t border-border/50 p-4">
           {/* Tensions & Conflicts */}
           {r.beliefs.length >= 2 && (
             <section className="mb-10">
@@ -1291,6 +1328,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </section>
           )}
 
+            </div>
+          </details>
+
+          <details className="group mb-6 rounded-xl border border-border/60 bg-card/70">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
+              <span>Definition history</span>
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t border-border/50 p-4">
           {/* Evolution over time */}
           {sortedEvents.length > 0 && (
             <section className="mb-10">
@@ -1349,7 +1395,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   }
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+    <div className="noesis-page">
       <PageHeader
         title="Concepts"
         description="Build the vocabulary lab for definitions, boundaries, consistency, and conceptual drift."
@@ -1361,50 +1407,20 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         }
       />
 
-      <div className="mb-6 hidden grid-cols-1 gap-3 md:grid lg:grid-cols-[1fr_1.4fr]">
-        <div className="grid grid-cols-3 gap-3">
-          <Stat value={totalConceptCount} label="Concepts" sub="Vocabulary size" />
-          <Stat value={wellDevelopedCount} label="Well Developed" sub="Ready for argument" />
-          <button
-            type="button"
-            onClick={() => setListView('needs_attention')}
-            className={cn(
-              "text-left transition-all",
-              listView === 'needs_attention' && "ring-2 ring-accent/40 rounded-xl"
-            )}
-          >
-            <Stat value={needsAttentionRows.length} label="Need Attention" sub="Definition, evidence, or tests" tone="warning" />
-          </button>
-        </div>
-        {needsAttentionRows.length > 0 ? (
-          <Card className="flex flex-col justify-center gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="font-code text-[9px] font-bold uppercase tracking-widest text-amber-800">
-                {needsAttentionRows.length} concept{needsAttentionRows.length === 1 ? '' : 's'} need attention
-              </div>
-              <p className="mt-1 text-xs leading-5 text-amber-900/80">
-                Most are missing distinctions, evidence, or practical tests.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setListView('needs_attention')}
-              className="h-8 rounded-full border-amber-300 bg-card/70 font-code text-[9px] uppercase tracking-widest text-amber-900 hover:bg-card"
-            >
-              Review them
-            </Button>
-          </Card>
-        ) : (
-          <Card className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 shadow-sm">
-            <div>
-              <div className="font-code text-[9px] font-bold uppercase tracking-widest text-emerald-800">Vocabulary stable</div>
-              <p className="mt-1 text-xs leading-5 text-emerald-900/75">Every visible concept has a usable definition path.</p>
-            </div>
-            <CheckCircle2 className="size-5 text-emerald-700" />
-          </Card>
-        )}
+      <div className="mb-6 hidden grid-cols-1 gap-3 md:grid md:grid-cols-3">
+        <Stat value={totalConceptCount} label="Concepts" sub="Vocabulary size" />
+        <Stat value={wellDevelopedCount} label="Well Developed" sub="Ready for argument" />
+        <button
+          type="button"
+          aria-label={`Show ${needsAttentionRows.length} concepts needing attention`}
+          onClick={() => setListView('needs_attention')}
+          className={cn(
+            "text-left transition-all rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+            listView === 'needs_attention' && "ring-2 ring-accent/40"
+          )}
+        >
+          <Stat value={needsAttentionRows.length} label="Needs Attention" sub="Definition, evidence, or tests" tone="warning" interactive />
+        </button>
       </div>
 
       <FilterToolbar
@@ -1570,15 +1586,17 @@ function ConceptPageSection({ title, count, empty, children }: { title: string; 
   );
 }
 
-function Stat({ value, label, sub, tone = 'default' }: { value: number | string; label: string; sub: string; tone?: 'default' | 'warning' }) {
+function Stat({ value, label, sub, tone = 'default', interactive = false }: { value: number | string; label: string; sub: string; tone?: 'default' | 'warning'; interactive?: boolean }) {
   return (
     <Card className={cn(
-      "bg-card border shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl",
+      "bg-card border shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl relative",
+      interactive && "pr-10 hover:border-amber-300 hover:shadow-md",
       tone === 'warning' ? "border-amber-200" : "border-accent/10"
     )}>
       <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</div>
       <div className={cn("mt-1 text-2xl font-headline font-bold leading-none", tone === 'warning' ? "text-amber-700" : "text-accent")}>{value}</div>
       <div className="mt-1 text-[10px] text-muted-foreground/40 truncate font-body">{sub}</div>
+      {interactive && <ArrowRight aria-hidden="true" className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-amber-700" />}
     </Card>
   );
 }

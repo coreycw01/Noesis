@@ -20,8 +20,10 @@ interface ConfirmActionDialogProps {
   description: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  alternateLabel?: string;
   destructive?: boolean;
   onConfirm: () => void;
+  onAlternate?: () => void;
 }
 
 export function ConfirmActionDialog({
@@ -31,8 +33,10 @@ export function ConfirmActionDialog({
   description,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  alternateLabel,
   destructive,
   onConfirm,
+  onAlternate,
 }: ConfirmActionDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -43,6 +47,14 @@ export function ConfirmActionDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          {alternateLabel && onAlternate && (
+            <AlertDialogAction
+              onClick={onAlternate}
+              className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+            >
+              {alternateLabel}
+            </AlertDialogAction>
+          )}
           <AlertDialogAction
             onClick={onConfirm}
             className={cn(destructive && 'bg-destructive text-destructive-foreground hover:bg-destructive/90')}

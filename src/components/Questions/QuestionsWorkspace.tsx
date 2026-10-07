@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, HelpCircle, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, HelpCircle, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -252,7 +252,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
   ].filter(Boolean) as string[];
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+    <div className="noesis-page">
       <PageHeader
         title="Inquiries"
         description="Work through returning questions as structured investigations with evidence, provisional answers, and resolution summaries."
@@ -482,6 +482,8 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const answerRef = useRef<HTMLDivElement>(null);
   const [initialAnswer, setInitialAnswer] = useState(question.answer || '');
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState(false);
+  const [questionDraft, setQuestionDraft] = useState(question.text);
   const [selectedTool, setSelectedTool] = useState<InquiryTool | null>(null);
   const [clarificationDraft, setClarificationDraft] = useState('');
   const [existingPracticeId, setExistingPracticeId] = useState('');
@@ -503,6 +505,8 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   }, [initialSection, question.id]);
   React.useEffect(() => {
     setInitialAnswer(question.answer || '');
+    setQuestionDraft(question.text);
+    setEditingQuestion(false);
     setInvestigationDraft({
       whyItMatters: question.whyItMatters || '',
       currentIntuition: question.currentIntuition || '',
@@ -777,6 +781,9 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setEditingQuestion(true)}>
+                    <Pencil className="mr-2 size-4" /> Edit inquiry
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setDeleteOpen(true)} className="text-destructive focus:text-destructive">
                     <Trash2 className="mr-2 size-4" /> Delete inquiry
                   </DropdownMenuItem>
@@ -785,7 +792,37 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             )}
           </div>
         </div>
-        <h1 className="noesis-page-title mt-5 max-w-5xl text-3xl leading-tight sm:text-4xl">{question.text}</h1>
+        {editingQuestion ? (
+          <div className="mt-5 max-w-5xl space-y-3">
+            <Label htmlFor={`question-title-${question.id}`}>Inquiry question</Label>
+            <Textarea
+              id={`question-title-${question.id}`}
+              value={questionDraft}
+              onChange={(event) => setQuestionDraft(event.target.value)}
+              className="min-h-[96px] text-xl font-semibold leading-snug sm:text-2xl"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="rounded-full"
+                disabled={!questionDraft.trim()}
+                onClick={() => {
+                  onUpdateQuestion({ ...question, text: questionDraft.trim(), dateUpdated: today() });
+                  setEditingQuestion(false);
+                  onAiFeedback('Inquiry updated.', 'The question was saved without changing its investigation state.');
+                }}
+              >
+                <Check className="mr-2 size-4" /> Save question
+              </Button>
+              <Button size="sm" variant="ghost" className="rounded-full" onClick={() => { setQuestionDraft(question.text); setEditingQuestion(false); }}>
+                <X className="mr-2 size-4" /> Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <h1 className="noesis-page-title mt-5 max-w-5xl text-3xl leading-tight sm:text-4xl">{question.text}</h1>
+        )}
       </header>
 
       <div className="mx-auto max-w-5xl space-y-5">
@@ -978,7 +1015,16 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
         title="Delete inquiry?"
         description={`This removes "${question.text}" from Inquiries. Linked sources, positions, works, and Evolution history will remain.`}
         confirmLabel="Delete Inquiry"
+        alternateLabel="Abandon instead"
         destructive
+        onAlternate={() => {
+          onUpdateQuestion({
+            ...question,
+            status: 'archived',
+            dateUpdated: new Date().toISOString(),
+          });
+          setDeleteOpen(false);
+        }}
         onConfirm={() => {
           onDeleteQuestion(question.id);
           setDeleteOpen(false);

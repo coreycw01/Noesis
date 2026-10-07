@@ -25,9 +25,10 @@ export function AtlasReviewQueue({
   onDeleteLink?: (id: string, options?: { method?: string }) => void;
 }) {
   const groupedConceptIds = new Set(regions.flatMap((region) => region.conceptIds));
-  const ungrouped = concepts.filter((concept) => !groupedConceptIds.has(concept.id) && concept.atlasReviewStatus !== 'rejected');
-  const suggested = links.filter((link) => link.createdFrom === 'suggestion' && link.acceptedByUser !== false);
   const broken = links.filter((link) => !knownIds[link.fromType]?.has(link.fromId) || !knownIds[link.toType]?.has(link.toId));
+  const brokenIds = new Set(broken.map((link) => link.id));
+  const ungrouped = concepts.filter((concept) => !groupedConceptIds.has(concept.id) && !['rejected', 'deferred'].includes(concept.atlasReviewStatus || ''));
+  const suggested = links.filter((link) => link.createdFrom === 'suggestion' && link.acceptedByUser == null && !brokenIds.has(link.id));
   const count = ungrouped.length + suggested.length + broken.length;
 
   return (

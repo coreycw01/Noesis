@@ -77,7 +77,7 @@ export type AtlasMapFontFamily = 'system' | 'serif' | 'mono' | 'rounded' | 'cond
 export type AtlasMapNodeStyle = 'default' | 'compact' | 'pill' | 'card';
 export type AtlasMapMode = 'core' | 'conflict' | 'evidence' | 'practice' | 'evolution' | 'full' | 'custom';
 export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'itunes' | 'crossref' | 'internet_archive' | 'url_metadata' | 'manual';
-export type ThinkingEventType = 'created' | 'edited' | 'revised' | 'challenged' | 'supported' | 'abandoned' | 'resolved' | 'linked' | 'unlinked' | 'link_removed' | 'tested' | 'synthesized' | 'confidence_changed' | 'evidence_added' | 'evidence_removed' | 'contradiction_detected' | 'contradiction_resolved' | 'unknown_created' | 'unknown_resolved' | 'question_created' | 'question_resolved' | 'position_formed' | 'practice_created' | 'source_distilled' | 'annotation_created' | 'ai_suggestion_generated' | 'ai_suggestion_accepted' | 'ai_suggestion_rejected' | 'position_created' | 'position_revised' | 'position_replaced' | 'position_abandoned' | 'question_promoted' | 'link_created' | 'suggestion_created' | 'suggestion_accepted' | 'suggestion_dismissed' | 'thinking_pattern_inferred' | 'thinking_pattern_acknowledged' | 'thinking_pattern_dismissed' | 'stress_test_generated' | 'stress_test_answered' | 'assumption_added' | 'assumption_challenged' | 'challenge_added' | 'source_created' | 'source_abandoned' | 'concept_defined' | 'concept_redefined' | 'concept_abandoned' | 'work_created' | 'work_revised' | 'work_abandoned' | 'practice_logged' | 'practice_concluded' | 'practice_abandoned';
+export type ThinkingEventType = 'created' | 'edited' | 'revised' | 'challenged' | 'supported' | 'abandoned' | 'deleted' | 'restored' | 'resolved' | 'linked' | 'unlinked' | 'link_removed' | 'tested' | 'synthesized' | 'confidence_changed' | 'evidence_added' | 'evidence_removed' | 'contradiction_detected' | 'contradiction_resolved' | 'unknown_created' | 'unknown_resolved' | 'question_created' | 'question_resolved' | 'position_formed' | 'practice_created' | 'source_distilled' | 'annotation_created' | 'ai_suggestion_generated' | 'ai_suggestion_accepted' | 'ai_suggestion_rejected' | 'position_created' | 'position_revised' | 'position_replaced' | 'position_abandoned' | 'question_promoted' | 'link_created' | 'suggestion_created' | 'suggestion_accepted' | 'suggestion_dismissed' | 'thinking_pattern_inferred' | 'thinking_pattern_acknowledged' | 'thinking_pattern_dismissed' | 'stress_test_generated' | 'stress_test_answered' | 'assumption_added' | 'assumption_challenged' | 'challenge_added' | 'source_created' | 'source_abandoned' | 'concept_defined' | 'concept_redefined' | 'concept_abandoned' | 'work_created' | 'work_revised' | 'work_abandoned' | 'practice_logged' | 'practice_concluded' | 'practice_abandoned';
 export type ThinkingPatternType = 'evidence_style' | 'reasoning_style' | 'questioning_style' | 'source_bias' | 'conceptual_gap' | 'revision_pattern' | 'contradiction_pattern' | 'certainty_pattern';
 export type ThinkingPatternStatus = 'pending' | 'acknowledged' | 'dismissed' | 'outdated';
 export type ThinkingPatternUserResponse = 'confirmed' | 'partially_agree' | 'rejected' | 'needs_more_evidence' | 'alternative_explanation' | 'outdated';
@@ -152,6 +152,7 @@ export interface MediaCapture {
     implications?: string;
     nextAction?: string;
     crossRefs?: string;
+    aiReflection?: string;
   };
   sessions: ReadingSession[];
 }
@@ -205,6 +206,7 @@ export interface VaultEntry {
   type: VaultType;
   statement: string;
   description: string;
+  rationale?: string;
   confidence: number;
   status: PositionPhilosophyStatus | 'questioning' | 'abandoned';
   positionKind?: PositionKind;
@@ -622,6 +624,11 @@ export interface GoalType {
 
 export type IntellectualGoalKind = 'consumption' | 'understanding' | 'inquiry' | 'position' | 'expression' | 'practice' | 'transformation' | 'reflection' | 'custom';
 export type IntellectualGoalStatus = 'planned' | 'active' | 'stalled' | 'under_review' | 'completed' | 'abandoned' | 'transformed' | 'archived';
+export type SourceGoalMeasure = 'finished' | 'fully_reflected';
+export type InquiryGoalMeasure = 'active' | 'answered' | 'resolved';
+export type PositionGoalMeasure = 'reviewed' | 'revised' | 'confident';
+export type PracticeGoalMeasure = 'completed' | 'logged_days' | 'log_streak';
+export type WorkGoalMeasure = 'completed' | 'published';
 
 export interface GoalItem {
   id: string;
@@ -630,6 +637,12 @@ export interface GoalItem {
   goalKind?: IntellectualGoalKind;
   currentProgress: number;
   targetProgress: number;
+  sourceType?: MediaType;
+  sourceMeasure?: SourceGoalMeasure;
+  inquiryMeasure?: InquiryGoalMeasure;
+  positionMeasure?: PositionGoalMeasure;
+  practiceMeasure?: PracticeGoalMeasure;
+  workMeasure?: WorkGoalMeasure;
   sortOrder: number;
   status: IntellectualGoalStatus;
   purpose?: string;
@@ -677,6 +690,9 @@ export interface UserProfile {
   photoURL?: string;
   avatarUrl?: string;
   bio?: string;
+  philosophyName?: string;
+  philosophyNameStatus?: 'working' | 'established';
+  philosophyStatement?: string;
   intellectualFocus?: string[];
   currentThemes?: string[];
   disciplines?: string[];
@@ -684,6 +700,8 @@ export interface UserProfile {
   publicProfileEnabled?: boolean;
   shareSlug?: string;
   role?: UserRole;
+  dailyActivityDates?: string[];
+  lastActiveDate?: string;
   createdAt?: string;
   dateUpdated?: string;
 }
@@ -718,18 +736,50 @@ export interface ProfilePrivacySettings {
   id?: string;
   defaultVisibility: VisibilitySetting;
   publicProfileEnabled: boolean;
+  publicBioEnabled?: boolean;
+  publicPhilosophyEnabled?: boolean;
+  publicSeasonEnabled?: boolean;
+  publicThemesEnabled?: boolean;
   publicConceptsEnabled: boolean;
   publicPositionsEnabled: boolean;
   publicWorksEnabled: boolean;
   publicPracticesEnabled: boolean;
   publicSourcesEnabled: boolean;
   publicBeliefBiographyEnabled: boolean;
+  publicConceptIds?: string[];
+  publicPositionIds?: string[];
+  publicWorkIds?: string[];
+  publicPracticeIds?: string[];
+  publicSourceIds?: string[];
+  publicBeliefHistoryIds?: string[];
   hidePrivateNotesFromSharedViews: boolean;
   hideAnnotationsFromSharedViews: boolean;
   hideMetacognitionFromSharedViews: boolean;
   requireConfirmationBeforePublic: boolean;
   shareSlug?: string;
   dateUpdated?: string;
+}
+
+export interface PublicProfileSnapshot {
+  id?: string;
+  ownerId?: string;
+  shareSlug: string;
+  enabled: boolean;
+  displayName: string;
+  avatarUrl?: string;
+  bio?: string;
+  philosophyName?: string;
+  philosophyNameStatus?: 'working' | 'established';
+  philosophyStatement?: string;
+  currentSeason: string;
+  themes: string[];
+  concepts: Array<{ id: string; name: string; description?: string }>;
+  positions: Array<{ id: string; statement: string; confidence: number }>;
+  works: Array<{ id: string; title: string; type: DraftType }>;
+  practices: Array<{ id: string; title: string; type: PracticeType }>;
+  sources: Array<{ id: string; title: string; creator?: string; type: MediaType }>;
+  beliefHistory: Array<{ id: string; summary: string; date: string }>;
+  updatedAt?: string;
 }
 
 export interface ProfileMetacognitionSummary {

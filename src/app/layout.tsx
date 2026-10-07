@@ -7,6 +7,14 @@ export const metadata: Metadata = {
   title: 'Noesis - Turn thought into understanding',
   description: 'A personal philosophy workspace for mapping concepts, examining positions, building works, and testing practices.',
   applicationName: 'Noesis',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Noesis',
+  },
+  formatDetection: {
+    telephone: false,
+  },
   manifest: '/manifest.webmanifest',
   icons: {
     icon: '/icon.png',

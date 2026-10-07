@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Edit, PauseCircle, Play, Plus, Repeat, Target, Trash2 } from 'lucide-react';
+import { CheckCircle2, Edit, MoreHorizontal, PauseCircle, Play, Plus, Repeat, Target, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import type { Concept, Draft, Media, PhilosophicalLink, Practice, PracticeLog, PracticeStatus, PracticeType, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, normalizeConceptTags, PRACTICE_LABELS, today, uid } from '@/lib/readex';
@@ -174,6 +175,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   const [conceptFilter, setConceptFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState<PracticeViewFilter>('all');
   const [otherStatus, setOtherStatus] = useState<PracticeStatus>('planned');
+  const [practiceSection, setPracticeSection] = useState<'active' | 'other'>('active');
   const [search, setSearch] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Practice | null>(null);
@@ -186,7 +188,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       .sort((a, b) => a.localeCompare(b)),
     [concepts]
   );
-  const activeLoops = practices.filter((practice) => normalizePracticeStatus(practice.status) === 'active' && practice.durationMode !== 'one_time');
+  const activeLoops = practices.filter((practice) => normalizePracticeStatus(practice.status) === 'active');
   const practiceState = useMemo(() => {
     const questionById = new Map(questionList.map((question) => [question.id, question]));
     const positionById = new Map(positions.map((position) => [position.id, position]));
@@ -232,12 +234,13 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
     return matchesSearch && matchesConcept && matchesView && (statusFilter === 'all' || normalizePracticeStatus(practice.status) === statusFilter) && (typeFilter === 'all' || normalizePracticeType(practice.type) === typeFilter);
   });
   const otherPractices = filtered.filter((practice) => normalizePracticeStatus(practice.status) === otherStatus);
-  const needsAttentionLoops = activeLoops.filter((practice) => {
+  const visibleActiveLoops = activeLoops.filter((practice) => filtered.some((item) => item.id === practice.id));
+  const needsAttentionLoops = visibleActiveLoops.filter((practice) => {
     const state = practiceState.get(practice.id);
     return state?.needsLog || !state?.hasBasis || state?.needsDesign;
   });
-  const todayLoops = activeLoops.filter((practice) => practiceNeedsLog(practice));
-  const ongoingLoops = activeLoops.filter((practice) => !needsAttentionLoops.some((item) => item.id === practice.id));
+  const todayLoops = visibleActiveLoops.filter((practice) => practiceNeedsLog(practice));
+  const ongoingLoops = visibleActiveLoops.filter((practice) => !needsAttentionLoops.some((item) => item.id === practice.id));
   const practiceStats = useMemo(() => ({
     total: practices.length,
     active: practices.filter((practice) => normalizePracticeStatus(practice.status) === 'active').length,
@@ -295,7 +298,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   };
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+    <div className="noesis-page">
       <PageHeader
         title="Practices"
         description="Turn understanding into small lived tests, then reflect only when the action produces evidence."
@@ -359,7 +362,6 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           { label: 'Needs setup', value: practiceStats.needsDesign + practiceStats.needsBasis, filter: 'needs_setup' as PracticeViewFilter },
           { label: 'Log due', value: practiceStats.awaitingLog, filter: 'awaiting_log' as PracticeViewFilter },
           { label: 'Ready for review', value: practiceStats.needsOutcome + practiceStats.needsConsequence, filter: 'ready_review' as PracticeViewFilter },
-          { label: 'Testing positions', value: practiceStats.testedPositions, filter: 'testing_positions' as PracticeViewFilter },
         ].filter((item) => item.value > 0).map((item) => (
           <button
             key={item.filter}
@@ -375,7 +377,12 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         ))}
       </div>
 
-      <section className="mb-6 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
+      <div className="mb-4 flex gap-2" role="tablist" aria-label="Practice groups">
+        <Button role="tab" aria-selected={practiceSection === 'active'} variant={practiceSection === 'active' ? 'default' : 'outline'} onClick={() => setPracticeSection('active')}>Active loops {visibleActiveLoops.length}</Button>
+        <Button role="tab" aria-selected={practiceSection === 'other'} variant={practiceSection === 'other' ? 'default' : 'outline'} onClick={() => setPracticeSection('other')}>Other practices {filtered.length - visibleActiveLoops.length}</Button>
+      </div>
+
+      {practiceSection === 'active' && <section className="mb-6 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Repeat className="size-4 text-accent" />
@@ -384,23 +391,35 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           <p className="max-w-xl text-xs italic leading-5 text-muted-foreground">
             Log the action first. Reflect when the practice starts producing evidence.
           </p>
+          {practiceStats.testedPositions > 0 && (
+            <button
+              type="button"
+              onClick={() => setViewFilter(viewFilter === 'testing_positions' ? 'all' : 'testing_positions')}
+              className={cn(
+                "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+                viewFilter === 'testing_positions' ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
+              )}
+            >
+              Testing positions {practiceStats.testedPositions}
+            </button>
+          )}
         </div>
         <div className="space-y-4">
           <ActiveLoopGroup title="Needs attention" practices={needsAttentionLoops} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
           <ActiveLoopGroup title="Today" practices={todayLoops.filter((practice) => !needsAttentionLoops.some((item) => item.id === practice.id))} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
           <ActiveLoopGroup title="Ongoing" practices={ongoingLoops} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
-          {!practices.length && (
+          {!visibleActiveLoops.length && (
             <Card className="border-dashed border-border/60 bg-muted/5 p-8 text-center shadow-inner md:col-span-2 xl:col-span-3 2xl:col-span-4 rounded-xl">
               <Repeat className="size-12 mx-auto mb-4 text-muted-foreground/30" />
-              <h3 className="font-headline text-xl italic mb-2 text-primary/60">No lived tests initiated</h3>
-              <p className="max-w-sm mx-auto text-sm text-muted-foreground italic mb-5">What does your current understanding require of you?</p>
-              <Button variant="outline" onClick={() => openEditor()} className="rounded-full px-8 font-bold border-border/60 shadow-sm bg-card">Initiate Practice</Button>
+              <h3 className="font-headline text-xl italic mb-2 text-primary/60">No active loops match</h3>
+              <p className="max-w-sm mx-auto text-sm text-muted-foreground italic mb-5">Start a planned practice or adjust your filters.</p>
+              <Button variant="outline" onClick={() => setPracticeSection('other')} className="rounded-full px-8 font-bold border-border/60 shadow-sm bg-card">View other practices</Button>
             </Card>
           )}
         </div>
-      </section>
+      </section>}
 
-      <section className="rounded-2xl border border-border/50 bg-card/60 p-4 shadow-sm">
+      {practiceSection === 'other' && <section className="rounded-2xl border border-border/50 bg-card/60 p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-headline text-xl font-bold italic text-primary/80">Other practices</h2>
@@ -443,7 +462,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             </div>
           )}
         </div>
-      </section>
+      </section>}
 
       <PracticeEditor
         aiSettings={aiSettings}
@@ -469,7 +488,14 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         title="Delete practice?"
         description={`This removes "${deleteTarget?.title || 'this practice'}" and its logs from the practice workspace. Linked positions, inquiries, works, and sources will remain.`}
         confirmLabel="Delete Practice"
+        alternateLabel="Abandon instead"
         destructive
+        onAlternate={() => {
+          if (!deleteTarget) return;
+          onUpdatePractice({ ...deleteTarget, status: 'abandoned', dateUpdated: new Date().toISOString() });
+          if (focusedPracticeId === deleteTarget.id) onOpenPracticeRoute?.(null);
+          setDeleteTarget(null);
+        }}
         onConfirm={() => {
           if (!deleteTarget) return;
           onDeletePractice(deleteTarget.id);
@@ -561,26 +587,9 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       ? `Needs setup: add ${experimentShape.designGaps[0]}.`
       : '';
   const canActivate = !setupNeed;
-  const quickLog = () => {
-    if (!needsLog || !canActivate) return;
-    const nextLog: PracticeLog = {
-      id: uid(),
-      date: todayKey,
-      actionCompleted: true,
-      context: '',
-      outcome: '',
-      observations: '',
-      unexpectedResult: '',
-      confidence: 3,
-      mediaIds: [],
-    };
-    onUpdatePractice({
-      ...practice,
-      status: visibleStatus === 'planned' ? 'active' : practice.status,
-      logs: [...(practice.logs || []), nextLog],
-      logDates: Array.from(new Set([...logDates, todayKey])),
-      dateUpdated: today(),
-    });
+  const openLog = () => {
+    if (canActivate) setLogOpen(true);
+    else onEdit();
   };
   const relationshipText = `Tests ${linkedPositions.length} position${linkedPositions.length === 1 ? '' : 's'} · connected to ${linkedQuestions.length} inquir${linkedQuestions.length === 1 ? 'y' : 'ies'}`;
   const nextAction =
@@ -588,7 +597,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
     visibleStatus === 'planned' || visibleStatus === 'paused'
       ? { label: 'Start practice', handler: () => setStatus('active'), tone: 'start' as const } :
     visibleStatus === 'active' && needsLog
-      ? { label: 'Log today', handler: quickLog, tone: 'log' as const } :
+      ? { label: 'Log today', handler: openLog, tone: 'log' as const } :
     isPracticeConcluded(practice) || experimentShape.needsOutcome || experimentShape.needsConsequence
       ? { label: 'Review evidence', handler: () => setReviewOpen(true), tone: 'review' as const } :
     visibleStatus === 'completed'
@@ -599,6 +608,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       onEdit();
       return;
     }
+    if (visibleType !== 'habit' && ![logDraft.outcome, logDraft.observations].some((value) => value?.trim())) return;
     const date = (logDraft.date || todayKey).slice(0, 10);
     const nextLog: PracticeLog = {
       id: uid(),
@@ -638,7 +648,12 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
     setReviewOpen(false);
   };
   return (
-    <Card className={cn("group cursor-pointer transition-all border border-border/60 bg-card/95 rounded-xl shadow-sm hover:border-accent/30 hover:shadow-md", compact ? "p-3" : "p-4")}>
+    <Card role="group" aria-label={`Practice: ${practice.title}`} tabIndex={0} onClick={(event) => {
+      if ((event.target as HTMLElement).closest('button,a,input,textarea,[role="checkbox"],[role="combobox"]')) return;
+      onEdit();
+    }} onKeyDown={(event) => {
+      if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onEdit(); }
+    }} className={cn("group cursor-pointer transition-all border border-border/60 bg-card/95 rounded-xl shadow-sm hover:border-accent/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", compact ? "p-3" : "p-4")}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap gap-1.5 mb-1.5">
@@ -649,21 +664,21 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
                 'rounded-full px-2.5 py-0.5 font-code text-[8px] font-bold uppercase tracking-widest',
                 setupNeed ? 'border-sky-400/50 bg-sky-100 text-sky-950' :
                   recentlyConcluded ? 'border-accent/30 bg-accent/5 text-accent' :
-                    needsLog ? 'border-emerald-500/40 bg-emerald-100 text-emerald-950' :
+                    needsLog ? 'border-accent/40 bg-accent/10 text-accent' :
                       'border-border/60 bg-card text-muted-foreground',
               )}
             >
               {setupNeed ? 'Needs setup' : recentlyConcluded ? 'Review result' : needsLog ? 'Log due' : visibleStatus}
             </Badge>
           </div>
-          <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors text-primary truncate">{practice.title}</h3>
-          <p className="mt-1 line-clamp-1 text-[12px] italic leading-5 text-muted-foreground">
+          <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors text-primary whitespace-normal break-words">{practice.title}</h3>
+          <p className="mt-1 text-[12px] italic leading-5 text-muted-foreground whitespace-normal">
             {practice.action || practice.description || 'No action defined yet.'}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {visibleStatus === 'active' && (
-            <Button size="sm" onClick={(event) => { event.stopPropagation(); quickLog(); }} disabled={!needsLog || !canActivate} className="h-10 rounded-full px-4 font-code text-[9px] uppercase tracking-widest">
+            <Button size="sm" onClick={(event) => { event.stopPropagation(); openLog(); }} disabled={!needsLog} className="h-10 rounded-full px-4 font-code text-[9px] uppercase tracking-widest">
               <CheckCircle2 className="mr-1.5 size-3.5" /> {needsLog ? 'Log' : 'Logged'}
             </Button>
           )}
@@ -672,15 +687,21 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
               <Play className="mr-1.5 size-3.5" /> Start
             </Button>
           )}
-          <Button variant="ghost" size="icon" aria-label={`Edit ${practice.title}`} className="size-10 rounded-full" onClick={(e) => { e.stopPropagation(); onEdit(); }}><Edit className="size-4" /></Button>
-          <Button variant="ghost" size="icon" aria-label={`Delete ${practice.title}`} className="size-10 text-destructive hover:text-destructive rounded-full" onClick={(e) => { e.stopPropagation(); onDelete(); }}><Trash2 className="size-4" /></Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Actions for ${practice.title}`} className="size-10 rounded-full"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={onEdit}><Edit className="mr-2 size-4" /> Edit practice</DropdownMenuItem>
+              {visibleStatus === 'active' && <DropdownMenuItem onSelect={() => setStatus('paused')}><PauseCircle className="mr-2 size-4" /> Pause</DropdownMenuItem>}
+              <DropdownMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete practice</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
         <span className="min-w-0 max-w-xl truncate italic text-primary/80">{practice.intellectualBasis || firstLinkedPosition?.title || linkedQuestions[0]?.text || 'No linked idea named yet.'}</span>
         <span className="font-code text-[8px] uppercase tracking-widest">{durationText}</span>
-        <span className="font-code text-[8px] uppercase tracking-widest">{(practice.logs || []).length} logs</span>
+        <span className="font-code text-[8px] uppercase tracking-widest">{experimentShape.logCount} {experimentShape.logCount === 1 ? 'log' : 'logs'}</span>
         {meaningfulStreak && <span className="font-code text-[8px] uppercase tracking-widest">{streak}d streak</span>}
         <span className="hidden sm:inline">{relationshipText}</span>
         {setupNeed && (
@@ -688,29 +709,21 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <Button size="sm" variant={nextAction.tone === 'log' ? 'default' : 'outline'} onClick={(event) => { event.stopPropagation(); nextAction.handler(); }} className="h-8 rounded-full bg-card font-code text-[9px] uppercase tracking-widest">
-          {nextAction.label}
-        </Button>
-        <div className="flex gap-1">
-          <Button variant="ghost" size="sm" className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); setLogOpen((open) => !open); }}>
-            Note
+      {!['log', 'start'].includes(nextAction.tone) && (
+        <div className="mt-3">
+          <Button size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); nextAction.handler(); }} className="h-9 rounded-full font-code text-[9px] uppercase tracking-widest">
+            {nextAction.label}
           </Button>
-          {visibleStatus === 'active' && (
-            <Button variant="ghost" size="sm" className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); setStatus('paused'); }}>
-              <PauseCircle className="mr-1.5 size-3.5" /> Pause
-            </Button>
-          )}
         </div>
-      </div>
+      )}
 
       {logOpen && (
-        <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4">
+        <div className="mt-5 rounded-xl border border-border/70 bg-background/80 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-emerald-700">Observation Log</div>
-              <p className="mt-1 text-xs leading-5 text-emerald-950/70">
-                Capture what actually happened. Routine logs stay quiet unless they change the intellectual outcome.
+              <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Observation Log</div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {visibleType === 'habit' ? 'Mark whether you did it today. Add a note only when something matters.' : visibleType === 'reflection' ? 'Write what you noticed or understood during this reflection.' : visibleType === 'observation' ? 'Record what you observed, even if the expected pattern did not appear.' : 'Record what happened and how it compares with your hypothesis.'}
               </p>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setLogOpen(false)} className="h-7 rounded-full px-2.5 font-code text-[8px] uppercase">Hide</Button>
@@ -719,39 +732,31 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
             <Field label="DATE">
               <Input type="date" value={logDraft.date || todayKey} onChange={(event) => setLogDraft((prev) => ({ ...prev, date: event.target.value }))} className="h-10 rounded-full bg-card font-code text-xs" />
             </Field>
-            <Field label="CONFIDENCE IN OBSERVATION">
-              <Select value={String(logDraft.confidence || 3)} onValueChange={(value) => setLogDraft((prev) => ({ ...prev, confidence: Number(value) }))}>
-                <SelectTrigger className="h-10 rounded-full bg-card font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5].map((value) => <SelectItem key={value} value={String(value)} className="font-code text-[10px] uppercase">{value} / 5</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <label className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-card p-3 text-sm font-medium text-emerald-950 sm:col-span-2">
+            <div className="self-end text-xs text-muted-foreground">{logDates.length} completed {logDates.length === 1 ? 'log' : 'logs'} recorded</div>
+            <label className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-sm font-medium text-foreground sm:col-span-2">
               <input
                 type="checkbox"
                 checked={logDraft.actionCompleted ?? true}
                 onChange={(event) => setLogDraft((prev) => ({ ...prev, actionCompleted: event.target.checked }))}
-                className="size-4 accent-emerald-600"
+                className="size-4 accent-accent"
               />
               Action completed as intended
             </label>
-            <Field label="CONTEXT">
-              <Textarea value={logDraft.context || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, context: event.target.value }))} placeholder="When, where, under what conditions?" className="min-h-20 bg-card" />
+            <Field label={visibleType === 'habit' ? 'NOTE (OPTIONAL)' : visibleType === 'reflection' ? 'WHAT DID YOU REALIZE?' : visibleType === 'observation' ? 'WHAT DID YOU NOTICE?' : 'WHAT HAPPENED?'}>
+              <Textarea value={logDraft.outcome || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, outcome: event.target.value }))} placeholder={visibleType === 'habit' ? 'What helped or got in the way?' : 'Record the result in your own words.'} className="min-h-20 bg-card" />
             </Field>
-            <Field label="OUTCOME">
-              <Textarea value={logDraft.outcome || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, outcome: event.target.value }))} placeholder="What happened?" className="min-h-20 bg-card" />
-            </Field>
-            <Field label="OBSERVATIONS">
-              <Textarea value={logDraft.observations || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, observations: event.target.value }))} placeholder="Emotional, practical, or situational observations." className="min-h-20 bg-card" />
-            </Field>
-            <Field label="UNEXPECTED RESULT">
-              <Textarea value={logDraft.unexpectedResult || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, unexpectedResult: event.target.value }))} placeholder="What surprised you or complicated the hypothesis?" className="min-h-20 bg-card" />
-            </Field>
+            <details className="rounded-xl border border-border/60 bg-card p-3 sm:col-span-2">
+              <summary className="cursor-pointer text-sm font-medium text-foreground">Add context or an unexpected result</summary>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Field label="CONTEXT"><Textarea value={logDraft.context || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, context: event.target.value }))} placeholder="When, where, under what conditions?" className="min-h-20 bg-card" /></Field>
+                <Field label="OBSERVATIONS"><Textarea value={logDraft.observations || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, observations: event.target.value }))} placeholder="What else did you notice?" className="min-h-20 bg-card" /></Field>
+                <Field label="UNEXPECTED RESULT"><Textarea value={logDraft.unexpectedResult || ''} onChange={(event) => setLogDraft((prev) => ({ ...prev, unexpectedResult: event.target.value }))} placeholder="What surprised you?" className="min-h-20 bg-card" /></Field>
+              </div>
+            </details>
           </div>
           <div className="mt-3 flex justify-end gap-2">
             <Button size="sm" variant="outline" onClick={() => setLogOpen(false)} className="h-8 rounded-full bg-card">Cancel</Button>
-            <Button size="sm" onClick={saveLog} className="h-8 rounded-full bg-emerald-700 hover:bg-emerald-800">Save Observation</Button>
+            <Button size="sm" onClick={saveLog} disabled={visibleType !== 'habit' && ![logDraft.outcome, logDraft.observations].some((value) => value?.trim())} className="h-8 rounded-full">Save log</Button>
           </div>
         </div>
       )}

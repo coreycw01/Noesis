@@ -9,7 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     display: 'standalone',
     background_color: '#11100d',
     theme_color: '#11100d',
-    orientation: 'portrait-primary',
+    // Writing, maps, and drawing all benefit from rotation on phones and tablets.
+    orientation: 'any',
     categories: ['education', 'productivity', 'books'],
     icons: [
       {

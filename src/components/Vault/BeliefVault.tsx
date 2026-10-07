@@ -2,7 +2,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Edit, Plus, ShieldCheck, Trash2, Triangle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
+import { usePersistentView } from '@/hooks/use-persistent-view';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +25,7 @@ import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { noesisUserError } from '@/lib/user-facing-errors';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
@@ -187,6 +189,7 @@ function safePosition(entry: VaultEntry): VaultEntry {
     type: (entry.type || 'belief') as VaultType,
     statement: entry.statement || entry.description || '',
     description: entry.description || entry.statement || '',
+    rationale: entry.rationale || '',
     confidence: confidencePercent(entry.confidence),
     status: entry.status || 'active',
     positionKind: entry.positionKind || 'interpretive',
@@ -440,9 +443,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [typeFilter, setTypeFilter] = useState<'all' | VaultType>('all');
   const [conceptFilter, setConceptFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState<PositionViewFilter>('all');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const [viewMode, setViewMode] = usePersistentView<'cards' | 'table'>('noesis:positions-view', 'table', ['cards', 'table']);
   const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'opposition' | 'relations' | 'history'>('overview');
-  const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', confidence: 60, status: 'active', tags: [] });
+  const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', rationale: '', confidence: 60, status: 'active', tags: [] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VaultEntry | null>(null);
   const { toast } = useToast();
@@ -560,7 +563,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   ].filter(Boolean) as string[];
 
   const openEditor = (entry?: VaultEntry) => {
-    setDraftEntry(entry ? { ...entry, confidence: confidencePercent(entry.confidence) } : { type: 'belief', title: '', statement: '', description: '', confidence: 60, status: 'developing', positionKind: 'interpretive', tags: [], assumptions: [], consequences: [], applications: [], evidenceFor: [], evidenceAgainst: [] });
+    setDraftEntry(entry ? { ...entry, rationale: entry.rationale || '', confidence: confidencePercent(entry.confidence) } : { type: 'belief', title: '', statement: '', description: '', rationale: '', confidence: 60, status: 'developing', positionKind: 'interpretive', tags: [], assumptions: [], consequences: [], applications: [], evidenceFor: [], evidenceAgainst: [] });
     setEditorOpen(true);
   };
 
@@ -681,11 +684,11 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     });
     const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
     const reviewTabs: Array<{ id: 'overview' | 'evidence' | 'opposition' | 'relations' | 'history'; label: string }> = [
-      { id: 'overview', label: 'Claim' },
-      { id: 'evidence', label: 'Grounds' },
-      { id: 'opposition', label: 'Opposition' },
-      { id: 'relations', label: 'Applications' },
-      { id: 'history', label: 'Biography' },
+      { id: 'overview', label: 'Develop' },
+      { id: 'evidence', label: 'Evidence' },
+      { id: 'opposition', label: 'Challenge' },
+      { id: 'relations', label: 'Connections' },
+      { id: 'history', label: 'History' },
     ];
 
     const previewSource = (source: Media) => {
@@ -1039,8 +1042,13 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               buttonLabel="Test Position"
               onAccept={acceptPositionAiResult}
             />
-            <Button variant="outline" onClick={() => openEditor(selected)} className="h-8 bg-card border-border/60 shadow-sm rounded-full"><Edit className="size-4 mr-2" /> Edit</Button>
-            <Button variant="destructive" onClick={() => setDeleteTarget(selected)} className="h-8 shadow-sm rounded-full"><Trash2 className="size-4 mr-2" /> Delete</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Position actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => openEditor(selected)}><Pencil className="mr-2 size-4" /> Edit position</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setDeleteTarget(selected)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete position</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -1100,11 +1108,24 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </details>
         )}
 
+        <section className="mb-5 rounded-xl border border-border/60 bg-card p-5" aria-label="Position summary">
+          <h2 className="font-headline text-xl font-semibold italic text-foreground">Why I hold it</h2>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{selected.rationale || selected.confidenceReasoning || 'No rationale recorded yet.'}</p>
+          {!selected.rationale && selected.description && (
+            <p className="mt-2 text-xs italic text-muted-foreground">Add your own rationale when you edit this position. Scope and boundaries now live separately below.</p>
+          )}
+          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-border/50 pt-3 text-xs text-muted-foreground">
+            <span>{(selected.evidenceFor || []).length} supporting notes</span>
+            <span>{(selected.evidenceAgainst || []).length} challenges</span>
+            <span>{linkedPractices.length} linked practices</span>
+          </div>
+        </section>
+
         <details className="group rounded-2xl border border-border bg-card shadow-sm">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
             <div>
-              <div className="text-sm font-semibold text-foreground">More tools</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">Evidence, objections, assumptions, relationships, stress tests, revision history, and status controls.</p>
+              <div className="text-sm font-semibold text-foreground">Position workbench</div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Use the tools you need: add grounds, test objections, compare relationships, or review history.</p>
             </div>
             <Triangle className="size-4 shrink-0 rotate-180 text-muted-foreground transition-transform group-open:rotate-0" />
           </summary>
@@ -1179,6 +1200,15 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               onUpdateLink={onUpdateLink}
             />
 
+            <details className="group mb-6 rounded-xl border border-border/60 bg-background/40">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+                <span>
+                  <span className="block text-sm font-semibold text-foreground">Position structure and reach</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">Review scope, assumptions, connected objects, and current pressure without crowding the active tools.</span>
+                </span>
+                <Triangle className="size-4 shrink-0 rotate-180 text-muted-foreground transition-transform group-open:rotate-0" />
+              </summary>
+              <div className="border-t border-border/60 p-4 sm:p-5">
             <Card className="mb-6 rounded-xl border-border/50 bg-card p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1193,16 +1223,18 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <InfoPanel title="Meaning and Scope" items={[selected.statement, selected.description].filter(Boolean)} empty="No statement or scope has been written yet." />
                 <InfoPanel title="Confidence Reasoning" items={selected.confidenceReasoning ? [selected.confidenceReasoning] : []} empty="No reasoning for this confidence level has been written yet." />
                 <InfoPanel title="Assumptions" items={positionAssumptions} empty="No assumptions derived yet." />
-                <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
                 <InfoPanel title="Counterposition" items={[counterposition]} empty="No counterposition recorded yet." />
-                <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
-                <InfoPanel title="Consequences" items={consequenceItems} empty="No consequences written yet." />
-                <InfoPanel title="Falsification" items={selected.falsification ? [selected.falsification] : []} empty="No falsification condition written yet." />
-                <InfoPanel title="Revision Rule" items={[
-                  'If new evidence changes the claim, use revision history instead of overwriting the old position silently.',
-                  'If the opposite case is stronger, lower confidence or mark the position challenged before abandoning it.',
-                ]} empty="No revision rule." />
               </div>
+              <details className="mt-4 rounded-xl border border-border/50 bg-background/40 p-4">
+                <summary className="cursor-pointer font-medium text-foreground">More structure</summary>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Dependencies, applications, consequences, and the conditions that would change this position.</p>
+                <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
+                  <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
+                  <InfoPanel title="Consequences" items={consequenceItems} empty="No consequences written yet." />
+                  <InfoPanel title="What would change my mind?" items={selected.falsification ? [selected.falsification] : []} empty="No condition recorded yet." />
+                </div>
+              </details>
             </Card>
 
             <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -1242,6 +1274,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 </div>
               </Card>
             </div>
+              </div>
+            </details>
 
             <Card className="mb-6 rounded-xl border-border/50 bg-card p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1642,7 +1676,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   }
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+    <div className="noesis-page">
       <PageHeader
         title="Positions"
         description="State what you currently believe, what supports it, and what could change it."
@@ -1772,7 +1806,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   ))}
                   {(entry.tags || []).length > 2 && <span className="font-code text-[8px] text-muted-foreground">+{(entry.tags || []).length - 2}</span>}
                 </div>
-                <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors truncate text-primary">
+                <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors whitespace-normal break-words text-primary">
                   {entry.title}
                 </h3>
               </div>
@@ -1781,7 +1815,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               </div>
             </div>
             
-            <p className="text-[13px] leading-relaxed text-muted-foreground font-body line-clamp-1 italic mb-4">
+            <p className="text-[13px] leading-relaxed text-muted-foreground font-body whitespace-normal break-words italic mb-4">
               {entry.statement || entry.description}
             </p>
 
@@ -2051,7 +2085,25 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         title="Delete position?"
         description={`This removes "${deleteTarget?.title || 'this position'}" from Positions. Related sources, works, practices, and Evolution history will remain.`}
         confirmLabel="Delete Position"
+        alternateLabel="Abandon instead"
         destructive
+        onAlternate={async () => {
+          if (!deleteTarget) return;
+          const target = deleteTarget;
+          setDeleteTarget(null);
+          try {
+            await onUpdateEntry({
+              ...target,
+              status: 'abandoned',
+              versionHistory: [...(target.versionHistory || []), { date: today(), eventType: 'abandoned', description: 'Position abandoned instead of deleted.' }],
+              dateUpdated: today(),
+            });
+            if (selectedId === target.id) closeEntry();
+            toast({ title: 'Position abandoned.', description: 'Its history and connected work remain available for review.' });
+          } catch (error) {
+            toast({ variant: 'destructive', title: 'Position could not be abandoned', description: noesisUserError(error, 'abandon this position') });
+          }
+        }}
         onConfirm={async () => {
           if (!deleteTarget) return;
           const target = deleteTarget;
@@ -2127,11 +2179,11 @@ function TensionResolutionPanel({
   };
 
   return (
-    <Card className="mb-6 rounded-xl border-amber-200/60 bg-amber-50/60 p-5 shadow-sm">
+    <Card className="noesis-status-panel mb-6 p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-code text-[10px] font-bold uppercase tracking-[0.2em] text-amber-700">Possible Tension Detected</h2>
-          <p className="mt-1 text-sm italic leading-5 text-muted-foreground">Decide whether this relationship is compatible, opposed, or needs refinement.</p>
+          <h2 className="noesis-status-label">Possible Tension Detected</h2>
+          <p className="noesis-status-detail mt-1 italic">Decide whether this relationship is compatible, opposed, or needs refinement.</p>
         </div>
         <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{tensionLinks.length} open</Badge>
       </div>
@@ -2139,9 +2191,9 @@ function TensionResolutionPanel({
         {tensionLinks.map((link) => {
           const otherLabel = link.fromId === selected.id ? link.toLabel || link.toType : link.fromLabel || link.fromType;
           return (
-            <div key={link.id} className="rounded-lg border border-amber-200/50 bg-card/80 p-3">
-              <div className="mb-3 text-sm italic text-primary/80">
-                {otherLabel} is currently marked as <span className="font-code text-[10px] uppercase tracking-widest text-amber-700">{link.type}</span>.
+            <div key={link.id} className="noesis-status-panel-subtle p-3">
+              <div className="mb-3 text-sm italic text-foreground">
+                {otherLabel} is currently marked as <span className="font-code text-[10px] uppercase tracking-widest text-accent">{link.type}</span>.
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={() => updateLink(link, 'coheres', 'Reviewed and marked as not a contradiction.')} className="rounded-full bg-card">
@@ -2208,7 +2260,7 @@ function PositionsTable({
               <TableRow key={entry.id} className="cursor-pointer" onClick={() => onOpen(entry.id)}>
                 <TableCell>
                   <div className="font-headline text-base font-semibold italic">{entry.title}</div>
-                  <div className="line-clamp-1 text-xs text-muted-foreground">{entry.statement || entry.description}</div>
+                  <div className="max-w-xl whitespace-normal text-xs leading-5 text-muted-foreground">{entry.statement || entry.description}</div>
                 </TableCell>
                 <TableCell className="font-code text-[10px] uppercase tracking-widest">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
                 <TableCell><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge></TableCell>
@@ -2250,7 +2302,7 @@ function PositionsTable({
               </div>
               <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge>
             </div>
-            <p className="mt-2 line-clamp-2 text-sm italic text-muted-foreground">{entry.statement || entry.description}</p>
+            <p className="mt-2 whitespace-normal text-sm italic leading-6 text-muted-foreground">{entry.statement || entry.description}</p>
             <div className="mt-3 rounded-lg border border-border/50 bg-muted/10 p-3">
               <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
                 {(diagnostics.get(entry.id) || diagnosePosition(entry, links, practices)).label}
@@ -2465,7 +2517,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
           </div>
           <div className="space-y-2">
             <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">WHY DO YOU HOLD IT?</Label>
-            <Textarea value={draft.confidenceReasoning || ''} onChange={(event) => setDraft((prev) => ({ ...prev, confidenceReasoning: event.target.value, evidenceFor: prev.evidenceFor?.length ? prev.evidenceFor : splitLines(event.target.value) }))} placeholder="Add one or more concise reasons. Link evidence later if needed." className="min-h-[90px] italic text-base" />
+            <Textarea value={draft.rationale || ''} onChange={(event) => setDraft((prev) => ({ ...prev, rationale: event.target.value }))} placeholder="In your own words, explain the reasons you currently find persuasive." className="min-h-[90px] italic text-base" />
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -2484,6 +2536,10 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
                 <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">ASSUMPTIONS</Label>
                 <Textarea value={joinLines(draft.assumptions)} onChange={(event) => setDraft((prev) => ({ ...prev, assumptions: splitLines(event.target.value) }))} placeholder="One load-bearing assumption per line..." className="min-h-[110px] italic text-base" />
               </div>
+            <div className="space-y-2">
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONFIDENCE REASONING</Label>
+              <Textarea value={draft.confidenceReasoning || ''} onChange={(event) => setDraft((prev) => ({ ...prev, confidenceReasoning: event.target.value }))} placeholder="Why does this confidence level fit right now?" className="min-h-[110px] italic text-base" />
+            </div>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONSEQUENCES</Label>
               <Textarea value={joinLines(draft.consequences)} onChange={(event) => setDraft((prev) => ({ ...prev, consequences: splitLines(event.target.value) }))} placeholder="What follows if this is true? One consequence per line..." className="min-h-[110px] italic text-base" />

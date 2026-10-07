@@ -2,6 +2,7 @@ export type ContextualAiScope = 'current_item' | 'linked_items' | 'selected_pair
 
 export type ContextualAiAction =
   | 'summarize_source'
+  | 'reflect_on_source'
   | 'extract_source_claims'
   | 'propose_inquiry_prompts'
   | 'suggest_annotation_effect'
@@ -13,15 +14,17 @@ export type ContextualAiAction =
   | 'identify_missing_position_evidence'
   | 'compare_selected_positions'
   | 'synthesize_practice_outcome'
-  | 'synthesize_evolution_period';
+  | 'synthesize_evolution_period'
+  | 'synthesize_profile_philosophy';
 
 export interface AiContextEnvelope {
   action: ContextualAiAction;
-  targetType: 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'practice' | 'evolution';
+  targetType: 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'practice' | 'evolution' | 'profile';
   targetId: string;
   scope: ContextualAiScope;
   itemMemory: string[];
   linkedMemory: string[];
+  userPrompt?: string;
   selectedRange?: { from: string; to: string };
   secondaryTarget?: {
     targetType: 'position';
@@ -44,6 +47,7 @@ export interface AiReviewResult {
 
 export const CONTEXTUAL_AI_LABELS: Record<ContextualAiAction, string> = {
   summarize_source: 'Summarize Source',
+  reflect_on_source: 'Reflect on Source',
   extract_source_claims: 'Extract Claims',
   propose_inquiry_prompts: 'Propose Inquiry Prompts',
   suggest_annotation_effect: 'Suggest Effect',
@@ -56,6 +60,7 @@ export const CONTEXTUAL_AI_LABELS: Record<ContextualAiAction, string> = {
   compare_selected_positions: 'Compare Positions',
   synthesize_practice_outcome: 'Synthesize Outcome',
   synthesize_evolution_period: 'Synthesize Period',
+  synthesize_profile_philosophy: 'Shape My Philosophy',
 };
 
 export const CONTEXTUAL_AI_POLICIES: Record<ContextualAiAction, {
@@ -63,6 +68,7 @@ export const CONTEXTUAL_AI_POLICIES: Record<ContextualAiAction, {
   scope: ContextualAiScope;
 }> = {
   summarize_source: { targetType: 'source', scope: 'linked_items' },
+  reflect_on_source: { targetType: 'source', scope: 'linked_items' },
   extract_source_claims: { targetType: 'source', scope: 'linked_items' },
   propose_inquiry_prompts: { targetType: 'source', scope: 'linked_items' },
   suggest_annotation_effect: { targetType: 'annotation', scope: 'linked_items' },
@@ -75,6 +81,7 @@ export const CONTEXTUAL_AI_POLICIES: Record<ContextualAiAction, {
   compare_selected_positions: { targetType: 'position', scope: 'selected_pair' },
   synthesize_practice_outcome: { targetType: 'practice', scope: 'linked_items' },
   synthesize_evolution_period: { targetType: 'evolution', scope: 'selected_period' },
+  synthesize_profile_philosophy: { targetType: 'profile', scope: 'linked_items' },
 };
 
 export function isContextualAiRequestCompatible(input: Pick<AiContextEnvelope, 'action' | 'targetType' | 'scope'>) {

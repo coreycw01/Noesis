@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { ArrowRight, BrainCircuit, FlaskConical, HelpCircle, MapPinned, Sparkles, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BrainCircuit, FlaskConical, HelpCircle, MapPinned, Sparkles, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -14,6 +14,8 @@ interface AtlasTerritoryViewProps {
   cards: AtlasTerritoryCard[];
   regions: AtlasRegionViewModel[];
   selectedRegionId: string | null;
+  detailMode: boolean;
+  newRegionIds: string[];
   concepts: Concept[];
   positions: VaultEntry[];
   practices: Practice[];
@@ -21,6 +23,7 @@ interface AtlasTerritoryViewProps {
   drafts: Draft[];
   media: Media[];
   onSelectRegion: (regionId: string) => void;
+  onBackToRegions: () => void;
   onOpenMap: (regionId: string) => void;
   onOpenPosition?: (id: string) => void;
   onOpenQuestion?: (id: string) => void;
@@ -40,6 +43,8 @@ export function AtlasTerritoryView({
   cards,
   regions,
   selectedRegionId,
+  detailMode,
+  newRegionIds,
   concepts,
   positions,
   practices,
@@ -47,6 +52,7 @@ export function AtlasTerritoryView({
   drafts,
   media,
   onSelectRegion,
+  onBackToRegions,
   onOpenMap,
   onOpenPosition,
   onOpenQuestion,
@@ -194,13 +200,14 @@ export function AtlasTerritoryView({
       <Card className="rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
+            {detailMode && <Button variant="ghost" size="sm" onClick={onBackToRegions} className="mb-3 -ml-2 rounded-full text-muted-foreground"><ArrowLeft className="mr-2 size-4" />Back to Regions</Button>}
             <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">Atlas Regions</Badge>
-            <h2 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">What territories define my current thought-world?</h2>
+            <h2 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">{detailMode && selectedRegion ? selectedRegion.name : 'What territories define my current thought-world?'}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
-              Regions are auto-organized containers above your real concepts, positions, inquiries, works, and practices. They never become part of your philosophy unless you review their underlying records.
+              {detailMode && selectedRegion ? 'Explore why this region exists and the real concepts and work that currently shape it.' : 'Regions are auto-organized containers above your real concepts, positions, inquiries, works, and practices. They never become part of your philosophy unless you review their underlying records.'}
             </p>
           </div>
-          {selectedRegion && (
+          {selectedRegion && !detailMode && (
             <div className="flex flex-wrap gap-2">
               <Button className="rounded-full" onClick={() => onOpenMap(selectedRegion.id)}>
                 <MapPinned className="mr-2 size-4" />
@@ -211,8 +218,8 @@ export function AtlasTerritoryView({
         </div>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
-        <div className="grid gap-4 md:grid-cols-2">
+      <div className={detailMode ? 'grid gap-6' : 'grid gap-6 xl:grid-cols-[1.1fr,0.9fr]'}>
+        {!detailMode && <div className="grid gap-4 md:grid-cols-2">
           {cards.map((card) => (
             <button key={card.id} type="button" className="text-left" onClick={() => onSelectRegion(card.id)}>
               <Card className={`h-full rounded-3xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${selectedRegion?.id === card.id ? 'border-accent/50 bg-accent/5' : 'border-border/60 bg-card/85'}`}>
@@ -221,6 +228,9 @@ export function AtlasTerritoryView({
                     <Badge variant="outline" className="mb-2 rounded-full border-dashed font-code text-[8px] uppercase tracking-widest">
                       {card.status === 'provisional' ? 'Possible Atlas Region' : 'Auto-organized Region'}
                     </Badge>
+                    {newRegionIds.includes(card.id) && (
+                      <Badge className="mb-2 ml-1 rounded-full bg-accent font-code text-[8px] uppercase tracking-widest">New</Badge>
+                    )}
                     <div className="font-headline text-2xl font-semibold italic text-foreground">{card.name}</div>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{card.description}</p>
                   </div>
@@ -228,7 +238,7 @@ export function AtlasTerritoryView({
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Badge variant="secondary" className="rounded-full font-code text-[9px] uppercase tracking-widest">
-                    {card.confirmedMemberCount} confirmed
+                    {card.confirmedMemberCount} concept{card.confirmedMemberCount === 1 ? '' : 's'}
                   </Badge>
                   {card.suggestedMemberCount > 0 && (
                     <Badge variant="outline" className="rounded-full border-dashed font-code text-[9px] uppercase tracking-widest">
@@ -266,9 +276,9 @@ export function AtlasTerritoryView({
               </Card>
             </button>
           ))}
-        </div>
+        </div>}
 
-        <Card className="rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm">
+        <Card className={`rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm ${detailMode ? 'w-full' : ''}`}>
           {selectedRegion ? (
             <div className="space-y-5">
               <div>
@@ -286,7 +296,19 @@ export function AtlasTerritoryView({
                   <div className="font-code text-[9px] uppercase tracking-widest text-accent">Why this region exists</div>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">{selectedRegion.explanation}</p>
                   <div className="mt-2 font-code text-[9px] uppercase tracking-widest text-muted-foreground">
-                    {selectedRegion.confirmedMemberCount} confirmed records · {selectedRegion.sourceCount} sources · {selectedRegion.annotationCount} annotations
+                    {selectedRegion.confirmedMemberCount} existing concepts · {selectedRegion.sourceCount} sources · {selectedRegion.annotationCount} annotations
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <h4 className="font-headline text-lg font-semibold italic text-foreground">Concepts in this region</h4>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Membership is derived from each concept and its linked records. A concept may appear in more than one region.</p>
+                  <div className="mt-3 space-y-2">
+                    {regionConcepts.map((concept) => (
+                      <button key={concept.id} type="button" onClick={() => previewConcept(concept.name)} className="block w-full rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-left transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                        <span className="block text-sm font-medium text-foreground">{concept.name}</span>
+                        <span className="block text-xs text-muted-foreground">Included because {selectedRegion.membershipReasons[concept.id]}.</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>

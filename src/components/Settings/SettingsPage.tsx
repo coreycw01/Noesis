@@ -39,6 +39,7 @@ import type {
   UserPreferences,
   WorksSettings,
   WorkspacePreferenceSettings,
+  ThinkingEvent,
 } from '@/lib/types';
 
 type SettingsState = {
@@ -86,6 +87,8 @@ interface SettingsPageProps {
   onSaveSection: (section: SettingsSectionKey, value: SettingsState[SettingsSectionKey]) => Promise<void>;
   onExportWorkspace: () => void;
   onOpenProfile?: () => void;
+  recentDeletedItems?: ThinkingEvent[];
+  onRestoreDeletedItem?: (event: ThinkingEvent) => Promise<void>;
   onRefreshDemoWorkspace?: () => Promise<void>;
   refreshingDemoWorkspace?: boolean;
   profileSummary?: {
@@ -199,6 +202,8 @@ export function SettingsPage({
   onSaveSection,
   onExportWorkspace,
   onOpenProfile,
+  recentDeletedItems = [],
+  onRestoreDeletedItem,
   onRefreshDemoWorkspace,
   refreshingDemoWorkspace = false,
   profileSummary,
@@ -799,7 +804,11 @@ export function SettingsPage({
                 </Field>
               </div>
               <div className="mt-4 rounded-xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
-                Context is limited to the current item and directly linked records. Keys, billing details, and raw provider errors are never shown here.
+                Each action is started by you on a specific item. Context is limited to that item and directly linked records; results remain drafts until you review and accept them. Keys, billing details, and raw provider errors are never shown here.
+              </div>
+              <div className="mt-3 rounded-xl border border-border bg-background/60 p-4">
+                <div className="text-sm font-medium text-foreground">Where assistance appears</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Source reflection and claim extraction · annotation effect · concept definition · inquiry challenge · position analysis · completed practice outcome · selected Evolution period. No background or whole-workspace analysis runs.</p>
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background/60 p-4">
                 <div>
@@ -865,6 +874,14 @@ export function SettingsPage({
                   )}
                 </div>
               </div>
+            </SettingsCard>
+
+            <SettingsCard title="Recently deleted" description="Restore supported records deleted in the last 30 days. Relationships removed with a record may need to be reconnected.">
+              {recentDeletedItems.length ? <div className="divide-y divide-border rounded-xl border border-border">
+                {recentDeletedItems.map((event) => <div key={event.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                  <div className="min-w-0"><div className="truncate text-sm font-medium text-foreground">{event.summary.replace(/^Deleted (concept|source|position|inquiry|work|practice): /i, '')}</div><div className="mt-1 text-xs text-muted-foreground">{event.entityType} · {new Date(event.createdAt).toLocaleDateString()}</div></div>
+                  <Button type="button" size="sm" variant="outline" disabled={!onRestoreDeletedItem} onClick={() => void onRestoreDeletedItem?.(event)} className="rounded-full">Restore</Button>
+                </div>)}</div> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">Deleted items will appear here for 30 days.</p>}
             </SettingsCard>
 
             {reviewMode && (
@@ -1025,8 +1042,8 @@ export function SettingsPage({
 
   return (
     <>
-    <div className="flex-1 overflow-y-auto bg-background p-4 pt-6 md:p-8 md:pt-8">
-      <div className="mx-auto max-w-7xl">
+    <div className="noesis-page">
+      <div className="noesis-page-inner">
         <PageHeader
           title="Settings"
           description="Control how Noesis behaves without crowding the main thinking surfaces. Settings stays organized by function, while Profile and Goals live where they belong in the day-to-day workspace."

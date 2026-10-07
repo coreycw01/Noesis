@@ -4,12 +4,13 @@ import type { User } from 'firebase/auth';
 import { ProfilePage } from '@/components/Profile/ProfilePage';
 import type {
   BeliefProfile,
+  AiSettings,
   Concept,
   Draft,
   Media,
   Practice,
-  ProfileMetacognitionSummary,
   ProfilePrivacySettings,
+  PublicProfileSnapshot,
   Question,
   ThinkingEvent,
   ThinkingMetrics,
@@ -23,8 +24,8 @@ import type { NoesisView } from '@/lib/noesis-routes';
 export interface ProfileRoutePageProps {
   user: User | null;
   profile: UserProfile;
+  aiSettings: AiSettings;
   privacy: ProfilePrivacySettings;
-  summary: ProfileMetacognitionSummary;
   concepts: Concept[];
   inquiries: Question[];
   positions: VaultEntry[];
@@ -37,8 +38,7 @@ export interface ProfileRoutePageProps {
   thinkingPatterns: ThinkingPattern[];
   thinkingMetrics: ThinkingMetrics;
   onSaveProfile: (profile: UserProfile) => Promise<void>;
-  onSavePrivacy: (privacy: ProfilePrivacySettings) => Promise<void>;
-  onAddUnknown: (unknown: Partial<Unknown>) => Unknown;
+  onSavePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot) => Promise<void>;
   onUpdateUnknown: (unknown: Unknown) => void;
   onUpdateThinkingPattern: (pattern: ThinkingPattern) => void;
   onNavigate: (view: NoesisView, options?: {
@@ -51,8 +51,8 @@ export interface ProfileRoutePageProps {
 export function ProfileRoutePage({
   user,
   profile,
+  aiSettings,
   privacy,
-  summary,
   concepts,
   inquiries,
   positions,
@@ -66,7 +66,6 @@ export function ProfileRoutePage({
   thinkingMetrics,
   onSaveProfile,
   onSavePrivacy,
-  onAddUnknown,
   onUpdateUnknown,
   onUpdateThinkingPattern,
   onNavigate,
@@ -75,8 +74,8 @@ export function ProfileRoutePage({
     <ProfilePage
       user={user}
       profile={profile}
+      aiSettings={aiSettings}
       privacy={privacy}
-      summary={summary}
       concepts={concepts}
       inquiries={inquiries}
       positions={positions}
@@ -90,7 +89,6 @@ export function ProfileRoutePage({
       thinkingMetrics={thinkingMetrics}
       onSaveProfile={onSaveProfile}
       onSavePrivacy={onSavePrivacy}
-      onAddUnknown={onAddUnknown}
       onUpdateUnknown={onUpdateUnknown}
       onUpdateThinkingPattern={onUpdateThinkingPattern}
       onNavigate={(nextView, targetId) => {

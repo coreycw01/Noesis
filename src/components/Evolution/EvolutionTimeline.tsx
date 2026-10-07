@@ -1,7 +1,18 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, History } from 'lucide-react';
+import {
+  BookOpen,
+  Brain,
+  CalendarRange,
+  ChevronDown,
+  CircleHelp,
+  FileText,
+  FlaskConical,
+  History,
+  Lightbulb,
+  ShieldCheck,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { Media, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
@@ -20,7 +31,6 @@ interface EvolutionTimelineProps {
   thinkingPatterns: ThinkingPattern[];
   metrics: ThinkingMetrics;
 }
-
 type EvolutionFilter =
   | 'all'
   | 'belief_revisions'
@@ -223,7 +233,7 @@ function thinkingEventMeaning(event: ThinkingEvent): Pick<DisplayEvent, 'turning
       ? `Confidence moved from ${event.confidenceBefore ?? 'unknown'} to ${event.confidenceAfter ?? 'unknown'}.`
       : event.epistemicStatus
         ? `Epistemic status: ${event.epistemicStatus.replace(/_/g, ' ')}.`
-        : 'Recorded because this action may affect the user’s intellectual biography.';
+        : undefined;
 
   return {
     turningPoint,
@@ -256,7 +266,7 @@ function displayEventMeaning(event: DisplayEvent) {
     ? 'This may be meaningful, but thinking events provide stronger evidence when available.'
     : event.kind === 'pattern'
       ? 'Treat this as provisional until reviewed, acknowledged, or dismissed.'
-      : 'This item is part of the user’s recorded intellectual biography.');
+      : undefined);
 
   return { turningPoint, trigger, significance };
 }
@@ -272,6 +282,39 @@ function eventTime(value: string) {
   return Number.isNaN(time) ? 0 : time;
 }
 
+function eventMonthKey(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'unknown' : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function eventMonthLabel(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Undated' : date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function groupEventsByMonth(events: DisplayEvent[]) {
+  const groups: Array<{ key: string; label: string; events: DisplayEvent[] }> = [];
+  events.forEach((event) => {
+    const key = eventMonthKey(event.date);
+    const latest = groups[groups.length - 1];
+    if (latest?.key === key) latest.events.push(event);
+    else groups.push({ key, label: eventMonthLabel(event.date), events: [event] });
+  });
+  return groups;
+}
+
+function EventTypeIcon({ targetType, className }: { targetType: string; className?: string }) {
+  const normalized = targetType.toLowerCase();
+  if (normalized.includes('position') || normalized.includes('vault')) return <ShieldCheck className={className} aria-hidden="true" />;
+  if (normalized.includes('concept')) return <Lightbulb className={className} aria-hidden="true" />;
+  if (normalized.includes('question') || normalized.includes('inquiry') || normalized.includes('unknown')) return <CircleHelp className={className} aria-hidden="true" />;
+  if (normalized.includes('practice')) return <FlaskConical className={className} aria-hidden="true" />;
+  if (normalized.includes('work') || normalized.includes('draft')) return <FileText className={className} aria-hidden="true" />;
+  if (normalized.includes('source') || normalized.includes('media')) return <BookOpen className={className} aria-hidden="true" />;
+  if (normalized.includes('pattern')) return <Brain className={className} aria-hidden="true" />;
+  return <History className={className} aria-hidden="true" />;
+}
+
 function eventEvidenceQuality(event: DisplayEvent) {
   const hasBeforeAfter = Boolean(event.beforeLabel || event.afterLabel || event.changedFields?.length);
 
@@ -279,7 +322,7 @@ function eventEvidenceQuality(event: DisplayEvent) {
     return {
       label: 'Event-backed change',
       detail: 'This change has a thinking event plus before/after or changed-field evidence.',
-      className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+      className: 'noesis-status-badge',
     };
   }
 
@@ -287,7 +330,7 @@ function eventEvidenceQuality(event: DisplayEvent) {
     return {
       label: 'Event-backed',
       detail: 'This came from the thinkingEvents layer and is stronger evidence than legacy activity.',
-      className: 'border-blue-200 bg-blue-50 text-blue-800',
+      className: 'noesis-status-badge',
     };
   }
 
@@ -302,7 +345,7 @@ function eventEvidenceQuality(event: DisplayEvent) {
   return {
     label: 'Legacy context',
     detail: 'This is older timeline context. Prefer thinkingEvents for reliable before/after history.',
-    className: 'border-amber-200 bg-amber-50 text-amber-800',
+    className: 'noesis-status-badge',
   };
 }
 
@@ -332,18 +375,14 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
   return 'gained';
 }
 
-export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, unknowns, thinkingPatterns, metrics }: EvolutionTimelineProps) {
+export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, unknowns, thinkingPatterns }: EvolutionTimelineProps) {
   const [view, setView] = useState<EvolutionView>('timeline');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
   const [visibleCount, setVisibleCount] = useState(12);
   const [scrubberDate, setScrubberDate] = useState(() => dateInputValue(new Date().toISOString()));
-  const [periodEnd, setPeriodEnd] = useState(() => dateInputValue(new Date().toISOString()));
-  const [periodStart, setPeriodStart] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return dateInputValue(date.toISOString());
-  });
+  const [periodEnd, setPeriodEnd] = useState('');
+  const [periodStart, setPeriodStart] = useState('');
 
   const displayEvents = useMemo<DisplayEvent[]>(() => {
     const fromThinking = thinkingEvents.filter(isNotableThinkingEvent).map((event) => ({
@@ -405,6 +444,10 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
     );
   }, [events, thinkingEvents, thinkingPatterns, unknowns]);
 
+  const hasDateFilter = Boolean(periodStart || periodEnd);
+  const dateRangeIsValid = !(periodStart && periodEnd && periodStart > periodEnd);
+  const completePeriod = Boolean(periodStart && periodEnd && dateRangeIsValid);
+
   const filteredEvents = useMemo(() => {
     return displayEvents.filter((event) => {
       const filterOk = filter === 'all' ||
@@ -417,23 +460,13 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
         (filter === 'sources' && targetTypeMatches(event, ['source', 'media']));
       const haystack = `${event.title} ${event.detail} ${event.chips.join(' ')}`.toLowerCase();
       const queryOk = !search || haystack.includes(search.toLowerCase());
-      return filterOk && queryOk;
+      const time = eventTime(event.date);
+      const startsAfter = !periodStart || time >= new Date(`${periodStart}T00:00:00`).getTime();
+      const endsBefore = !periodEnd || time <= new Date(`${periodEnd}T23:59:59`).getTime();
+      const dateOk = dateRangeIsValid && startsAfter && endsBefore;
+      return filterOk && queryOk && dateOk;
     });
-  }, [displayEvents, filter, search]);
-
-  const eventCoverage = useMemo(() => {
-    const thinkingCount = displayEvents.filter((event) => event.kind === 'thinking').length;
-    const legacyCount = displayEvents.filter((event) => event.kind === 'timeline').length;
-    const provisionalCount = displayEvents.filter((event) => event.kind === 'unknown' || event.kind === 'pattern').length;
-    const beforeAfterCount = displayEvents.filter((event) => event.beforeLabel || event.afterLabel || event.changedFields?.length).length;
-    const interpretedCount = displayEvents.length - legacyCount;
-    const coverageLevel = thinkingCount === 0
-      ? 'limited'
-      : thinkingCount >= legacyCount
-        ? 'strong'
-        : 'mixed';
-    return { thinkingCount, legacyCount, interpretedCount, provisionalCount, beforeAfterCount, coverageLevel };
-  }, [displayEvents]);
+  }, [dateRangeIsValid, displayEvents, filter, periodEnd, periodStart, search]);
 
   const turningPoints = useMemo(() => {
     return displayEvents.filter((event) => {
@@ -560,7 +593,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
 
   useEffect(() => {
     setVisibleCount(12);
-  }, [filter, search]);
+  }, [filter, periodEnd, periodStart, search]);
 
   const pagedEvents = filteredEvents.slice(0, visibleCount);
   const rangeStart = filteredEvents.length ? 1 : 0;
@@ -568,77 +601,28 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
   const clearEvolutionFilters = () => {
     setSearch('');
     setFilter('all');
+    setPeriodStart('');
+    setPeriodEnd('');
   };
-  const evolutionFiltersActive = Boolean(search || filter !== 'all');
+  const evolutionFiltersActive = Boolean(search || filter !== 'all' || hasDateFilter);
   const activeEvolutionFilterLabels = [
     search.trim() ? `Search: ${search.trim()}` : null,
     filter !== 'all' ? `Change type: ${FILTER_OPTIONS.find((option) => option.value === filter)?.label || filter.replace(/_/g, ' ')}` : null,
+    periodStart ? `From: ${periodStart}` : null,
+    periodEnd ? `To: ${periodEnd}` : null,
   ].filter(Boolean) as string[];
   const selectedPeriodEvents = displayEvents.filter((event) => {
+    if (!completePeriod) return false;
     const time = eventTime(event.date);
     return time >= new Date(`${periodStart}T00:00:00`).getTime() && time <= new Date(`${periodEnd}T23:59:59`).getTime();
   });
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+    <div className="noesis-page">
       <PageHeader
         title="Evolution"
         description="Trace meaningful changes in positions, concepts, inquiries, practices, unknowns, and thinking patterns over time."
-        meta={`${filteredEvents.length} changes - ${eventCoverage.thinkingCount} event-backed - ${eventCoverage.provisionalCount} provisional`}
       />
-
-      {aiSettings.aiAssistanceEnabled && (
-        <section className="mb-5 flex flex-wrap items-end gap-2 rounded-xl border border-border/50 bg-card p-3">
-          <label className="space-y-1 text-xs text-muted-foreground">
-            <span className="font-code text-[8px] uppercase tracking-widest">Period start</span>
-            <input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} className="block h-9 rounded-md border border-border bg-background px-3 text-foreground" />
-          </label>
-          <label className="space-y-1 text-xs text-muted-foreground">
-            <span className="font-code text-[8px] uppercase tracking-widest">Period end</span>
-            <input type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} className="block h-9 rounded-md border border-border bg-background px-3 text-foreground" />
-          </label>
-          <ContextualAiPanel
-            enabled={selectedPeriodEvents.length > 0}
-            showContextBeforeSending={aiSettings.showContextBeforeSending}
-            reasoningDepth={aiSettings.defaultReasoningDepth}
-            retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
-            actions={['synthesize_evolution_period']}
-            buttonLabel="Synthesize Period"
-            buildEnvelope={() => ({
-              action: 'synthesize_evolution_period',
-              scope: 'selected_period',
-              targetType: 'evolution',
-              targetId: `${periodStart}:${periodEnd}`,
-              selectedRange: { from: periodStart, to: periodEnd },
-              itemMemory: [`Selected period: ${periodStart} through ${periodEnd}`, `${selectedPeriodEvents.length} meaningful recorded changes`],
-              linkedMemory: selectedPeriodEvents.slice(0, 20).map((event) => `${event.date}: ${event.title} - ${event.detail}`),
-            })}
-          />
-        </section>
-      )}
-
-      <section className={cn(
-        "mb-5 rounded-xl border px-4 py-3 shadow-sm",
-        eventCoverage.coverageLevel === 'strong' ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/80"
-      )}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <AlertTriangle className={cn("size-4 shrink-0", eventCoverage.coverageLevel === 'strong' ? "text-emerald-700" : "text-amber-700")} />
-            <div className="min-w-0">
-              <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Recorded History Coverage</div>
-              <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
-                {eventCoverage.coverageLevel === 'strong' ? 'Strong event-backed history.' : 'Mixed event and timeline history.'} Provisional observations stay labeled.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{eventCoverage.thinkingCount} events</Badge>
-            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{eventCoverage.beforeAfterCount} before/after</Badge>
-            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{eventCoverage.provisionalCount} provisional</Badge>
-            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{metrics.beliefsRevised} revisions</Badge>
-          </div>
-        </div>
-      </section>
 
       <div className="mb-5 flex flex-wrap gap-2">
         {VIEW_OPTIONS.map((option) => (
@@ -672,7 +656,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
                     <Badge variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{event.targetType.replace(/_/g, ' ')}</Badge>
                   </div>
                   <h3 className="mt-3 font-headline text-xl font-bold italic leading-tight text-primary">{event.title}</h3>
-                  <p className="mt-2 line-clamp-3 text-sm italic leading-6 text-muted-foreground">{meaning.significance}</p>
+                  {meaning.significance && <p className="mt-2 line-clamp-3 text-sm italic leading-6 text-muted-foreground">{meaning.significance}</p>}
                   <div className="mt-4 rounded-xl bg-muted/20 p-3">
                     <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Trigger</div>
                     <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{meaning.trigger}</p>
@@ -830,11 +814,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
           {changeMap.length ? (
             <div className="grid gap-4 lg:grid-cols-2">
               {changeMap.map((area) => {
-                const statusClass =
-                  area.status === 'fractured' ? 'border-rose-200 bg-rose-50/80' :
-                  area.status === 'weakened' ? 'border-amber-200 bg-amber-50/80' :
-                  area.status === 'stabilized' ? 'border-emerald-200 bg-emerald-50/80' :
-                  'border-blue-200 bg-blue-50/80';
+                const statusClass = 'border-border bg-card';
                 return (
                   <div key={area.area} className={cn('rounded-2xl border p-4', statusClass)}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -881,8 +861,6 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search changes..."
-        resultCount={filteredEvents.length}
-        resultLabel="events"
         sortLabel="Newest meaningful changes first"
         activeFilterLabels={activeEvolutionFilterLabels}
         onClear={clearEvolutionFilters}
@@ -937,104 +915,166 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
         </div>
       </FilterToolbar>
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border/50 bg-card px-4 py-3 shadow-sm">
+      <div className="mb-4 flex flex-col gap-3 border-b border-border/60 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Meaningful Change Feed</div>
-          <p className="mt-1 text-sm italic text-muted-foreground">
-            Showing {rangeStart}-{rangeEnd} of {filteredEvents.length} meaningful changes.
+          <p className="mt-1 font-headline text-xl font-semibold text-foreground sm:text-2xl">
+            {filteredEvents.length ? `${filteredEvents.length} meaningful ${filteredEvents.length === 1 ? 'change' : 'changes'}` : 'No meaningful changes'}
           </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {filteredEvents.length ? `Showing ${rangeStart}-${rangeEnd} of ${filteredEvents.length}` : 'Showing 0'}
+          </p>
+        </div>
+        <div className="flex w-fit max-w-full flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-card/60 p-1.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent" aria-hidden="true"><CalendarRange className="size-4" /></div>
+          <label className="flex h-8 items-center gap-1.5 rounded-md border border-border/50 bg-background px-2.5 text-muted-foreground">
+            <span className="font-code text-[8px] font-bold uppercase tracking-widest">From</span>
+            <input
+              aria-label="Evolution period start"
+              type="date"
+              value={periodStart}
+              onInput={(event) => setPeriodStart(event.currentTarget.value)}
+              onChange={(event) => setPeriodStart(event.target.value)}
+              className="h-7 w-[7.6rem] border-0 bg-transparent p-0 text-xs text-foreground outline-none"
+            />
+          </label>
+          <label className="flex h-8 items-center gap-1.5 rounded-md border border-border/50 bg-background px-2.5 text-muted-foreground">
+            <span className="font-code text-[8px] font-bold uppercase tracking-widest">To</span>
+            <input
+              aria-label="Evolution period end"
+              type="date"
+              value={periodEnd}
+              onInput={(event) => setPeriodEnd(event.currentTarget.value)}
+              onChange={(event) => setPeriodEnd(event.target.value)}
+              className="h-7 w-[7.6rem] border-0 bg-transparent p-0 text-xs text-foreground outline-none"
+            />
+          </label>
+          {!dateRangeIsValid && <span className="px-1 text-xs text-destructive" role="alert">Check dates</span>}
+          {aiSettings.aiAssistanceEnabled && completePeriod && (
+            <ContextualAiPanel
+              enabled={selectedPeriodEvents.length > 0}
+              showContextBeforeSending={aiSettings.showContextBeforeSending}
+              reasoningDepth={aiSettings.defaultReasoningDepth}
+              retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
+              actions={['synthesize_evolution_period']}
+              buttonLabel="Synthesize Period"
+              buildEnvelope={() => ({
+                action: 'synthesize_evolution_period',
+                scope: 'selected_period',
+                targetType: 'evolution',
+                targetId: `${periodStart}:${periodEnd}`,
+                selectedRange: { from: periodStart, to: periodEnd },
+                itemMemory: [`Selected period: ${periodStart} through ${periodEnd}`, `${selectedPeriodEvents.length} meaningful recorded changes`],
+                linkedMemory: selectedPeriodEvents.slice(0, 20).map((event) => `${event.date}: ${event.title} - ${event.detail}`),
+              })}
+            />
+          )}
         </div>
       </div>
 
-      <div className="relative pl-8 space-y-12 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[1px] before:bg-border/60">
-        {pagedEvents.map((event, idx) => {
-          const influencedSources = media.filter((item) => (event.sourceIds || []).includes(item.id));
-          const meaning = displayEventMeaning(event);
-          const evidence = eventEvidenceQuality(event);
-          return (
-            <div key={event.id} className="relative animate-fade-in-up" style={{ animationDelay: `${idx * 0.05}s` }}>
-              <div className="absolute -left-[32px] top-1.5 size-2 rounded-full bg-accent ring-4 ring-background z-10" />
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className={cn("rounded-full border font-code text-[8px] uppercase tracking-widest", evidence.className)}>
-                    {evidence.label}
-                  </Badge>
-                  {event.chips.map((chip) => (
-                    <Badge key={chip} variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                      {chip}
-                    </Badge>
-                  ))}
-                </div>
-
-                <h3 className="font-headline font-bold text-2xl text-primary leading-tight">{event.title}</h3>
-                <p className="font-body italic text-[16px] text-muted-foreground leading-relaxed max-w-3xl">{event.detail}</p>
-
-                <div className="mt-4 grid gap-3 rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:grid-cols-3">
-                  <div className="md:col-span-3 rounded-xl border border-border/40 bg-muted/10 p-3">
-                    <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Evidence Quality</div>
-                    <p className="mt-1 text-sm italic text-muted-foreground">{evidence.detail}</p>
-                  </div>
-                  <div>
-                    <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Turning Point</div>
-                    <p className="mt-1 text-sm font-semibold text-primary">{meaning.turningPoint}</p>
-                  </div>
-                  <div>
-                    <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Trigger</div>
-                    <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{meaning.trigger}</p>
-                  </div>
-                  <div>
-                    <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Why It Matters</div>
-                    <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{meaning.significance}</p>
-                  </div>
-                  {(event.beforeLabel || event.afterLabel) && (
-                    <div className="md:col-span-3 grid gap-3 border-t border-border/40 pt-3 md:grid-cols-2">
-                      <div className="rounded-xl bg-muted/20 p-3">
-                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Before</div>
-                        <p className="mt-1 text-sm italic text-muted-foreground">{event.beforeLabel || 'Previous state not recorded.'}</p>
-                      </div>
-                      <div className="rounded-xl bg-accent/5 p-3">
-                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">After</div>
-                        <p className="mt-1 text-sm italic text-primary/80">{event.afterLabel || 'Current state not recorded.'}</p>
-                      </div>
-                    </div>
-                  )}
-                  {event.changedFields?.length ? (
-                    <div className="md:col-span-3 border-t border-border/40 pt-3">
-                      <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Changed Fields</div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {event.changedFields.slice(0, 10).map((field) => (
-                          <Badge key={field} variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                            {field.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-
-                {influencedSources.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {influencedSources.map((source) => (
-                      <Badge key={source.id} variant="secondary" className="bg-muted/30 text-[9px] font-code uppercase tracking-tighter py-0.5 px-2 border-transparent hover:bg-muted/50 transition-colors flex items-center gap-1.5 rounded-full">
-                        <BookIcon className="size-2.5 opacity-40" />
-                        {source.title}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-
-                <div className="pt-2">
-                  <time className="font-code text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
-                    {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </time>
-                </div>
-              </div>
+      <div className="space-y-1">
+        {groupEventsByMonth(pagedEvents).map((group) => (
+          <section key={group.key} className="relative ml-2 border-l border-border/70 pl-6 sm:pl-8">
+            <div className="relative border-b border-border/60 py-3">
+              <span className="absolute -left-[1.9rem] top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-muted-foreground/50 sm:-left-[2.15rem]" aria-hidden="true" />
+              <h2 className="font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{group.label}</h2>
             </div>
-          );
-        })}
+            <div>
+              {group.events.map((event) => {
+                const influencedSources = media.filter((item) => (event.sourceIds || []).includes(item.id));
+                const meaning = displayEventMeaning(event);
+                const evidence = eventEvidenceQuality(event);
+                const movement = changeMovementForEvent(event);
+                const eventDate = new Date(event.date);
+                return (
+                  <details key={event.id} className="group relative border-b border-border/55 open:bg-card/35">
+                    <span
+                      className={cn(
+                        'absolute -left-[1.83rem] top-7 size-2.5 rounded-full border-2 border-background sm:-left-[2.08rem]',
+                        movement === 'fractured' ? 'bg-destructive' : movement === 'weakened' ? 'bg-muted-foreground' : 'bg-accent'
+                      )}
+                      aria-hidden="true"
+                    />
+                    <summary className="relative grid cursor-pointer list-none gap-3 py-4 pr-7 outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:grid-cols-[7rem_minmax(0,1fr)_1.5rem] sm:items-start sm:px-3 sm:pr-3 lg:grid-cols-[7rem_minmax(0,1fr)_minmax(8rem,13rem)_1.5rem] [&::-webkit-details-marker]:hidden">
+                      <time className="font-code text-[9px] uppercase leading-5 tracking-[0.14em] text-muted-foreground">
+                        <span className="block font-bold text-foreground/80">
+                          {eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        <span className="block text-muted-foreground/70">
+                          {eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        </span>
+                      </time>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2 text-accent">
+                          <EventTypeIcon targetType={event.targetType} className="size-[18px] shrink-0 stroke-[2.4]" />
+                          <span className="min-w-max whitespace-nowrap font-code text-[9px] font-bold uppercase tracking-[0.16em]">
+                            {event.chips[0] || event.targetType.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <h3 className="mt-1 max-w-3xl font-headline text-lg font-semibold leading-snug text-foreground sm:text-xl">{event.title}</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">{event.targetType.replace(/_/g, ' ')} · {event.chips[1] || event.kind}</p>
+                      </div>
+                      {meaning.significance && (
+                        <div className="border-t border-border/40 pt-3 sm:col-start-2 sm:col-end-3 sm:row-start-2 lg:col-auto lg:row-auto lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+                          <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Why it matters</div>
+                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-foreground/75">{meaning.significance}</p>
+                        </div>
+                      )}
+                      <ChevronDown className="absolute right-1 top-5 size-4 stroke-[2.4] text-muted-foreground transition-transform group-open:rotate-180 sm:static sm:col-start-3 sm:row-start-1 sm:mt-1 lg:col-auto lg:row-auto" aria-hidden="true" />
+                    </summary>
+
+                    <div className="grid gap-4 border-t border-border/45 px-0 py-4 sm:ml-[7rem] sm:grid-cols-3 sm:px-3">
+                      <div>
+                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Evidence quality</div>
+                        <p className="mt-1 text-sm leading-5 text-foreground/75"><span className="font-semibold text-foreground">{evidence.label}.</span> {evidence.detail}</p>
+                      </div>
+                      <div>
+                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Turning point</div>
+                        <p className="mt-1 text-sm leading-5 text-foreground/75">{meaning.turningPoint}</p>
+                      </div>
+                      <div>
+                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Trigger</div>
+                        <p className="mt-1 text-sm leading-5 text-foreground/75">{meaning.trigger}</p>
+                      </div>
+
+                      {(event.beforeLabel || event.afterLabel) && (
+                        <div className="grid gap-3 border-t border-border/40 pt-4 sm:col-span-3 sm:grid-cols-2">
+                          <div>
+                            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Before</div>
+                            <p className="mt-1 text-sm leading-5 text-foreground/70">{event.beforeLabel || 'Previous state not recorded.'}</p>
+                          </div>
+                          <div>
+                            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">After</div>
+                            <p className="mt-1 text-sm leading-5 text-foreground/80">{event.afterLabel || 'Current state not recorded.'}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {(event.changedFields?.length || influencedSources.length > 0) && (
+                        <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4 sm:col-span-3">
+                          {event.changedFields?.slice(0, 10).map((field) => (
+                            <Badge key={field} variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-widest">
+                              {field.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}
+                            </Badge>
+                          ))}
+                          {influencedSources.map((source) => (
+                            <Badge key={source.id} variant="secondary" className="flex items-center gap-1.5 rounded-md font-code text-[8px] uppercase tracking-wider">
+                              <BookOpen className="size-3 opacity-60" aria-hidden="true" />
+                              {source.title}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          </section>
+        ))}
 
         {filteredEvents.length === 0 && (
-          <div className="pl-0">
+          <div>
             <PageEmptyState
               icon={History}
               title="No evolution recorded"
@@ -1091,11 +1131,3 @@ function ScrubberCard({ label, value, items, empty }: { label: string; value: nu
     </div>
   );
 }
-
-const BookIcon = ({ className }: { className?: string }) => (
-  <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
-    <path d="M6.5 2H20v20H6.5" />
-    <path d="M6.5 18H20" />
-  </svg>
-);

@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { signOut } from 'firebase/auth';
-import { Brain, Globe, Lightbulb, LogOut, Save, Sparkles, UserCircle2 } from 'lucide-react';
+import { Brain, ChevronDown, ExternalLink, Globe, LogOut, Save, UserCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,32 +13,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
+import type { ContextualAiAction } from '@/lib/contextual-ai';
 import { cn } from '@/lib/utils';
-import type {
-  BeliefProfile,
-  Concept,
-  Draft,
-  Media,
-  ProfileMetacognitionSummary,
-  ProfilePrivacySettings,
-  Question,
-  ThinkingEvent,
-  ThinkingMetrics,
-  ThinkingPattern,
-  Unknown,
-  UserProfile,
-  VaultEntry,
-  Practice,
-  ThinkingPatternUserResponse,
-} from '@/lib/types';
+import type { AiSettings, BeliefProfile, Concept, Draft, Media, Practice, ProfilePrivacySettings, PublicProfileSnapshot, Question, ThinkingEvent, ThinkingMetrics, ThinkingPattern, ThinkingPatternUserResponse, Unknown, UserProfile, VaultEntry } from '@/lib/types';
 
 interface ProfilePageProps {
   user: User | null;
   profile: UserProfile;
+  aiSettings: AiSettings;
   privacy: ProfilePrivacySettings;
-  summary: ProfileMetacognitionSummary;
   concepts: Concept[];
   inquiries: Question[];
   positions: VaultEntry[];
@@ -51,795 +37,227 @@ interface ProfilePageProps {
   thinkingPatterns: ThinkingPattern[];
   thinkingMetrics: ThinkingMetrics;
   onSaveProfile: (profile: UserProfile) => Promise<void>;
-  onSavePrivacy: (privacy: ProfilePrivacySettings) => Promise<void>;
-  onAddUnknown: (unknown: Partial<Unknown>) => Unknown;
+  onSavePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot) => Promise<void>;
   onUpdateUnknown: (unknown: Unknown) => void;
   onUpdateThinkingPattern: (pattern: ThinkingPattern) => void;
   onNavigate: (view: string, targetId?: string) => void;
 }
 
-type ProfileTab = 'identity' | 'connections' | 'metacognition' | 'unknowns' | 'missing' | 'public';
+type ProfileTab = 'profile' | 'philosophy' | 'reflection' | 'public';
+type PhilosophyView = 'foundation' | 'influences' | 'development';
+type ReflectionView = 'patterns' | 'open-edges';
 
-export function ProfilePage({
-  user,
-  profile,
-  privacy,
-  summary,
-  concepts,
-  inquiries,
-  positions,
-  sources,
-  works,
-  practices,
-  thinkingEvents,
-  beliefProfiles,
-  unknowns,
-  thinkingPatterns,
-  thinkingMetrics,
-  onSaveProfile,
-  onSavePrivacy,
-  onAddUnknown,
-  onUpdateUnknown,
-  onUpdateThinkingPattern,
-  onNavigate,
-}: ProfilePageProps) {
+export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inquiries, positions, sources, works, practices, thinkingEvents, beliefProfiles, unknowns, thinkingPatterns, thinkingMetrics: _thinkingMetrics, onSaveProfile, onSavePrivacy, onUpdateUnknown, onUpdateThinkingPattern, onNavigate }: ProfilePageProps) {
   const auth = useAuth();
   const { toast } = useToast();
   const [profileDraft, setProfileDraft] = useState<UserProfile>(profile);
   const [privacyDraft, setPrivacyDraft] = useState<ProfilePrivacySettings>(privacy);
-  const [unknownDraft, setUnknownDraft] = useState({ title: '', description: '' });
   const [patternResponseDrafts, setPatternResponseDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<'profile' | 'privacy' | null>(null);
-  const [activeTab, setActiveTab] = useState<ProfileTab>('identity');
+  const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
+  const [philosophyView, setPhilosophyView] = useState<PhilosophyView>('foundation');
+  const [reflectionView, setReflectionView] = useState<ReflectionView>('patterns');
   const profileBaselineRef = useRef(JSON.stringify(profile));
   const privacyBaselineRef = useRef(JSON.stringify(privacy));
 
   useEffect(() => {
-    const nextBaseline = JSON.stringify(profile);
-    if (JSON.stringify(profileDraft) === profileBaselineRef.current) setProfileDraft(profile);
-    profileBaselineRef.current = nextBaseline;
+    const next = JSON.stringify(profile);
+    setProfileDraft((current) => JSON.stringify(current) === profileBaselineRef.current ? profile : current);
+    profileBaselineRef.current = next;
   }, [profile]);
   useEffect(() => {
-    const nextBaseline = JSON.stringify(privacy);
-    if (JSON.stringify(privacyDraft) === privacyBaselineRef.current) setPrivacyDraft(privacy);
-    privacyBaselineRef.current = nextBaseline;
+    const next = JSON.stringify(privacy);
+    setPrivacyDraft((current) => JSON.stringify(current) === privacyBaselineRef.current ? privacy : current);
+    privacyBaselineRef.current = next;
   }, [privacy]);
 
-  const conceptLeaders = useMemo(
-    () =>
-      activeTab === 'connections' ? [...concepts]
-        .sort((a, b) => (b.links.length + b.sourceIds.length) - (a.links.length + a.sourceIds.length))
-        .slice(0, 6) : [],
-    [activeTab, concepts]
-  );
-
-  const activePositions = useMemo(
-    () => activeTab === 'connections' ? [...positions].filter((item) => item.status !== 'rejected' && item.status !== 'abandoned').slice(0, 5) : [],
-    [activeTab, positions]
-  );
-
-  const revisedPositions = useMemo(() => {
-    const revisedIds = new Set(
-      thinkingEvents
-        .filter((event) => event.entityType === 'position' && ['position_revised', 'confidence_changed', 'challenge_added'].includes(event.eventType))
-        .map((event) => event.entityId)
-    );
-    return activeTab === 'connections' ? positions.filter((item) => revisedIds.has(item.id)).slice(0, 5) : [];
-  }, [activeTab, positions, thinkingEvents]);
-
-  const challengedBeliefs = useMemo(
-    () =>
-      activeTab === 'connections' ? [...beliefProfiles]
-        .filter((item) => (item.challengedBy || []).length > 0)
-        .sort((a, b) => (b.challengedBy?.length || 0) - (a.challengedBy?.length || 0))
-        .slice(0, 5)
-        .map((item) => positions.find((position) => position.id === item.positionId))
-        .filter(Boolean) as VaultEntry[] : [],
-    [activeTab, beliefProfiles, positions]
-  );
-
-  const sourceLeaders = useMemo(
-    () =>
-      activeTab === 'connections' ? [...sources]
-        .sort((a, b) => b.annotations.length - a.annotations.length)
-        .slice(0, 5) : [],
-    [activeTab, sources]
-  );
-
-  const openInquiries = useMemo(
-    () => activeTab === 'connections' ? [...inquiries].filter((item) => !['resolved', 'archived', 'answered'].includes(item.status)).slice(0, 5) : [],
-    [activeTab, inquiries]
-  );
-
-  const recentBeliefEvents = useMemo(
-    () =>
-      activeTab === 'connections' ? [...thinkingEvents]
-        .filter((event) => event.entityType === 'position')
-        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-        .slice(0, 10) : [],
-    [activeTab, thinkingEvents]
-  );
-
+  const rankedConcepts = useMemo(() => [...concepts].sort((a, b) => (b.links.length + b.sourceIds.length) - (a.links.length + a.sourceIds.length)), [concepts]);
+  const activePositions = useMemo(() => [...positions].filter((item) => item.status !== 'rejected' && item.status !== 'abandoned').sort((a, b) => b.confidence - a.confidence), [positions]);
+  const openInquiries = useMemo(() => inquiries.filter((item) => !['resolved', 'archived', 'answered'].includes(item.status)), [inquiries]);
   const openUnknowns = useMemo(() => unknowns.filter((item) => item.status !== 'resolved' && item.status !== 'archived'), [unknowns]);
-  const resolvedUnknowns = useMemo(() => unknowns.filter((item) => item.status === 'resolved'), [unknowns]);
+  const sourceLeaders = useMemo(() => [...sources].sort((a, b) => b.annotations.length - a.annotations.length).slice(0, 5), [sources]);
+  const recentBeliefEvents = useMemo(() => [...thinkingEvents].filter((event) => event.entityType === 'position').sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).slice(0, 8), [thinkingEvents]);
+  const challengedPositions = useMemo(() => beliefProfiles.filter((item) => (item.challengedBy || []).length > 0).sort((a, b) => (b.challengedBy?.length || 0) - (a.challengedBy?.length || 0)).slice(0, 5).map((item) => positions.find((position) => position.id === item.positionId)).filter(Boolean) as VaultEntry[], [beliefProfiles, positions]);
+
+  const derivedIdentity = useMemo(() => {
+    const themes = rankedConcepts.slice(0, 5).map((concept) => concept.name);
+    const activePracticeCount = practices.filter((item) => item.status === 'active').length;
+    const revisionCount = thinkingEvents.filter((event) => ['position_revised', 'confidence_changed', 'stress_test_answered'].includes(event.eventType)).length;
+    const season = activePracticeCount > 0 ? 'Testing ideas in practice' : revisionCount > 1 ? 'Revising established positions' : openInquiries.length > activePositions.length ? 'Exploring open questions' : works.length > 0 ? 'Turning thought into expression' : concepts.length > 0 ? 'Building a philosophical vocabulary' : 'Beginning a philosophy workspace';
+    return { themes, season, focus: themes.length ? themes.slice(0, 3).join(', ') : 'No recurring themes yet', leadingPosition: activePositions[0], evidenceLine: `${concepts.length} concepts, ${activePositions.length} active positions, ${openInquiries.length} open inquiries, and ${activePracticeCount} active practices` };
+  }, [activePositions, concepts.length, openInquiries.length, practices, rankedConcepts, thinkingEvents, works.length]);
+
+  const openEdges = useMemo(() => ({
+    tensions: positions.filter((position) => (position.evidenceAgainst || []).length > 0 || position.status === 'questioning').slice(0, 5).map((position) => position.statement || position.title),
+    unsupported: activePositions.filter((position) => (position.evidenceFor || []).length === 0 && position.sourceIds.length === 0).slice(0, 5).map((position) => position.statement || position.title),
+  }), [activePositions, positions]);
+
+  const patternEvidence = useMemo(() => {
+    const objectFamilies = new Set(thinkingEvents.map((event) => event.entityType)).size;
+    const dates = thinkingEvents.map((event) => Date.parse(event.createdAt)).filter((date) => !Number.isNaN(date));
+    return { sufficient: thinkingEvents.length >= 8 && objectFamilies >= 3, count: thinkingEvents.length, objectFamilies, range: dates.length ? `${formatDate(new Date(Math.min(...dates)).toISOString())} - ${formatDate(new Date(Math.max(...dates)).toISOString())}` : 'Not enough history' };
+  }, [thinkingEvents]);
 
   const saveProfile = async () => {
     setSaving('profile');
-    try {
-      await onSaveProfile(profileDraft);
-      toast({ title: 'Profile saved', description: 'Your thinker profile is now up to date.' });
-    } catch {
-      toast({ variant: 'destructive', title: 'Profile not saved', description: 'Noesis could not save your profile right now.' });
-    } finally {
-      setSaving(null);
-    }
+    try { await onSaveProfile(profileDraft); toast({ title: 'Profile saved', description: 'Your identity and philosophy name are up to date.' }); }
+    catch { toast({ variant: 'destructive', title: 'Profile not saved', description: 'Noesis could not save your profile right now.' }); }
+    finally { setSaving(null); }
+  };
+
+  const selectedRecords = <T extends { id: string },>(items: T[], ids: string[] | undefined, enabled: boolean) => {
+    if (!enabled) return [];
+    if (ids === undefined) return items.slice(0, 8);
+    const selected = new Set(ids);
+    return items.filter((item) => selected.has(item.id)).slice(0, 12);
   };
 
   const savePrivacy = async () => {
     setSaving('privacy');
     try {
-      await onSavePrivacy(privacyDraft);
-      toast({ title: 'Public philosophy updated', description: 'Your sharing defaults were saved.' });
-    } catch {
-      toast({ variant: 'destructive', title: 'Privacy not saved', description: 'Noesis could not save your sharing settings.' });
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      toast({ title: 'Signed out', description: 'Your Noesis workspace is closed on this device.' });
-    } catch {
-      toast({ variant: 'destructive', title: 'Sign out failed', description: 'Noesis could not sign you out right now.' });
-    }
-  };
-
-  const addUnknown = () => {
-    if (!unknownDraft.title.trim()) return;
-    onAddUnknown({
-      title: unknownDraft.title.trim(),
-      description: unknownDraft.description.trim(),
-      domain: 'profile',
-      createdFrom: 'manual',
-      importance: 'medium',
-      status: 'active',
-      conceptTags: [],
-      sourceIds: [],
-      positionIds: [],
-      inquiryIds: [],
-      questionIds: [],
-    });
-    setUnknownDraft({ title: '', description: '' });
+      const normalizedSlug = privacyDraft.shareSlug?.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || '';
+      const nextPrivacy = { ...privacyDraft, shareSlug: normalizedSlug };
+      const snapshot: PublicProfileSnapshot = {
+        shareSlug: normalizedSlug,
+        enabled: nextPrivacy.publicProfileEnabled,
+        displayName: profileDraft.displayName || user?.displayName || 'Untitled Thinker',
+        ...((profileDraft.avatarUrl || profileDraft.photoURL) ? { avatarUrl: profileDraft.avatarUrl || profileDraft.photoURL } : {}),
+        ...((nextPrivacy.publicBioEnabled ?? true) && profileDraft.bio?.trim() ? { bio: profileDraft.bio.trim() } : {}),
+        ...((nextPrivacy.publicPhilosophyEnabled ?? true) && profileDraft.philosophyName?.trim() ? { philosophyName: profileDraft.philosophyName.trim(), philosophyNameStatus: profileDraft.philosophyNameStatus || 'working' } : {}),
+        ...((nextPrivacy.publicPhilosophyEnabled ?? true) && profileDraft.philosophyStatement?.trim() ? { philosophyStatement: profileDraft.philosophyStatement.trim() } : {}),
+        currentSeason: (nextPrivacy.publicSeasonEnabled ?? true) ? derivedIdentity.season : '',
+        themes: (nextPrivacy.publicThemesEnabled ?? true) ? derivedIdentity.themes : [],
+        concepts: selectedRecords(rankedConcepts, nextPrivacy.publicConceptIds, nextPrivacy.publicConceptsEnabled).map((concept) => ({ id: concept.id, name: concept.name, description: concept.description })),
+        positions: selectedRecords(activePositions, nextPrivacy.publicPositionIds, nextPrivacy.publicPositionsEnabled).map((position) => ({ id: position.id, statement: position.statement || position.title, confidence: position.confidence })),
+        works: selectedRecords(works, nextPrivacy.publicWorkIds, nextPrivacy.publicWorksEnabled).map((work) => ({ id: work.id, title: work.title, type: work.type })),
+        practices: selectedRecords(practices.filter((practice) => practice.status === 'active'), nextPrivacy.publicPracticeIds, nextPrivacy.publicPracticesEnabled).map((practice) => ({ id: practice.id, title: practice.title, type: practice.type })),
+        sources: selectedRecords(sources, nextPrivacy.publicSourceIds, nextPrivacy.publicSourcesEnabled).map((source) => ({ id: source.id, title: source.title, creator: source.creator, type: source.type })),
+        beliefHistory: selectedRecords(recentBeliefEvents, nextPrivacy.publicBeliefHistoryIds, nextPrivacy.publicBeliefBiographyEnabled).map((event) => ({ id: event.id, summary: event.summary, date: event.createdAt })),
+      };
+      setPrivacyDraft(nextPrivacy);
+      await onSavePrivacy(nextPrivacy, snapshot);
+      toast({ title: 'Public profile updated', description: 'Only the sections and items you selected will be visible.' });
+    } catch (error) { toast({ variant: 'destructive', title: 'Public profile not saved', description: error instanceof Error ? error.message : 'Noesis could not save your sharing choices.' }); }
+    finally { setSaving(null); }
   };
 
   const respondToPattern = (pattern: ThinkingPattern, response: ThinkingPatternUserResponse, note?: string) => {
-    const status = response === 'confirmed' || response === 'partially_agree'
-      ? 'acknowledged'
-      : response === 'outdated'
-        ? 'outdated'
-        : response === 'rejected'
-          ? 'dismissed'
-          : pattern.status;
-    onUpdateThinkingPattern({
-      ...pattern,
-      status,
-      userResponse: response,
-      userResponseNote: note?.trim() || pattern.userResponseNote,
-      userRespondedAt: new Date().toISOString(),
-      dateUpdated: new Date().toISOString(),
-    });
-    if (note) setPatternResponseDrafts((prev) => ({ ...prev, [pattern.patternId]: '' }));
-    toast({ title: 'Profile observation updated', description: 'Noesis will treat this tendency as a reviewable observation, not a fixed identity label.' });
+    const status = response === 'confirmed' || response === 'partially_agree' ? 'acknowledged' : response === 'outdated' ? 'outdated' : response === 'rejected' ? 'dismissed' : pattern.status;
+    onUpdateThinkingPattern({ ...pattern, status, userResponse: response, userResponseNote: note?.trim() || pattern.userResponseNote, userRespondedAt: new Date().toISOString(), dateUpdated: new Date().toISOString() });
+    if (note) setPatternResponseDrafts((previous) => ({ ...previous, [pattern.patternId]: '' }));
   };
 
-  const trendCards = [
-    ['Questions asked', String(thinkingMetrics.questionsAsked)],
-    ['Beliefs revised', String(thinkingMetrics.beliefsRevised)],
-    ['Unknowns open', String(openUnknowns.length)],
-    ['Sources studied', String(thinkingMetrics.sourcesStudied)],
-    ['Contradictions resolved', String(thinkingMetrics.contradictionsResolved)],
-    ['Practices active', String(practices.filter((item) => item.status === 'active').length)],
-  ] as const;
-
-  const patternEvidenceLevel = (pattern: ThinkingPattern) => {
-    const sampleSize = pattern.evidence.length;
-    if (sampleSize >= 5 && pattern.confidence >= 0.75) return { label: 'strong evidence', tone: 'strong' as const };
-    if (sampleSize >= 3 && pattern.confidence >= 0.55) return { label: 'moderate evidence', tone: 'moderate' as const };
-    return { label: 'limited evidence', tone: 'limited' as const };
+  const handleSignOut = async () => {
+    try { await signOut(auth); }
+    catch { toast({ variant: 'destructive', title: 'Sign out failed', description: 'Noesis could not sign you out right now.' }); }
   };
 
-  const mirrorDiagnostics = useMemo(() => {
-    const evidenceEvents = thinkingEvents.filter((event) => ['evidence_added', 'supported', 'source_distilled', 'annotation_created'].includes(event.eventType));
-    const challengeEvents = thinkingEvents.filter((event) => ['challenged', 'challenge_added', 'contradiction_detected', 'assumption_challenged'].includes(event.eventType));
-    const revisionEvents = thinkingEvents.filter((event) => ['revised', 'position_revised', 'confidence_changed', 'stress_test_answered'].includes(event.eventType));
-    const positionPracticeLinks = positions.filter((position) => practices.some((practice) => (practice.positionIds || []).includes(position.id)));
-    const unsupportedPositions = positions.filter((position) => (position.evidenceFor || []).length === 0 && (position.sourceIds || []).length === 0 && position.status !== 'rejected');
-    const sufficientEventSpread = thinkingEvents.length >= 8 && new Set(thinkingEvents.map((event) => event.entityType)).size >= 3;
-    const dateTimes = thinkingEvents.map((event) => new Date(event.createdAt).getTime()).filter((time) => !Number.isNaN(time));
-    const firstDate = dateTimes.length ? new Date(Math.min(...dateTimes)) : null;
-    const lastDate = dateTimes.length ? new Date(Math.max(...dateTimes)) : null;
-    const dateRange = firstDate && lastDate ? `${formatDate(firstDate.toISOString())} - ${formatDate(lastDate.toISOString())}` : 'Not enough event history';
-
-    const strengths = [
-      revisionEvents.length >= 2 ? {
-        title: 'Willingness to revise',
-        evidence: `${revisionEvents.length} revision or confidence-change events are recorded.`,
-        confidence: revisionEvents.length >= 5 ? 'high' : 'moderate',
-      } : null,
-      challengeEvents.length >= 2 ? {
-        title: 'Seeks opposition before closure',
-        evidence: `${challengeEvents.length} challenge, contradiction, or assumption-pressure events are recorded.`,
-        confidence: challengeEvents.length >= 5 ? 'high' : 'moderate',
-      } : null,
-      positionPracticeLinks.length >= 2 ? {
-        title: 'Practical experimentation',
-        evidence: `${positionPracticeLinks.length} positions are connected to practices.`,
-        confidence: positionPracticeLinks.length >= 4 ? 'high' : 'moderate',
-      } : null,
-      conceptLeaders.length >= 4 ? {
-        title: 'Conceptual organization',
-        evidence: `${conceptLeaders.length} recurring concepts have enough links to shape the workspace.`,
-        confidence: 'moderate',
-      } : null,
-    ].filter(Boolean) as Array<{ title: string; evidence: string; confidence: string }>;
-
-    const vulnerabilities = [
-      unsupportedPositions.length >= 2 ? {
-        title: 'Positions may be outrunning evidence',
-        evidence: `${unsupportedPositions.length} positions have no direct support recorded yet.`,
-        confidence: unsupportedPositions.length >= 5 ? 'high' : 'moderate',
-      } : null,
-      openInquiries.length > activePositions.length ? {
-        title: 'Questions may be accumulating faster than judgments',
-        evidence: `${openInquiries.length} open inquiries versus ${activePositions.length} active positions are visible.`,
-        confidence: 'moderate',
-      } : null,
-      sources.length > 0 && works.length === 0 ? {
-        title: 'Source accumulation without expression',
-        evidence: `${sources.length} sources are present, but no works are recorded.`,
-        confidence: 'moderate',
-      } : null,
-      positions.length > 0 && positionPracticeLinks.length === 0 ? {
-        title: 'Abstraction without lived testing',
-        evidence: `${positions.length} positions exist, but none are linked to practices yet.`,
-        confidence: 'moderate',
-      } : null,
-    ].filter(Boolean) as Array<{ title: string; evidence: string; confidence: string }>;
-
+  const buildPhilosophyEnvelope = useCallback((action: ContextualAiAction, userPrompt?: string) => {
+    if (action !== 'synthesize_profile_philosophy') return null;
+    const itemMemory = [
+      `Philosophy name: ${profileDraft.philosophyName?.trim() || 'Not named yet'}`,
+      `Naming status: ${profileDraft.philosophyNameStatus || 'working'}`,
+      `Current statement: ${profileDraft.philosophyStatement?.trim() || 'Not written yet'}`,
+      `Current season: ${derivedIdentity.season}`,
+    ];
+    const linkedMemory = [
+      ...rankedConcepts.slice(0, 4).map((concept) => `Concept: ${concept.name}${concept.description ? ` — ${concept.description.slice(0, 320)}` : ''}`),
+      ...activePositions.slice(0, 5).map((position) => `Position (${Math.round(position.confidence)}% confidence): ${(position.statement || position.title).slice(0, 420)}`),
+      ...openInquiries.slice(0, 3).map((inquiry) => `Open inquiry: ${inquiry.text.slice(0, 420)}`),
+      ...practices.filter((practice) => practice.status === 'active').slice(0, 3).map((practice) => `Active practice: ${practice.title}${practice.hypothesis ? ` — ${practice.hypothesis.slice(0, 260)}` : ''}`),
+      ...works.slice(0, 2).map((work) => `Work: ${work.title} (${work.type})`),
+      ...sourceLeaders.slice(0, 3).map((source) => `Influential source: ${source.title}${source.creator ? ` by ${source.creator}` : ''}`),
+    ].slice(0, 20);
     return {
-      sufficientEventSpread,
-      eventCount: thinkingEvents.length,
-      objectFamilies: new Set(thinkingEvents.map((event) => event.entityType)).size,
-      dateRange,
-      strengths,
-      vulnerabilities,
+      action,
+      targetType: 'profile' as const,
+      targetId: profile.id || user?.uid || 'current-profile',
+      scope: 'linked_items' as const,
+      itemMemory,
+      linkedMemory,
+      userPrompt,
     };
-  }, [activePositions.length, conceptLeaders.length, openInquiries.length, positions, practices, sources.length, thinkingEvents, works.length]);
+  }, [activePositions, derivedIdentity.season, openInquiries, practices, profile.id, profileDraft.philosophyName, profileDraft.philosophyNameStatus, profileDraft.philosophyStatement, rankedConcepts, sourceLeaders, user?.uid, works]);
 
-  const profileStats = [
-    ['Concepts', concepts.length],
-    ['Positions', positions.length],
-    ['Works', works.length],
-    ['Sources', sources.length],
-  ] as const;
+  const acceptPhilosophySynthesis = async (_result: unknown, editedContent: string) => {
+    const nextProfile = { ...profileDraft, philosophyStatement: editedContent, dateUpdated: new Date().toISOString() };
+    await onSaveProfile(nextProfile);
+    setProfileDraft(nextProfile);
+  };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background p-8 pt-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <PageHeader
-          title="Profile"
-          description="Shape the identity, tendencies, unknowns, and public-facing philosophy behind your Noesis workspace."
-          actions={(
-            <>
-              <Button variant="outline" onClick={handleSignOut} className="rounded-full bg-card px-6 font-semibold text-destructive hover:text-destructive">
-                <LogOut className="mr-2 size-4" />
-                Sign Out
-              </Button>
-              <Button onClick={saveProfile} disabled={saving === 'profile'} className="rounded-full px-6 font-semibold">
-                <Save className="mr-2 size-4" />
-                {saving === 'profile' ? 'Saving Profile' : 'Save Profile'}
-              </Button>
-            </>
-          )}
-        />
+    <div className="noesis-page">
+      <div className="noesis-page-inner flex flex-col gap-5">
+        <PageHeader title="Profile" description="Who you are, the philosophy taking shape, and exactly what you choose to share." actions={<><Button variant="outline" onClick={handleSignOut} className="rounded-full bg-card px-4 font-semibold text-destructive hover:text-destructive"><LogOut className="mr-2 size-4" />Sign Out</Button>{(activeTab === 'profile' || activeTab === 'philosophy') && <Button onClick={saveProfile} disabled={saving === 'profile'} className="rounded-full px-5 font-semibold"><Save className="mr-2 size-4" />{saving === 'profile' ? 'Saving' : 'Save'}</Button>}</>} />
 
-        <Card className="rounded-3xl border-border bg-card p-7 shadow-sm">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex gap-5">
-              <div className="flex size-20 shrink-0 items-center justify-center rounded-3xl border border-border bg-muted/30 text-muted-foreground">
-                {profileDraft.photoURL || profileDraft.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={profileDraft.photoURL || profileDraft.avatarUrl}
-                    alt={profileDraft.displayName || 'Profile avatar'}
-                    className="h-full w-full rounded-3xl object-cover"
-                  />
-                ) : (
-                  <UserCircle2 className="size-11" />
-                )}
-              </div>
-              <div className="max-w-3xl">
-                <div className="font-code text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Thinker identity</div>
-                <h1 className="noesis-page-title mt-2 text-3xl">
-                  {profileDraft.displayName || user?.displayName || 'Untitled Thinker'}
-                </h1>
-                <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                  {profileDraft.bio || 'Shape the public and private identity behind your map, positions, inquiries, and works.'}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {profileDraft.learningSeason && <Badge variant="outline" className="rounded-full">{profileDraft.learningSeason}</Badge>}
-                  {(profileDraft.currentThemes || []).slice(0, 3).map((theme) => (
-                    <Badge key={theme} variant="secondary" className="rounded-full">{theme}</Badge>
-                  ))}
-                </div>
-              </div>
+        <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted/30 text-muted-foreground">{profileDraft.photoURL || profileDraft.avatarUrl ? <img src={profileDraft.photoURL || profileDraft.avatarUrl} alt={profileDraft.displayName || 'Profile avatar'} className="h-full w-full object-cover" /> : <UserCircle2 className="size-9" />}</div>
+              <div className="min-w-0"><div className="font-code text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Thinker profile</div><h2 className="noesis-page-title mt-1 truncate text-2xl">{profileDraft.displayName || user?.displayName || 'Untitled Thinker'}</h2><p className="mt-1 text-sm text-muted-foreground">{profileDraft.philosophyName?.trim() || 'Unnamed philosophy'}<span className="mx-2">/</span>{derivedIdentity.season}</p></div>
             </div>
-            <div className="grid min-w-[260px] grid-cols-2 gap-3">
-              {profileStats.map(([label, value]) => (
-                <ProfileStat key={label} label={label} value={value} />
-              ))}
-            </div>
+            <div className="flex flex-wrap gap-2">{derivedIdentity.themes.slice(0, 3).map((theme) => <Badge key={theme} variant="secondary" className="rounded-full">{theme}</Badge>)}<Badge variant="outline" className="rounded-full">{concepts.length} concepts</Badge><Badge variant="outline" className="rounded-full">{activePositions.length} active positions</Badge></div>
           </div>
         </Card>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProfileTab)} className="space-y-6">
-          <TabsList className="h-auto w-full flex-wrap justify-start rounded-2xl border border-border bg-card p-2">
-            <TabsTrigger value="identity" className="rounded-xl">Identity</TabsTrigger>
-            <TabsTrigger value="connections" className="rounded-xl">Intellectual Portrait</TabsTrigger>
-            <TabsTrigger value="metacognition" className="rounded-xl">Tendencies</TabsTrigger>
-            <TabsTrigger value="unknowns" className="rounded-xl">Unknowns</TabsTrigger>
-            <TabsTrigger value="missing" className="rounded-xl">Missing Perspectives</TabsTrigger>
-            <TabsTrigger value="public" className="rounded-xl">Public View</TabsTrigger>
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProfileTab)} className="space-y-5">
+          <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-xl border border-border bg-card p-1.5"><TabsTrigger value="profile" className="rounded-lg">Profile</TabsTrigger><TabsTrigger value="philosophy" className="rounded-lg">Philosophy</TabsTrigger><TabsTrigger value="reflection" className="rounded-lg">Reflection</TabsTrigger><TabsTrigger value="public" className="rounded-lg">Public</TabsTrigger></TabsList>
 
-          <TabsContent value="identity" className="mt-0 space-y-6">
-            <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-              <SectionCard title="Overview" description="Identity, focus, and the current season of your thought.">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Display Name">
-                    <Input value={profileDraft.displayName || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, displayName: event.target.value }))} />
-                  </Field>
-                  <Field label="Email">
-                    <Input value={profileDraft.email || user?.email || ''} disabled />
-                  </Field>
-                  <Field label="Avatar URL">
-                    <Input value={profileDraft.avatarUrl || profileDraft.photoURL || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, avatarUrl: event.target.value, photoURL: event.target.value }))} placeholder="https://..." />
-                  </Field>
-                  <Field label="Learning Season">
-                    <Input value={profileDraft.learningSeason || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, learningSeason: event.target.value }))} placeholder="ex. Belief revision and discipline" />
-                  </Field>
-                  <Field label="Intellectual Focus">
-                    <TagEditor value={profileDraft.intellectualFocus || []} onChange={(value) => setProfileDraft((prev) => ({ ...prev, intellectualFocus: value }))} placeholder="philosophy, theology, psychology" />
-                  </Field>
-                  <Field label="Current Themes">
-                    <TagEditor value={profileDraft.currentThemes || []} onChange={(value) => setProfileDraft((prev) => ({ ...prev, currentThemes: value }))} placeholder="identity, meaning, discipline" />
-                  </Field>
-                  <Field label="Disciplines">
-                    <TagEditor value={profileDraft.disciplines || []} onChange={(value) => setProfileDraft((prev) => ({ ...prev, disciplines: value }))} placeholder="ethics, political theory, phenomenology" />
-                  </Field>
-                </div>
-                <Field label="Bio">
-                  <Textarea value={profileDraft.bio || ''} onChange={(event) => setProfileDraft((prev) => ({ ...prev, bio: event.target.value }))} className="min-h-[130px]" placeholder="What kind of thinker are you trying to become?" />
-                </Field>
-              </SectionCard>
+          <TabsContent value="profile" className="mt-0"><div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+            <SectionCard title="Your Identity" description="Only the details Noesis cannot infer responsibly."><div className="grid gap-4 sm:grid-cols-2"><Field label="Display name"><Input value={profileDraft.displayName || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, displayName: event.target.value }))} /></Field><Field label="Avatar URL"><Input value={profileDraft.avatarUrl || profileDraft.photoURL || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, avatarUrl: event.target.value, photoURL: event.target.value }))} placeholder="https://..." /></Field></div><Field label="Public introduction"><Textarea value={profileDraft.bio || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, bio: event.target.value }))} className="min-h-[100px]" placeholder="Introduce yourself and the questions that matter to you." /></Field><p className="mt-3 text-xs leading-5 text-muted-foreground">Your email is private and never included in the public profile.</p></SectionCard>
+            <SectionCard title="Current Snapshot" description="A compact summary derived from your saved work."><div className="grid gap-3 sm:grid-cols-2"><DerivedField label="Current season" value={derivedIdentity.season} /><DerivedField label="Recurring focus" value={derivedIdentity.focus} /><DerivedField label="Leading position" value={derivedIdentity.leadingPosition?.statement || derivedIdentity.leadingPosition?.title || 'No active position yet.'} wide /></div><p className="mt-4 text-xs leading-5 text-muted-foreground">Based on {derivedIdentity.evidenceLine}. This describes the current record, not a permanent identity.</p></SectionCard>
+          </div></TabsContent>
 
-              <SectionCard title="Cognition Metrics" description="Reflective indicators of how your thinking is moving, not productivity vanity.">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {trendCards.map(([label, value]) => (
-                    <div key={label} className="rounded-2xl border border-border bg-background/60 p-4">
-                      <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
-                      <div className="mt-2 font-headline text-3xl font-semibold italic text-foreground">{value}</div>
-                    </div>
-                  ))}
-                </div>
-              </SectionCard>
-            </div>
-          </TabsContent>
+          <TabsContent value="philosophy" className="mt-0"><SectionCard title="Your Philosophy" description="Name the worldview taking shape, then inspect the records that give it substance.">
+            <div className="space-y-4 rounded-xl border border-border bg-background/50 p-4"><div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end"><Field label="Philosophy name"><Input value={profileDraft.philosophyName || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, philosophyName: event.target.value }))} placeholder="Name it now, or leave it unnamed" /></Field><div><div className="mb-2 font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Naming status</div><div className="flex gap-2"><Button type="button" size="sm" variant={(profileDraft.philosophyNameStatus || 'working') === 'working' ? 'default' : 'outline'} onClick={() => setProfileDraft((previous) => ({ ...previous, philosophyNameStatus: 'working' }))} className="rounded-full">Working name</Button><Button type="button" size="sm" variant={profileDraft.philosophyNameStatus === 'established' ? 'default' : 'outline'} onClick={() => setProfileDraft((previous) => ({ ...previous, philosophyNameStatus: 'established' }))} className="rounded-full">Established</Button></div></div></div><Field label="Working philosophy statement"><Textarea value={profileDraft.philosophyStatement || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, philosophyStatement: event.target.value }))} className="min-h-[110px]" placeholder="Describe the central idea that connects your current thinking." /></Field></div>
+            <div className="mt-4 flex flex-col gap-4 rounded-xl border border-accent/30 bg-accent/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="max-w-2xl"><div className="flex items-center gap-2 font-medium"><Brain className="size-4 text-accent" />Shape My Philosophy</div><p className="mt-1 text-sm leading-6 text-muted-foreground">Review a bounded set of your strongest concepts, positions, questions, practices, works, and sources. Noesis suggests language; you decide what becomes yours.</p></div>{aiSettings.aiAssistanceEnabled ? <ContextualAiPanel actions={['synthesize_profile_philosophy']} buildEnvelope={buildPhilosophyEnvelope} showContextBeforeSending={aiSettings.showContextBeforeSending} reasoningDepth={aiSettings.defaultReasoningDepth} retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance} onAccept={acceptPhilosophySynthesis} buttonLabel="Shape My Philosophy" promptLabel="What should Noesis focus on? (optional)" promptPlaceholder="For example: help me name the tension between discipline and freedom." /> : <Button variant="outline" size="sm" className="shrink-0 rounded-full" onClick={() => onNavigate('settings')}>Enable in Settings</Button>}</div>
+            <SegmentedNav className="mt-5" value={philosophyView} onChange={(value) => setPhilosophyView(value as PhilosophyView)} items={[["foundation", "Foundation"], ["influences", "Influences"], ["development", "Development"]]} label="Philosophy sections" />
+            {philosophyView === 'foundation' && <div className="mt-5 grid gap-4 lg:grid-cols-2"><LinkGroup title="Recurring concepts" empty="No concepts yet." onOpenAll={() => onNavigate('concepts')}>{rankedConcepts.slice(0, 5).map((concept) => <MiniLink key={concept.id} label={concept.name} meta={`${concept.links.length} links`} onClick={() => onNavigate('concepts', concept.id)} />)}</LinkGroup><LinkGroup title="Current positions" empty="No active positions yet." onOpenAll={() => onNavigate('vault')}>{activePositions.slice(0, 5).map((position) => <MiniLink key={position.id} label={position.statement || position.title} meta={`${Math.round(position.confidence)}%`} onClick={() => onNavigate('vault', position.id)} />)}</LinkGroup></div>}
+            {philosophyView === 'influences' && <div className="mt-5 grid gap-4 lg:grid-cols-2"><LinkGroup title="Sources shaping the work" empty="No sources yet." onOpenAll={() => onNavigate('source-index')}>{sourceLeaders.map((source) => <MiniLink key={source.id} label={source.title} meta={source.type} onClick={() => onNavigate('library', source.id)} />)}</LinkGroup><LinkGroup title="Questions still open" empty="No open inquiries." onOpenAll={() => onNavigate('questions')}>{openInquiries.slice(0, 5).map((inquiry) => <MiniLink key={inquiry.id} label={inquiry.text} meta={inquiry.status} onClick={() => onNavigate('questions', inquiry.id)} />)}</LinkGroup></div>}
+            {philosophyView === 'development' && <div className="mt-5 grid gap-4 lg:grid-cols-2"><LinkGroup title="Positions under pressure" empty="No challenged positions yet." onOpenAll={() => onNavigate('vault')}>{challengedPositions.map((position) => <MiniLink key={position.id} label={position.statement || position.title} meta="under review" onClick={() => onNavigate('vault', position.id)} />)}</LinkGroup><LinkGroup title="Recent development" empty="No position changes recorded yet." onOpenAll={() => onNavigate('evolution')}>{recentBeliefEvents.slice(0, 5).map((event) => <MiniLink key={event.id} label={event.summary} meta={formatDate(event.createdAt)} onClick={() => onNavigate('evolution')} />)}</LinkGroup></div>}
+          </SectionCard></TabsContent>
 
-          <TabsContent value="connections" className="mt-0 grid gap-6 lg:grid-cols-2">
-            <SectionCard title="Intellectual Identity" description="A grounded snapshot of the ideas, sources, and positions shaping you right now.">
-              <div className="grid gap-5">
-                <LinkGroup title="Core recurring concepts" empty="No concepts yet." onOpenAll={() => onNavigate('concepts')}>
-                  {conceptLeaders.map((concept) => <MiniLink key={concept.id} label={concept.name} meta={`${concept.links.length} links`} onClick={() => onNavigate('concepts', concept.id)} />)}
-                </LinkGroup>
-                <LinkGroup title="Most active positions" empty="No active positions yet." onOpenAll={() => onNavigate('vault')}>
-                  {activePositions.map((position) => <MiniLink key={position.id} label={position.title} meta={position.type} onClick={() => onNavigate('vault', position.id)} />)}
-                </LinkGroup>
-                <LinkGroup title="Most revised positions" empty="No revised positions yet." onOpenAll={() => onNavigate('vault')}>
-                  {revisedPositions.map((position) => <MiniLink key={position.id} label={position.title} meta="recently revised" onClick={() => onNavigate('vault', position.id)} />)}
-                </LinkGroup>
-                <LinkGroup title="Most challenged beliefs" empty="No challenged beliefs yet." onOpenAll={() => onNavigate('vault')}>
-                  {challengedBeliefs.map((position) => <MiniLink key={position.id} label={position.title} meta="under pressure" onClick={() => onNavigate('vault', position.id)} />)}
-                </LinkGroup>
-                <LinkGroup title="Major sources shaping you" empty="No sources yet." onOpenAll={() => onNavigate('source-index')}>
-                  {sourceLeaders.map((source) => <MiniLink key={source.id} label={source.title} meta={source.type} onClick={() => onNavigate('library', source.id)} />)}
-                </LinkGroup>
-                <LinkGroup title="Current unresolved inquiries" empty="No open inquiries yet." onOpenAll={() => onNavigate('questions')}>
-                  {openInquiries.map((inquiry) => <MiniLink key={inquiry.id} label={inquiry.text} meta={inquiry.status} onClick={() => onNavigate('questions', inquiry.id)} />)}
-                </LinkGroup>
-              </div>
-            </SectionCard>
+          <TabsContent value="reflection" className="mt-0"><SectionCard title="Reflection" description="Evidence-backed observations and unfinished edges, kept separate from your identity.">
+            <SegmentedNav value={reflectionView} onChange={(value) => setReflectionView(value as ReflectionView)} items={[["patterns", "Observed patterns"], ["open-edges", "Open edges"]]} label="Reflection sections" />
+            {reflectionView === 'patterns' && <div className="mt-5"><div className="rounded-xl border border-border bg-background/50 p-4"><div className="flex flex-wrap items-center gap-2"><Brain className="size-4 text-accent" /><span className="font-medium">{patternEvidence.sufficient ? 'Enough variety for cautious reflection' : 'Limited evidence'}</span><Badge variant="outline">{patternEvidence.count} events</Badge><Badge variant="outline">{patternEvidence.objectFamilies} object types</Badge></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{patternEvidence.range}. These are observations to review, never fixed claims about who you are.</p></div><div className="mt-4 space-y-3">{thinkingPatterns.filter((pattern) => pattern.status !== 'dismissed').map((pattern) => <PatternDisclosure key={pattern.patternId} pattern={pattern} responseDraft={patternResponseDrafts[pattern.patternId] || ''} onDraftChange={(value) => setPatternResponseDrafts((previous) => ({ ...previous, [pattern.patternId]: value }))} onRespond={respondToPattern} />)}{!thinkingPatterns.some((pattern) => pattern.status !== 'dismissed') && <EmptyCopy text="No evidence-backed pattern has crossed the display threshold yet." />}</div></div>}
+            {reflectionView === 'open-edges' && <div className="mt-5 grid gap-4 lg:grid-cols-3"><StatusList title={`Open unknowns (${openUnknowns.length})`} items={openUnknowns.slice(0, 5)} onResolve={(item) => onUpdateUnknown({ ...item, status: 'resolved', resolvedAt: new Date().toISOString() })} onOpen={() => onNavigate('questions')} /><TextList title="Unresolved tensions" items={openEdges.tensions} empty="No recorded tension crosses the display threshold." /><TextList title="Positions needing support" items={openEdges.unsupported} empty="No unsupported active position was found." /></div>}
+          </SectionCard></TabsContent>
 
-            <SectionCard title="Belief Biography" description="How your positions have been formed, pressured, revised, and replaced over time.">
-              <div className="space-y-3">
-                {recentBeliefEvents.length ? recentBeliefEvents.map((event) => (
-                  <div key={event.id} className="rounded-2xl border border-border bg-background/60 p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{event.eventType.replaceAll('_', ' ')}</Badge>
-                      <span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span>
-                    </div>
-                    <div className="mt-2 font-medium text-foreground">{event.summary}</div>
-                    {flattenRelatedEntityIds(event.relatedEntityIds).length ? <p className="mt-2 text-sm text-muted-foreground">Related objects: {flattenRelatedEntityIds(event.relatedEntityIds).join(', ')}</p> : null}
-                  </div>
-                )) : <EmptyCopy text="No position history yet. Once beliefs are created and revised, their biography will collect here." />}
-              </div>
-            </SectionCard>
-          </TabsContent>
-
-          <TabsContent value="metacognition" className="mt-0">
-            <SectionCard title="Thinking Patterns" description="Provisional tendencies grounded in stored evidence, not fixed identity labels.">
-              <div className="mb-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-                <div className="rounded-2xl border border-border bg-background/60 p-4">
-                  <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Evidence Threshold</div>
-                  <h3 className="mt-2 font-headline text-xl font-semibold italic text-foreground">
-                    {mirrorDiagnostics.sufficientEventSpread ? 'Enough recorded variety for cautious reflection' : 'Limited evidence: treat every pattern lightly'}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Profile observations are based on {mirrorDiagnostics.eventCount} thinking events across {mirrorDiagnostics.objectFamilies} object families.
-                    Date range: {mirrorDiagnostics.dateRange}.
-                  </p>
-                  <div className="mt-3 rounded-xl border border-border/50 bg-card p-3 text-xs italic leading-5 text-muted-foreground">
-                    Noesis should say “recent evidence suggests,” never “you are.” Low-data observations should invite reflection, not define identity.
-                  </div>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <MirrorList title="Possible Strengths" items={mirrorDiagnostics.strengths} empty="No evidence-backed strengths yet. More revised positions, challenges, practices, and concept work will make this clearer." />
-                  <MirrorList title="Possible Vulnerabilities" items={mirrorDiagnostics.vulnerabilities} empty="No evidence-backed vulnerabilities yet. Noesis should not invent concerns without recorded evidence." />
-                </div>
-              </div>
-              <div className="space-y-3">
-                {thinkingPatterns.map((pattern) => (
-                  <Card key={pattern.patternId} className="rounded-2xl border-border bg-background/60 p-4 shadow-none">
-                    {(() => {
-                      const evidenceLevel = patternEvidenceLevel(pattern);
-                      return (
-                        <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-headline text-xl font-semibold italic">Recent evidence suggests: {pattern.label}</h3>
-                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(pattern.confidence * 100)}% confidence</Badge>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "rounded-full font-code text-[8px] uppercase tracking-widest",
-                          evidenceLevel.tone === 'strong' ? "border-emerald-200 bg-emerald-50 text-emerald-800" :
-                          evidenceLevel.tone === 'moderate' ? "border-amber-200 bg-amber-50 text-amber-800" :
-                          "border-rose-200 bg-rose-50 text-rose-800"
-                        )}
-                      >
-                        {evidenceLevel.label}
-                      </Badge>
-                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{pattern.status}</Badge>
-                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{pattern.timespan}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{pattern.description}</p>
-                    {evidenceLevel.tone === 'limited' && (
-                      <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs italic leading-5 text-rose-900">
-                        This observation has limited support. Treat it as a prompt to inspect evidence, not as a profile truth.
-                      </div>
-                    )}
-                    <div className="mt-4 grid gap-3 md:grid-cols-3">
-                      <div className="rounded-xl border border-border/50 bg-card p-3">
-                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Sample Size</div>
-                        <div className="mt-1 font-headline text-2xl font-semibold italic">{pattern.evidence.length}</div>
-                      </div>
-                      <div className="rounded-xl border border-border/50 bg-card p-3">
-                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Trend</div>
-                        <div className="mt-1 text-sm font-medium capitalize">{pattern.trendDirection}</div>
-                      </div>
-                      <div className="rounded-xl border border-border/50 bg-card p-3">
-                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Alternative Reading</div>
-                        <div className="mt-1 text-xs italic text-muted-foreground">This may reflect the available records more than your full thinking.</div>
-                      </div>
-                    </div>
-                        </>
-                      );
-                    })()}
-                    {pattern.evidence.length > 0 && <ul className="mt-3 space-y-1 text-sm text-muted-foreground">{pattern.evidence.map((evidence) => <li key={evidence}>- {evidence}</li>)}</ul>}
-                    {pattern.userResponse && (
-                      <div className="mt-3 rounded-xl border border-border/50 bg-card p-3 text-sm">
-                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Your Response</div>
-                        <p className="mt-1 capitalize text-foreground">{pattern.userResponse.replace(/_/g, ' ')}</p>
-                        {pattern.userResponseNote && <p className="mt-2 italic leading-6 text-muted-foreground">{pattern.userResponseNote}</p>}
-                      </div>
-                    )}
-                    <div className="mt-4 rounded-2xl border border-border/50 bg-card p-4">
-                      <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Challenge My Profile</div>
-                      <p className="mt-2 text-xs italic leading-5 text-muted-foreground">
-                        Treat this as a provisional observation. Confirm it, qualify it, reject it, ask for more evidence, or mark it outdated.
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" className="rounded-full" onClick={() => respondToPattern(pattern, 'confirmed')}>Confirm</Button>
-                        <Button variant="outline" size="sm" className="rounded-full" onClick={() => respondToPattern(pattern, 'partially_agree')}>Partially Agree</Button>
-                        <Button variant="ghost" size="sm" className="rounded-full" onClick={() => respondToPattern(pattern, 'needs_more_evidence')}>Request Evidence</Button>
-                        <Button variant="ghost" size="sm" className="rounded-full" onClick={() => respondToPattern(pattern, 'outdated')}>Outdated</Button>
-                        <Button variant="ghost" size="sm" className="rounded-full text-destructive hover:text-destructive" onClick={() => respondToPattern(pattern, 'rejected')}>Reject</Button>
-                      </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
-                        <Input
-                          value={patternResponseDrafts[pattern.patternId] || ''}
-                          onChange={(event) => setPatternResponseDrafts((prev) => ({ ...prev, [pattern.patternId]: event.target.value }))}
-                          placeholder="Offer an alternative explanation..."
-                          className="h-9 rounded-full text-sm"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-full"
-                          onClick={() => respondToPattern(pattern, 'alternative_explanation', patternResponseDrafts[pattern.patternId])}
-                          disabled={!patternResponseDrafts[pattern.patternId]?.trim()}
-                        >
-                          Save Alternative
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-                {!thinkingPatterns.length && <EmptyCopy text="No thinking patterns inferred yet. As the workspace gathers more positions, questions, and revisions, Noesis will be able to reflect clearer tendencies back to you." />}
-              </div>
-              <div className="mt-5 rounded-2xl border border-dashed border-border bg-muted/15 p-4">
-                <div className="flex items-center gap-2 font-medium text-foreground">
-                  <Brain className="size-4 text-accent" />
-                  Summary snapshot
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(summary.topThinkingPatterns || []).slice(0, 6).map((item) => <Badge key={item} className="rounded-full">{item}</Badge>)}
-                  {!summary.topThinkingPatterns?.length && <span className="text-sm text-muted-foreground">No stored summary yet.</span>}
-                </div>
-              </div>
-            </SectionCard>
-          </TabsContent>
-
-          <TabsContent value="unknowns" className="mt-0">
-            <SectionCard title="Unknowns and Knowledge Gaps" description="A serious thinking system should be able to name what it still does not understand.">
-              <div className="grid gap-3">
-                <Input value={unknownDraft.title} onChange={(event) => setUnknownDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Name an unresolved gap" />
-                <Textarea value={unknownDraft.description} onChange={(event) => setUnknownDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[90px]" placeholder="Why does this gap matter?" />
-                <div className="flex justify-end">
-                  <Button onClick={addUnknown} className="rounded-full">
-                    <Lightbulb className="mr-2 size-4" />
-                    Add Unknown
-                  </Button>
-                </div>
-              </div>
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <StatusList title={`Open (${openUnknowns.length})`} items={openUnknowns} actionLabel="Mark resolved" onAction={(item) => onUpdateUnknown({ ...item, status: 'resolved', resolvedAt: new Date().toISOString() })} />
-                <StatusList title={`Resolved (${resolvedUnknowns.length})`} items={resolvedUnknowns} />
-              </div>
-            </SectionCard>
-          </TabsContent>
-
-          <TabsContent value="missing" className="mt-0">
-            <SectionCard title="Missing Perspectives" description="Possible absent lenses from your current record. These are prompts for review, not judgments about you.">
-              <div className="grid gap-4 lg:grid-cols-2">
-                <PerspectiveList title="Unresolved tensions" items={summary.unresolvedTensions} empty="No unresolved tensions summarized yet." />
-                <PerspectiveList title="Current unknowns" items={summary.currentUnknowns} empty="No current unknowns summarized yet." />
-                <PerspectiveList title="Strongest beliefs to test" items={summary.strongestBeliefs} empty="No strongest-belief summary yet." />
-                <PerspectiveList title="Weakest beliefs needing support" items={summary.weakestBeliefs} empty="No weak-belief summary yet." />
-              </div>
-            </SectionCard>
-          </TabsContent>
-
-          <TabsContent value="public" className="mt-0">
-            <SectionCard title="Public Philosophy View" description="Prepare a future-facing public layer without exposing anything by default.">
-              <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
-                <div className="rounded-2xl border border-border bg-background/60 p-5">
-                  <div className="flex items-center gap-2 font-medium text-foreground">
-                    <Globe className="size-4 text-accent" />
-                    Sharing controls
-                  </div>
-                  <div className="mt-4 space-y-4">
-                    <Field label="Share slug">
-                      <Input value={privacyDraft.shareSlug || ''} onChange={(event) => setPrivacyDraft((prev) => ({ ...prev, shareSlug: event.target.value }))} placeholder="your-public-noesis" />
-                    </Field>
-                    <SwitchRow label="Enable public profile shell" checked={privacyDraft.publicProfileEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicProfileEnabled: checked }))} />
-                    <SwitchRow label="Allow public concepts" checked={privacyDraft.publicConceptsEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicConceptsEnabled: checked }))} />
-                    <SwitchRow label="Allow public positions" checked={privacyDraft.publicPositionsEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicPositionsEnabled: checked }))} />
-                    <SwitchRow label="Allow public works" checked={privacyDraft.publicWorksEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicWorksEnabled: checked }))} />
-                    <SwitchRow label="Allow public practices" checked={privacyDraft.publicPracticesEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicPracticesEnabled: checked }))} />
-                    <SwitchRow label="Allow public source list" checked={privacyDraft.publicSourcesEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicSourcesEnabled: checked }))} />
-                    <SwitchRow label="Allow public belief biography" checked={privacyDraft.publicBeliefBiographyEnabled} onCheckedChange={(checked) => setPrivacyDraft((prev) => ({ ...prev, publicBeliefBiographyEnabled: checked }))} />
-                  </div>
-                  <div className="mt-5 flex justify-end">
-                    <Button onClick={savePrivacy} disabled={saving === 'privacy'} className="rounded-full px-6 font-semibold">
-                      <Save className="mr-2 size-4" />
-                      {saving === 'privacy' ? 'Saving Privacy' : 'Save Public View'}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-dashed border-border bg-muted/15 p-5">
-                  <div className="flex items-center gap-2 font-medium text-foreground">
-                    <Sparkles className="size-4 text-accent" />
-                    Preview rules
-                  </div>
-                  <ul className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground">
-                    <li>- Default visibility stays private until you explicitly share.</li>
-                    <li>- Public profile content should emerge from your real objects, not a separate marketing layer.</li>
-                    <li>- Hidden notes, annotations, and metacognition remain excluded unless you choose otherwise.</li>
-                    <li>- The public layer is future-ready, but nothing is exposed automatically.</li>
-                  </ul>
-                </div>
-              </div>
-            </SectionCard>
-          </TabsContent>
+          <TabsContent value="public" className="mt-0"><SectionCard title="Public Profile" description="Publish only the identity details, philosophy signals, and individual records you choose."><div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="space-y-4"><div className="rounded-xl border border-border bg-background/50 p-4"><Field label="Profile URL name"><Input value={privacyDraft.shareSlug || ''} onChange={(event) => setPrivacyDraft((previous) => ({ ...previous, shareSlug: event.target.value }))} placeholder="your-public-noesis" /></Field><div className="mt-4"><SwitchRow label="Publish profile" checked={privacyDraft.publicProfileEnabled} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicProfileEnabled: checked }))} /></div>{privacy.publicProfileEnabled && privacy.shareSlug && <a href={`/p/${privacy.shareSlug}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">Open published profile <ExternalLink className="size-3.5" /></a>}</div>
+              <div className="grid gap-3 sm:grid-cols-2"><SwitchRow label="Introduction" checked={privacyDraft.publicBioEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicBioEnabled: checked }))} /><SwitchRow label="Philosophy name" checked={privacyDraft.publicPhilosophyEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicPhilosophyEnabled: checked }))} /><SwitchRow label="Current season" checked={privacyDraft.publicSeasonEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicSeasonEnabled: checked }))} /><SwitchRow label="Recurring themes" checked={privacyDraft.publicThemesEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicThemesEnabled: checked }))} /></div>
+              <div className="grid gap-3 md:grid-cols-2"><PublicationPicker title="Concepts" enabled={privacyDraft.publicConceptsEnabled} items={rankedConcepts.map((item) => ({ id: item.id, label: item.name }))} selectedIds={privacyDraft.publicConceptIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicConceptsEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicConceptIds: ids }))} /><PublicationPicker title="Positions" enabled={privacyDraft.publicPositionsEnabled} items={activePositions.map((item) => ({ id: item.id, label: item.statement || item.title }))} selectedIds={privacyDraft.publicPositionIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicPositionsEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicPositionIds: ids }))} /><PublicationPicker title="Works" enabled={privacyDraft.publicWorksEnabled} items={works.map((item) => ({ id: item.id, label: item.title }))} selectedIds={privacyDraft.publicWorkIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicWorksEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicWorkIds: ids }))} /><PublicationPicker title="Practices" enabled={privacyDraft.publicPracticesEnabled} items={practices.filter((item) => item.status === 'active').map((item) => ({ id: item.id, label: item.title }))} selectedIds={privacyDraft.publicPracticeIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicPracticesEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicPracticeIds: ids }))} /><PublicationPicker title="Sources" enabled={privacyDraft.publicSourcesEnabled} items={sources.map((item) => ({ id: item.id, label: item.title }))} selectedIds={privacyDraft.publicSourceIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicSourcesEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicSourceIds: ids }))} /><PublicationPicker title="Belief history" enabled={privacyDraft.publicBeliefBiographyEnabled} items={recentBeliefEvents.map((item) => ({ id: item.id, label: item.summary }))} selectedIds={privacyDraft.publicBeliefHistoryIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicBeliefBiographyEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicBeliefHistoryIds: ids }))} /></div>
+              <Button onClick={savePrivacy} disabled={saving === 'privacy'} className="w-full rounded-full font-semibold"><Save className="mr-2 size-4" />{saving === 'privacy' ? 'Saving choices' : 'Save public profile'}</Button></div>
+            <div className="self-start rounded-xl border border-border bg-card p-5 shadow-sm xl:sticky xl:top-4"><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 font-medium"><Globe className="size-4 text-accent" />Public preview</div><Badge variant={privacyDraft.publicProfileEnabled ? 'default' : 'outline'}>{privacyDraft.publicProfileEnabled ? 'Published' : 'Private'}</Badge></div><h3 className="mt-5 font-headline text-2xl font-semibold italic">{profileDraft.displayName || user?.displayName || 'Untitled Thinker'}</h3>{(privacyDraft.publicBioEnabled ?? true) && <p className="mt-2 text-sm leading-6 text-muted-foreground">{profileDraft.bio || 'No public introduction yet.'}</p>}{(privacyDraft.publicPhilosophyEnabled ?? true) && profileDraft.philosophyName && <PreviewLine label="Philosophy" value={`${profileDraft.philosophyName} (${profileDraft.philosophyNameStatus === 'established' ? 'established' : 'working name'})`} />}{(privacyDraft.publicPhilosophyEnabled ?? true) && profileDraft.philosophyStatement && <p className="mt-3 text-sm leading-6 text-muted-foreground">{profileDraft.philosophyStatement}</p>}{(privacyDraft.publicSeasonEnabled ?? true) && <PreviewLine label="Current season" value={derivedIdentity.season} />}{(privacyDraft.publicThemesEnabled ?? true) && <div className="mt-4 flex flex-wrap gap-2">{derivedIdentity.themes.map((theme) => <Badge key={theme} variant="secondary">{theme}</Badge>)}</div>}<p className="mt-5 border-t border-border/60 pt-4 text-xs leading-5 text-muted-foreground">Private notes, annotations, unknowns, and pattern feedback are never published.</p></div>
+          </div></SectionCard></TabsContent>
         </Tabs>
       </div>
     </div>
   );
 }
 
-function SectionCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
-  return (
-    <Card className="rounded-3xl border-border bg-card p-6 shadow-sm">
-      <div className="mb-5">
-        <h2 className="font-headline text-2xl font-semibold italic text-foreground">{title}</h2>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
-      </div>
-      {children}
-    </Card>
-  );
+function SectionCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) { return <Card className="rounded-2xl border-border bg-card p-5 shadow-sm sm:p-6"><div className="mb-5"><h2 className="font-headline text-2xl font-semibold italic">{title}</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p></div>{children}</Card>; }
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-2"><Label className="font-code text-[9px] font-bold uppercase tracking-[0.18em]">{label}</Label>{children}</div>; }
+function DerivedField({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) { return <div className={cn('rounded-xl border border-border bg-background/50 p-4', wide && 'sm:col-span-2')}><div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div><p className="mt-2 text-sm leading-6">{value}</p></div>; }
+function SegmentedNav({ value, onChange, items, label, className }: { value: string; onChange: (value: string) => void; items: Array<[string, string]>; label: string; className?: string }) { return <div role="tablist" aria-label={label} className={cn('flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl border border-border bg-background/50 p-1', className)}>{items.map(([id, text]) => <Button key={id} type="button" role="tab" aria-selected={value === id} size="sm" variant={value === id ? 'default' : 'ghost'} onClick={() => onChange(id)} className="shrink-0 rounded-lg">{text}</Button>)}</div>; }
+function LinkGroup({ title, empty, onOpenAll, children }: { title: string; empty: string; onOpenAll: () => void; children: React.ReactNode }) { const hasChildren = React.Children.count(children) > 0; return <div className="rounded-xl border border-border bg-background/50 p-4"><div className="mb-3 flex items-center justify-between gap-3"><div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{title}</div><Button variant="ghost" size="sm" onClick={onOpenAll} className="rounded-full">Open all</Button></div><div className="space-y-2">{hasChildren ? children : <EmptyCopy text={empty} />}</div></div>; }
+function MiniLink({ label, meta, onClick }: { label: string; meta: string; onClick: () => void }) { return <button onClick={onClick} className="flex min-h-11 w-full items-start justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="min-w-0 text-sm leading-5">{label}</span><span className="shrink-0 font-code text-[8px] uppercase tracking-wider text-muted-foreground">{meta}</span></button>; }
+
+function PatternDisclosure({ pattern, responseDraft, onDraftChange, onRespond }: { pattern: ThinkingPattern; responseDraft: string; onDraftChange: (value: string) => void; onRespond: (pattern: ThinkingPattern, response: ThinkingPatternUserResponse, note?: string) => void }) {
+  const evidenceLevel = pattern.evidence.length >= 5 && pattern.confidence >= 0.75 ? 'strong' : pattern.evidence.length >= 3 && pattern.confidence >= 0.55 ? 'moderate' : 'limited';
+  return <details className="group rounded-xl border border-border bg-background/50"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><div className="min-w-0"><div className="font-medium">{pattern.label}</div><div className="mt-1 text-xs text-muted-foreground">{evidenceLevel} evidence / {pattern.evidence.length} examples</div></div><ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" /></summary><div className="border-t border-border px-4 py-4"><p className="text-sm leading-6 text-muted-foreground">{pattern.description}</p>{pattern.evidence.length > 0 && <ul className="mt-3 space-y-1 text-xs leading-5 text-muted-foreground">{pattern.evidence.slice(0, 4).map((evidence) => <li key={evidence}>- {evidence}</li>)}</ul>}<div className="mt-4 flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => onRespond(pattern, 'confirmed')}>Agree</Button><Button variant="outline" size="sm" onClick={() => onRespond(pattern, 'partially_agree')}>Partly</Button><Button variant="ghost" size="sm" onClick={() => onRespond(pattern, 'needs_more_evidence')}>Need evidence</Button><Button variant="ghost" size="sm" onClick={() => onRespond(pattern, 'rejected')}>Disagree</Button></div><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"><Input value={responseDraft} onChange={(event) => onDraftChange(event.target.value)} placeholder="Offer another explanation" /><Button variant="outline" disabled={!responseDraft.trim()} onClick={() => onRespond(pattern, 'alternative_explanation', responseDraft)}>Save note</Button></div></div></details>;
 }
 
-function ProfileStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-border bg-background/60 p-4">
-      <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
-      <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">{value}</div>
-    </div>
-  );
+function StatusList({ title, items, onResolve, onOpen }: { title: string; items: Unknown[]; onResolve: (item: Unknown) => void; onOpen: () => void }) { return <div className="rounded-xl border border-border bg-background/50 p-4"><div className="flex items-center justify-between gap-2"><div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{title}</div><Button variant="ghost" size="sm" onClick={onOpen}>Open inquiries</Button></div><div className="mt-3 space-y-2">{items.map((item) => <div key={item.unknownId} className="rounded-lg border border-border bg-card p-3"><div className="text-sm font-medium">{item.title}</div><Button variant="ghost" size="sm" className="mt-2 h-8 px-2" onClick={() => onResolve(item)}>Mark resolved</Button></div>)}{!items.length && <EmptyCopy text="No open unknowns." />}</div></div>; }
+function TextList({ title, items, empty }: { title: string; items: string[]; empty: string }) { return <div className="rounded-xl border border-border bg-background/50 p-4"><div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{title}</div><div className="mt-3 space-y-2">{items.map((item) => <p key={item} className="rounded-lg border border-border bg-card p-3 text-sm leading-5">{item}</p>)}{!items.length && <EmptyCopy text={empty} />}</div></div>; }
+
+function PublicationPicker({ title, enabled, items, selectedIds, onEnabledChange, onSelectionChange }: { title: string; enabled: boolean; items: Array<{ id: string; label: string }>; selectedIds?: string[]; onEnabledChange: (checked: boolean) => void; onSelectionChange: (ids: string[]) => void }) {
+  const selected = selectedIds ?? items.slice(0, 8).map((item) => item.id);
+  const toggle = (id: string) => onSelectionChange(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
+  return <div className="rounded-xl border border-border bg-background/50"><div className="flex min-h-14 items-center gap-3 px-4"><div className="min-w-0 flex-1"><div className="text-sm font-medium">{title}</div><div className="text-xs text-muted-foreground">{enabled ? `${selected.length} selected` : 'Not shared'}</div></div><Switch aria-label={`Share ${title}`} checked={enabled} onCheckedChange={onEnabledChange} /></div>{enabled && <details className="group border-t border-border"><summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-4 text-xs font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Choose specific items<ChevronDown className="size-4 transition-transform group-open:rotate-180" /></summary><div className="max-h-56 space-y-1 overflow-y-auto border-t border-border p-2">{items.map((item) => <label key={item.id} className="flex min-h-10 cursor-pointer items-start gap-3 rounded-lg px-2 py-2 text-sm hover:bg-muted/20"><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggle(item.id)} className="mt-1 size-4" /><span className="leading-5">{item.label}</span></label>)}{!items.length && <div className="p-2 text-sm text-muted-foreground">Nothing available to share.</div>}</div></details>}</div>;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <Label className="readex-kicker text-[9px] font-bold uppercase">{label}</Label>
-      {children}
-    </div>
-  );
-}
-
-function TagEditor({ value, onChange, placeholder }: { value: string[]; onChange: (value: string[]) => void; placeholder: string }) {
-  return (
-    <Input
-      value={value.join(', ')}
-      onChange={(event) => onChange(event.target.value.split(',').map((item) => item.trim()).filter(Boolean))}
-      placeholder={placeholder}
-    />
-  );
-}
-
-function LinkGroup({ title, empty, onOpenAll, children }: { title: string; empty: string; onOpenAll: () => void; children: React.ReactNode }) {
-  const hasChildren = React.Children.count(children) > 0;
-  return (
-    <div className="rounded-2xl border border-border bg-background/60 p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="font-code text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{title}</div>
-        <Button variant="ghost" size="sm" className="rounded-full" onClick={onOpenAll}>Open</Button>
-      </div>
-      <div className="space-y-2">
-        {hasChildren ? children : <EmptyCopy text={empty} compact />}
-      </div>
-    </div>
-  );
-}
-
-function MiniLink({ label, meta, onClick }: { label: string; meta: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="flex w-full items-center justify-between rounded-xl border border-border px-3 py-2 text-left transition-colors hover:bg-muted/20">
-      <span className="text-sm text-foreground">{label}</span>
-      <span className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">{meta}</span>
-    </button>
-  );
-}
-
-function StatusList({
-  title,
-  items,
-  actionLabel,
-  onAction,
-}: {
-  title: string;
-  items: Unknown[];
-  actionLabel?: string;
-  onAction?: (item: Unknown) => void;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-background/60 p-4">
-      <div className="font-code text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{title}</div>
-      <div className="mt-3 space-y-3">
-        {items.length ? items.map((item) => (
-          <div key={item.unknownId} className="rounded-xl border border-border bg-card/70 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="font-medium text-foreground">{item.title}</div>
-              <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item.status}</Badge>
-            </div>
-            {item.description && <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p>}
-            {actionLabel && onAction && item.status !== 'resolved' && (
-              <div className="mt-3">
-                <Button variant="outline" size="sm" className="rounded-full" onClick={() => onAction(item)}>{actionLabel}</Button>
-              </div>
-            )}
-          </div>
-        )) : <EmptyCopy text="Nothing here yet." compact />}
-      </div>
-    </div>
-  );
-}
-
-function PerspectiveList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-background/60 p-4">
-      <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-      <div className="mt-3 space-y-2">
-        {items.length ? items.map((item) => (
-          <div key={item} className="rounded-xl border border-border/50 bg-card p-3 text-sm italic leading-6 text-muted-foreground">
-            {item}
-          </div>
-        )) : <EmptyCopy text={empty} compact />}
-      </div>
-      <p className="mt-3 text-[11px] italic leading-5 text-muted-foreground">
-        Review this against actual evidence before promoting it into an inquiry, position, or practice.
-      </p>
-    </div>
-  );
-}
-
-function MirrorList({ title, items, empty }: { title: string; items: Array<{ title: string; evidence: string; confidence: string }>; empty: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-background/60 p-4">
-      <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-      <div className="mt-3 space-y-2">
-        {items.length ? items.map((item) => (
-          <div key={item.title} className="rounded-xl border border-border/50 bg-card p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="font-medium text-foreground">{item.title}</div>
-              <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item.confidence}</Badge>
-            </div>
-            <p className="mt-2 text-xs italic leading-5 text-muted-foreground">{item.evidence}</p>
-          </div>
-        )) : <EmptyCopy text={empty} compact />}
-      </div>
-    </div>
-  );
-}
-
-function SwitchRow({ label, checked, onCheckedChange }: { label: string; checked: boolean; onCheckedChange: (checked: boolean) => void }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card/70 px-4 py-3">
-      <span className="text-sm text-foreground">{label}</span>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
-  );
-}
-
-function EmptyCopy({ text, compact = false }: { text: string; compact?: boolean }) {
-  return (
-    <div className={compact ? 'text-sm italic text-muted-foreground' : 'rounded-2xl border border-dashed border-border bg-background/40 p-5 text-sm italic text-muted-foreground'}>
-      {text}
-    </div>
-  );
-}
-
-function formatDate(value?: string) {
-  if (!value) return 'Unknown date';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function flattenRelatedEntityIds(value?: ThinkingEvent['relatedEntityIds']) {
-  if (!value) return [];
-  return Object.values(value).flatMap((items) => items || []);
-}
+function SwitchRow({ label, checked, onCheckedChange }: { label: string; checked: boolean; onCheckedChange: (checked: boolean) => void }) { return <div className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3"><span className="text-sm">{label}</span><Switch aria-label={label} checked={checked} onCheckedChange={onCheckedChange} /></div>; }
+function PreviewLine({ label, value }: { label: string; value: string }) { return <div className="mt-4 rounded-xl border border-border/60 bg-background/50 p-3"><div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{label}</div><div className="mt-1 text-sm font-medium">{value}</div></div>; }
+function EmptyCopy({ text }: { text: string }) { return <div className="text-sm italic leading-5 text-muted-foreground">{text}</div>; }
+function formatDate(value?: string) { if (!value) return 'Unknown date'; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }

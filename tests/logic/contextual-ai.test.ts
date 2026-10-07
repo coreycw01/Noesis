@@ -8,9 +8,11 @@ import {
 
 test('allows each contextual action only on its intended object and scope', () => {
   assert.equal(isContextualAiRequestCompatible({ action: 'summarize_source', targetType: 'source', scope: 'linked_items' }), true);
+  assert.equal(isContextualAiRequestCompatible({ action: 'reflect_on_source', targetType: 'source', scope: 'linked_items' }), true);
   assert.equal(isContextualAiRequestCompatible({ action: 'socratic_inquiry_challenge', targetType: 'inquiry', scope: 'linked_items' }), true);
   assert.equal(isContextualAiRequestCompatible({ action: 'compare_selected_positions', targetType: 'position', scope: 'selected_pair' }), true);
   assert.equal(isContextualAiRequestCompatible({ action: 'synthesize_evolution_period', targetType: 'evolution', scope: 'selected_period' }), true);
+  assert.equal(isContextualAiRequestCompatible({ action: 'synthesize_profile_philosophy', targetType: 'profile', scope: 'linked_items' }), true);
 });
 
 test('rejects cross-page or overly broad contextual action combinations', () => {
@@ -30,17 +32,19 @@ test('exposes only the approved detail-level assistance tools', () => {
     'identify_missing_position_evidence',
     'propose_inquiry_prompts',
     'refine_concept_definition',
+    'reflect_on_source',
     'socratic_inquiry_challenge',
     'suggest_annotation_effect',
     'summarize_source',
     'synthesize_evolution_period',
     'synthesize_practice_outcome',
+    'synthesize_profile_philosophy',
   ]);
   assert.equal('stress_test_position' in CONTEXTUAL_AI_POLICIES, false);
 });
 
 test('loads AI settings only on routes that expose contextual assistance', () => {
-  for (const view of ['concepts', 'questions', 'library', 'annotations', 'vault', 'practices', 'evolution'] as const) {
+  for (const view of ['concepts', 'questions', 'library', 'annotations', 'vault', 'practices', 'evolution', 'profile'] as const) {
     assert.ok(NOESIS_PAGE_DATA_REQUIREMENTS[view].includes('aiSettings'), `${view} must load AI settings`);
   }
 

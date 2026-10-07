@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { BrainCircuit, Check, ClipboardCopy, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -13,13 +13,15 @@ import { CONTEXTUAL_AI_LABELS, type AiContextEnvelope, type AiReviewResult, type
 
 export interface ContextualAiPanelProps {
   actions: ContextualAiAction[];
-  buildEnvelope: (action: ContextualAiAction) => AiContextEnvelope | null;
+  buildEnvelope: (action: ContextualAiAction, userPrompt?: string) => AiContextEnvelope | null;
   enabled?: boolean;
   showContextBeforeSending?: boolean;
   reasoningDepth?: 'light' | 'standard' | 'deep';
   retainAcceptedProvenance?: boolean;
   onAccept?: (result: AiReviewResult, editedContent: string) => void | Promise<void>;
   buttonLabel?: string;
+  promptLabel?: string;
+  promptPlaceholder?: string;
 }
 
 export function ContextualAiPanel({
@@ -31,6 +33,8 @@ export function ContextualAiPanel({
   retainAcceptedProvenance = true,
   onAccept,
   buttonLabel = 'Assistance',
+  promptLabel,
+  promptPlaceholder = 'Ask a focused question about this item...',
 }: ContextualAiPanelProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -39,7 +43,8 @@ export function ContextualAiPanel({
   const [accepting, setAccepting] = useState(false);
   const [result, setResult] = useState<AiReviewResult | null>(null);
   const [editedContent, setEditedContent] = useState('');
-  const envelope = useMemo(() => buildEnvelope(action), [action, buildEnvelope]);
+  const [userPrompt, setUserPrompt] = useState('');
+  const envelope = useMemo(() => buildEnvelope(action, userPrompt.trim() || undefined), [action, buildEnvelope, userPrompt]);
 
   if (!enabled || actions.length === 0) return null;
 
@@ -110,6 +115,7 @@ export function ContextualAiPanel({
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Contextual Assistance</DialogTitle>
+            <DialogDescription>Review the exact workspace context Noesis will use, then edit or dismiss the result before anything is saved.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Select value={action} onValueChange={(value) => { setAction(value as ContextualAiAction); setResult(null); }}>
@@ -118,6 +124,20 @@ export function ContextualAiPanel({
                 {actions.map((item) => <SelectItem key={item} value={item}>{CONTEXTUAL_AI_LABELS[item]}</SelectItem>)}
               </SelectContent>
             </Select>
+
+            {promptLabel && !result && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground" htmlFor="contextual-ai-question">{promptLabel}</label>
+                <Textarea
+                  id="contextual-ai-question"
+                  value={userPrompt}
+                  onChange={(event) => setUserPrompt(event.target.value)}
+                  placeholder={promptPlaceholder}
+                  className="min-h-[92px]"
+                />
+                <p className="text-xs leading-5 text-muted-foreground">Noesis answers from the context shown below. It does not search the rest of your workspace.</p>
+              </div>
+            )}
 
             {showContextBeforeSending && envelope && !result && (
               <Card className="space-y-3 border-border/60 bg-muted/10 p-4">

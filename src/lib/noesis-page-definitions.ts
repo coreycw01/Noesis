@@ -189,9 +189,9 @@ export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDa
   writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences'],
   practices: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
   evolution: ['media', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'aiSettings'],
-  profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs'],
+  profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs', 'aiSettings'],
   goals: ['media', 'questions', 'vault', 'drafts', 'practices', 'goal'],
-  settings: ['preferences', 'legacyProfile', 'workspace', 'allSettings'],
+  settings: ['preferences', 'legacyProfile', 'workspace', 'allSettings', 'thinkingEvents'],
 };
 
 export const NOESIS_DETAIL_DATA_REQUIREMENTS: Record<NoesisRouteTargetType, NoesisWorkspaceDataKey[]> = {

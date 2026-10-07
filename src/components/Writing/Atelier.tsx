@@ -1126,7 +1126,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
   }
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+    <div className="noesis-page">
       <PageHeader
         title="Works"
         description="Create writing, notes, drawings, and recordings that express the ideas gathered across Noesis."
