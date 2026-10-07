@@ -51,6 +51,7 @@ export interface AtlasRegionViewModel {
   confirmedMemberCount: number;
   suggestedMemberNames: string[];
   explanation: string;
+  membershipReasons: Record<string, string>;
   conceptIds: string[];
   positionIds: string[];
   practiceIds: string[];
@@ -72,6 +73,26 @@ export interface AtlasRegionViewModel {
   labels: AtlasRegionLabel[];
   maturityStatus: AtlasMaturityStatus;
   suggestedNextActions: AtlasNextAction[];
+}
+
+export interface AtlasRegionNoticeState {
+  knownIds: string[];
+  unreadIds: string[];
+}
+
+export function reconcileAtlasRegionNotices(activeIds: string[], previous: AtlasRegionNoticeState | null) {
+  const active = new Set(activeIds);
+  if (!previous) {
+    return { state: { knownIds: [...active], unreadIds: [] }, newIds: [] };
+  }
+  const known = new Set(Array.isArray(previous.knownIds) ? previous.knownIds : []);
+  const unread = new Set((Array.isArray(previous.unreadIds) ? previous.unreadIds : []).filter((id) => active.has(id)));
+  const newIds = activeIds.filter((id) => !known.has(id));
+  newIds.forEach((id) => {
+    known.add(id);
+    unread.add(id);
+  });
+  return { state: { knownIds: [...known], unreadIds: [...unread] }, newIds };
 }
 
 export interface AtlasTerritoryCard {
@@ -267,14 +288,22 @@ function buildConceptRegionMap({
     const directMatches = regionIdsForText(concept.name);
     const positionMatches = vault
       .filter((position) => (position.tags || []).some((tag) => conceptKey(tag) === conceptKey(concept.name)))
-      .flatMap((position) => regionIdsForText(collectKeywords(position.title, position.statement, position.description, ...(position.tags || []))));
+      .flatMap((position) => regionIdsForText(collectKeywords(position.title, position.statement)));
     const practiceMatches = practices
       .filter((practice) => (practice.conceptTags || []).some((tag) => conceptKey(tag) === conceptKey(concept.name)))
-      .flatMap((practice) => regionIdsForText(collectKeywords(practice.title, practice.description, practice.notes, ...(practice.conceptTags || []))));
+      .flatMap((practice) => regionIdsForText(collectKeywords(practice.title, practice.description)));
     const questionMatches = questions
-      .filter((question) => question.conceptIds.includes(concept.id))
+      .filter((question) => (question.conceptIds || []).includes(concept.id))
       .flatMap((question) => regionIdsForText(question.text));
-    const derived = uniqueStrings([...directMatches, ...positionMatches, ...practiceMatches, ...questionMatches]);
+    const candidates = uniqueStrings([...positionMatches, ...practiceMatches, ...questionMatches]);
+    const positionSet = new Set<string>(positionMatches);
+    const practiceSet = new Set<string>(practiceMatches);
+    const questionSet = new Set<string>(questionMatches);
+    const inferred = candidates
+      .map((id) => ({ id, channels: Number(positionSet.has(id)) + Number(practiceSet.has(id)) + Number(questionSet.has(id)) }))
+      .filter((candidate) => candidate.channels >= 2)
+      .sort((a, b) => b.channels - a.channels || a.id.localeCompare(b.id));
+    const derived = directMatches.length ? directMatches : inferred.slice(0, 1).map((candidate) => candidate.id);
     map.set(concept.id, derived);
   });
 
@@ -355,6 +384,14 @@ export function deriveAtlasRegions({
   const regions = REGION_DEFINITIONS.map((regionDef) => {
     const regionConcepts = concepts.filter((concept) => (conceptRegionMap.get(concept.id) || []).includes(regionDef.id));
     const regionConceptNames = regionConcepts.map((concept) => concept.name);
+    const membershipReasons = Object.fromEntries(regionConcepts.map((concept) => {
+      const direct = regionDef.keywords.find((keyword) => concept.name.toLowerCase().includes(keyword));
+      const linkedPositions = vault.filter((position) => (position.tags || []).some((tag) => conceptKey(tag) === conceptKey(concept.name)) && regionIdsForText(collectKeywords(position.title, position.statement)).includes(regionDef.id));
+      const linkedPractices = practices.filter((practice) => (practice.conceptTags || []).some((tag) => conceptKey(tag) === conceptKey(concept.name)) && regionIdsForText(collectKeywords(practice.title, practice.description)).includes(regionDef.id));
+      const linkedInquiries = questions.filter((question) => (question.conceptIds || []).includes(concept.id) && regionIdsForText(question.text).includes(regionDef.id));
+      const reasons = [direct ? `name matches “${direct}”` : '', linkedPositions.length ? `${linkedPositions.length} linked position${linkedPositions.length === 1 ? '' : 's'}` : '', linkedPractices.length ? `${linkedPractices.length} linked practice${linkedPractices.length === 1 ? '' : 's'}` : '', linkedInquiries.length ? `${linkedInquiries.length} linked inquir${linkedInquiries.length === 1 ? 'y' : 'ies'}` : ''].filter(Boolean);
+      return [concept.id, reasons.join(', ') || 'related through linked records'];
+    }));
     const regionConceptKeySet = new Set(regionConceptNames.map((name) => conceptKey(name)));
 
     const regionPositions = vault.filter((position) => {
@@ -442,6 +479,7 @@ export function deriveAtlasRegions({
       id: regionDef.id,
       name: regionDef.name,
       description: regionDef.description,
+      membershipReasons,
       regionType: 'derived' as const,
       conceptIds: uniqueStrings(regionConcepts.map((concept) => concept.id)),
       positionIds: uniqueStrings(regionPositions.map((position) => position.id)),
@@ -478,10 +516,10 @@ export function deriveAtlasRegions({
       ...baseRegion.workIds.map((id) => `work:${id}`),
     ]).length;
     const hasStrongSupport = confirmedMemberCount === 1 && supportingRecordCount >= 2;
-    const status = confirmedMemberCount >= 2 ? 'active' as const : 'provisional' as const;
-    const explanation = confirmedMemberCount >= 2
-      ? `Noesis organized ${confirmedMemberCount} confirmed concepts and ${supportingRecordCount} linked records in this territory.`
-      : `Possible region based on one confirmed concept and ${supportingRecordCount} strongly linked records. No suggested topic is counted as a concept.`;
+    const status = confirmedMemberCount >= 3 ? 'active' as const : 'provisional' as const;
+    const explanation = confirmedMemberCount >= 3
+      ? `${regionConceptNames.join(', ')} belong here through name matches or linked positions, practices, and inquiries. ${supportingRecordCount} other records connect to these concepts. This is an organizational view, not a claim you hold.`
+      : `Possible region built from ${regionConceptNames.join(', ')} and ${supportingRecordCount} linked records. Three existing concepts are needed for an active region. This is not a new concept or a claim you hold.`;
 
     const labels = labelSetForRegion(baseRegion as any);
     return {

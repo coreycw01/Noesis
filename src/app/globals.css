@@ -410,6 +410,32 @@
   }
 }
 
+@layer components {
+  .noesis-status-panel {
+    @apply rounded-xl border border-border bg-card text-foreground;
+  }
+
+  .noesis-status-panel-subtle {
+    @apply rounded-lg border border-border bg-background/40 text-foreground;
+  }
+
+  .noesis-status-label {
+    @apply font-code text-[10px] font-bold uppercase tracking-[0.2em] text-foreground;
+  }
+
+  .noesis-status-detail {
+    @apply text-sm leading-5 text-muted-foreground;
+  }
+
+  .noesis-status-badge {
+    @apply border-border bg-muted/50 text-foreground;
+  }
+
+  .noesis-status-progress {
+    @apply bg-accent;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -439,6 +465,7 @@
   body {
     @apply bg-background text-foreground font-body;
     overflow: hidden;
+    min-height: 100dvh;
     cursor: default;
     caret-color: transparent;
   }
@@ -618,13 +645,19 @@
   .noesis-app {
     background: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: var(--font-interface);
+    /* Pages inherit the same reading face. Interface-specific labels opt into
+       the compact code treatment explicitly instead of resetting a page. */
+    font-family: var(--font-body);
+    min-height: 100dvh;
+    overscroll-behavior: none;
   }
 
   .noesis-app-main {
     background:
       linear-gradient(180deg, hsl(var(--page-tint) / .62), transparent 15rem),
       hsl(var(--background));
+    min-width: 0;
+    overscroll-behavior-y: contain;
   }
 
   .noesis-mobile-header {
@@ -641,6 +674,21 @@
       padding-top: calc(3.5rem + env(safe-area-inset-top));
       padding-bottom: calc(4rem + env(safe-area-inset-bottom));
     }
+
+    /* Avoid iOS zooming the entire app when an editor or search input receives focus. */
+    .noesis-app input,
+    .noesis-app select,
+    .noesis-app textarea {
+      font-size: max(16px, 1rem);
+    }
+
+    .noesis-app [data-radix-popper-content-wrapper] {
+      max-width: calc(100vw - 1.5rem) !important;
+    }
+
+    .noesis-app-main > * {
+      min-width: 0;
+    }
   }
 
   @media (pointer: coarse) {
@@ -652,6 +700,47 @@
 
   .noesis-page-header {
     border-color: hsl(var(--accent-border) / .28);
+  }
+
+  /* Main list and workspace routes share one frame. Specialized canvases such
+     as Atlas and the editors keep their own viewport-driven layouts. */
+  .noesis-page {
+    display: block;
+    flex: 1 1 0%;
+    width: 100%;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 1.5rem 1rem 2.5rem;
+    font-family: var(--font-body);
+  }
+
+  .noesis-page-inner {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .noesis-page-header-actions {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  @media (min-width: 640px) {
+    .noesis-page {
+      padding-inline: 1.5rem;
+    }
+
+    .noesis-page-header-actions {
+      align-items: center;
+      gap: .75rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .noesis-page {
+      padding-inline: 2rem;
+    }
   }
 
   .noesis-page-title {

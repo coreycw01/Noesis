@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { ToastAction } from '@/components/ui/toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -56,11 +57,13 @@ import { deleteObject, getStorage, ref as storageRef } from 'firebase/storage';
 import { uploadPrivateAsset } from '@/lib/storage-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useToast } from '@/hooks/use-toast';
 import {
   AtlasSection,
   deriveAtlasRegions,
   deriveAtlasSystemTensions,
   deriveAtlasTerritoryView,
+  reconcileAtlasRegionNotices,
 } from './atlas-diagnostics';
 
 interface ConceptAtlasProps {
@@ -356,12 +359,16 @@ export function ConceptAtlas({
   onOpenPractices,
 }: ConceptAtlasProps) {
   const isMobile = useIsMobile();
+  const { toast } = useToast();
   const [zoom, setZoom] = useState(ATLAS_BASE_ZOOM);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
   const [atlasSection, setAtlasSection] = useState<AtlasSection>('map');
+  const [connectionsTab, setConnectionsTab] = useState<'relationships' | 'tensions'>('relationships');
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
+  const [regionDetailOpen, setRegionDetailOpen] = useState(false);
+  const [newRegionIds, setNewRegionIds] = useState<string[]>([]);
   const [linkSearch, setLinkSearch] = useState('');
   const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('strong');
   const [viewMode, setViewMode] = useState<AtlasViewMode>('core');
@@ -469,6 +476,48 @@ export function ConceptAtlas({
     () => deriveAtlasRegions({ concepts, media, vault, practices, questions, drafts, links, timeline, thinkingEvents }),
     [concepts, media, vault, practices, questions, drafts, links, timeline, thinkingEvents]
   );
+  const markRegionSeen = useCallback((regionId: string) => {
+    if (!uid) return;
+    const storageKey = `noesis:atlas-region-notices:v1:${uid}`;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) || '{}') as { knownIds?: string[]; unreadIds?: string[] };
+      const unreadIds = (saved.unreadIds || []).filter((id) => id !== regionId);
+      window.localStorage.setItem(storageKey, JSON.stringify({ knownIds: saved.knownIds || [], unreadIds }));
+      setNewRegionIds(unreadIds);
+    } catch {
+      setNewRegionIds((current) => current.filter((id) => id !== regionId));
+    }
+  }, [uid]);
+  const openRegion = useCallback((regionId: string) => {
+    setSelectedRegionId(regionId);
+    setRegionDetailOpen(true);
+    setAtlasSection('territory');
+    markRegionSeen(regionId);
+  }, [markRegionSeen]);
+
+  useEffect(() => {
+    if (!uid) return;
+    const activeRegions = atlasRegions.filter((region) => region.status === 'active');
+    const activeIds = activeRegions.map((region) => region.id);
+    const storageKey = `noesis:atlas-region-notices:v1:${uid}`;
+    try {
+      const previous = window.localStorage.getItem(storageKey);
+      const { state, newIds } = reconcileAtlasRegionNotices(activeIds, previous ? JSON.parse(previous) : null);
+      const newRegions = activeRegions.filter((region) => newIds.includes(region.id));
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
+      setNewRegionIds(state.unreadIds);
+      if (newRegions.length) {
+        const region = newRegions[0];
+        toast({
+          title: newRegions.length === 1 ? `New Atlas region: ${region.name}` : `${newRegions.length} new Atlas regions`,
+          description: 'Three existing concepts now form an active region. Review why they were grouped.',
+          action: <ToastAction altText="View new Atlas region" onClick={() => openRegion(region.id)}>View</ToastAction>,
+        });
+      }
+    } catch {
+      setNewRegionIds([]);
+    }
+  }, [atlasRegions, openRegion, toast, uid]);
   const atlasTerritoryCards = useMemo(
     () => deriveAtlasTerritoryView(atlasRegions),
     [atlasRegions]
@@ -560,19 +609,12 @@ export function ConceptAtlas({
   const visibleTerms = useMemo(() => {
     const baseTerms = mode === 'custom' ? (activeMap ? activeMap.nodeNames.map(conceptKey) : []) : terms;
     if (atlasSection !== 'map' || !selectedRegion) return baseTerms;
-    const regionNames = [
-      ...selectedRegion.conceptIds
-        .map((id) => concepts.find((concept) => concept.id === id)?.name)
-        .filter(Boolean)
-        .map((name) => conceptKey(name as string)),
-      ...selectedRegion.dominantConcepts.map((name) => conceptKey(name)),
-      ...vault
-        .filter((position) => selectedRegion.positionIds.includes(position.id))
-        .flatMap((position) => position.tags || [])
-        .map((tag) => conceptKey(tag)),
-    ];
-    return baseTerms.filter((name) => regionNames.includes(conceptKey(name)));
-  }, [activeMap, atlasSection, concepts, mode, selectedRegion, terms, vault]);
+    const regionNames = new Set(selectedRegion.conceptIds
+      .map((id) => concepts.find((concept) => concept.id === id)?.name)
+      .filter((name): name is string => Boolean(name))
+      .map(conceptKey));
+    return baseTerms.filter((name) => regionNames.has(conceptKey(name)));
+  }, [activeMap, atlasSection, concepts, mode, selectedRegion, terms]);
 
   const nodes = useMemo<MapNode[]>(() => {
     const filtered = visibleTerms.filter((name) => !search || name.toLowerCase().includes(search.toLowerCase()));
@@ -1144,12 +1186,12 @@ export function ConceptAtlas({
 
   const openRegionInMap = (regionId: string) => {
     setSelectedRegionId(regionId);
+    setRegionDetailOpen(false);
     setAtlasSection('map');
   };
 
   const openRegionWorkspace = (regionId: string) => {
-    setSelectedRegionId(regionId);
-    setAtlasSection('territory');
+    openRegion(regionId);
   };
 
   const availableNodeTerms = useMemo(() => {
@@ -2310,7 +2352,7 @@ export function ConceptAtlas({
 
   return (
     <div className={cn(
-      "relative flex w-full min-h-0 flex-col bg-background",
+      "relative flex w-full min-h-0 flex-col bg-background font-body",
       isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-[calc(100vh-3.5rem)] overflow-hidden"
     )}>
       {!isFullScreen && (
@@ -2357,6 +2399,11 @@ export function ConceptAtlas({
               }}
             >
               {label}
+              {section === 'territory' && newRegionIds.length > 0 && (
+                <span className="ml-1 rounded-full bg-accent px-1.5 text-[10px] text-accent-foreground" aria-label={`${newRegionIds.length} new regions`}>
+                  {newRegionIds.length}
+                </span>
+              )}
             </Button>
           ))}
         </div>
@@ -2542,13 +2589,16 @@ export function ConceptAtlas({
               cards={atlasTerritoryCards}
               regions={atlasRegions}
               selectedRegionId={selectedRegionId}
+              detailMode={regionDetailOpen}
+              newRegionIds={newRegionIds}
               concepts={concepts}
               positions={vault}
               practices={practices}
               questions={questions}
               drafts={drafts}
               media={media}
-              onSelectRegion={setSelectedRegionId}
+              onSelectRegion={openRegion}
+              onBackToRegions={() => setRegionDetailOpen(false)}
               onOpenMap={openRegionInMap}
               onOpenPosition={onOpenPosition}
               onOpenQuestion={onOpenQuestion}
@@ -2558,8 +2608,15 @@ export function ConceptAtlas({
           )}
           {atlasSection === 'connections' && (
             <div className="space-y-5">
-              <AtlasConnectionsView links={links} onUpdateLink={onUpdateLink} onDeleteLink={onDeleteLink} />
-              <AtlasTensionsBoard tensions={atlasSystemTensions} onOpenRegion={openRegionWorkspace} />
+              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Atlas connection views">
+                <Button role="tab" aria-selected={connectionsTab === 'relationships'} variant={connectionsTab === 'relationships' ? 'default' : 'outline'} onClick={() => setConnectionsTab('relationships')}>Relationships</Button>
+                <Button role="tab" aria-selected={connectionsTab === 'tensions'} variant={connectionsTab === 'tensions' ? 'default' : 'outline'} onClick={() => setConnectionsTab('tensions')}>System tensions</Button>
+              </div>
+              {connectionsTab === 'relationships' ? (
+                <AtlasConnectionsView links={links} concepts={concepts} regionConceptIds={selectedRegion?.conceptIds || []} regionObjectIds={selectedRegion ? [...selectedRegion.conceptIds, ...selectedRegion.positionIds, ...selectedRegion.practiceIds, ...selectedRegion.inquiryIds, ...selectedRegion.sourceIds, ...selectedRegion.workIds] : []} regionName={selectedRegion?.name} onUpdateLink={onUpdateLink} onDeleteLink={onDeleteLink} />
+              ) : (
+                <AtlasTensionsBoard tensions={atlasSystemTensions} onOpenRegion={openRegionWorkspace} />
+              )}
             </div>
           )}
           {atlasSection === 'review' && (

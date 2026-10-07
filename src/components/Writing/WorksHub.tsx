@@ -17,6 +17,7 @@ import {
   Trash2,
   Video,
 } from 'lucide-react';
+import { usePersistentView } from '@/hooks/use-persistent-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -183,7 +184,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
   const [status, setStatus] = useState<HubStatus>('all');
   const [sort, setSort] = useState<HubSort>('activity');
   const [activityMode, setActivityMode] = useState<ActivityMode>('edited');
-  const [view, setView] = useState<HubView>('grid');
+  const [view, setView] = usePersistentView<HubView>('noesis:works-view', 'grid', ['grid', 'list']);
   const [addOpen, setAddOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Draft | null>(null);
@@ -258,13 +259,13 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
   ].filter(Boolean) as string[];
 
   return (
-    <div className="min-h-full w-full overflow-y-auto bg-background px-4 py-6 font-body text-foreground sm:px-6 lg:px-8 xl:px-10">
+    <div className="noesis-page text-foreground xl:px-10">
       <PageHeader
         title="Works"
         description="Make the ideas in your system tangible through writing, notes, drawings, and recordings."
         meta={(
           <span className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-            {counts.total} works · {counts.writing} writings · {counts.notes} notes · {counts.revision} need revision
+            {counts.total} {counts.total === 1 ? 'work' : 'works'} · {counts.writing} {counts.writing === 1 ? 'writing' : 'writings'} · {counts.notes} {counts.notes === 1 ? 'note' : 'notes'} · {counts.revision} {counts.revision === 1 ? 'needs' : 'need'} revision
           </span>
         )}
         actions={(

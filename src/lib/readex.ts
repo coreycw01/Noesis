@@ -1,4 +1,4 @@
-import type { Concept, Draft, Insight, Media, MediaType, Practice, Question, TimelineEvent, VaultEntry, WritingStyle } from './types';
+import type { Concept, Draft, Insight, Media, MediaStatus, MediaType, Practice, Question, TimelineEvent, VaultEntry, WritingStyle } from './types';
 import { inquirySourceIds } from './inquiry-state';
 import { Book, Headphones, Mic, Play, Film, FileText, GraduationCap, School, Clapperboard, MessageSquare, Users, File, Paperclip } from 'lucide-react';
 
@@ -20,6 +20,15 @@ export const MEDIA_LABELS: Record<MediaType, string> = {
   conversation: 'Conversation',
   paper: 'Paper',
   other: 'Other',
+};
+
+// Persisted values remain backward-compatible while the interface uses media-neutral language.
+export const MEDIA_STATUS_LABELS: Record<MediaStatus, string> = {
+  'Want to Read': 'Saved for Later',
+  Consuming: 'In Progress',
+  Finished: 'Finished',
+  Paused: 'Paused',
+  Abandoned: 'Stopped',
 };
 
 export const MEDIA_ICONS_COMP: Record<MediaType, any> = {

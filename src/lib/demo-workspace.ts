@@ -628,6 +628,9 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     photoURL: '',
     avatarUrl: '',
     bio: 'Dedicated demo thinker profile for architectural, UX, and workflow review across the whole Noesis system.',
+    philosophyName: 'Revisable Humanism',
+    philosophyNameStatus: 'working',
+    philosophyStatement: 'A good philosophy should remain answerable to evidence, become visible in ordinary practice, and preserve human dignity while staying open to revision.',
     intellectualFocus: ['philosophy synthesis', 'belief revision', 'attention and practice'],
     currentThemes: ['Identity', 'Meaning', 'Responsibility', 'Practice'],
     disciplines: ['philosophy', 'cognitive science', 'behavioral design'],
@@ -635,6 +638,8 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     publicProfileEnabled: false,
     shareSlug: 'noesis-review-workspace',
     role: 'demo',
+    dailyActivityDates: [iso(18), iso(19), iso(20), iso(21), iso(22), iso(23), iso(24)],
+    lastActiveDate: iso(24),
     createdAt: iso(1),
     dateUpdated: iso(24),
   };

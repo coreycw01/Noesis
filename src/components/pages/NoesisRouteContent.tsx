@@ -26,6 +26,7 @@ import type {
   PrivacySettings,
   ProfileMetacognitionSummary,
   ProfilePrivacySettings,
+  PublicProfileSnapshot,
   Question,
   SourceIntakeSettings,
   ThinkingEvent,
@@ -161,13 +162,14 @@ export interface NoesisRouteContentProps {
   updateThinkingPattern: (pattern: ThinkingPattern) => void;
   saveGoal: (goal: GoalSettings) => Promise<void>;
   saveProfile: (profile: UserProfile) => Promise<void>;
-  saveProfilePrivacy: (privacy: ProfilePrivacySettings) => Promise<void>;
+  saveProfilePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot) => Promise<void>;
   saveSettingsSection: (
     section: 'account' | 'appearance' | 'workspace' | 'ai' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer',
     data: unknown,
   ) => Promise<void>;
   exportWorkspaceData: () => Promise<void>;
   seedReviewWorkspace: (options?: { force?: boolean; preserveUserCreated?: boolean }) => void | Promise<void>;
+  restoreDeletedItem: (event: ThinkingEvent) => Promise<void>;
 }
 
 export function NoesisRouteContent({
@@ -258,6 +260,7 @@ export function NoesisRouteContent({
   saveSettingsSection,
   exportWorkspaceData,
   seedReviewWorkspace,
+  restoreDeletedItem,
 }: NoesisRouteContentProps) {
   const canonicalInquiries = allQuestions(media, questions);
   switch (activeView) {
@@ -394,14 +397,14 @@ export function NoesisRouteContent({
     case 'source-index':
       return <SourceIndexRoutePage media={media} vault={vault} drafts={drafts} practices={practices} questions={questions} onNavigate={navigateToView} />;
     case 'goals':
-      return <GoalsRoutePage goal={goalState} goalProgress={goalProgress} onSaveGoal={saveGoal} />;
+      return <GoalsRoutePage goal={goalState} goalProgress={goalProgress} concepts={concepts} inquiries={questions} sources={media} positions={vault} works={drafts} practices={practices} profile={profile} onSaveGoal={saveGoal} />;
     case 'profile':
       return (
         <ProfileRoutePage
           user={user}
           profile={profile}
+          aiSettings={aiSettings}
           privacy={profilePrivacy}
-          summary={profileMetacognitionSummary}
           concepts={concepts}
           inquiries={questions}
           positions={vault}
@@ -415,7 +418,6 @@ export function NoesisRouteContent({
           thinkingMetrics={thinkingMetrics}
           onSaveProfile={saveProfile}
           onSavePrivacy={saveProfilePrivacy}
-          onAddUnknown={addUnknown}
           onUpdateUnknown={updateUnknown}
           onUpdateThinkingPattern={updateThinkingPattern}
           onNavigate={navigateToView}
@@ -479,6 +481,8 @@ export function NoesisRouteContent({
           onSaveSection={saveSettingsSection}
           onExportWorkspace={exportWorkspaceData}
           onOpenProfile={() => navigateToView('profile')}
+          recentDeletedItems={thinkingEvents.filter((event) => event.eventType === 'deleted' && Date.now() - new Date(event.createdAt).getTime() <= 30 * 24 * 60 * 60 * 1000 && ['concept', 'source', 'position', 'inquiry', 'work', 'practice'].includes(event.entityType) && !thinkingEvents.some((restored) => restored.eventType === 'restored' && restored.entityType === event.entityType && restored.entityId === event.entityId))}
+          onRestoreDeletedItem={restoreDeletedItem}
           onRefreshDemoWorkspace={() => Promise.resolve(seedReviewWorkspace({ force: true }))}
           refreshingDemoWorkspace={refreshingDemoWorkspace}
           profileSummary={{

@@ -44,6 +44,7 @@ import {
   readexSchemaDoc,
 } from '@/lib/firestore-schema';
 import { buildDemoWorkspace, buildReviewExport, REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS, REVIEW_WORKSPACE_UID } from '@/lib/demo-workspace';
+import { countPersistedConcepts, countPersistedRecords } from '@/lib/workspace-counts';
 import type {
   AccountSettings,
   AiSettings,
@@ -69,6 +70,7 @@ import type {
   PrivacySettings,
   ProfileMetacognitionSummary,
   ProfilePrivacySettings,
+  PublicProfileSnapshot,
   Question,
   SecurityRuleContext,
   SourceIntakeSettings,
@@ -142,6 +144,7 @@ function ReadexWorkspace({
   const pendingNavigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const lastReadyRouteContentRef = useRef<React.ReactNode>(null);
+  const recordedActivityDayRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (pendingNavigationTimerRef.current) {
@@ -301,6 +304,18 @@ function ReadexWorkspace({
     avatarUrl: profileMainDoc?.avatarUrl || legacyProfileDoc?.avatarUrl || user?.photoURL || '',
     role: profileMainDoc?.role || legacyProfileDoc?.role || DEFAULT_USER_PROFILE.role,
   };
+
+  useEffect(() => {
+    if (!user || isOfflineReviewPreview) return;
+    const activityDate = today().slice(0, 10);
+    if (recordedActivityDayRef.current === activityDate || profile.dailyActivityDates?.includes(activityDate)) return;
+    recordedActivityDayRef.current = activityDate;
+    const activityDates = [...new Set([...(profile.dailyActivityDates || []), activityDate])].slice(-400);
+    void setDoc(refs.profileMain, { dailyActivityDates: activityDates, lastActiveDate: activityDate }, { merge: true }).catch(() => {
+      recordedActivityDayRef.current = null;
+    });
+  }, [isOfflineReviewPreview, profile.dailyActivityDates, refs.profileMain, user]);
+
   const profilePrivacy: ProfilePrivacySettings = {
     ...DEFAULT_PROFILE_PRIVACY,
     shareSlug: profile.shareSlug || DEFAULT_PROFILE_PRIVACY.shareSlug,
@@ -320,6 +335,7 @@ function ReadexWorkspace({
   const aiSettings: AiSettings = {
     ...DEFAULT_AI_SETTINGS,
     ...(settingsAiDoc || {}),
+    ...(reviewMode ? { aiAssistanceEnabled: true } : {}),
   };
   const metacognitionSettings: MetacognitionSettings = {
     ...DEFAULT_METACOGNITION_SETTINGS,
@@ -395,18 +411,18 @@ function ReadexWorkspace({
   const resolvedCount = (key: NoesisWorkspaceDataKey, live: number, summary?: number) =>
     activeRequirementSet.has(key) && !loading.requirements[key] ? live : (summary ?? live);
   const resolvedWorkspaceCounts = {
-    concepts: resolvedCount('concepts', concepts.length, workspaceCounts?.concepts),
+    concepts: resolvedCount('concepts', countPersistedConcepts(concepts), workspaceCounts?.concepts),
     questions: activeRequirementSet.has('questions')
       && activeRequirementSet.has('media')
       && !loading.requirements.questions
       && !loading.requirements.media
       ? allQuestions(media, questions).length
       : (workspaceCounts?.questions ?? allQuestions(media, questions).length),
-    media: resolvedCount('media', media.length, workspaceCounts?.media),
-    vault: resolvedCount('vault', vault.length, workspaceCounts?.vault),
-    drafts: resolvedCount('drafts', drafts.length, workspaceCounts?.drafts),
-    timeline: resolvedCount('timeline', timeline.length, workspaceCounts?.timeline),
-    practices: resolvedCount('practices', practices.length, workspaceCounts?.practices),
+    media: resolvedCount('media', countPersistedRecords(media), workspaceCounts?.media),
+    vault: resolvedCount('vault', countPersistedRecords(vault), workspaceCounts?.vault),
+    drafts: resolvedCount('drafts', countPersistedRecords(drafts), workspaceCounts?.drafts),
+    timeline: resolvedCount('timeline', countPersistedRecords(timeline), workspaceCounts?.timeline),
+    practices: resolvedCount('practices', countPersistedRecords(practices), workspaceCounts?.practices),
     annotations: activeRequirementSet.has('media') && !loading.requirements.media
       ? allAnnotations(media).length
       : (workspaceCounts?.annotations ?? allAnnotations(media).length),
@@ -436,16 +452,16 @@ function ReadexWorkspace({
       if (isBootstrap || required.has(requirement)) nextCounts[key] = value;
     };
 
-    assign('media', media.length, 'media');
+    assign('media', countPersistedRecords(media), 'media');
     assign('annotations', allAnnotations(media).length, 'media');
-    assign('concepts', concepts.length, 'concepts');
+    assign('concepts', countPersistedConcepts(concepts), 'concepts');
     if (isBootstrap || (required.has('questions') && required.has('media'))) {
       nextCounts.questions = allQuestions(media, questions).length;
     }
-    assign('vault', vault.length, 'vault');
-    assign('drafts', drafts.length, 'drafts');
-    assign('practices', practices.length, 'practices');
-    assign('timeline', timeline.length, 'timeline');
+    assign('vault', countPersistedRecords(vault), 'vault');
+    assign('drafts', countPersistedRecords(drafts), 'drafts');
+    assign('practices', countPersistedRecords(practices), 'practices');
+    assign('timeline', countPersistedRecords(timeline), 'timeline');
 
     if (JSON.stringify(nextCounts) === JSON.stringify(currentCounts) && workspaceSummaryDoc) return;
     void setDoc(refs.settingsWorkspaceSummary, {
@@ -455,17 +471,17 @@ function ReadexWorkspace({
       // Navigation remains usable even when summary maintenance is denied.
     });
   }, [
-    concepts.length,
-    drafts.length,
+    concepts,
+    drafts,
     isOfflineReviewPreview,
     loading.activePageRequirements,
     media,
-    practices.length,
+    practices,
     questions.length,
     refs.settingsWorkspaceSummary,
     shellDataLoading,
-    timeline.length,
-    vault.length,
+    timeline,
+    vault,
     workspaceSummaryDoc,
   ]);
 
@@ -1307,7 +1323,7 @@ function ReadexWorkspace({
       thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
-        eventType: 'concept_abandoned',
+        eventType: 'deleted',
         entityType: 'concept',
         entityId: id,
         before: existing,
@@ -1422,7 +1438,7 @@ function ReadexWorkspace({
       thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
-        eventType: 'source_abandoned',
+        eventType: 'deleted',
         entityType: 'source',
         entityId: id,
         before: existing,
@@ -1651,7 +1667,7 @@ function ReadexWorkspace({
       thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
-        eventType: 'position_abandoned',
+        eventType: 'deleted',
         entityType: 'position',
         entityId: id,
         before: existing,
@@ -1898,7 +1914,7 @@ function ReadexWorkspace({
       thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
-        eventType: 'abandoned',
+        eventType: 'deleted',
         entityType: 'inquiry',
         entityId: id,
         before: existing,
@@ -2052,7 +2068,7 @@ function ReadexWorkspace({
       thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
-        eventType: 'work_abandoned',
+        eventType: 'deleted',
         entityType: 'work',
         entityId: id,
         before: existing,
@@ -2184,7 +2200,7 @@ function ReadexWorkspace({
       thinkingEvent: existing ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
-        eventType: 'practice_abandoned',
+        eventType: 'deleted',
         entityType: 'practice',
         entityId: id,
         before: existing,
@@ -2197,6 +2213,41 @@ function ReadexWorkspace({
     }, { operation: 'delete', data: existing || { id }, rethrow: true })
       .then(() => cleanupDeletedEntityReferences('practice', id))
       .catch(() => undefined);
+  };
+
+  const restoreDeletedItem = async (event: ThinkingEvent) => {
+    const collectionByType = {
+      concept: refs.concepts,
+      source: refs.media,
+      position: refs.vault,
+      inquiry: refs.questions,
+      work: refs.drafts,
+      practice: refs.practices,
+    } as const;
+    const collectionRef = collectionByType[event.entityType as keyof typeof collectionByType];
+    const snapshot = event.before;
+    if (event.eventType !== 'deleted' || !collectionRef || !snapshot || snapshot.id !== event.entityId) {
+      throw new Error('This deleted item cannot be restored from its saved record.');
+    }
+    await commitAndReport({
+      db,
+      ref: doc(collectionRef, event.entityId) as any,
+      operation: 'set',
+      data: snapshot,
+      thinkingEvent: {
+        collection: refs.thinkingEvents as any,
+        userId: effectiveUid,
+        eventType: 'restored',
+        entityType: event.entityType,
+        entityId: event.entityId,
+        before: null,
+        after: snapshot,
+        summary: `Restored ${event.entityType}: ${event.summary.replace(/^Deleted [^:]+:\s*/i, '')}`,
+        origin: 'user',
+        importance: 'low',
+        sourceActionId: makeActionId(),
+      },
+    }, { operation: 'write', data: snapshot, rethrow: true });
   };
 
   const highImportanceAtlasLinks = new Set<PhilosophicalLinkType>(['contradicts', 'supports', 'challenges', 'tested_by', 'refines', 'depends_on']);
@@ -2599,14 +2650,47 @@ function ReadexWorkspace({
     await saveWorkspaceDoc(refs.profileMain as any, payload);
   };
 
-  const saveProfilePrivacy = async (nextPrivacy: ProfilePrivacySettings) => {
+  const saveProfilePrivacy = async (nextPrivacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot) => {
     const payload = { ...nextPrivacy, dateUpdated: today() };
-    await saveWorkspaceDoc(refs.profilePrivacy as any, payload);
-    await saveWorkspaceDoc(refs.settingsPrivacy as any, {
+    const slug = (payload.shareSlug || '').trim().toLowerCase();
+    if (!isReviewWorkspace && payload.publicProfileEnabled && !/^[a-z0-9][a-z0-9-]{2,59}$/.test(slug)) {
+      throw new Error('Choose a profile URL name with at least three letters, numbers, or hyphens.');
+    }
+    const settingsPayload = {
       ...privacySettings,
       shareableProfileLink: payload.shareSlug || '',
       dateUpdated: today(),
-    });
+    };
+
+    if (!user || isReviewWorkspace) {
+      await saveWorkspaceDoc(refs.profilePrivacy as any, payload);
+      await saveWorkspaceDoc(refs.settingsPrivacy as any, settingsPayload);
+      return;
+    }
+
+    const previousSlug = (profilePrivacy.shareSlug || '').trim().toLowerCase();
+    const previousPublicRef = previousSlug && previousSlug !== slug
+      ? doc(db, 'publicProfiles', previousSlug)
+      : null;
+    const previousPublicSnapshot = previousPublicRef ? await getDoc(previousPublicRef) : null;
+
+    const batch = writeBatch(db);
+    batch.set(refs.profilePrivacy, payload, { merge: true });
+    batch.set(refs.settingsPrivacy, settingsPayload, { merge: true });
+    if (previousPublicRef && previousPublicSnapshot?.exists() && previousPublicSnapshot.data().ownerId === user.uid) {
+      batch.delete(previousPublicRef);
+    }
+    if (slug) {
+      batch.set(doc(db, 'publicProfiles', slug), {
+        ...snapshot,
+        id: slug,
+        ownerId: user.uid,
+        shareSlug: slug,
+        enabled: payload.publicProfileEnabled,
+        updatedAt: today(),
+      });
+    }
+    await batch.commit();
   };
 
   const saveSettingsSection = async (section: 'account' | 'appearance' | 'workspace' | 'ai' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer', value: any) => {
@@ -2854,6 +2938,7 @@ function ReadexWorkspace({
         saveSettingsSection={saveSettingsSection}
         exportWorkspaceData={() => Promise.resolve(exportWorkspaceData())}
         seedReviewWorkspace={seedReviewWorkspace}
+        restoreDeletedItem={restoreDeletedItem}
       />
     );
     lastReadyRouteContentRef.current = routeContent;

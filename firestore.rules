@@ -50,6 +50,49 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Deliberately limited snapshots power visitor-facing philosophy profiles.
+    // Private workspace documents remain isolated under /users/{uid}.
+    match /publicProfiles/{slug} {
+      allow read: if resource.data.enabled == true
+        || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.id == slug
+        && request.resource.data.shareSlug == slug
+        && request.resource.data.ownerId == request.auth.uid
+        && validStringField(request.resource.data, 'displayName', 200)
+        && validStringField(request.resource.data, 'bio', 2000)
+        && validStringField(request.resource.data, 'philosophyName', 200)
+        && validStringField(request.resource.data, 'philosophyNameStatus', 20)
+        && validStringField(request.resource.data, 'philosophyStatement', 5000)
+        && validStringField(request.resource.data, 'currentSeason', 300)
+        && validListField(request.resource.data, 'themes', 12)
+        && validListField(request.resource.data, 'concepts', 12)
+        && validListField(request.resource.data, 'positions', 12)
+        && validListField(request.resource.data, 'works', 12)
+        && validListField(request.resource.data, 'practices', 12)
+        && validListField(request.resource.data, 'sources', 12)
+        && validListField(request.resource.data, 'beliefHistory', 12);
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.id == slug
+        && request.resource.data.shareSlug == slug
+        && validStringField(request.resource.data, 'displayName', 200)
+        && validStringField(request.resource.data, 'bio', 2000)
+        && validStringField(request.resource.data, 'philosophyName', 200)
+        && validStringField(request.resource.data, 'philosophyNameStatus', 20)
+        && validStringField(request.resource.data, 'philosophyStatement', 5000)
+        && validStringField(request.resource.data, 'currentSeason', 300)
+        && validListField(request.resource.data, 'themes', 12)
+        && validListField(request.resource.data, 'concepts', 12)
+        && validListField(request.resource.data, 'positions', 12)
+        && validListField(request.resource.data, 'works', 12)
+        && validListField(request.resource.data, 'practices', 12)
+        && validListField(request.resource.data, 'sources', 12)
+        && validListField(request.resource.data, 'beliefHistory', 12);
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create, update: if validOwnedWrite(uid, uid);
