@@ -62,7 +62,8 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
-import { cleanupReplacedDraftAssets, persistInlineDraftAssets, uploadPrivateAsset } from '@/lib/storage-assets';
+import { cleanupReplacedDraftAssets, persistInlineDraftAssets, uploadPrivateAsset, validateAssetBlob } from '@/lib/storage-assets';
+import { saveDemoRecording } from '@/lib/demo-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 
 export type PageViewMode = DocumentViewMode;
@@ -97,7 +98,7 @@ interface AtelierProps {
   questions: Question[];
   concepts: Concept[];
   writingDefaults: UserPreferences['writingDefaults'];
-  onAddDraft: (data: Partial<Draft>) => Draft;
+  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
   onUpdateDraft: (draft: Draft) => void | Promise<void>;
   onDeleteDraft: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
@@ -454,10 +455,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   ].filter(Boolean) as string[];
 
   const updateActive = useCallback((patch: Partial<Draft>) => {
-    const base = draftBuffer || activeFromStore;
+    const base = latestDraftRef.current || activeFromStore;
     if (!base) return;
     const next = { ...base, ...patch, dateUpdated: today() };
     if (draftSaveSignature(next) === draftSaveSignature(base)) return;
+    latestDraftRef.current = next;
     setDraftBuffer(next);
     setDirty(true);
     setSaveStatus('unsaved');
@@ -470,19 +472,24 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   }, [active, activeWritingStyle, updateActive]);
 
   const openDraft = useCallback((id: string) => {
-    setActiveId(id);
-    onOpenDraftRoute?.(id);
+    if (onOpenDraftRoute) onOpenDraftRoute(id);
+    else setActiveId(id);
   }, [onOpenDraftRoute]);
 
   const closeDraft = useCallback(() => {
-    setActiveId(null);
-    onOpenDraftRoute?.(null);
+    if (onOpenDraftRoute) onOpenDraftRoute(null);
+    else setActiveId(null);
   }, [onOpenDraftRoute]);
 
   const saveActive = useCallback(async (patch?: Partial<Draft>) => {
     if (!active) return null;
-    const patched = { ...active, ...patch };
-    const priorVersions = active.versionHistory || [];
+    const requestedId = active.id;
+    const task = saveQueueRef.current.catch(() => undefined).then(async () => {
+    const base = latestDraftRef.current;
+    if (!base || base.id !== requestedId) return null;
+    const signatureBeforeSave = draftSaveSignature(base);
+    const patched = { ...base, ...patch };
+    const priorVersions = base.versionHistory || [];
     const latest = priorVersions[priorVersions.length - 1];
     const shouldSnapshot = dirty && (!latest
       || latest.body !== patched.body
@@ -508,11 +515,17 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     try {
       // Demo workspaces save data URLs locally; they do not have a user Storage path.
       const persistedDraft = isReviewWorkspace ? nextDraft : await persistInlineDraftAssets(uid, nextDraft);
-      setDraftBuffer(persistedDraft);
       await onUpdateDraft(persistedDraft);
-      if (!isReviewWorkspace) await cleanupReplacedDraftAssets(active, persistedDraft).catch(() => undefined);
-      setDirty(false);
-      setSaveStatus('saved');
+      if (!isReviewWorkspace) await cleanupReplacedDraftAssets(base, persistedDraft).catch(() => undefined);
+      if (latestDraftRef.current?.id === requestedId) {
+        const unchanged = draftSaveSignature(latestDraftRef.current) === signatureBeforeSave;
+        if (unchanged) {
+          latestDraftRef.current = persistedDraft;
+          setDraftBuffer(persistedDraft);
+        }
+        setDirty(!unchanged);
+        setSaveStatus(unchanged ? 'saved' : 'unsaved');
+      }
       return persistedDraft;
     } catch (error) {
       setSaveStatus('unsaved');
@@ -523,7 +536,28 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       });
       return null;
     }
+    });
+    saveQueueRef.current = task.then(() => undefined, () => undefined);
+    return task;
   }, [active, dirty, isReviewWorkspace, onUpdateDraft, toast, uid]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const beforeNavigation = (event: Event) => {
+      const { waitUntil } = (event as CustomEvent<{ waitUntil: (save: Promise<boolean>) => void }>).detail;
+      waitUntil(saveActive().then((saved) => Boolean(saved)));
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    window.addEventListener('noesis:before-navigation', beforeNavigation);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      window.removeEventListener('noesis:before-navigation', beforeNavigation);
+    };
+  }, [dirty, saveActive]);
 
   const handleUpdateContent = useCallback((newContent: string) => {
     const clean = sanitizeHtml(newContent);
@@ -564,7 +598,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     toast({ title: 'Manuscript Exported', description: 'Your synthesis is ready as a Markdown file.' });
   };
 
-  const spawnDraft = (type: DraftType, title?: string) => {
+  const creatingRef = useRef(false);
+  const spawnDraft = async (type: DraftType, title?: string) => {
+    if (creatingRef.current) return;
+    creatingRef.current = true;
+    try {
     const category = workCategoryForDraft(type);
     const baseTitle =
       title ||
@@ -579,7 +617,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               : type === 'text_note'
                 ? 'Untitled Text Note'
                 : 'Untitled Writing');
-    const created = onAddDraft({
+    const created = await onAddDraft({
       title: baseTitle,
       type,
       label: DRAFT_LABELS[type],
@@ -625,6 +663,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               ? 'Voice capture is ready.'
               : 'Your new work is ready to develop.',
     });
+    } catch {
+      toast({ title: 'Work not created', description: 'Please try again. Your current work is unchanged.', variant: 'destructive' });
+    } finally {
+      creatingRef.current = false;
+    }
   };
 
   const openDocDialog = () => {
@@ -906,7 +949,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}
                   </span>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => saveActive()} className="h-9 rounded-md border-border/60 bg-card px-4 font-bold shadow-sm">
+                <Button variant="outline" size="sm" disabled={saveStatus === 'saving'} onClick={() => saveActive()} className="h-9 rounded-md border-border/60 bg-card px-4 font-bold shadow-sm">
                   <Save className="size-4 mr-2" /> {dirty ? 'Save*' : 'Save'}
                 </Button>
                 {activeCategory === 'writing' && (
@@ -1144,9 +1187,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 />
               </>
             ) : active.type === 'recording' ? (
-              <RecordingStudio uid={uid} draft={active} updateActive={updateActive} onSave={saveActive} />
+              <RecordingStudio uid={uid} localDemo={isReviewWorkspace} draft={active} updateActive={updateActive} onSave={saveActive} />
             ) : active.type === 'voice_note' ? (
-              <RecordingStudio uid={uid} draft={active} updateActive={updateActive} onSave={saveActive} audioOnly />
+              <RecordingStudio uid={uid} localDemo={isReviewWorkspace} draft={active} updateActive={updateActive} onSave={saveActive} audioOnly />
             ) : (
               <QuickNoteStudio draft={active} updateActive={updateActive} />
             )}
@@ -1225,9 +1268,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
           description={`This removes "${deleteTarget?.title || 'this work'}" from Works. Linked sources, inquiries, positions, practices, and Evolution history will remain.`}
           confirmLabel="Delete Work"
           destructive
-          onConfirm={() => {
+          onConfirm={async () => {
             if (!deleteTarget) return;
-            onDeleteDraft(deleteTarget.id);
+            await onDeleteDraft(deleteTarget.id);
             if (activeId === deleteTarget.id) closeDraft();
             setDeleteTarget(null);
           }}
@@ -1749,12 +1792,14 @@ function RecordingStudio({
   updateActive,
   onSave,
   audioOnly = false,
+  localDemo = false,
 }: {
   uid: string;
   draft: Draft;
   updateActive: (patch: Partial<Draft>) => void;
   onSave: (patch?: Partial<Draft>) => Promise<Draft | null>;
   audioOnly?: boolean;
+  localDemo?: boolean;
 }) {
   const { url: storedRecordingUrl, error: storedRecordingError } = usePrivateAssetUrl(
     draft.asset?.storagePath || draft.storagePath,
@@ -1898,7 +1943,9 @@ function RecordingStudio({
           const stagedUrl = URL.createObjectURL(blob);
           stagedUrlRef.current = stagedUrl;
           setPreviewUrl(stagedUrl);
-          const asset = await uploadPrivateAsset({
+          validateAssetBlob(blob);
+          const localUrl = localDemo ? await saveDemoRecording(blob) : '';
+          const asset = localDemo ? undefined : await uploadPrivateAsset({
             uid,
             area: 'works',
             entityId: draft.id,
@@ -1908,8 +1955,8 @@ function RecordingStudio({
           });
           const patch: Partial<Draft> = {
             asset,
-            storagePath: asset.storagePath,
-            fileUrl: '',
+            storagePath: asset?.storagePath || '',
+            fileUrl: localUrl,
             durationSeconds: durationRef.current,
             recordingType: audioOnly ? 'audio' : 'video',
           };

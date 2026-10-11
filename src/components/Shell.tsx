@@ -14,6 +14,7 @@ import {
   Menu,
   Map as MapIcon,
   PenTool,
+  Plus,
   Repeat,
   Settings,
   ShieldCheck,
@@ -428,7 +429,13 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const previewActivityClass = normalizeActivityClass(previewItem);
   const previewThinkingEventHint = normalizeThinkingEventHint(previewItem);
   const activePage = NOESIS_PAGE_BY_VIEW[activeView as keyof typeof NOESIS_PAGE_BY_VIEW] || NOESIS_PAGE_BY_VIEW.home;
-  const mobilePrimaryNav = navItems.filter((item) => ['home', 'atlas', 'annotations', 'vault', 'writing'].includes(item.id));
+  const mobilePrimaryNav = [
+    { id: 'home', label: 'Today', icon: Home, view: 'home' },
+    { id: 'questions', label: 'Question', icon: HelpCircle, view: 'questions' },
+    { id: 'vault', label: 'Claim', icon: ShieldCheck, view: 'vault' },
+    { id: 'practices', label: 'Test', icon: Repeat, view: 'practices' },
+    { id: 'more', label: 'More', icon: Menu, view: null },
+  ];
   const attentionTotal = movement
     ? movement.rawAnnotations + movement.unsupportedPositions + movement.openInquiries + movement.practicesWithoutPosition + movement.positionsWithoutPractice
     : 0;
@@ -479,16 +486,16 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           'w-full flex items-center transition-all group',
           collapsed && !isMobile ? 'justify-center px-3 py-2.5' : 'gap-2.5 px-5 py-2.5',
           activeView === item.id
-            ? 'border-accent bg-accent/10 text-white border-l-2'
-            : 'border-transparent text-sidebar-foreground/60 hover:text-white hover:bg-white/[0.04] border-l-2'
+            ? 'border-accent bg-accent/10 text-sidebar-foreground border-l-2'
+            : 'border-transparent text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5 border-l-2'
         )}
       >
-        <item.icon className={cn('size-4 shrink-0', activeView === item.id ? 'text-white' : 'group-hover:text-accent')} />
+        <item.icon className={cn('size-4 shrink-0', activeView === item.id ? 'text-accent' : 'group-hover:text-accent')} />
         {(!collapsed || isMobile) && (
           <>
             <span className="text-[13px] font-body font-medium tracking-wide flex-1 text-left">{page.title}</span>
             {typeof item.count === 'number' && (
-              <span className="rounded-full bg-white/[0.06] px-2 py-0.5 font-code text-[9px] text-white/50">{item.count}</span>
+              <span className="rounded-full bg-sidebar-foreground/10 px-2 py-0.5 font-code text-[9px] text-sidebar-foreground/65">{item.count}</span>
             )}
           </>
         )}
@@ -526,7 +533,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             </div>
             {(!collapsed || isMobile) && (
               <div>
-                <span className="text-[25px] font-headline font-bold text-white tracking-tight">Noesis<span className="text-accent">.</span></span>
+                <span className="text-[25px] font-headline font-bold text-sidebar-foreground tracking-tight">Noesis<span className="text-accent">.</span></span>
                 <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/35 font-medium">Turn thought into understanding.</p>
               </div>
             )}
@@ -538,7 +545,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             variant="ghost"
             size="icon"
             onClick={isMobile ? () => setMobileNavOpen(false) : toggleSidebar}
-            className="rounded-full text-sidebar-foreground/55 hover:bg-white/[0.08] hover:text-white"
+            className="rounded-full text-sidebar-foreground/55 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
             title={collapsed && !isMobile ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {isMobile ? <ChevronLeft className="size-4" /> : <ChevronLeft className={cn("size-4 transition-transform", collapsed && "rotate-180")} />}
@@ -549,20 +556,20 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           type="button"
           onClick={onOpenProfile || (() => handleNavChange('profile'))}
           className={cn(
-            "group flex items-center rounded-2xl border border-white/10 bg-white/[0.05] transition-colors hover:border-white/20 hover:bg-white/[0.08]",
+            "group flex items-center rounded-2xl border border-sidebar-border bg-sidebar-foreground/5 transition-colors hover:border-sidebar-foreground/20 hover:bg-sidebar-foreground/10",
             collapsed && !isMobile ? "mt-2 w-full justify-center p-2.5" : "mt-2 w-full gap-3 px-3 py-2.5"
           )}
           title="Open profile"
         >
-          <Avatar className="size-9 border border-white/10">
+          <Avatar className="size-9 border border-sidebar-border">
             <AvatarImage src={profile?.photoURL || profile?.avatarUrl || ''} alt={profile?.displayName || 'Profile'} />
-            <AvatarFallback className="bg-white/[0.08] text-[11px] font-semibold text-white">
+            <AvatarFallback className="bg-sidebar-foreground/10 text-[11px] font-semibold text-sidebar-foreground">
               {profileInitials}
             </AvatarFallback>
           </Avatar>
           {(!collapsed || isMobile) && (
             <div className="min-w-0 text-left">
-              <div className="truncate text-[12px] font-medium text-white/90">{profile?.displayName || 'Profile'}</div>
+              <div className="truncate text-[12px] font-medium text-sidebar-foreground">{profile?.displayName || 'Profile'}</div>
               <div className="truncate font-code text-[8px] uppercase tracking-[0.14em] text-sidebar-foreground/38">
                 {workspaceMode || profile?.role || 'Private workspace'}
               </div>
@@ -578,21 +585,21 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             type="button"
             onClick={() => setAttentionOpen(true)}
             className={cn(
-              "group flex w-full items-center rounded-full border border-amber-300/20 bg-amber-400/10 text-amber-100 transition-colors hover:border-amber-300/35 hover:bg-amber-400/15",
+              "group flex w-full items-center rounded-full border border-amber-500/30 bg-amber-500/10 text-sidebar-foreground transition-colors hover:border-amber-500/45 hover:bg-amber-500/15",
               collapsed && !isMobile ? "justify-center p-2.5" : "gap-2 px-3 py-2"
             )}
             title={`${attentionTotal} item${attentionTotal === 1 ? '' : 's'} need attention`}
             aria-label={`${attentionTotal} item${attentionTotal === 1 ? '' : 's'} need attention`}
           >
             <span className="relative">
-              <AlertTriangle className="size-4 text-amber-300" />
-              <span className="absolute -right-2 -top-2 grid min-w-4 place-items-center rounded-full bg-amber-300 px-1 font-code text-[8px] font-bold text-black">
+              <AlertTriangle className="size-4 text-amber-600 dark:text-amber-300" />
+              <span className="absolute -right-2 -top-2 grid min-w-4 place-items-center rounded-full bg-amber-700 px-1 font-code text-[8px] font-bold text-white">
                 {attentionTotal > 9 ? '9+' : attentionTotal}
               </span>
             </span>
             {(!collapsed || isMobile) && (
               <span className="min-w-0 flex-1 text-left">
-                <span className="block truncate font-code text-[8px] font-bold uppercase tracking-[0.16em] text-amber-200">Attention</span>
+                <span className="block truncate font-code text-[8px] font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-200">Attention</span>
                 <span className="block truncate text-[11px] text-sidebar-foreground/55">{attentionTotal} item{attentionTotal === 1 ? '' : 's'} to review</span>
               </span>
             )}
@@ -620,7 +627,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           type="button"
           onClick={() => setCommandOpen(true)}
           className={cn(
-            "mb-2 flex w-full items-center rounded-xl border border-white/10 bg-white/[0.04] text-sidebar-foreground/55 transition-colors hover:border-white/20 hover:bg-white/[0.08] hover:text-white",
+            "mb-2 flex w-full items-center rounded-xl border border-sidebar-border bg-sidebar-foreground/5 text-sidebar-foreground/55 transition-colors hover:border-sidebar-foreground/20 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground",
             collapsed && !isMobile ? "justify-center p-2.5" : "gap-2 px-3 py-2"
           )}
           aria-label="Open command palette"
@@ -698,25 +705,37 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             <nav className="noesis-mobile-nav fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-2 py-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur md:hidden" aria-label="Primary mobile navigation">
               <div className="grid grid-cols-5 gap-1">
                 {mobilePrimaryNav.map((item) => {
-                  const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
-                  const isActive = activeView === item.id;
+                  const isActive = item.view !== null && activeView === item.view;
                   return (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => handleNavChange(item.id)}
+                      onClick={() => item.view ? handleNavChange(item.view) : setMobileNavOpen(true)}
+                      aria-label={item.label === 'More' ? 'Open more pages' : `Open ${item.label}`}
+                      aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'flex min-h-11 flex-col items-center justify-center rounded-2xl px-1 py-1 text-[10px] transition-colors',
+                        'flex min-h-11 flex-col items-center justify-center rounded-2xl px-1 py-1 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                         isActive ? 'bg-accent/12 text-accent' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                       )}
                     >
-                      <item.icon className="size-4" />
-                      <span className="mt-0.5 max-w-full truncate font-code text-[7px] uppercase tracking-[0.12em]">{page.title}</span>
+                      <item.icon className="size-[18px]" aria-hidden="true" />
+                      <span className="mt-0.5 max-w-full truncate font-code text-[10px] uppercase tracking-[0.08em]">{item.label}</span>
                     </button>
                   );
                 })}
               </div>
             </nav>
+          )}
+          {isMobile && (
+            <Button
+              type="button"
+              onClick={() => { setCommandQuery(''); setCommandOpen(true); }}
+              className="fixed bottom-[76px] right-4 z-40 size-12 rounded-full shadow-lg md:hidden"
+              aria-label="Capture or create an item"
+              title="Capture or create"
+            >
+              <Plus className="size-5" aria-hidden="true" />
+            </Button>
           )}
         </main>
 

@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { z, type ZodType } from 'zod';
 import { adminAppCheck, adminAuth } from './firebase-admin';
+import { readBoundedRequestBody, RequestBodyTooLarge } from '../bounded-request-body';
 
 export class ApiError extends Error {
   constructor(
@@ -77,9 +78,11 @@ export async function parseBoundedJson<T>(
     throw new ApiError(413, 'The request is too large.', 'request_too_large');
   }
 
-  const raw = await request.text();
-  if (new TextEncoder().encode(raw).byteLength > maxBytes) {
-    throw new ApiError(413, 'The request is too large.', 'request_too_large');
+  let raw: string;
+  try { raw = await readBoundedRequestBody(request, maxBytes); }
+  catch (error) {
+    if (error instanceof RequestBodyTooLarge) throw new ApiError(413, 'The request is too large.', 'request_too_large');
+    throw new ApiError(400, 'The request body could not be read.', 'invalid_body');
   }
 
   let value: unknown;

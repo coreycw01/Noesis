@@ -17,6 +17,7 @@ import { SourceLinker } from '@/components/SourceLinker';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { BeliefProfile, Concept, Draft, Media, PhilosophicalLink, PositionKind, PositionPhilosophyStatus, Practice, Question, TimelineEvent, Unknown, VaultEntry, VaultType } from '@/lib/types';
 import { normalizeConceptTags, today } from '@/lib/readex';
+import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { cn } from '@/lib/utils';
 import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
 import { useToast } from '@/hooks/use-toast';
@@ -104,11 +105,7 @@ function joinLines(value?: string[]) {
 }
 
 function confidencePercent(confidence?: number) {
-  if (!Number.isFinite(confidence)) return 60;
-  const value = Number(confidence);
-  if (value > 0 && value < 1) return Math.round(value * 100);
-  if (Number.isInteger(value) && value >= 1 && value <= 5) return value * 20;
-  return Math.max(0, Math.min(100, Math.round(value)));
+  return normalizePositionConfidence(confidence);
 }
 
 function confidenceLabel(confidence = 60) {
@@ -142,6 +139,15 @@ type PositionViewFilter =
   | 'unsupported'
   | 'stale'
   | 'recently_changed';
+type PositionLifecycleStage = 'current' | 'developing' | 'under_review' | 'retired';
+
+function positionLifecycleStage(status: string): PositionLifecycleStage {
+  if (['abandoned', 'rejected', 'replaced'].includes(status)) return 'retired';
+  if (['challenged', 'contested', 'unstable', 'uncertain', 'questioning', 'suspended', 'split'].includes(status)) return 'under_review';
+  if (['draft', 'tentative', 'developing'].includes(status)) return 'developing';
+  if (['active', 'defended', 'revised'].includes(status)) return 'current';
+  return 'developing';
+}
 type StressStage = {
   title: string;
   prompt: string;
@@ -152,6 +158,7 @@ const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
   all: 'All',
   complete: 'Complete',
   current: 'Current',
+  under_review: 'Under Review',
   developing: 'Developing',
   retired: 'Retired',
   needs_attention: 'Needs Attention',
@@ -159,7 +166,6 @@ const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
   needs_evidence: 'Needs Evidence',
   needs_opposition: 'Needs Opposition',
   needs_practice: 'Needs Practice',
-  under_review: 'Under Review',
   revised: 'Revised',
   abandoned: 'Abandoned',
   tensions: 'Tensions',
@@ -174,6 +180,7 @@ const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
 
 const PRIMARY_POSITION_VIEW_FILTERS: PositionViewFilter[] = [
   'current',
+  'under_review',
   'complete',
   'developing',
   'retired',
@@ -243,7 +250,7 @@ type PositionDiagnostic = {
   assumptionCount: number;
   daysSinceUpdate: number;
   completeness: number;
-  recordedSupport: number;
+  assessmentScore: number;
   readinessLabel: string;
   label: string;
   nextAction: string;
@@ -300,7 +307,7 @@ function diagnosePosition(entry: VaultEntry, links: PhilosophicalLink[], practic
   const practiceSignal = Math.min(practiceCount, 2) * 6;
   const claritySignal = Math.min(formation.completeness, 100) * 0.18;
   const unansweredChallengePenalty = challengeCount > supportCount ? 12 : 0;
-  const recordedSupport = Math.max(0, Math.min(100, Math.round(evidenceDiversity + supportQuality + challengePressure + challengeResponse + practiceSignal + claritySignal - unansweredChallengePenalty)));
+  const assessmentScore = Math.max(0, Math.min(100, Math.round(evidenceDiversity + supportQuality + challengePressure + challengeResponse + practiceSignal + claritySignal - unansweredChallengePenalty)));
 
   if (supportCount === 0) flags.push('unsupported');
   if (challengeCount === 0) flags.push('under-challenged');
@@ -348,7 +355,7 @@ function diagnosePosition(entry: VaultEntry, links: PhilosophicalLink[], practic
     assumptionCount,
     daysSinceUpdate: updatedAge,
     completeness: formation.completeness,
-    recordedSupport,
+    assessmentScore,
     readinessLabel,
     label,
     nextAction,
@@ -483,15 +490,15 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     const viewOk =
       viewFilter === 'all' ||
       (viewFilter === 'complete' && positionFormation(e).fullyFormed) ||
-      (viewFilter === 'current' && ['active', 'defended', 'tentative'].includes(e.status)) ||
-      (viewFilter === 'developing' && (['draft', 'tentative', 'developing', 'uncertain'].includes(e.status) || diagnostic.completeness < 70)) ||
-      (viewFilter === 'retired' && ['abandoned', 'rejected', 'replaced', 'suspended', 'revised'].includes(e.status)) ||
-      (viewFilter === 'needs_attention' && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.recordedSupport < 45)) ||
+      (viewFilter === 'current' && positionLifecycleStage(e.status) === 'current') ||
+      (viewFilter === 'developing' && positionLifecycleStage(e.status) === 'developing') ||
+      (viewFilter === 'retired' && positionLifecycleStage(e.status) === 'retired') ||
+      (viewFilter === 'under_review' && positionLifecycleStage(e.status) === 'under_review') ||
+      (viewFilter === 'needs_attention' && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.assessmentScore < 45)) ||
       (viewFilter === 'emerging' && (['draft', 'tentative', 'developing'].includes(e.status) || e.confidence <= 40)) ||
       (viewFilter === 'needs_evidence' && !hasSupport) ||
       (viewFilter === 'needs_opposition' && !hasTension && !(e.evidenceAgainst || []).length) ||
       (viewFilter === 'needs_practice' && diagnostic.practiceCount === 0 && !['abandoned', 'rejected', 'replaced'].includes(e.status)) ||
-      (viewFilter === 'under_review' && ['challenged', 'uncertain', 'questioning', 'contested', 'unstable', 'suspended'].includes(e.status)) ||
       (viewFilter === 'revised' && e.status === 'revised') ||
       (viewFilter === 'abandoned' && ['abandoned', 'rejected', 'replaced'].includes(e.status)) ||
       (viewFilter === 'tensions' && hasTension) ||
@@ -530,14 +537,14 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     return {
       total: safeEntries.length,
       complete: safeEntries.filter((entry) => positionFormation(entry).fullyFormed).length,
-      current: safeEntries.filter((entry) => ['active', 'defended', 'tentative'].includes(entry.status)).length,
-      developing: safeEntries.filter((entry) => (positionDiagnostics.get(entry.id)?.completeness || 0) < 70 || ['draft', 'developing', 'uncertain'].includes(entry.status)).length,
-      retired: safeEntries.filter((entry) => ['abandoned', 'rejected', 'replaced', 'suspended', 'revised'].includes(entry.status)).length,
+      current: safeEntries.filter((entry) => positionLifecycleStage(entry.status) === 'current').length,
+      developing: safeEntries.filter((entry) => positionLifecycleStage(entry.status) === 'developing').length,
+      retired: safeEntries.filter((entry) => positionLifecycleStage(entry.status) === 'retired').length,
+      underReview: safeEntries.filter((entry) => positionLifecycleStage(entry.status) === 'under_review').length,
       needsAttention: safeEntries.filter((entry) => {
         const diagnostic = positionDiagnostics.get(entry.id);
-        return Boolean(diagnostic && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.recordedSupport < 45));
+        return Boolean(diagnostic && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.assessmentScore < 45));
       }).length,
-      underReview: safeEntries.filter((entry) => ['challenged', 'uncertain', 'questioning', 'contested', 'unstable', 'suspended'].includes(entry.status)).length,
       unsupported: safeEntries.filter((entry) => !(entry.evidenceFor || []).length && !(entry.sourceIds || []).length).length,
       needsPractice: safeEntries.filter((entry) => positionDiagnostics.get(entry.id)?.flags.includes('untested')).length,
       overconfident: safeEntries.filter((entry) => positionDiagnostics.get(entry.id)?.flags.includes('overconfident')).length,
@@ -1061,18 +1068,18 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 variant={formation.fullyFormed ? 'default' : 'outline'}
                 className={cn(
                   'font-code uppercase rounded-full shadow-sm',
-                  formation.fullyFormed ? 'bg-emerald-600 text-white' : 'bg-amber-50 text-amber-900 border-amber-200'
+                  formation.fullyFormed ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground border-border'
                 )}
               >
                 {diagnostic.readinessLabel}
               </Badge>
             </div>
-          <div className="flex flex-wrap items-start justify-between gap-5">
-            <div className="min-w-0 flex-1">
+          <div className="flex flex-col items-start gap-5 sm:flex-row sm:justify-between">
+            <div className="w-full min-w-0 flex-1">
               <h1 className="noesis-page-title text-3xl">{selected.title}</h1>
               <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>
             </div>
-            <div className="min-w-[280px] rounded-xl border border-border/50 bg-muted/10 p-4">
+            <div className="w-full rounded-xl border border-border/50 bg-muted/10 p-4 sm:w-64 sm:shrink-0">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Confidence</span>
                 <span className="font-headline text-lg font-semibold italic">{confidencePercent(selected.confidence)}%</span>
@@ -1081,7 +1088,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${confidencePercent(selected.confidence)}%` }} />
               </div>
               <div className="mt-3 flex justify-between font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                <span>{diagnostic.recordedSupport} support</span>
+                <span>{diagnostic.supportCount} support items</span>
                 <span>{diagnostic.challengeCount} challenges</span>
               </div>
             </div>
@@ -1100,9 +1107,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         </Card>
 
         {!formation.fullyFormed && (
-          <details className="mb-5 rounded-xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
-            <summary className="cursor-pointer font-code text-[9px] uppercase tracking-[0.18em] text-amber-800 font-bold">Position readiness · {formation.missing.length} gaps</summary>
-            <ul className="mt-3 grid gap-2 text-sm leading-6 text-amber-950 sm:grid-cols-2">
+          <details className="mb-5 rounded-xl border border-border bg-muted/30 p-4 shadow-sm">
+            <summary className="cursor-pointer font-code text-[10px] uppercase tracking-[0.12em] text-foreground font-bold">Position readiness · {formation.missing.length} gaps</summary>
+            <ul className="mt-3 grid gap-2 text-sm leading-6 text-muted-foreground sm:grid-cols-2">
               {formation.missing.map((item) => <li key={item}>Add {item}</li>)}
             </ul>
           </details>
@@ -1115,8 +1122,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             <p className="mt-2 text-xs italic text-muted-foreground">Add your own rationale when you edit this position. Scope and boundaries now live separately below.</p>
           )}
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-border/50 pt-3 text-xs text-muted-foreground">
-            <span>{(selected.evidenceFor || []).length} supporting notes</span>
-            <span>{(selected.evidenceAgainst || []).length} challenges</span>
+            <span>{diagnostic.supportCount} supporting items</span>
+            <span>{diagnostic.challengeCount} challenges</span>
             <span>{linkedPractices.length} linked practices</span>
           </div>
         </section>
@@ -1140,7 +1147,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             { label: 'Clarify terms', onClick: () => openEditor(selected) },
             {
               label: 'Test in practice',
-              onClick: () => onAddPractice({
+              onClick: () => Promise.resolve(onAddPractice({
                 title: `Test: ${selected.title.slice(0, 60)}`,
                 description: `This practice tests the position: "${selected.statement}"`,
                 type: 'experiment',
@@ -1149,7 +1156,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 positionIds: [selected.id],
                 conceptTags: selected.tags || [],
                 sourceIds: selected.sourceIds || [],
-              }),
+              })).then(() => toast({ title: 'Practice created', description: 'Open Practices to finish its setup.' })).catch(() => toast({ title: 'Practice not created', description: 'Please retry. Your position is unchanged.', variant: 'destructive' })),
             },
             {
               label: 'Connect inquiry',
@@ -1756,6 +1763,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       <div className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
         {[
           { label: 'Current', value: positionStats.current, filter: 'current' as PositionViewFilter },
+          { label: 'Under review', value: positionStats.underReview, filter: 'under_review' as PositionViewFilter },
           { label: 'Complete', value: positionStats.complete, filter: 'complete' as PositionViewFilter },
           { label: 'Developing', value: positionStats.developing, filter: 'developing' as PositionViewFilter },
           { label: 'Retired', value: positionStats.retired, filter: 'retired' as PositionViewFilter },
@@ -1845,11 +1853,11 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   <div className="h-full rounded-full bg-accent" style={{ width: `${confidencePercent(entry.confidence)}%` }} />
                 </div>
               </div>
-              <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-emerald-100/40 text-emerald-700 border-emerald-200/50 rounded-full font-bold">
+              <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-muted text-foreground border-border rounded-full font-bold">
                 {entry.status}
               </Badge>
               <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 rounded-full font-bold">
-                support {diagnostic.recordedSupport}
+                Evidence & testing {diagnostic.assessmentScore}/100
               </Badge>
             </div>
           </Card>

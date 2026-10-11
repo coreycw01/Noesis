@@ -18,6 +18,7 @@ const contentSecurityPolicy = [
 ].join('; ');
 
 const nextConfig: NextConfig = {
+  distDir: (isDevelopment ? process.env.NOESIS_DEV_DIST_DIR : process.env.NOESIS_BUILD_DIST_DIR) || '.next',
   trailingSlash: true,
 
   allowedDevOrigins: [

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { BrainCircuit, Check, ClipboardCopy, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { requestContextualAi } from '@/lib/contextual-ai-client';
-import { CONTEXTUAL_AI_LABELS, type AiContextEnvelope, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
+import { boundedAiContext, CONTEXTUAL_AI_LABELS, type AiContextEnvelope, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
 
 export interface ContextualAiPanelProps {
   actions: ContextualAiAction[];
@@ -37,6 +37,10 @@ export function ContextualAiPanel({
   promptPlaceholder = 'Ask a focused question about this item...',
 }: ContextualAiPanelProps) {
   const { toast } = useToast();
+  const promptId = useId();
+  const requestRef = useRef<AbortController | null>(null);
+  const acceptLock = useRef(false);
+  useEffect(() => () => requestRef.current?.abort(), []);
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState<ContextualAiAction>(actions[0]!);
   const [loading, setLoading] = useState(false);
@@ -44,31 +48,47 @@ export function ContextualAiPanel({
   const [result, setResult] = useState<AiReviewResult | null>(null);
   const [editedContent, setEditedContent] = useState('');
   const [userPrompt, setUserPrompt] = useState('');
-  const envelope = useMemo(() => buildEnvelope(action, userPrompt.trim() || undefined), [action, buildEnvelope, userPrompt]);
+  const rawEnvelope = useMemo(() => buildEnvelope(action, userPrompt.trim() || undefined), [action, buildEnvelope, userPrompt]);
+  const envelope = useMemo(() => rawEnvelope ? boundedAiContext(rawEnvelope) : null, [rawEnvelope]);
 
   if (!enabled || actions.length === 0) return null;
 
   const run = async () => {
-    if (!envelope || loading) return;
+    if (!envelope || requestRef.current) return;
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(new Error('Assistance timed out. Please try again.')), 90_000);
     setLoading(true);
     setResult(null);
     try {
-      const next = await requestContextualAi({ ...envelope, reasoningDepth });
+      const next = await requestContextualAi({ ...envelope, reasoningDepth }, controller.signal);
+      if (requestRef.current !== controller || controller.signal.aborted) return;
       setResult(next);
       setEditedContent(next.content);
     } catch (error) {
+      if (requestRef.current !== controller) return;
       toast({
         variant: 'destructive',
         title: 'Assistance unavailable',
         description: error instanceof Error ? error.message : 'Try again later. Your data was not changed.',
       });
     } finally {
-      setLoading(false);
+      window.clearTimeout(timeout);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
   const accept = async () => {
-    if (!result || !editedContent.trim() || !onAccept || accepting) return;
+    if (!result || !editedContent.trim() || !onAccept || acceptLock.current) return;
+    if (!envelope || result.targetId !== envelope.targetId || result.targetType !== envelope.targetType || result.action !== action) {
+      setResult(null);
+      toast({ title: 'Context changed', description: 'Run assistance again for the current item.' });
+      return;
+    }
+    acceptLock.current = true;
     setAccepting(true);
     try {
       await onAccept(result, editedContent.trim());
@@ -92,6 +112,7 @@ export function ContextualAiPanel({
         description: error instanceof Error ? error.message : 'Your existing data was not changed.',
       });
     } finally {
+      acceptLock.current = false;
       setAccepting(false);
     }
   };
@@ -111,15 +132,25 @@ export function ContextualAiPanel({
       <Button variant="outline" size="sm" className="rounded-full" onClick={() => setOpen(true)}>
         <BrainCircuit className="mr-2 size-4" /> {buttonLabel}
       </Button>
-      <Dialog open={open} onOpenChange={(next) => { if (loading || accepting) return; setOpen(next); if (!next) { setResult(null); setEditedContent(''); } }}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={open} onOpenChange={(next) => {
+        if (acceptLock.current) return;
+        setOpen(next);
+        if (!next) {
+          requestRef.current?.abort();
+          requestRef.current = null;
+          setLoading(false);
+          setResult(null);
+          setEditedContent('');
+        }
+      }}>
+        <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Contextual Assistance</DialogTitle>
             <DialogDescription>Review the exact workspace context Noesis will use, then edit or dismiss the result before anything is saved.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <Select value={action} onValueChange={(value) => { setAction(value as ContextualAiAction); setResult(null); }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select value={action} disabled={loading || accepting} onValueChange={(value) => { setAction(value as ContextualAiAction); setResult(null); }}>
+              <SelectTrigger aria-label="Assistance action"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {actions.map((item) => <SelectItem key={item} value={item}>{CONTEXTUAL_AI_LABELS[item]}</SelectItem>)}
               </SelectContent>
@@ -127,9 +158,10 @@ export function ContextualAiPanel({
 
             {promptLabel && !result && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground" htmlFor="contextual-ai-question">{promptLabel}</label>
+                <label className="text-sm font-medium text-foreground" htmlFor={promptId}>{promptLabel}</label>
                 <Textarea
-                  id="contextual-ai-question"
+                  id={promptId}
+                  disabled={loading}
                   value={userPrompt}
                   onChange={(event) => setUserPrompt(event.target.value)}
                   placeholder={promptPlaceholder}
@@ -142,6 +174,7 @@ export function ContextualAiPanel({
             {showContextBeforeSending && envelope && !result && (
               <Card className="space-y-3 border-border/60 bg-muted/10 p-4">
                 <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Context sent</div>
+                {rawEnvelope && JSON.stringify(rawEnvelope) !== JSON.stringify(envelope) && <p className="text-xs text-muted-foreground">Long context has been shortened. Only the excerpts below will be sent.</p>}
                 <div>
                   <div className="text-xs font-medium text-foreground">Current item</div>
                   <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
@@ -169,9 +202,9 @@ export function ContextualAiPanel({
                 <div className="rounded-xl border border-border/60 bg-muted/10 p-3 text-xs text-muted-foreground">
                   Generated from {result.contextSummary}. Review and edit before applying.
                 </div>
-                <Textarea value={editedContent} onChange={(event) => setEditedContent(event.target.value)} className="min-h-[280px] leading-7" />
+                <Textarea aria-label="Review and edit assistance result" disabled={accepting} value={editedContent} onChange={(event) => setEditedContent(event.target.value)} className="min-h-[280px] leading-7" />
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Button variant="ghost" onClick={() => { setResult(null); setEditedContent(''); }} className="rounded-full">
+                  <Button variant="ghost" disabled={accepting} onClick={() => { setResult(null); setEditedContent(''); }} className="rounded-full">
                     <X className="mr-2 size-4" /> Dismiss
                   </Button>
                   {onAccept ? (

@@ -151,7 +151,6 @@ export function EntityPicker({
                       type="button"
                       role="option"
                       aria-selected={isSelected}
-                      aria-pressed={isSelected}
                       onMouseEnter={() => setActiveIndex(index)}
                       onPointerDown={(event) => {
                         event.preventDefault();

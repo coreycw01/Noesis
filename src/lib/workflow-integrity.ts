@@ -2,12 +2,11 @@ import type { Practice, PracticeStatus } from '@/lib/types';
 
 const ACTIVE_PRACTICE_STATUSES = new Set<PracticeStatus>(['active']);
 
-export function normalizePositionConfidence(value?: number, fallback = 60) {
+export function normalizePositionConfidence(value?: number, fallback = 60, scale: 'percent' | 'fraction' | 'five_point' = 'percent') {
   if (!Number.isFinite(value)) return fallback;
   const numeric = Number(value);
-  if (numeric > 0 && numeric < 1) return Math.round(numeric * 100);
-  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 5) return numeric * 20;
-  return Math.max(0, Math.min(100, Math.round(numeric)));
+  const percent = scale === 'fraction' ? numeric * 100 : scale === 'five_point' ? numeric * 20 : numeric;
+  return Math.max(0, Math.min(100, Math.round(percent)));
 }
 
 export function practiceDesignGaps(practice: Partial<Practice>) {

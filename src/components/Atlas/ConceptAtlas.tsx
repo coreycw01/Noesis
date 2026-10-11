@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -227,11 +228,7 @@ function atlasAutoNodePosition(index: number, total: number, compact = false) {
 }
 
 function atlasConfidencePercent(confidence?: number) {
-  if (!Number.isFinite(confidence)) return 60;
-  const value = Number(confidence);
-  if (value > 0 && value < 1) return Math.round(value * 100);
-  if (Number.isInteger(value) && value >= 1 && value <= 5) return value * 20;
-  return Math.max(0, Math.min(100, Math.round(value)));
+  return normalizePositionConfidence(confidence);
 }
 const atlasColorSwatches = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2', '#64748b'];
 

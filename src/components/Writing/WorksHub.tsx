@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import {
   ArrowUpRight,
   Camera,
@@ -46,7 +47,7 @@ interface WorksHubProps {
   questions: Question[];
   concepts: Concept[];
   writingDefaults: UserPreferences['writingDefaults'];
-  onAddDraft: (data: Partial<Draft>) => Draft;
+  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
   onDeleteDraft: (id: string) => void;
   onMarkDraftOpened: (draft: Draft) => void;
   onNavigate: (view: 'writing', options?: { workId?: string | null }) => void;
@@ -187,6 +188,8 @@ function createDraftPayload(type: DraftType, defaults: UserPreferences['writingD
 }
 
 export function WorksHub({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onDeleteDraft, onMarkDraftOpened, onNavigate }: WorksHubProps) {
+  const { toast } = useToast();
+  const creatingRef = React.useRef(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<HubCategory>('all');
   const [status, setStatus] = useState<HubStatus>('all');
@@ -248,11 +251,19 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
     setStatus('all');
   };
 
-  const openNewDraft = (type: DraftType, writingStyle?: WritingStyle) => {
-    const created = onAddDraft(createDraftPayload(type, writingDefaults, writingStyle));
+  const openNewDraft = async (type: DraftType, writingStyle?: WritingStyle) => {
+    if (creatingRef.current) return;
+    creatingRef.current = true;
+    try {
+    const created = await onAddDraft(createDraftPayload(type, writingDefaults, writingStyle));
     setAddOpen(false);
     setNoteOpen(false);
     if (created) onNavigate('writing', { workId: created.id });
+    } catch {
+      toast({ title: 'Work not created', description: 'Please try again. The studio will open once your work is saved.', variant: 'destructive' });
+    } finally {
+      creatingRef.current = false;
+    }
   };
 
   const openDraft = (draft: Draft) => {
@@ -510,7 +521,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         description={`This removes “${deleteTarget?.title || 'Untitled work'}” from Works. Linked sources, positions, inquiries, and history remain.`}
         confirmLabel="Delete work"
         destructive
-        onConfirm={() => { if (deleteTarget) onDeleteDraft(deleteTarget.id); setDeleteTarget(null); }}
+        onConfirm={async () => { if (deleteTarget) await onDeleteDraft(deleteTarget.id); setDeleteTarget(null); }}
       />
     </div>
   );

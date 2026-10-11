@@ -9,7 +9,7 @@
     "dev": "next dev --turbopack -p 9002",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src tests scripts --no-warn-ignored",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "audit:production": "node scripts/audit-production.mjs",
     "test:security": "tsx --test tests/security/*.test.ts",
@@ -24,6 +24,7 @@
     "mobile:open:ios": "npx cap open ios"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "8.5.2",
     "@capacitor/android": "8.5.2",
     "@capacitor/core": "8.5.2",
     "@hookform/resolvers": "^4.1.3",
@@ -71,10 +72,13 @@
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.2",
+    "@eslint/eslintrc": "^3.3.7",
     "@types/node": "^20",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",
     "@types/sanitize-html": "^2.16.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.27",
     "postcss": "8.5.23",
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",

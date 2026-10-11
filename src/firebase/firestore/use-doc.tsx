@@ -65,8 +65,8 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
 
   const hasResolvedCurrentDoc = !docPath || resolvedDocPathRef.current === docPath;
   return {
-    data: hasResolvedCurrentDoc ? data : null,
-    loading: docRef && !hasResolvedCurrentDoc ? true : loading,
-    error: hasResolvedCurrentDoc ? error : null,
+    data: docRef && hasResolvedCurrentDoc ? data : null,
+    loading: docRef ? !hasResolvedCurrentDoc || loading : false,
+    error: docRef && hasResolvedCurrentDoc ? error : null,
   };
 }

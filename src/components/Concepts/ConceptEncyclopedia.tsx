@@ -1161,7 +1161,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 {r.annotations.slice(0, 8).map((a, i) => (
                   <button key={`${a.source.id}-${i}`} type="button" onClick={() => previewAnnotationSource(a)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
                     <span className="font-code text-[8px] uppercase tracking-widest text-accent/70 font-bold">{a.type}</span>
-                    <p className="text-sm font-body italic text-primary/80 line-clamp-3 mt-1">"{a.text}"</p>
+                    <p className="text-sm font-body italic text-primary/80 line-clamp-3 mt-1">&quot;{a.text}&quot;</p>
                     <p className="text-[10px] text-muted-foreground/40 font-body mt-1.5">{a.source.title}</p>
                   </button>
                 ))}
@@ -1276,12 +1276,12 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                           <div>
                             <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position A</p>
                             <p className="text-sm font-headline font-bold italic text-primary">{a.title}</p>
-                            <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">"{a.statement}"</p>
+                            <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{a.statement}&quot;</p>
                           </div>
                           <div>
                             <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position B</p>
                             <p className="text-sm font-headline font-bold italic text-primary">{b.title}</p>
-                            <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">"{b.statement}"</p>
+                            <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{b.statement}&quot;</p>
                           </div>
                         </div>
                         <div className="mt-4 border-t border-amber-100 pt-3">

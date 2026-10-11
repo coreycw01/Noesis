@@ -480,7 +480,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
       ...family('reflection', ['Noticer', 'Reflector', 'Reviewer', 'Interpreter', 'Integrator', 'Witness'], 'Save goal reflections', reviews),
       ...family('daily-streak', ['Steady Thinker', 'Ritual Thinker', 'Dedicated Thinker', 'Daily Philosopher', 'Enduring Thinker', 'Lifelong Thinker'], 'Return to Noesis for', dailyActivityStreak, { thresholds: dailyStreakThresholds }),
     ];
-  }, [activeGoals.length, concepts.length, enrichedGoals, inquiries.length, positions.length, practices.length, profile.dailyActivityDates, sources.length, works.length]);
+  }, [concepts.length, enrichedGoals, inquiries, positions, practices, profile.dailyActivityDates, sources, works.length]);
   const nextAchievements = useMemo(
     () => achievementItems.filter((item) => !item.earned).sort((a, b) => (b.progress / b.target) - (a.progress / a.target)).slice(0, 3),
     [achievementItems]

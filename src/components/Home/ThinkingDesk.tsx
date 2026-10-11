@@ -41,6 +41,7 @@ import type {
   VaultEntry,
 } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
+import { weeklyReviewEvents } from '@/lib/weekly-review';
 
 type HomeTarget = {
   view: NoesisView;
@@ -284,14 +285,12 @@ export function ThinkingDesk({
         } as DeskItem));
 
     const addOpenWorks = (priority = 68) => works
-      .filter((item) => item.status !== 'final' && ((item.beliefIds || []).length > 0 || (item.questionIds || []).length > 0 || (item.argumentSkeleton?.objections || []).length === 0))
+      .filter((item) => !['complete', 'final', 'published', 'archived', 'abandoned'].includes(item.status))
       .forEach((item) => items.push({
           id: `work-${item.id}`,
           label: item.title,
           eyebrow: 'Work still forming',
-          reason: (item.argumentSkeleton?.objections || []).length === 0
-            ? 'This work has not recorded a serious objection or counter-pressure yet.'
-            : 'This work is linked to live ideas but has not reached a final state.',
+          reason: 'Return to this unfinished work when you want to develop it further.',
           action: 'Continue work',
           priority,
           icon: PenTool,
@@ -567,6 +566,7 @@ export function ThinkingDesk({
           }));
     return events;
   }, [thinkingEvents, timeline]);
+  const weeklyChanges = useMemo(() => weeklyReviewEvents(thinkingEvents), [thinkingEvents]);
 
   const returnMoments = useMemo<ReturnMoment[]>(() => {
     const since = recentDate(lastHomeVisit || '') || (Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -878,15 +878,13 @@ export function ThinkingDesk({
         <PageEmptyState
           icon={Compass}
           title="Start with one real thought"
-          description="Add a source, ask a question, or state something you currently believe. Home will begin prioritizing the next intellectual action after that."
-          belongsHere="Unfinished sources, inquiries, positions, works, practices, and changes that deserve attention now."
-          whyItMatters="Home is the thinking desk. It cannot prioritize your philosophy until the system has at least one real object to work from."
-          firstAction="Add one source, ask one inquiry, or state one position. The rest of the workspace can grow from that."
+          description="Start with a source, a question, a position, or a small lived test. Each path works on its own; connect them when it helps your thinking."
           action={(
             <div className="flex flex-wrap justify-center gap-3">
               <Button onClick={() => onNavigate({ view: 'library' })}>Add Source</Button>
               <Button variant="outline" onClick={() => onNavigate({ view: 'questions' })}>Ask Inquiry</Button>
               <Button variant="outline" onClick={() => onNavigate({ view: 'vault' })}>State Position</Button>
+              <Button variant="outline" onClick={() => onNavigate({ view: 'practices' })}>Start Practice</Button>
             </div>
           )}
         />
@@ -1174,6 +1172,18 @@ export function ThinkingDesk({
               <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Recent Change</div>
               <Button variant="ghost" size="sm" onClick={() => onNavigate({ view: 'evolution' })} className="rounded-md">View full evolution</Button>
             </div>
+            <details className="mb-4 border-y border-border py-3">
+              <summary className="cursor-pointer text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Weekly review · {weeklyChanges.length} recorded {weeklyChanges.length === 1 ? 'change' : 'changes'}</summary>
+              <div className="mt-3 space-y-3 text-sm">
+                <p className="text-muted-foreground">What changed this week, what is still uncertain, and what could you test next?</p>
+                {weeklyChanges.length ? <ul className="space-y-2">{weeklyChanges.slice(0, 3).map((event) => <li key={event.id}>{event.summary}</li>)}</ul> : <p className="text-muted-foreground">No qualifying changes recorded in the last seven days.</p>}
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'evolution' })}>Review changes</Button>
+                  <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'questions' })}>Revisit a question</Button>
+                  <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'practices' })}>Choose a test</Button>
+                </div>
+              </div>
+            </details>
             <div className="divide-y divide-border/70 border-t border-border/70">
               {recentMovement.length ? recentMovement.map((item) => (
                 <button

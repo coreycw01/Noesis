@@ -834,7 +834,7 @@ export function MediaLibrary({
                         </Badge>
                         <time className="font-code text-[9px] text-muted-foreground/50 font-bold uppercase">{new Date(annotation.date).toLocaleDateString()}</time>
                       </div>
-                      <p className="font-body italic leading-relaxed text-[17px] text-primary/90">"{annotation.text}"</p>
+                      <p className="font-body italic leading-relaxed text-[17px] text-primary/90">&quot;{annotation.text}&quot;</p>
                     </div>
                   ))}
                 </div>
@@ -1596,7 +1596,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
             {related.annotations.map((a, i) => (
               <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl">
                 <Badge variant="outline" className="mb-3 font-code text-[9px] uppercase tracking-widest border-border/60 shadow-sm bg-card rounded-full font-bold">{a.type}</Badge>
-                <p className="font-body italic text-base text-primary/90 leading-relaxed">"{a.text}"</p>
+                <p className="font-body italic text-base text-primary/90 leading-relaxed">&quot;{a.text}&quot;</p>
               </Card>
             ))}
             {related.annotations.length === 0 && <p className="text-sm italic text-muted-foreground text-center py-12 font-body">No linked annotations discovered.</p>}
@@ -1622,7 +1622,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
             <h4 className="readex-kicker opacity-50 font-bold text-[10px]">INQUIRIES</h4>
             {related.questions.map((q, i) => (
               <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl">
-                <p className="font-headline font-bold italic text-lg leading-relaxed text-primary">"{q.text}"</p>
+                <p className="font-headline font-bold italic text-lg leading-relaxed text-primary">&quot;{q.text}&quot;</p>
                 {q.answer && <p className="font-body text-base text-muted-foreground mt-4 border-t border-border/20 pt-4 italic leading-relaxed">{q.answer}</p>}
               </Card>
             ))}

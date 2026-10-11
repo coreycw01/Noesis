@@ -86,5 +86,31 @@ export const CONTEXTUAL_AI_POLICIES: Record<ContextualAiAction, {
 
 export function isContextualAiRequestCompatible(input: Pick<AiContextEnvelope, 'action' | 'targetType' | 'scope'>) {
   const policy = CONTEXTUAL_AI_POLICIES[input.action];
-  return policy.targetType === input.targetType && policy.scope === input.scope;
+  return Boolean(policy && policy.targetType === input.targetType && policy.scope === input.scope);
+}
+
+export function boundedAiContext(input: AiContextEnvelope): AiContextEnvelope {
+  let remaining = 32_000;
+  const limit = (lines: string[], count: number) => lines.slice(0, count).flatMap((line) => {
+    const value = line.trim().slice(0, Math.min(4_000, remaining));
+    remaining -= value.length;
+    return value ? [value] : [];
+  });
+  const itemMemory = limit(input.itemMemory, 20);
+  const secondaryTarget = input.secondaryTarget ? { ...input.secondaryTarget, memory: limit(input.secondaryTarget.memory, 12) } : undefined;
+  const linkedMemory = limit(input.linkedMemory, 20);
+  return { ...input, itemMemory, secondaryTarget, linkedMemory, userPrompt: input.userPrompt?.trim().slice(0, 1_000) || undefined };
+}
+
+export function validAiSelection(input: AiContextEnvelope): boolean {
+  if (input.action === 'compare_selected_positions') {
+    if (!input.secondaryTarget || input.secondaryTarget.targetId === input.targetId || !input.secondaryTarget.memory.length) return false;
+  } else if (input.secondaryTarget) return false;
+  if (input.action === 'synthesize_evolution_period') {
+    if (!input.selectedRange) return false;
+    const from = Date.parse(input.selectedRange.from);
+    const to = Date.parse(input.selectedRange.to);
+    return Number.isFinite(from) && Number.isFinite(to) && from <= to;
+  }
+  return !input.selectedRange;
 }

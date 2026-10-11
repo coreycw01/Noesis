@@ -15,7 +15,7 @@ export interface WorksRoutePageProps {
   concepts: Concept[];
   writingDefaults: UserPreferences['writingDefaults'];
   focusedDraftId?: string | null;
-  onAddDraft: (data: Partial<Draft>) => Draft;
+  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
   onUpdateDraft: (draft: Draft) => void | Promise<void>;
   onDeleteDraft: (id: string) => void;
   onMarkDraftOpened: (draft: Draft) => void;

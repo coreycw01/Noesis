@@ -14,12 +14,12 @@ export interface InquiriesRoutePageProps {
   concepts: Concept[];
   focusedQuestionId?: string | null;
   onAddQuestion: (data: Partial<Question>) => Question;
-  onUpdateQuestion: (question: Question) => void;
-  onDeleteQuestion: (id: string) => void;
+  onUpdateQuestion: (question: Question) => void | Promise<void>;
+  onDeleteQuestion: (id: string) => void | Promise<void>;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
-  onAddDraft: (data: Partial<Draft>) => Draft;
+  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
   onUpdateDraft: (draft: Draft) => void;
-  onAddPractice: (data: Partial<Practice>) => Practice;
+  onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
   onUpdatePractice: (practice: Practice) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   onNavigate: (view: NoesisView, options?: { questionId?: string | null; workId?: string | null; practiceId?: string | null }) => void;

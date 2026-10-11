@@ -22,6 +22,7 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
+import { useToast } from '@/hooks/use-toast';
 
 interface PracticesWorkspaceProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -170,6 +171,8 @@ function practiceExperimentShape(practice: Practice, linkedQuestions: Question[]
 }
 
 export function PracticesWorkspace({ aiSettings, practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute }: PracticesWorkspaceProps) {
+  const { toast } = useToast();
+  const savingRef = React.useRef(false);
   const [statusFilter, setStatusFilter] = useState<PracticeStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<PracticeType | 'all'>('all');
   const [conceptFilter, setConceptFilter] = useState('all');
@@ -245,7 +248,15 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
     total: practices.length,
     active: practices.filter((practice) => normalizePracticeStatus(practice.status) === 'active').length,
     planned: practices.filter((practice) => normalizePracticeStatus(practice.status) === 'planned').length,
-    testedPositions: new Set(practices.flatMap((practice) => practice.positionIds || [])).size,
+    testedPositions: practices.filter((practice) => (practice.positionIds || []).length > 0).length,
+    readyForReview: practices.filter((practice) => {
+      const state = practiceState.get(practice.id);
+      return state?.needsOutcome || state?.needsConsequence || state?.recentlyConcluded;
+    }).length,
+    needsSetup: practices.filter((practice) => {
+      const state = practiceState.get(practice.id);
+      return !state?.hasBasis || state?.needsDesign;
+    }).length,
     awaitingLog: practices.filter((practice) => practiceNeedsLog(practice)).length,
     needsDesign: practices.filter((practice) => practiceDesignGaps(practice).length > 0).length,
     needsOutcome: practices.filter((practice) => practiceNeedsOutcome(practice)).length,
@@ -278,23 +289,40 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
     setEditorOpen(true);
   };
 
+  const openedPracticeId = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!focusedPracticeId) return;
+    if (!focusedPracticeId) {
+      openedPracticeId.current = null;
+      return;
+    }
+    if (openedPracticeId.current === focusedPracticeId) return;
     const focused = practices.find((practice) => practice.id === focusedPracticeId);
-    if (focused) openEditor(focused);
+    if (focused) {
+      openedPracticeId.current = focusedPracticeId;
+      setDraft({ ...focused, type: normalizePracticeType(focused.type), status: normalizePracticeStatus(focused.status) });
+      setEditorOpen(true);
+    }
   }, [focusedPracticeId, practices]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (savingRef.current) return;
     if (!draft.title?.trim()) return;
     const payload = {
       ...draft,
       status: normalizePracticeStatusForSave(draft),
       conceptTags: normalizeConceptTags(draft.conceptTags),
     };
-    if (draft.id) onUpdatePractice(payload as Practice);
-    else onAddPractice(payload);
-    setEditorOpen(false);
-    if (draft.id) onOpenPracticeRoute?.(draft.id);
+    savingRef.current = true;
+    try {
+      if (draft.id) await onUpdatePractice(payload as Practice);
+      else await onAddPractice(payload);
+      setEditorOpen(false);
+      if (draft.id) onOpenPracticeRoute?.(draft.id);
+    } catch {
+      toast({ title: 'Practice not saved', description: 'Your changes are still here. Check your connection and try again.', variant: 'destructive' });
+    } finally {
+      savingRef.current = false;
+    }
   };
 
   return (
@@ -304,7 +332,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         description="Turn understanding into small lived tests, then reflect only when the action produces evidence."
         meta={
           <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
-            {practiceStats.total} practices · {practiceStats.active} active · {practiceStats.needsDesign} need setup · {practiceStats.needsOutcome + practiceStats.needsConsequence} ready for review
+            {practiceStats.total} practices · {practiceStats.active} active · {practiceStats.needsSetup} need setup · {practiceStats.readyForReview} ready for review
           </span>
         }
         className="mb-5"
@@ -359,9 +387,9 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {[
-          { label: 'Needs setup', value: practiceStats.needsDesign + practiceStats.needsBasis, filter: 'needs_setup' as PracticeViewFilter },
+          { label: 'Needs setup', value: practiceStats.needsSetup, filter: 'needs_setup' as PracticeViewFilter },
           { label: 'Log due', value: practiceStats.awaitingLog, filter: 'awaiting_log' as PracticeViewFilter },
-          { label: 'Ready for review', value: practiceStats.needsOutcome + practiceStats.needsConsequence, filter: 'ready_review' as PracticeViewFilter },
+          { label: 'Ready for review', value: practiceStats.readyForReview, filter: 'ready_review' as PracticeViewFilter },
         ].filter((item) => item.value > 0).map((item) => (
           <button
             key={item.filter}
@@ -400,7 +428,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
                 viewFilter === 'testing_positions' ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
               )}
             >
-              Testing positions {practiceStats.testedPositions}
+              Practices linked to positions {practiceStats.testedPositions}
             </button>
           )}
         </div>
@@ -490,15 +518,15 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         confirmLabel="Delete Practice"
         alternateLabel="Abandon instead"
         destructive
-        onAlternate={() => {
+        onAlternate={async () => {
           if (!deleteTarget) return;
-          onUpdatePractice({ ...deleteTarget, status: 'abandoned', dateUpdated: new Date().toISOString() });
+          await onUpdatePractice({ ...deleteTarget, status: 'abandoned', dateUpdated: new Date().toISOString() });
           if (focusedPracticeId === deleteTarget.id) onOpenPracticeRoute?.(null);
           setDeleteTarget(null);
         }}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteTarget) return;
-          onDeletePractice(deleteTarget.id);
+          await onDeletePractice(deleteTarget.id);
           setDeleteTarget(null);
           if (focusedPracticeId === deleteTarget.id) onOpenPracticeRoute?.(null);
         }}
@@ -544,7 +572,7 @@ function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDel
   );
 }
 
-function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpdatePractice, onCreateLink, compact = false }: {
+function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpdatePractice: persistPractice, onCreateLink, compact = false }: {
   practice: Practice;
   questions: Question[];
   positions: VaultEntry[];
@@ -574,6 +602,15 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
     intellectualChange: practice.conclusion?.intellectualChange || practice.effectOnPosition || '',
     shouldContinue: practice.conclusion?.shouldContinue || '',
   });
+  const { toast } = useToast();
+  const saving = React.useRef(false);
+  const onUpdatePractice = async (next: Practice) => {
+    if (saving.current) return false;
+    saving.current = true;
+    try { await persistPractice(next); return true; }
+    catch { toast({ title: 'Practice not saved', description: 'Your input is retained. Please try again.', variant: 'destructive' }); return false; }
+    finally { saving.current = false; }
+  };
   const setStatus = (status: PracticeStatus) => onUpdatePractice({ ...practice, status, dateUpdated: today() });
   const visibleType = normalizePracticeType(practice.type);
   const visibleStatus = normalizePracticeStatus(practice.status);
@@ -603,7 +640,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
     visibleStatus === 'completed'
       ? { label: 'View conclusion', handler: () => setReviewOpen(true), tone: 'review' as const } :
       { label: 'Open', handler: onEdit, tone: 'open' as const };
-  const saveLog = () => {
+  const saveLog = async () => {
     if (!canActivate) {
       onEdit();
       return;
@@ -621,20 +658,20 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       confidence: logDraft.confidence || 3,
       mediaIds: logDraft.mediaIds || [],
     };
-    onUpdatePractice({
+    if (!await onUpdatePractice({
       ...practice,
       status: practice.status === 'planned' || practice.status === 'designed' || practice.status === 'proposed' ? 'active' : practice.status,
       logs: [...(practice.logs || []), nextLog],
       logDates: nextLog.actionCompleted ? Array.from(new Set([...logDates, date])) : logDates,
       observedOutcome: nextLog.outcome || practice.observedOutcome,
       dateUpdated: today(),
-    });
+    })) return;
     setLogDraft({ date: todayKey, actionCompleted: true, confidence: 3 });
     setLogOpen(false);
   };
-  const saveConclusionReview = (status: PracticeStatus = 'completed') => {
+  const saveConclusionReview = async (status: PracticeStatus = 'completed') => {
     if (!reviewDraft.whatHappened.trim()) return;
-    onUpdatePractice({
+    if (!await onUpdatePractice({
       ...practice,
       status,
       conclusion: reviewDraft,
@@ -644,7 +681,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       effectOnPosition: reviewDraft.intellectualChange.trim(),
       notes: reviewDraft.whatHappened.trim(),
       dateUpdated: today(),
-    });
+    })) return;
     setReviewOpen(false);
   };
   return (
@@ -662,7 +699,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
               variant="outline"
               className={cn(
                 'rounded-full px-2.5 py-0.5 font-code text-[8px] font-bold uppercase tracking-widest',
-                setupNeed ? 'border-sky-400/50 bg-sky-100 text-sky-950' :
+                setupNeed ? 'border-border bg-muted text-foreground' :
                   recentlyConcluded ? 'border-accent/30 bg-accent/5 text-accent' :
                     needsLog ? 'border-accent/40 bg-accent/10 text-accent' :
                       'border-border/60 bg-card text-muted-foreground',
@@ -684,7 +721,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
           )}
           {(visibleStatus === 'planned' || visibleStatus === 'paused') && (
             <Button size="sm" onClick={(event) => { event.stopPropagation(); if (canActivate) setStatus('active'); else onEdit(); }} className="h-10 rounded-full px-4 font-code text-[9px] uppercase tracking-widest">
-              <Play className="mr-1.5 size-3.5" /> Start
+              <Play className="mr-1.5 size-3.5" /> {canActivate ? 'Start' : 'Finish setup'}
             </Button>
           )}
           <DropdownMenu>
@@ -705,11 +742,11 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
         {meaningfulStreak && <span className="font-code text-[8px] uppercase tracking-widest">{streak}d streak</span>}
         <span className="hidden sm:inline">{relationshipText}</span>
         {setupNeed && (
-          <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] leading-4 text-sky-950">{setupNeed}</span>
+          <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[10px] leading-4 text-foreground">{setupNeed}</span>
         )}
       </div>
 
-      {!['log', 'start'].includes(nextAction.tone) && (
+      {!['log', 'start', 'setup'].includes(nextAction.tone) && (
         <div className="mt-3">
           <Button size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); nextAction.handler(); }} className="h-9 rounded-full font-code text-[9px] uppercase tracking-widest">
             {nextAction.label}

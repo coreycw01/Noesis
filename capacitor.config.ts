@@ -7,6 +7,12 @@ const config: CapacitorConfig = {
   appId: 'com.noesis.app',
   appName: 'Noesis',
   webDir: 'capacitor-www',
+  plugins: {
+    FirebaseAuthentication: {
+      skipNativeAuth: true,
+      providers: ['google.com'],
+    },
+  },
   server: {
     url: serverUrl,
     cleartext: isLocalDevelopment,

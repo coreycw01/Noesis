@@ -89,7 +89,7 @@ export function PageViewControls({
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Standard page size</DropdownMenuLabel>
           <DropdownMenuItem onClick={() => onPageSizeChange('letter')} className={cn("text-xs italic cursor-pointer flex items-center justify-between", pageSize === 'letter' && "text-accent")}>
-            US Letter (8.5" x 11")
+            US Letter (8.5&quot; x 11&quot;)
             {pageSize === 'letter' && <Check className="size-3" />}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onPageSizeChange('a4')} className={cn("text-xs italic cursor-pointer flex items-center justify-between", pageSize === 'a4' && "text-accent")}>

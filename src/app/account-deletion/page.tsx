@@ -24,7 +24,7 @@ export default function AccountDeletionPage() {
       </section>
       <section>
         <h2>What is deleted</h2>
-        <p>The Firebase Authentication account and records stored beneath the account's <code>/users/&#123;uid&#125;</code> workspace are deleted. This includes sources, annotations, concepts, inquiries, positions, works, practices, links, settings, and history.</p>
+        <p>The Firebase Authentication account and records stored beneath the account&apos;s <code>/users/&#123;uid&#125;</code> workspace are deleted. This includes sources, annotations, concepts, inquiries, positions, works, practices, links, settings, and history.</p>
       </section>
       <section>
         <h2>If you cannot sign in</h2>
