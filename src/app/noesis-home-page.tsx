@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useNoesisWorkspaceData } from '@/hooks/use-noesis-workspace-data';
 import { PageErrorState, PageLoadingState } from '@/components/shared/PageState';
-import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
+import { applyAppearanceSettings, persistAppearanceSettings, readPersistedAppearanceSettings } from '@/lib/appearance';
 import { MEDIA_TYPES, allAnnotations, allQuestions, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
@@ -208,7 +208,7 @@ function ReadexWorkspace({
     concepts,
     questions,
     timeline,
-    drafts,
+    drafts: loadedDrafts,
     practices,
     atlasMaps,
     links: rawLinks,
@@ -246,6 +246,30 @@ function ReadexWorkspace({
     routeState,
     isOfflineReviewPreview,
   });
+  // Demo routes deliberately do not write to a real account. Keep newly created
+  // Works in this browser session so their detail route can open immediately.
+  const [demoDrafts, setDemoDrafts] = useState<Draft[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = window.sessionStorage.getItem('noesis-demo-drafts');
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [demoAppearanceOverride, setDemoAppearanceOverride] = useState<Partial<AppearanceSettings>>(() => (
+    isOfflineReviewPreview ? readPersistedAppearanceSettings() : {}
+  ));
+  useEffect(() => {
+    if (!isOfflineReviewPreview || typeof window === 'undefined') return;
+    window.sessionStorage.setItem('noesis-demo-drafts', JSON.stringify(demoDrafts));
+  }, [demoDrafts, isOfflineReviewPreview]);
+  const drafts = useMemo(() => {
+    if (!isOfflineReviewPreview) return loadedDrafts;
+    const transientIds = new Set(demoDrafts.map((item) => item.id));
+    return [...demoDrafts, ...loadedDrafts.filter((item) => !transientIds.has(item.id))];
+  }, [demoDrafts, isOfflineReviewPreview, loadedDrafts]);
   const links = useMemo(() => {
     const annotationIds = new Set(media.flatMap((source) => (source.annotations || []).map((annotation) => annotation.id)));
     const entityIds = {
@@ -267,6 +291,7 @@ function ReadexWorkspace({
     themeMode: legacyPreferencesDoc?.themeMode || DEFAULT_APPEARANCE_SETTINGS.themeMode,
     accentTheme: legacyPreferencesDoc?.accentTheme || DEFAULT_APPEARANCE_SETTINGS.accentTheme,
     ...(settingsAppearanceDoc || {}),
+    ...(isOfflineReviewPreview ? demoAppearanceOverride : {}),
   };
   const worksSettings: WorksSettings = {
     ...DEFAULT_WORKS_SETTINGS,
@@ -563,6 +588,7 @@ function ReadexWorkspace({
         accentTheme: preferences.accentTheme,
         headerFont: appearanceSettings.headerFont,
         fontSize: appearanceSettings.fontSize,
+        interfaceShape: appearanceSettings.interfaceShape,
         highContrastMode: appearanceSettings.highContrastMode,
         reducedMotion: appearanceSettings.reducedMotion,
       };
@@ -572,7 +598,7 @@ function ReadexWorkspace({
     applyTheme();
     mediaQuery.addEventListener('change', applyTheme);
     return () => mediaQuery.removeEventListener('change', applyTheme);
-  }, [appearanceSettings.fontSize, appearanceSettings.headerFont, appearanceSettings.highContrastMode, appearanceSettings.reducedMotion, loading.requirements.appearance, loading.requirements.preferences, preferences.themeMode, preferences.accentTheme]);
+  }, [appearanceSettings.fontSize, appearanceSettings.headerFont, appearanceSettings.highContrastMode, appearanceSettings.interfaceShape, appearanceSettings.reducedMotion, loading.requirements.appearance, loading.requirements.preferences, preferences.themeMode, preferences.accentTheme]);
 
   useEffect(() => {
     lastReadyRouteContentRef.current = null;
@@ -1936,7 +1962,7 @@ function ReadexWorkspace({
 
   const addDraft = (data: Partial<Draft>) => {
     const conceptTags = normalizeConceptTags(data.conceptTags);
-    ensureConcepts(conceptTags);
+    if (!isOfflineReviewPreview) ensureConcepts(conceptTags);
     const draftRef = doc(refs.drafts);
     const payload = {
       id: draftRef.id,
@@ -1965,6 +1991,8 @@ function ReadexWorkspace({
       canvasData: data.canvasData || '',
       canvasAsset: data.canvasAsset,
       drawingState: data.drawingState,
+      templateData: data.templateData,
+      documentSettings: data.documentSettings,
       writingOverlayData: data.writingOverlayData || '',
       overlayAsset: data.overlayAsset,
       writingStyle: data.writingStyle || preferences.writingDefaults.writingStyle,
@@ -1976,6 +2004,10 @@ function ReadexWorkspace({
       dateCreated: today(),
       dateUpdated: today(),
     };
+    if (isOfflineReviewPreview) {
+      setDemoDrafts((current) => [payload as Draft, ...current.filter((item) => item.id !== payload.id)]);
+      return payload as Draft;
+    }
     void commitAndReport({
       db,
       ref: draftRef as any,
@@ -2001,14 +2033,25 @@ function ReadexWorkspace({
   };
 
   const updateDraft = (draft: Draft) => {
-    ensureConcepts(draft.conceptTags || []);
-    const draftRef = doc(refs.drafts, draft.id);
     const previous = drafts.find((item) => item.id === draft.id);
     const nextDraft = {
       ...draft,
       revision: Math.max(draft.revision || 0, previous?.revision || 0) + 1,
       dateUpdated: today(),
     };
+    if (isOfflineReviewPreview) {
+      // Built-in demo records live in loadedDrafts, while session changes live in
+      // demoDrafts. An edit must therefore upsert an override instead of only
+      // replacing an item that was created during this session.
+      setDemoDrafts((current) => {
+        const existingIndex = current.findIndex((item) => item.id === nextDraft.id);
+        if (existingIndex === -1) return [nextDraft, ...current];
+        return current.map((item) => item.id === nextDraft.id ? nextDraft : item);
+      });
+      return Promise.resolve();
+    }
+    ensureConcepts(draft.conceptTags || []);
+    const draftRef = doc(refs.drafts, draft.id);
     const previousContent = `${previous?.body || ''}\n${previous?.draftContent || ''}\n${previous?.finalContent || ''}`;
     const nextContent = `${nextDraft.body || ''}\n${nextDraft.draftContent || ''}\n${nextDraft.finalContent || ''}`;
     const contentDelta = Math.abs(nextContent.length - previousContent.length);
@@ -2046,6 +2089,10 @@ function ReadexWorkspace({
 
   const markDraftOpened = (draft: Draft) => {
     const openedAt = new Date().toISOString();
+    if (isOfflineReviewPreview) {
+      setDemoDrafts((current) => current.map((item) => item.id === draft.id ? { ...item, lastOpenedAt: openedAt } : item));
+      return Promise.resolve();
+    }
     return commitAndReport({
       db,
       ref: doc(refs.drafts, draft.id) as any,
@@ -2060,6 +2107,10 @@ function ReadexWorkspace({
 
   const deleteDraft = (id: string) => {
     const existing = drafts.find((item) => item.id === id);
+    if (isOfflineReviewPreview) {
+      setDemoDrafts((current) => current.filter((item) => item.id !== id));
+      return;
+    }
     const draftRef = doc(refs.drafts, id);
     void commitAndReport({
       db,
@@ -2700,6 +2751,11 @@ function ReadexWorkspace({
         await saveWorkspaceDoc(refs.settingsAccount as any, stamped);
         break;
       case 'appearance':
+        if (isOfflineReviewPreview) {
+          setDemoAppearanceOverride(stamped);
+          persistAppearanceSettings(stamped);
+          break;
+        }
         await saveWorkspaceDoc(refs.settingsAppearance as any, stamped);
         await saveWorkspaceDoc(refs.settingsPreferences as any, {
           ...preferences,

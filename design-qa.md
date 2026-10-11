@@ -1,8 +1,8 @@
 # Evolution Timeline Design QA
 
-- Source visual truth: `C:\Users\cwcdo\.codex\generated_images\019eeb05-a3b0-7363-8dfe-d68b32206280\exec-2e747b26-10e0-4e42-a81b-790e0aa6266c.png`
+- Source visual truth: generated Noesis design reference image.
 - Implementation: `http://127.0.0.1:9053/demo/evolution/`
-- Implementation screenshot: Codex in-app browser capture, tab 25, captured October 7, 2026 (embedded in the build turn; no filesystem-exported screenshot path)
+- Implementation screenshot: Noesis in-app browser capture, tab 25, captured October 7, 2026 (embedded in the build turn; no filesystem-exported screenshot path)
 - Source pixels: 1536 x 1058
 - Implementation capture: 1280 x 720 desktop viewport
 - CSS viewport: desktop app viewport; device scale managed by the in-app browser

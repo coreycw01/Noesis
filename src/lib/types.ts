@@ -51,6 +51,48 @@ export interface DrawingDocumentState {
   activeLayerId: string;
   layers: DrawingLayer[];
 }
+export interface WorkTimelineEntry {
+  id: string;
+  date: string;
+  branch?: string;
+  title: string;
+  detail: string;
+}
+
+export type WorkToolKind = 'cornell_notes' | 'two_column_debate' | 'dialectic' | 'belief_audit' | 'source_analysis' | 'mind_map' | 'timeline';
+
+export interface WorkToolData {
+  fields: Record<string, string>;
+  branches?: string[];
+  timeline?: WorkTimelineEntry[];
+}
+
+export interface WorkToolSection {
+  id: string;
+  tool: WorkToolKind;
+  createdAt?: string;
+  data: WorkToolData;
+}
+
+/**
+ * Work tools keep their structured fields separate from the prose body. A work
+ * remains a normal document; timelines, debates, and note systems are optional
+ * sections that can be added wherever they help the thinking.
+ */
+export interface WorkTemplateData extends WorkToolData {
+  version: 1;
+  sections?: WorkToolSection[];
+}
+export type DocumentViewMode = 'vertical-continuous' | 'vertical-single' | 'horizontal-single';
+export type DocumentPageSize = 'letter' | 'a4';
+export type DocumentPaperColor = 'blank' | 'warm' | 'sepia' | 'dark';
+export type DocumentPaperPattern = 'none' | 'notebook' | 'grid' | 'dotted' | 'dotted_grid';
+export interface DocumentSettings {
+  viewMode: DocumentViewMode;
+  pageSize: DocumentPageSize;
+  paperColor: DocumentPaperColor;
+  paperPattern: DocumentPaperPattern;
+}
 export type RecordingType = 'video' | 'audio' | 'screen';
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type AccentTheme = 'violet' | 'sage' | 'blue' | 'amber' | 'rose' | 'mono';
@@ -358,6 +400,8 @@ export interface Draft {
   canvasData?: string;
   canvasAsset?: StoredAsset;
   drawingState?: DrawingDocumentState;
+  templateData?: WorkTemplateData;
+  documentSettings?: DocumentSettings;
   writingOverlayData?: string;
   overlayAsset?: StoredAsset;
   writingStyle?: WritingStyle;
@@ -442,6 +486,7 @@ export interface DraftRevision {
   draftContent?: string;
   finalContent?: string;
   activeMode?: WorkMode;
+  templateData?: WorkTemplateData;
   createdAt: string;
 }
 
@@ -807,6 +852,7 @@ export interface AppearanceSettings {
   accentTheme: AccentTheme;
   headerFont: HeaderFont;
   fontSize: 'sm' | 'md' | 'lg';
+  interfaceShape: 'pills' | 'square';
   reducedMotion: boolean;
   highContrastMode: boolean;
   dateUpdated?: string;

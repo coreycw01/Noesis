@@ -28,6 +28,7 @@ interface EntityPickerProps {
   onCreate?: (query: string) => void;
   createLabel?: (query: string) => string;
   compact?: boolean;
+  inline?: boolean;
   className?: string;
 }
 
@@ -42,6 +43,7 @@ export function EntityPicker({
   onCreate,
   createLabel = (query) => `Create "${query}"`,
   compact,
+  inline,
   className,
 }: EntityPickerProps) {
   const [open, setOpen] = useState(false);
@@ -83,8 +85,8 @@ export function EntityPicker({
   };
 
   return (
-    <div className={cn('space-y-2', className)}>
-      <div className="flex items-center justify-between gap-3">
+    <div className={cn('space-y-2', inline && 'flex flex-wrap items-center gap-1.5 space-y-0', className)}>
+      <div className={cn('flex items-center justify-between gap-3', inline && 'contents')}>
         {label && <label className="text-sm font-medium leading-none">{label}</label>}
         <Popover open={open} onOpenChange={setOpen} modal>
           <PopoverTrigger asChild>
@@ -92,7 +94,7 @@ export function EntityPicker({
               type="button"
               variant="outline"
               size="sm"
-              className={cn('h-8 rounded-full border-dashed px-3 font-code text-[9px] uppercase tracking-widest', compact && 'h-7 px-2')}
+              className={cn('h-8 rounded-full border-dashed px-3 font-code text-[9px] uppercase tracking-widest', compact && 'h-7 px-2', inline && 'order-2')}
               onPointerDown={(event) => event.stopPropagation()}
             >
               <Plus className="mr-1.5 size-3" /> {triggerLabel}
@@ -192,7 +194,7 @@ export function EntityPicker({
           </PopoverContent>
         </Popover>
       </div>
-      <div className="flex min-h-[42px] flex-wrap items-start gap-1.5 rounded-lg border border-dashed border-border bg-muted/5 p-2">
+      <div className={cn('flex min-h-[42px] flex-wrap items-start gap-1.5 rounded-lg border border-dashed border-border bg-muted/5 p-2', inline && 'order-1 min-h-0 border-0 bg-transparent p-0')}>
         {selected.length > 0 ? selected.map((item) => (
           <Badge key={item.id} variant="secondary" className="flex items-center gap-1 bg-card font-body text-[11px]">
             <span className="max-w-[180px] truncate italic">{item.label}</span>

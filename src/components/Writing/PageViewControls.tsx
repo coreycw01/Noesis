@@ -5,7 +5,6 @@ import React from 'react';
 import { 
   MonitorPlay, 
   FileBox, 
-  Layers,
   Settings2,
   Check,
   Palette,
@@ -45,13 +44,12 @@ export function PageViewControls({
   onPaperPatternChange
 }: PageViewControlsProps) {
   const modes: { id: PageViewMode; label: string; icon: any }[] = [
-    { id: 'vertical-continuous', label: 'Vertical Continuous', icon: MonitorPlay },
-    { id: 'vertical-single', label: 'Vertical Single Page', icon: FileBox },
-    { id: 'horizontal-single', label: 'Horizontal Spread', icon: Layers },
+    { id: 'vertical-continuous', label: 'Continuous document', icon: MonitorPlay },
+    { id: 'vertical-single', label: 'Focused page', icon: FileBox },
   ];
 
   const colors: { id: PaperColor; label: string; bg: string }[] = [
-    { id: 'blank', label: 'Blank', bg: 'bg-card' },
+    { id: 'blank', label: 'White', bg: 'bg-card' },
     { id: 'warm', label: 'Warm', bg: 'bg-amber-50/50' },
     { id: 'sepia', label: 'Sepia', bg: 'bg-[#f4ecd8]' },
     { id: 'dark', label: 'Dark', bg: 'bg-slate-900' },
@@ -69,13 +67,13 @@ export function PageViewControls({
     <div className="flex items-center gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9 rounded-full font-bold border-border/60 bg-card shadow-sm px-4">
+          <Button variant="outline" size="sm" className="h-9 rounded-md border-border/60 bg-card px-4 font-bold shadow-sm">
             <Settings2 className="size-4 text-accent" />
-            View / Paper
+            Document settings
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64 font-body">
-          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">View Mode</DropdownMenuLabel>
+          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Document view</DropdownMenuLabel>
           {modes.map((mode) => (
             <DropdownMenuItem 
               key={mode.id} 
@@ -89,7 +87,7 @@ export function PageViewControls({
           ))}
           
           <DropdownMenuSeparator />
-          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Page Size</DropdownMenuLabel>
+          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Standard page size</DropdownMenuLabel>
           <DropdownMenuItem onClick={() => onPageSizeChange('letter')} className={cn("text-xs italic cursor-pointer flex items-center justify-between", pageSize === 'letter' && "text-accent")}>
             US Letter (8.5" x 11")
             {pageSize === 'letter' && <Check className="size-3" />}
@@ -100,7 +98,7 @@ export function PageViewControls({
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
-          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Paper Color</DropdownMenuLabel>
+          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Document paper</DropdownMenuLabel>
           <div className="grid grid-cols-4 gap-2 p-2">
             {colors.map((color) => (
               <button
@@ -108,7 +106,7 @@ export function PageViewControls({
                 onClick={() => onPaperColorChange(color.id)}
                 title={color.label}
                 className={cn(
-                  "size-8 rounded-full border transition-all hover:scale-110 flex items-center justify-center",
+                  "flex h-8 min-w-8 items-center justify-center rounded-md border px-1 transition-colors hover:border-accent",
                   color.bg,
                   paperColor === color.id ? "border-accent ring-2 ring-accent/20" : "border-border/40"
                 )}
@@ -119,14 +117,14 @@ export function PageViewControls({
           </div>
 
           <DropdownMenuSeparator />
-          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Pattern Overlay</DropdownMenuLabel>
+          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Writing guide</DropdownMenuLabel>
           <div className="grid grid-cols-3 gap-1 p-2">
             {patterns.map((pattern) => (
               <button
                 key={pattern.id}
                 onClick={() => onPaperPatternChange(pattern.id)}
                 className={cn(
-                  "flex flex-col items-center gap-1.5 p-2 rounded border transition-all hover:border-accent/40",
+                  "flex flex-col items-center gap-1.5 rounded-md border p-2 transition-all hover:border-accent/40",
                   paperPattern === pattern.id ? "border-accent bg-accent/5" : "border-border/40"
                 )}
               >

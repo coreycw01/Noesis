@@ -48,9 +48,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { FormattingToolbar } from './FormattingToolbar';
 import { DocumentCanvas } from './DocumentCanvas';
+import { DrawingOverlayToolbar } from './DrawingOverlayToolbar';
 import { PageViewControls } from './PageViewControls';
-import type { Annotation, Concept, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WritingStyle } from '@/lib/types';
-import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, WRITING_STYLES, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
+import { isStructuredWorkStyle, StructuredWorkSurface, type StructuredWorkStyle } from './StructuredWorkSurface';
+import type { Annotation, Concept, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkToolSection, WritingStyle } from '@/lib/types';
+import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { escapeTextAsHtml, sanitizeHtml } from '@/lib/sanitize';
@@ -63,13 +65,18 @@ import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import { cleanupReplacedDraftAssets, persistInlineDraftAssets, uploadPrivateAsset } from '@/lib/storage-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 
-export type PageViewMode = 'vertical-continuous' | 'vertical-single' | 'horizontal-single';
-export type PageSize = 'letter' | 'a4';
-export type PaperColor = 'blank' | 'warm' | 'sepia' | 'dark';
-export type PaperPattern = 'none' | 'notebook' | 'grid' | 'dotted' | 'dotted_grid';
-type WritingTool = 'text' | 'pencil' | 'eraser';
+export type PageViewMode = DocumentViewMode;
+export type PageSize = DocumentPageSize;
+export type PaperColor = DocumentPaperColor;
+export type PaperPattern = DocumentPaperPattern;
 type WorkRailAnnotation = Annotation & { sourceTitle: string; sourceId: string };
 type WorkFilter = 'all' | DraftType | DraftStatus | 'awaiting_revision' | 'external_docs';
+const WORK_TOOL_OPTIONS: Array<{ tool: StructuredWorkStyle; label: string; description: string }> = [
+  // Works only owns tools that shape the current creative artifact. Inquiry,
+  // source, and belief-analysis workflows remain in their dedicated pages.
+  { tool: 'mind_map', label: 'Diagram', description: 'Arrange ideas visually for this document without changing Atlas.' },
+  { tool: 'timeline', label: 'Timeline', description: 'Add a sequence, stages, or branches to this document.' },
+];
 type BrowserSpeechRecognitionCtor = new () => {
   continuous: boolean;
   interimResults: boolean;
@@ -83,6 +90,7 @@ type BrowserSpeechRecognitionCtor = new () => {
 
 interface AtelierProps {
   uid: string;
+  isReviewWorkspace?: boolean;
   drafts: Draft[];
   media: Media[];
   vault: VaultEntry[];
@@ -97,7 +105,19 @@ interface AtelierProps {
   onOpenDraftRoute?: (id: string | null) => void;
 }
 
-const statuses: DraftStatus[] = ['idea', 'rough', 'seed', 'drafting', 'developing', 'revising', 'revised', 'complete', 'final', 'published', 'archived', 'abandoned'];
+const WORK_STATUS_OPTIONS: Array<{ value: DraftStatus; label: string }> = [
+  { value: 'drafting', label: 'In progress' },
+  { value: 'complete', label: 'Ready' },
+  { value: 'published', label: 'Published' },
+  { value: 'archived', label: 'Archived' },
+];
+
+function compactWorkStatus(status: DraftStatus) {
+  if (status === 'published') return 'published';
+  if (status === 'archived' || status === 'abandoned') return 'archived';
+  if (status === 'complete' || status === 'final') return 'complete';
+  return 'drafting';
+}
 const articulationTypes: DraftType[] = ['essay', 'script', 'field_note', 'manuscript', 'reflection', 'argument', 'source_analysis', 'text_note', 'voice_note', 'talk_to_text', 'drawing_note', 'drawing', 'recording'];
 const workTabs = ['all', 'writing', 'notes', 'recording', 'drawing'] as const;
 const writingLabels: DraftType[] = ['essay', 'script', 'field_note', 'manuscript', 'reflection', 'argument', 'source_analysis'];
@@ -138,6 +158,8 @@ const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'canvasData',
   'canvasAsset',
   'drawingState',
+  'templateData',
+  'documentSettings',
   'writingOverlayData',
   'overlayAsset',
   'writingStyle',
@@ -166,23 +188,33 @@ function extractDocumentId(url: string) {
   return undefined;
 }
 
-function canvasStyleForWriting(style: WritingStyle): { color: PaperColor; pattern: PaperPattern } {
+function documentDefaultsForWriting(style: WritingStyle): DocumentSettings {
   switch (style) {
     case 'ruled_notebook':
     case 'manuscript':
-      return { color: 'blank', pattern: 'notebook' };
-    case 'mind_map':
-    case 'timeline':
-      return { color: 'blank', pattern: 'grid' };
-    case 'cornell_notes':
-    case 'two_column_debate':
-    case 'dialectic':
-    case 'belief_audit':
-    case 'source_analysis':
-      return { color: 'warm', pattern: 'none' };
+      return { viewMode: 'vertical-continuous', pageSize: 'letter', paperColor: 'blank', paperPattern: 'notebook' };
     default:
-      return { color: 'blank', pattern: 'none' };
+      return { viewMode: 'vertical-continuous', pageSize: 'letter', paperColor: 'blank', paperPattern: 'none' };
   }
+}
+
+function toolSectionsForDraft(draft: Draft | null, writingStyle: WritingStyle): WorkToolSection[] {
+  if (!draft) return [];
+  if (draft.templateData?.sections?.length) return draft.templateData.sections;
+  if (!isStructuredWorkStyle(writingStyle)) return [];
+
+  // Works created before tools were embeddable retain their structured content as
+  // the first tool page rather than silently losing it during the migration.
+  return [{
+    id: `legacy-${draft.id}-${writingStyle}`,
+    tool: writingStyle,
+    createdAt: draft.dateCreated,
+    data: {
+      fields: draft.templateData?.fields || {},
+      branches: draft.templateData?.branches || [],
+      timeline: draft.templateData?.timeline || [],
+    },
+  }];
 }
 
 function draftSaveSignature(draft: Draft | null | undefined) {
@@ -290,7 +322,7 @@ function workStatusLabel(draft: Draft) {
   return 'In progress';
 }
 
-export function Atelier({ uid, drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
+export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<WorkFilter>('all');
   const [workTab, setWorkTab] = useState<WorkTab>('all');
@@ -305,14 +337,15 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
   const [dirty, setDirty] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Draft | null>(null);
 
-  const [viewMode, setViewMode] = useState<PageViewMode>('vertical-single');
+  const [viewMode, setViewMode] = useState<PageViewMode>('vertical-continuous');
   const [pageSize, setPageSize] = useState<PageSize>('letter');
   const [paperColor, setPaperColor] = useState<PaperColor>('blank');
   const [paperPattern, setPaperPattern] = useState<PaperPattern>('none');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
-  const [writingTool, setWritingTool] = useState<WritingTool>('text');
+  const [writingTool, setWritingTool] = useState<DrawingTool>('pencil');
   const [writingStrokeColor, setWritingStrokeColor] = useState('#4c1d95');
   const [writingStrokeSize, setWritingStrokeSize] = useState(3);
+  const [writingStrokeOpacity, setWritingStrokeOpacity] = useState(1);
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
@@ -327,7 +360,21 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
     active?.overlayAsset?.storagePath,
     active?.writingOverlayData || '',
   );
+  const { url: activeCanvasUrl } = usePrivateAssetUrl(
+    active?.canvasAsset?.storagePath,
+    active?.canvasData || '',
+  );
   const activeCategory = active ? active.workCategory || workCategoryForDraft(active.type) : null;
+  const isDocumentSurface = activeCategory === 'writing' || active?.type === 'drawing' || active?.type === 'drawing_note';
+  // Older drawing records predate document formats. They must remain freeform
+  // visual documents instead of inheriting whatever structured format is now
+  // selected as the account-wide default.
+  const activeWritingStyle: WritingStyle = active?.writingStyle
+    || (active?.type === 'drawing' || active?.type === 'drawing_note' ? 'blank_paper' : writingDefaults.writingStyle);
+  const activeToolSections = useMemo(
+    () => toolSectionsForDraft(active, activeWritingStyle),
+    [active, activeWritingStyle],
+  );
   const activeStoreSignature = useMemo(() => draftSaveSignature(activeFromStore), [activeFromStore]);
   const draftBufferSignature = useMemo(() => draftSaveSignature(draftBuffer), [draftBuffer]);
 
@@ -416,6 +463,12 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
     setSaveStatus('unsaved');
   }, [activeFromStore, draftBuffer]);
 
+  const updateDocumentSettings = useCallback((patch: Partial<DocumentSettings>) => {
+    if (!active) return;
+    const defaults = documentDefaultsForWriting(activeWritingStyle);
+    updateActive({ documentSettings: { ...defaults, ...active.documentSettings, ...patch } });
+  }, [active, activeWritingStyle, updateActive]);
+
   const openDraft = useCallback((id: string) => {
     setActiveId(id);
     onOpenDraftRoute?.(id);
@@ -431,7 +484,10 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
     const patched = { ...active, ...patch };
     const priorVersions = active.versionHistory || [];
     const latest = priorVersions[priorVersions.length - 1];
-    const shouldSnapshot = dirty && (!latest || latest.body !== patched.body || latest.title !== patched.title);
+    const shouldSnapshot = dirty && (!latest
+      || latest.body !== patched.body
+      || latest.title !== patched.title
+      || JSON.stringify(latest.templateData || {}) !== JSON.stringify(patched.templateData || {}));
     const nextDraft = {
       ...patched,
       dateUpdated: today(),
@@ -443,16 +499,18 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
             draftContent: patched.draftContent,
             finalContent: patched.finalContent,
             activeMode: patched.activeMode,
+            templateData: patched.templateData,
             createdAt: new Date().toISOString(),
           }].slice(-50)
         : priorVersions,
     };
     setSaveStatus('saving');
     try {
-      const persistedDraft = await persistInlineDraftAssets(uid, nextDraft);
+      // Demo workspaces save data URLs locally; they do not have a user Storage path.
+      const persistedDraft = isReviewWorkspace ? nextDraft : await persistInlineDraftAssets(uid, nextDraft);
       setDraftBuffer(persistedDraft);
       await onUpdateDraft(persistedDraft);
-      await cleanupReplacedDraftAssets(active, persistedDraft).catch(() => undefined);
+      if (!isReviewWorkspace) await cleanupReplacedDraftAssets(active, persistedDraft).catch(() => undefined);
       setDirty(false);
       setSaveStatus('saved');
       return persistedDraft;
@@ -465,7 +523,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
       });
       return null;
     }
-  }, [active, dirty, onUpdateDraft, toast, uid]);
+  }, [active, dirty, isReviewWorkspace, onUpdateDraft, toast, uid]);
 
   const handleUpdateContent = useCallback((newContent: string) => {
     const clean = sanitizeHtml(newContent);
@@ -478,7 +536,22 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
 
   const exportManuscript = () => {
     if (!active) return;
-    const content = `# ${active.title}\n\nType: ${DRAFT_LABELS[active.type]}\nStatus: ${active.status}\nConcepts: ${(active.conceptTags || []).join(', ')}\n\n---\n\n${active.body.replace(/<[^>]+>/g, '\n')}`;
+    const template = active.templateData;
+    const serializeTool = (label: string, data: { fields?: Record<string, string>; branches?: string[]; timeline?: Array<{ date: string; branch?: string; title: string; detail: string }> }) => {
+      const sections = [
+      ...Object.entries(data.fields || {}).map(([field, value]) => `### ${field.replace(/_/g, ' ')}\n\n${value}`),
+      ...(data.branches?.filter(Boolean).length ? [`### Branches\n\n${data.branches.filter(Boolean).map((branch) => `- ${branch}`).join('\n')}`] : []),
+      ...(data.timeline?.length ? [`### Timeline\n\n${data.timeline.map((entry) => `#### ${entry.date || 'Untitled stage'}${entry.branch ? ` · ${entry.branch}` : ''}: ${entry.title || 'Untitled event'}\n${entry.detail}`).join('\n\n')}`] : []),
+      ].filter(Boolean);
+      return sections.length ? [`## ${label}`, ...sections].join('\n\n') : '';
+    };
+    const structuredContent = template
+      ? [
+          serializeTool('Document tool', template),
+          ...(template.sections || []).map((section) => serializeTool(section.tool.replace(/_/g, ' '), section.data)),
+        ].filter(Boolean).join('\n\n')
+      : '';
+    const content = `# ${active.title}\n\nType: ${DRAFT_LABELS[active.type]}\nStatus: ${active.status}\nConcepts: ${(active.conceptTags || []).join(', ')}\n\n---\n\n${structuredContent || active.body.replace(/<[^>]+>/g, '\n')}`;
     const blob = new Blob([content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -520,6 +593,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
       recordingType: type === 'voice_note' ? 'audio' : type === 'recording' ? 'video' : undefined,
       status: writingDefaults.status,
       writingStyle: writingDefaults.writingStyle,
+      documentSettings: documentDefaultsForWriting(writingDefaults.writingStyle),
       drawingState: type === 'drawing' || type === 'drawing_note' ? {
         version: 1,
         width: type === 'drawing_note' ? 720 : 1120,
@@ -645,11 +719,13 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
   }, [activeFromStore, activeStoreSignature, draftBuffer, draftBufferSignature, dirty]);
 
   useEffect(() => {
-    const style = active?.writingStyle || writingDefaults.writingStyle;
-    const canvas = canvasStyleForWriting(style);
-    setPaperColor(canvas.color);
-    setPaperPattern(canvas.pattern);
-  }, [active?.id, active?.writingStyle, writingDefaults.writingStyle]);
+    if (!active) return;
+    const defaults = active.documentSettings || documentDefaultsForWriting(activeWritingStyle);
+    setViewMode(defaults.viewMode);
+    setPageSize(defaults.pageSize);
+    setPaperColor(defaults.paperColor);
+    setPaperPattern(defaults.paperPattern);
+  }, [active?.id, activeWritingStyle]);
 
   useEffect(() => {
     if (!dirty || !draftBuffer) return;
@@ -666,12 +742,14 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
           const latest = latestDraftRef.current;
           if (!latest || latest.id !== draftBuffer.id) return;
           const signatureBeforeSave = draftSaveSignature(latest);
-          const persisted = await persistInlineDraftAssets(uid, {
+          const nextDraft = {
             ...latest,
             dateUpdated: today(),
-          });
+          };
+          // Demo workspaces retain inline assets in local demo data rather than uploading them.
+          const persisted = isReviewWorkspace ? nextDraft : await persistInlineDraftAssets(uid, nextDraft);
           await onUpdateDraft(persisted);
-          await cleanupReplacedDraftAssets(activeFromStore || latest, persisted).catch(() => undefined);
+          if (!isReviewWorkspace) await cleanupReplacedDraftAssets(activeFromStore || latest, persisted).catch(() => undefined);
           setDraftBuffer((current) => {
             if (!current || current.id !== persisted.id) return current;
             return draftSaveSignature(current) === signatureBeforeSave ? persisted : current;
@@ -693,7 +771,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
         });
     }, 750);
     return () => window.clearTimeout(timeout);
-  }, [activeStoreSignature, draftBuffer, draftBufferSignature, dirty, onUpdateDraft, toast, uid]);
+  }, [activeStoreSignature, draftBuffer, draftBufferSignature, dirty, isReviewWorkspace, onUpdateDraft, toast, uid]);
 
   useEffect(() => {
     if (!active) return;
@@ -724,8 +802,36 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
     : '';
 
   const activeTypeLabel = active ? DRAFT_LABELS[active.type] : '';
-  const showPaperControls = !!active && activeCategory === 'writing';
+  const showPaperControls = !!active && isDocumentSurface;
   const showExternalDocControls = !!active && activeCategory === 'writing';
+
+  const updateToolSections = useCallback((sections: WorkToolSection[]) => {
+    if (!active) return;
+    updateActive({
+      writingStyle: 'blank_paper',
+      templateData: {
+        version: 1,
+        fields: active.templateData?.fields || {},
+        branches: active.templateData?.branches || [],
+        timeline: active.templateData?.timeline || [],
+        sections,
+      },
+    });
+  }, [active, updateActive]);
+
+  const addDocumentTool = useCallback((tool: StructuredWorkStyle) => {
+    const section: WorkToolSection = {
+      id: crypto.randomUUID(),
+      tool,
+      createdAt: today(),
+      data: { fields: {}, branches: [], timeline: [] },
+    };
+    updateToolSections([
+      ...activeToolSections,
+      section,
+    ]);
+    window.setTimeout(() => document.getElementById(`work-tool-${section.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  }, [activeToolSections, updateToolSections]);
   const activeSources = useMemo(() => {
     if (!active) return [];
     return media.filter((source) => (active.sourceIds || []).includes(source.id));
@@ -794,33 +900,33 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                 placeholder={`Untitled ${activeTypeLabel}`}
               />
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <div className="hidden items-center gap-2 rounded-full border border-border/30 bg-muted/10 px-3 py-1.5 sm:flex">
+                <div className="hidden items-center gap-2 border border-border/30 bg-muted/10 px-3 py-1.5 sm:flex">
                   <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
                   <span className="font-code text-[8px] uppercase tracking-widest font-bold text-muted-foreground">
                     {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}
                   </span>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => saveActive()} className="h-9 px-4 rounded-full font-bold shadow-sm bg-card border-border/60">
+                <Button variant="outline" size="sm" onClick={() => saveActive()} className="h-9 rounded-md border-border/60 bg-card px-4 font-bold shadow-sm">
                   <Save className="size-4 mr-2" /> {dirty ? 'Save*' : 'Save'}
                 </Button>
                 {activeCategory === 'writing' && (
-                  <Button variant="outline" size="sm" onClick={() => setIsVersionHistoryOpen(true)} className="hidden h-9 rounded-full border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" title="Version history">
+                    <Button variant="outline" size="sm" onClick={() => setIsVersionHistoryOpen(true)} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" title="Version history">
                     <History className="size-4" /><span className="ml-2 hidden xl:inline">Versions</span>
                   </Button>
                 )}
                 {activeCategory === 'writing' && (
-                  <Button variant="outline" size="sm" onClick={() => window.print()} className="hidden h-9 rounded-full border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" title="Print">
+                    <Button variant="outline" size="sm" onClick={() => window.print()} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" title="Print">
                     <Printer className="size-4" />
                   </Button>
                 )}
                 {activeCategory === 'writing' && (
-                  <Button variant="outline" size="sm" onClick={exportManuscript} className="hidden h-9 rounded-full border-border/60 bg-card px-4 font-bold shadow-sm md:inline-flex">
+                    <Button variant="outline" size="sm" onClick={exportManuscript} className="hidden h-9 rounded-md border-border/60 bg-card px-4 font-bold shadow-sm md:inline-flex">
                     <Download className="size-4 mr-2" /> Export
                   </Button>
                 )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" className="size-9 rounded-full border-border/60 bg-card" aria-label="More work actions">
+                    <Button variant="outline" size="icon" className="size-9 rounded-md border-border/60 bg-card" aria-label="More work actions">
                       <MoreHorizontal className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -841,15 +947,15 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/10 pt-2">
+            <div className="flex flex-wrap items-center gap-2 border-t border-border/10 pt-2">
               <div className="flex flex-wrap items-center gap-2">
-                {activeCategory === 'writing' && <div className="flex rounded-full border border-border/60 bg-card p-1 shadow-sm">
+                {activeCategory === 'writing' && <div className="flex border border-border/60 bg-card p-1 shadow-sm">
                   {(['draft', 'final'] as const).map((mode) => (
                     <button
                       key={mode}
                       onClick={() => updateActive({ activeMode: mode, body: mode === 'final' ? active.finalContent || '' : active.draftContent || active.body || '' })}
                       className={cn(
-                        'rounded-full px-3 py-1 font-code text-[9px] font-bold uppercase tracking-widest transition-colors',
+                        'px-3 py-1 font-code text-[9px] font-bold uppercase tracking-widest transition-colors',
                         (active.activeMode || 'draft') === mode ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
                       )}
                     >
@@ -858,39 +964,42 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                   ))}
                 </div>}
                 <div className="flex items-center gap-2">
-                  <Select value={active.status} onValueChange={(value) => updateActive({ status: value as DraftStatus })}>
-                    <SelectTrigger className="h-8 border-border/40 bg-background shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-32 px-3 font-bold">
+                  <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus })}>
+                    <SelectTrigger className="h-8 w-32 rounded-md border-border/40 bg-background px-3 font-code text-[9px] font-bold uppercase tracking-wider shadow-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {statuses.map((s) => (
-                        <SelectItem key={s} value={s} className="font-code text-[9px] uppercase">{s}</SelectItem>
+                      {WORK_STATUS_OPTIONS.map((status) => (
+                        <SelectItem key={status.value} value={status.value} className="font-code text-[9px] uppercase">{status.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+                {showPaperControls && <span className="border border-border/40 bg-background px-3 py-2 font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Document</span>}
                 {showPaperControls && (
-                  <div className="flex items-center gap-2">
-                    <Select value={active.writingStyle || writingDefaults.writingStyle} onValueChange={(value) => updateActive({ writingStyle: value as WritingStyle })}>
-                      <SelectTrigger className="h-8 border-border/40 bg-background shadow-sm font-code text-[9px] uppercase tracking-wider rounded-full w-44 px-3 font-bold">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {WRITING_STYLES.map((style) => (
-                          <SelectItem key={style} value={style} className="font-code text-[9px] uppercase">{WRITING_STYLE_LABELS[style]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 rounded-md border-border/40 bg-background px-3 font-code text-[9px] font-bold uppercase tracking-wider">
+                        <Plus className="mr-1.5 size-3.5" /> Add tool
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-72">
+                      {WORK_TOOL_OPTIONS.map((option) => (
+                        <DropdownMenuItem key={option.tool} onSelect={() => addDocumentTool(option.tool)} className="items-start py-2.5">
+                          <span><span className="block font-medium">{option.label}</span><span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{option.description}</span></span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
                 {showExternalDocControls && (
-                  <Button variant="outline" size="sm" onClick={openDocDialog} className="h-9 px-5 rounded-full font-bold shadow-sm bg-card border-border/60">
+                  <Button variant="outline" size="sm" onClick={openDocDialog} className="h-9 rounded-md border-border/60 bg-card px-5 font-bold shadow-sm">
                     <Link2 className="size-4 mr-2" /> {active.externalDoc ? 'Doc' : 'Connect Doc'}
                   </Button>
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex min-w-0 w-full flex-wrap items-center gap-2 border-t border-border/10 pt-2">
                 <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">CONCEPTS</span>
                 <ConceptTagPicker
                   concepts={concepts}
@@ -898,6 +1007,8 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                   onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })}
                   onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
                   compact
+                  inline
+                  className="min-w-0"
                 />
               </div>
             </div>
@@ -956,51 +1067,16 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <PageViewControls
                     viewMode={viewMode}
-                    onViewModeChange={setViewMode}
+                    onViewModeChange={(next) => { setViewMode(next); updateDocumentSettings({ viewMode: next }); }}
                     pageSize={pageSize}
-                    onPageSizeChange={setPageSize}
+                    onPageSizeChange={(next) => { setPageSize(next); updateDocumentSettings({ pageSize: next }); }}
                     paperColor={paperColor}
-                    onPaperColorChange={setPaperColor}
+                    onPaperColorChange={(next) => { setPaperColor(next); updateDocumentSettings({ paperColor: next }); }}
                     paperPattern={paperPattern}
-                    onPaperPatternChange={setPaperPattern}
+                    onPaperPatternChange={(next) => { setPaperPattern(next); updateDocumentSettings({ paperPattern: next }); }}
                   />
                 </div>
               )}
-              {showPaperControls && (
-                <div className="hidden flex-wrap items-center gap-3 rounded-xl border border-border/30 bg-card/80 px-4 py-3 md:flex">
-                  <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">PENCIL</span>
-                  <Button variant={writingTool === 'text' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('text')} className="rounded-full">
-                    <Type className="mr-2 size-4" /> Type
-                  </Button>
-                  <Button variant={writingTool === 'pencil' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('pencil')} className="rounded-full">
-                    <PencilLine className="mr-2 size-4" /> Pencil
-                  </Button>
-                  <Button variant={writingTool === 'eraser' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('eraser')} className="rounded-full">
-                    <Eraser className="mr-2 size-4" /> Erase
-                  </Button>
-                  <input type="color" value={writingStrokeColor} onChange={(event) => setWritingStrokeColor(event.target.value)} className="h-9 w-11 rounded border border-border bg-background p-1" aria-label="Pencil color" />
-                  <input type="range" min={1} max={14} value={writingStrokeSize} onChange={(event) => setWritingStrokeSize(Number(event.target.value))} className="w-28" aria-label="Pencil size" />
-                  <Button variant="outline" size="sm" onClick={() => updateActive({ writingOverlayData: '' })} className="rounded-full bg-card">
-                    <Square className="mr-2 size-4" /> Clear Marks
-                  </Button>
-                </div>
-              )}
-              {showPaperControls && (
-                <details className="rounded-xl border border-border/30 bg-card/80 md:hidden">
-                  <summary className="cursor-pointer list-none px-4 py-3 font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Pencil overlay
-                  </summary>
-                  <div className="flex flex-wrap items-center gap-2 border-t border-border/30 p-3">
-                    <Button variant={writingTool === 'text' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('text')} className="rounded-full"><Type className="mr-2 size-4" /> Type</Button>
-                    <Button variant={writingTool === 'pencil' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('pencil')} className="rounded-full"><PencilLine className="mr-2 size-4" /> Pencil</Button>
-                    <Button variant={writingTool === 'eraser' ? 'default' : 'outline'} size="sm" onClick={() => setWritingTool('eraser')} className="rounded-full"><Eraser className="mr-2 size-4" /> Erase</Button>
-                    <input type="color" value={writingStrokeColor} onChange={(event) => setWritingStrokeColor(event.target.value)} className="h-9 w-11 rounded border border-border bg-background p-1" aria-label="Pencil color" />
-                    <input type="range" min={1} max={14} value={writingStrokeSize} onChange={(event) => setWritingStrokeSize(Number(event.target.value))} className="w-24" aria-label="Pencil size" />
-                    <Button variant="outline" size="sm" onClick={() => updateActive({ writingOverlayData: '' })} className="rounded-full bg-card"><Square className="mr-2 size-4" /> Clear</Button>
-                  </div>
-                </details>
-              )}
-
             </div>
           </div>
         </header>
@@ -1010,9 +1086,22 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
           railCollapsed ? "lg:grid-cols-[minmax(0,1fr)_64px]" : "lg:grid-cols-[minmax(0,1fr)_340px]"
         )}>
           <div className="relative min-h-0 overflow-hidden">
-            {activeCategory === 'writing' ? (
+            {isDocumentSurface ? (
               <>
-                <FormattingToolbar saveStatus={saveStatus} />
+                {active.activeRibbon === 'drawing' ? (
+                  <DrawingOverlayToolbar
+                    tool={writingTool}
+                    color={writingStrokeColor}
+                    size={writingStrokeSize}
+                    opacity={writingStrokeOpacity}
+                    onToolChange={setWritingTool}
+                    onColorChange={setWritingStrokeColor}
+                    onSizeChange={setWritingStrokeSize}
+                    onOpacityChange={setWritingStrokeOpacity}
+                    onClear={() => updateActive({ writingOverlayData: '' })}
+                    onReturnToWriting={() => updateActive({ activeRibbon: 'writing' })}
+                  />
+                ) : <FormattingToolbar saveStatus={saveStatus} onOpenDrawing={() => updateActive({ activeRibbon: 'drawing' })} />}
                 <DocumentCanvas
                   content={activeContent}
                   onContentChange={handleUpdateContent}
@@ -1020,23 +1109,44 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                   pageSize={pageSize}
                   paperColor={paperColor}
                   paperPattern={paperPattern}
-                  writingStyle={active.writingStyle || writingDefaults.writingStyle}
+                  writingStyle="blank_paper"
                   title={active.title}
                   overlayData={activeOverlayUrl}
+                  backgroundArtwork={activeCategory === 'drawing' ? activeCanvasUrl : ''}
                   onOverlayChange={(overlayData) => updateActive({ writingOverlayData: overlayData })}
                   overlayTool={writingTool}
                   overlayColor={writingStrokeColor}
                   overlayBrushSize={writingStrokeSize}
+                  overlayOpacity={writingStrokeOpacity}
+                  overlayEnabled={active.activeRibbon === 'drawing'}
+                  toolSections={activeToolSections.length ? (
+                    <div className="space-y-8">
+                      {activeToolSections.map((section) => (
+                        <section key={section.id} id={`work-tool-${section.id}`} className="scroll-mt-6 border-t border-border/50 pt-8">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Thinking tool</span>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))} className="h-8 rounded-md text-muted-foreground hover:text-destructive">
+                              <Trash2 className="mr-1.5 size-3.5" /> Remove section
+                            </Button>
+                          </div>
+                          <StructuredWorkSurface
+                            embedded
+                            style={section.tool}
+                            data={{ version: 1, ...section.data }}
+                            onChange={(data) => updateToolSections(activeToolSections.map((item) => item.id === section.id ? { ...item, data: { fields: data.fields, branches: data.branches, timeline: data.timeline } } : item))}
+                            paperColor={paperColor}
+                            pageSize={pageSize}
+                          />
+                        </section>
+                      ))}
+                    </div>
+                  ) : undefined}
                 />
               </>
             ) : active.type === 'recording' ? (
               <RecordingStudio uid={uid} draft={active} updateActive={updateActive} onSave={saveActive} />
             ) : active.type === 'voice_note' ? (
               <RecordingStudio uid={uid} draft={active} updateActive={updateActive} onSave={saveActive} audioOnly />
-            ) : active.type === 'drawing' ? (
-              <DrawingStudio draft={active} updateActive={updateActive} />
-            ) : active.type === 'drawing_note' ? (
-              <DrawingStudio draft={active} updateActive={updateActive} compact />
             ) : (
               <QuickNoteStudio draft={active} updateActive={updateActive} />
             )}
@@ -1089,6 +1199,7 @@ export function Atelier({ uid, drafts, media, vault, questions, concepts, writin
                         draftContent: revision.draftContent,
                         finalContent: revision.finalContent,
                         activeMode: revision.activeMode,
+                        templateData: revision.templateData,
                       });
                       setIsVersionHistoryOpen(false);
                       toast({ title: 'Version restored', description: 'Review the restored content, then save to keep it.' });
@@ -2494,31 +2605,29 @@ function WorkIntellectualRail({
         </div>
       ) : (
       <div className="space-y-4">
-        <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
+        <div className="border-b border-border/60 pb-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Studio Rail</div>
-              <h3 className="mt-1 font-headline text-xl font-bold italic">Materials around this work</h3>
+              <h3 className="mt-1 font-headline text-xl font-bold italic">Reference rail</h3>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+              <Badge variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-widest">
                 {WORK_CATEGORY_LABELS[category]}
               </Badge>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => onCollapsedChange(true)}
-                className="h-8 w-8 rounded-full"
+                className="h-8 w-8 rounded-md"
                 aria-label="Collapse studio rail"
               >
                 <ChevronLeft className="size-4" />
               </Button>
             </div>
           </div>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Use this rail when you want links and context nearby. The work itself stays first.
-          </p>
-        </Card>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">Linked material stays here, so the creative surface remains primary.</p>
+        </div>
 
         <WorkRailContent sources={sources} positions={positions} inquiries={inquiries} concepts={concepts} annotations={annotations} coherenceSignals={coherenceSignals} hideIntro />
       </div>
@@ -2562,7 +2671,7 @@ function WorkRailContent({
       <RailSection title="Relevant Concepts" empty="No concepts linked yet." items={concepts} compact />
       <RailSection title="Open Inquiries" empty="No inquiries are linked to this work." items={unresolvedInquiries} />
       <RailSection title="Nearby Annotations" empty="No nearby annotations found." items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)} />
-      <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
+      <section className="border-t border-border/60 pt-4">
         <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Coherence Review</div>
         <div className="mt-3 space-y-3">
           {coherenceSignals.length ? coherenceSignals.map((signal) => (
@@ -2572,7 +2681,7 @@ function WorkRailContent({
             </div>
           )) : <p className="text-sm italic leading-6 text-muted-foreground">No coherence warnings yet.</p>}
         </div>
-      </Card>
+      </section>
     </div>
   );
 }
@@ -2591,22 +2700,22 @@ function RailSection({
   compact?: boolean;
 }) {
   return (
-    <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
+    <section className="border-t border-border/60 pt-4">
       <div className="flex items-center justify-between gap-3">
         <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-        <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{items.length}</Badge>
+        <Badge variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-widest">{items.length}</Badge>
       </div>
       {items.length ? (
         <div className={cn('mt-3', compact ? 'flex flex-wrap gap-2' : 'space-y-2')}>
           {items.map((item, index) => compact ? (
-            <Badge key={`${item}:${index}`} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+            <Badge key={`${item}:${index}`} variant="secondary" className="rounded-md font-code text-[8px] uppercase tracking-widest">
               {item}
             </Badge>
           ) : (
             <div
               key={`${item}:${index}`}
               className={cn(
-                'rounded-xl border px-3 py-2 text-sm leading-5',
+                'border-l-2 px-3 py-2 text-sm leading-5',
                 tone === 'warning' ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-border/50 bg-muted/10 text-foreground'
               )}
             >
@@ -2617,7 +2726,7 @@ function RailSection({
       ) : (
         <p className="mt-3 text-sm italic leading-6 text-muted-foreground">{empty}</p>
       )}
-    </Card>
+      </section>
   );
 }
 

@@ -1,7 +1,7 @@
 # Repository Adversarial Review
 
 Date: October 4, 2026  
-Branch reviewed: `codex/play-store-readiness`  
+Branch reviewed: `play-store-readiness`  
 Baseline commit: `1c922d4`
 
 The research brief asked the reviewer to try to disprove seven assumptions before schema design. This review treats the running code as evidence and deliberately looks for migration hazards.

@@ -3,7 +3,7 @@
 
 import React, { useRef, useEffect, useCallback } from 'react';
 import type { PageSize, PaperColor, PaperPattern } from './Atelier';
-import type { WritingStyle } from '@/lib/types';
+import type { DrawingTool, WritingStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { sanitizeHtml } from '@/lib/sanitize';
 
@@ -18,16 +18,21 @@ interface DocsPageProps {
   isEditable: boolean;
   showBoundary?: boolean;
   overlayData: string;
+  backgroundArtwork?: string;
   onOverlayChange: (content: string) => void;
-  overlayTool: 'text' | 'pencil' | 'eraser';
+  overlayTool: DrawingTool;
   overlayColor: string;
   overlayBrushSize: number;
+  overlayOpacity: number;
+  overlayEnabled: boolean;
 }
 
-export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary, overlayData, onOverlayChange, overlayTool, overlayColor, overlayBrushSize }: DocsPageProps) {
+export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary, overlayData, backgroundArtwork, onOverlayChange, overlayTool, overlayColor, overlayBrushSize, overlayOpacity, overlayEnabled }: DocsPageProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const overlayDrawingRef = useRef(false);
+  const overlayStartRef = useRef<{ x: number; y: number } | null>(null);
+  const overlayBaseRef = useRef<ImageData | null>(null);
 
   useEffect(() => {
     if (editorRef.current && editorRef.current !== document.activeElement) {
@@ -69,34 +74,91 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
 
+  const drawShape = (ctx: CanvasRenderingContext2D, tool: DrawingTool, start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const width = end.x - start.x;
+    const height = end.y - start.y;
+    ctx.beginPath();
+    if (tool === 'line') {
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+    } else if (tool === 'rectangle') {
+      ctx.strokeRect(start.x, start.y, width, height);
+      return;
+    } else if (tool === 'ellipse') {
+      ctx.ellipse(start.x + width / 2, start.y + height / 2, Math.abs(width / 2), Math.abs(height / 2), 0, 0, Math.PI * 2);
+    } else if (tool === 'arrow') {
+      const angle = Math.atan2(height, width);
+      const head = Math.max(8, Math.min(18, overlayBrushSize * 3));
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.moveTo(end.x, end.y);
+      ctx.lineTo(end.x - head * Math.cos(angle - Math.PI / 6), end.y - head * Math.sin(angle - Math.PI / 6));
+      ctx.moveTo(end.x, end.y);
+      ctx.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6));
+    }
+    ctx.stroke();
+  };
+
   const startOverlayDraw = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isEditable || overlayTool === 'text') return;
+    if (!isEditable || !overlayEnabled) return;
     const ctx = overlayRef.current?.getContext('2d');
     if (!ctx) return;
     const point = getOverlayPoint(event);
+    if (overlayTool === 'text') {
+      const text = window.prompt('Text to add to the drawing:');
+      if (!text?.trim()) return;
+      ctx.save();
+      ctx.fillStyle = overlayColor;
+      ctx.globalAlpha = overlayOpacity;
+      ctx.font = `${Math.max(14, overlayBrushSize * 4)}px Georgia, serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillText(text.trim(), point.x, point.y);
+      ctx.restore();
+      onOverlayChange(event.currentTarget.toDataURL('image/png'));
+      return;
+    }
     overlayDrawingRef.current = true;
+    overlayStartRef.current = point;
     event.currentTarget.setPointerCapture(event.pointerId);
-    ctx.beginPath();
-    ctx.moveTo(point.x, point.y);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = overlayBrushSize;
-    ctx.strokeStyle = overlayTool === 'eraser' ? '#ffffff' : overlayColor;
+    ctx.lineWidth = overlayTool === 'marker' ? overlayBrushSize * 3 : overlayTool === 'pencil' ? Math.max(1, overlayBrushSize * 0.65) : overlayBrushSize;
+    ctx.strokeStyle = overlayColor;
+    ctx.globalAlpha = overlayTool === 'marker' ? Math.min(overlayOpacity, 0.3) : overlayTool === 'pencil' ? Math.min(overlayOpacity, 0.65) : overlayOpacity;
+    ctx.globalCompositeOperation = overlayTool === 'eraser' ? 'destination-out' : 'source-over';
+    if (['line', 'rectangle', 'ellipse', 'arrow'].includes(overlayTool)) {
+      overlayBaseRef.current = ctx.getImageData(0, 0, event.currentTarget.width, event.currentTarget.height);
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
   };
 
   const moveOverlayDraw = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!overlayDrawingRef.current || overlayTool === 'text') return;
+    if (!overlayDrawingRef.current || !overlayEnabled) return;
     const ctx = overlayRef.current?.getContext('2d');
     if (!ctx) return;
     const point = getOverlayPoint(event);
+    if (overlayStartRef.current && ['line', 'rectangle', 'ellipse', 'arrow'].includes(overlayTool)) {
+      if (overlayBaseRef.current) ctx.putImageData(overlayBaseRef.current, 0, 0);
+      drawShape(ctx, overlayTool, overlayStartRef.current, point);
+      return;
+    }
     ctx.lineTo(point.x, point.y);
     ctx.stroke();
   };
 
   const endOverlayDraw = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!overlayDrawingRef.current || overlayTool === 'text') return;
+    if (!overlayDrawingRef.current || !overlayEnabled) return;
     overlayDrawingRef.current = false;
-    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    overlayStartRef.current = null;
+    overlayBaseRef.current = null;
+    const ctx = overlayRef.current?.getContext('2d');
+    if (ctx) {
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
     const data = overlayRef.current?.toDataURL('image/png');
     if (data) onOverlayChange(data);
   };
@@ -115,27 +177,29 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
 
   const getPatternStyles = () => {
     if (paperPattern === 'none') return {};
+    const guide = paperColor === 'dark' ? 'rgba(255, 255, 255, 0.14)' : 'rgba(86, 72, 56, 0.15)';
+    const guideStrong = paperColor === 'dark' ? 'rgba(255, 255, 255, 0.21)' : 'rgba(86, 72, 56, 0.23)';
     if (paperPattern === 'notebook') {
       return {
-        backgroundImage: 'linear-gradient(#e5e7eb 1px, transparent 1px)',
+        backgroundImage: `linear-gradient(${guide} 1px, transparent 1px)`,
         backgroundSize: '100% 2.4em'
       };
     }
     if (paperPattern === 'grid') {
       return {
-        backgroundImage: 'radial-gradient(#e5e7eb 1px, transparent 1px)',
+        backgroundImage: `linear-gradient(${guide} 1px, transparent 1px), linear-gradient(90deg, ${guide} 1px, transparent 1px)`,
         backgroundSize: '20px 20px'
       };
     }
     if (paperPattern === 'dotted') {
       return {
-        backgroundImage: 'radial-gradient(#d6d3d1 1px, transparent 1px)',
+        backgroundImage: `radial-gradient(${guideStrong} 1px, transparent 1px)`,
         backgroundSize: '18px 18px'
       };
     }
     if (paperPattern === 'dotted_grid') {
       return {
-        backgroundImage: 'linear-gradient(#eee8df 1px, transparent 1px), linear-gradient(90deg, #eee8df 1px, transparent 1px), radial-gradient(#cfc6bb 1px, transparent 1px)',
+        backgroundImage: `linear-gradient(${guide} 1px, transparent 1px), linear-gradient(90deg, ${guide} 1px, transparent 1px), radial-gradient(${guideStrong} 1px, transparent 1px)`,
         backgroundSize: '28px 28px, 28px 28px, 14px 14px'
       };
     }
@@ -176,6 +240,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     )}
     style={getPatternStyles()}
     >
+      {backgroundArtwork && <img src={backgroundArtwork} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-85" />}
       <div className="absolute top-8 right-12 opacity-0 group-hover:opacity-100 transition-opacity">
         <span className={cn(
           "font-code text-[9px] uppercase tracking-widest font-bold",
@@ -196,7 +261,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
         data-placeholder="Start writing…"
         onInput={(e) => onContentChange(sanitizeHtml(e.currentTarget.innerHTML))}
         className={cn(
-          "relative flex-1 p-24 focus:outline-none font-body text-[18px] italic leading-[2.4] empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)]",
+          "relative z-[1] flex-1 p-24 focus:outline-none font-body text-[18px] italic leading-[2.4] empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)]",
           !isEditable && "pointer-events-none opacity-20",
           paperPattern === 'notebook' && "pl-28",
           writingStyle === 'cornell_notes' && "pl-[240px] pb-36",
@@ -218,7 +283,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
         onPointerLeave={() => { overlayDrawingRef.current = false; }}
         className={cn(
           "absolute inset-0 h-full w-full",
-          overlayTool === 'text' ? "pointer-events-none" : "pointer-events-auto",
+          overlayEnabled ? "z-20 pointer-events-auto" : "z-0 pointer-events-none",
           isEditable ? "cursor-crosshair" : "pointer-events-none"
         )}
       />

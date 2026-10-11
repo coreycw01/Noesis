@@ -266,6 +266,7 @@ export const DEFAULT_APPEARANCE_SETTINGS: AppearanceSettings = {
   accentTheme: 'violet',
   headerFont: 'editorial',
   fontSize: 'md',
+  interfaceShape: 'pills',
   reducedMotion: false,
   highContrastMode: false,
 };

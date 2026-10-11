@@ -7,6 +7,7 @@ import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface WorksRoutePageProps {
   uid: string;
+  isReviewWorkspace?: boolean;
   drafts: Draft[];
   media: Media[];
   vault: VaultEntry[];
@@ -24,6 +25,7 @@ export interface WorksRoutePageProps {
 
 export function WorksRoutePage({
   uid,
+  isReviewWorkspace = false,
   drafts,
   media,
   vault,
@@ -58,6 +60,7 @@ export function WorksRoutePage({
   return (
     <Atelier
       uid={uid}
+      isReviewWorkspace={isReviewWorkspace}
       drafts={drafts}
       media={media}
       vault={vault}
