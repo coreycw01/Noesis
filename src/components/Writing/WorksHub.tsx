@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import {
   ArrowUpRight,
   Camera,
@@ -10,9 +11,7 @@ import {
   Mic,
   MoreVertical,
   NotebookPen,
-  Palette,
   PencilLine,
-  PenTool,
   Plus,
   Trash2,
   Video,
@@ -29,8 +28,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { PageHeader } from '@/components/shared/PageHeader';
-import type { Concept, Draft, DraftStatus, DraftType, Media, Question, UserPreferences, VaultEntry, WorkCategory } from '@/lib/types';
-import { DRAFT_LABELS, WRITING_STYLE_LABELS, today, workCategoryForDraft } from '@/lib/readex';
+import type { Concept, Draft, DraftStatus, DraftType, Media, Question, UserPreferences, VaultEntry, WorkCategory, WritingStyle } from '@/lib/types';
+import { DRAFT_LABELS, today, workCategoryForDraft } from '@/lib/readex';
 import { searchMatches } from '@/lib/search';
 import { cn } from '@/lib/utils';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
@@ -48,7 +47,7 @@ interface WorksHubProps {
   questions: Question[];
   concepts: Concept[];
   writingDefaults: UserPreferences['writingDefaults'];
-  onAddDraft: (data: Partial<Draft>) => Draft;
+  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
   onDeleteDraft: (id: string) => void;
   onMarkDraftOpened: (draft: Draft) => void;
   onNavigate: (view: 'writing', options?: { workId?: string | null }) => void;
@@ -58,7 +57,6 @@ const CATEGORIES: Array<{ value: HubCategory; label: string }> = [
   { value: 'all', label: 'All works' },
   { value: 'writing', label: 'Writing' },
   { value: 'notes', label: 'Notes' },
-  { value: 'drawing', label: 'Drawing' },
   { value: 'recording', label: 'Recording' },
 ];
 
@@ -74,7 +72,6 @@ const NOTE_OPTIONS: Array<{ type: DraftType; title: string; description: string 
   { type: 'text_note', title: 'Text note', description: 'A quick fragment, definition, or observation.' },
   { type: 'voice_note', title: 'Voice note', description: 'Capture a spoken thought and keep the audio with it.' },
   { type: 'talk_to_text', title: 'Talk-to-text', description: 'Dictate a note and refine the transcript later.' },
-  { type: 'drawing_note', title: 'Drawing note', description: 'Pair a small sketch with a lightweight note.' },
 ];
 
 function cleanText(draft: Draft) {
@@ -121,7 +118,13 @@ function workLabel(draft: Draft) {
   const category = draft.workCategory || workCategoryForDraft(draft.type);
   if (category === 'writing') return draft.type === 'essay' ? 'Writing' : DRAFT_LABELS[draft.type];
   if (category === 'notes') return DRAFT_LABELS[draft.type];
-  return category === 'drawing' ? 'Drawing' : 'Recording';
+  return category === 'drawing' ? 'Visual document' : 'Recording';
+}
+
+function documentToolCount(draft: Draft) {
+  if ((draft.workCategory || workCategoryForDraft(draft.type)) !== 'writing') return 0;
+  if (draft.templateData?.sections?.length) return draft.templateData.sections.length;
+  return draft.writingStyle && !['blank_paper', 'ruled_notebook', 'manuscript'].includes(draft.writingStyle) ? 1 : 0;
 }
 
 function workIcon(draft: Draft) {
@@ -129,12 +132,12 @@ function workIcon(draft: Draft) {
   if (draft.type === 'voice_note' || draft.type === 'talk_to_text') return Mic;
   if (draft.type === 'recording') return Video;
   if (category === 'writing') return FileText;
-  if (category === 'drawing') return Palette;
+  if (category === 'drawing') return PencilLine;
   if (category === 'recording') return CirclePlay;
   return NotebookPen;
 }
 
-function createDraftPayload(type: DraftType, defaults: UserPreferences['writingDefaults']): Partial<Draft> {
+function createDraftPayload(type: DraftType, defaults: UserPreferences['writingDefaults'], writingStyle = defaults.writingStyle): Partial<Draft> {
   const category = workCategoryForDraft(type) as WorkCategory;
   const title = type === 'recording'
     ? 'Untitled Recording'
@@ -156,11 +159,17 @@ function createDraftPayload(type: DraftType, defaults: UserPreferences['writingD
     finalContent: '',
     activeMode: 'draft',
     workCategory: category,
-    paperType: defaults.writingStyle,
+    paperType: writingStyle,
     activeRibbon: category === 'drawing' ? 'drawing' : 'writing',
     recordingType: type === 'voice_note' ? 'audio' : type === 'recording' ? 'video' : undefined,
     status: defaults.status,
-    writingStyle: defaults.writingStyle,
+    writingStyle,
+    documentSettings: {
+      viewMode: 'vertical-continuous',
+      pageSize: 'letter',
+      paperColor: 'blank',
+      paperPattern: 'none',
+    },
     drawingState: type === 'drawing' || type === 'drawing_note' ? {
       version: 1,
       width: type === 'drawing_note' ? 720 : 1120,
@@ -179,6 +188,8 @@ function createDraftPayload(type: DraftType, defaults: UserPreferences['writingD
 }
 
 export function WorksHub({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onDeleteDraft, onMarkDraftOpened, onNavigate }: WorksHubProps) {
+  const { toast } = useToast();
+  const creatingRef = React.useRef(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<HubCategory>('all');
   const [status, setStatus] = useState<HubStatus>('all');
@@ -240,11 +251,19 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
     setStatus('all');
   };
 
-  const openNewDraft = (type: DraftType) => {
-    const created = onAddDraft(createDraftPayload(type, writingDefaults));
+  const openNewDraft = async (type: DraftType, writingStyle?: WritingStyle) => {
+    if (creatingRef.current) return;
+    creatingRef.current = true;
+    try {
+    const created = await onAddDraft(createDraftPayload(type, writingDefaults, writingStyle));
     setAddOpen(false);
     setNoteOpen(false);
     if (created) onNavigate('writing', { workId: created.id });
+    } catch {
+      toast({ title: 'Work not created', description: 'Please try again. The studio will open once your work is saved.', variant: 'destructive' });
+    } finally {
+      creatingRef.current = false;
+    }
   };
 
   const openDraft = (draft: Draft) => {
@@ -258,18 +277,28 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
     status !== 'all' ? `Status: ${status.replace(/_/g, ' ')}` : null,
   ].filter(Boolean) as string[];
 
+  const recentDrafts = useMemo(() => [...drafts]
+    .sort((left, right) => {
+      const leftDate = activityMode === 'opened' ? left.lastOpenedAt || left.dateUpdated : left.dateUpdated;
+      const rightDate = activityMode === 'opened' ? right.lastOpenedAt || right.dateUpdated : right.dateUpdated;
+      return new Date(rightDate).getTime() - new Date(leftDate).getTime();
+    })
+    .slice(0, 3), [activityMode, drafts]);
+
+  const externalDocs = drafts.filter((draft) => Boolean(draft.externalDoc)).length;
+
   return (
-    <div className="noesis-page text-foreground xl:px-10">
+    <div className="noesis-page max-w-none text-foreground xl:px-10">
       <PageHeader
         title="Works"
-        description="Make the ideas in your system tangible through writing, notes, drawings, and recordings."
+        description="Develop ideas through documents, notes, recordings, and visual thinking on the page."
         meta={(
           <span className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
             {counts.total} {counts.total === 1 ? 'work' : 'works'} · {counts.writing} {counts.writing === 1 ? 'writing' : 'writings'} · {counts.notes} {counts.notes === 1 ? 'note' : 'notes'} · {counts.revision} {counts.revision === 1 ? 'needs' : 'need'} revision
           </span>
         )}
         actions={(
-          <Button type="button" onClick={() => setAddOpen(true)} className="h-9 rounded-full bg-accent px-5 font-code text-[10px] font-bold uppercase tracking-[0.14em] text-accent-foreground hover:bg-accent/90">
+          <Button type="button" onClick={() => setAddOpen(true)} className="h-9 rounded-md bg-accent px-5 font-code text-[10px] font-bold uppercase tracking-[0.14em] text-accent-foreground hover:bg-accent/90">
             <Plus className="mr-1.5 size-4" /> Add work
           </Button>
         )}
@@ -315,36 +344,74 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         </Select>
       </FilterToolbar>
 
-      <div className="mb-5 inline-flex rounded-full border border-border bg-card p-1 shadow-sm" aria-label="Work recency view">
-        {([
-          { id: 'edited', label: 'Recently Edited' },
-          { id: 'opened', label: 'Recently Opened' },
-        ] as const).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => {
-              setActivityMode(item.id);
-              setSort('activity');
-            }}
-            className={cn(
-              'rounded-full px-4 py-2 font-code text-[9px] font-bold uppercase tracking-[0.14em] transition-colors',
-              activityMode === item.id && sort === 'activity'
-                ? 'bg-accent text-accent-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <section className="mb-6 border-y border-border/60" aria-label="Continue working">
+        <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+          <div className="flex items-center gap-3">
+            <span className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Continue</span>
+            <div className="inline-flex border border-border/60 bg-card p-0.5" aria-label="Work recency view">
+              {([
+                { id: 'edited', label: 'Recently Edited' },
+                { id: 'opened', label: 'Recently Opened' },
+              ] as const).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setActivityMode(item.id);
+                    setSort('activity');
+                  }}
+                  className={cn(
+                    'px-3 py-1.5 font-code text-[9px] font-bold uppercase tracking-[0.12em] transition-colors',
+                    activityMode === item.id && sort === 'activity'
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{recentDrafts.length} recent</span>
+        </div>
+        {recentDrafts.length > 0 && (
+          <div className="grid border-t border-border/50 md:grid-cols-3">
+            {recentDrafts.map((draft, index) => {
+              const Icon = workIcon(draft);
+              return (
+                <button
+                  key={draft.id}
+                  type="button"
+                  onClick={() => openDraft(draft)}
+                  className={cn('group flex min-w-0 items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/35', index > 0 && 'border-t border-border/50 md:border-l md:border-t-0')}
+                >
+                  <Icon className="size-4 shrink-0 text-muted-foreground group-hover:text-accent" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-foreground">{draft.title || 'Untitled work'}</span>
+                    <span className="mt-0.5 block font-code text-[8px] uppercase tracking-widest text-muted-foreground">{updatedLabel(activityMode === 'opened' ? draft.lastOpenedAt || draft.dateUpdated : draft.dateUpdated)}</span>
+                  </span>
+                  <ArrowUpRight className="size-4 shrink-0 text-muted-foreground group-hover:text-accent" aria-hidden="true" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {(counts.revision > 0 || externalDocs > 0) && (
+        <div className="mb-5 flex flex-wrap items-center gap-2" aria-label="Work attention filters">
+          <span className="mr-1 font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Needs a look</span>
+          {counts.revision > 0 && <button type="button" onClick={() => setStatus('needs_revision')} className={cn('border px-3 py-1.5 font-code text-[9px] font-bold uppercase tracking-[0.12em] transition-colors', status === 'needs_revision' ? 'border-accent bg-accent text-accent-foreground' : 'border-border/60 bg-card text-muted-foreground hover:border-accent/50 hover:text-foreground')}>Needs revision {counts.revision}</button>}
+          {externalDocs > 0 && <button type="button" onClick={() => setStatus('external_docs')} className={cn('border px-3 py-1.5 font-code text-[9px] font-bold uppercase tracking-[0.12em] transition-colors', status === 'external_docs' ? 'border-accent bg-accent text-accent-foreground' : 'border-border/60 bg-card text-muted-foreground hover:border-accent/50 hover:text-foreground')}>External documents {externalDocs}</button>}
+        </div>
+      )}
 
       {visibleDrafts.length === 0 ? (
         <PageEmptyState
           icon={PencilLine}
           title={hasFilters ? 'No works match these filters' : 'Start a work'}
           description={hasFilters ? 'Clear a filter or try a broader search.' : 'Choose the form that fits the idea in front of you.'}
-          belongsHere="Writing, notes, drawings, recordings, and external documents that give your thinking a form."
+          belongsHere="Documents, notes, recordings, and visual thinking that give your ideas a durable form."
           whyItMatters="Works are where ideas become shareable, revisable, and alive outside the page they came from."
           firstAction="Start with the smallest form that lets the idea move."
           filterCause={hasFilters ? 'Current filters may be hiding existing works.' : undefined}
@@ -352,7 +419,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         />
       ) : (
         <>
-          <div className={cn(view === 'grid' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'space-y-2')}>
+          <div className={cn(view === 'grid' ? 'grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'divide-y divide-border/60 border-y border-border/60')}>
           {visibleDrafts.map((draft) => {
             const Icon = workIcon(draft);
             const categoryLabel = workLabel(draft);
@@ -367,7 +434,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                 role="button"
                 tabIndex={0}
                 aria-label={`Open ${draft.title || 'untitled work'}`}
-                className={cn('group border-border/60 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-lg', view === 'grid' ? 'overflow-hidden rounded-2xl' : 'rounded-xl')}
+                className={cn('group border-border/60 bg-card transition-colors hover:border-accent/50 hover:bg-muted/20', view === 'grid' ? 'overflow-hidden rounded-md' : 'border-0 rounded-none bg-transparent shadow-none')}
                 onClick={() => openDraft(draft)}
                 onKeyDown={(event) => {
                   if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -375,26 +442,26 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                   openDraft(draft);
                 }}
               >
-                <div className={cn('flex gap-4', view === 'grid' ? 'flex-col' : 'items-center p-3')}>
+                <div className={cn('flex gap-4', view === 'grid' ? 'flex-col' : 'items-start p-3')}>
                   {view === 'grid' && hasVisualPreview && (
                     <div className="relative flex h-20 items-center justify-center overflow-hidden border-b border-border/50 bg-muted/15 sm:h-24">
                       <DraftThumbnail draft={draft} Icon={Icon} />
                       {isRecording && <span className="absolute bottom-3 left-3 rounded-full border border-border/60 bg-background/90 px-2.5 py-1 font-code text-[9px] font-bold uppercase tracking-widest text-foreground">{durationLabel(draft.durationSeconds)}</span>}
                     </div>
                   )}
-                  <div className={cn('min-w-0 flex-1', view === 'grid' ? 'p-4' : 'flex items-center gap-3')}>
+                  <div className={cn('min-w-0 flex-1', view === 'grid' ? 'p-4' : 'py-1')}>
                     <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/5 text-accent"><Icon className="size-5" aria-hidden="true" /></div>
+                      {!hasVisualPreview && <div className="flex size-9 shrink-0 items-center justify-center border border-border/60 text-accent"><Icon className="size-4" aria-hidden="true" /></div>}
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{categoryLabel}</span>
                           <Badge variant="outline" className="rounded-full border-border/70 font-code text-[8px] uppercase tracking-wider">{draft.status}</Badge>
                           {draft.externalDoc && <Cloud className="size-3.5 text-accent" aria-label="External document linked" />}
                         </div>
-                        <h2 className="mt-2 line-clamp-2 font-headline text-xl font-bold italic text-foreground transition-colors group-hover:text-accent">{draft.title || 'Untitled work'}</h2>
+                        <h2 className={cn('mt-2 font-headline text-xl font-bold italic text-foreground transition-colors group-hover:text-accent', view === 'grid' ? 'line-clamp-2' : 'line-clamp-1')}>{draft.title || 'Untitled work'}</h2>
                       </div>
                     </div>
-                    <p className={cn('mt-3 text-sm leading-6 text-muted-foreground', view === 'list' && 'line-clamp-1 md:mt-0 md:max-w-xl')}>{text || 'A blank creative surface waiting for its first mark.'}</p>
+                    <p className={cn('mt-3 text-sm leading-6 text-muted-foreground', view === 'list' && 'line-clamp-1')}>{text || 'A blank creative surface waiting for its first mark.'}</p>
                     <div className="mt-4 flex flex-wrap items-center gap-2 font-code text-[9px] uppercase tracking-wider text-muted-foreground/70">
                       {categoryLabel === 'Writing' || draft.workCategory === 'writing' ? <span>{wordCount(draft)} words</span> : null}
                       {isRecording ? <span>{durationLabel(draft.durationSeconds)}</span> : null}
@@ -404,11 +471,11 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                     <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/40 pt-3">
                       <div className="flex min-w-0 flex-wrap gap-1.5">
                         {(draft.conceptTags || []).slice(0, 3).map((tag) => <Badge key={tag} variant="secondary" className="rounded-full bg-muted/45 font-code text-[8px] uppercase tracking-wider text-muted-foreground">{tag}</Badge>)}
-                        {draft.writingStyle && (draft.workCategory || workCategoryForDraft(draft.type)) === 'writing' && <Badge variant="secondary" className="rounded-full bg-accent/8 font-code text-[8px] uppercase tracking-wider text-accent">{WRITING_STYLE_LABELS[draft.writingStyle]}</Badge>}
+                        {documentToolCount(draft) > 0 && <Badge variant="secondary" className="rounded-full bg-accent/8 font-code text-[8px] uppercase tracking-wider text-accent">{documentToolCount(draft)} {documentToolCount(draft) === 1 ? 'tool' : 'tools'}</Badge>}
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 rounded-full text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`} onClick={(event) => event.stopPropagation()}>
+                          <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 rounded-md text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`} onClick={(event) => event.stopPropagation()}>
                             <MoreVertical className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -430,19 +497,18 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
       )}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-2xl rounded-2xl border-border/60 bg-card">
+        <DialogContent className="max-w-2xl rounded-lg border-border/60 bg-card">
           <DialogHeader><DialogTitle className="font-headline text-3xl italic">Start a work</DialogTitle><p className="text-sm italic text-muted-foreground">Choose a creative surface. Structure and links can come later.</p></DialogHeader>
           <div className="grid gap-3 pt-3 sm:grid-cols-2">
-            <LauncherButton icon={PencilLine} title="Writing" description="A full document with formatting, paper styles, export, and pencil annotation." onClick={() => openNewDraft('essay')} />
-            <LauncherButton icon={NotebookPen} title="Note" description="A lightweight text, voice, talk-to-text, or drawing note." onClick={() => { setAddOpen(false); setNoteOpen(true); }} />
-            <LauncherButton icon={PenTool} title="Drawing" description="A visual canvas with drawing tools and a companion note." onClick={() => openNewDraft('drawing')} />
+            <LauncherButton icon={PencilLine} title="Document" description="A normal page for typing and drawing. Add thinking tools only when they help." onClick={() => openNewDraft('essay', 'blank_paper')} />
+            <LauncherButton icon={NotebookPen} title="Note" description="A lightweight text, voice, or talk-to-text capture." onClick={() => { setAddOpen(false); setNoteOpen(true); }} />
             <LauncherButton icon={Camera} title="Recording" description="A recording workspace with permissions, preview, retake, and save." onClick={() => openNewDraft('recording')} />
           </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
-        <DialogContent className="max-w-xl rounded-2xl border-border/60 bg-card">
+        <DialogContent className="max-w-xl rounded-lg border-border/60 bg-card">
           <DialogHeader><DialogTitle className="font-headline text-3xl italic">Choose a note</DialogTitle><p className="text-sm italic text-muted-foreground">Keep the note small and let it become something larger only when it needs to.</p></DialogHeader>
           <div className="space-y-2 pt-3">{NOTE_OPTIONS.map((option) => <button key={option.type} type="button" onClick={() => openNewDraft(option.type)} className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-background p-4 text-left transition-colors hover:border-accent/45 hover:bg-accent/5"><NotebookPen className="size-5 shrink-0 text-accent" /><span><span className="block font-headline text-xl font-bold italic">{option.title}</span><span className="block text-sm text-muted-foreground">{option.description}</span></span></button>)}</div>
         </DialogContent>
@@ -455,12 +521,12 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         description={`This removes “${deleteTarget?.title || 'Untitled work'}” from Works. Linked sources, positions, inquiries, and history remain.`}
         confirmLabel="Delete work"
         destructive
-        onConfirm={() => { if (deleteTarget) onDeleteDraft(deleteTarget.id); setDeleteTarget(null); }}
+        onConfirm={async () => { if (deleteTarget) await onDeleteDraft(deleteTarget.id); setDeleteTarget(null); }}
       />
     </div>
   );
 }
 
 function LauncherButton({ icon: Icon, title, description, onClick }: { icon: React.ComponentType<{ className?: string }>; title: string; description: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="group rounded-xl border border-border/60 bg-background p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-md"><div className="flex items-start gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/5 text-accent"><Icon className="size-5" /></div><span><span className="block font-headline text-xl font-bold italic text-foreground group-hover:text-accent">{title}</span><span className="mt-1 block text-sm leading-5 text-muted-foreground">{description}</span></span></div></button>;
+  return <button type="button" onClick={onClick} className="group border border-border/60 bg-background p-4 text-left transition-colors hover:border-accent/50 hover:bg-muted/20"><div className="flex items-start gap-3"><Icon className="mt-0.5 size-5 shrink-0 text-accent" /><span><span className="block font-headline text-xl font-bold italic text-foreground group-hover:text-accent">{title}</span><span className="mt-1 block text-sm leading-5 text-muted-foreground">{description}</span></span></div></button>;
 }

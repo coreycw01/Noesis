@@ -87,8 +87,8 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
 
   const hasResolvedCurrentQuery = !query || resolvedQueryRef.current === query;
   return {
-    data: hasResolvedCurrentQuery ? data : [],
-    loading: query && !hasResolvedCurrentQuery ? true : loading,
-    error: hasResolvedCurrentQuery ? error : null,
+    data: query && hasResolvedCurrentQuery ? data : [],
+    loading: query ? !hasResolvedCurrentQuery || loading : false,
+    error: query && hasResolvedCurrentQuery ? error : null,
   };
 }

@@ -58,15 +58,15 @@ export const DRAFT_LABELS = {
   text_note: 'Text Note',
   voice_note: 'Voice Note',
   talk_to_text: 'Talk-to-Text',
-  drawing_note: 'Drawing Note',
-  drawing: 'Drawing',
+  drawing_note: 'Visual Note',
+  drawing: 'Visual Document',
   recording: 'Recording',
 };
 
 export const WORK_CATEGORY_LABELS = {
   writing: 'Writings',
   notes: 'Notes',
-  drawing: 'Drawing',
+  drawing: 'Visual Documents',
   recording: 'Recording',
 };
 
@@ -78,29 +78,29 @@ export function workCategoryForDraft(type?: string) {
 }
 
 export const WRITING_STYLE_LABELS: Record<WritingStyle, string> = {
-  blank_paper: 'Blank Paper',
-  ruled_notebook: 'Ruled Notebook',
-  manuscript: 'Manuscript',
+  blank_paper: 'Standard Document',
+  ruled_notebook: 'Legacy Ruled Document',
+  manuscript: 'Legacy Manuscript',
   cornell_notes: 'Cornell Notes',
   two_column_debate: 'Two-Column Debate',
   dialectic: 'Dialectic',
-  belief_audit: 'Belief Audit',
+  belief_audit: 'Belief Review',
   source_analysis: 'Source Analysis',
   mind_map: 'Mind Map',
   timeline: 'Timeline',
 };
 
 export const WRITING_STYLE_DESCRIPTIONS: Record<WritingStyle, string> = {
-  blank_paper: 'A clean white page for essays, notes, drafts, and formal writing.',
-  ruled_notebook: 'Horizontal rules for journal-like notes and casual drafting.',
-  manuscript: 'A double-spaced drafting layout for essays, scripts, and revision.',
-  cornell_notes: 'Cue, notes, and summary zones for studying sources.',
-  two_column_debate: 'Argument on one side, counterargument on the other.',
-  dialectic: 'Thesis, antithesis, and synthesis for philosophical movement.',
-  belief_audit: 'Belief, origin, evidence, contradiction, cost, and revision.',
-  source_analysis: 'Quote, summary, interpretation, criticism, and connection.',
-  mind_map: 'A centered position space for linking and visual association.',
-  timeline: 'A horizontal history for position development and change.',
+  blank_paper: 'A flexible document for essays, notes, revision, and drawing directly on the page.',
+  ruled_notebook: 'A legacy document. Use Standard Document and the ruled overlay for new work.',
+  manuscript: 'A legacy document. Use Standard Document and the page settings for new work.',
+  cornell_notes: 'Cues, notes, and summary fields for active study and later review.',
+  two_column_debate: 'A real side-by-side comparison of the strongest case for and against.',
+  dialectic: 'An initial claim, its strongest challenge, and a revised view.',
+  belief_audit: 'A review of a belief’s origin, evidence, tensions, and present standing.',
+  source_analysis: 'Separate a source’s claim and evidence from your interpretation and connection.',
+  mind_map: 'An editable central idea with expandable visual branches.',
+  timeline: 'A chronological sequence of events, stages, or intellectual changes.',
 };
 
 export const WRITING_STYLES = Object.keys(WRITING_STYLE_LABELS) as WritingStyle[];

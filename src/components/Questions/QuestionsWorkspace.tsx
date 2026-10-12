@@ -48,12 +48,12 @@ interface QuestionsWorkspaceProps {
   practices: Practice[];
   concepts: Concept[];
   onAddQuestion: (data: Partial<Question>) => Question;
-  onUpdateQuestion: (question: Question) => void;
-  onDeleteQuestion: (id: string) => void;
+  onUpdateQuestion: (question: Question) => void | Promise<void>;
+  onDeleteQuestion: (id: string) => void | Promise<void>;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
-  onAddDraft: (data: Partial<Draft>) => Draft;
+  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
   onUpdateDraft: (draft: Draft) => void;
-  onAddPractice: (data: Partial<Practice>) => Practice;
+  onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
   onUpdatePractice: (practice: Practice) => void;
   onOpenWork: (id: string) => void;
   onOpenPractice: (id: string) => void;
@@ -455,7 +455,7 @@ function investigationTools(question: Question, drafts: Draft[], practices: Prac
   return { tools, recommended };
 }
 
-function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, drafts, practices, availableDrafts, availablePractices, onBack, onUpdateQuestion, onDeleteQuestion, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, onAiFeedback, routeOwned = false, initialSection = 'investigation' }: {
+function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, drafts, practices, availableDrafts, availablePractices, onBack, onUpdateQuestion: persistQuestion, onDeleteQuestion, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, onAiFeedback, routeOwned = false, initialSection = 'investigation' }: {
   aiSettings: import('@/lib/types').AiSettings;
   question: Question;
   sources: Media[];
@@ -466,11 +466,11 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   availableDrafts: Draft[];
   availablePractices: Practice[];
   onBack: () => void;
-  onUpdateQuestion: (question: Question) => void;
-  onDeleteQuestion: (id: string) => void;
-  onAddDraft: (data: Partial<Draft>) => Draft;
+  onUpdateQuestion: (question: Question) => void | Promise<void>;
+  onDeleteQuestion: (id: string) => void | Promise<void>;
+  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
   onUpdateDraft: (draft: Draft) => void;
-  onAddPractice: (data: Partial<Practice>) => Practice;
+  onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
   onUpdatePractice: (practice: Practice) => void;
   onOpenWork: (id: string) => void;
   onOpenPractice: (id: string) => void;
@@ -480,6 +480,23 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   initialSection?: 'investigation' | 'answer';
 }) {
   const answerRef = useRef<HTMLDivElement>(null);
+  const saveLock = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const onUpdateQuestion = async (next: Question) => {
+    if (saveLock.current) return false;
+    saveLock.current = true;
+    setSaving(true);
+    try {
+      await persistQuestion(next);
+      return true;
+    } catch {
+      onAiFeedback('Inquiry not saved', 'Your input is still here. Check your connection and try saving again.', 'destructive');
+      return false;
+    } finally {
+      saveLock.current = false;
+      setSaving(false);
+    }
+  };
   const [initialAnswer, setInitialAnswer] = useState(question.answer || '');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(false);
@@ -523,7 +540,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const candidateAnswerCount = inquiryCandidateCount(question);
   const recommendedMove = INQUIRY_TOOL_COPY[recommended].description;
 
-  const saveProvisionalAnswer = (status: Question['status'] = 'provisionally_answered') => {
+  const saveProvisionalAnswer = async (status: Question['status'] = 'provisionally_answered') => {
     if (!initialAnswer.trim()) {
       onAiFeedback('Answer required', 'Write a provisional answer before saving this inquiry.', 'destructive');
       return;
@@ -533,61 +550,61 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       onAiFeedback('Resolution summary required', 'Add a short resolution summary before choosing this inquiry outcome.', 'destructive');
       return;
     }
-    onUpdateQuestion({
+    if (!await onUpdateQuestion({
       ...question,
       answer: initialAnswer.trim(),
       status,
       resolutionSummary: requiresSummary || investigationDraft.resolutionSummary.trim() ? investigationDraft.resolutionSummary.trim() : question.resolutionSummary || '',
       dateUpdated: today(),
-    });
+    })) return;
     onAiFeedback(status === 'resolved' ? 'Inquiry resolved.' : 'Inquiry outcome saved.', status === 'resolved' ? 'The resolution summary is now stored on this inquiry.' : `Marked as ${status.replace(/_/g, ' ')} without pretending the question is fully closed.`);
   };
 
-  const saveInvestigationFrame = () => {
-    onUpdateQuestion({
+  const saveInvestigationFrame = async () => {
+    if (!await onUpdateQuestion({
       ...question,
       whyItMatters: investigationDraft.whyItMatters.trim(),
       currentIntuition: investigationDraft.currentIntuition.trim(),
       uncertainty: investigationDraft.uncertainty.trim(),
       dateUpdated: today(),
-    });
+    })) return;
     onAiFeedback('Context saved.', 'Your stakes, current view, and remaining uncertainty are now part of this inquiry.');
   };
 
-  const addClarification = () => {
+  const addClarification = async () => {
     const clarification = clarificationDraft.trim();
     if (!clarification) {
       onAiFeedback('Clarification required', 'Name one term or assumption before saving it.', 'destructive');
       return;
     }
-    onUpdateQuestion({
+    if (!await onUpdateQuestion({
       ...question,
       assumptions: Array.from(new Set([...(question.assumptions || []), clarification])),
       dateUpdated: today(),
-    });
+    })) return;
     setClarificationDraft('');
     onAiFeedback('Clarification saved.', 'This term or assumption is now part of the inquiry record.');
   };
 
-  const addCandidateAnswer = () => {
+  const addCandidateAnswer = async () => {
     if (!candidateDraft.statement.trim()) {
       onAiFeedback('Candidate answer required', 'Write the candidate answer before adding it.', 'destructive');
       return;
     }
     const nextCandidate = {
-      id: `candidate-${Date.now()}`,
+      id: crypto.randomUUID(),
       statement: candidateDraft.statement.trim(),
       confidence: candidateDraft.confidence,
       support: candidateDraft.support.trim(),
       objection: candidateDraft.objection.trim(),
       consequence: candidateDraft.consequence.trim(),
     };
-    onUpdateQuestion({
+    if (!await onUpdateQuestion({
       ...question,
       candidateAnswers: [...(question.candidateAnswers || []), nextCandidate],
       status: question.status === 'open' ? 'comparing_answers' as Question['status'] : question.status,
       dateUpdated: today(),
-    });
+    })) return;
     setCandidateDraft({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
     onAiFeedback('Candidate answer added.', 'You can compare this answer against evidence and objections.');
   };
@@ -600,7 +617,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     });
   };
 
-  const addEvidenceRecord = () => {
+  const addEvidenceRecord = async () => {
     if (!evidenceDraft.claim.trim()) {
       onAiFeedback('Evidence claim required', 'Write the claim, observation, excerpt, or unknown before adding it.', 'destructive');
       return;
@@ -615,24 +632,27 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           return { ...candidate, support: [candidate.support, record].filter(Boolean).join('\n') };
         })
       : candidateAnswers;
-    onUpdateQuestion({
+    if (!await onUpdateQuestion({
       ...question,
       candidateAnswers: nextCandidates,
       currentIntuition: targetCandidateId ? question.currentIntuition : [question.currentIntuition, `Evidence to classify: ${evidenceDraft.claim.trim()}`].filter(Boolean).join('\n'),
       status: 'gathering_evidence',
       dateUpdated: today(),
-    });
+    })) return;
     setEvidenceDraft({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
     onAiFeedback('Evidence added.', targetCandidateId ? 'The evidence was attached to the selected candidate answer.' : 'Saved as inquiry evidence to classify later.');
   };
 
-  const createTestRecord = () => {
+  const createTestRecord = async () => {
+    if (saving) return;
     if (!testDraft.tested.trim() || !testDraft.method.trim()) {
       onAiFeedback('Test required', 'Name the test or describe what action, observation, conversation, or research would test this inquiry.', 'destructive');
       return;
     }
     const title = testDraft.title.trim() || `Test for: ${question.text.slice(0, 60)}`;
-    const created = onAddPractice({
+    setSaving(true);
+    try {
+    const created = await onAddPractice({
       title,
       description: `A test created from the inquiry: ${question.text}`,
       type: testDraft.method.trim().toLowerCase().includes('repeat') ? 'observation' : 'experiment',
@@ -646,54 +666,71 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       questionIds: [question.id],
       conceptTags: concepts,
       sourceIds: sources.map((source) => source.id),
-      positionIds: beliefs.map((belief) => belief.id),
+      positionIds: beliefs.filter((belief) => question.beliefIds?.includes(belief.id)).map((belief) => belief.id),
       notes: testDraft.reviewDate.trim() ? `Review date: ${testDraft.reviewDate.trim()}` : '',
     });
-    onUpdateQuestion({
-      ...question,
-      practiceIds: [...new Set([...(question.practiceIds || []), created.id])],
-      status: question.status === 'captured' ? 'investigating' : question.status,
-      dateUpdated: today(),
-    });
+    if (!created.id) throw new Error('The new practice was not saved.');
     setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
     onAiFeedback('Test created.', 'A linked practice was created so the inquiry can be tested through action or observation.');
+    } catch {
+      onAiFeedback('Test not saved', 'Your test details are still here. Please try again.', 'destructive');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const linkExistingPractice = () => {
+  const linkExistingPractice = async () => {
     const practice = availablePractices.find((item) => item.id === existingPracticeId);
-    if (!practice) return;
-    onUpdatePractice({ ...practice, questionIds: [...new Set([...(practice.questionIds || []), question.id])], dateUpdated: today() });
-    onUpdateQuestion({ ...question, practiceIds: [...new Set([...(question.practiceIds || []), practice.id])], dateUpdated: today() });
+    if (!practice || saving) return;
+    setSaving(true);
+    try {
+    await onUpdatePractice({ ...practice, questionIds: [...new Set([...(practice.questionIds || []), question.id])], dateUpdated: today() });
+    if (!await onUpdateQuestion({ ...question, practiceIds: [...new Set([...(question.practiceIds || []), practice.id])], dateUpdated: today() })) throw new Error('Inquiry backlink not saved');
     setExistingPracticeId('');
     onAiFeedback('Practice linked.', `"${practice.title}" now tests this inquiry.`);
+    } catch {
+      onAiFeedback('Link not fully saved', 'Please retry to finish linking both records.', 'destructive');
+    } finally { setSaving(false); }
   };
 
-  const createExpandedWork = () => {
-    const created = onAddDraft({
+  const createExpandedWork = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+    const created = await onAddDraft({
       title: `Exploring: ${question.text.slice(0, 72)}`,
       type: 'essay',
       status: 'seed',
       body: question.answer?.trim() || question.currentIntuition?.trim() || question.text,
       questionIds: [question.id],
       sourceIds: sources.map((source) => source.id),
-      beliefIds: beliefs.map((belief) => belief.id),
+      beliefIds: beliefs.filter((belief) => question.beliefIds?.includes(belief.id)).map((belief) => belief.id),
       conceptTags: concepts,
     });
-    onUpdateQuestion({ ...question, draftIds: [...new Set([...(question.draftIds || []), created.id])], dateUpdated: today() });
     onOpenWork(created.id);
+    } catch {
+      onAiFeedback('Work not created', 'Please try again. Your inquiry is unchanged.', 'destructive');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const linkExistingWork = () => {
+  const linkExistingWork = async () => {
     const work = availableDrafts.find((item) => item.id === existingWorkId);
-    if (!work) return;
-    onUpdateDraft({ ...work, questionIds: [...new Set([...(work.questionIds || []), question.id])] });
-    onUpdateQuestion({ ...question, draftIds: [...new Set([...(question.draftIds || []), work.id])], dateUpdated: today() });
+    if (!work || saving) return;
+    setSaving(true);
+    try {
+    await onUpdateDraft({ ...work, questionIds: [...new Set([...(work.questionIds || []), question.id])] });
+    if (!await onUpdateQuestion({ ...question, draftIds: [...new Set([...(question.draftIds || []), work.id])], dateUpdated: today() })) throw new Error('Inquiry backlink not saved');
     setExistingWorkId('');
     onAiFeedback('Work linked.', `"${work.title}" now develops this inquiry.`);
+    } catch {
+      onAiFeedback('Link not fully saved', 'Please retry to finish linking both records.', 'destructive');
+    } finally { setSaving(false); }
   };
 
-  const updateInvestigationStatus = (status: Question['status']) => {
-    onUpdateQuestion({ ...question, status, dateUpdated: today() });
+  const updateInvestigationStatus = async (status: Question['status']) => {
+    if (!await onUpdateQuestion({ ...question, status, dateUpdated: today() })) return;
     onAiFeedback('Inquiry status updated.', `Marked as ${status.replace(/_/g, ' ')}.`);
   };
 
@@ -764,14 +801,14 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               actions={['socratic_inquiry_challenge']}
               buildEnvelope={buildAiEnvelope}
               buttonLabel="Socratic Challenge"
-              onAccept={(_result, content) => onUpdateQuestion({
+              onAccept={async (_result, content) => { if (!await onUpdateQuestion({
                 ...question,
                 investigationNotes: [
                   ...(question.investigationNotes || []),
                   { id: crypto.randomUUID(), text: content, origin: 'ai-assisted', date: today() },
                 ],
                 dateUpdated: today(),
-              })}
+              })) throw new Error('The reviewed note was not saved. Wait for the current save or retry.'); }}
             />
             {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
               <DropdownMenu>
@@ -806,9 +843,9 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               <Button
                 size="sm"
                 className="rounded-full"
-                disabled={!questionDraft.trim()}
-                onClick={() => {
-                  onUpdateQuestion({ ...question, text: questionDraft.trim(), dateUpdated: today() });
+                disabled={saving || !questionDraft.trim()}
+                onClick={async () => {
+                  if (!await onUpdateQuestion({ ...question, text: questionDraft.trim(), dateUpdated: today() })) return;
                   setEditingQuestion(false);
                   onAiFeedback('Inquiry updated.', 'The question was saved without changing its investigation state.');
                 }}
@@ -846,7 +883,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             </div>
           </div>
           <div className="mt-4 flex justify-end">
-            <Button onClick={saveInvestigationFrame} className="rounded-full px-5">Save Context</Button>
+            <Button onClick={saveInvestigationFrame} disabled={saving} className="rounded-full px-5">{saving ? 'Saving...' : 'Save Context'}</Button>
           </div>
         </Card>
 
@@ -858,10 +895,10 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             </div>
             {question.answer?.trim() && <Badge variant="outline" className="rounded-full">Saved</Badge>}
           </div>
-          <Textarea value={initialAnswer} onChange={(event) => setInitialAnswer(event.target.value)} className="min-h-[180px] text-base leading-8" placeholder="What answer currently leads, and why does it remain revisable?" />
+          <Textarea aria-label="Current answer" value={initialAnswer} onChange={(event) => setInitialAnswer(event.target.value)} className="min-h-[180px] text-base leading-8" placeholder="What answer currently leads, and why does it remain revisable?" />
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground"><span className="font-medium text-foreground">Next:</span> {recommendedMove}</p>
-            <Button onClick={() => saveProvisionalAnswer('provisionally_answered')} disabled={!initialAnswer.trim()} className="rounded-full px-5">Save Answer</Button>
+            <Button onClick={() => saveProvisionalAnswer('provisionally_answered')} disabled={saving || !initialAnswer.trim()} className="rounded-full px-5">{saving ? 'Saving...' : 'Save Answer'}</Button>
           </div>
         </Card>
 
@@ -1017,17 +1054,16 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
         confirmLabel="Delete Inquiry"
         alternateLabel="Abandon instead"
         destructive
-        onAlternate={() => {
-          onUpdateQuestion({
+        onAlternate={async () => {
+          if (!await onUpdateQuestion({
             ...question,
             status: 'archived',
             dateUpdated: new Date().toISOString(),
-          });
-          setDeleteOpen(false);
+          })) throw new Error('The inquiry could not be archived. Please retry.');
         }}
-        onConfirm={() => {
-          onDeleteQuestion(question.id);
-          setDeleteOpen(false);
+        onConfirm={async () => {
+          await onDeleteQuestion(question.id);
+          onBack();
         }}
       />
     </div>

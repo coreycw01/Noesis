@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
+import { demoSessionVersion, readDemoSession, subscribeDemoSession } from '@/lib/demo-session';
 import { doc, limit, orderBy, query } from 'firebase/firestore';
 import { useCollection, useDoc } from '@/firebase';
 import { readexRefs } from '@/lib/firestore-schema';
@@ -73,9 +74,10 @@ export function useNoesisWorkspaceData({
 }) {
   const refs = useMemo(() => readexRefs(db, uid), [db, uid]);
   const effectiveRouteState = routeState || { view: activeView };
+  const demoVersion = useSyncExternalStore(subscribeDemoSession, demoSessionVersion, () => 0);
   const reviewPreviewData = useMemo(
-    () => (isOfflineReviewPreview ? buildDemoWorkspace(uid) : null),
-    [uid, isOfflineReviewPreview]
+    () => (isOfflineReviewPreview ? readDemoSession(uid) : null),
+    [uid, isOfflineReviewPreview, demoVersion]
   );
 
   const { data: workspaceSummaryDocLive, loading: workspaceSummaryLoadingLive } = useDoc<WorkspaceSummary>(
@@ -239,7 +241,7 @@ export function useNoesisWorkspaceData({
     settingsAccountDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsAccount || null) : settingsAccountDocLive,
     settingsAppearanceDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsAppearance || null) : settingsAppearanceDocLive,
     settingsWorkspacePrefsDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsWorkspace || null) : settingsWorkspacePrefsDocLive,
-    settingsAiDoc: isOfflineReviewPreview ? null : settingsAiDocLive,
+    settingsAiDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsAi || null) : settingsAiDocLive,
     settingsMetacognitionDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsMetacognition || null) : settingsMetacognitionDocLive,
     settingsPrivacyDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsPrivacy || null) : settingsPrivacyDocLive,
     settingsDataDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsData || null) : settingsDataDocLive,

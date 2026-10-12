@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { apiErrorResponse, ApiError, parseBoundedJson, requireApiUser } from '@/lib/server/api-security';
 import { enforceUsageLimit, withUserAiConcurrency } from '@/lib/server/rate-limit';
-import { isContextualAiRequestCompatible } from '@/lib/contextual-ai';
+import { isContextualAiRequestCompatible, validAiSelection } from '@/lib/contextual-ai';
 
 export const runtime = 'nodejs';
 
@@ -35,6 +35,9 @@ const requestSchema = z.object({
 }).strict().superRefine((value, context) => {
   if (!isContextualAiRequestCompatible(value)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'This assistance action is not valid for the selected item and context scope.' });
+  }
+  if (!validAiSelection(value)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Choose a valid date range or two different positions with recorded context.' });
   }
   if (value.action === 'compare_selected_positions' && (!value.secondaryTarget || value.scope !== 'selected_pair')) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'Position comparison requires one explicitly selected second position.' });

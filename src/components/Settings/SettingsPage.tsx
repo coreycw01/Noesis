@@ -249,6 +249,7 @@ export function SettingsPage({
       accentTheme: drafts.appearance.accentTheme,
       headerFont: drafts.appearance.headerFont,
       fontSize: drafts.appearance.fontSize,
+      interfaceShape: drafts.appearance.interfaceShape,
       highContrastMode: drafts.appearance.highContrastMode,
       reducedMotion: drafts.appearance.reducedMotion,
     }),
@@ -273,6 +274,7 @@ export function SettingsPage({
           accentTheme: drafts.appearance.accentTheme,
           headerFont: drafts.appearance.headerFont,
           fontSize: drafts.appearance.fontSize,
+          interfaceShape: drafts.appearance.interfaceShape,
           highContrastMode: drafts.appearance.highContrastMode,
           reducedMotion: drafts.appearance.reducedMotion,
         });
@@ -440,6 +442,15 @@ export function SettingsPage({
                       <SelectItem value="sm">Small</SelectItem>
                       <SelectItem value="md">Standard</SelectItem>
                       <SelectItem value="lg">Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Interface Shape">
+                  <Select value={drafts.appearance.interfaceShape} onValueChange={(value) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, interfaceShape: value as AppearanceSettings['interfaceShape'] } }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pills">Pills and rounded surfaces</SelectItem>
+                      <SelectItem value="square">Square tabs and controls</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>

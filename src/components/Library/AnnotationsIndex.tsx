@@ -285,7 +285,7 @@ export function AnnotationsIndex({
         if (sortBy === 'status') return annotationLabel(annotationStatus(a)).localeCompare(annotationLabel(annotationStatus(b))) || new Date(b.date).getTime() - new Date(a.date).getTime();
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       });
-  }, [annotations, search, filterType, filterConcept, filterSource, sortBy]);
+  }, [annotations, inquiries, positions, search, filterType, filterConcept, filterSource, sortBy]);
 
   const selectedAnnotations = useMemo(
     () => annotations.filter((annotation) => selectedKeys.includes(annotationKey(annotation))),
@@ -800,7 +800,7 @@ export function AnnotationsIndex({
 
             <button type="button" onClick={() => openAnnotationDetail(annotation)} className="relative mb-3 block w-full text-left">
               <Quote className="absolute -left-6 -top-2 size-10 text-accent/5" />
-              <p className="font-body italic leading-relaxed text-[15px] text-primary/90 relative z-10 line-clamp-4">"{annotation.text}"</p>
+              <p className="font-body italic leading-relaxed text-[15px] text-primary/90 relative z-10 line-clamp-4">&quot;{annotation.text}&quot;</p>
             </button>
 
             <div className="flex flex-wrap gap-2 mb-3">
@@ -895,7 +895,7 @@ export function AnnotationsIndex({
           {linkDialog && (
             <div className="space-y-4 pt-2">
               <p className="text-sm italic text-muted-foreground font-body leading-relaxed">
-                "{linkDialog.annotation.text.slice(0, 120)}{linkDialog.annotation.text.length > 120 ? '…' : ''}"
+                &quot;{linkDialog.annotation.text.slice(0, 120)}{linkDialog.annotation.text.length > 120 ? '…' : ''}&quot;
               </p>
               <p className="text-xs font-code uppercase tracking-widest text-muted-foreground/60">Select a position this annotation {linkDialog.linkType === 'supports' ? 'supports' : 'challenges'}:</p>
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -1006,7 +1006,7 @@ export function AnnotationsIndex({
                     </DropdownMenu>
                   </div>
                 </div>
-                <p className="font-body text-lg italic leading-8 text-primary">"{editing.text}"</p>
+                <p className="font-body text-lg italic leading-8 text-primary">&quot;{editing.text}&quot;</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
                   <span>From <span className="font-medium text-foreground">{editing.source.title}</span>{editing.source.creator ? ` by ${editing.source.creator}` : ''}</span>
                   <span>·</span>
@@ -1061,7 +1061,7 @@ export function AnnotationsIndex({
                         checked={Boolean(editing.mattersBeyondSource)}
                         onCheckedChange={(checked) => setEditing((prev) => prev ? { ...prev, mattersBeyondSource: Boolean(checked) } : prev)}
                       />
-                      This is my interpretation, not the author's claim.
+                      This is my interpretation, not the author&apos;s claim.
                     </label>
                   </div>
                 </details>

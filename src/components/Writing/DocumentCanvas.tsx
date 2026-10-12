@@ -1,10 +1,10 @@
 
 "use client";
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { type ReactNode, useRef, useState, useEffect } from 'react';
 import { DocsPage } from './DocsPage';
 import type { PageViewMode, PageSize, PaperColor, PaperPattern } from './Atelier';
-import type { WritingStyle } from '@/lib/types';
+import type { DrawingTool, WritingStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface DocumentCanvasProps {
@@ -17,13 +17,17 @@ interface DocumentCanvasProps {
   writingStyle: WritingStyle;
   title: string;
   overlayData: string;
+  backgroundArtwork?: string;
   onOverlayChange: (content: string) => void;
-  overlayTool: 'text' | 'pencil' | 'eraser';
+  overlayTool: DrawingTool;
   overlayColor: string;
   overlayBrushSize: number;
+  overlayOpacity: number;
+  overlayEnabled: boolean;
+  toolSections?: ReactNode;
 }
 
-export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title, overlayData, onOverlayChange, overlayTool, overlayColor, overlayBrushSize }: DocumentCanvasProps) {
+export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title, overlayData, backgroundArtwork, onOverlayChange, overlayTool, overlayColor, overlayBrushSize, overlayOpacity, overlayEnabled, toolSections }: DocumentCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
 
@@ -47,19 +51,20 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
     return () => observer.disconnect();
   }, [pageSize, viewMode]);
 
+  const hasToolSections = Boolean(toolSections);
+  const useContinuousCanvas = viewMode === 'vertical-continuous' || hasToolSections;
   const containerClasses = cn(
     "w-full min-h-0 flex-1 relative transition-all duration-500 bg-muted/10",
-    viewMode === 'vertical-continuous' && "overflow-y-auto overflow-x-hidden",
-    viewMode === 'vertical-single' && "overflow-hidden",
-    viewMode === 'horizontal-single' && "overflow-x-auto overflow-y-hidden"
+    useContinuousCanvas && "overflow-y-auto overflow-x-hidden",
+    !useContinuousCanvas && viewMode === 'vertical-single' && "overflow-hidden",
+    !useContinuousCanvas && viewMode === 'horizontal-single' && "overflow-x-auto overflow-y-hidden"
   );
 
   const canvasClasses = cn(
     "flex transition-all duration-500",
-    viewMode === 'vertical-continuous' && "p-12",
-    viewMode === 'vertical-continuous' && "flex-col items-center gap-10",
-    viewMode === 'vertical-single' && "h-full flex-col items-center justify-center",
-    viewMode === 'horizontal-single' && "h-full flex-row items-center justify-center min-w-full"
+    useContinuousCanvas && "flex-col items-center gap-10 p-6 sm:p-12",
+    !useContinuousCanvas && viewMode === 'vertical-single' && "h-full flex-col items-center justify-center",
+    !useContinuousCanvas && viewMode === 'horizontal-single' && "h-full flex-row items-center justify-center min-w-full"
   );
 
   const pageWidth = pageSize === 'letter' ? 850 : 827;
@@ -71,7 +76,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
     <div className="flex min-h-0 h-full w-full flex-col">
       <div className={containerClasses} ref={canvasRef} aria-label={`${title || 'Untitled work'} document canvas`}>
         <div className={canvasClasses}>
-          {viewMode === 'vertical-continuous' ? (
+          {useContinuousCanvas ? (
             <DocsPage
                 pageNumber={1}
                 pageSize={pageSize}
@@ -83,10 +88,13 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
                 onContentChange={onContentChange}
                 showBoundary
                 overlayData={overlayData}
+                backgroundArtwork={backgroundArtwork}
                 onOverlayChange={onOverlayChange}
                 overlayTool={overlayTool}
                 overlayColor={overlayColor}
                 overlayBrushSize={overlayBrushSize}
+                overlayOpacity={overlayOpacity}
+                overlayEnabled={overlayEnabled}
               />
           ) : (
             <div
@@ -108,14 +116,18 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
                   onContentChange={onContentChange}
                   showBoundary
                   overlayData={overlayData}
+                  backgroundArtwork={backgroundArtwork}
                   onOverlayChange={onOverlayChange}
                   overlayTool={overlayTool}
                   overlayColor={overlayColor}
                   overlayBrushSize={overlayBrushSize}
+                  overlayOpacity={overlayOpacity}
+                  overlayEnabled={overlayEnabled}
                 />
               </div>
             </div>
           )}
+          {toolSections && <div className="w-full max-w-[850px] pb-12" aria-label="Document tool sections">{toolSections}</div>}
         </div>
       </div>
       

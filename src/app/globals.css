@@ -408,6 +408,17 @@
     --accent-muted: var(--secondary);
     --accent-border: var(--border);
   }
+
+  /* This comes after palette rules so a saved interface shape always wins. */
+  :root[data-interface-shape="pills"] {
+    --card-radius: 0.875rem;
+    --button-radius: 999px;
+  }
+
+  :root[data-interface-shape="square"] {
+    --card-radius: 0.375rem;
+    --button-radius: 0.25rem;
+  }
 }
 
 @layer components {
@@ -433,6 +444,52 @@
 
   .noesis-status-progress {
     @apply bg-accent;
+  }
+}
+
+@layer utilities {
+  /* Legacy route components use Tailwind radius utilities directly. Keep their
+     geometry in step with the saved appearance preference until they can all
+     move onto the shared primitives. */
+  :root[data-interface-shape="pills"] .rounded,
+  :root[data-interface-shape="pills"] .rounded-sm,
+  :root[data-interface-shape="pills"] .rounded-md,
+  :root[data-interface-shape="pills"] .rounded-lg,
+  :root[data-interface-shape="pills"] .rounded-xl,
+  :root[data-interface-shape="pills"] .rounded-2xl,
+  :root[data-interface-shape="pills"] .rounded-3xl {
+    border-radius: var(--card-radius) !important;
+  }
+
+  :root[data-interface-shape="pills"] .rounded-full {
+    border-radius: var(--button-radius) !important;
+  }
+
+  /* Covers directional and arbitrary Tailwind radius utilities used by older
+     pages, including sheets, grouped controls, and small visual markers. */
+  :root[data-interface-shape="pills"] [class*="rounded-"]:not(.rounded-full):not(.rounded-none) {
+    border-radius: var(--card-radius) !important;
+  }
+
+  :root[data-interface-shape="square"] .rounded,
+  :root[data-interface-shape="square"] .rounded-sm,
+  :root[data-interface-shape="square"] .rounded-md,
+  :root[data-interface-shape="square"] .rounded-lg,
+  :root[data-interface-shape="square"] .rounded-xl,
+  :root[data-interface-shape="square"] .rounded-2xl,
+  :root[data-interface-shape="square"] .rounded-3xl,
+  :root[data-interface-shape="square"] .rounded-full {
+    border-radius: var(--button-radius) !important;
+  }
+
+  :root[data-interface-shape="square"] [class*="rounded-"]:not(.rounded-none) {
+    border-radius: var(--button-radius) !important;
+  }
+
+  /* Existing documents can contain serialized visual inserts. Their framing
+     must follow the active interface shape after the document is reopened. */
+  :root[data-interface-shape] .writing-editor [style*="border-radius"] {
+    border-radius: var(--card-radius) !important;
   }
 }
 
@@ -550,7 +607,7 @@
   .theme-dot-mono { background: hsl(30 6% 22%); }
 
   .writing-surface {
-    border-radius: 14px;
+    border-radius: var(--card-radius);
   }
 
   .writing-editor {
@@ -777,5 +834,31 @@
   .noesis-app .shadow-xl,
   .noesis-app .shadow-2xl {
     box-shadow: var(--shadow-elevated);
+  }
+
+  /* Rich document inserts are intentionally semantic HTML, so the same graph
+     survives saving, sanitizing, exporting, and every appearance theme. */
+  .noesis-app [contenteditable="true"] figure[data-noesis-chart] {
+    margin: 2rem 0;
+    border: 1px solid hsl(var(--border) / .65);
+    border-radius: var(--card-radius);
+    padding: 1rem;
+    color: inherit;
+  }
+
+  .noesis-app [contenteditable="true"] figure[data-noesis-chart] svg {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .noesis-app [contenteditable="true"] figure[data-noesis-chart] figcaption {
+    margin-top: .5rem;
+    color: hsl(var(--muted-foreground));
+    font-family: var(--font-interface);
+    font-size: .75rem;
+    font-style: normal;
+    line-height: 1.4;
   }
 }

@@ -64,6 +64,7 @@ export interface NoesisRouteContentProps {
   user: User | null;
   effectiveUid: string;
   isReviewWorkspace: boolean;
+  isOfflineReviewPreview: boolean;
   media: Media[];
   concepts: Concept[];
   insights: Insight[];
@@ -115,8 +116,8 @@ export interface NoesisRouteContentProps {
     practiceId?: string | null;
   }) => void;
   addQuestion: (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Question | void;
-  updateQuestion: (question: Question) => void;
-  deleteQuestion: (id: string) => void;
+  updateQuestion: (question: Question) => void | Promise<void>;
+  deleteQuestion: (id: string) => void | Promise<void>;
   formPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
   addConcept: (data: Partial<Concept>) => Concept | void;
   updateConcept: (concept: Concept) => void;
@@ -150,11 +151,11 @@ export interface NoesisRouteContentProps {
   addVaultEntry: (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => VaultEntry | void;
   updateVaultEntry: (entry: VaultEntry) => void;
   deleteVaultEntry: (id: string) => Promise<void>;
-  addDraft: (data: Partial<Draft>) => Draft | void;
+  addDraft: (data: Partial<Draft>) => Promise<Draft>;
   updateDraft: (draft: Draft) => void;
   markDraftOpened: (draft: Draft) => void | Promise<void>;
   deleteDraft: (id: string) => void;
-  addPractice: (data: Partial<Practice>) => Practice | void;
+  addPractice: (data: Partial<Practice>) => Promise<Practice>;
   updatePractice: (practice: Practice) => void;
   deletePractice: (id: string) => void;
   addUnknown: (data: Partial<Unknown>) => Unknown;
@@ -177,6 +178,7 @@ export function NoesisRouteContent({
   user,
   effectiveUid,
   isReviewWorkspace,
+  isOfflineReviewPreview,
   media,
   concepts,
   insights,
@@ -451,9 +453,9 @@ export function NoesisRouteContent({
         />
       );
     case 'questions':
-      return <InquiriesRoutePage aiSettings={aiSettings} questions={questions} media={media} vault={vault} drafts={drafts} practices={practices} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={(data) => addDraft(data) as Draft} onUpdateDraft={updateDraft} onAddPractice={(data) => addPractice(data) as Practice} onUpdatePractice={updatePractice} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
+      return <InquiriesRoutePage aiSettings={aiSettings} questions={questions} media={media} vault={vault} drafts={drafts} practices={practices} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onUpdateDraft={updateDraft} onAddPractice={addPractice} onUpdatePractice={updatePractice} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
     case 'writing':
-      return <WorksRoutePage uid={effectiveUid} drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={(data) => addDraft(data) as Draft} onUpdateDraft={updateDraft} onMarkDraftOpened={markDraftOpened} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
+      return <WorksRoutePage uid={effectiveUid} isReviewWorkspace={isOfflineReviewPreview} drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onMarkDraftOpened={markDraftOpened} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
     case 'evolution':
       return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} />;
     case 'practices':

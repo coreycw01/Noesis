@@ -9,6 +9,7 @@ import {
 } from '@/firebase';
 import type { MovementMetrics } from '@/components/Shell';
 import { NoesisProviders } from '@/components/app-shell/NoesisProviders';
+import { navigateWorkspace } from '@/lib/workspace-navigation';
 import { NoesisShell } from '@/components/app-shell/NoesisShell';
 import { NoesisWorkspaceGate } from '@/components/app-shell/NoesisWorkspaceGate';
 import { NoesisRouteContent } from '@/components/pages/NoesisRouteContent';
@@ -16,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useNoesisWorkspaceData } from '@/hooks/use-noesis-workspace-data';
 import { PageErrorState, PageLoadingState } from '@/components/shared/PageState';
-import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
+import { applyAppearanceSettings, persistAppearanceSettings, readPersistedAppearanceSettings } from '@/lib/appearance';
 import { MEDIA_TYPES, allAnnotations, allQuestions, conceptKey, ensureConceptTerms, normalizeConceptTags, today, uid as makeActionId, workCategoryForDraft } from '@/lib/readex';
 import {
   DEFAULT_ACCOUNT_SETTINGS,
@@ -87,11 +88,12 @@ import type {
   WorkspaceSettings,
   WorkspaceSummary,
 } from '@/lib/types';
-import { arrayRemove, doc, getDoc, setDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, doc, getDoc, setDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { classifyThinkingChange } from '@/lib/thinkingEvents/classifyThinkingChange';
-import { queueThinkingEvent, writeThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
+import { makeThinkingEventPayload, queueThinkingEvent, writeThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
+import { commitDemoChanges, type DemoChange } from '@/lib/demo-session';
 import {
   focusedIdForNoesisView,
   getNoesisRouteTarget,
@@ -159,7 +161,7 @@ function ReadexWorkspace({
     if (pendingNavigationTimerRef.current) clearTimeout(pendingNavigationTimerRef.current);
   }, []);
 
-  const navigateToView = useCallback((view: NoesisView, options?: {
+  const navigateToView = useCallback(async (view: NoesisView, options?: {
     conceptId?: string | null;
     questionId?: string | null;
     sourceId?: string | null;
@@ -184,19 +186,29 @@ function ReadexWorkspace({
       return;
     }
 
+    const saves: Promise<boolean>[] = [];
+    window.dispatchEvent(new CustomEvent('noesis:before-navigation', {
+      detail: { waitUntil: (save: Promise<boolean>) => saves.push(save) },
+    }));
+    if (saves.length) {
+      const outcomes = await Promise.allSettled(saves);
+      if (pendingNavigationRef.current !== destination) return;
+      if (outcomes.some((outcome) => outcome.status === 'rejected' || !outcome.value)) {
+        pendingNavigationRef.current = null;
+        setPendingPath(null);
+        return;
+      }
+    }
+
     // Every Noesis route uses the same persistent client workspace. Updating
     // browser history directly avoids waiting on an unnecessary RSC navigation,
     // while Next's history integration keeps usePathname and back/forward synced.
-    window.history.pushState({ ...window.history.state, noesisPath: destination }, '', destination);
-    window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
+    navigateWorkspace(window.history, destination);
 
     pendingNavigationTimerRef.current = setTimeout(() => {
       if (pendingNavigationRef.current !== destination) return;
       pendingNavigationRef.current = null;
       setPendingPath(null);
-      // Re-announce the current history entry if the route context missed the
-      // first event. The shell remains usable even if navigation cannot resolve.
-      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
     }, 2000);
   }, [pathname, reviewMode, router]);
 
@@ -208,7 +220,7 @@ function ReadexWorkspace({
     concepts,
     questions,
     timeline,
-    drafts,
+    drafts: loadedDrafts,
     practices,
     atlasMaps,
     links: rawLinks,
@@ -246,6 +258,25 @@ function ReadexWorkspace({
     routeState,
     isOfflineReviewPreview,
   });
+  const drafts = loadedDrafts;
+  const [demoAppearanceOverride, setDemoAppearanceOverride] = useState<Partial<AppearanceSettings>>(() => (
+    isOfflineReviewPreview ? readPersistedAppearanceSettings() : {}
+  ));
+  useEffect(() => {
+    if (!isOfflineReviewPreview || typeof window === 'undefined') return;
+    const saved = window.sessionStorage.getItem('noesis-demo-drafts');
+    if (!saved) return;
+    try {
+      const legacy = JSON.parse(saved);
+      if (!Array.isArray(legacy)) return;
+      commitDemoChanges(effectiveUid, legacy.filter((item) => typeof item?.id === 'string').map((item) => ({
+        path: `users/${effectiveUid}/drafts/${item.id}`, operation: 'set', data: item,
+      })));
+      window.sessionStorage.removeItem('noesis-demo-drafts');
+    } catch {
+      toast({ title: 'Demo works could not be restored', description: 'Your previous session is retained. Please free browser storage and reload.', variant: 'destructive' });
+    }
+  }, [effectiveUid, isOfflineReviewPreview, toast]);
   const links = useMemo(() => {
     const annotationIds = new Set(media.flatMap((source) => (source.annotations || []).map((annotation) => annotation.id)));
     const entityIds = {
@@ -267,6 +298,7 @@ function ReadexWorkspace({
     themeMode: legacyPreferencesDoc?.themeMode || DEFAULT_APPEARANCE_SETTINGS.themeMode,
     accentTheme: legacyPreferencesDoc?.accentTheme || DEFAULT_APPEARANCE_SETTINGS.accentTheme,
     ...(settingsAppearanceDoc || {}),
+    ...(isOfflineReviewPreview ? demoAppearanceOverride : {}),
   };
   const worksSettings: WorksSettings = {
     ...DEFAULT_WORKS_SETTINGS,
@@ -563,6 +595,7 @@ function ReadexWorkspace({
         accentTheme: preferences.accentTheme,
         headerFont: appearanceSettings.headerFont,
         fontSize: appearanceSettings.fontSize,
+        interfaceShape: appearanceSettings.interfaceShape,
         highContrastMode: appearanceSettings.highContrastMode,
         reducedMotion: appearanceSettings.reducedMotion,
       };
@@ -572,7 +605,7 @@ function ReadexWorkspace({
     applyTheme();
     mediaQuery.addEventListener('change', applyTheme);
     return () => mediaQuery.removeEventListener('change', applyTheme);
-  }, [appearanceSettings.fontSize, appearanceSettings.headerFont, appearanceSettings.highContrastMode, appearanceSettings.reducedMotion, loading.requirements.appearance, loading.requirements.preferences, preferences.themeMode, preferences.accentTheme]);
+  }, [appearanceSettings.fontSize, appearanceSettings.headerFont, appearanceSettings.highContrastMode, appearanceSettings.interfaceShape, appearanceSettings.reducedMotion, loading.requirements.appearance, loading.requirements.preferences, preferences.themeMode, preferences.accentTheme]);
 
   useEffect(() => {
     lastReadyRouteContentRef.current = null;
@@ -810,7 +843,12 @@ function ReadexWorkspace({
     URL.revokeObjectURL(url);
   };
 
-  const emitError = (path: string, operation: SecurityRuleContext['operation'], data?: any) => {
+  const emitError = (path: string, operation: SecurityRuleContext['operation'], data?: any, error?: unknown) => {
+    const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+    if (code !== 'permission-denied' && code !== 'firestore/permission-denied') {
+      toast({ title: 'Change not saved', description: 'Your change could not be saved. Check your connection and try again.', variant: 'destructive' });
+      return;
+    }
     errorEmitter.emit('permission-error', new FirestorePermissionError({
       path,
       operation,
@@ -825,6 +863,10 @@ function ReadexWorkspace({
     setOptions: { merge?: boolean } = { merge: true }
   ) => {
     try {
+      if (isOfflineReviewPreview) {
+        commitDemoChanges(effectiveUid, [{ path: ref.path, operation, data, merge: setOptions.merge }]);
+        return;
+      }
       await commitWorkspaceMutation({
         db,
         ref: ref as any,
@@ -832,8 +874,8 @@ function ReadexWorkspace({
         data,
         setOptions,
       });
-    } catch {
-      emitError(ref.path, operation === 'update' ? 'update' : 'write', data);
+    } catch (error) {
+      emitError(ref.path, operation === 'update' ? 'update' : 'write', data, error);
       throw new Error(`Unable to save ${readableWorkspaceArea(ref.path)}.`);
     }
   };
@@ -842,13 +884,26 @@ function ReadexWorkspace({
     input: Parameters<typeof commitWorkspaceMutation>[0],
     context?: { data?: any; operation?: SecurityRuleContext['operation']; rethrow?: boolean }
   ) => {
-    return commitWorkspaceMutation(input).catch((error) => {
+    const commit = async () => {
+      if (!isOfflineReviewPreview) return commitWorkspaceMutation(input);
+      const events = [...(input.thinkingEvent ? [input.thinkingEvent] : []), ...(input.thinkingEvents || [])];
+      const changes: DemoChange[] = [{ path: input.ref.path, operation: input.operation, data: input.data, merge: Boolean(input.setOptions && 'merge' in input.setOptions && input.setOptions.merge) }];
+      (input.relatedUpdates || []).forEach((update) => changes.push({ path: update.ref.path, operation: 'update', data: update.data }));
+      events.forEach((event) => {
+        const { eventRef, payload } = makeThinkingEventPayload(event);
+        changes.push({ path: eventRef.path, operation: 'set', data: { ...payload, createdAt: new Date().toISOString() } });
+      });
+      commitDemoChanges(effectiveUid, changes);
+    };
+    return commit().catch((error) => {
       emitError(
         input.ref.path,
         context?.operation || (input.operation === 'delete' ? 'delete' : input.operation === 'update' ? 'update' : 'write'),
-        context?.data ?? input.data
+        context?.data ?? input.data,
+        error
       );
       if (context?.rethrow) throw error;
+      if (isOfflineReviewPreview) toast({ title: 'Demo change not saved', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
     });
   };
 
@@ -857,18 +912,22 @@ function ReadexWorkspace({
     entityId: string,
     conceptName?: string
   ) => {
-    const batch = writeBatch(db);
-    let changes = 0;
+    const cleanupChanges: DemoChange[] = [];
+    const recordsByCollection: Record<string, Array<{ id: string }>> = {
+      [refs.concepts.path]: concepts, [refs.questions.path]: questions, [refs.vault.path]: vault,
+      [refs.drafts.path]: drafts, [refs.practices.path]: practices, [refs.media.path]: media,
+    };
     const updateArray = (collectionRef: any, id: string, field: string, value: string) => {
-      batch.update(doc(collectionRef, id), { [field]: arrayRemove(value), dateUpdated: today() });
-      changes += 1;
+      const current = recordsByCollection[collectionRef.path]?.find((item) => item.id === id) as Record<string, any> | undefined;
+      cleanupChanges.push({ path: doc(collectionRef, id).path, operation: 'update', data: {
+        [field]: isOfflineReviewPreview ? (current?.[field] || []).filter((item: string) => item !== value) : arrayRemove(value), dateUpdated: today(),
+      } });
     };
 
     links
       .filter((link) => (link.fromType === entityType && link.fromId === entityId) || (link.toType === entityType && link.toId === entityId))
       .forEach((link) => {
-        batch.delete(doc(refs.links, link.id));
-        changes += 1;
+        cleanupChanges.push({ path: doc(refs.links, link.id).path, operation: 'delete' });
       });
 
     if (entityType === 'source') {
@@ -880,12 +939,10 @@ function ReadexWorkspace({
     } else if (entityType === 'annotation') {
       questions.filter((item) => (item.evidenceIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'evidenceIds', entityId));
       questions.filter((item) => item.sourceAnnotationId === entityId).forEach((item) => {
-        batch.update(doc(refs.questions, item.id), { sourceAnnotationId: '', dateUpdated: today() });
-        changes += 1;
+        cleanupChanges.push({ path: doc(refs.questions, item.id).path, operation: 'update', data: { sourceAnnotationId: '', dateUpdated: today() } });
       });
       vault.filter((item) => item.sourceAnnotationId === entityId).forEach((item) => {
-        batch.update(doc(refs.vault, item.id), { sourceAnnotationId: '', dateUpdated: today() });
-        changes += 1;
+        cleanupChanges.push({ path: doc(refs.vault, item.id).path, operation: 'update', data: { sourceAnnotationId: '', dateUpdated: today() } });
       });
     } else if (entityType === 'concept' && conceptName) {
       vault.filter((item) => (item.tags || []).includes(conceptName)).forEach((item) => updateArray(refs.vault, item.id, 'tags', conceptName));
@@ -907,7 +964,19 @@ function ReadexWorkspace({
       questions.filter((item) => (item.practiceIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'practiceIds', entityId));
     }
 
-    if (changes > 0) await batch.commit();
+    if (isOfflineReviewPreview) {
+      if (cleanupChanges.length) commitDemoChanges(effectiveUid, cleanupChanges);
+      return;
+    }
+    for (let offset = 0; offset < cleanupChanges.length; offset += 400) {
+      const batch = writeBatch(db);
+      cleanupChanges.slice(offset, offset + 400).forEach((change) => {
+        const ref = doc(db, change.path);
+        if (change.operation === 'delete') batch.delete(ref);
+        else batch.update(ref, change.data || {});
+      });
+      await batch.commit();
+    }
   };
 
   useEffect(() => {
@@ -971,37 +1040,6 @@ function ReadexWorkspace({
       data: payload,
       setOptions: { merge: true },
     }, { operation: 'update', data: payload });
-  };
-
-  const timelineEntityToThinkingEntity = (
-    entityType?: TimelineEvent['entityType']
-  ): WriteThinkingEventInput['entityType'] => {
-    if (entityType === 'media') return 'source';
-    if (entityType === 'vault') return 'position';
-    if (entityType === 'question') return 'inquiry';
-    if (entityType === 'draft') return 'work';
-    if (entityType === 'practice') return 'practice';
-    if (entityType === 'concept') return 'concept';
-    if (entityType === 'insight') return 'suggestion';
-    return 'evolution';
-  };
-
-  const timelineEventToThinkingEvent = (
-    eventType?: TimelineEvent['eventType']
-  ): WriteThinkingEventInput['eventType'] | null => {
-    switch (eventType) {
-      case 'refined':
-      case 'revised':
-        return 'revised';
-      case 'challenged':
-        return 'challenge_added';
-      case 'expanded':
-        return 'synthesized';
-      case 'abandoned':
-        return 'abandoned';
-      default:
-        return null;
-    }
   };
 
   const addUnknown = (data: Partial<Unknown>) => {
@@ -1172,48 +1210,6 @@ function ReadexWorkspace({
     }, { operation: 'update', data: payload });
   };
 
-  const createTimelineEvent = (event: Partial<TimelineEvent>) => {
-    const eventRef = doc(refs.timeline);
-    const data = {
-      id: eventRef.id,
-      entityId: event.entityId || '',
-      entityType: event.entityType || 'unknown',
-      entityTitle: event.entityTitle || 'Untitled',
-      eventType: event.eventType || 'created',
-      reason: event.reason || '',
-      influencedBy: event.influencedBy || [],
-      date: event.date || today(),
-    };
-    const mirroredEventType = timelineEventToThinkingEvent(data.eventType);
-    const mirroredEntityType = timelineEntityToThinkingEntity(data.entityType);
-    void commitAndReport({
-      db,
-      ref: eventRef as any,
-      operation: 'set',
-      data,
-      thinkingEvent: metacognitionEnabled && mirroredEventType && data.entityId ? {
-        collection: refs.thinkingEvents as any,
-        userId: effectiveUid,
-        eventType: mirroredEventType,
-        entityType: mirroredEntityType,
-        entityId: data.entityId,
-        after: data,
-        summary: data.reason || `${data.entityTitle} ${data.eventType}`,
-        origin: 'system',
-        importance: data.eventType === 'challenged' || data.eventType === 'abandoned' ? 'high' : 'medium',
-        relatedEntityIds: { sourceIds: data.influencedBy || [] },
-        systemReason: 'Mirrored from a legacy Evolution timeline event so meaningful history stays event-backed.',
-        sourceActionId: eventRef.id,
-        idempotencyKey: `timeline:${eventRef.id}`,
-        metadata: {
-          timelineEventId: eventRef.id,
-          timelineEventType: data.eventType,
-          timelineEntityType: data.entityType,
-        },
-      } : null,
-    }, { operation: 'create', data });
-  };
-
   const ensureConcepts = (tags: string[]) => {
     const missing = ensureConceptTerms(concepts, tags);
     missing.forEach((name) => {
@@ -1382,9 +1378,7 @@ function ReadexWorkspace({
         importance: 'medium',
         sourceActionId: makeActionId(),
       },
-    }, { operation: 'create', data: payload, rethrow: true })
-      .then(() => createTimelineEvent({ entityId: mediaRef.id, entityType: 'media', entityTitle: payload.title, eventType: 'created', reason: 'Source added to Noesis' }))
-      .catch(() => undefined);
+    }, { operation: 'create', data: payload, rethrow: true }).catch(() => undefined);
   };
 
   const updateMedia = (item: Media) => {
@@ -1565,12 +1559,13 @@ function ReadexWorkspace({
     let persistence: Promise<unknown>;
     if (annotationRefs.length) {
       const batch = writeBatch(db);
+      const demoChanges: DemoChange[] = [{ path: vaultRef.path, operation: 'set', data: payload }];
       batch.set(vaultRef, payload);
       new Set(annotationRefs.map((item) => item.sourceId)).forEach((sourceId) => {
         const source = media.find((item) => item.id === sourceId);
         if (!source) return;
         const annotationIds = new Set(annotationRefs.filter((item) => item.sourceId === sourceId).map((item) => item.annotationId));
-        batch.update(doc(refs.media, sourceId), {
+        const sourcePatch = {
           annotations: (source.annotations || []).map((annotation) => annotationIds.has(annotation.id) ? {
             ...annotation,
             philosophyStatus: 'used_in_position',
@@ -1578,10 +1573,13 @@ function ReadexWorkspace({
             linkedPositionIds: uniqueIds([...(annotation.linkedPositionIds || []), payload.id]),
           } : annotation),
           dateUpdated: today(),
-        });
+        };
+        batch.update(doc(refs.media, sourceId), sourcePatch);
+        demoChanges.push({ path: doc(refs.media, sourceId).path, operation: 'update', data: sourcePatch });
       });
-      queueThinkingEvent(batch, positionEvent);
-      persistence = batch.commit();
+      const event = queueThinkingEvent(batch, positionEvent);
+      demoChanges.push({ path: event.eventRef.path, operation: 'set', data: { ...event.payload, createdAt: today() } });
+      persistence = isOfflineReviewPreview ? Promise.resolve().then(() => commitDemoChanges(effectiveUid, demoChanges)) : batch.commit();
     } else {
       persistence = commitAndReport({
         db,
@@ -1592,7 +1590,6 @@ function ReadexWorkspace({
       }, { operation: 'create', data: payload, rethrow: true });
     }
     void persistence.then(() => {
-      createTimelineEvent({ entityId: vaultRef.id, entityType: 'vault', entityTitle: payload.title, eventType: 'created', reason: 'Position formed', influencedBy: data.sourceIds });
       refreshBeliefProfile(payload as VaultEntry, { originSummary: payload.statement || payload.description });
     }).catch(() => emitError(annotationRefs.length ? 'annotation-position-promotion' : vaultRef.path, 'write', payload));
     return payload as VaultEntry;
@@ -1652,7 +1649,6 @@ function ReadexWorkspace({
       data: nextEntry,
       thinkingEvents: positionEvents,
     }, { operation: 'update', data: nextEntry, rethrow: true }).then(() => {
-      createTimelineEvent({ entityId: entry.id, entityType: 'vault', entityTitle: entry.title, eventType: 'refined', reason: 'Position refined', influencedBy: entry.sourceIds });
       refreshBeliefProfile(entry, profilePatch);
     }).catch(() => undefined);
   };
@@ -1776,17 +1772,6 @@ function ReadexWorkspace({
       beliefIds: [...new Set([...(question.beliefIds || []), vaultRef.id])],
       dateUpdated: today(),
     });
-    const eventRef = doc(refs.timeline);
-    batch.set(eventRef, {
-      id: eventRef.id,
-      entityId: vaultRef.id,
-      entityType: 'vault',
-      entityTitle: position.title,
-      eventType: 'created',
-      reason: 'Position formed from inquiry',
-      influencedBy: sourceIds,
-      date: today(),
-    });
     queueThinkingEvent(batch, {
       collection: refs.thinkingEvents as any,
       userId: effectiveUid,
@@ -1815,6 +1800,7 @@ function ReadexWorkspace({
       answer: data.answer || '',
       whyItMatters: data.whyItMatters || '',
       currentIntuition: data.currentIntuition || '',
+      uncertainty: data.uncertainty || '',
       assumptions: data.assumptions || [],
       candidateAnswers: data.candidateAnswers || [],
       resolutionSummary: data.resolutionSummary || '',
@@ -1850,22 +1836,27 @@ function ReadexWorkspace({
     const annotationRefs = data.annotationRefs || [];
     if (annotationRefs.length) {
       const batch = writeBatch(db);
+      const demoChanges: DemoChange[] = [{ path: questionRef.path, operation: 'set', data: payload }];
       batch.set(questionRef, payload);
       new Set(annotationRefs.map((item) => item.sourceId)).forEach((sourceId) => {
         const source = media.find((item) => item.id === sourceId);
         if (!source) return;
         const annotationIds = new Set(annotationRefs.filter((item) => item.sourceId === sourceId).map((item) => item.annotationId));
-        batch.update(doc(refs.media, sourceId), {
+        const sourcePatch = {
           annotations: (source.annotations || []).map((annotation) => annotationIds.has(annotation.id) ? {
             ...annotation,
             philosophyStatus: 'questioned',
             createdInquiryId: annotation.createdInquiryId || payload.id,
           } : annotation),
           dateUpdated: today(),
-        });
+        };
+        batch.update(doc(refs.media, sourceId), sourcePatch);
+        demoChanges.push({ path: doc(refs.media, sourceId).path, operation: 'update', data: sourcePatch });
       });
-      queueThinkingEvent(batch, inquiryEvent);
-      void batch.commit().catch(() => emitError('annotation-inquiry-promotion', 'write', payload));
+      const event = queueThinkingEvent(batch, inquiryEvent);
+      demoChanges.push({ path: event.eventRef.path, operation: 'set', data: { ...event.payload, createdAt: today() } });
+      const persistence = isOfflineReviewPreview ? Promise.resolve().then(() => commitDemoChanges(effectiveUid, demoChanges)) : batch.commit();
+      void persistence.catch(() => emitError('annotation-inquiry-promotion', 'write', payload));
     } else {
       void commitAndReport({
         db,
@@ -1883,7 +1874,7 @@ function ReadexWorkspace({
     const previous = questions.find((item) => item.id === question.id);
     const nextQuestion = { ...question, dateUpdated: today() };
     const resolved = question.status === 'resolved' || question.status === 'answered';
-    void commitAndReport({
+    return commitAndReport({
       db,
       ref: questionRef as any,
       operation: 'update',
@@ -1891,7 +1882,7 @@ function ReadexWorkspace({
       thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
-        eventType: resolved ? 'question_resolved' : 'edited',
+        eventType: resolved && previous?.status !== question.status ? 'question_resolved' : 'edited',
         entityType: 'inquiry',
         entityId: question.id,
         before: previous || null,
@@ -1901,13 +1892,13 @@ function ReadexWorkspace({
         importance: resolved ? 'high' : 'low',
         sourceActionId: makeActionId(),
       },
-    }, { operation: 'update', data: nextQuestion });
+    }, { operation: 'update', data: nextQuestion, rethrow: true });
   };
 
-  const deleteQuestion = (id: string) => {
+  const deleteQuestion = async (id: string) => {
     const existing = questions.find((item) => item.id === id);
     const questionRef = doc(refs.questions, id);
-    void commitAndReport({
+    await commitAndReport({
       db,
       ref: questionRef as any,
       operation: 'delete',
@@ -1929,14 +1920,15 @@ function ReadexWorkspace({
         },
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'delete', data: existing || { id }, rethrow: true })
-      .then(() => cleanupDeletedEntityReferences('inquiry', id))
-      .catch(() => undefined);
+    }, { operation: 'delete', data: existing || { id }, rethrow: true });
+    await cleanupDeletedEntityReferences('inquiry', id).catch(() => {
+      toast({ title: 'Inquiry deleted', description: 'Some linked references could not be updated. Refresh before following its old links.', variant: 'destructive' });
+    });
   };
 
-  const addDraft = (data: Partial<Draft>) => {
+  const addDraft = async (data: Partial<Draft>): Promise<Draft> => {
     const conceptTags = normalizeConceptTags(data.conceptTags);
-    ensureConcepts(conceptTags);
+    if (!isOfflineReviewPreview) ensureConcepts(conceptTags);
     const draftRef = doc(refs.drafts);
     const payload = {
       id: draftRef.id,
@@ -1965,6 +1957,8 @@ function ReadexWorkspace({
       canvasData: data.canvasData || '',
       canvasAsset: data.canvasAsset,
       drawingState: data.drawingState,
+      templateData: data.templateData,
+      documentSettings: data.documentSettings,
       writingOverlayData: data.writingOverlayData || '',
       overlayAsset: data.overlayAsset,
       writingStyle: data.writingStyle || preferences.writingDefaults.writingStyle,
@@ -1976,11 +1970,15 @@ function ReadexWorkspace({
       dateCreated: today(),
       dateUpdated: today(),
     };
-    void commitAndReport({
+    await commitAndReport({
       db,
       ref: draftRef as any,
       operation: 'set',
       data: payload,
+      relatedUpdates: questions.filter((question) => payload.questionIds.includes(question.id)).map((question) => ({
+        ref: doc(refs.questions, question.id),
+        data: { draftIds: isOfflineReviewPreview ? uniqueIds([...(question.draftIds || []), payload.id]) : arrayUnion(payload.id), dateUpdated: today() },
+      })),
       thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
@@ -1994,21 +1992,23 @@ function ReadexWorkspace({
         relatedEntityIds: { conceptIds: conceptTags.map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[], inquiryIds: payload.questionIds || [], positionIds: payload.beliefIds || [], sourceIds: payload.sourceIds || [] },
         sourceActionId: makeActionId(),
       },
-    }, { operation: 'create', data: payload, rethrow: true })
-      .then(() => createTimelineEvent({ entityId: draftRef.id, entityType: 'draft', entityTitle: payload.title, eventType: 'created', reason: 'Work draft created' }))
-      .catch(() => undefined);
+    }, { operation: 'create', data: payload, rethrow: true });
     return payload as Draft;
   };
 
   const updateDraft = (draft: Draft) => {
-    ensureConcepts(draft.conceptTags || []);
-    const draftRef = doc(refs.drafts, draft.id);
     const previous = drafts.find((item) => item.id === draft.id);
     const nextDraft = {
       ...draft,
       revision: Math.max(draft.revision || 0, previous?.revision || 0) + 1,
       dateUpdated: today(),
     };
+    if (isOfflineReviewPreview) {
+      commitDemoChanges(effectiveUid, [{ path: doc(refs.drafts, draft.id).path, operation: 'update', data: nextDraft }]);
+      return Promise.resolve();
+    }
+    ensureConcepts(draft.conceptTags || []);
+    const draftRef = doc(refs.drafts, draft.id);
     const previousContent = `${previous?.body || ''}\n${previous?.draftContent || ''}\n${previous?.finalContent || ''}`;
     const nextContent = `${nextDraft.body || ''}\n${nextDraft.draftContent || ''}\n${nextDraft.finalContent || ''}`;
     const contentDelta = Math.abs(nextContent.length - previousContent.length);
@@ -2046,6 +2046,10 @@ function ReadexWorkspace({
 
   const markDraftOpened = (draft: Draft) => {
     const openedAt = new Date().toISOString();
+    if (isOfflineReviewPreview) {
+      commitDemoChanges(effectiveUid, [{ path: doc(refs.drafts, draft.id).path, operation: 'update', data: { lastOpenedAt: openedAt } }]);
+      return Promise.resolve();
+    }
     return commitAndReport({
       db,
       ref: doc(refs.drafts, draft.id) as any,
@@ -2061,7 +2065,7 @@ function ReadexWorkspace({
   const deleteDraft = (id: string) => {
     const existing = drafts.find((item) => item.id === id);
     const draftRef = doc(refs.drafts, id);
-    void commitAndReport({
+    return commitAndReport({
       db,
       ref: draftRef as any,
       operation: 'delete',
@@ -2081,12 +2085,12 @@ function ReadexWorkspace({
     }, { operation: 'delete', data: existing || { id }, rethrow: true })
       .then(async () => {
         await cleanupDeletedEntityReferences('work', id);
-        if (existing) await cleanupReplacedDraftAssets(existing, { id });
-      })
-      .catch(() => undefined);
+        // Deleted works remain recoverable; their private media must survive
+        // until an explicit retention/purge operation removes the snapshot.
+      });
   };
 
-  const addPractice = (data: Partial<Practice>) => {
+  const addPractice = async (data: Partial<Practice>): Promise<Practice> => {
     const tags = normalizeConceptTags(data.conceptTags);
     ensureConcepts(tags);
     const practiceRef = doc(refs.practices);
@@ -2122,11 +2126,15 @@ function ReadexWorkspace({
       dateCreated: today(),
       dateUpdated: today(),
     };
-    void commitAndReport({
+    await commitAndReport({
       db,
       ref: practiceRef as any,
       operation: 'set',
       data: payload,
+      relatedUpdates: questions.filter((question) => payload.questionIds.includes(question.id)).map((question) => ({
+        ref: doc(refs.questions, question.id),
+        data: { practiceIds: isOfflineReviewPreview ? uniqueIds([...(question.practiceIds || []), payload.id]) : arrayUnion(payload.id), dateUpdated: today() },
+      })),
       thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
@@ -2140,9 +2148,8 @@ function ReadexWorkspace({
         relatedEntityIds: { positionIds: payload.positionIds || [], inquiryIds: payload.questionIds || [], sourceIds: payload.sourceIds || [] },
         sourceActionId: makeActionId(),
       },
-    }, { operation: 'create', data: payload, rethrow: true })
-      .then(() => createTimelineEvent({ entityId: practiceRef.id, entityType: 'practice', entityTitle: payload.title, eventType: 'created', reason: 'New practice initiated' }))
-      .catch(() => undefined);
+    }, { operation: 'create', data: payload, rethrow: true });
+    return payload as Practice;
   };
 
   const updatePractice = (practice: Practice) => {
@@ -2158,7 +2165,7 @@ function ReadexWorkspace({
       : concluded && previous?.status !== practice.status
         ? 'practice_concluded'
         : 'edited';
-    void commitAndReport({
+    return commitAndReport({
       db,
       ref: practiceRef as any,
       operation: 'update',
@@ -2177,23 +2184,13 @@ function ReadexWorkspace({
         relatedEntityIds: { positionIds: practice.positionIds || [], inquiryIds: practice.questionIds || [], workIds: practice.draftIds || [] },
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'update', data: nextPractice });
-    if (previous && previous.status !== practice.status) {
-      createTimelineEvent({
-        entityId: practice.id,
-        entityType: 'practice',
-        entityTitle: practice.title,
-        eventType: practice.status === 'failed' || practice.status === 'failed_productively' ? 'challenged' : practice.status === 'abandoned' ? 'abandoned' : 'refined',
-        reason: `Practice moved from ${previous.status} to ${practice.status}`,
-        influencedBy: [...(practice.sourceIds || []), ...(practice.positionIds || [])],
-      });
-    }
+    }, { operation: 'update', data: nextPractice, rethrow: true });
   };
 
   const deletePractice = (id: string) => {
     const existing = practices.find((item) => item.id === id);
     const practiceRef = doc(refs.practices, id);
-    void commitAndReport({
+    return commitAndReport({
       db,
       ref: practiceRef as any,
       operation: 'delete',
@@ -2211,8 +2208,7 @@ function ReadexWorkspace({
         sourceActionId: makeActionId(),
       } : null,
     }, { operation: 'delete', data: existing || { id }, rethrow: true })
-      .then(() => cleanupDeletedEntityReferences('practice', id))
-      .catch(() => undefined);
+      .then(() => cleanupDeletedEntityReferences('practice', id));
   };
 
   const restoreDeletedItem = async (event: ThinkingEvent) => {
@@ -2226,13 +2222,13 @@ function ReadexWorkspace({
     } as const;
     const collectionRef = collectionByType[event.entityType as keyof typeof collectionByType];
     const snapshot = event.before;
-    if (event.eventType !== 'deleted' || !collectionRef || !snapshot || snapshot.id !== event.entityId) {
+    if (event.userId !== effectiveUid || event.eventType !== 'deleted' || !collectionRef || !snapshot || snapshot.id !== event.entityId) {
       throw new Error('This deleted item cannot be restored from its saved record.');
     }
     await commitAndReport({
       db,
       ref: doc(collectionRef, event.entityId) as any,
-      operation: 'set',
+      operation: 'create',
       data: snapshot,
       thinkingEvent: {
         collection: refs.thinkingEvents as any,
@@ -2700,6 +2696,11 @@ function ReadexWorkspace({
         await saveWorkspaceDoc(refs.settingsAccount as any, stamped);
         break;
       case 'appearance':
+        if (isOfflineReviewPreview) {
+          setDemoAppearanceOverride(stamped);
+          persistAppearanceSettings(stamped);
+          break;
+        }
         await saveWorkspaceDoc(refs.settingsAppearance as any, stamped);
         await saveWorkspaceDoc(refs.settingsPreferences as any, {
           ...preferences,
@@ -2855,6 +2856,7 @@ function ReadexWorkspace({
         user={user}
         effectiveUid={effectiveUid}
         isReviewWorkspace={isReviewWorkspace}
+        isOfflineReviewPreview={isOfflineReviewPreview}
         media={media}
         concepts={concepts}
         insights={insights}
@@ -3123,6 +3125,7 @@ function NoesisHome() {
       <NoesisWorkspaceGate reviewMode={reviewMode}>
         {(workspace) => (
           <ReadexWorkspace
+            key={`${workspace.uid}:${workspace.user ? 'account' : 'demo'}`}
             user={workspace.user}
             uid={workspace.uid}
             reviewMode={workspace.reviewMode}

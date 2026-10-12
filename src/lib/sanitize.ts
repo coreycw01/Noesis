@@ -6,7 +6,8 @@ const allowedTags = [
   'strong', 'b', 'em', 'i', 'u', 's',
   'blockquote', 'pre', 'code',
   'ul', 'ol', 'li',
-  'a',
+  'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'figure', 'figcaption',
+  'svg', 'g', 'rect', 'line', 'text',
 ];
 
 export function sanitizeHtml(value = '') {
@@ -14,6 +15,16 @@ export function sanitizeHtml(value = '') {
     allowedTags,
     allowedAttributes: {
       a: ['href', 'title', 'target', 'rel'],
+      img: ['src', 'alt', 'width', 'height'],
+      table: ['aria-label'],
+      th: ['colspan', 'rowspan', 'scope'],
+      td: ['colspan', 'rowspan'],
+      figure: ['data-noesis-chart'],
+      svg: ['viewbox', 'viewBox', 'role', 'aria-label', 'width', 'height'],
+      g: ['transform'],
+      rect: ['x', 'y', 'width', 'height', 'rx', 'ry', 'fill'],
+      line: ['x1', 'x2', 'y1', 'y2', 'stroke', 'stroke-width'],
+      text: ['x', 'y', 'fill', 'font-size', 'font-family', 'text-anchor'],
       '*': ['data-text-align'],
     },
     allowedSchemes: ['http', 'https', 'mailto'],

@@ -22,8 +22,8 @@ interface ConfirmActionDialogProps {
   cancelLabel?: string;
   alternateLabel?: string;
   destructive?: boolean;
-  onConfirm: () => void;
-  onAlternate?: () => void;
+  onConfirm: () => void | Promise<void>;
+  onAlternate?: () => void | Promise<void>;
 }
 
 export function ConfirmActionDialog({
@@ -38,28 +38,50 @@ export function ConfirmActionDialog({
   onConfirm,
   onAlternate,
 }: ConfirmActionDialogProps) {
+  const busy = React.useRef(false);
+  const [pending, setPending] = React.useState(false);
+  const [error, setError] = React.useState('');
+  React.useEffect(() => { if (open) setError(''); }, [open]);
+  const perform = async (action: () => void | Promise<void>) => {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(true);
+    setError('');
+    try {
+      await action();
+      onOpenChange(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'The action could not be completed. Please try again.');
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
+  };
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={(next) => { if (!busy.current) onOpenChange(next); }}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="font-headline text-2xl italic">{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>{cancelLabel}</AlertDialogCancel>
           {alternateLabel && onAlternate && (
             <AlertDialogAction
-              onClick={onAlternate}
+              disabled={pending}
+              onClick={(event) => { event.preventDefault(); void perform(onAlternate); }}
               className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
             >
               {alternateLabel}
             </AlertDialogAction>
           )}
           <AlertDialogAction
-            onClick={onConfirm}
+            disabled={pending}
+            onClick={(event) => { event.preventDefault(); void perform(onConfirm); }}
             className={cn(destructive && 'bg-destructive text-destructive-foreground hover:bg-destructive/90')}
           >
-            {confirmLabel}
+            {pending ? 'Working...' : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

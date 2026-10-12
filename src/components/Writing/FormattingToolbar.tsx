@@ -21,11 +21,11 @@ import {
   Link,
   Mic,
   Palette,
+  PencilLine,
   Pilcrow,
   RotateCcw,
   RotateCw,
   Replace,
-  Smile,
   Strikethrough,
   Subscript,
   Superscript,
@@ -36,9 +36,16 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { escapeTextAsHtml } from '@/lib/sanitize';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface FormattingToolbarProps {
   saveStatus?: string;
+  onOpenDrawing?: () => void;
 }
 
 type SpeechRecognitionCtor = new () => {
@@ -51,11 +58,22 @@ type SpeechRecognitionCtor = new () => {
   stop: () => void;
 };
 
-export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
+type UtilityDialog = 'image' | 'link' | 'table' | 'find' | 'replace' | null;
+
+export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolbarProps) {
   const { toast } = useToast();
   const [textColor, setTextColor] = useState('#31241d');
   const [highlightColor, setHighlightColor] = useState('#fef3c7');
   const [listening, setListening] = useState(false);
+  const [isGraphDialogOpen, setIsGraphDialogOpen] = useState(false);
+  const [graphValues, setGraphValues] = useState('Support:5, Challenge:2, Unknown:3');
+  const [utilityDialog, setUtilityDialog] = useState<UtilityDialog>(null);
+  const [imageUrl, setImageUrl] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [tableRows, setTableRows] = useState('3');
+  const [tableColumns, setTableColumns] = useState('3');
+  const [findQuery, setFindQuery] = useState('');
+  const [replacementText, setReplacementText] = useState('');
   const recognitionRef = useRef<any>(null);
   const selectionRef = useRef<Range | null>(null);
 
@@ -85,8 +103,22 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
   };
 
   const insertHtml = (html: string) => {
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    if (!editor) return;
     restoreSelection();
-    document.execCommand('insertHTML', false, html);
+    const before = editor.innerHTML;
+    const insertedAtSelection = document.execCommand('insertHTML', false, html);
+    // Opening a modal can legitimately clear a browser selection. In that case
+    // append to the document rather than silently dropping the requested insert.
+    if (!insertedAtSelection || editor.innerHTML === before) {
+      editor.insertAdjacentHTML('beforeend', html);
+    }
+    // execCommand is inconsistent about emitting an input event for complex
+    // inserts. Dispatch one so inline tables, images, and graphs enter the
+    // normal document save pipeline immediately.
+    editor.dispatchEvent(
+      new InputEvent('input', { bubbles: true, inputType: 'insertText' }),
+    );
     rememberSelection();
   };
 
@@ -98,21 +130,9 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
     if (block?.closest('[contenteditable="true"]')) block.style.lineHeight = value;
   };
 
-  const insertImage = () => {
-    const url = window.prompt('Paste an image URL to insert inline:');
-    if (!url?.trim()) return;
-    insertHtml(`<img src="${url.trim()}" alt="" style="max-width:100%; border-radius:12px; margin:16px 0;" />`);
-  };
-
-  const insertLink = () => {
-    const url = window.prompt('Paste a link URL:');
-    if (!url?.trim()) return;
-    applyFormat('createLink', url.trim());
-  };
-
-  const insertTable = () => {
-    const rows = Math.min(12, Math.max(1, Number(window.prompt('Rows:', '3')) || 3));
-    const columns = Math.min(8, Math.max(1, Number(window.prompt('Columns:', '3')) || 3));
+  const insertTable = (rowsValue: string, columnsValue: string) => {
+    const rows = Math.min(12, Math.max(1, Number(rowsValue) || 3));
+    const columns = Math.min(8, Math.max(1, Number(columnsValue) || 3));
     const body = Array.from({ length: rows }, () =>
       `<tr>${Array.from({ length: columns }, () => '<td style="border:1px solid #cfc6bb;padding:8px;min-width:80px;"><br></td>').join('')}</tr>`
     ).join('');
@@ -121,16 +141,8 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
 
   const insertDivider = () => insertHtml('<hr style="border:0;border-top:1px solid currentColor;opacity:.25;margin:24px 0;"><p><br></p>');
 
-  const findInDocument = () => {
-    const query = window.prompt('Find in this work:');
-    if (query) (window as unknown as { find: (text: string) => boolean }).find(query);
-  };
-
-  const replaceInDocument = () => {
-    const query = window.prompt('Find text to replace:');
-    if (!query) return;
-    const replacement = window.prompt(`Replace “${query}” with:`, '');
-    if (replacement === null) return;
+  const replaceInDocument = (query: string, replacement: string) => {
+    if (!query.trim()) return;
     const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
     if (!editor) return;
     const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
@@ -150,31 +162,76 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
     }
   };
 
-  const insertIcon = () => {
-    const symbol = window.prompt('Insert a symbol or icon:', '✦');
-    if (!symbol) return;
-    insertHtml(`<span style="font-size:1.35em; display:inline-block; padding:0 0.2em;">${symbol}</span>`);
+  const openUtilityDialog = (dialog: Exclude<UtilityDialog, null>) => {
+    rememberSelection();
+    setUtilityDialog(dialog);
+  };
+
+  const validExternalUrl = (value: string) => {
+    try {
+      const url = new URL(value.trim());
+      return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const runUtilityDialog = () => {
+    if (utilityDialog === 'image') {
+      const url = validExternalUrl(imageUrl);
+      if (!url) {
+        toast({ title: 'Use a web image URL', description: 'Images must use an http or https address.', variant: 'destructive' });
+        return;
+      }
+      insertHtml(`<img src="${escapeTextAsHtml(url)}" alt="" style="max-width:100%; border-radius:var(--card-radius); margin:16px 0;" />`);
+    }
+    if (utilityDialog === 'link') {
+      const url = validExternalUrl(linkUrl);
+      if (!url) {
+        toast({ title: 'Use a web link', description: 'Links must use an http or https address.', variant: 'destructive' });
+        return;
+      }
+      applyFormat('createLink', url);
+    }
+    if (utilityDialog === 'table') insertTable(tableRows, tableColumns);
+    if (utilityDialog === 'find' && findQuery.trim()) (window as unknown as { find: (text: string) => boolean }).find(findQuery.trim());
+    if (utilityDialog === 'replace') replaceInDocument(findQuery, replacementText);
+    setUtilityDialog(null);
   };
 
   const insertChart = () => {
-    const raw = window.prompt('Chart values as Label:Value, Label:Value', 'Support:5, Challenge:2, Unknown:3');
+    const raw = graphValues.trim();
     if (!raw) return;
     const rows = raw.split(',').map((part) => {
       const [label, value] = part.split(':');
       return { label: label?.trim() || 'Item', value: Math.max(0, Number(value) || 0) };
-    });
+    }).filter((row) => row.label).slice(0, 8);
+    if (!rows.length) return;
     const max = Math.max(1, ...rows.map((row) => row.value));
+    const width = 640;
+    const labelWidth = 170;
+    const plotWidth = 360;
+    const rowHeight = 42;
+    const height = Math.max(120, rows.length * rowHeight + 56);
+    const chartRows = rows.map((row, index) => {
+      const y = 34 + index * rowHeight;
+      const barWidth = Math.max(2, Math.round((row.value / max) * plotWidth));
+      return `
+        <text x="${labelWidth - 12}" y="${y + 14}" text-anchor="end" fill="currentColor" font-size="13" font-family="Georgia, serif">${escapeTextAsHtml(row.label)}</text>
+        <rect x="${labelWidth}" y="${y}" width="${plotWidth}" height="18" rx="4" fill="currentColor" opacity="0.12"></rect>
+        <rect x="${labelWidth}" y="${y}" width="${barWidth}" height="18" rx="4" fill="currentColor" opacity="0.75"></rect>
+        <text x="${labelWidth + plotWidth + 12}" y="${y + 14}" fill="currentColor" font-size="12" font-family="Arial, sans-serif">${row.value}</text>`;
+    }).join('');
     insertHtml(`
-      <div contenteditable="false" style="border:1px solid #e7dfd5; border-radius:14px; padding:16px; margin:18px 0; background:#fff;">
-        ${rows.map((row) => `
-          <div style="display:grid; grid-template-columns:110px 1fr 40px; gap:10px; align-items:center; margin:8px 0; font-size:13px;">
-            <strong>${row.label}</strong>
-            <span style="height:10px; border-radius:999px; background:linear-gradient(90deg, #6d28d9 ${(row.value / max) * 100}%, #eee8df ${(row.value / max) * 100}%);"></span>
-            <span>${row.value}</span>
-          </div>
-        `).join('')}
-      </div><p><br></p>
+      <figure contenteditable="false" data-noesis-chart="bar">
+        <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Inline bar chart">
+          <text x="${labelWidth}" y="18" fill="currentColor" font-size="12" font-family="Arial, sans-serif">Relative values</text>
+          ${chartRows}
+        </svg>
+        <figcaption>Inline bar chart</figcaption>
+      </figure><p><br></p>
     `);
+    setIsGraphDialogOpen(false);
   };
 
   const toggleTalkToText = () => {
@@ -210,14 +267,16 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
   };
 
   return (
-    <div className="sticky top-0 z-40 flex items-center justify-center border-b border-border/30 bg-background/95 backdrop-blur py-2 px-8">
-      <div className="flex items-center gap-1 p-1.5 rounded-full border border-border/60 bg-card shadow-sm overflow-x-auto max-w-full">
-        <div className="flex items-center px-3 border-r border-border/40 gap-1">
+    <>
+    <div className="sticky top-0 z-40 border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur sm:px-6">
+      <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-[var(--card-radius)] border border-border/60 bg-card p-1.5 shadow-sm">
+        <div className="flex items-center gap-1 border-r border-border/40 pr-2">
+          {onOpenDrawing && <ToolbarButton icon={PencilLine} onClick={onOpenDrawing} title="Open drawing tools" />}
           <ToolbarButton icon={RotateCcw} onClick={() => applyFormat('undo')} title="Undo" />
           <ToolbarButton icon={RotateCw} onClick={() => applyFormat('redo')} title="Redo" />
         </div>
 
-        <div className="flex items-center px-3 border-r border-border/40 gap-2">
+        <div className="flex items-center gap-2 border-r border-border/40 pr-2">
           <Type className="size-3.5 text-muted-foreground" />
           <select aria-label="Paragraph style" defaultValue="P" onPointerDown={rememberSelection} onChange={(event) => applyFormat('formatBlock', event.target.value)} className="bg-transparent text-[11px] font-body italic text-foreground/80 outline-none" title="Paragraph style">
             <option value="P">Paragraph</option>
@@ -228,7 +287,7 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
           </select>
         </div>
 
-        <div className="flex items-center gap-2 border-r border-border/40 px-3">
+        <div className="flex items-center gap-2 border-r border-border/40 pr-2">
           <select aria-label="Font family" defaultValue="Georgia" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontName', event.target.value)} className="max-w-24 bg-transparent text-[11px] text-foreground/80 outline-none" title="Font family">
             <option value="Georgia">Georgia</option>
             <option value="Arial">Arial</option>
@@ -243,63 +302,125 @@ export function FormattingToolbar({ saveStatus }: FormattingToolbarProps) {
           </select>
         </div>
 
-        <div className="flex items-center px-3 border-r border-border/40 gap-2">
-          <Pilcrow className="size-3.5 text-muted-foreground" />
-          <select aria-label="Line spacing" defaultValue="1.6" onPointerDown={rememberSelection} onChange={(event) => applyLineSpacing(event.target.value)} className="bg-transparent text-[11px] font-code font-bold text-foreground/80 outline-none" title="Line spacing">
-            <option value="1.2">Single</option>
-            <option value="1.6">1.5</option>
-            <option value="2">Double</option>
-            <option value="2.4">Custom</option>
-          </select>
-        </div>
-
-        <div className="flex items-center gap-0.5 px-2 border-r border-border/40">
+        <div className="flex items-center gap-0.5 border-r border-border/40 pr-2">
           <ToolbarButton icon={Bold} onClick={() => applyFormat('bold')} title="Bold" />
           <ToolbarButton icon={Italic} onClick={() => applyFormat('italic')} title="Italic" />
           <ToolbarButton icon={Underline} onClick={() => applyFormat('underline')} title="Underline" />
-          <ToolbarButton icon={Strikethrough} onClick={() => applyFormat('strikeThrough')} title="Strikethrough" />
         </div>
 
-        <div className="flex items-center gap-0.5 px-2 border-r border-border/40">
-          <ToolbarButton icon={Superscript} onClick={() => applyFormat('superscript')} title="Superscript" />
-          <ToolbarButton icon={Subscript} onClick={() => applyFormat('subscript')} title="Subscript" />
-          <ToolbarButton icon={CaseUpper} onClick={() => applyFormat('removeFormat')} title="Clear formatting" />
-          <ToolbarButton icon={Code2} onClick={() => applyFormat('formatBlock', 'PRE')} title="Code block" />
+        <div className="flex items-center gap-0.5 border-r border-border/40 pr-2">
+          <ToolbarButton icon={AlignLeft} onClick={() => applyFormat('justifyLeft')} active title="Align left" />
+          <ToolbarButton icon={AlignCenter} onClick={() => applyFormat('justifyCenter')} title="Align center" />
+          <ToolbarButton icon={AlignRight} onClick={() => applyFormat('justifyRight')} title="Align right" />
         </div>
 
-        <div className="flex items-center gap-2 px-2 border-r border-border/40">
-          <ColorButton icon={Palette} value={textColor} onChange={(value) => { setTextColor(value); applyFormat('foreColor', value); }} title="Text color" />
-          <ColorButton icon={Highlighter} value={highlightColor} onChange={(value) => { setHighlightColor(value); applyFormat('hiliteColor', value); applyFormat('backColor', value); }} title="Highlight color" />
+        <div className="flex items-center gap-0.5 border-r border-border/40 pr-2">
+          <ToolbarButton icon={Link} onClick={() => openUtilityDialog('link')} title="Add link" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
+              <Button type="button" variant="ghost" size="sm" className="h-8 rounded-md px-2 font-code text-[9px] font-bold uppercase tracking-wider">Format</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel>Text and spacing</DropdownMenuLabel>
+              <div className="grid grid-cols-2 gap-1 px-2 pb-2">
+                <ColorButton icon={Palette} value={textColor} onChange={(value) => { setTextColor(value); applyFormat('foreColor', value); }} title="Text color" />
+                <ColorButton icon={Highlighter} value={highlightColor} onChange={(value) => { setHighlightColor(value); applyFormat('hiliteColor', value); applyFormat('backColor', value); }} title="Highlight color" />
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => applyFormat('strikeThrough')}><Strikethrough className="mr-2 size-4" /> Strikethrough</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => applyFormat('superscript')}><Superscript className="mr-2 size-4" /> Superscript</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => applyFormat('subscript')}><Subscript className="mr-2 size-4" /> Subscript</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => applyFormat('formatBlock', 'PRE')}><Code2 className="mr-2 size-4" /> Code block</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => applyFormat('removeFormat')}><CaseUpper className="mr-2 size-4" /> Clear formatting</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Line spacing</DropdownMenuLabel>
+              <div className="px-2 pb-2">
+                <select aria-label="Line spacing" defaultValue="1.6" onChange={(event) => applyLineSpacing(event.target.value)} className="h-8 w-full rounded-md border border-border/60 bg-background px-2 text-xs outline-none">
+                  <option value="1.2">Single</option>
+                  <option value="1.6">1.5</option>
+                  <option value="2">Double</option>
+                  <option value="2.4">Custom</option>
+                </select>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        <div className="flex items-center gap-0.5 px-2 border-r border-border/40">
-          <ToolbarButton icon={AlignLeft} onClick={() => applyFormat('justifyLeft')} active />
-          <ToolbarButton icon={AlignCenter} onClick={() => applyFormat('justifyCenter')} />
-          <ToolbarButton icon={AlignRight} onClick={() => applyFormat('justifyRight')} />
-          <ToolbarButton icon={AlignJustify} onClick={() => applyFormat('justifyFull')} />
-        </div>
-
-        <div className="flex items-center gap-0.5 px-2 border-r border-border/40">
-          <ToolbarButton icon={List} onClick={() => applyFormat('insertUnorderedList')} />
-          <ToolbarButton icon={ListOrdered} onClick={() => applyFormat('insertOrderedList')} />
-          <ToolbarButton icon={IndentDecrease} onClick={() => applyFormat('outdent')} title="Outdent" />
-          <ToolbarButton icon={IndentIncrease} onClick={() => applyFormat('indent')} title="Indent" />
-        </div>
-
-        <div className="flex items-center gap-0.5 px-2">
-          <ToolbarButton icon={Link} onClick={insertLink} title="Add link" />
-          <ToolbarButton icon={Unlink} onClick={() => applyFormat('unlink')} title="Remove link" />
-          <ToolbarButton icon={Table2} onClick={insertTable} title="Insert table" />
-          <ToolbarButton icon={ImagePlus} onClick={insertImage} title="Insert image" />
-          <ToolbarButton icon={Smile} onClick={insertIcon} title="Insert icon" />
-          <ToolbarButton icon={ChartColumn} onClick={insertChart} title="Insert chart" />
-          <ToolbarButton icon={Pilcrow} onClick={insertDivider} title="Insert divider" />
-          <ToolbarButton icon={FileSearch} onClick={findInDocument} title="Find in document" />
-          <ToolbarButton icon={Replace} onClick={replaceInDocument} title="Find and replace" />
-          <ToolbarButton icon={Mic} onClick={toggleTalkToText} active={listening} title="Talk to Text" />
+        <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
+              <Button type="button" variant="outline" size="sm" className="h-8 rounded-md border-border/60 px-2.5 font-code text-[9px] font-bold uppercase tracking-wider">Insert</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onSelect={() => openUtilityDialog('table')}><Table2 className="mr-2 size-4" /> Table</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => openUtilityDialog('image')}><ImagePlus className="mr-2 size-4" /> Image</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setIsGraphDialogOpen(true)}><ChartColumn className="mr-2 size-4" /> Inline graph</DropdownMenuItem>
+              <DropdownMenuItem onSelect={insertDivider}><Pilcrow className="mr-2 size-4" /> Divider</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
+              <Button type="button" variant="ghost" size="sm" className="h-8 rounded-md px-2 font-code text-[9px] font-bold uppercase tracking-wider">Tools</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onSelect={() => applyFormat('unlink')}><Unlink className="mr-2 size-4" /> Remove link</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => applyFormat('justifyFull')}><AlignJustify className="mr-2 size-4" /> Justify text</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => applyFormat('insertUnorderedList')}><List className="mr-2 size-4" /> Bulleted list</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => applyFormat('insertOrderedList')}><ListOrdered className="mr-2 size-4" /> Numbered list</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => applyFormat('outdent')}><IndentDecrease className="mr-2 size-4" /> Outdent</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => applyFormat('indent')}><IndentIncrease className="mr-2 size-4" /> Indent</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => openUtilityDialog('find')}><FileSearch className="mr-2 size-4" /> Find</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => openUtilityDialog('replace')}><Replace className="mr-2 size-4" /> Find and replace</DropdownMenuItem>
+              <DropdownMenuItem onSelect={toggleTalkToText}><Mic className="mr-2 size-4" /> {listening ? 'Stop talk to text' : 'Talk to text'}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </div>
+      <Dialog open={isGraphDialogOpen} onOpenChange={setIsGraphDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Insert inline graph</DialogTitle>
+            <DialogDescription>Enter a few labeled values to add a simple bar graph at your cursor.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="graph-values">Values</Label>
+            <Input
+              id="graph-values"
+              value={graphValues}
+              onChange={(event) => setGraphValues(event.target.value)}
+              placeholder="Support:5, Challenge:2, Unknown:3"
+              autoFocus
+            />
+            <p className="text-xs leading-5 text-muted-foreground">Use comma-separated label and value pairs. The graph is inserted as part of this document.</p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsGraphDialogOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={insertChart}>Insert graph</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={utilityDialog !== null} onOpenChange={(open) => !open && setUtilityDialog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{utilityDialog === 'image' ? 'Insert image' : utilityDialog === 'link' ? 'Add link' : utilityDialog === 'table' ? 'Insert table' : utilityDialog === 'replace' ? 'Find and replace' : 'Find in document'}</DialogTitle>
+            <DialogDescription>{utilityDialog === 'image' ? 'Use a public web image URL. It will be added at your current cursor position.' : utilityDialog === 'link' ? 'Select text first, then enter the web address to link it.' : utilityDialog === 'table' ? 'Choose the starting table size. You can fill the cells directly in the document.' : utilityDialog === 'replace' ? 'Replace matching text throughout this document.' : 'Find the next matching phrase in this document.'}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {utilityDialog === 'image' && <div className="space-y-2"><Label htmlFor="image-url">Image URL</Label><Input id="image-url" value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://example.com/image.jpg" autoFocus /></div>}
+            {utilityDialog === 'link' && <div className="space-y-2"><Label htmlFor="link-url">Link URL</Label><Input id="link-url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://example.com" autoFocus /></div>}
+            {utilityDialog === 'table' && <div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="table-rows">Rows</Label><Input id="table-rows" type="number" min="1" max="12" value={tableRows} onChange={(event) => setTableRows(event.target.value)} autoFocus /></div><div className="space-y-2"><Label htmlFor="table-columns">Columns</Label><Input id="table-columns" type="number" min="1" max="8" value={tableColumns} onChange={(event) => setTableColumns(event.target.value)} /></div></div>}
+            {(utilityDialog === 'find' || utilityDialog === 'replace') && <div className="space-y-2"><Label htmlFor="find-query">Find</Label><Input id="find-query" value={findQuery} onChange={(event) => setFindQuery(event.target.value)} placeholder="Text to find" autoFocus /></div>}
+            {utilityDialog === 'replace' && <div className="space-y-2"><Label htmlFor="replacement-text">Replace with</Label><Input id="replacement-text" value={replacementText} onChange={(event) => setReplacementText(event.target.value)} placeholder="Replacement text" /></div>}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setUtilityDialog(null)}>Cancel</Button>
+            <Button type="button" onClick={runUtilityDialog}>{utilityDialog === 'replace' ? 'Replace all' : utilityDialog === 'find' ? 'Find next' : utilityDialog === 'table' ? 'Insert table' : utilityDialog === 'image' ? 'Insert image' : 'Add link'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

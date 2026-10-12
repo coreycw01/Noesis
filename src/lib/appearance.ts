@@ -4,8 +4,18 @@ export const NOESIS_THEME_STORAGE_KEY = 'noesis:theme';
 
 export type AppearanceSnapshot = Pick<
   AppearanceSettings,
-  'themeMode' | 'accentTheme' | 'headerFont' | 'fontSize' | 'highContrastMode' | 'reducedMotion'
+  'themeMode' | 'accentTheme' | 'headerFont' | 'fontSize' | 'interfaceShape' | 'highContrastMode' | 'reducedMotion'
 >;
+
+export function readPersistedAppearanceSettings(): Partial<AppearanceSnapshot> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(NOESIS_THEME_STORAGE_KEY) || '{}');
+    return saved && typeof saved === 'object' ? saved : {};
+  } catch {
+    return {};
+  }
+}
 
 export function applyAppearanceSettings(
   appearance: AppearanceSnapshot,
@@ -23,6 +33,7 @@ export function applyAppearanceSettings(
   root.dataset.theme = appearance.accentTheme;
   root.dataset.headerFont = appearance.headerFont;
   root.dataset.fontSize = appearance.fontSize;
+  root.dataset.interfaceShape = appearance.interfaceShape;
 }
 
 export function persistAppearanceSettings(appearance: AppearanceSnapshot) {

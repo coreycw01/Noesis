@@ -19,7 +19,7 @@ export default function TermsPage() {
       </section>
       <section>
         <h2>Acceptable use</h2>
-        <p>Do not abuse the service, attempt to access another user's data, evade usage limits, upload malicious material, or interfere with service availability.</p>
+        <p>Do not abuse the service, attempt to access another user&apos;s data, evade usage limits, upload malicious material, or interfere with service availability.</p>
       </section>
       <section>
         <h2>Availability</h2>

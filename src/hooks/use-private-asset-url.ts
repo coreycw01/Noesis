@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { privateAssetObjectUrl } from '@/lib/storage-assets';
+import { demoRecordingUrl, isDemoAsset } from '@/lib/demo-assets';
 
 export function usePrivateAssetUrl(storagePath?: string, fallback = '') {
   const [url, setUrl] = useState(fallback);
@@ -11,18 +12,21 @@ export function usePrivateAssetUrl(storagePath?: string, fallback = '') {
     let active = true;
     let objectUrl = '';
     setError(null);
-    if (!storagePath) {
+    const local = isDemoAsset(fallback);
+    setUrl(local ? '' : fallback);
+    if (!storagePath && !local) {
       setUrl(fallback);
       return;
     }
-    void privateAssetObjectUrl(storagePath)
+    void (local ? demoRecordingUrl(fallback) : privateAssetObjectUrl(storagePath!))
       .then((nextUrl) => {
         objectUrl = nextUrl;
         if (active) setUrl(nextUrl);
+        else URL.revokeObjectURL(nextUrl);
       })
       .catch((reason) => {
         if (active) {
-          setUrl(fallback);
+          setUrl(local ? '' : fallback);
           setError(reason instanceof Error ? reason : new Error('Unable to load private asset.'));
         }
       });

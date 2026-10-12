@@ -7,6 +7,7 @@ import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface WorksRoutePageProps {
   uid: string;
+  isReviewWorkspace?: boolean;
   drafts: Draft[];
   media: Media[];
   vault: VaultEntry[];
@@ -14,7 +15,7 @@ export interface WorksRoutePageProps {
   concepts: Concept[];
   writingDefaults: UserPreferences['writingDefaults'];
   focusedDraftId?: string | null;
-  onAddDraft: (data: Partial<Draft>) => Draft;
+  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
   onUpdateDraft: (draft: Draft) => void | Promise<void>;
   onDeleteDraft: (id: string) => void;
   onMarkDraftOpened: (draft: Draft) => void;
@@ -24,6 +25,7 @@ export interface WorksRoutePageProps {
 
 export function WorksRoutePage({
   uid,
+  isReviewWorkspace = false,
   drafts,
   media,
   vault,
@@ -58,6 +60,7 @@ export function WorksRoutePage({
   return (
     <Atelier
       uid={uid}
+      isReviewWorkspace={isReviewWorkspace}
       drafts={drafts}
       media={media}
       vault={vault}

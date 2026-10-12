@@ -4,14 +4,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Capacitor } from '@capacitor/core';
 import {
   browserLocalPersistence,
+  indexedDBLocalPersistence,
   createUserWithEmailAndPassword,
   getRedirectResult,
   GoogleAuthProvider,
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
+  signInWithCredential,
   signInWithPopup,
   signInWithRedirect,
   updateProfile,
@@ -65,12 +68,17 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState<'email' | 'google' | 'reset' | null>(null);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
+  const [nativeGoogleUnavailable, setNativeGoogleUnavailable] = useState(false);
   const redirectChecked = useRef(false);
 
   const logoData = placeholderData?.placeholderImages?.find(img => img.id === 'app-logo');
 
   useEffect(() => {
-    if (redirectChecked.current) return;
+    setNativeGoogleUnavailable(Capacitor.isNativePlatform() && !Capacitor.isPluginAvailable('FirebaseAuthentication'));
+  }, []);
+
+  useEffect(() => {
+    if (redirectChecked.current || Capacitor.isNativePlatform()) return;
     redirectChecked.current = true;
 
     void getRedirectResult(auth).catch((error) => {
@@ -86,7 +94,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
     });
   }, [auth, toast]);
 
-  const preparePersistentSession = () => setPersistence(auth, browserLocalPersistence);
+  const preparePersistentSession = () => setPersistence(auth, Capacitor.isNativePlatform() ? indexedDBLocalPersistence : browserLocalPersistence);
 
   const submitEmail = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -124,6 +132,14 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
     setBusy('google');
     try {
       await preparePersistentSession();
+      if (Capacitor.isNativePlatform()) {
+        const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+        const result = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true });
+        const idToken = result.credential?.idToken;
+        if (!idToken) throw new Error('Google sign-in did not return a credential. Please try again.');
+        await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+        return;
+      }
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, provider);
@@ -135,7 +151,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
         'auth/operation-not-supported-in-this-environment',
       ].some((fallbackCode) => code.includes(fallbackCode));
 
-      if (shouldUseRedirect) {
+      if (shouldUseRedirect && !Capacitor.isNativePlatform()) {
         try {
           const provider = new GoogleAuthProvider();
           provider.setCustomParameters({ prompt: 'select_account' });
@@ -277,17 +293,17 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
             <form onSubmit={submitEmail} className="space-y-5">
               {mode === 'signup' && (
                 <div className="space-y-2">
-                  <Label>Name</Label>
-                  <Input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Full Name" className="h-11" />
+                  <Label htmlFor="login-name">Name</Label>
+                  <Input id="login-name" autoComplete="name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Full Name" className="h-11" />
                 </div>
               )}
               <div className="space-y-2">
-                <Label>Email</Label>
-                <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="h-11" />
+                <Label htmlFor="login-email">Email</Label>
+                <Input id="login-email" autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="h-11" />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Password</Label>
+                  <Label htmlFor="login-password">Password</Label>
                   {mode === 'signin' && (
                     <button type="button" onClick={resetPassword} className="text-xs text-muted-foreground hover:text-accent">
                       Forgot Password?
@@ -296,6 +312,8 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
                 </div>
                 <div className="relative">
                   <Input 
+                    id="login-password"
+                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                     type={showPassword ? 'text' : 'password'} 
                     value={password} 
                     onChange={(event) => setPassword(event.target.value)} 
@@ -319,16 +337,24 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
               </Button>
             </form>
 
-            <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-border" />
-              <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">or</span>
-              <div className="h-px flex-1 bg-border" />
-            </div>
+            {nativeGoogleUnavailable ? (
+              <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
+                Update the Android app to use Google sign-in. You can still sign in with email and password.
+              </p>
+            ) : (
+              <>
+                <div className="my-6 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-border" />
+                  <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">or</span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
 
-            <Button type="button" variant="outline" onClick={signInGoogle} disabled={busy !== null} className="h-11 w-full rounded-full bg-card font-bold border-border/60 shadow-sm">
-              {busy === 'google' && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Continue with Google
-            </Button>
+                <Button type="button" variant="outline" onClick={signInGoogle} disabled={busy !== null} className="h-11 w-full rounded-full bg-card font-bold border-border/60 shadow-sm">
+                  {busy === 'google' && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Continue with Google
+                </Button>
+              </>
+            )}
 
             <div className="mt-8 flex flex-col gap-3 text-center text-sm">
               <button

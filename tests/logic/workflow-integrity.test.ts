@@ -11,8 +11,11 @@ import { buildDemoWorkspace } from '../../src/lib/demo-workspace';
 
 test('position confidence is stored on one 0-100 scale', () => {
   assert.equal(normalizePositionConfidence(undefined), 60);
-  assert.equal(normalizePositionConfidence(0.72), 72);
-  assert.equal(normalizePositionConfidence(3), 60);
+  assert.equal(normalizePositionConfidence(0.72, 60, 'fraction'), 72);
+  assert.equal(normalizePositionConfidence(3, 60, 'five_point'), 60);
+  for (const value of [0, 1, 2, 3, 4, 5, 100]) assert.equal(normalizePositionConfidence(value), value);
+  assert.equal(normalizePositionConfidence(Number.NaN), 60);
+  assert.equal(normalizePositionConfidence(-10), 0);
   assert.equal(normalizePositionConfidence(84), 84);
   assert.equal(normalizePositionConfidence(140), 100);
 });

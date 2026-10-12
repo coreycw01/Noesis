@@ -1,19 +1,11 @@
 "use client";
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
 import { NoesisRouteProvider } from '@/lib/noesis-route-context';
 import { parseNoesisRoute } from '@/lib/noesis-routes';
-
-const NoesisRoutePage = dynamic(
-  () => import('./noesis-home-page').then((module) => module.NoesisRoutePage),
-  {
-    ssr: false,
-    loading: () => <WorkspaceFrameLoading />,
-  },
-);
+import { metadataForNoesisRouteState } from '@/lib/noesis-page-definitions';
 
 function WorkspaceFrameLoading() {
   return (
@@ -65,6 +57,23 @@ function isNoesisWorkspacePath(pathname: string) {
 export function NoesisPersistentWorkspace({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const routeState = useMemo(() => parseNoesisRoute(pathname), [pathname]);
+  const isWorkspace = isNoesisWorkspacePath(pathname);
+  const [Workspace, setWorkspace] = useState<React.ComponentType | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  useEffect(() => {
+    if (!isWorkspace) return;
+    const label = pathname.startsWith('/demo') ? 'Demo Workspace' : pathname.startsWith('/review') ? 'Review Workspace' : undefined;
+    const title = metadataForNoesisRouteState(routeState, label).title;
+    if (typeof title === 'string') document.title = title;
+  }, [isWorkspace, pathname, routeState]);
+  useEffect(() => {
+    if (!isWorkspace || Workspace) return;
+    let current = true;
+    import('./noesis-home-page').then((module) => {
+      if (current) setWorkspace(() => module.NoesisRoutePage);
+    }).catch(() => { if (current) setLoadFailed(true); });
+    return () => { current = false; };
+  }, [isWorkspace, Workspace]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -76,11 +85,13 @@ export function NoesisPersistentWorkspace({ children }: { children: React.ReactN
     return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
 
-  if (!isNoesisWorkspacePath(pathname)) return <>{children}</>;
+  if (!isWorkspace) return <>{children}</>;
+  if (loadFailed) return <main className="min-h-screen bg-background p-8 text-foreground" role="alert">The workspace could not load. <button className="underline" onClick={() => window.location.reload()}>Try again</button></main>;
+  if (!Workspace) return <WorkspaceFrameLoading />;
 
   return (
     <NoesisRouteProvider routeState={routeState}>
-      <NoesisRoutePage />
+      <Workspace />
     </NoesisRouteProvider>
   );
 }

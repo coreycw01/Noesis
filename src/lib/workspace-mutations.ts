@@ -2,6 +2,7 @@
 
 import {
   deleteDoc,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -11,9 +12,9 @@ import {
   type Firestore,
   type SetOptions,
 } from 'firebase/firestore';
-import { queueThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
+import { makeThinkingEventPayload, queueThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
 
-type MutationOperation = 'set' | 'update' | 'delete';
+type MutationOperation = 'set' | 'update' | 'delete' | 'create';
 
 interface CommitWorkspaceMutationInput<T extends DocumentData = DocumentData> {
   db: Firestore;
@@ -23,6 +24,7 @@ interface CommitWorkspaceMutationInput<T extends DocumentData = DocumentData> {
   setOptions?: SetOptions;
   thinkingEvent?: WriteThinkingEventInput | null;
   thinkingEvents?: WriteThinkingEventInput[];
+  relatedUpdates?: Array<{ ref: DocumentReference; data: DocumentData }>;
 }
 
 export async function commitWorkspaceMutation<T extends DocumentData = DocumentData>({
@@ -33,6 +35,7 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
   setOptions,
   thinkingEvent,
   thinkingEvents,
+  relatedUpdates = [],
 }: CommitWorkspaceMutationInput<T>) {
   const mutationData = operation === 'delete'
     ? undefined
@@ -46,7 +49,19 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
     ...(thinkingEvents || []),
   ];
 
-  if (!eventQueue.length) {
+  if (operation === 'create') {
+    const events = eventQueue.map(makeThinkingEventPayload);
+    return runTransaction(db, async (transaction) => {
+      if ((await transaction.get(ref)).exists()) {
+        throw new Error('This item already exists. Open the current item instead of restoring an older copy.');
+      }
+      transaction.set(ref, mutationData as any);
+      relatedUpdates.forEach((update) => transaction.update(update.ref, update.data));
+      events.forEach(({ eventRef, payload }) => transaction.set(eventRef, payload));
+    });
+  }
+
+  if (!eventQueue.length && !relatedUpdates.length) {
     if (operation === 'delete') return deleteDoc(ref);
     if (operation === 'update') return updateDoc(ref, mutationData as any);
     return setDoc(ref, mutationData as any, setOptions as any);
@@ -61,5 +76,6 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
     batch.set(ref, mutationData as any, setOptions as any);
   }
   eventQueue.forEach((event) => queueThinkingEvent(batch, event));
+  relatedUpdates.forEach((update) => batch.update(update.ref, update.data));
   return batch.commit();
 }

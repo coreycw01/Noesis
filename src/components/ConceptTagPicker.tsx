@@ -11,9 +11,11 @@ interface ConceptTagPickerProps {
   onChange: (tags: string[]) => void;
   onCreateConcept?: (name: string) => void;
   compact?: boolean;
+  inline?: boolean;
+  className?: string;
 }
 
-export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, compact }: ConceptTagPickerProps) {
+export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, compact, inline, className }: ConceptTagPickerProps) {
   const selected = normalizeConceptTags(value);
   const items = useMemo(() => {
     const byId = new Map<string, { id: string; label: string; secondary?: string; searchText?: string[] }>();
@@ -53,6 +55,8 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
       onCreate={onCreateConcept ? create : undefined}
       createLabel={(query) => `Create "${query}"`}
       compact={compact}
+      inline={inline}
+      className={className}
     />
   );
 }
