@@ -110,6 +110,13 @@ export type ConceptPhilosophyStatus = 'undefined' | 'emerging' | 'developed' | '
 export type PositionPhilosophyStatus = 'draft' | 'tentative' | 'developing' | 'defended' | 'active' | 'contested' | 'unstable' | 'uncertain' | 'challenged' | 'suspended' | 'revised' | 'split' | 'abandoned' | 'replaced' | 'rejected';
 export type PositionKind = 'descriptive' | 'normative' | 'interpretive' | 'methodological' | 'personal_principle' | 'worldview_claim' | 'predictive' | 'practical';
 export type PhilosophicalObjectType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'evolution';
+export type NoesisStage = 'encounter' | 'question' | 'claim' | 'test' | 'revise';
+export type NoesisCondition = 'needs_evidence' | 'under_challenge' | 'stalled' | 'ready_for_review';
+export interface NoesisStageState {
+  stage?: NoesisStage;
+  condition?: NoesisCondition;
+  legacyStatus?: string;
+}
 export type PhilosophicalLinkType = 'supports' | 'challenges' | 'coheres' | 'defines' | 'refines' | 'contradicts' | 'exemplifies' | 'inspired_by' | 'tested_by' | 'expressed_in' | 'changed_by' | 'depends_on' | 'explains' | 'explained_by' | 'derived_from' | 'references' | 'replaces' | 'questions' | 'expands' | 'weakens' | 'strengthens';
 export type AtlasMapLinkType = PhilosophicalLinkType | 'examples' | 'causes' | 'questions' | 'practices' | 'relates' | 'custom';
 export type AtlasMapLineMode = 'default' | 'singleColor' | 'strengthColor' | 'relationshipCategoryColor';
@@ -135,7 +142,7 @@ export interface SecurityRuleContext {
   operation: 'create' | 'update' | 'delete' | 'list' | 'get' | 'write';
 }
 
-export interface Annotation {
+export interface Annotation extends NoesisStageState {
   id: string;
   text: string;
   type: AnnotationType;
@@ -199,7 +206,7 @@ export interface MediaCapture {
   sessions: ReadingSession[];
 }
 
-export interface Media {
+export interface Media extends NoesisStageState {
   id: string;
   title: string;
   creator: string;
@@ -242,7 +249,7 @@ export interface VaultVersion {
   date: string;
 }
 
-export interface VaultEntry {
+export interface VaultEntry extends NoesisStageState {
   id: string;
   title: string;
   type: VaultType;
@@ -291,7 +298,7 @@ export interface Insight {
   dateUpdated: string;
 }
 
-export interface Concept {
+export interface Concept extends NoesisStageState {
   id: string;
   name: string;
   description: string;
@@ -310,7 +317,7 @@ export interface Concept {
   atlasReviewStatus?: 'new' | 'confirmed' | 'rejected' | 'deferred';
 }
 
-export interface Question {
+export interface Question extends NoesisStageState {
   id: string;
   text: string;
   status: QuestionStatus | 'gathering_evidence' | 'under_tension' | 'partially_answered' | 'resolved' | 'reopened';
@@ -439,7 +446,7 @@ export interface ExternalDraftDocument {
   syncError?: string;
 }
 
-export interface Practice {
+export interface Practice extends NoesisStageState {
   id: string;
   title: string;
   description: string;

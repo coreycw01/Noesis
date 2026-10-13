@@ -1,9 +1,10 @@
 # Noesis completion work
 
-The product goal is a dependable, user-led philosophy workspace. Sources,
-annotations, concepts, inquiries, positions, practices, and works are useful
-independently and can form a connected thinking workflow. Guidance is optional.
-Accepted AI output remains reviewed and user-owned. Goals and achievements stay.
+The product goal is a dependable, user-owned philosophy workspace that actively
+leads users through Encounter, Question, Claim, Test, and Revise. Guidance is the
+default, but checkpoints may be skipped with a recorded reason. Accepted AI
+output remains reviewed and user-owned. Goals become Commitments connected to
+positions and practices; points and collectible achievements are removed.
 
 ## Delivery and evidence
 
@@ -13,7 +14,7 @@ Accepted AI output remains reviewed and user-owned. Goals and achievements stay.
 - Pending: all-page consistency, accessibility, and responsive verification.
 - In progress: Works manual/autosave coordination and contextual AI cancellation.
 - Pending: authenticated AI smoke tests for each action and acceptance destination.
-- Implemented locally: independent first-use entry paths and a collapsed event-backed weekly review. Full guided-path acceptance remains pending.
+- Implemented locally: independent first-use entry paths, a collapsed event-backed weekly review, the visible guided-cycle navigation, canonical stage derivation, deterministic Today guidance, Commitments, and the Say/Do Mirror. Transition checkpoints, discovery onboarding, and the Mentor voice remain pending.
 - Implemented, not device-verified: native Google sign-in bridge. Pending Android Firebase configuration and physical recording/upload/back-button checks.
 - Production build passed. Pending: staging load/security checks and Android release candidate.
 
@@ -26,7 +27,7 @@ not establish authenticated Firestore, Storage, AI, or physical Android behavior
 - Typecheck passed before this implementation pass.
 - Existing 33 logic tests passed before this implementation pass.
 - Local Home renders at http://localhost:9073/demo/home/.
-- Existing guided-path changes remain uncommitted and are preserved.
+- Guided-path decisions were reconciled against the attached product audit before implementation.
 
 ## Defects identified
 
@@ -55,7 +56,7 @@ Deploy only after staging verification and explicit production release approval.
 - Demo mutations persist in session storage isolated by demo identity. No production write is substituted for a demo edit.
 - Network/save errors are no longer automatically labeled as permission failures.
 - Confidence values use a consistent 0-100 scale; legacy conversion requires an explicit scale.
-- 37 logic tests, 5 security tests, typecheck, production build and production dependency audit passed.
+- 46 logic tests, 8 security tests, typecheck, and the production build passed in this implementation pass.
 - Capacitor Android sync passed with the native authentication plugin.
 - Mobile browser smoke check at 390x844: Home, Concepts, Inquiries, Library, Source Index, Annotations, Positions, Works, Practices, Evolution, Profile, Goals, Settings and Atlas rendered without horizontal document overflow. This is not full workflow validation.
 - Inquiry uncertainty saved and survived refresh in the demo.
@@ -79,13 +80,13 @@ Deploy only after staging verification and explicit production release approval.
 4. UI/mobile: login inputs have associated labels; inquiry answer has an accessible label; practice setup warnings use theme tokens and the action says Finish setup. Mobile Home checked at 390x844 without horizontal document overflow. This does not establish all-page accessibility compliance.
 5. Works: shared save queue, retained media on recoverable deletion, shared demo persistence, and local demo recording storage. Hardware recording/upload and every ribbon control remain unverified.
 6. AI/security: item-first context capped to 32,000 characters; preview and submitted context match. Selected-pair and period validation are enforced. Request bodies are bounded while streaming, not only after allocation. Live model quality and authenticated provider success remain unverified.
-7. Guidance: optional weekly review uses recent recorded milestones, not invented activity. Empty Home offers independent source, inquiry, position and practice paths. Creative Works no longer require an argument skeleton to escape Home reminders.
+7. Guidance: Today now selects one next move and the longest-waiting unanswered inquiry. The navigation follows Encounter → Question → Claim → Test → Revise, and mutations preserve a canonical stage alongside legacy status. Commitments replace the visible points/achievement experience and include an evidence-backed Say/Do Mirror.
 8. Android: native Google credential bridge and Capacitor sync implemented. Missing project Firebase Android configuration and physical-device verification block release sign-off.
 9. Regression: 44 logic tests and 8 security tests pass; typecheck, production build and production dependency audit pass. Production audit reports no unapproved high/critical findings, not a claim that every development dependency is vulnerability-free.
 
 ### Concrete browser checks
 
-- Local demo: http://localhost:9073/demo/home.
+- Local demo used for this pass: http://localhost:9074/demo/home.
 - Created a Practice from inquiry q_comfort_growth; practice count increased from 8 to 9 and survived refresh. The practice appeared in Other Practices with its action, linked inquiry and setup warning.
 - Home/Inquiries/Practices route transitions retained the sidebar; loading stayed inside page content. Browser title now follows the selected route.
 - Home rendered at desktop and 390x844, retaining mobile navigation and its current appearance tokens.
@@ -96,7 +97,7 @@ Deploy only after staging verification and explicit production release approval.
 - Authenticated staging matrix: create/edit/save/reload/delete/restore across all record types, account switching, offline/permission failures, and AI acceptance destinations.
 - Firestore/Storage emulator rules, quota/concurrency/load tests, retention cleanup, real camera/microphone uploads, and Android release build/device verification.
 - Remaining legacy fire-and-forget mutations and two-step existing-item links need transactional service coverage; linked-record partial saves are surfaced but not yet universally atomic.
-- Full theme, keyboard, mobile, back/forward and scroll-restoration coverage; remaining lint warnings; total startup performance measurement.
+- Full keyboard, mobile, back/forward and appearance-matrix coverage; remaining lint warnings; total startup performance measurement. Browser checks confirmed that ordinary route changes now reset main-content scroll without moving the sidebar.
 - No production deployment or commit was performed in this continuation. None of these nine batches is being signed off as fully release-ready solely from the demo.
 
 Native authentication follows the [Capawesome Firebase JS SDK integration](https://github.com/capawesome-team/capacitor-firebase/blob/main/packages/authentication/docs/firebase-js-sdk.md): native credential acquisition with skipNativeAuth, followed by Firebase JavaScript signInWithCredential.

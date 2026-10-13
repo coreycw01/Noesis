@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { Progress } from '@/components/ui/progress';
@@ -76,15 +75,6 @@ type ReturnMoment = HomeTarget & {
 };
 
 const HOME_VISIT_KEY = 'noesis:home-last-visit';
-
-const HOME_MODES: Array<{ id: HomeMode; label: string; description: string }> = [
-  { id: 'continue', label: 'Continue', description: 'Return to the strongest next action.' },
-  { id: 'challenge', label: 'Challenge Me', description: 'Find claims that need opposition.' },
-  { id: 'unfinished', label: 'Unfinished', description: 'Surface incomplete captures and open work.' },
-  { id: 'recent', label: 'Recently Changed', description: 'Reopen what moved lately.' },
-  { id: 'neglected', label: 'Neglected', description: 'Find important objects that have gone quiet.' },
-  { id: 'rediscover', label: 'Random Rediscovery', description: 'Bring back something worth seeing again.' },
-];
 
 interface ThinkingDeskProps {
   profile: UserProfile;
@@ -163,7 +153,7 @@ export function ThinkingDesk({
   onNavigate,
   onCreateInquiry,
 }: ThinkingDeskProps) {
-  const [mode, setMode] = useState<HomeMode>('continue');
+  const mode = useMemo<HomeMode>(() => 'continue', []);
   const [provocationAngle, setProvocationAngle] = useState(0);
   const [briefAnswer, setBriefAnswer] = useState('');
   const [irrelevantReason, setIrrelevantReason] = useState('');
@@ -407,9 +397,15 @@ export function ThinkingDesk({
       addUndefinedConcepts(62);
     }
 
-    return uniqueDeskItems(items)
-      .sort((a, b) => b.priority - a.priority || a.label.localeCompare(b.label))
-      .slice(0, 3);
+    const sorted = uniqueDeskItems(items)
+      .sort((a, b) => b.priority - a.priority || a.label.localeCompare(b.label));
+    const longestWaitingInquiry = [...inquiries]
+      .filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status))
+      .sort((a, b) => recentDate(a.dateCreated) - recentDate(b.dateCreated))[0];
+    const oldestInquiryItem = longestWaitingInquiry
+      ? sorted.find((item) => item.view === 'questions' && item.targetId === longestWaitingInquiry.id)
+      : undefined;
+    return uniqueDeskItems([sorted[0], oldestInquiryItem].filter(Boolean) as DeskItem[]).slice(0, 2);
   }, [concepts, inquiries, links, media, mode, positions, practices, works]);
 
   const provocation = useMemo(() => {
@@ -915,20 +911,8 @@ export function ThinkingDesk({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">What to do next</div>
-                    <p className="mt-1 text-xs text-muted-foreground">The strongest available move across your workspace.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">One recommended move, followed by your longest-waiting unanswered question.</p>
                   </div>
-                  <Select value={mode} onValueChange={(value) => setMode(value as HomeMode)}>
-                    <SelectTrigger className="h-9 w-[190px] rounded-md bg-background text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {HOME_MODES.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
               <div className="p-5">
@@ -1124,8 +1108,8 @@ export function ThinkingDesk({
           <section className="border-b border-border p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Active Goals</div>
-                <p className="mt-1 text-xs text-muted-foreground">Commitments currently directing your attention.</p>
+                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Active Commitments</div>
+                <p className="mt-1 text-xs text-muted-foreground">Positions you are trying to make visible through practice.</p>
               </div>
               <Button
                 type="button"
@@ -1133,8 +1117,8 @@ export function ThinkingDesk({
                 size="icon"
                 onClick={() => onNavigate({ view: 'goals' })}
                 className="size-8 rounded-md"
-                aria-label="Open all goals"
-                title="Open all goals"
+                aria-label="Open all commitments"
+                title="Open all commitments"
               >
                 <ChevronRight className="size-4 stroke-[2.4]" />
               </Button>

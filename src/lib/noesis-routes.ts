@@ -72,7 +72,7 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
     case 'library':
       return { view: 'library', focusedSourceId: maybeId || null };
     case 'sources':
-      return { view: 'source-index' };
+      return { view: 'library' };
     case 'annotations':
       return { view: 'annotations' };
     case 'positions':

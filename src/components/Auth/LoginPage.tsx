@@ -274,8 +274,8 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
             </div>
 
             {isDomainError && (
-              <div className="mb-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 text-sm text-amber-900 font-body shadow-sm">
-                <div className="flex items-center gap-2 mb-3 text-amber-700 font-bold uppercase font-code text-[10px] tracking-wider">
+              <div className="mb-8 rounded-xl border border-border bg-muted/60 p-5 text-sm text-foreground font-body shadow-sm">
+                <div className="mb-3 flex items-center gap-2 font-code text-[11px] font-bold uppercase tracking-wider text-accent">
                   <ShieldAlert className="size-4" /> Action Required
                 </div>
                 <p className="italic leading-relaxed">
