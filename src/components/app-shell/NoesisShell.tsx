@@ -649,10 +649,10 @@ export function NoesisShell({
       onCommandSelect={onOpenCommandItem}
     >
       {isReviewWorkspace && (
-        <div className="border-b border-amber-500/15 bg-amber-500/6 px-3 py-2 md:px-6">
+        <div className="border-b border-accent/20 bg-accent/10 px-3 py-2 md:px-6">
           <div className="mx-auto max-w-7xl">
             <div className="flex min-w-0 items-center gap-2">
-              <Badge className="shrink-0 rounded-full bg-amber-500 text-black">Demo</Badge>
+              <Badge className="shrink-0 rounded-full bg-accent text-accent-foreground">Demo</Badge>
               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                 Local review workspace · {media.length} sources · {concepts.length} concepts · {vault.length} positions
               </span>
@@ -668,7 +668,7 @@ export function NoesisShell({
                 <ChevronDown className={`ml-1 size-3.5 transition-transform ${reviewDetailsOpen ? 'rotate-180' : ''}`} />
               </Button>
             </div>
-            {reviewDetailsOpen && <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-amber-500/15 pt-2">
+            {reviewDetailsOpen && <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-accent/20 pt-2">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="rounded-full">Role: demo</Badge>
@@ -684,7 +684,7 @@ export function NoesisShell({
                 </span>
               </div>
               {!canSeedReviewWorkspace && (
-                <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   This preview uses a local deterministic dataset. Sign in with <span className="font-code">{REVIEW_ACCOUNT_EMAIL}</span> to reseed the Firestore review workspace.
                 </p>
               )}

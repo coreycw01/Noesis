@@ -13,6 +13,8 @@ import {
   type SetOptions,
 } from 'firebase/firestore';
 import { makeThinkingEventPayload, queueThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
+import { withNoesisStage } from '@/lib/workflow-integrity';
+import type { PhilosophicalObjectType } from '@/lib/types';
 
 type MutationOperation = 'set' | 'update' | 'delete' | 'create';
 
@@ -37,10 +39,24 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
   thinkingEvents,
   relatedUpdates = [],
 }: CommitWorkspaceMutationInput<T>) {
+  const collectionType: Partial<Record<string, PhilosophicalObjectType>> = {
+    media: 'source',
+    concepts: 'concept',
+    questions: 'inquiry',
+    vault: 'position',
+    practices: 'practice',
+    timeline: 'evolution',
+  };
+  const pathSegments = ref.path.split('/');
+  const entityType = pathSegments.map((segment) => collectionType[segment]).find(Boolean);
+  const rawData = data as Record<string, unknown> | undefined;
+  const stagedData = entityType && rawData?.status
+    ? withNoesisStage(entityType, rawData as { status?: string })
+    : rawData;
   const mutationData = operation === 'delete'
     ? undefined
     : {
-        ...(data as Record<string, unknown>),
+        ...stagedData,
         clientMutationId: crypto.randomUUID(),
         serverUpdatedAt: serverTimestamp(),
       };

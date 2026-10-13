@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   hasPracticeIntellectualBasis,
+  deriveNoesisCondition,
+  deriveNoesisStage,
   normalizePositionConfidence,
   normalizePracticeStatusForSave,
   practiceDesignGaps,
@@ -48,6 +50,23 @@ test('active practices require a complete design and an intellectual basis', () 
 
 test('relationship identifiers are trimmed and deduplicated', () => {
   assert.deepEqual(uniqueIds([' source-1 ', 'source-1', '', null, 'source-2']), ['source-1', 'source-2']);
+});
+
+test('legacy statuses map into one visible Noesis cycle', () => {
+  assert.equal(deriveNoesisStage('source', 'Finished'), 'encounter');
+  assert.equal(deriveNoesisStage('inquiry', 'investigating'), 'question');
+  assert.equal(deriveNoesisStage('inquiry', 'resolved'), 'revise');
+  assert.equal(deriveNoesisStage('position', 'active'), 'claim');
+  assert.equal(deriveNoesisStage('position', 'revised'), 'revise');
+  assert.equal(deriveNoesisStage('practice', 'active'), 'test');
+  assert.equal(deriveNoesisStage('practice', 'concluded'), 'revise');
+});
+
+test('conditions stay separate from lifecycle stage', () => {
+  assert.equal(deriveNoesisCondition('inquiry', 'gathering_evidence'), 'needs_evidence');
+  assert.equal(deriveNoesisCondition('position', 'challenged'), 'under_challenge');
+  assert.equal(deriveNoesisCondition('practice', 'paused'), 'stalled');
+  assert.equal(deriveNoesisCondition('position', 'active'), undefined);
 });
 
 test('the demo workspace never presents an incomplete practice as active', () => {

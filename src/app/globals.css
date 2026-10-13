@@ -861,4 +861,19 @@
     font-style: normal;
     line-height: 1.4;
   }
+
+  @media (max-width: 767px) {
+    .noesis-app-main .text-\[8px\],
+    .noesis-app-main .text-\[9px\],
+    .noesis-app-main .text-\[10px\] {
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .noesis-app-main button:has(> svg:only-child),
+    .noesis-app-main a:has(> svg:only-child) {
+      min-width: 40px;
+      min-height: 40px;
+    }
+  }
 }

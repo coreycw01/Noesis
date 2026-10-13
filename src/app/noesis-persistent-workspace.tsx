@@ -78,9 +78,12 @@ export function NoesisPersistentWorkspace({ children }: { children: React.ReactN
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const main = document.querySelector<HTMLElement>('.noesis-app-main');
-      const scrollRegion = main?.querySelector<HTMLElement>('[data-noesis-scroll-region], .overflow-y-auto');
+      const scrollRegion = main?.querySelector<HTMLElement>('[data-noesis-scroll-region]');
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      main?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       if (scrollRegion) scrollRegion.scrollTo({ top: 0, behavior: 'auto' });
-      else main?.scrollTo({ top: 0, behavior: 'auto' });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [pathname]);

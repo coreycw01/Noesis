@@ -602,6 +602,7 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
         completionCriteria: 'Six practices have produced an outcome note and a linked intellectual consequence.',
         milestones: ['Choose the idea or position being tested.', 'Define the hypothesis and observation method.', 'Perform the practice long enough to gather evidence.', 'Complete a theory-versus-reality review.', 'Update the linked position, inquiry, or unknown.'],
         linkedObjectLabels: ['Practice: Daily attention audit', 'Position: The strongest ideas are those that can become practices.'],
+        relatedObjectIds: { positionIds: ['v_attention_rule'], practiceIds: ['p_attention_fast'] },
         reviewCadence: 'weekly',
         createdAt: iso(1),
         updatedAt: iso(24),

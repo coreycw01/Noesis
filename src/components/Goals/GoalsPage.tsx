@@ -437,6 +437,26 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
     })[0],
     [activeGoals]
   );
+  const sayDoRows = useMemo(() => activeGoals.flatMap((item) => {
+    const linkedPositions = positions.filter((position) => (item.relatedObjectIds?.positionIds || []).includes(position.id));
+    if (!linkedPositions.length) return [];
+    const linkedPractices = practices.filter((practice) => (
+      (item.relatedObjectIds?.practiceIds || []).includes(practice.id)
+      || practice.positionIds.some((positionId) => linkedPositions.some((position) => position.id === positionId))
+    ));
+    const confidence = Math.round(linkedPositions.reduce((sum, position) => sum + position.confidence, 0) / linkedPositions.length);
+    const loggedDays = practiceLogDayCount(linkedPractices);
+    const livedPercent = Math.min(100, Math.round((loggedDays / Math.max(1, item.targetProgress)) * 100));
+    return [{
+      id: item.id,
+      title: item.title,
+      positionLabel: linkedPositions[0].title || linkedPositions[0].statement,
+      confidence,
+      loggedDays,
+      livedPercent,
+      gap: Math.max(0, confidence - livedPercent),
+    }];
+  }).sort((a, b) => b.gap - a.gap), [activeGoals, positions, practices]);
   const progressScore = useMemo(() => enrichedGoals.reduce((total, item) => {
     const progressValue = Math.round(goalCompletionPoints(item.targetProgress) * (item.percent / 100));
     const reviewValue = Math.min(30, (item.reviewNotes?.length || 0) * 5);
@@ -650,12 +670,23 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
         return;
       }
     }
+    const commitmentWithoutGrounding = (draft.goals || []).find((item) => (
+      !(item.relatedObjectIds?.positionIds || []).length && !item.purpose?.trim()
+    ));
+    if (commitmentWithoutGrounding) {
+      toast({
+        variant: 'destructive',
+        title: 'Ground this commitment',
+        description: `Link “${commitmentWithoutGrounding.title}” to a Position or briefly explain why it matters.`,
+      });
+      return;
+    }
     setSaving(true);
     try {
       await onSaveGoal({ ...draft, label: trimmedLabel, goalTypes: cleanedTypes });
-      toast({ title: 'Goal set updated', description: 'Your categories, targets, and ordering are now synced.' });
+      toast({ title: 'Commitments updated', description: 'Your commitments and their measured practice are now synced.' });
     } catch {
-      toast({ variant: 'destructive', title: 'Goals not saved', description: 'Noesis could not update your goals.' });
+      toast({ variant: 'destructive', title: 'Commitments not saved', description: 'Noesis could not update your commitments.' });
     } finally {
       setSaving(false);
     }
@@ -665,32 +696,30 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
     <div className="noesis-page">
       <div className="noesis-page-inner">
         <PageHeader
-          title="Goals & Achievements"
-          description="See the intellectual work you are building, choose the next meaningful move, and mark the milestones that matter."
+          title="Commitments"
+          description="Connect what you say matters to what you repeatedly practice."
           meta={(
             <>
-              <GoalStat label="Progress score" value={progressScore} />
-              <GoalStat label="Active goals" value={activeGoals.length} />
+              <GoalStat label="Active" value={activeGoals.length} />
               <GoalStat label="Completed" value={goalStats.completed} />
             </>
           )}
           actions={(
             <>
             <Button variant="outline" onClick={addGoal} className="rounded-full bg-card">
-              <Plus className="mr-2 size-4" /> Add Goal
+              <Plus className="mr-2 size-4" /> Add Commitment
             </Button>
             <Button onClick={saveGoals} disabled={saving} className="rounded-full px-7 font-bold shadow-md shadow-accent/20">
-              <Save className="mr-2 size-4" /> {saving ? 'Saving' : 'Save Goals'}
+              <Save className="mr-2 size-4" /> {saving ? 'Saving' : 'Save Commitments'}
             </Button>
             </>
           )}
         />
 
-        <div className="mb-6 flex flex-wrap items-center gap-1 border-y border-border/70 py-2" role="tablist" aria-label="Goals views">
+        <div className="mb-6 flex flex-wrap items-center gap-1 border-y border-border/70 py-2" role="tablist" aria-label="Commitment views">
           {([
             { id: 'progress', label: 'Progress', icon: Target },
-            { id: 'achievements', label: 'Achievements', icon: Award },
-            { id: 'goals', label: 'Goals', icon: Settings2 },
+            { id: 'goals', label: 'Commitments', icon: Settings2 },
           ] as const).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -710,7 +739,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
         </div>
 
         {activeView === 'progress' && (
-          <div className="space-y-6" role="tabpanel" aria-label="Goal progress">
+          <div className="space-y-6" role="tabpanel" aria-label="Commitment progress">
             <section className="border-y border-border bg-card/35 py-5 md:py-7">
               <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                 <div className="min-w-0">
@@ -724,8 +753,8 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                     </>
                   ) : (
                     <>
-                      <h2 className="mt-2 font-headline text-2xl font-bold italic">Create your first meaningful goal</h2>
-                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Start with one concrete change you want your Noesis work to make visible.</p>
+                      <h2 className="mt-2 font-headline text-2xl font-bold italic">Create your first meaningful commitment</h2>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Choose one Position you want your conduct to test, or state why the commitment matters.</p>
                     </>
                   )}
                 </div>
@@ -736,11 +765,11 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                       <div className="font-headline text-3xl font-bold italic">{Math.round(focusGoal.percent)}%</div>
                     </div>
                     <Button variant="outline" onClick={() => setActiveView('goals')} className="min-h-10 rounded-full">
-                      Open goal <ChevronRight className="ml-1 size-4" />
+                      Open commitment <ChevronRight className="ml-1 size-4" />
                     </Button>
                   </div>
                 ) : (
-                  <Button onClick={addGoal} className="min-h-10 rounded-full"><Plus className="mr-2 size-4" /> Add goal</Button>
+                  <Button onClick={addGoal} className="min-h-10 rounded-full"><Plus className="mr-2 size-4" /> Add commitment</Button>
                 )}
               </div>
             </section>
@@ -748,8 +777,8 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             <section aria-labelledby="active-goals-heading">
               <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                 <div>
-                  <h2 id="active-goals-heading" className="font-headline text-xl font-bold italic">Active goals</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Progress is based on your recorded work and the milestones you set.</p>
+                  <h2 id="active-goals-heading" className="font-headline text-xl font-bold italic">Active commitments</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Progress comes from recorded practice and can be adjusted when reality is not captured automatically.</p>
                 </div>
                 <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{activeGoals.length} in motion</span>
               </div>
@@ -784,11 +813,35 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                   })}
                 </div>
               ) : (
-                <Card className="border-dashed bg-card/50 p-6 text-sm text-muted-foreground">No active goals yet. Create one goal that helps you notice meaningful progress in your work.</Card>
+                <Card className="border-dashed bg-card/50 p-6 text-sm text-muted-foreground">No active commitments yet. Start with one belief you want to live or test.</Card>
               )}
             </section>
 
-            <section className="grid gap-4 border-t border-border pt-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" aria-label="Progress score">
+            {sayDoRows.length > 0 && (
+              <section aria-labelledby="say-do-heading" className="border-y border-border py-5">
+                <div className="mb-4">
+                  <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Mirror</div>
+                  <h2 id="say-do-heading" className="mt-1 font-headline text-xl font-bold italic">Say / Do gap</h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">A factual comparison between how strongly you hold a Position and how many practice days you have recorded. It is a prompt to inspect, not a score of character.</p>
+                </div>
+                <div className="divide-y divide-border border-y border-border">
+                  {sayDoRows.slice(0, 3).map((row) => (
+                    <article key={row.id} className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] md:items-center">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-foreground">{row.title}</h3>
+                        <p className="mt-1 text-sm leading-5 text-muted-foreground">{row.positionLabel}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 font-code text-[10px] uppercase tracking-wider text-muted-foreground">
+                        <div><span className="block">Say</span><strong className="mt-1 block text-base text-foreground">{row.confidence}% confidence</strong></div>
+                        <div><span className="block">Do</span><strong className="mt-1 block text-base text-foreground">{row.loggedDays} logged days</strong></div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className="hidden" aria-hidden="true">
               {nextAchievements.length > 0 && (
                 <div className="border-b border-border pb-5 md:col-span-2">
                   <div className="mb-3"><div className="flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground"><Award className="size-4" aria-hidden="true" /> Nearly earned</div><p className="mt-1 text-sm text-muted-foreground">Your closest achievements across Noesis.</p></div>
@@ -858,17 +911,17 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             <section className="mb-6 border-y border-border py-5 md:py-6" aria-labelledby="goals-heading">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Goal setup</div>
-                  <h2 id="goals-heading" className="mt-1 font-headline text-2xl font-bold italic">Set up goals in three small steps</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Start with a name and a target. Refine a goal only when you want to narrow what Noesis counts.</p>
+                  <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Commitment setup</div>
+                  <h2 id="goals-heading" className="mt-1 font-headline text-2xl font-bold italic">Make belief visible in practice</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Name the commitment, link the Position it expresses, and choose the practice evidence that counts.</p>
                 </div>
-                <Button onClick={addGoal} className="min-h-10 rounded-full"><Plus className="mr-2 size-4" /> Add goal</Button>
+                <Button onClick={addGoal} className="min-h-10 rounded-full"><Plus className="mr-2 size-4" /> Add commitment</Button>
               </div>
               <ol className="mt-5 grid gap-3 sm:grid-cols-3">
                 {[
-                  ['1', 'Name it', 'What are you trying to make progress on?'],
-                  ['2', 'Measure it', 'Choose a category and a target number.'],
-                  ['3', 'Refine it', 'Optionally choose the exact result, item, or concept to track.'],
+                  ['1', 'Name it', 'What are you committing to do?'],
+                  ['2', 'Ground it', 'Link the Position it expresses, or explain why it matters.'],
+                  ['3', 'Measure it', 'Choose the practice evidence that shows you lived it.'],
                 ].map(([number, title, detail]) => (
                   <li key={number} className="flex gap-3 border-l border-border pl-3">
                     <span className="font-code text-[10px] font-bold text-accent">{number}</span>
@@ -881,7 +934,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             <section className="mb-6" aria-label="Basic goal settings">
               <div className="mb-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                 <div>
-                  <Label className="readex-kicker">Goal collection name</Label>
+                  <Label className="readex-kicker">Commitment collection name</Label>
                   <Input value={draft.label} onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))} className="mt-2 h-10 max-w-xl" placeholder="For example, Autumn thinking goals" />
                 </div>
                 <span className="text-sm text-muted-foreground">{enrichedGoals.length} goal{enrichedGoals.length === 1 ? '' : 's'} in this collection</span>

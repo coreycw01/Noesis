@@ -343,22 +343,6 @@ export function SettingsPage({
         return (
           <div className="space-y-6">
             <SettingsCard title="Account" description="Authentication, account state, and export controls.">
-              <div className="mb-6 rounded-2xl border border-border bg-background/60 p-4">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Profile lives outside Settings</div>
-                    <div className="mt-2 font-headline text-xl font-semibold italic text-foreground">
-                      {profileSummary?.displayName || user?.displayName || 'Untitled Thinker'}
-                    </div>
-                    <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                      {profileSummary?.bio || 'Use Profile for identity, public philosophy, thinking tendencies, unknowns, and belief development.'}
-                    </p>
-                  </div>
-                  <Button onClick={onOpenProfile} disabled={!onOpenProfile} variant="outline" className="rounded-full bg-card px-6">
-                    Open Profile
-                  </Button>
-                </div>
-              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Email">
                   <Input value={drafts.account.authEmail || user?.email || ''} disabled />
@@ -601,10 +585,10 @@ export function SettingsPage({
                 </Field>
               </div>
               <div className="mt-5 grid gap-3">
-                <SwitchRow label="Show goals on dashboard" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
-                <SwitchRow label="Include audiobooks in reading goals" checked={drafts.goals.includeAudiobooksInReadingGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includeAudiobooksInReadingGoals: checked } }))} />
-                <SwitchRow label="Include podcasts in learning goals" checked={drafts.goals.includePodcastsInLearningGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includePodcastsInLearningGoals: checked } }))} />
-                <SwitchRow label="Include videos in source goals" checked={drafts.goals.includeVideosInSourceGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includeVideosInSourceGoals: checked } }))} />
+                <SwitchRow label="Show commitments on Today" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
+                <SwitchRow label="Count completed audiobooks" checked={drafts.goals.includeAudiobooksInReadingGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includeAudiobooksInReadingGoals: checked } }))} />
+                <SwitchRow label="Count completed podcasts" checked={drafts.goals.includePodcastsInLearningGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includePodcastsInLearningGoals: checked } }))} />
+                <SwitchRow label="Count completed videos" checked={drafts.goals.includeVideosInSourceGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includeVideosInSourceGoals: checked } }))} />
               </div>
               <SaveBar onSave={() => saveSection('goals')} saving={saving === 'goals'} />
             </SettingsCard>
@@ -777,7 +761,7 @@ export function SettingsPage({
                 <SwitchRow label="Weekly evolution summary" checked={drafts.notifications.weeklyEvolutionSummary} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, weeklyEvolutionSummary: checked } }))} />
                 <SwitchRow label="Practice log reminders" checked={drafts.notifications.practiceReminders} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, practiceReminders: checked } }))} />
                 <SwitchRow label="Unknown follow-up reminders" checked={drafts.notifications.unknownFollowUpReminders} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, unknownFollowUpReminders: checked } }))} />
-                <SwitchRow label="Goal reviews" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
+                <SwitchRow label="Commitment reviews" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
               </div>
               <div className="mt-5 rounded-2xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
                 Source reflection, unresolved contradiction, and weekly review reminders should be generated from recorded objects. If a reminder cannot point to a real object, it should not appear.
@@ -789,7 +773,7 @@ export function SettingsPage({
                 </Button>
                 <Button variant="outline" onClick={() => saveSection('goals')} disabled={saving === 'goals'} className="rounded-full bg-card px-6">
                   <Save className="mr-2 size-4" />
-                  {saving === 'goals' ? 'Saving Goal Reviews' : 'Save Goal Reviews'}
+                  {saving === 'goals' ? 'Saving Commitment Reviews' : 'Save Commitment Reviews'}
                 </Button>
               </div>
             </SettingsCard>

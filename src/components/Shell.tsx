@@ -19,7 +19,6 @@ import {
   Settings,
   ShieldCheck,
   Command,
-  Table as TableIcon,
   Highlighter,
   Home,
   Search,
@@ -232,7 +231,6 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'concepts', icon: BookOpen, count: counts.concepts },
     { id: 'questions', icon: HelpCircle, count: counts.questions },
     { id: 'library', icon: Library, count: counts.media },
-    { id: 'source-index', icon: TableIcon, count: counts.media },
     { id: 'annotations', icon: Highlighter, count: counts.annotations },
     { id: 'vault', icon: ShieldCheck, count: counts.vault },
     { id: 'writing', icon: PenTool, count: counts.drafts },
@@ -585,21 +583,21 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             type="button"
             onClick={() => setAttentionOpen(true)}
             className={cn(
-              "group flex w-full items-center rounded-full border border-amber-500/30 bg-amber-500/10 text-sidebar-foreground transition-colors hover:border-amber-500/45 hover:bg-amber-500/15",
+              "group flex w-full items-center rounded-full border border-accent/30 bg-accent/10 text-sidebar-foreground transition-colors hover:border-accent/45 hover:bg-accent/15",
               collapsed && !isMobile ? "justify-center p-2.5" : "gap-2 px-3 py-2"
             )}
             title={`${attentionTotal} item${attentionTotal === 1 ? '' : 's'} need attention`}
             aria-label={`${attentionTotal} item${attentionTotal === 1 ? '' : 's'} need attention`}
           >
             <span className="relative">
-              <AlertTriangle className="size-4 text-amber-600 dark:text-amber-300" />
-              <span className="absolute -right-2 -top-2 grid min-w-4 place-items-center rounded-full bg-amber-700 px-1 font-code text-[8px] font-bold text-white">
+              <AlertTriangle className="size-4 text-accent" />
+              <span className="absolute -right-2 -top-2 grid min-w-4 place-items-center rounded-full bg-accent px-1 font-code text-[8px] font-bold text-accent-foreground">
                 {attentionTotal > 9 ? '9+' : attentionTotal}
               </span>
             </span>
             {(!collapsed || isMobile) && (
               <span className="min-w-0 flex-1 text-left">
-                <span className="block truncate font-code text-[8px] font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-200">Attention</span>
+                <span className="block truncate font-code text-[8px] font-bold uppercase tracking-[0.16em] text-accent">Attention</span>
                 <span className="block truncate text-[11px] text-sidebar-foreground/55">{attentionTotal} item{attentionTotal === 1 ? '' : 's'} to review</span>
               </span>
             )}
@@ -608,7 +606,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       )}
 
       <nav className="min-h-0 flex-1 overflow-y-auto py-4 scrollbar-hide">
-        {['Mind', 'Inputs', 'Outputs', 'Utility'].map((section) => (
+        {['Today', 'Encounter', 'Question', 'Claim', 'Test', 'Revise', 'More'].map((section) => (
           <div key={section} className="mb-5">
             {(!collapsed || isMobile) && (
               <h4 className="px-5 mb-1 font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/22 font-bold">{section}</h4>
@@ -693,10 +691,10 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           </>
         )}
 
-        <main className="noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-16 pt-14 md:pb-0 md:pt-0" aria-busy={Boolean(pendingPath)}>
+        <main className="noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-32 pt-14 md:pb-0 md:pt-0" aria-busy={Boolean(pendingPath)}>
           {!isOnline && (
-            <div role="status" className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs leading-5 text-foreground sm:px-6">
-              <WifiOff className="size-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+            <div role="status" className="flex shrink-0 items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs leading-5 text-foreground sm:px-6">
+              <WifiOff className="size-4 shrink-0 text-destructive" aria-hidden="true" />
               <span><strong className="font-medium">You&apos;re offline.</strong> Recent workspace data remains available; saved changes will sync when you reconnect.</span>
             </div>
           )}
@@ -760,7 +758,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 >
                   <span className="min-w-0">
                     <span className="flex items-center gap-2">
-                      <span className="grid size-7 place-items-center rounded-full bg-amber-400/15 font-code text-[10px] font-bold text-amber-700 dark:text-amber-200">
+                      <span className="grid size-7 place-items-center rounded-full bg-accent/15 font-code text-[10px] font-bold text-accent">
                         {item.count}
                       </span>
                       <span className="font-medium text-foreground">{item.label}</span>

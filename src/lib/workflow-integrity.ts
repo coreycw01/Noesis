@@ -1,4 +1,4 @@
-import type { Practice, PracticeStatus } from '@/lib/types';
+import type { NoesisCondition, NoesisStage, PhilosophicalObjectType, Practice, PracticeStatus } from '@/lib/types';
 
 const ACTIVE_PRACTICE_STATUSES = new Set<PracticeStatus>(['active']);
 
@@ -37,4 +37,45 @@ export function normalizePracticeStatusForSave(practice: Partial<Practice>): Pra
 
 export function uniqueIds(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((value) => value?.trim()).filter(Boolean) as string[]));
+}
+
+const STAGE_BY_TYPE: Partial<Record<PhilosophicalObjectType, NoesisStage>> = {
+  source: 'encounter',
+  annotation: 'encounter',
+  concept: 'question',
+  inquiry: 'question',
+  position: 'claim',
+  practice: 'test',
+  evolution: 'revise',
+};
+
+/** Maps legacy domain statuses into the one guided Noesis cycle. */
+export function deriveNoesisStage(entityType: PhilosophicalObjectType, status?: string): NoesisStage {
+  const normalized = status?.trim().toLowerCase();
+  if (entityType === 'inquiry' && ['answered', 'resolved', 'archived', 'no_longer_meaningful'].includes(normalized || '')) return 'revise';
+  if (entityType === 'position' && ['revised', 'split', 'abandoned', 'replaced', 'rejected'].includes(normalized || '')) return 'revise';
+  if (entityType === 'practice' && ['completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'abandoned'].includes(normalized || '')) return 'revise';
+  return STAGE_BY_TYPE[entityType] || 'encounter';
+}
+
+export function deriveNoesisCondition(entityType: PhilosophicalObjectType, status?: string): NoesisCondition | undefined {
+  const normalized = status?.trim().toLowerCase();
+  if (['paused', 'suspended', 'stalled'].includes(normalized || '')) return 'stalled';
+  if (['challenged', 'contested', 'under_tension', 'uncertain', 'unstable'].includes(normalized || '')) return 'under_challenge';
+  if (entityType === 'inquiry' && ['captured', 'clarifying', 'open', 'investigating', 'gathering_evidence'].includes(normalized || '')) return 'needs_evidence';
+  if (deriveNoesisStage(entityType, status) === 'revise') return 'ready_for_review';
+  return undefined;
+}
+
+export function withNoesisStage<T extends { status?: string; stage?: NoesisStage; condition?: NoesisCondition; legacyStatus?: string }>(
+  entityType: PhilosophicalObjectType,
+  value: T,
+): T {
+  const legacyStatus = value.legacyStatus || value.status;
+  return {
+    ...value,
+    stage: deriveNoesisStage(entityType, value.status),
+    condition: deriveNoesisCondition(entityType, value.status),
+    ...(legacyStatus ? { legacyStatus } : {}),
+  };
 }
