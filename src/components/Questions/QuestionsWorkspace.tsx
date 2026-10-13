@@ -13,8 +13,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SourceLinker } from '@/components/SourceLinker';
 import type { Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
-import { allQuestions, conceptKey, today } from '@/lib/readex';
+import { allQuestions, conceptKey, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
@@ -325,6 +326,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
           return (
             <Card key={question.id} className="border border-accent/15 bg-card/95 p-4 rounded-xl shadow-sm">
               <button className="w-full text-left group" onClick={() => openQuestion(question.id)}>
+                <StageBadge type="inquiry" stage={question.stage} status={question.status} className="mb-2" />
                 <h3 className="text-xl font-headline font-bold italic group-hover:text-accent transition-colors leading-snug text-primary mb-3">
                   {question.text}
                 </h3>
@@ -514,6 +516,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const [candidateDraft, setCandidateDraft] = useState({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
   const [evidenceDraft, setEvidenceDraft] = useState({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
   const [testDraft, setTestDraft] = useState({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
+  const [checkpointSkipReason, setCheckpointSkipReason] = useState('');
   React.useEffect(() => {
     if (initialSection !== 'answer') return;
     const target = answerRef.current;
@@ -534,6 +537,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     setCandidateDraft({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
     setEvidenceDraft({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
     setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
+    setCheckpointSkipReason('');
   }, [question.id]);
   const { tools, recommended } = investigationTools(question, drafts, practices);
   const candidateAnswers = question.candidateAnswers || [];
@@ -550,11 +554,20 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       onAiFeedback('Resolution summary required', 'Add a short resolution summary before choosing this inquiry outcome.', 'destructive');
       return;
     }
+    const hasSteelman = candidateAnswers.some((candidate) => candidate.objection?.trim());
+    if (requiresSummary && !hasSteelman && !checkpointSkipReason.trim()) {
+      onAiFeedback('Steelman checkpoint', 'Record the strongest objection under Compare answers, or explain why you are skipping this checkpoint.', 'destructive');
+      return;
+    }
+    const checkpointSkips = requiresSummary && !hasSteelman && checkpointSkipReason.trim()
+      ? [...(question.checkpointSkips || []), { id: uid(), transition: 'question_to_resolution', reason: checkpointSkipReason.trim(), date: today() }]
+      : question.checkpointSkips;
     if (!await onUpdateQuestion({
       ...question,
       answer: initialAnswer.trim(),
       status,
       resolutionSummary: requiresSummary || investigationDraft.resolutionSummary.trim() ? investigationDraft.resolutionSummary.trim() : question.resolutionSummary || '',
+      checkpointSkips,
       dateUpdated: today(),
     })) return;
     onAiFeedback(status === 'resolved' ? 'Inquiry resolved.' : 'Inquiry outcome saved.', status === 'resolved' ? 'The resolution summary is now stored on this inquiry.' : `Marked as ${status.replace(/_/g, ' ')} without pretending the question is fully closed.`);
@@ -1039,7 +1052,17 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                 )}
 
                 {selectedTool === 'Decide outcome' && (
-                  <div className="space-y-3"><div className="space-y-2"><Label htmlFor={`resolution-${question.id}`}>What led you here?</Label><Textarea id={`resolution-${question.id}`} value={investigationDraft.resolutionSummary} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, resolutionSummary: event.target.value }))} placeholder="What mattered most, and what remains open?" className="min-h-[96px]" /></div><div className="grid gap-2 md:grid-cols-2">{RESOLUTION_OPTIONS.map((option) => <button key={option.status} type="button" onClick={() => saveProvisionalAnswer(option.status)} disabled={!initialAnswer.trim()} className={cn('rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50', question.status === option.status ? 'border-accent bg-accent/10' : 'border-border bg-card hover:border-accent/40 hover:bg-accent/5')}><div className="text-sm font-semibold text-foreground">{option.label}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</p></button>)}</div></div>
+                  <div className="space-y-3">
+                    <div className="space-y-2"><Label htmlFor={`resolution-${question.id}`}>What led you here?</Label><Textarea id={`resolution-${question.id}`} value={investigationDraft.resolutionSummary} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, resolutionSummary: event.target.value }))} placeholder="What mattered most, and what remains open?" className="min-h-[96px]" /></div>
+                    {!candidateAnswers.some((candidate) => candidate.objection?.trim()) && (
+                      <div className="rounded-lg border border-border bg-muted/20 p-3">
+                        <div className="text-sm font-semibold">Checkpoint: steelman before you settle</div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">Use Compare answers to record the strongest objection. If that would not help this inquiry, record why you are skipping it.</p>
+                        <Input value={checkpointSkipReason} onChange={(event) => setCheckpointSkipReason(event.target.value)} className="mt-3" aria-label="Reason for skipping steelman checkpoint" placeholder="Why is this checkpoint not useful here?" />
+                      </div>
+                    )}
+                    <div className="grid gap-2 md:grid-cols-2">{RESOLUTION_OPTIONS.map((option) => <button key={option.status} type="button" onClick={() => saveProvisionalAnswer(option.status)} disabled={!initialAnswer.trim()} className={cn('rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50', question.status === option.status ? 'border-accent bg-accent/10' : 'border-border bg-card hover:border-accent/40 hover:bg-accent/5')}><div className="text-sm font-semibold text-foreground">{option.label}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</p></button>)}</div>
+                  </div>
                 )}
               </section>
             )}

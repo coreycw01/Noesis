@@ -158,6 +158,7 @@ export function ThinkingDesk({
   const [briefAnswer, setBriefAnswer] = useState('');
   const [irrelevantReason, setIrrelevantReason] = useState('');
   const [provocationDismissed, setProvocationDismissed] = useState(false);
+  const [discoveryMode, setDiscoveryMode] = useState(false);
   const [lastHomeVisit, setLastHomeVisit] = useState<string | null>(null);
   const annotations = useMemo(() => allAnnotations(media), [media]);
 
@@ -868,19 +869,29 @@ export function ThinkingDesk({
     return (
       <main className="noesis-page">
         <PageHeader
-          title="Home"
+          title="Today"
           description="Noesis becomes useful when it has something real to think with."
         />
         <PageEmptyState
           icon={Compass}
           title="Start with one real thought"
-          description="Start with a source, a question, a position, or a small lived test. Each path works on its own; connect them when it helps your thinking."
+          description="Choose the entry point that matches what you already have. Discovery mode helps when you do not know where to begin."
           action={(
-            <div className="flex flex-wrap justify-center gap-3">
-              <Button onClick={() => onNavigate({ view: 'library' })}>Add Source</Button>
-              <Button variant="outline" onClick={() => onNavigate({ view: 'questions' })}>Ask Inquiry</Button>
-              <Button variant="outline" onClick={() => onNavigate({ view: 'vault' })}>State Position</Button>
-              <Button variant="outline" onClick={() => onNavigate({ view: 'practices' })}>Start Practice</Button>
+            <div className="space-y-4">
+              <div className="flex flex-wrap justify-center gap-3">
+                <Button onClick={() => onNavigate({ view: 'library' })}>I found something</Button>
+                <Button variant="outline" onClick={() => onNavigate({ view: 'questions' })}>I have a question</Button>
+                <Button variant="outline" onClick={() => onNavigate({ view: 'vault' })}>I hold a position</Button>
+                <Button variant="outline" onClick={() => onNavigate({ view: 'practices' })}>I want to test something</Button>
+                <Button variant="ghost" onClick={() => setDiscoveryMode((value) => !value)} aria-expanded={discoveryMode}>Discovery mode</Button>
+              </div>
+              {discoveryMode && (
+                <div className="mx-auto max-w-xl border-y border-border py-4 text-left">
+                  <div className="font-code text-[10px] uppercase tracking-widest text-accent">Begin with attention</div>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">What has bothered, surprised, or stayed with you lately? Turn that friction into an inquiry. You do not need a developed philosophy to start.</p>
+                  <Button className="mt-3" onClick={() => onNavigate({ view: 'questions' })}>Open a blank inquiry</Button>
+                </div>
+              )}
             </div>
           )}
         />

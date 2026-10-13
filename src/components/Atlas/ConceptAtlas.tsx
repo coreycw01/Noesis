@@ -2658,14 +2658,14 @@ export function ConceptAtlas({
             />
           )}
           <div className="absolute right-4 top-4 z-30 flex h-9 rounded-full border border-border/50 bg-card/90 p-1 shadow-md backdrop-blur">
-            <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.max(ATLAS_MIN_ZOOM, z - ATLAS_ZOOM_STEP)); }} className="h-7 w-7 rounded-full font-bold">-</Button>
+            <Button variant="ghost" size="icon" aria-label="Zoom out" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.max(ATLAS_MIN_ZOOM, z - ATLAS_ZOOM_STEP)); }} className="size-10 rounded-full font-bold md:size-8">-</Button>
             <div className="flex w-10 items-center justify-center font-code text-[10px] font-bold text-primary/60">{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</div>
-            <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.min(ATLAS_MAX_ZOOM, z + ATLAS_ZOOM_STEP)); }} className="h-7 w-7 rounded-full font-bold">+</Button>
+            <Button variant="ghost" size="icon" aria-label="Zoom in" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.min(ATLAS_MAX_ZOOM, z + ATLAS_ZOOM_STEP)); }} className="size-10 rounded-full font-bold md:size-8">+</Button>
             <div className="mx-1 my-1 w-px bg-border" />
-            <Button variant={isPanelOpen ? 'secondary' : 'ghost'} size="icon" onClick={(event) => { event.stopPropagation(); setIsPanelOpen((open) => !open); }} className="h-7 w-7 rounded-full">
+            <Button variant={isPanelOpen ? 'secondary' : 'ghost'} size="icon" aria-label={isPanelOpen ? 'Hide map controls' : 'Show map controls'} onClick={(event) => { event.stopPropagation(); setIsPanelOpen((open) => !open); }} className="size-10 rounded-full md:size-8">
               <SlidersHorizontal className="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); setIsFullScreen(!isFullScreen); }} className="h-7 w-7 rounded-full">
+            <Button variant="ghost" size="icon" aria-label={isFullScreen ? 'Exit full screen map' : 'Open full screen map'} onClick={(event) => { event.stopPropagation(); setIsFullScreen(!isFullScreen); }} className="size-10 rounded-full md:size-8">
               {isFullScreen ? <Minimize className="size-3.5" /> : <Maximize className="size-3.5" />}
             </Button>
           </div>
@@ -2814,6 +2814,8 @@ export function ConceptAtlas({
             {renderedNodes.map((node) => (
               <button
                 key={node.name}
+                type="button"
+                aria-label={`Open concept ${node.name}`}
                 className={cn(
                   "absolute -translate-x-1/2 -translate-y-1/2 text-center transition-none",
                   quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"

@@ -239,6 +239,7 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   seedSource: 'none',
   demoWorkspace: false,
   reviewReady: false,
+  stageModelVersion: 0,
   featureFlags: {
     reviewMode: false,
     demoWorkspaceSeed: false,

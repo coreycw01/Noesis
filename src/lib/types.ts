@@ -247,6 +247,7 @@ export interface VaultVersion {
   reason?: string;
   eventType?: EventType;
   date: string;
+  confidence?: number;
 }
 
 export interface VaultEntry extends NoesisStageState {
@@ -325,6 +326,7 @@ export interface Question extends NoesisStageState {
   whyItMatters?: string;
   currentIntuition?: string;
   uncertainty?: string;
+  checkpointSkips?: Array<{ id: string; transition: string; reason: string; date: string }>;
   investigationNotes?: Array<{
     id: string;
     text: string;
@@ -366,7 +368,7 @@ export interface TimelineEvent {
   date: string;
 }
 
-export interface Draft {
+export interface Draft extends NoesisStageState {
   id: string;
   title: string;
   body: string;
@@ -765,6 +767,7 @@ export interface WorkspaceSettings {
   seedSource?: 'system-demo' | 'manual' | 'none';
   demoWorkspace?: boolean;
   reviewReady?: boolean;
+  stageModelVersion?: number;
   featureFlags: Record<string, boolean>;
   dateUpdated?: string;
 }

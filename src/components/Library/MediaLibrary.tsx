@@ -18,6 +18,7 @@ import { Separator } from '@/components/ui/separator';
 import type { AiSettings, Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink, ReadingSession } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_STATUS_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, today, uid, conceptKey, conceptRelated } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
 import { sourceResultToMediaPatch, type NormalizedSourceResult } from '@/lib/source-intake';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -1116,9 +1117,7 @@ export function MediaLibrary({
                 <div className="line-clamp-1 text-sm font-semibold text-accent">{item.tags[0]}</div>
               )}
               <div className="flex items-center justify-between pt-1">
-                <Badge variant="outline" className="rounded-full border-border/60 bg-card px-2 py-0.5 font-code text-[8px] font-bold uppercase tracking-widest">
-                  {MEDIA_STATUS_LABELS[item.status]}
-                </Badge>
+                <div className="flex flex-wrap gap-1"><Badge variant="outline" className="rounded-full border-border/60 bg-card px-2 py-0.5 font-code text-[8px] font-bold uppercase tracking-widest">{MEDIA_STATUS_LABELS[item.status]}</Badge><StageBadge type="source" stage={item.stage} status={item.status} /></div>
                 <div className="flex items-center gap-3 text-muted-foreground/70">
                   {item.annotations?.length > 0 && <span className="flex items-center gap-1" title={`${item.annotations.length} annotations`} aria-label={`${item.annotations.length} annotations`}><MessageSquare className="size-3.5" /><span className="font-code text-[9px] font-bold">{item.annotations.length}</span></span>}
                   {influence > 0 && <span className="flex items-center gap-1" title={`${influence} connected objects`} aria-label={`${influence} connected objects`}><Link2 className="size-3.5" /><span className="font-code text-[9px] font-bold">{influence}</span></span>}

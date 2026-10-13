@@ -47,7 +47,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
   {
     view: 'home',
     route: '/home',
-    title: 'Home',
+    title: 'Today',
     purpose: 'Surface what deserves intellectual attention now and guide the next meaningful action.',
     section: 'Today',
     signatureExperience: 'A Thinking Desk for unfinished edges, provocations, recent movement, and quiet signals.',
@@ -157,7 +157,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/goals',
     title: 'Commitments',
     purpose: 'Connect what the user says matters to the practices through which it is lived.',
-    section: 'More',
+    section: 'Test',
     signatureExperience: 'A Say/Do bridge between held positions and repeated practice.',
     loadingLayout: 'list',
   },

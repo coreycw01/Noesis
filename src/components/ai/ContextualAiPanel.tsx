@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { BrainCircuit, Check, ClipboardCopy, Loader2, X } from 'lucide-react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { BrainCircuit, Check, ClipboardCopy, Loader2, Pencil, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -22,6 +22,68 @@ export interface ContextualAiPanelProps {
   buttonLabel?: string;
   promptLabel?: string;
   promptPlaceholder?: string;
+}
+
+function formattedInline(text: string): ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g).filter(Boolean).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) return <strong key={index} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>;
+    if (part.startsWith('`') && part.endsWith('`')) return <code key={index} className="rounded bg-muted px-1 py-0.5 font-code text-[0.9em] text-foreground">{part.slice(1, -1)}</code>;
+    if (part.startsWith('*') && part.endsWith('*')) return <em key={index}>{part.slice(1, -1)}</em>;
+    return <Fragment key={index}>{part}</Fragment>;
+  });
+}
+
+function ReviewDocument({ content }: { content: string }) {
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
+  const blocks: ReactNode[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index]?.trim() || '';
+    if (!line || /^-{3,}$/.test(line)) {
+      index += 1;
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      blocks.push(<h3 key={`heading-${index}`} className={level === 1 ? 'text-lg font-semibold text-foreground' : 'text-sm font-semibold text-foreground'}>{formattedInline(heading[2])}</h3>);
+      index += 1;
+      continue;
+    }
+
+    if (/^[-*+]\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^[-*+]\s+/.test(lines[index]?.trim() || '')) {
+        items.push((lines[index]?.trim() || '').replace(/^[-*+]\s+/, ''));
+        index += 1;
+      }
+      blocks.push(<ul key={`list-${index}`} className="space-y-2 pl-1">{items.map((item, itemIndex) => <li key={itemIndex} className="flex gap-3 text-sm leading-6 text-foreground/90"><span aria-hidden="true" className="mt-[0.65rem] size-1.5 shrink-0 rounded-full bg-accent" /><span>{formattedInline(item)}</span></li>)}</ul>);
+      continue;
+    }
+
+    if (/^\d+[.)]\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\d+[.)]\s+/.test(lines[index]?.trim() || '')) {
+        items.push((lines[index]?.trim() || '').replace(/^\d+[.)]\s+/, ''));
+        index += 1;
+      }
+      blocks.push(<ol key={`steps-${index}`} className="space-y-3">{items.map((item, itemIndex) => <li key={itemIndex} className="grid grid-cols-[1.75rem_1fr] gap-2 text-sm leading-6 text-foreground/90"><span className="flex size-7 items-center justify-center rounded-full border border-border bg-background font-code text-[10px] font-semibold text-muted-foreground">{itemIndex + 1}</span><span>{formattedInline(item)}</span></li>)}</ol>);
+      continue;
+    }
+
+    const paragraph: string[] = [];
+    while (index < lines.length) {
+      const candidate = lines[index]?.trim() || '';
+      if (!candidate || /^(#{1,4})\s+/.test(candidate) || /^[-*+]\s+/.test(candidate) || /^\d+[.)]\s+/.test(candidate) || /^-{3,}$/.test(candidate)) break;
+      paragraph.push(candidate.replace(/^>\s?/, ''));
+      index += 1;
+    }
+    blocks.push(<p key={`paragraph-${index}`} className="text-sm leading-7 text-foreground/90">{formattedInline(paragraph.join(' '))}</p>);
+  }
+
+  return <div className="space-y-4">{blocks}</div>;
 }
 
 export function ContextualAiPanel({
@@ -47,6 +109,7 @@ export function ContextualAiPanel({
   const [accepting, setAccepting] = useState(false);
   const [result, setResult] = useState<AiReviewResult | null>(null);
   const [editedContent, setEditedContent] = useState('');
+  const [editingResult, setEditingResult] = useState(false);
   const [userPrompt, setUserPrompt] = useState('');
   const rawEnvelope = useMemo(() => buildEnvelope(action, userPrompt.trim() || undefined), [action, buildEnvelope, userPrompt]);
   const envelope = useMemo(() => rawEnvelope ? boundedAiContext(rawEnvelope) : null, [rawEnvelope]);
@@ -65,6 +128,7 @@ export function ContextualAiPanel({
       if (requestRef.current !== controller || controller.signal.aborted) return;
       setResult(next);
       setEditedContent(next.content);
+      setEditingResult(false);
     } catch (error) {
       if (requestRef.current !== controller) return;
       toast({
@@ -141,6 +205,7 @@ export function ContextualAiPanel({
           setLoading(false);
           setResult(null);
           setEditedContent('');
+          setEditingResult(false);
         }
       }}>
         <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
@@ -199,12 +264,28 @@ export function ContextualAiPanel({
               </Button>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-xl border border-border/60 bg-muted/10 p-3 text-xs text-muted-foreground">
-                  Generated from {result.contextSummary}. Review and edit before applying.
+                <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Review Noesis&apos;s suggestion</div>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Based on {result.contextSummary}. Nothing is saved until you apply it.</p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" disabled={accepting} onClick={() => setEditingResult((current) => !current)} className="shrink-0 rounded-full">
+                    <Pencil className="mr-2 size-3.5" /> {editingResult ? 'Preview response' : 'Edit response'}
+                  </Button>
                 </div>
-                <Textarea aria-label="Review and edit assistance result" disabled={accepting} value={editedContent} onChange={(event) => setEditedContent(event.target.value)} className="min-h-[280px] leading-7" />
+                {editingResult ? (
+                  <div className="space-y-2">
+                    <label htmlFor={`${promptId}-result`} className="text-xs font-medium text-foreground">Edit the wording before saving</label>
+                    <Textarea id={`${promptId}-result`} aria-label="Edit assistance response" disabled={accepting} value={editedContent} onChange={(event) => setEditedContent(event.target.value)} className="min-h-[280px] leading-7" />
+                    <p className="text-xs text-muted-foreground">Formatting marks are visible here only so you can revise the structure.</p>
+                  </div>
+                ) : (
+                  <div className="max-h-[48dvh] overflow-y-auto rounded-xl border border-border bg-card p-4 sm:p-5" aria-label="Assistance response preview">
+                    <ReviewDocument content={editedContent} />
+                  </div>
+                )}
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Button variant="ghost" disabled={accepting} onClick={() => { setResult(null); setEditedContent(''); }} className="rounded-full">
+                  <Button variant="ghost" disabled={accepting} onClick={() => { setResult(null); setEditedContent(''); setEditingResult(false); }} className="rounded-full">
                     <X className="mr-2 size-4" /> Dismiss
                   </Button>
                   {onAccept ? (

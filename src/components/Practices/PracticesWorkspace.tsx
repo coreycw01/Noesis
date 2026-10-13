@@ -16,6 +16,7 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import type { Concept, Draft, Media, PhilosophicalLink, Practice, PracticeLog, PracticeStatus, PracticeType, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, normalizeConceptTags, PRACTICE_LABELS, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { StageBadge } from '@/components/shared/StageBadge';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
@@ -694,6 +695,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap gap-1.5 mb-1.5">
+            <StageBadge type="practice" stage={practice.stage} status={practice.status} />
             <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5 shadow-sm">{simplifiedTypeLabels[visibleType]}</Badge>
             <Badge
               variant="outline"

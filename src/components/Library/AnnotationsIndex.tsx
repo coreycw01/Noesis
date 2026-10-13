@@ -20,6 +20,7 @@ import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
@@ -711,7 +712,7 @@ export function AnnotationsIndex({
               key={button.id}
               onClick={() => setFilterType(button.id)}
               className={cn(
-                "px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all shadow-sm",
+                "min-h-10 px-3 py-2 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all shadow-sm",
                 filterType === button.id ? "bg-accent text-accent-foreground" : "bg-card text-muted-foreground border border-border/60 hover:text-foreground"
               )}
             >
@@ -783,6 +784,7 @@ export function AnnotationsIndex({
                   aria-label={`Select annotation from ${annotation.source.title}`}
                 />
                 <div className="flex flex-wrap items-center gap-2">
+                  <StageBadge type="annotation" stage={annotation.stage} status={annotation.philosophyStatus} />
                   <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold px-3 py-1">
                     {annotationLabel(annotationType(annotation))}
                   </Badge>
@@ -829,7 +831,7 @@ export function AnnotationsIndex({
                   else if (annotation.createdPositionId) onNavigate?.('vault', annotation.createdPositionId);
                   else openAnnotationDetail(annotation);
                 }}
-                className="h-8 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
+                className="min-h-10 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
               >
                 {annotation.createdInquiryId ? 'Open inquiry' : annotation.createdPositionId ? 'Open position' : 'Review impact'}
               </Button>
@@ -986,7 +988,7 @@ export function AnnotationsIndex({
                     />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label="Annotation actions">
+                        <Button variant="ghost" size="icon" className="size-10 rounded-full" aria-label="Annotation actions">
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>

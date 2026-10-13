@@ -19,6 +19,8 @@ import type { BeliefProfile, Concept, Draft, Media, PhilosophicalLink, PositionK
 import { normalizeConceptTags, today } from '@/lib/readex';
 import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { cn } from '@/lib/utils';
+import { derivePositionLifecycleStage } from '@/lib/workflow-integrity';
+import { StageBadge } from '@/components/shared/StageBadge';
 import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
 import { useToast } from '@/hooks/use-toast';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -139,15 +141,6 @@ type PositionViewFilter =
   | 'unsupported'
   | 'stale'
   | 'recently_changed';
-type PositionLifecycleStage = 'current' | 'developing' | 'under_review' | 'retired';
-
-function positionLifecycleStage(status: string): PositionLifecycleStage {
-  if (['abandoned', 'rejected', 'replaced'].includes(status)) return 'retired';
-  if (['challenged', 'contested', 'unstable', 'uncertain', 'questioning', 'suspended', 'split'].includes(status)) return 'under_review';
-  if (['draft', 'tentative', 'developing'].includes(status)) return 'developing';
-  if (['active', 'defended', 'revised'].includes(status)) return 'current';
-  return 'developing';
-}
 type StressStage = {
   title: string;
   prompt: string;
@@ -395,9 +388,9 @@ function buildStressStages({
       signal: 'A position cannot be tested until its exact claim is clear.',
     },
     {
-      title: 'State strongest version',
-      prompt: 'What is the fairest, strongest version of this claim before anyone attacks it?',
-      signal: strongestSupport,
+      title: 'Steelman the opposition',
+      prompt: 'Before settling this position, state the strongest opposing position in words its best advocate would accept.',
+      signal: counterposition || strongestObjection,
     },
     {
       title: 'Identify assumptions',
@@ -490,10 +483,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     const viewOk =
       viewFilter === 'all' ||
       (viewFilter === 'complete' && positionFormation(e).fullyFormed) ||
-      (viewFilter === 'current' && positionLifecycleStage(e.status) === 'current') ||
-      (viewFilter === 'developing' && positionLifecycleStage(e.status) === 'developing') ||
-      (viewFilter === 'retired' && positionLifecycleStage(e.status) === 'retired') ||
-      (viewFilter === 'under_review' && positionLifecycleStage(e.status) === 'under_review') ||
+      (viewFilter === 'current' && derivePositionLifecycleStage(e.status) === 'current') ||
+      (viewFilter === 'developing' && derivePositionLifecycleStage(e.status) === 'developing') ||
+      (viewFilter === 'retired' && derivePositionLifecycleStage(e.status) === 'retired') ||
+      (viewFilter === 'under_review' && derivePositionLifecycleStage(e.status) === 'under_review') ||
       (viewFilter === 'needs_attention' && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.assessmentScore < 45)) ||
       (viewFilter === 'emerging' && (['draft', 'tentative', 'developing'].includes(e.status) || e.confidence <= 40)) ||
       (viewFilter === 'needs_evidence' && !hasSupport) ||
@@ -537,10 +530,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     return {
       total: safeEntries.length,
       complete: safeEntries.filter((entry) => positionFormation(entry).fullyFormed).length,
-      current: safeEntries.filter((entry) => positionLifecycleStage(entry.status) === 'current').length,
-      developing: safeEntries.filter((entry) => positionLifecycleStage(entry.status) === 'developing').length,
-      retired: safeEntries.filter((entry) => positionLifecycleStage(entry.status) === 'retired').length,
-      underReview: safeEntries.filter((entry) => positionLifecycleStage(entry.status) === 'under_review').length,
+      current: safeEntries.filter((entry) => derivePositionLifecycleStage(entry.status) === 'current').length,
+      developing: safeEntries.filter((entry) => derivePositionLifecycleStage(entry.status) === 'developing').length,
+      retired: safeEntries.filter((entry) => derivePositionLifecycleStage(entry.status) === 'retired').length,
+      underReview: safeEntries.filter((entry) => derivePositionLifecycleStage(entry.status) === 'under_review').length,
       needsAttention: safeEntries.filter((entry) => {
         const diagnostic = positionDiagnostics.get(entry.id);
         return Boolean(diagnostic && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.assessmentScore < 45));
@@ -1508,6 +1501,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 </Badge>
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <ConfidenceHistoryChart entry={selected} />
                 <InfoPanel title="Created From" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
                 <InfoPanel title="Confidence History" items={[`Current confidence: ${confidencePercent(selected.confidenceScore ?? selected.confidence)}%`, `Evidence quality: ${beliefProfile?.evidenceQuality || selected.evidenceQuality || 'unscored'}`, `Stress tests: ${beliefProfile?.testingCount ?? selected.testingCount ?? 0}`]} empty="No confidence history yet." />
                 <InfoPanel title="Strengthened By" items={beliefProfile?.strengthenedBy || []} empty="No supporting developments recorded yet." />
@@ -1802,6 +1796,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   <span className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
                     {TYPE_LABELS[entry.type] || 'Position'}
                   </span>
+                  <StageBadge type="position" stage={entry.stage} status={entry.status} />
                   {(entry.tags || []).slice(0, 2).map((tag) => (
                     <button
                       key={tag}
@@ -2271,7 +2266,7 @@ function PositionsTable({
                   <div className="max-w-xl whitespace-normal text-xs leading-5 text-muted-foreground">{entry.statement || entry.description}</div>
                 </TableCell>
                 <TableCell className="font-code text-[10px] uppercase tracking-widest">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
-                <TableCell><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge></TableCell>
+                <TableCell><div className="flex flex-wrap gap-1"><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge><StageBadge type="position" stage={entry.stage} status={entry.status} /></div></TableCell>
                 <TableCell>
                   <div className="min-w-24">
                     <div className="mb-1 font-code text-[10px] font-bold">{confidencePercent(entry.confidence)}%</div>
@@ -2308,7 +2303,7 @@ function PositionsTable({
                 <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{TYPE_LABELS[entry.type] || 'Position'}</div>
                 <h3 className="mt-1 font-headline text-xl font-bold italic">{entry.title}</h3>
               </div>
-              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge>
+              <div className="flex flex-col items-end gap-1"><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge><StageBadge type="position" stage={entry.stage} status={entry.status} /></div>
             </div>
             <p className="mt-2 whitespace-normal text-sm italic leading-6 text-muted-foreground">{entry.statement || entry.description}</p>
             <div className="mt-3 rounded-lg border border-border/50 bg-muted/10 p-3">
@@ -2360,6 +2355,33 @@ function MiniMetricCard({ label, value, sub }: { label: string; value: number; s
       <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className="mt-1 font-headline text-2xl font-bold italic">{value}</div>
       <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
+    </div>
+  );
+}
+
+function ConfidenceHistoryChart({ entry }: { entry: VaultEntry }) {
+  const points = (entry.versionHistory || [])
+    .filter((item) => typeof item.confidence === 'number')
+    .map((item) => ({ date: item.date, value: confidencePercent(item.confidence) }));
+  const series = points.length ? points : [{ date: entry.dateCreated, value: confidencePercent(entry.confidence) }];
+  if (series[series.length - 1]?.value !== confidencePercent(entry.confidence)) {
+    series.push({ date: entry.dateUpdated, value: confidencePercent(entry.confidence) });
+  }
+  return (
+    <div className="rounded-xl border border-border/50 bg-background/50 p-4 md:col-span-2">
+      <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Confidence over time</div>
+      <div className="mt-4 flex min-h-28 items-end gap-2" role="img" aria-label={`Confidence history for ${entry.title}`}>
+        {series.slice(-12).map((point, index) => (
+          <div key={`${point.date}-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+            <span className="font-code text-[8px] text-foreground">{point.value}%</span>
+            <div className="flex h-20 w-full items-end rounded-sm bg-muted/40">
+              <div className="w-full rounded-sm bg-accent" style={{ height: `${Math.max(4, point.value)}%` }} />
+            </div>
+            <span className="max-w-full truncate font-code text-[7px] text-muted-foreground">{safePositionDate(point.date)}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">Confidence is recorded when it changes. A flat history means no earlier confidence snapshots exist.</p>
     </div>
   );
 }
