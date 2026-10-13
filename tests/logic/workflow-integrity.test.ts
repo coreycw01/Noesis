@@ -4,6 +4,8 @@ import {
   hasPracticeIntellectualBasis,
   deriveNoesisCondition,
   deriveNoesisStage,
+  derivePositionLifecycleStage,
+  expectedCommitmentProgress,
   normalizePositionConfidence,
   normalizePracticeStatusForSave,
   practiceDesignGaps,
@@ -57,9 +59,24 @@ test('legacy statuses map into one visible Noesis cycle', () => {
   assert.equal(deriveNoesisStage('inquiry', 'investigating'), 'question');
   assert.equal(deriveNoesisStage('inquiry', 'resolved'), 'revise');
   assert.equal(deriveNoesisStage('position', 'active'), 'claim');
-  assert.equal(deriveNoesisStage('position', 'revised'), 'revise');
+  assert.equal(deriveNoesisStage('position', 'revised'), 'claim');
+  assert.equal(deriveNoesisStage('position', 'abandoned'), 'claim');
   assert.equal(deriveNoesisStage('practice', 'active'), 'test');
   assert.equal(deriveNoesisStage('practice', 'concluded'), 'revise');
+});
+
+test('position lifecycle and guided stage never contradict each other', () => {
+  assert.equal(derivePositionLifecycleStage('revised'), 'current');
+  assert.equal(derivePositionLifecycleStage('challenged'), 'under_review');
+  assert.equal(derivePositionLifecycleStage('abandoned'), 'retired');
+  assert.equal(deriveNoesisCondition('position', 'abandoned'), undefined);
+});
+
+test('say-do expectations grow with elapsed commitment time', () => {
+  const now = new Date('2026-10-13T12:00:00.000Z');
+  assert.equal(expectedCommitmentProgress({ target: 30, createdAt: '2026-10-12', now }), 2);
+  assert.equal(expectedCommitmentProgress({ target: 30, createdAt: '2026-09-01', now }), 30);
+  assert.equal(expectedCommitmentProgress({ target: 10, createdAt: '2026-10-12', now, cadenceDays: 20 }), 1);
 });
 
 test('conditions stay separate from lifecycle stage', () => {

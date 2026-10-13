@@ -22,6 +22,7 @@ import {
   Highlighter,
   Home,
   Search,
+  Target,
   WifiOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -235,6 +236,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'vault', icon: ShieldCheck, count: counts.vault },
     { id: 'writing', icon: PenTool, count: counts.drafts },
     { id: 'practices', icon: Repeat, count: counts.practices },
+    { id: 'goals', icon: Target },
     { id: 'evolution', icon: History, count: counts.timeline },
     { id: 'settings', icon: Settings },
   ];

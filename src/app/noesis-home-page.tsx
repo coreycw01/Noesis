@@ -88,7 +88,7 @@ import type {
   WorkspaceSettings,
   WorkspaceSummary,
 } from '@/lib/types';
-import { arrayRemove, arrayUnion, doc, getDoc, setDoc, writeBatch, deleteDoc, type DocumentData, type DocumentReference } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, doc, getDoc, getDocs, setDoc, writeBatch, deleteDoc, deleteField, type DocumentData, type DocumentReference } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { classifyThinkingChange } from '@/lib/thinkingEvents/classifyThinkingChange';
@@ -111,7 +111,7 @@ import { cleanupReplacedDraftAssets } from '@/lib/storage-assets';
 import { inquirySourceIds } from '@/lib/inquiry-state';
 import { NOESIS_DATA_REQUIREMENT_LABELS, NOESIS_PAGE_BY_VIEW, type NoesisWorkspaceDataKey } from '@/lib/noesis-page-definitions';
 import { NoesisRouteProvider, useNoesisRoute } from '@/lib/noesis-route-context';
-import { normalizePositionConfidence, normalizePracticeStatusForSave, uniqueIds } from '@/lib/workflow-integrity';
+import { normalizePositionConfidence, normalizePracticeStatusForSave, uniqueIds, withNoesisStage } from '@/lib/workflow-integrity';
 
 function ReadexWorkspace({
   user,
@@ -147,6 +147,7 @@ function ReadexWorkspace({
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const lastReadyRouteContentRef = useRef<React.ReactNode>(null);
   const recordedActivityDayRef = useRef<string | null>(null);
+  const stageMigrationRef = useRef(false);
 
   useEffect(() => {
     if (pendingNavigationTimerRef.current) {
@@ -419,6 +420,40 @@ function ReadexWorkspace({
       thinkingMetricsEnabled: metacognitionSettings.enableCognitionMetrics,
     },
   };
+
+  useEffect(() => {
+    if (!user || isOfflineReviewPreview || stageMigrationRef.current || (workspace.stageModelVersion || 0) >= 2) return;
+    stageMigrationRef.current = true;
+    const targets = [
+      { ref: refs.media, type: 'source' as const, status: (value: any) => value.status },
+      { ref: refs.concepts, type: 'concept' as const, status: (value: any) => value.philosophyStatus },
+      { ref: refs.questions, type: 'inquiry' as const, status: (value: any) => value.status },
+      { ref: refs.vault, type: 'position' as const, status: (value: any) => value.status },
+      { ref: refs.drafts, type: 'work' as const, status: (value: any) => value.status },
+      { ref: refs.practices, type: 'practice' as const, status: (value: any) => value.status },
+    ];
+    void (async () => {
+      for (const target of targets) {
+        const snapshot = await getDocs(target.ref as any);
+        for (let offset = 0; offset < snapshot.docs.length; offset += 400) {
+          const batch = writeBatch(db);
+          snapshot.docs.slice(offset, offset + 400).forEach((record) => {
+            const value = record.data() as any;
+            const normalized = withNoesisStage(target.type, { ...value, status: target.status(value) });
+            batch.set(record.ref, {
+              stage: normalized.stage,
+              condition: normalized.condition || deleteField(),
+              legacyStatus: normalized.legacyStatus || deleteField(),
+            }, { merge: true });
+          });
+          await batch.commit();
+        }
+      }
+      await setDoc(refs.settingsWorkspace, { stageModelVersion: 2, dateUpdated: today() }, { merge: true });
+    })().catch(() => {
+      stageMigrationRef.current = false;
+    });
+  }, [db, isOfflineReviewPreview, refs, user, workspace.stageModelVersion]);
   const featureFlags = workspace.featureFlags || {};
   const isReviewIdentity = (user?.email || profile.email || '').toLowerCase() === REVIEW_ACCOUNT_EMAIL.toLowerCase();
   const activeReviewWorkspaceUid = reviewWorkspaceUid || REVIEW_WORKSPACE_UID;
@@ -1599,7 +1634,20 @@ function ReadexWorkspace({
     ensureConcepts(entry.tags || []);
     const vaultRef = doc(refs.vault, entry.id);
     const previous = vault.find((item) => item.id === entry.id);
-    const nextEntry = { ...entry, dateUpdated: today() };
+    const confidenceChanged = Boolean(previous && previous.confidence !== entry.confidence);
+    const nextEntry = {
+      ...entry,
+      dateUpdated: today(),
+      versionHistory: confidenceChanged ? [
+        ...(entry.versionHistory || []),
+        {
+          date: today(),
+          eventType: 'revised' as const,
+          description: `Confidence changed from ${previous!.confidence}% to ${entry.confidence}%.`,
+          confidence: entry.confidence,
+        },
+      ] : entry.versionHistory,
+    };
     const profilePatch: Partial<BeliefProfile> = {
       confidenceScore: entry.confidenceScore ?? entry.confidence,
       evidenceQuality: entry.evidenceQuality,
@@ -1616,7 +1664,7 @@ function ReadexWorkspace({
       profilePatch.lastChallengedAt = today();
       positionEvents.push({ collection: refs.thinkingEvents as any, userId: effectiveUid, eventType: 'challenge_added', entityType: 'position', entityId: entry.id, before: previous, after: nextEntry, origin: 'user', summary: `Challenge added to ${entry.title}`, importance: 'high', relatedEntityIds: { sourceIds: entry.sourceIds || [] }, sourceActionId: makeActionId(), epistemicStatus: 'challenged' });
     }
-    if (previous && previous.confidence !== entry.confidence) {
+    if (confidenceChanged && previous) {
       positionEvents.push({ collection: refs.thinkingEvents as any, userId: effectiveUid, eventType: 'confidence_changed', entityType: 'position', entityId: entry.id, before: previous, after: nextEntry, origin: 'user', summary: `Confidence changed for ${entry.title}`, importance: 'medium', confidenceBefore: previous.confidence, confidenceAfter: entry.confidence, sourceActionId: makeActionId() });
     }
     if (previous && (previous.testingCount || 0) < (entry.testingCount || 0)) {
@@ -1735,7 +1783,7 @@ function ReadexWorkspace({
       return concept ? [concept.name] : [];
     });
     const candidateAnswers = question.candidateAnswers || [];
-    const positionPayload: VaultEntry = {
+    const positionPayload: VaultEntry = withNoesisStage('position', {
       id: vaultRef.id,
       title: position.title,
       type: 'belief',
@@ -1762,7 +1810,7 @@ function ReadexWorkspace({
       sourceInquiryId: question.id,
       dateCreated: today(),
       dateUpdated: today(),
-    };
+    });
     batch.set(vaultRef, positionPayload);
     const questionRef = doc(refs.questions, question.id);
     batch.update(questionRef as any, {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Archive, Award, CheckCircle2, ChevronDown, ChevronRight, Compass, Flag, GripVertical, Minus, Plus, Save, Settings2, Target, Trash2 } from 'lucide-react';
+import { Archive, ChevronDown, ChevronRight, Compass, GripVertical, Minus, Plus, Save, Settings2, Target, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MEDIA_LABELS, MEDIA_TYPES, today, uid } from '@/lib/readex';
 import type { Concept, Draft, GoalItem, GoalSettings, GoalType, InquiryGoalMeasure, IntellectualGoalKind, IntellectualGoalStatus, Media, MediaType, PositionGoalMeasure, Practice, PracticeGoalMeasure, Question, SourceGoalMeasure, UserProfile, VaultEntry, WorkGoalMeasure } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { expectedCommitmentProgress } from '@/lib/workflow-integrity';
 
 const QUEST_KIND_OPTIONS: Array<{ value: IntellectualGoalKind; label: string; description: string }> = [
   { value: 'consumption', label: 'Consumption', description: 'Complete and reflect on sources.' },
@@ -30,7 +31,7 @@ const QUEST_KIND_OPTIONS: Array<{ value: IntellectualGoalKind; label: string; de
 
 const GOAL_STATUS_OPTIONS: IntellectualGoalStatus[] = ['planned', 'active', 'stalled', 'under_review', 'completed', 'abandoned', 'transformed', 'archived'];
 type QuestFilter = 'all' | 'needs_purpose' | 'needs_completion' | 'review_due' | 'needs_path' | 'stalled';
-type GoalsView = 'progress' | 'achievements' | 'goals';
+type GoalsView = 'progress' | 'goals';
 
 interface GoalsPageProps {
   goal: GoalSettings;
@@ -206,11 +207,6 @@ function questNextStep(item: GoalItem & { percent?: number }, type?: GoalType) {
   if ((item.percent || 0) >= 100 || item.status === 'completed') return 'Write a review: what changed, what remains unclear, and whether the goal should transform.';
   if ((item.currentProgress || 0) === 0) return `Begin the first ${questTypeForGoal(item, type)} action.`;
   return 'Review whether the current path still serves the desired intellectual change.';
-}
-
-function goalCompletionPoints(target: number) {
-  // Larger commitments earn more, but the logarithmic curve prevents inflated targets from becoming a points exploit.
-  return Math.min(200, 75 + Math.round(25 * Math.log2(Math.max(1, target) + 1)));
 }
 
 function cadenceDays(item: GoalItem) {
@@ -446,65 +442,19 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
     ));
     const confidence = Math.round(linkedPositions.reduce((sum, position) => sum + position.confidence, 0) / linkedPositions.length);
     const loggedDays = practiceLogDayCount(linkedPractices);
-    const livedPercent = Math.min(100, Math.round((loggedDays / Math.max(1, item.targetProgress)) * 100));
+    const expectedSoFar = expectedCommitmentProgress({ target: item.targetProgress, createdAt: item.createdAt });
+    const livedPercent = Math.min(100, Math.round((loggedDays / expectedSoFar) * 100));
     return [{
       id: item.id,
       title: item.title,
       positionLabel: linkedPositions[0].title || linkedPositions[0].statement,
       confidence,
       loggedDays,
+      expectedSoFar,
       livedPercent,
       gap: Math.max(0, confidence - livedPercent),
     }];
   }).sort((a, b) => b.gap - a.gap), [activeGoals, positions, practices]);
-  const progressScore = useMemo(() => enrichedGoals.reduce((total, item) => {
-    const progressValue = Math.round(goalCompletionPoints(item.targetProgress) * (item.percent / 100));
-    const reviewValue = Math.min(30, (item.reviewNotes?.length || 0) * 5);
-    return total + progressValue + reviewValue;
-  }, 0), [enrichedGoals]);
-  const achievementItems = useMemo(() => {
-    const thresholds = [1, 2, 3, 5, 8, 10, 15, 20, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300];
-    const confidenceThresholds = [1, 2, 3, 5, 8, 10, 15, 20, 30, 40, 50, 75, 100, 125, 150];
-    const streakThresholds = [1, 2, 3, 5, 7, 10, 14, 21, 30, 45, 60, 90, 120, 150, 180, 240, 300, 365];
-    const dailyStreakThresholds = [1, 2, 3, 5, 7, 10, 14, 21, 30, 45, 60, 90, 120, 180, 240, 300, 365, 500];
-    const milestoneNames = ['1', '2', '3'];
-    const family = (id: string, tiers: string[], detail: string, value: number, options?: { thresholds?: number[]; milestones?: string[] }) => (options?.thresholds || thresholds).map((target, index) => ({
-      id: `${id}-${target}`,
-      title: `${tiers[Math.min(tiers.length - 1, Math.floor(index / 3))]}: ${(options?.milestones || milestoneNames)[index % 3]}`,
-      detail: `${detail} ${target}.`,
-      earned: value >= target,
-      progress: Math.min(value, target),
-      target,
-    }));
-    const completedGoals = enrichedGoals.filter((item) => item.status === 'completed' || item.percent >= 100).length;
-    const reviews = enrichedGoals.reduce((total, item) => total + (item.reviewNotes?.length || 0), 0);
-    const finishedSources = sources.filter((source) => source.status === 'Finished').length;
-    const fullyReflectedSources = sources.filter(sourceHasCompleteDetails).length;
-    const fullyAnsweredInquiries = inquiries.filter(fullyAnsweredInquiry).length;
-    const fullyConfidentPositions = positions.filter((position) => position.status !== 'abandoned' && position.confidence >= 100).length;
-    const practiceStreak = longestPracticeLogStreak(practices);
-    const dailyActivityStreak = longestDateStreak(profile.dailyActivityDates || []);
-    return [
-      ...family('source', ['Curious Reader', 'Explorer', 'Researcher', 'Archivist', 'Synthesist', 'Scholar'], 'Collect sources', sources.length),
-      ...family('source-finished', ['Curious Reader', 'Explorer', 'Researcher', 'Archivist', 'Synthesist', 'Scholar'], 'Finish sources', finishedSources),
-      ...family('source-reflection', ['Curious Reader', 'Explorer', 'Researcher', 'Archivist', 'Synthesist', 'Scholar'], 'Complete source records', fullyReflectedSources),
-      ...family('inquiry', ['Questioner', 'Examiner', 'Investigator', 'Dialectician', 'Philosopher', 'Sage'], 'Develop inquiries', inquiries.length),
-      ...family('inquiry-answered', ['Questioner', 'Examiner', 'Investigator', 'Dialectician', 'Philosopher', 'Sage'], 'Fully answer inquiries', fullyAnsweredInquiries),
-      ...family('concept', ['Namemaker', 'Definer', 'Cartographer', 'Theorist', 'System Builder', 'Thinker'], 'Create concepts', concepts.length),
-      ...family('position', ['Observer', 'Formulator', 'Advocate', 'Critic', 'Revisionist', 'Philosopher'], 'Write positions', positions.length),
-      ...family('position-confident', ['Observer', 'Formulator', 'Advocate', 'Critic', 'Revisionist'], 'Develop positions to 100% confidence', fullyConfidentPositions, { thresholds: confidenceThresholds }),
-      ...family('work', ['Note-taker', 'Draftsperson', 'Writer', 'Essayist', 'Author', 'Builder'], 'Create works', works.length),
-      ...family('practice', ['Experimenter', 'Practitioner', 'Tester', 'Disciplined Thinker', 'Integrator', 'Embodied Philosopher'], 'Start practices', practices.length),
-      ...family('practice-streak', ['Experimenter', 'Practitioner', 'Tester', 'Disciplined Thinker', 'Integrator', 'Embodied Philosopher'], 'Keep a practice log streak of', practiceStreak, { thresholds: streakThresholds }),
-      ...family('goal', ['Starter', 'Steward', 'Finisher', 'Pathmaker', 'Commitment Keeper', 'Completer'], 'Complete goals', completedGoals),
-      ...family('reflection', ['Noticer', 'Reflector', 'Reviewer', 'Interpreter', 'Integrator', 'Witness'], 'Save goal reflections', reviews),
-      ...family('daily-streak', ['Steady Thinker', 'Ritual Thinker', 'Dedicated Thinker', 'Daily Philosopher', 'Enduring Thinker', 'Lifelong Thinker'], 'Return to Noesis for', dailyActivityStreak, { thresholds: dailyStreakThresholds }),
-    ];
-  }, [concepts.length, enrichedGoals, inquiries, positions, practices, profile.dailyActivityDates, sources, works.length]);
-  const nextAchievements = useMemo(
-    () => achievementItems.filter((item) => !item.earned).sort((a, b) => (b.progress / b.target) - (a.progress / a.target)).slice(0, 3),
-    [achievementItems]
-  );
 
   const updateGoal = (id: string, patch: Partial<GoalItem>) => {
     setDraft((prev) => ({
@@ -833,7 +783,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                       </div>
                       <div className="grid grid-cols-2 gap-4 font-code text-[10px] uppercase tracking-wider text-muted-foreground">
                         <div><span className="block">Say</span><strong className="mt-1 block text-base text-foreground">{row.confidence}% confidence</strong></div>
-                        <div><span className="block">Do</span><strong className="mt-1 block text-base text-foreground">{row.loggedDays} logged days</strong></div>
+                        <div><span className="block">Do</span><strong className="mt-1 block text-base text-foreground">{row.loggedDays} of {row.expectedSoFar} expected days</strong></div>
                       </div>
                     </article>
                   ))}
@@ -841,68 +791,6 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               </section>
             )}
 
-            <section className="hidden" aria-hidden="true">
-              {nextAchievements.length > 0 && (
-                <div className="border-b border-border pb-5 md:col-span-2">
-                  <div className="mb-3"><div className="flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground"><Award className="size-4" aria-hidden="true" /> Nearly earned</div><p className="mt-1 text-sm text-muted-foreground">Your closest achievements across Noesis.</p></div>
-                  <div className="grid gap-px border border-border bg-border sm:grid-cols-3">
-                    {nextAchievements.map((achievement) => (
-                      <article key={achievement.id} className="bg-card p-3">
-                        <div className="flex items-start justify-between gap-2"><h3 className="text-sm font-medium">{achievement.title}</h3><span className="font-code text-[9px] text-muted-foreground">{achievement.progress}/{achievement.target}</span></div>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{achievement.detail}</p>
-                        <Progress value={(achievement.progress / achievement.target) * 100} className="mt-3 h-1.5" />
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div>
-                <div className="flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground"><Award className="size-4" aria-hidden="true" /> Your progress score</div>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">A completed goal earns 100–200 points based on its target; larger targets earn more, with a cap that keeps scoring fair. Reflections add small bonuses. Points are private progress markers, never money or currency.</p>
-              </div>
-            </section>
-          </div>
-        )}
-
-        {activeView === 'achievements' && (
-          <div className="space-y-6" role="tabpanel" aria-label="Achievements">
-            <section className="border-y border-border bg-card/35 py-5 md:py-7">
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent"><Award className="size-4" aria-hidden="true" /> Progress score</div>
-                  <div className="mt-2 font-headline text-5xl font-bold italic leading-none">{progressScore}</div>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">A quiet score for work you actually do in Noesis: progress, completion, and reflection. It cannot be bought, spent, or shared as currency.</p>
-                </div>
-                <div className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{achievementItems.filter((item) => item.earned).length} of {achievementItems.length} earned</div>
-              </div>
-            </section>
-            <section className="divide-y divide-border border-y border-border" aria-label="Achievement progress">
-              {[
-                ['source', 'Sources'], ['inquiry', 'Inquiries'], ['concept', 'Concepts'], ['position', 'Positions'],
-                ['work', 'Works'], ['practice', 'Practices'], ['goal', 'Goals'], ['reflection', 'Reflections'], ['daily', 'Daily return'],
-              ].map(([groupId, groupLabel], index) => {
-                const group = achievementItems.filter((item) => item.id.startsWith(`${groupId}-`));
-                const earned = group.filter((item) => item.earned).length;
-                return (
-                  <details key={groupId} className="group py-1" open={index === 0}>
-                    <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-1 text-sm font-medium text-foreground">
-                      <span className="flex items-center gap-3"><Award className="size-4 text-accent" aria-hidden="true" />{groupLabel}</span>
-                      <span className="flex items-center gap-3"><span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{earned}/{group.length} earned</span><ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></span>
-                    </summary>
-                    <div className="grid gap-px border-y border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
-                      {group.map((achievement) => (
-                        <article key={achievement.id} className="bg-card p-4">
-                          <div className="flex items-start justify-between gap-3"><div className={cn('flex size-8 items-center justify-center border', achievement.earned ? 'border-accent bg-accent text-accent-foreground' : 'border-border text-muted-foreground')}>{achievement.earned ? <CheckCircle2 className="size-4" aria-label="Earned" /> : <Flag className="size-4" aria-label="In progress" />}</div><span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{achievement.progress}/{achievement.target}</span></div>
-                          <h2 className="mt-4 font-headline text-lg font-bold italic">{achievement.title}</h2>
-                          <p className="mt-1 text-sm leading-5 text-muted-foreground">{achievement.detail}</p>
-                          <Progress value={(achievement.progress / achievement.target) * 100} className="mt-3 h-1.5" />
-                        </article>
-                      ))}
-                    </div>
-                  </details>
-                );
-              })}
-            </section>
           </div>
         )}
 

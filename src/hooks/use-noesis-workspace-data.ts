@@ -51,12 +51,18 @@ import type {
   WorkspaceSummary,
 } from '@/lib/types';
 import type { NoesisRouteState, NoesisView } from '@/lib/noesis-routes';
+import { withNoesisStage } from '@/lib/workflow-integrity';
+import type { PhilosophicalObjectType } from '@/lib/types';
 
 function recordsForWorkspace<T>(records: T[], uid: string) {
   return records.filter((record) => {
     const owner = (record as any)?.userId || (record as any)?.uid;
     return !owner || owner === uid;
   });
+}
+
+function stagedRecords<T extends { status?: string; stage?: any; condition?: any; legacyStatus?: string }>(records: T[], uid: string, type: PhilosophicalObjectType, statusOf?: (record: T) => string | undefined) {
+  return recordsForWorkspace(records, uid).map((record) => withNoesisStage(type, { ...record, status: statusOf?.(record) ?? record.status }) as T);
 }
 
 export function useNoesisWorkspaceData({
@@ -215,14 +221,14 @@ export function useNoesisWorkspaceData({
 
   return {
     refs,
-    media: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.media || []) : mediaLive, uid),
-    vault: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.vault || []) : vaultLive, uid),
+    media: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.media || []) : mediaLive, uid, 'source'),
+    vault: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.vault || []) : vaultLive, uid, 'position'),
     insights: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.insights || []) : insightsLive, uid),
-    concepts: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.concepts || []) : conceptsLive, uid),
-    questions: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.questions || []) : questionsLive, uid),
+    concepts: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.concepts || []) : conceptsLive, uid, 'concept', (record) => record.philosophyStatus),
+    questions: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.questions || []) : questionsLive, uid, 'inquiry'),
     timeline: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.timeline || []) : timelineLive, uid),
-    drafts: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.drafts || []) : draftsLive, uid),
-    practices: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.practices || []) : practicesLive, uid),
+    drafts: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.drafts || []) : draftsLive, uid, 'work'),
+    practices: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.practices || []) : practicesLive, uid, 'practice'),
     atlasMaps: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.atlasMaps || []) : atlasMapsLive, uid),
     links: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.links || []) : linksLive, uid),
     thinkingEvents: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.thinkingEvents || []) : thinkingEventsLive, uid),

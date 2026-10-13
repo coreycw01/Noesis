@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Concept, Draft, Insight, Media, PhilosophicalLink, PhilosophicalLinkType, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import { conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { StageBadge } from '@/components/shared/StageBadge';
 import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
 import type { ClarityLevel } from '@/lib/clarity';
 import { useToast } from '@/hooks/use-toast';
@@ -1491,12 +1492,13 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   <div className="flex gap-2 items-start">
                     <h3 className="font-headline text-xl font-bold flex-1 group-hover:text-accent transition-colors leading-tight">{name}</h3>
                     {concept && (
-                      <Button variant="ghost" size="icon" className="size-7 opacity-0 group-hover:opacity-100 transition-opacity rounded-full" onClick={(event) => { event.stopPropagation(); openEditor(concept); }}>
+                      <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-10 opacity-100 transition-opacity rounded-full md:size-9 md:opacity-0 md:group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); openEditor(concept); }}>
                         <Edit className="size-3" />
                       </Button>
                     )}
                   </div>
                   <div className="mt-1.5 flex items-center gap-2">
+                    <StageBadge type="concept" stage={concept?.stage} status={concept?.philosophyStatus} />
                     <span className={cn('font-code text-[8px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full border', CLARITY_BG[diag.level])}>
                       {diag.level}
                     </span>

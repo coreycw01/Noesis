@@ -33,6 +33,7 @@ import { DRAFT_LABELS, today, workCategoryForDraft } from '@/lib/readex';
 import { searchMatches } from '@/lib/search';
 import { cn } from '@/lib/utils';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
+import { StageBadge } from '@/components/shared/StageBadge';
 
 type HubCategory = WorkCategory | 'all';
 type HubStatus = 'all' | 'needs_revision' | 'external_docs' | DraftStatus;
@@ -455,6 +456,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{categoryLabel}</span>
+                          <StageBadge type="work" stage={draft.stage} status={draft.status} />
                           <Badge variant="outline" className="rounded-full border-border/70 font-code text-[8px] uppercase tracking-wider">{draft.status}</Badge>
                           {draft.externalDoc && <Cloud className="size-3.5 text-accent" aria-label="External document linked" />}
                         </div>
