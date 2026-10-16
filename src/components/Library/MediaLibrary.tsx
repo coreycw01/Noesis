@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import type { AiSettings, Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink, ReadingSession } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_STATUS_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, today, uid, conceptKey, conceptRelated } from '@/lib/readex';
@@ -25,6 +25,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
@@ -55,6 +56,7 @@ interface MediaLibraryProps {
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
 type LibraryViewFilter = 'all' | 'continue' | 'needs_intent' | 'needs_session' | 'needs_annotations' | 'awaiting_reflection' | 'inquiry_driven' | 'recently_added' | 'paused_or_abandoned' | 'influential';
+type SourceWorkbenchStep = 'overview' | 'capture' | 'annotations' | 'connections';
 
 const LIBRARY_VIEW_LABELS: Record<LibraryViewFilter, string> = {
   all: 'All Attention',
@@ -179,6 +181,7 @@ export function MediaLibrary({
   const [searchQuery, setSearchQuery] = useState('');
   const [readingRoomOpen, setReadingRoomOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sourceWorkbenchStep, setSourceWorkbenchStep] = useState<SourceWorkbenchStep>('overview');
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<Partial<Media>>({ type: 'book', title: '', creator: '', status: 'Want to Read', tags: [] });
   const [annotationDraft, setAnnotationDraft] = useState({ type: 'thought' as Annotation['type'], text: '' });
@@ -416,11 +419,13 @@ export function MediaLibrary({
   };
 
   const openSelectedSource = (id: string) => {
+    setSourceWorkbenchStep('overview');
     setSelectedId(id);
     onOpenSourceRoute?.(id);
   };
 
   const closeSelectedSource = () => {
+    setSourceWorkbenchStep('overview');
     setSelectedId(null);
     onOpenSourceRoute?.(null);
   };
@@ -576,13 +581,19 @@ export function MediaLibrary({
           </div>
         </div>
 
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="mb-6 h-14 w-full justify-start gap-5 overflow-x-auto rounded-none border-b border-border/50 bg-transparent p-0 sm:gap-8">
-            <TabsTrigger value="overview" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">OVERVIEW</TabsTrigger>
-            <TabsTrigger value="capture" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">ENGAGE &amp; REFLECT</TabsTrigger>
-            <TabsTrigger value="annotations" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">NOTES</TabsTrigger>
-            <TabsTrigger value="connections" className="readex-kicker data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent rounded-none bg-transparent px-0 h-full text-[11px] font-bold">CONNECTIONS</TabsTrigger>
-          </TabsList>
+        <Tabs value={sourceWorkbenchStep} onValueChange={(value) => setSourceWorkbenchStep(value as SourceWorkbenchStep)} className="w-full">
+          <WorkbenchFlow
+            label="Source workbench workflow"
+            activeId={sourceWorkbenchStep}
+            onSelect={(id) => setSourceWorkbenchStep(id as SourceWorkbenchStep)}
+            className="mb-6"
+            steps={[
+              { id: 'overview', label: 'Understand', description: 'Identify the source, purpose, and central idea.' },
+              { id: 'capture', label: 'Engage', description: 'Record intent, sessions, and what changed in your thinking.' },
+              { id: 'annotations', label: 'Capture', description: 'Keep quotations, claims, questions, and observations.' },
+              { id: 'connections', label: 'Connect', description: 'Link concepts and follow what this source influenced.' },
+            ]}
+          />
 
           <TabsContent value="overview" className="space-y-8">
             {capture.after?.aiSummary && (

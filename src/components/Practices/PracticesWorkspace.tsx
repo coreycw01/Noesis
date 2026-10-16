@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Edit, MoreHorizontal, PauseCircle, Play, Plus, Repeat, Target, Trash2 } from 'lucide-react';
+import { CheckCircle2, Edit, MoreHorizontal, PauseCircle, Play, Plus, Repeat, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,7 @@ import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
 
@@ -871,6 +872,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
   onSave: () => void;
   routeOwned?: boolean;
 }) {
+  const [practiceWorkflowStep, setPracticeWorkflowStep] = useState<'design' | 'run' | 'review' | 'integrate'>('design');
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto bg-card border-none shadow-2xl rounded-2xl p-0">
@@ -932,15 +934,18 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
             </div>
           </DialogHeader>
           <div className="space-y-6">
-            <div className="rounded-2xl border border-accent/20 bg-accent/5 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Target className="size-4 text-accent" />
-                <h3 className="font-headline text-xl italic font-bold text-primary">Practice loop</h3>
-              </div>
-              <p className="text-sm leading-relaxed text-muted-foreground italic">
-                Name the action, why it exists, how often it repeats, and when you will review what it changed.
-              </p>
-            </div>
+            <WorkbenchFlow
+              label="Practice workbench workflow"
+              activeId={practiceWorkflowStep}
+              onSelect={(id) => setPracticeWorkflowStep(id as typeof practiceWorkflowStep)}
+              steps={[
+                { id: 'design', label: 'Design', description: 'Define the action, reason, schedule, hypothesis, and success signal.' },
+                { id: 'run', label: 'Run and log', description: 'Perform the practice and record observations as they happen.' },
+                { id: 'review', label: 'Review', description: 'Compare the expected result with what actually happened.' },
+                { id: 'integrate', label: 'Integrate', description: 'Connect the result to the position, inquiry, concept, or work it should change.' },
+              ]}
+            />
+            {practiceWorkflowStep === 'design' && <>
             <Field label="PRACTICE TITLE"><Input value={draft.title || ''} onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))} className="italic text-base rounded-full" /></Field>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <Field label="WHAT YOU WILL DO"><Textarea value={draft.action || ''} onChange={(event) => setDraft((prev) => ({ ...prev, action: event.target.value }))} className="min-h-[100px] italic text-base" placeholder="What exactly will you do, avoid, observe, ask, or commit to?" /></Field>
@@ -979,8 +984,21 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                 <Field label="CONCEPTS TESTED"><ConceptTagPicker concepts={concepts} value={draft.conceptTags || []} onChange={(conceptTags) => setDraft((prev) => ({ ...prev, conceptTags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></Field>
               </div>
             </details>
-            <details className="rounded-2xl border border-border/50 bg-muted/10 p-4">
-              <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Review and links</summary>
+            </>}
+            {practiceWorkflowStep === 'run' && (
+              <section className="rounded-xl border border-border/60 bg-muted/10 p-4">
+                <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Current action</div>
+                <p className="mt-2 text-base leading-7 text-foreground">{draft.action || 'Define the action in Design before beginning this practice.'}</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-border/50 bg-card p-3"><div className="text-xs text-muted-foreground">Status</div><div className="mt-1 text-sm font-semibold capitalize">{draft.status || 'planned'}</div></div>
+                  <div className="rounded-lg border border-border/50 bg-card p-3"><div className="text-xs text-muted-foreground">Logs</div><div className="mt-1 text-sm font-semibold">{draft.logs?.length || 0}</div></div>
+                  <div className="rounded-lg border border-border/50 bg-card p-3"><div className="text-xs text-muted-foreground">Schedule</div><div className="mt-1 text-sm font-semibold">{draft.durationMode === 'one_time' ? 'One time' : draft.durationMode === 'open_ended' ? 'Open ended' : `${draft.durationDays || 0} days`}</div></div>
+                </div>
+                <p className="mt-4 text-xs leading-5 text-muted-foreground">Use the Log action on the practice card to record each attempt. Return here when there is enough evidence to review the outcome.</p>
+              </section>
+            )}
+            {practiceWorkflowStep === 'review' && <details open className="rounded-xl border border-border/50 bg-muted/10 p-4">
+              <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Outcome review</summary>
               <div className="mt-4 rounded-2xl border border-border/50 bg-card p-4">
                 <h3 className="mb-4 font-headline text-xl italic font-bold text-primary">Theory vs. reality review</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -999,13 +1017,17 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   </div>
                 )}
               </div>
+            </details>}
+            {practiceWorkflowStep === 'integrate' && <details open className="rounded-xl border border-border/50 bg-muted/10 p-4">
+              <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Connections</summary>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the sources, inquiries, positions, and works this practice tests or informs.</p>
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
                 <LinkGrid title="Linked Sources" items={media.map((item) => ({ id: item.id, label: item.title }))} selected={draft.sourceIds || []} onChange={(sourceIds) => setDraft((prev) => ({ ...prev, sourceIds }))} />
                 <LinkGrid title="Linked Inquiries" items={questions.map((item) => ({ id: item.id, label: item.text }))} selected={draft.questionIds || []} onChange={(questionIds) => setDraft((prev) => ({ ...prev, questionIds }))} />
                 <LinkGrid title="Linked Positions" items={positions.map((item) => ({ id: item.id, label: item.title }))} selected={draft.positionIds || []} onChange={(positionIds) => setDraft((prev) => ({ ...prev, positionIds }))} />
                 <LinkGrid title="Linked Works" items={drafts.map((item) => ({ id: item.id, label: item.title }))} selected={draft.draftIds || []} onChange={(draftIds) => setDraft((prev) => ({ ...prev, draftIds }))} />
               </div>
-            </details>
+            </details>}
           </div>
         </div>
         <div className="p-8 pt-4 bg-muted/10 border-t flex justify-end gap-3">

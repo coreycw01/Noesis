@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
@@ -123,6 +124,7 @@ export function AnnotationsIndex({
   const [filterSource, setFilterSource] = useState<string>('all');
   const [sortBy, setSortBy] = useState<AnnotationSort>('newest');
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
+  const [annotationWorkflowStep, setAnnotationWorkflowStep] = useState<'capture' | 'interpret' | 'apply' | 'connect' | 'trace'>('capture');
   const [editingMetadata, setEditingMetadata] = useState(false);
   const [detailEffect, setDetailEffect] = useState<ConsequenceAction>('reference');
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
@@ -521,6 +523,7 @@ export function AnnotationsIndex({
   };
 
   const openAnnotationDetail = (annotation: FlatAnnotation) => {
+    setAnnotationWorkflowStep('capture');
     setDetailEffect(selectedEffectForAnnotation(annotation));
     setEditingMetadata(false);
     setEditing(annotation);
@@ -956,51 +959,34 @@ export function AnnotationsIndex({
           </DialogHeader>
           {editing && (
             <div className="space-y-4 pt-2">
-              <section className="rounded-2xl border border-border bg-card p-4">
+              <WorkbenchFlow
+                label="Annotation workbench workflow"
+                activeId={annotationWorkflowStep}
+                onSelect={(id) => {
+                  const step = id as typeof annotationWorkflowStep;
+                  setAnnotationWorkflowStep(step);
+                  window.requestAnimationFrame(() => {
+                    const target = document.getElementById(`annotation-${step}`);
+                    if (target instanceof HTMLDetailsElement) target.open = true;
+                    target?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                  });
+                }}
+                steps={[
+                  { id: 'capture', label: 'Capture', description: 'Preserve the note and its source context.' },
+                  { id: 'interpret', label: 'Interpret', description: 'Write what the note means in your own thinking.' },
+                  { id: 'apply', label: 'Apply', description: 'Decide whether it supports, challenges, clarifies, or raises a question.' },
+                  { id: 'connect', label: 'Connect', description: 'Attach the concepts and objects it actually affects.' },
+                  { id: 'trace', label: 'Trace', description: 'Review where it came from and how it has been used.' },
+                ]}
+              />
+
+              <section id="annotation-capture" className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'capture' && 'hidden')}>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{annotationLabel(annotationType(editing))}</Badge>
                     <Badge variant="secondary" className="rounded-full bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">{annotationLabel(annotationStatus(editing))}</Badge>
                   </div>
                   <div className="flex items-center gap-1">
-                    <ContextualAiPanel
-                      actions={['suggest_annotation_effect']}
-                      enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
-                      showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                      reasoningDepth={aiSettings?.defaultReasoningDepth}
-                      retainAcceptedProvenance={aiSettings?.retainAcceptedAiProvenance}
-                      buttonLabel="Review Effect"
-                      promptLabel="What do you want to understand about this note?"
-                      promptPlaceholder="For example: Does this challenge my linked position, or only qualify it?"
-                      buildEnvelope={(action, userPrompt) => ({
-                        action,
-                        targetType: 'annotation',
-                        targetId: `${editing.source.id}:${editing.id}`,
-                        scope: 'linked_items',
-                        itemMemory: [
-                          `Annotation: ${editing.text}`,
-                          `Type: ${editing.type}`,
-                          `Source: ${editing.source.title}${editing.source.creator ? ` by ${editing.source.creator}` : ''}`,
-                          `Source description: ${editing.source.description || 'Not recorded.'}`,
-                          editing.context ? `Surrounding context: ${editing.context}` : 'No surrounding context supplied.',
-                          editing.consequenceNote ? `User note: ${editing.consequenceNote}` : 'No user interpretation supplied.',
-                        ],
-                        linkedMemory: [
-                          ...(editing.conceptTags || []).map((tag) => `Concept: ${tag}`),
-                          ...(editing.linkedPositionIds || []).map((id) => {
-                            const position = positions.find((item) => item.id === id);
-                            return position ? `Position (${position.confidence}% confidence): ${position.statement || position.title}; support: ${(position.evidenceFor || []).length}; challenges: ${(position.evidenceAgainst || []).length}` : 'A previously linked position is no longer available.';
-                          }),
-                        ],
-                        userPrompt,
-                      })}
-                      onAccept={(_, content) => {
-                        const { source, ...annotation } = editing;
-                        const next = { ...annotation, aiEffectReview: content };
-                        onUpdateAnnotation(source.id, next);
-                        setEditing({ ...next, source });
-                      }}
-                    />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="size-10 rounded-full" aria-label="Annotation actions">
@@ -1049,7 +1035,7 @@ export function AnnotationsIndex({
                 </details>
               </section>
 
-              <section className="rounded-2xl border border-border bg-card p-4">
+              <section id="annotation-interpret" className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'interpret' && 'hidden')}>
                 <details open={Boolean(editing.consequenceNote || editing.context)}>
                   <summary className="cursor-pointer list-none">
                     <div className="flex items-center justify-between gap-3">
@@ -1084,12 +1070,12 @@ export function AnnotationsIndex({
                 </details>
               </section>
 
-              {editing.aiEffectReview && (
+              {editing.aiEffectReview && annotationWorkflowStep === 'apply' && (
                 <section className="rounded-2xl border border-accent/25 bg-accent/5 p-4">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">Contextual Review</div>
-                      <p className="mt-1 text-xs text-muted-foreground">A reviewed analysis saved on this annotation. It does not change your links or status.</p>
+                      <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">Saved effect review</div>
+                      <p className="mt-1 text-xs text-muted-foreground">Use this reviewed analysis when deciding how the note should affect your thinking. It does not change links or status by itself.</p>
                     </div>
                     <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
                   </div>
@@ -1097,7 +1083,7 @@ export function AnnotationsIndex({
                 </section>
               )}
 
-              <section className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
+              <section id="annotation-apply" className={cn('scroll-mt-4 rounded-xl border border-accent/20 bg-accent/5 p-4', annotationWorkflowStep !== 'apply' && 'hidden')}>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">How does this affect your thinking?</div>
@@ -1105,6 +1091,44 @@ export function AnnotationsIndex({
                       Choose the effect that best describes this note. Noesis will ask only for the destination needed to apply it.
                     </p>
                   </div>
+                  <ContextualAiPanel
+                    actions={['suggest_annotation_effect']}
+                    enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
+                    showContextBeforeSending={aiSettings?.showContextBeforeSending}
+                    reasoningDepth={aiSettings?.defaultReasoningDepth}
+                    retainAcceptedProvenance={aiSettings?.retainAcceptedAiProvenance}
+                    buttonLabel="Review Effect"
+                    promptLabel="What do you want to understand about this note?"
+                    promptPlaceholder="For example: Does this challenge my linked position, or only qualify it?"
+                    buildEnvelope={(action, userPrompt) => ({
+                      action,
+                      targetType: 'annotation',
+                      targetId: `${editing.source.id}:${editing.id}`,
+                      scope: 'linked_items',
+                      itemMemory: [
+                        `Annotation: ${editing.text}`,
+                        `Type: ${editing.type}`,
+                        `Source: ${editing.source.title}${editing.source.creator ? ` by ${editing.source.creator}` : ''}`,
+                        `Source description: ${editing.source.description || 'Not recorded.'}`,
+                        editing.context ? `Surrounding context: ${editing.context}` : 'No surrounding context supplied.',
+                        editing.consequenceNote ? `User note: ${editing.consequenceNote}` : 'No user interpretation supplied.',
+                      ],
+                      linkedMemory: [
+                        ...(editing.conceptTags || []).map((tag) => `Concept: ${tag}`),
+                        ...(editing.linkedPositionIds || []).map((id) => {
+                          const position = positions.find((item) => item.id === id);
+                          return position ? `Position (${position.confidence}% confidence): ${position.statement || position.title}; support: ${(position.evidenceFor || []).length}; challenges: ${(position.evidenceAgainst || []).length}` : 'A previously linked position is no longer available.';
+                        }),
+                      ],
+                      userPrompt,
+                    })}
+                    onAccept={(_, content) => {
+                      const { source, ...annotation } = editing;
+                      const next = { ...annotation, aiEffectReview: content };
+                      onUpdateAnnotation(source.id, next);
+                      setEditing({ ...next, source });
+                    }}
+                  />
                 </div>
                 {(editing.createdInquiryId || editing.createdPositionId || (editing.linkedPositionIds || []).length > 0) && (
                   <p className="mb-3 text-xs text-muted-foreground">
@@ -1141,7 +1165,7 @@ export function AnnotationsIndex({
                 </div>
               </section>
 
-              <details className="rounded-2xl border border-border bg-card p-4">
+              <details id="annotation-connect" open className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'connect' && 'hidden')}>
                 <summary className="cursor-pointer list-none">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -1176,9 +1200,9 @@ export function AnnotationsIndex({
                 </div>
               </details>
 
-              <details className="rounded-2xl border border-border bg-card p-4">
+              <details id="annotation-trace" open className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'trace' && 'hidden')}>
                 <summary className="cursor-pointer list-none font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                  History
+                  Provenance and use
                 </summary>
                 <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                   <p>Created from {editing.source.title}{editing.date ? ` on ${editing.date}` : ''}.</p>

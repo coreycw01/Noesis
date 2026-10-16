@@ -22,6 +22,7 @@ import type { ClarityLevel } from '@/lib/clarity';
 import { useToast } from '@/hooks/use-toast';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
@@ -233,6 +234,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [search, setSearch] = useState('');
   const [listView, setListView] = useState<ConceptListView>('all');
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [conceptWorkflowStep, setConceptWorkflowStep] = useState<'define' | 'boundaries' | 'diagnose' | 'connect' | 'history'>('define');
   const [editing, setEditing] = useState<Concept | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [draftConcept, setDraftConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
@@ -357,6 +359,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   };
 
   const openConceptDetail = (name: string, concept?: Concept | null) => {
+    setConceptWorkflowStep('define');
     setSelectedName(name);
     if (concept?.id) {
       onOpenConceptRoute?.(concept.id);
@@ -457,19 +460,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     ]
       .filter((name) => conceptKey(name) && conceptKey(name) !== conceptKey(selectedName))))
       .slice(0, 10);
-    const usageRows = [
-      { label: 'Annotations', value: r.annotations.length, note: 'raw language and captured meaning' },
-      { label: 'Inquiries', value: r.questions.length, note: 'questions that depend on this concept' },
-      { label: 'Positions', value: r.beliefs.length, note: 'claims using this concept as judgment' },
-      { label: 'Works', value: r.drafts.length, note: 'places where this concept is expressed' },
-      { label: 'Practices', value: r.practices.length, note: 'lived tests connected to this concept' },
-    ];
-    const boundarySignals = [
-      concept?.description ? 'Current definition exists, but should be tested against edge cases.' : 'No stable definition yet.',
-      r.beliefs.length > 1 ? 'Multiple positions use this concept, so scope may need tightening.' : 'Few formal claims depend on it yet.',
-      diagnosis.tension === 'high' ? 'Related positions or inquiries suggest inconsistent usage.' : 'No strong inconsistency signal yet.',
-      r.practices.length ? 'At least one practice tests how this concept behaves in life.' : 'No lived boundary test is attached yet.',
-    ];
     const boundaryCases = Array.from(new Set([
       `A source uses ${selectedName} as a synonym for ${linkedConceptNames[0] || 'a neighboring concept'}.`,
       `A position depends on ${selectedName}, but only as a feeling or intuition rather than a clear claim.`,
@@ -498,14 +488,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           ? 'Your answers suggest the current boundary is usable, but examples and counterexamples would make it stronger.'
           : 'Classify edge cases to see whether the definition is too wide, too narrow, or condition-dependent.';
     const driftEvents = sortedEvents.filter((event) => /concept|definition|revise|transform|changed/i.test(`${event.eventType} ${event.reason || ''}`));
-    const detailRepairFlags = conceptRepairFlags({
-      concept,
-      related: r,
-      diagnosis,
-      connectionCount: r.sources.length + r.annotations.length + r.questions.length + r.beliefs.length + r.drafts.length + r.practices.length,
-      lastActiveAt: conceptActivityDate(concept, r.events),
-      possibleDuplicates: possibleDuplicateConcepts(concept, selectedName, concepts),
-    });
     const saveBoundaryRefinement = () => {
       if (!concept || !boundaryRefinement.trim()) return;
       const trimmed = boundaryRefinement.trim();
@@ -803,50 +785,44 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             ))}
           </div>
 
-          <details className="group mb-6 rounded-xl border border-border/60 bg-card/70">
+          <WorkbenchFlow
+            label="Concept workbench workflow"
+            activeId={conceptWorkflowStep}
+            className="mb-6"
+            onSelect={(id) => {
+              const step = id as typeof conceptWorkflowStep;
+              setConceptWorkflowStep(step);
+              window.requestAnimationFrame(() => {
+                const target = document.getElementById(`concept-${step}`);
+                if (target instanceof HTMLDetailsElement) target.open = true;
+                target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              });
+            }}
+            steps={[
+              { id: 'define', label: 'Define', description: 'Write the working meaning and distinguish its use.' },
+              { id: 'boundaries', label: 'Test boundaries', description: 'Classify edge cases and refine where the concept stops.' },
+              { id: 'diagnose', label: 'Diagnose', description: 'Review clarity, evidence, tension, expression, and next needs.' },
+              { id: 'connect', label: 'Connect', description: 'Inspect the sources, notes, inquiries, positions, works, and practices using it.' },
+              { id: 'history', label: 'History', description: 'Review only recorded changes to the concept over time.' },
+            ]}
+          />
+
+          <details id="concept-define" open className={cn('group mb-6 scroll-mt-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'define' && 'hidden')}>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
-              <span>Meaning, boundaries, and usage</span>
+              <span>Meaning and language</span>
               <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
             <div className="border-t border-border/50 p-4">
-          {/* Concept Anatomy */}
-          <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
+          <div className="p-2 sm:p-3">
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
-                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Concept Anatomy</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Definition, boundary, usage, and dependency signals for this concept.</p>
+                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Working meaning</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Define the concept and record the language that gives it a stable shape.</p>
               </div>
               <Badge variant="outline" className="rounded-full">{diagnosis.level}</Badge>
             </div>
 
-            <div className="mb-4 rounded-xl border border-accent/20 bg-accent/5 p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="font-code text-[9px] uppercase tracking-widest text-accent/80 font-bold">Definition Diagnostics</div>
-                  <p className="mt-1 text-sm text-muted-foreground">Concrete repairs that make this concept easier to use consistently.</p>
-                </div>
-                <Badge variant="outline" className="rounded-full">{detailRepairFlags.length || 1} signal{detailRepairFlags.length === 1 ? '' : 's'}</Badge>
-              </div>
-              {detailRepairFlags.length ? (
-                <div className="grid gap-2 md:grid-cols-2">
-                  {detailRepairFlags.slice(0, 6).map((flag) => (
-                    <div key={flag.id} className={cn(
-                      "rounded-xl border px-3 py-2",
-                      flag.tone === 'urgent' ? "border-rose-200 bg-rose-50 text-rose-950" :
-                      flag.tone === 'review' ? "border-amber-200 bg-amber-50 text-amber-950" :
-                      "border-border/40 bg-card text-foreground"
-                    )}>
-                      <div className="font-code text-[8px] uppercase tracking-widest font-bold">{flag.label}</div>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{flag.detail}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm italic text-muted-foreground">No major repair signal is visible. Keep using the concept and record definition changes when its meaning shifts.</p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div>
               <div className="rounded-xl border border-border/40 bg-background/70 p-4">
                 <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Working Definition</div>
                 <p className="text-sm leading-6 text-muted-foreground">
@@ -857,54 +833,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 </Button>
               </div>
 
-              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Boundary Signals</div>
-                <ul className="space-y-2">
-                  {boundarySignals.map((signal) => (
-                    <li key={signal} className="flex gap-2 text-sm leading-5 text-muted-foreground">
-                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent" />
-                      {signal}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Usage Map</div>
-                <div className="grid gap-2">
-                  {usageRows.map((row) => (
-                    <div key={row.label} className="flex items-center justify-between gap-3 rounded-lg border border-border/30 bg-card px-3 py-2">
-                      <div>
-                        <div className="text-sm font-medium text-foreground/80">{row.label}</div>
-                        <div className="text-xs text-muted-foreground">{row.note}</div>
-                      </div>
-                      <span className="font-headline text-lg font-bold text-accent">{row.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Dependencies & Neighbors</div>
-                {linkedConceptNames.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {linkedConceptNames.map((name) => (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => {
-                          openConceptDetail(name, concepts.find((item) => conceptKey(item.name) === conceptKey(name)));
-                        }}
-                        className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm leading-6 text-muted-foreground">No neighboring concepts are visible yet. Add aliases, linked sources, or related concepts to define the boundary.</p>
-                )}
-              </div>
             </div>
 
             <div className="mt-4 rounded-xl border border-border/40 bg-background/70 p-4">
@@ -981,27 +909,12 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               </div>
             )}
 
-            <div className="mt-4 rounded-xl border border-border/40 bg-background/70 p-4">
-              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Concept Drift</div>
-              {driftEvents.length ? (
-                <div className="grid gap-2">
-                  {driftEvents.slice(0, 4).map((event) => (
-                    <div key={event.id} className="rounded-lg border border-border/30 bg-card px-3 py-2">
-                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">{event.date} · {event.eventType.replace(/_/g, ' ')}</div>
-                      <div className="mt-1 text-sm text-foreground/80">{event.reason || event.entityTitle}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm leading-6 text-muted-foreground">No definition-change events are recorded yet. Future definition revisions should appear here as concept history.</p>
-              )}
-            </div>
           </div>
 
             </div>
           </details>
 
-          <details className="group mb-6 rounded-2xl border border-border bg-card shadow-sm">
+          <details id="concept-boundaries" open className={cn('group mb-6 scroll-mt-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'boundaries' && 'hidden')}>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
               <div>
                 <div className="text-sm font-semibold text-foreground">Boundary test</div>
@@ -1089,7 +1002,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </details>
 
-          <details className="group mb-6 rounded-xl border border-border/60 bg-card/70">
+          <details id="concept-diagnose" open className={cn('group mb-6 scroll-mt-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'diagnose' && 'hidden')}>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
               <span>Definition health</span>
               <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
@@ -1163,7 +1076,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </details>
 
-          <details className="group mb-6 rounded-xl border border-border/60 bg-card/70">
+          <details id="concept-connect" open className={cn('group mb-6 scroll-mt-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'connect' && 'hidden')}>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
               <span>Where this concept appears</span>
               <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
@@ -1278,7 +1191,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </details>
 
-          <details className="group mb-6 rounded-xl border border-border/60 bg-card/70">
+          <details open className={cn('group mb-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'connect' && 'hidden')}>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
               <span>Compare positions using this concept</span>
               <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
@@ -1358,7 +1271,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </details>
 
-          <details className="group mb-6 rounded-xl border border-border/60 bg-card/70">
+          <details id="concept-history" open className={cn('group mb-6 scroll-mt-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'history' && 'hidden')}>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
               <span>Definition history</span>
               <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />

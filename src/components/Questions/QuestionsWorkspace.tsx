@@ -21,6 +21,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { parseAiReviewItems, type AiContextEnvelope } from '@/lib/contextual-ai';
@@ -482,6 +483,8 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   initialSection?: 'investigation' | 'answer';
 }) {
   const answerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const toolsRef = useRef<HTMLDetailsElement>(null);
   const saveLock = useRef(false);
   const [saving, setSaving] = useState(false);
   const onUpdateQuestion = async (next: Question) => {
@@ -504,6 +507,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const [editingQuestion, setEditingQuestion] = useState(false);
   const [questionDraft, setQuestionDraft] = useState(question.text);
   const [selectedTool, setSelectedTool] = useState<InquiryTool | null>(null);
+  const [workflowStep, setWorkflowStep] = useState<'frame' | 'answer' | 'investigate' | 'decide'>('frame');
   const [clarificationDraft, setClarificationDraft] = useState('');
   const [existingPracticeId, setExistingPracticeId] = useState('');
   const [existingWorkId, setExistingWorkId] = useState('');
@@ -527,6 +531,8 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     setInitialAnswer(question.answer || '');
     setQuestionDraft(question.text);
     setEditingQuestion(false);
+    setWorkflowStep('frame');
+    setSelectedTool(null);
     setInvestigationDraft({
       whyItMatters: question.whyItMatters || '',
       currentIntuition: question.currentIntuition || '',
@@ -543,6 +549,15 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const candidateAnswers = question.candidateAnswers || [];
   const candidateAnswerCount = inquiryCandidateCount(question);
   const recommendedMove = INQUIRY_TOOL_COPY[recommended].description;
+  const openWorkflowStep = (step: 'frame' | 'answer' | 'investigate' | 'decide') => {
+    setWorkflowStep(step);
+    if (step === 'investigate' || step === 'decide') {
+      toolsRef.current?.setAttribute('open', '');
+      setSelectedTool(step === 'decide' ? 'Decide outcome' : (selectedTool || recommended));
+    }
+    const target = step === 'frame' ? frameRef.current : step === 'answer' ? answerRef.current : toolsRef.current;
+    window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
 
   const saveProvisionalAnswer = async (status: Question['status'] = 'provisionally_answered') => {
     if (!initialAnswer.trim()) {
@@ -880,7 +895,18 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       </header>
 
       <div className="mx-auto max-w-5xl space-y-5">
-        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <WorkbenchFlow
+          label="Inquiry workbench workflow"
+          activeId={workflowStep}
+          onSelect={(id) => openWorkflowStep(id as typeof workflowStep)}
+          steps={[
+            { id: 'frame', label: 'Frame', description: 'Name why the question matters, your current view, and uncertainty.' },
+            { id: 'answer', label: 'Answer', description: 'Write the best provisional answer you can support now.' },
+            { id: 'investigate', label: 'Investigate', description: 'Clarify, add evidence, compare answers, or test in practice.' },
+            { id: 'decide', label: 'Decide', description: 'Resolve, suspend, transform, archive, or keep the inquiry open.' },
+          ]}
+        />
+        <Card ref={frameRef} className="scroll-mt-6 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
           <div className="mb-4">
             <div className="readex-kicker">Your thinking</div>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">Socratic Challenge can start from the question alone. These optional fields make its challenge more precise without turning the inquiry into a worksheet.</p>
@@ -936,7 +962,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           </details>
         )}
 
-        <details className="group rounded-2xl border border-border bg-card shadow-sm">
+        <details ref={toolsRef} className="group scroll-mt-6 rounded-2xl border border-border bg-card shadow-sm">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
             <div>
               <div className="text-sm font-semibold text-foreground">More tools</div>
@@ -949,7 +975,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               <div className="readex-kicker text-accent">Recommended next step</div>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
                 <p className="max-w-2xl text-sm leading-6 text-foreground">{INQUIRY_TOOL_COPY[recommended].description}</p>
-                <Button onClick={() => setSelectedTool(recommended)} className="rounded-full px-4">Open {recommended}</Button>
+                <Button onClick={() => { setWorkflowStep(recommended === 'Decide outcome' ? 'decide' : 'investigate'); setSelectedTool(recommended); }} className="rounded-full px-4">Open {recommended}</Button>
               </div>
             </section>
 
@@ -958,7 +984,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                 <button
                   key={tool}
                   type="button"
-                  onClick={() => setSelectedTool(tool)}
+                  onClick={() => { setWorkflowStep(tool === 'Decide outcome' ? 'decide' : 'investigate'); setSelectedTool(tool); }}
                   className={cn(
                     'min-h-20 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     selectedTool === tool ? 'border-accent bg-accent/10' : 'border-border bg-background/60 hover:border-accent/50 hover:bg-accent/5'
