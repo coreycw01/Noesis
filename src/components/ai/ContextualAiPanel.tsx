@@ -4,12 +4,13 @@ import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode }
 import { BrainCircuit, Check, ClipboardCopy, Loader2, Pencil, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { requestContextualAi } from '@/lib/contextual-ai-client';
-import { boundedAiContext, CONTEXTUAL_AI_LABELS, type AiContextEnvelope, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
+import { boundedAiContext, CONTEXTUAL_AI_LABELS, CONTEXTUAL_AI_REVIEW, parseAiReviewItems, serializeAiReviewItems, type AiContextEnvelope, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
 
 export interface ContextualAiPanelProps {
   actions: ContextualAiAction[];
@@ -22,6 +23,14 @@ export interface ContextualAiPanelProps {
   buttonLabel?: string;
   promptLabel?: string;
   promptPlaceholder?: string;
+}
+
+interface ReviewItemState {
+  id: string;
+  title: string;
+  content: string;
+  detail?: string;
+  selected: boolean;
 }
 
 function formattedInline(text: string): ReactNode[] {
@@ -110,9 +119,17 @@ export function ContextualAiPanel({
   const [result, setResult] = useState<AiReviewResult | null>(null);
   const [editedContent, setEditedContent] = useState('');
   const [editingResult, setEditingResult] = useState(false);
+  const [reviewItems, setReviewItems] = useState<ReviewItemState[]>([]);
   const [userPrompt, setUserPrompt] = useState('');
   const rawEnvelope = useMemo(() => buildEnvelope(action, userPrompt.trim() || undefined), [action, buildEnvelope, userPrompt]);
   const envelope = useMemo(() => rawEnvelope ? boundedAiContext(rawEnvelope) : null, [rawEnvelope]);
+
+  const reviewedContent = () => {
+    if (!result || !reviewItems.length) return editedContent.trim();
+    return serializeAiReviewItems(result.action, reviewItems.filter((item) => item.selected && item.content.trim()));
+  };
+  const selectedReviewCount = reviewItems.filter((item) => item.selected && item.content.trim()).length;
+  const reviewItemLabel = result ? CONTEXTUAL_AI_REVIEW[result.action].itemName : 'item';
 
   if (!enabled || actions.length === 0) return null;
 
@@ -129,6 +146,11 @@ export function ContextualAiPanel({
       setResult(next);
       setEditedContent(next.content);
       setEditingResult(false);
+      setReviewItems(parseAiReviewItems(next.action, next.content).map((item, index) => ({
+        ...item,
+        id: `${index}-${item.title}-${item.content.slice(0, 24)}`,
+        selected: true,
+      })));
     } catch (error) {
       if (requestRef.current !== controller) return;
       toast({
@@ -146,7 +168,8 @@ export function ContextualAiPanel({
   };
 
   const accept = async () => {
-    if (!result || !editedContent.trim() || !onAccept || acceptLock.current) return;
+    const acceptedContent = reviewedContent();
+    if (!result || !acceptedContent || !onAccept || acceptLock.current) return;
     if (!envelope || result.targetId !== envelope.targetId || result.targetType !== envelope.targetType || result.action !== action) {
       setResult(null);
       toast({ title: 'Context changed', description: 'Run assistance again for the current item.' });
@@ -155,14 +178,14 @@ export function ContextualAiPanel({
     acceptLock.current = true;
     setAccepting(true);
     try {
-      await onAccept(result, editedContent.trim());
+      await onAccept(result, acceptedContent);
       if (retainAcceptedProvenance) {
         window.dispatchEvent(new CustomEvent('noesis:ai-assisted-accepted', {
           detail: {
             action: result.action,
             targetType: result.targetType,
             targetId: result.targetId,
-            content: editedContent.trim(),
+            content: acceptedContent,
           },
         }));
       }
@@ -182,9 +205,10 @@ export function ContextualAiPanel({
   };
 
   const copyResult = async () => {
-    if (!editedContent.trim()) return;
+    const content = reviewedContent();
+    if (!content) return;
     try {
-      await navigator.clipboard.writeText(editedContent.trim());
+      await navigator.clipboard.writeText(content);
       toast({ title: 'Result copied', description: 'Nothing was added to your workspace.' });
     } catch {
       toast({ variant: 'destructive', title: 'Copy failed', description: 'Select the text and copy it manually.' });
@@ -206,6 +230,7 @@ export function ContextualAiPanel({
           setResult(null);
           setEditedContent('');
           setEditingResult(false);
+          setReviewItems([]);
         }
       }}>
         <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
@@ -214,7 +239,7 @@ export function ContextualAiPanel({
             <DialogDescription>Review the exact workspace context Noesis will use, then edit or dismiss the result before anything is saved.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <Select value={action} disabled={loading || accepting} onValueChange={(value) => { setAction(value as ContextualAiAction); setResult(null); }}>
+            <Select value={action} disabled={loading || accepting} onValueChange={(value) => { setAction(value as ContextualAiAction); setResult(null); setReviewItems([]); }}>
               <SelectTrigger aria-label="Assistance action"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {actions.map((item) => <SelectItem key={item} value={item}>{CONTEXTUAL_AI_LABELS[item]}</SelectItem>)}
@@ -266,14 +291,45 @@ export function ContextualAiPanel({
               <div className="space-y-3">
                 <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/10 p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="text-sm font-medium text-foreground">Review Noesis&apos;s suggestion</div>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Based on {result.contextSummary}. Nothing is saved until you apply it.</p>
+                    <div className="text-sm font-medium text-foreground">{CONTEXTUAL_AI_REVIEW[result.action].heading}</div>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{CONTEXTUAL_AI_REVIEW[result.action].guidance} Nothing is saved until you approve it.</p>
                   </div>
-                  <Button type="button" variant="outline" size="sm" disabled={accepting} onClick={() => setEditingResult((current) => !current)} className="shrink-0 rounded-full">
+                  {!reviewItems.length && <Button type="button" variant="outline" size="sm" disabled={accepting} onClick={() => setEditingResult((current) => !current)} className="shrink-0 rounded-full">
                     <Pencil className="mr-2 size-3.5" /> {editingResult ? 'Preview response' : 'Edit response'}
-                  </Button>
+                  </Button>}
                 </div>
-                {editingResult ? (
+                {reviewItems.length ? (
+                  <div className="space-y-3" aria-label={`${CONTEXTUAL_AI_REVIEW[result.action].itemName}s to review`}>
+                    {reviewItems.map((item, index) => (
+                      <div key={item.id} className={`rounded-xl border p-4 transition-colors ${item.selected ? 'border-accent/40 bg-accent/5' : 'border-border bg-muted/10 opacity-70'}`}>
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id={`${promptId}-review-${index}`}
+                            checked={item.selected}
+                            disabled={accepting}
+                            onCheckedChange={(checked) => setReviewItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, selected: checked === true } : candidate))}
+                            className="mt-2 size-5"
+                            aria-label={`${item.selected ? 'Remove' : 'Keep'} ${CONTEXTUAL_AI_REVIEW[result.action].itemName} ${index + 1}`}
+                          />
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <label htmlFor={`${promptId}-review-text-${index}`} className="font-code text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{item.title}</label>
+                            <Textarea
+                              id={`${promptId}-review-text-${index}`}
+                              value={item.content}
+                              disabled={accepting || !item.selected}
+                              onChange={(event) => setReviewItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, content: event.target.value } : candidate))}
+                              className="min-h-[76px] resize-y bg-background py-2 text-sm leading-6"
+                            />
+                            {item.detail && <p className="text-xs leading-5 text-muted-foreground"><span className="font-medium text-foreground">Why it matters:</span> {item.detail}</p>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <p className="rounded-lg border border-border/60 bg-muted/10 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                      <span className="font-medium text-foreground">Save destination:</span> Selected {CONTEXTUAL_AI_REVIEW[result.action].itemName}s will be saved to the {CONTEXTUAL_AI_REVIEW[result.action].destination}.
+                    </p>
+                  </div>
+                ) : editingResult ? (
                   <div className="space-y-2">
                     <label htmlFor={`${promptId}-result`} className="text-xs font-medium text-foreground">Edit the wording before saving</label>
                     <Textarea id={`${promptId}-result`} aria-label="Edit assistance response" disabled={accepting} value={editedContent} onChange={(event) => setEditedContent(event.target.value)} className="min-h-[280px] leading-7" />
@@ -285,12 +341,12 @@ export function ContextualAiPanel({
                   </div>
                 )}
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Button variant="ghost" disabled={accepting} onClick={() => { setResult(null); setEditedContent(''); setEditingResult(false); }} className="rounded-full">
+                  <Button variant="ghost" disabled={accepting} onClick={() => { setResult(null); setEditedContent(''); setEditingResult(false); setReviewItems([]); }} className="rounded-full">
                     <X className="mr-2 size-4" /> Dismiss
                   </Button>
                   {onAccept ? (
-                    <Button onClick={accept} disabled={accepting || !editedContent.trim()} className="rounded-full">
-                      {accepting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Check className="mr-2 size-4" />} Apply Reviewed Text
+                    <Button onClick={accept} disabled={accepting || (reviewItems.length ? !reviewItems.some((item) => item.selected && item.content.trim()) : !editedContent.trim())} className="rounded-full">
+                      {accepting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Check className="mr-2 size-4" />} {reviewItems.length ? `Save ${selectedReviewCount} ${reviewItemLabel}${selectedReviewCount === 1 ? '' : 's'}` : 'Apply Reviewed Text'}
                     </Button>
                   ) : (
                     <Button onClick={copyResult} disabled={!editedContent.trim()} className="rounded-full">

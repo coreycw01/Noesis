@@ -219,16 +219,43 @@ export function useNoesisWorkspaceData({
   };
   const pageErrorKey = activePageRequirements.find((key) => requirementErrors[key]);
 
+  // Stage labels are derived UI data. Keep these arrays stable until the
+  // underlying snapshot changes so editors are not reset by unrelated renders.
+  const mediaRecords = useMemo(
+    () => stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.media || []) : mediaLive, uid, 'source'),
+    [isOfflineReviewPreview, mediaLive, reviewPreviewData?.media, uid]
+  );
+  const vaultRecords = useMemo(
+    () => stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.vault || []) : vaultLive, uid, 'position'),
+    [isOfflineReviewPreview, reviewPreviewData?.vault, uid, vaultLive]
+  );
+  const conceptRecords = useMemo(
+    () => stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.concepts || []) : conceptsLive, uid, 'concept', (record) => record.philosophyStatus),
+    [conceptsLive, isOfflineReviewPreview, reviewPreviewData?.concepts, uid]
+  );
+  const questionRecords = useMemo(
+    () => stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.questions || []) : questionsLive, uid, 'inquiry'),
+    [isOfflineReviewPreview, questionsLive, reviewPreviewData?.questions, uid]
+  );
+  const draftRecords = useMemo(
+    () => stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.drafts || []) : draftsLive, uid, 'work'),
+    [draftsLive, isOfflineReviewPreview, reviewPreviewData?.drafts, uid]
+  );
+  const practiceRecords = useMemo(
+    () => stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.practices || []) : practicesLive, uid, 'practice'),
+    [isOfflineReviewPreview, practicesLive, reviewPreviewData?.practices, uid]
+  );
+
   return {
     refs,
-    media: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.media || []) : mediaLive, uid, 'source'),
-    vault: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.vault || []) : vaultLive, uid, 'position'),
+    media: mediaRecords,
+    vault: vaultRecords,
     insights: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.insights || []) : insightsLive, uid),
-    concepts: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.concepts || []) : conceptsLive, uid, 'concept', (record) => record.philosophyStatus),
-    questions: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.questions || []) : questionsLive, uid, 'inquiry'),
+    concepts: conceptRecords,
+    questions: questionRecords,
     timeline: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.timeline || []) : timelineLive, uid),
-    drafts: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.drafts || []) : draftsLive, uid, 'work'),
-    practices: stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.practices || []) : practicesLive, uid, 'practice'),
+    drafts: draftRecords,
+    practices: practiceRecords,
     atlasMaps: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.atlasMaps || []) : atlasMapsLive, uid),
     links: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.links || []) : linksLive, uid),
     thinkingEvents: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.thinkingEvents || []) : thinkingEventsLive, uid),

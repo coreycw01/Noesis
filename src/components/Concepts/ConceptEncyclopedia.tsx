@@ -728,7 +728,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     ],
                   })}
                   onAccept={(result, content) => onUpdateConcept(result.action === 'clarify_concept_boundaries'
-                    ? { ...concept, notSameAs: Array.from(new Set([...(concept.notSameAs || []), content])) }
+                    ? { ...concept, notSameAs: Array.from(new Set([...(concept.notSameAs || []), ...content.split('\n').map((item) => item.trim()).filter(Boolean)])) }
                     : { ...concept, description: content })}
                 />
                 <DropdownMenu>

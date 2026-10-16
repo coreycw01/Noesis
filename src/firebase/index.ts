@@ -35,6 +35,7 @@ export function initializeFirebase() {
         // disconnects and lets Firestore safely reconcile when the user returns.
         firestore = initializeFirestore(firebaseApp, {
           localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+          ignoreUndefinedProperties: true,
         });
       } catch {
         // Another client module may have initialized Firestore first. It remains
