@@ -1119,6 +1119,15 @@ function ReadexWorkspace({
     return payload;
   };
 
+  const addTimelineEvent = async (event: TimelineEvent) => {
+    await commitAndReport({
+      db,
+      ref: doc(refs.timeline, event.id) as any,
+      operation: 'set',
+      data: event,
+    }, { operation: 'create', data: event, rethrow: true });
+  };
+
   const updateUnknown = (item: Unknown) => {
     const unknownRef = doc(refs.unknowns, item.unknownId);
     const previous = unknowns.find((unknown) => unknown.unknownId === item.unknownId);
@@ -2981,6 +2990,7 @@ function ReadexWorkspace({
         addUnknown={addUnknown}
         updateUnknown={updateUnknown}
         updateThinkingPattern={updateThinkingPattern}
+        addTimelineEvent={addTimelineEvent}
         saveGoal={saveGoal}
         saveProfile={saveProfile}
         saveProfilePrivacy={saveProfilePrivacy}

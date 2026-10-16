@@ -24,7 +24,7 @@ import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
-import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { ContextualAiAction } from '@/lib/contextual-ai';
 import type { AiSettings } from '@/lib/types';
@@ -716,19 +716,32 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   showContextBeforeSending={aiSettings?.showContextBeforeSending}
                   reasoningDepth={aiSettings?.defaultReasoningDepth}
                   retainAcceptedProvenance={aiSettings?.retainAcceptedAiProvenance}
-                  buildEnvelope={(action: ContextualAiAction) => ({
+                  buttonLabel="Concept Assistance"
+                  promptLabel="What should Noesis examine about this concept?"
+                  promptPlaceholder="For example: Where does my use of this concept conflict with its definition?"
+                  buildEnvelope={(action: ContextualAiAction, userPrompt) => ({
                     action,
                     targetType: 'concept',
                     targetId: concept.id,
                     scope: 'linked_items',
-                    itemMemory: [`Concept: ${concept.name}`, `Working definition: ${concept.description || 'Not defined.'}`],
-                    linkedMemory: [
-                      ...r.annotations.slice(0, 8).map((item) => `Annotation: ${item.text}`),
-                      ...r.beliefs.slice(0, 6).map((item) => `Position: ${item.statement || item.title}`),
+                    itemMemory: [
+                      `Concept: ${concept.name}`,
+                      `Working definition: ${concept.description || 'Not defined.'}`,
+                      `Aliases: ${(concept.aliases || []).join('; ') || 'None recorded.'}`,
+                      `Not the same as: ${(concept.notSameAs || []).join('; ') || 'None recorded.'}`,
+                      `Examples: ${(concept.examples || []).join('; ') || 'None recorded.'}`,
+                      `Counterexamples: ${(concept.counterexamples || []).join('; ') || 'None recorded.'}`,
                     ],
+                    linkedMemory: [
+                      ...r.annotations.slice(0, 8).map((item) => `Annotation (${item.type}): ${item.text}`),
+                      ...r.beliefs.slice(0, 6).map((item) => `Position (${item.confidence}% confidence): ${item.statement || item.title}`),
+                      ...r.questions.slice(0, 4).map((item) => `Inquiry: ${item.text}`),
+                      ...linkedConceptNames.slice(0, 6).map((name) => `Neighboring concept: ${name}`),
+                    ],
+                    userPrompt,
                   })}
                   onAccept={(result, content) => onUpdateConcept(result.action === 'clarify_concept_boundaries'
-                    ? { ...concept, notSameAs: Array.from(new Set([...(concept.notSameAs || []), ...content.split('\n').map((item) => item.trim()).filter(Boolean)])) }
+                    ? { ...concept, boundaryReview: content }
                     : { ...concept, description: content })}
                 />
                 <DropdownMenu>
@@ -954,6 +967,19 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 })}
               </div>
             </div>
+
+            {concept?.boundaryReview && (
+              <div className="mt-4 rounded-xl border border-accent/25 bg-accent/5 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">Saved Boundary Review</div>
+                    <p className="mt-1 text-xs text-muted-foreground">Use this reviewed analysis when editing distinctions, examples, and counterexamples below.</p>
+                  </div>
+                  <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
+                </div>
+                <ContextualAiDocument content={concept.boundaryReview} />
+              </div>
+            )}
 
             <div className="mt-4 rounded-xl border border-border/40 bg-background/70 p-4">
               <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Concept Drift</div>

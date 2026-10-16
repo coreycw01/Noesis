@@ -188,6 +188,8 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   philosophyName: '',
   philosophyNameStatus: 'working',
   philosophyStatement: '',
+  philosophySynthesisReview: '',
+  philosophySynthesisReviewedAt: '',
   intellectualFocus: [],
   currentThemes: [],
   disciplines: [],

@@ -47,7 +47,7 @@ test('suspended and provisionally answered inquiries are not active investigatio
 });
 
 test('question-only inquiries produce a valid bounded AI memory', () => {
-  assert.deepEqual(inquiryAiItemMemory(inquiry()), ['Inquiry: What should change?']);
+  assert.deepEqual(inquiryAiItemMemory(inquiry()), ['Inquiry: What should change?', 'Status: open']);
 });
 
 test('AI memory includes saved context and advanced inquiry material', () => {
@@ -62,11 +62,12 @@ test('AI memory includes saved context and advanced inquiry material', () => {
 
   assert.deepEqual(memory, [
     'Inquiry: What should change?',
+    'Status: open',
     'Why it matters: It changes how I act.',
     'Current view: I think restraint matters.',
     'Remaining uncertainty: I do not know when restraint becomes avoidance.',
     'Assumptions: Action reveals commitment.',
-    'Candidate answers: Act despite uncertainty.',
+    'Candidate 1 (unrated): Act despite uncertainty.; support: none; objection: none; consequence: none',
     'Current answer: Begin with a reversible action.',
   ]);
 });

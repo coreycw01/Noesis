@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BrainCircuit, Check, ClipboardCopy, Loader2, Pencil, X } from 'lucide-react';
+import { Check, ClipboardCopy, Loader2, Pencil, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { requestContextualAi } from '@/lib/contextual-ai-client';
 import { boundedAiContext, CONTEXTUAL_AI_LABELS, CONTEXTUAL_AI_REVIEW, parseAiReviewItems, serializeAiReviewItems, type AiContextEnvelope, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
+import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 
 export interface ContextualAiPanelProps {
   actions: ContextualAiAction[];
@@ -42,7 +43,7 @@ function formattedInline(text: string): ReactNode[] {
   });
 }
 
-function ReviewDocument({ content }: { content: string }) {
+export function ContextualAiDocument({ content }: { content: string }) {
   const lines = content.replace(/\r\n/g, '\n').split('\n');
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -218,7 +219,7 @@ export function ContextualAiPanel({
   return (
     <>
       <Button variant="outline" size="sm" className="rounded-full" onClick={() => setOpen(true)}>
-        <BrainCircuit className="mr-2 size-4" /> {buttonLabel}
+        <NoesisAiMark className="mr-2 size-5" /> {buttonLabel}
       </Button>
       <Dialog open={open} onOpenChange={(next) => {
         if (acceptLock.current) return;
@@ -235,7 +236,7 @@ export function ContextualAiPanel({
       }}>
         <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Contextual Assistance</DialogTitle>
+            <DialogTitle className="flex items-center gap-3"><NoesisAiMark className="size-8" />Contextual Assistance</DialogTitle>
             <DialogDescription>Review the exact workspace context Noesis will use, then edit or dismiss the result before anything is saved.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -280,6 +281,12 @@ export function ContextualAiPanel({
                   </details>
                 )}
               </Card>
+            )}
+
+            {!envelope && !result && action === 'compare_selected_positions' && (
+              <p className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs leading-5 text-muted-foreground" role="status">
+                Select another position in the detail header before running this comparison.
+              </p>
             )}
 
             {!result ? (
@@ -337,7 +344,7 @@ export function ContextualAiPanel({
                   </div>
                 ) : (
                   <div className="max-h-[48dvh] overflow-y-auto rounded-xl border border-border bg-card p-4 sm:p-5" aria-label="Assistance response preview">
-                    <ReviewDocument content={editedContent} />
+                    <ContextualAiDocument content={editedContent} />
                   </div>
                 )}
                 <div className="flex flex-wrap justify-end gap-2">

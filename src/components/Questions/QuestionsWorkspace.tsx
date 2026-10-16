@@ -22,8 +22,8 @@ import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { searchMatches } from '@/lib/search';
-import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
-import type { AiContextEnvelope } from '@/lib/contextual-ai';
+import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { parseAiReviewItems, type AiContextEnvelope } from '@/lib/contextual-ai';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   inquiryAiItemMemory,
@@ -747,17 +747,19 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     onAiFeedback('Inquiry status updated.', `Marked as ${status.replace(/_/g, ' ')}.`);
   };
 
-  const buildAiEnvelope = (): AiContextEnvelope => ({
+  const buildAiEnvelope = (_action?: unknown, userPrompt?: string): AiContextEnvelope => ({
     action: 'socratic_inquiry_challenge',
     scope: 'linked_items',
     targetType: 'inquiry',
     targetId: question.id,
     itemMemory: inquiryAiItemMemory(question),
     linkedMemory: [
-      ...sources.slice(0, 8).map((source) => `Source: ${source.title} - ${source.description || source.capture?.after?.coreArgument || 'No summary'}`),
-      ...beliefs.slice(0, 6).map((position) => `Position: ${position.statement || position.title}`),
-      ...practices.slice(0, 4).map((practice) => `Practice: ${practice.title} - ${practice.observedOutcome || practice.status}`),
+      ...sources.slice(0, 6).map((source) => `Source: ${source.title}; main idea: ${source.capture?.after?.coreArgument || source.description || 'not recorded'}; relevant notes: ${(source.annotations || []).slice(0, 3).map((item) => item.text).join(' | ') || 'none'}`),
+      ...beliefs.slice(0, 6).map((position) => `Position (${position.confidence}% confidence): ${position.statement || position.title}; support: ${(position.evidenceFor || []).length}; challenges: ${(position.evidenceAgainst || []).length}`),
+      ...practices.slice(0, 4).map((practice) => `Practice: ${practice.title}; hypothesis: ${practice.hypothesis || 'not recorded'}; outcome: ${practice.observedOutcome || practice.status}`),
+      ...drafts.slice(0, 3).map((draft) => `Linked work: ${draft.title}; excerpt: ${(draft.body || '').slice(0, 240) || 'empty'}`),
     ],
+    userPrompt,
   });
 
   if (question.status === 'archived') {
@@ -814,11 +816,13 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               actions={['socratic_inquiry_challenge']}
               buildEnvelope={buildAiEnvelope}
               buttonLabel="Socratic Challenge"
-              onAccept={async (_result, content) => { if (!await onUpdateQuestion({
+              promptLabel="What part of this inquiry should Noesis pressure?"
+              promptPlaceholder="For example: Test whether my current answer actually follows from the evidence."
+              onAccept={async (result, content) => { if (!await onUpdateQuestion({
                 ...question,
                 investigationNotes: [
                   ...(question.investigationNotes || []),
-                  { id: crypto.randomUUID(), text: content, origin: 'ai-assisted', date: today() },
+                  ...parseAiReviewItems(result.action, content).map((item) => ({ id: crypto.randomUUID(), title: item.title, text: item.content, origin: 'ai-assisted' as const, date: today() })),
                 ],
                 dateUpdated: today(),
               })) throw new Error('The reviewed note was not saved. Wait for the current save or retry.'); }}
@@ -921,8 +925,11 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             <div className="mt-4 space-y-3">
               {question.investigationNotes.map((note) => (
                 <div key={note.id} className="rounded-xl border border-border/60 bg-background/60 p-4">
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{note.origin.replace('-', ' ')} · {note.date}</div>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{note.text}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{note.origin.replace('-', ' ')} · {note.date}</div>
+                    {note.title && <Badge variant="outline" className="rounded-full text-[9px]">{note.title}</Badge>}
+                  </div>
+                  <div className="mt-2"><ContextualAiDocument content={note.text} /></div>
                 </div>
               ))}
             </div>

@@ -152,6 +152,7 @@ export interface Annotation extends NoesisStageState {
   conceptTags?: string[];
   philosophyStatus?: AnnotationPhilosophyStatus;
   consequenceNote?: string;
+  aiEffectReview?: string;
   consequenceKind?: 'evidence' | 'interpretation' | 'reaction' | 'question' | 'definition' | 'objection' | 'claim';
   mattersBeyondSource?: boolean;
   createdPositionId?: string;
@@ -201,6 +202,7 @@ export interface MediaCapture {
     implications?: string;
     nextAction?: string;
     crossRefs?: string;
+    aiSummary?: string;
     aiReflection?: string;
   };
   sessions: ReadingSession[];
@@ -250,6 +252,13 @@ export interface VaultVersion {
   confidence?: number;
 }
 
+export interface PositionComparisonReview {
+  positionId: string;
+  positionTitle: string;
+  content: string;
+  date: string;
+}
+
 export interface VaultEntry extends NoesisStageState {
   id: string;
   title: string;
@@ -270,6 +279,8 @@ export interface VaultEntry extends NoesisStageState {
   insightIds?: string[];
   evidenceFor?: string[];
   evidenceAgainst?: string[];
+  missingEvidence?: string[];
+  comparisonReviews?: PositionComparisonReview[];
   versionHistory?: VaultVersion[];
   createdFrom?: 'manual' | 'idea' | 'inquiry' | 'annotation' | 'work';
   sourceInquiryId?: string;
@@ -307,6 +318,7 @@ export interface Concept extends NoesisStageState {
   notSameAs?: string[];
   examples?: string[];
   counterexamples?: string[];
+  boundaryReview?: string;
   links: string[];
   sourceIds: string[];
   dateCreated: string;
@@ -329,6 +341,7 @@ export interface Question extends NoesisStageState {
   checkpointSkips?: Array<{ id: string; transition: string; reason: string; date: string }>;
   investigationNotes?: Array<{
     id: string;
+    title?: string;
     text: string;
     origin: 'user' | 'ai-assisted';
     date: string;
@@ -468,6 +481,7 @@ export interface Practice extends NoesisStageState {
   interpretation?: string;
   effectOnPosition?: string;
   alternativeExplanation?: string;
+  aiOutcomeReview?: string;
   conclusion?: {
     performedAsIntended?: string;
     whatHappened?: string;
@@ -747,6 +761,8 @@ export interface UserProfile {
   philosophyName?: string;
   philosophyNameStatus?: 'working' | 'established';
   philosophyStatement?: string;
+  philosophySynthesisReview?: string;
+  philosophySynthesisReviewedAt?: string;
   intellectualFocus?: string[];
   currentThemes?: string[];
   disciplines?: string[];

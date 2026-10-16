@@ -100,17 +100,17 @@ export const CONTEXTUAL_AI_REVIEW: Record<ContextualAiAction, AiReviewPresentati
   reflect_on_source: { mode: 'sections', heading: 'Review your learning reflection', guidance: 'Keep only the interpretations that reflect what you learned from this source.', destination: 'source reflection', itemName: 'reflection' },
   extract_source_claims: { mode: 'list', heading: 'Review each claim', guidance: 'Keep only claims the source actually makes, and revise their wording before saving.', destination: 'source claims', itemName: 'claim' },
   propose_inquiry_prompts: { mode: 'list', heading: 'Review each inquiry', guidance: 'Choose the questions worth pursuing. Each selected question becomes a separate inquiry prompt.', destination: 'inquiry prompts', itemName: 'inquiry' },
-  suggest_annotation_effect: { mode: 'sections', heading: 'Review the effect on your thinking', guidance: 'Edit the interpretation so it describes your thinking rather than treating the suggestion as fact.', destination: 'annotation reflection', itemName: 'point' },
+  suggest_annotation_effect: { mode: 'sections', heading: 'Review what this note could change', guidance: 'Keep only the analysis that fits your thinking. The source\'s words are not automatically your belief.', destination: 'the annotation’s Contextual Review', itemName: 'section' },
   refine_concept_definition: { mode: 'single', heading: 'Review the definition', guidance: 'Make the definition precise and recognizably yours before saving.', destination: 'concept definition', itemName: 'definition' },
-  clarify_concept_boundaries: { mode: 'list', heading: 'Review each boundary', guidance: 'Keep the distinctions that clarify what this concept is not.', destination: 'concept boundaries', itemName: 'boundary' },
-  socratic_inquiry_challenge: { mode: 'sections', heading: 'Review the challenge', guidance: 'Work through the questions, assumptions, counterpoints, and next steps before adding the note.', destination: 'inquiry investigation note', itemName: 'section' },
+  clarify_concept_boundaries: { mode: 'sections', heading: 'Review the concept boundary', guidance: 'Edit each section before saving. This review informs your boundary fields but does not silently rewrite them.', destination: 'the concept’s saved Boundary Review', itemName: 'section' },
+  socratic_inquiry_challenge: { mode: 'sections', heading: 'Review the challenge', guidance: 'Keep and edit each useful section. Approved sections become separate investigation notes on this inquiry.', destination: 'the inquiry’s investigation history', itemName: 'section' },
   find_position_assumptions: { mode: 'list', heading: 'Review each assumption', guidance: 'Keep only assumptions this position truly depends on. Edit their wording before saving.', destination: 'position assumptions', itemName: 'assumption' },
   generate_position_counterargument: { mode: 'sections', heading: 'Review the counterargument', guidance: 'Strengthen or remove parts until this is an argument you consider genuinely challenging.', destination: 'evidence against this position', itemName: 'section' },
-  identify_missing_position_evidence: { mode: 'list', heading: 'Review each evidence gap', guidance: 'Keep only gaps that would materially affect your confidence in the position.', destination: 'position confidence reasoning', itemName: 'evidence gap' },
-  compare_selected_positions: { mode: 'sections', heading: 'Review the comparison', guidance: 'Check that agreements, tensions, and tradeoffs fairly represent both positions.', destination: 'position review history', itemName: 'section' },
-  synthesize_practice_outcome: { mode: 'sections', heading: 'Review the practice outcome', guidance: 'Keep the observations grounded in your actual logs and revise any overstatement.', destination: 'practice outcome draft; save the practice to confirm it', itemName: 'finding' },
-  synthesize_evolution_period: { mode: 'sections', heading: 'Review the period synthesis', guidance: 'Choose the changes that genuinely mattered during this period.', destination: 'exportable evolution synthesis', itemName: 'change' },
-  synthesize_profile_philosophy: { mode: 'sections', heading: 'Review your philosophy draft', guidance: 'Shape each section until it sounds like your philosophy, not an outside description.', destination: 'profile philosophy statement', itemName: 'section' },
+  identify_missing_position_evidence: { mode: 'list', heading: 'Review each evidence gap', guidance: 'Keep only gaps that would materially affect your confidence in the position.', destination: 'Evidence Still Needed on this position', itemName: 'evidence gap' },
+  compare_selected_positions: { mode: 'sections', heading: 'Review the comparison', guidance: 'Check that agreements, tensions, and tradeoffs fairly represent both positions.', destination: 'Saved Position Comparisons', itemName: 'section' },
+  synthesize_practice_outcome: { mode: 'sections', heading: 'Review the practice analysis', guidance: 'Check each finding against your logs. Edit or remove anything that overstates what the practice established.', destination: 'the practice’s saved Outcome Review', itemName: 'finding' },
+  synthesize_evolution_period: { mode: 'sections', heading: 'Review this period of change', guidance: 'Keep only conclusions supported by recorded events. Edit any interpretation that does not match how your thinking changed.', destination: 'the Evolution timeline as a reviewed synthesis', itemName: 'change' },
+  synthesize_profile_philosophy: { mode: 'sections', heading: 'Review your philosophy draft', guidance: 'Edit each inference until it is recognizably yours. Only the approved Working statement updates your statement; the complete review remains available on Profile.', destination: 'the Profile philosophy review', itemName: 'section' },
 };
 
 function cleanReviewText(value: string) {
@@ -165,6 +165,12 @@ export function serializeAiReviewItems(action: ContextualAiAction, items: AiRevi
   if (presentation.mode === 'single') return selected[0]?.content.trim() || '';
   if (presentation.mode === 'sections') return selected.map((item) => `## ${item.title}\n${item.content.trim()}`).join('\n\n');
   return selected.map((item) => item.content.trim()).join('\n');
+}
+
+export function profileStatementFromSynthesis(content: string): string | undefined {
+  return parseAiReviewItems('synthesize_profile_philosophy', content)
+    .find((section) => section.title.trim().toLowerCase() === 'working statement')
+    ?.content.trim() || undefined;
 }
 
 export const CONTEXTUAL_AI_LABELS: Record<ContextualAiAction, string> = {

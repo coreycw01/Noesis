@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CONTEXTUAL_AI_POLICIES, isContextualAiRequestCompatible, parseAiReviewItems, parseAssumptionSuggestions, serializeAiReviewItems } from '../../src/lib/contextual-ai';
+import { CONTEXTUAL_AI_POLICIES, isContextualAiRequestCompatible, parseAiReviewItems, parseAssumptionSuggestions, profileStatementFromSynthesis, serializeAiReviewItems } from '../../src/lib/contextual-ai';
 import {
   NOESIS_DETAIL_DATA_REQUIREMENTS,
   NOESIS_PAGE_DATA_REQUIREMENTS,
@@ -77,7 +77,23 @@ test('parses every contextual result into editable review units', () => {
     { title: 'Next step', content: 'Compare the strongest alternative.' },
   ]);
   assert.equal(serializeAiReviewItems('clarify_concept_boundaries', [
-    { title: 'boundary 1', content: 'It is not mere preference.' },
-    { title: 'boundary 2', content: 'It does not require certainty.' },
-  ]), 'It is not mere preference.\nIt does not require certainty.');
+    { title: 'Falls outside', content: 'It is not mere preference.' },
+    { title: 'Unresolved boundary', content: 'It does not require certainty.' },
+  ]), '## Falls outside\nIt is not mere preference.\n\n## Unresolved boundary\nIt does not require certainty.');
+});
+
+test('profile synthesis promotes only the reviewed working statement', () => {
+  const review = [
+    '## Working statement',
+    'Human dignity should constrain every pursuit of control.',
+    '',
+    '## Possible names',
+    'Revisable Humanism',
+    '',
+    '## Tensions',
+    'Discipline may conflict with freedom.',
+  ].join('\n');
+
+  assert.equal(profileStatementFromSynthesis(review), 'Human dignity should constrain every pursuit of control.');
+  assert.equal(profileStatementFromSynthesis('## Possible names\nRevisable Humanism'), undefined);
 });

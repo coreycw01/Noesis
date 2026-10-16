@@ -28,7 +28,7 @@ import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
-import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import type { ContextualAiAction } from '@/lib/contextual-ai';
 import { inquirySourceIds } from '@/lib/inquiry-state';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -123,6 +123,19 @@ function generatedListItems(content: string, maxItems = 8) {
     .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
     .filter((line) => line.length > 3 && !/^(claims?|questions?|inquiry prompts?)\s*:?s*$/i.test(line));
   return Array.from(new Set(lines.length ? lines : [content.trim()])).slice(0, maxItems);
+}
+
+function mergeGeneratedAnnotations(existing: Annotation[], generated: Annotation[]) {
+  const keys = new Set(existing.map((item) => `${item.type}:${item.text.trim().toLocaleLowerCase()}`));
+  return [
+    ...generated.filter((item) => {
+      const key = `${item.type}:${item.text.trim().toLocaleLowerCase()}`;
+      if (keys.has(key)) return false;
+      keys.add(key);
+      return true;
+    }),
+    ...existing,
+  ];
 }
 
 const TYPE_TERMINOLOGY: Record<MediaType, { creator: string; publisher: string; genre: string; identifier: string }> = {
@@ -475,7 +488,12 @@ export function MediaLibrary({
                 itemMemory: [
                   `Source: ${selected.title}${selected.creator ? ` by ${selected.creator}` : ''}`,
                   `Description: ${selected.description || 'None.'}`,
+                  `Reason for engaging: ${selected.capture?.before?.reasonForAdding || 'Not recorded.'}`,
+                  `Question brought to the source: ${selected.capture?.before?.openQuestion || 'Not recorded.'}`,
+                  `Prior view: ${selected.capture?.before?.priorBeliefs || 'Not recorded.'}`,
                   `Main idea: ${selected.capture?.after?.coreArgument || 'Not recorded.'}`,
+                  `Strongest point: ${selected.capture?.after?.strongestArgument || 'Not recorded.'}`,
+                  `Weakest point: ${selected.capture?.after?.weakestArgument || 'Not recorded.'}`,
                   `What stays with me: ${selected.capture?.after?.lasting || 'Not recorded.'}`,
                   `What remains open: ${selected.capture?.after?.remainsUnanswered || 'Not recorded.'}`,
                   `How my view changed: ${selected.capture?.after?.beliefChange || 'Not recorded.'}`,
@@ -483,12 +501,17 @@ export function MediaLibrary({
                   ...(selected.annotations || []).slice(0, 8).map((annotation) => `${annotation.type}: ${annotation.text}`),
                 ],
                 linkedMemory: [
-                  ...vault.filter((entry) => (entry.sourceIds || []).includes(selected.id)).slice(0, 6).map((entry) => `Position: ${entry.statement || entry.title}`),
+                  ...vault.filter((entry) => (entry.sourceIds || []).includes(selected.id)).slice(0, 6).map((entry) => `Position (${entry.confidence}% confidence): ${entry.statement || entry.title}; support: ${(entry.evidenceFor || []).length}; challenges: ${(entry.evidenceAgainst || []).length}`),
                   ...questions.filter((question) => inquirySourceIds(question).includes(selected.id)).slice(0, 6).map((question) => `Inquiry: ${question.text}`),
                 ],
               })}
               onAccept={(result, content) => {
-                if (result.action === 'summarize_source') updateSelected({ description: content });
+                if (result.action === 'summarize_source') {
+                  const currentCapture = captureDraft || selected.capture || { sessions: [] };
+                  const nextCapture = { ...currentCapture, after: { ...currentCapture.after, aiSummary: content }, sessions: currentCapture.sessions || [] };
+                  setCaptureDraft(nextCapture);
+                  updateSelected({ capture: nextCapture });
+                }
                 else if (result.action === 'reflect_on_source') {
                   const currentCapture = captureDraft || selected.capture || { sessions: [] };
                   const nextCapture = { ...currentCapture, after: { ...currentCapture.after, aiReflection: content }, sessions: currentCapture.sessions || [] };
@@ -496,16 +519,10 @@ export function MediaLibrary({
                   updateSelected({ capture: nextCapture });
                 }
                 else if (result.action === 'extract_source_claims') updateSelected({
-                  annotations: [
-                    ...generatedListItems(content).map((text) => ({ id: uid(), type: 'claim' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'raw' as const })),
-                    ...(selected.annotations || []),
-                  ],
+                  annotations: mergeGeneratedAnnotations(selected.annotations || [], generatedListItems(content).map((text) => ({ id: uid(), type: 'claim' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'raw' as const }))),
                 });
                 else updateSelected({
-                  annotations: [
-                    ...generatedListItems(content, 6).map((text) => ({ id: uid(), type: 'question' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'questioned' as const })),
-                    ...(selected.annotations || []),
-                  ],
+                  annotations: mergeGeneratedAnnotations(selected.annotations || [], generatedListItems(content, 6).map((text) => ({ id: uid(), type: 'question' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'questioned' as const }))),
                 });
               }}
             />
@@ -568,6 +585,15 @@ export function MediaLibrary({
           </TabsList>
 
           <TabsContent value="overview" className="space-y-8">
+            {capture.after?.aiSummary && (
+              <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="readex-kicker opacity-50 font-bold">SAVED SOURCE SUMMARY</div>
+                  <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
+                </div>
+                <ContextualAiDocument content={capture.after.aiSummary} />
+              </Card>
+            )}
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
               <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
                 <div className="readex-kicker mb-3 opacity-50 font-bold">MEDIA SUMMARY</div>
@@ -654,7 +680,7 @@ export function MediaLibrary({
               {capture.after?.aiReflection && (
                 <div className="mt-4 rounded-xl border border-accent/25 bg-accent/5 p-4">
                   <div className="mb-2 flex items-center gap-2"><Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted reflection</Badge><span className="text-xs text-muted-foreground">Based on your saved notes</span></div>
-                  <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{capture.after.aiReflection}</p>
+                  <ContextualAiDocument content={capture.after.aiReflection} />
                 </div>
               )}
             </section>
@@ -779,13 +805,22 @@ export function MediaLibrary({
                       scope: 'linked_items',
                       itemMemory: [
                         `Source: ${selected.title}${selected.creator ? ` by ${selected.creator}` : ''}`,
+                        `Reason for engaging: ${capture.before?.reasonForAdding || 'Not recorded.'}`,
+                        `Question brought to the source: ${capture.before?.openQuestion || 'Not recorded.'}`,
+                        `Prior view: ${capture.before?.priorBeliefs || 'Not recorded.'}`,
                         `Main idea: ${capture.after?.coreArgument || 'Not recorded.'}`,
+                        `Strongest point: ${capture.after?.strongestArgument || 'Not recorded.'}`,
+                        `Weakest point: ${capture.after?.weakestArgument || 'Not recorded.'}`,
                         `What stays with me: ${capture.after?.lasting || 'Not recorded.'}`,
                         `What remains open: ${capture.after?.remainsUnanswered || 'Not recorded.'}`,
                         `How my view changed: ${capture.after?.beliefChange || 'Not recorded.'}`,
                         ...(capture.sessions || []).slice(0, 4).map((session) => `Source session: ${session.notes || 'No session note.'}`),
                       ],
-                      linkedMemory: (selected.annotations || []).slice(0, 8).map((annotation) => `${annotation.type}: ${annotation.text}`),
+                      linkedMemory: [
+                        ...(selected.annotations || []).slice(0, 8).map((annotation) => `${annotation.type}: ${annotation.text}`),
+                        ...vault.filter((entry) => (entry.sourceIds || []).includes(selected.id)).slice(0, 4).map((entry) => `Linked position (${entry.confidence}% confidence): ${entry.statement || entry.title}`),
+                        ...questions.filter((question) => inquirySourceIds(question).includes(selected.id)).slice(0, 4).map((question) => `Linked inquiry: ${question.text}`),
+                      ],
                       userPrompt,
                     })}
                     onAccept={(_, content) => {
@@ -796,7 +831,7 @@ export function MediaLibrary({
                   />
                 </div>
                 {capture.after?.aiReflection && (
-                  <p className="mt-4 whitespace-pre-wrap border-t border-accent/15 pt-4 text-sm leading-6 text-foreground">{capture.after.aiReflection}</p>
+                  <div className="mt-4 border-t border-accent/15 pt-4"><ContextualAiDocument content={capture.after.aiReflection} /></div>
                 )}
               </div>
             </section>
