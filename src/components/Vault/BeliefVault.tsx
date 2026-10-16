@@ -27,6 +27,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
@@ -670,7 +671,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     const firstLinkedSource = linkedSources[0];
     const strongestObjection = tensionLinks[0]?.note || selected.evidenceAgainst?.[0] || 'No direct objection has been articulated yet.';
     const strongestSupport = selected.evidenceFor?.[0] || linkedSources[0]?.title || 'No direct support has been recorded yet.';
-    const latestRevision = [...(selected.versionHistory || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     const derivedAssumptions = [
       selected.tags.length ? `The concepts ${selected.tags.slice(0, 3).join(', ')} are defined clearly enough to support this claim.` : 'This position needs explicit concepts before its scope is stable.',
       linkedSources.length ? 'The linked sources count as relevant evidence rather than only inspiration.' : 'This position can stand provisionally without a linked source, but remains evidence-light.',
@@ -704,12 +704,12 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       linkedPractices,
     });
     const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
-    const reviewTabs: Array<{ id: 'overview' | 'evidence' | 'opposition' | 'relations' | 'history'; label: string }> = [
-      { id: 'overview', label: 'Develop' },
-      { id: 'evidence', label: 'Evidence' },
-      { id: 'opposition', label: 'Challenge' },
-      { id: 'relations', label: 'Connections' },
-      { id: 'history', label: 'History' },
+    const reviewTabs: Array<{ id: 'overview' | 'evidence' | 'opposition' | 'relations' | 'history'; label: string; description: string }> = [
+      { id: 'overview', label: 'Develop', description: 'Clarify the claim, its scope, confidence, and the next gap to resolve.' },
+      { id: 'evidence', label: 'Evidence', description: 'Review support, counterevidence, linked sources, and what evidence is still missing.' },
+      { id: 'opposition', label: 'Challenge', description: 'Pressure-test assumptions, objections, tensions, and what could change your mind.' },
+      { id: 'relations', label: 'Connections', description: 'See the concepts, inquiries, works, practices, and typed links this position depends on or affects.' },
+      { id: 'history', label: 'History', description: 'Review only how the position and its confidence changed over time.' },
     ];
 
     const previewSource = (source: Media) => {
@@ -1220,106 +1220,53 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           ]}
         />
 
-        <div className="mb-6 flex flex-wrap gap-2">
-          {reviewTabs.map((tab) => (
-            <Button
-              key={tab.id}
-              variant={detailTab === tab.id ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setDetailTab(tab.id)}
-              className="rounded-full"
-            >
-              {tab.label}
-            </Button>
-          ))}
-        </div>
+        <WorkbenchFlow
+          label="Position workbench workflow"
+          steps={reviewTabs}
+          activeId={detailTab}
+          onSelect={(id) => setDetailTab(id as typeof detailTab)}
+          className="mb-5"
+        />
 
         {detailTab === 'overview' && (
           <>
-            <TensionResolutionPanel
-              selected={selected}
-              tensionLinks={tensionLinks}
-              onUpdateEntry={onUpdateEntry}
-              onUpdateLink={onUpdateLink}
-            />
-
             <details className="group mb-6 rounded-xl border border-border/60 bg-background/40">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
                 <span>
-                  <span className="block text-sm font-semibold text-foreground">Position structure and reach</span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">Review scope, assumptions, connected objects, and current pressure without crowding the active tools.</span>
+                  <span className="block text-sm font-semibold text-foreground">Development details</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">Review confidence, missing requirements, testing posture, and the condition for revision.</span>
                 </span>
                 <Triangle className="size-4 shrink-0 rotate-180 text-muted-foreground transition-transform group-open:rotate-0" />
               </summary>
               <div className="border-t border-border/60 p-4 sm:p-5">
-            <Card className="mb-6 rounded-xl border-border/50 bg-card p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Position Anatomy</div>
-                  <h3 className="mt-1 font-headline text-2xl font-bold italic">Scope, assumptions, opposition, and application</h3>
-                </div>
-                <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                  {confidencePercent(selected.confidence)}% confidence
-                </Badge>
-              </div>
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <InfoPanel title="Meaning and Scope" items={[selected.statement, selected.description].filter(Boolean)} empty="No statement or scope has been written yet." />
-                <InfoPanel title="Confidence Reasoning" items={selected.confidenceReasoning ? [selected.confidenceReasoning] : []} empty="No reasoning for this confidence level has been written yet." />
-                <InfoPanel title="Assumptions" items={positionAssumptions} empty="No assumptions derived yet." />
-                <InfoPanel title="Counterposition" items={[counterposition]} empty="No counterposition recorded yet." />
-              </div>
-              <details className="mt-4 rounded-xl border border-border/50 bg-background/40 p-4">
-                <summary className="cursor-pointer font-medium text-foreground">More structure</summary>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">Dependencies, applications, consequences, and the conditions that would change this position.</p>
-                <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
-                  <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
-                  <InfoPanel title="Consequences" items={consequenceItems} empty="No consequences written yet." />
-                  <InfoPanel title="What would change my mind?" items={selected.falsification ? [selected.falsification] : []} empty="No condition recorded yet." />
-                </div>
-              </details>
-            </Card>
-
-            <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+            <div className="mb-6">
               <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Position Pressure</div>
-                    <h3 className="mt-1 font-headline text-2xl font-bold italic">What most strengthens and pressures this belief</h3>
+                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Development Snapshot</div>
+                    <h3 className="mt-1 font-headline text-2xl font-bold italic">What needs attention now</h3>
                   </div>
                   <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
                     {selected.status}
                   </Badge>
                 </div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <InfoPanel title="Strongest Support" items={[strongestSupport]} empty="No support recorded yet." />
-                  <InfoPanel title="Strongest Objection" items={[strongestObjection]} empty="No objection recorded yet." />
-                  <InfoPanel title="Latest Revision" items={latestRevision ? [`${latestRevision.date}: ${latestRevision.description}`] : []} empty="No revision history yet." />
+                  <InfoPanel title="Confidence Reasoning" items={selected.confidenceReasoning ? [selected.confidenceReasoning] : []} empty="Explain why the current confidence level fits the available support and challenges." />
+                  <InfoPanel title="Missing Requirements" items={formation.missing} empty="This position has the core elements needed for review." />
                   <InfoPanel title="Testing Posture" items={[
                     linkedPractices.length ? `${linkedPractices.length} practice(s) linked` : 'No practices linked yet.',
                     `${selected.testingCount || 0} stress test answer(s) recorded`,
                   ]} empty="No testing activity yet." />
-                </div>
-              </Card>
-
-              <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Object Flow</div>
-                    <h3 className="mt-1 font-headline text-2xl font-bold italic">What this position touches</h3>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <MiniMetricCard label="Sources" value={linkedSources.length} sub="evidence inputs" />
-                  <MiniMetricCard label="Inquiries" value={linkedQuestions.length} sub="active questions" />
-                  <MiniMetricCard label="Works" value={linkedDrafts.length} sub="expressed outputs" />
-                  <MiniMetricCard label="Practices" value={linkedPractices.length} sub="lived tests" />
+                  <InfoPanel title="Revision Condition" items={selected.falsification ? [selected.falsification] : []} empty="Record what evidence or experience would change your mind." />
                 </div>
               </Card>
             </div>
               </div>
             </details>
+          </>
+        )}
 
+        {detailTab === 'opposition' && (
             <Card className="mb-6 rounded-xl border-border/50 bg-card p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -1409,8 +1356,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 </div>
               </div>
             </Card>
-
-          </>
         )}
 
         {detailTab === 'evidence' && (
@@ -1433,6 +1378,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 `${(selected.evidenceFor || []).length} supporting note(s) recorded`,
                 `${(selected.evidenceAgainst || []).length} challenging note(s) recorded`,
                 `${linkedSources.length} source link(s) attached`,
+                `Current evidence quality: ${beliefProfile?.evidenceQuality || selected.evidenceQuality || 'not assessed'}`,
               ]}
               empty="No ledger data yet."
             />
@@ -1483,6 +1429,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
         {detailTab === 'relations' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
+            <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
+            <InfoPanel title="Consequences" items={consequenceItems} empty="No consequences have been written yet." />
             <EntityListPanel
               title="Related Positions"
               empty="No typed relations to other positions yet."
@@ -1534,11 +1483,13 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 onClick: () => previewPractice(item),
               }))}
             />
+            <InfoPanel title="Linked Unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />
+            <InfoPanel title="Typed Relationships" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed relationships recorded yet." />
           </div>
         )}
 
         {detailTab === 'history' && (
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <div>
             <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1552,154 +1503,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <ConfidenceHistoryChart entry={selected} />
                 <InfoPanel title="Created From" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
-                <InfoPanel title="Confidence History" items={[`Current confidence: ${confidencePercent(selected.confidenceScore ?? selected.confidence)}%`, `Evidence quality: ${beliefProfile?.evidenceQuality || selected.evidenceQuality || 'unscored'}`, `Stress tests: ${beliefProfile?.testingCount ?? selected.testingCount ?? 0}`]} empty="No confidence history yet." />
                 <InfoPanel title="Strengthened By" items={beliefProfile?.strengthenedBy || []} empty="No supporting developments recorded yet." />
                 <InfoPanel title="Challenged By" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
                 <InfoPanel title="Weakened By" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
-                <InfoPanel title="Linked Unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />
                 <InfoPanel title="Version History" items={(selected.versionHistory || []).map((v) => `${v.date}: ${v.description}`)} empty="No revisions recorded yet." />
-                <InfoPanel title="Typed Links" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed links recorded yet." />
-              </div>
-            </Card>
-
-            <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Stress Test</div>
-                  <h3 className="mt-1 font-headline text-2xl font-bold italic">Record what could change your mind</h3>
-                </div>
-              </div>
-              {/* Persisted AI suggestions were removed in the AI-free release.
-              {(stressTests.length > 0 || positionSuggestions.length > 0) && (
-                <div className="mt-4 space-y-3">
-                  {stressTests.map((prompt) => (
-                    <div key={`${prompt.kind}:${prompt.question}`} className="rounded-xl border border-border/60 bg-muted/10 p-3 text-sm italic text-foreground/80">
-                      {prompt.question}
-                    </div>
-                  ))}
-                  {positionSuggestions.slice(0, 6).map((suggestion) => (
-                    <div key={suggestion.id} className="rounded-xl border border-border/60 bg-background p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{suggestion.suggestionType.replace(/_/g, ' ')}</Badge>
-                          <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{suggestion.status}</Badge>
-                          {typeof suggestion.confidence === 'number' && (
-                            <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{Math.round(suggestion.confidence * 100)}% confidence</Badge>
-                          )}
-                        </div>
-                        <Badge variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                          AI suggests · user decides
-                        </Badge>
-                      </div>
-                      <div className="mt-3 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-                        <div>
-                          <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Suggestion</div>
-                          <h4 className="mt-1 font-headline text-lg font-bold italic">{suggestion.title}</h4>
-                          {suggestion.description && <p className="mt-1 text-sm text-muted-foreground">{suggestion.description}</p>}
-                        </div>
-                        <div className="rounded-xl border border-border/50 bg-card p-3">
-                          <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Affected Object</div>
-                          <p className="mt-1 text-sm font-medium text-foreground">{suggestion.targetLabel || selected.title}</p>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <div className="rounded-xl border border-border/50 bg-card p-3">
-                          <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Reason</div>
-                          <p className="mt-1 text-sm italic leading-6 text-muted-foreground">{suggestion.reasoning || 'No explicit reasoning was stored with this suggestion.'}</p>
-                        </div>
-                        <div className="rounded-xl border border-border/50 bg-card p-3">
-                          <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Evidence Used</div>
-                          {!!suggestion.evidence?.length ? (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {suggestion.evidence.map((item) => <Badge key={item} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{item}</Badge>)}
-                            </div>
-                          ) : (
-                            <p className="mt-1 text-sm italic text-muted-foreground">No evidence list stored. Treat this as low-trust until reviewed.</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {suggestion.status === 'pending' && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="rounded-full"
-                              onClick={() => {
-                                if (suggestion.suggestionType === 'missing_question') {
-                                  onAddQuestion({
-                                    text: suggestion.title,
-                                    status: 'open',
-                                    beliefIds: [selected.id],
-                                    conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
-                                    evidenceIds: [],
-                                    sourceIds: selected.sourceIds || [],
-                                  });
-                                }
-                                if (suggestion.suggestionType === 'unknown_candidate') {
-                                  onAddUnknown({
-                                    title: suggestion.title,
-                                    description: suggestion.description || suggestion.reasoning || '',
-                                    positionIds: [selected.id],
-                                    conceptTags: selected.tags || [],
-                                    sourceIds: selected.sourceIds || [],
-                                    status: 'active',
-                                    importance: 'medium',
-                                    createdFrom: 'ai',
-                                  });
-                                }
-                                onUpdateSuggestion({ ...suggestion, status: 'accepted', dateUpdated: new Date().toISOString() });
-                              }}
-                            >
-                              Accept
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="rounded-full"
-                              onClick={() => {
-                                if (suggestion.suggestionType === 'missing_question') {
-                                  onAddQuestion({
-                                    text: suggestion.title,
-                                    status: 'open',
-                                    beliefIds: [selected.id],
-                                    conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
-                                    evidenceIds: [],
-                                    sourceIds: selected.sourceIds || [],
-                                  });
-                                }
-                                onUpdateSuggestion({ ...suggestion, status: 'accepted', dateUpdated: new Date().toISOString() });
-                              }}
-                            >
-                              Edit into inquiry
-                            </Button>
-                            <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateSuggestion({ ...suggestion, status: 'dismissed', dateUpdated: new Date().toISOString() })}>
-                              Reject
-                            </Button>
-                            <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onUpdateSuggestion({ ...suggestion, status: 'ignored', dateUpdated: new Date().toISOString() })}>
-                              Ignore
-                            </Button>
-                          </>
-                        )}
-                        <details className="w-full rounded-xl border border-border/50 bg-muted/10 p-3 text-sm text-muted-foreground">
-                          <summary className="cursor-pointer font-medium text-foreground">Explain this suggestion</summary>
-                          <div className="mt-2 space-y-2 leading-6">
-                            <p><span className="font-medium text-foreground">Type:</span> {suggestion.suggestionType.replace(/_/g, ' ')}</p>
-                            <p><span className="font-medium text-foreground">Confidence:</span> {typeof suggestion.confidence === 'number' ? `${Math.round(suggestion.confidence * 100)}%` : 'not scored'}</p>
-                            <p><span className="font-medium text-foreground">Rule:</span> Accepting should create or route a reviewable object. It should not silently rewrite this position.</p>
-                          </div>
-                        </details>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )} */}
-              <div className="mt-4">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">What would change your mind?</Label>
-                <Textarea value={stressAnswer} onChange={(event) => setStressAnswer(event.target.value)} className="mt-2 min-h-[110px]" placeholder="What prediction follows? What weakens this? What contrary evidence would matter?" />
-                <div className="mt-3 flex justify-end">
-                  <Button size="sm" className="rounded-full" onClick={saveStressAnswer}>Record Answer</Button>
-                </div>
               </div>
             </Card>
           </div>
@@ -2395,16 +2202,6 @@ function InfoPanel({ title, items, empty }: { title: string; items: string[]; em
         <p className="text-sm text-muted-foreground italic px-2 font-body">{empty}</p>
       )}
     </Card>
-  );
-}
-
-function MiniMetricCard({ label, value, sub }: { label: string; value: number; sub: string }) {
-  return (
-    <div className="rounded-xl border border-border/50 bg-background p-4 shadow-sm">
-      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
-      <div className="mt-1 font-headline text-2xl font-bold italic">{value}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
-    </div>
   );
 }
 

@@ -60,6 +60,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import { cleanupReplacedDraftAssets, persistInlineDraftAssets, uploadPrivateAsset, validateAssetBlob } from '@/lib/storage-assets';
@@ -923,6 +924,13 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     }
     return signals.slice(0, 5);
   }, [active, activeCategory, activePositions, activeSources, workConcepts]);
+  const workWorkflowStep = active && ['complete', 'final', 'published'].includes(active.status)
+    ? 'finish'
+    : active && (active.activeMode === 'final' || ['revising', 'revised'].includes(active.status))
+      ? 'review'
+      : activeToolSections.length
+        ? 'tools'
+        : 'compose';
 
   if (active) {
     return (
@@ -1121,6 +1129,16 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 </div>
               )}
             </div>
+            <WorkbenchFlow
+              label="Works studio workflow"
+              activeId={workWorkflowStep}
+              steps={[
+                { id: 'compose', label: 'Compose', description: 'Write, draw, record, or shape the central work.' },
+                { id: 'tools', label: 'Add tools', description: 'Insert only the thinking structures this work needs.' },
+                { id: 'review', label: 'Review', description: 'Check claims, support, objections, concepts, and coherence.' },
+                { id: 'finish', label: 'Finish', description: 'Save a version, refine the final form, then export or publish.' },
+              ]}
+            />
           </div>
         </header>
 
