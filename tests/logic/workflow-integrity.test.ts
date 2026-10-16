@@ -10,6 +10,7 @@ import {
   normalizePracticeStatusForSave,
   practiceDesignGaps,
   uniqueIds,
+  withNoesisStage,
 } from '../../src/lib/workflow-integrity';
 import { buildDemoWorkspace } from '../../src/lib/demo-workspace';
 
@@ -84,6 +85,13 @@ test('conditions stay separate from lifecycle stage', () => {
   assert.equal(deriveNoesisCondition('position', 'challenged'), 'under_challenge');
   assert.equal(deriveNoesisCondition('practice', 'paused'), 'stalled');
   assert.equal(deriveNoesisCondition('position', 'active'), undefined);
+});
+
+test('stage derivation never places undefined values into persisted records', () => {
+  const staged = withNoesisStage('position', { id: 'position-1', status: 'active', condition: 'under_challenge' as const });
+  assert.equal((staged as Record<string, unknown>).stage, 'claim');
+  assert.equal('condition' in staged, false);
+  assert.equal(Object.values(staged as Record<string, unknown>).some((value) => value === undefined), false);
 });
 
 test('the demo workspace never presents an incomplete practice as active', () => {

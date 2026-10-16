@@ -30,7 +30,7 @@ export interface PositionsRoutePageProps {
   unknowns: Unknown[];
   focusedEntryId?: string | null;
   onAddEntry: (data: Partial<VaultEntry>) => void;
-  onUpdateEntry: (entry: VaultEntry) => void;
+  onUpdateEntry: (entry: VaultEntry) => void | Promise<void>;
   onDeleteEntry: (id: string) => Promise<void>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;

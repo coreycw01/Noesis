@@ -106,10 +106,12 @@ export function withNoesisStage<T extends { status?: string; stage?: NoesisStage
   value: T,
 ): T {
   const legacyStatus = value.legacyStatus || value.status;
+  const condition = deriveNoesisCondition(entityType, value.status);
+  const { condition: _previousCondition, ...withoutCondition } = value;
   return {
-    ...value,
+    ...withoutCondition,
     stage: deriveNoesisStage(entityType, value.status),
-    condition: deriveNoesisCondition(entityType, value.status),
+    ...(condition ? { condition } : {}),
     ...(legacyStatus ? { legacyStatus } : {}),
-  };
+  } as T;
 }

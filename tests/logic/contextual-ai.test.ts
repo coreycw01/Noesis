@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CONTEXTUAL_AI_POLICIES, isContextualAiRequestCompatible } from '../../src/lib/contextual-ai';
+import { CONTEXTUAL_AI_POLICIES, isContextualAiRequestCompatible, parseAiReviewItems, parseAssumptionSuggestions, serializeAiReviewItems } from '../../src/lib/contextual-ai';
 import {
   NOESIS_DETAIL_DATA_REQUIREMENTS,
   NOESIS_PAGE_DATA_REQUIREMENTS,
@@ -55,4 +55,29 @@ test('loads AI settings only on routes that expose contextual assistance', () =>
   assert.equal(NOESIS_PAGE_DATA_REQUIREMENTS.home.includes('aiSettings'), false);
   assert.equal(NOESIS_PAGE_DATA_REQUIREMENTS.atlas.includes('aiSettings'), false);
   assert.equal(NOESIS_PAGE_DATA_REQUIREMENTS.writing.includes('aiSettings'), false);
+});
+
+test('parses assumptions into independently reviewable suggestions', () => {
+  assert.deepEqual(parseAssumptionSuggestions([
+    'ASSUMPTION: Comfort always reduces growth || WHY: The position depends on comfort and growth moving in opposite directions.',
+    'ASSUMPTION: Discomfort reliably reveals reality || WHY: Otherwise discomfort would not be a useful corrective.',
+  ].join('\n')), [
+    { assumption: 'Comfort always reduces growth', reason: 'The position depends on comfort and growth moving in opposite directions.' },
+    { assumption: 'Discomfort reliably reveals reality', reason: 'Otherwise discomfort would not be a useful corrective.' },
+  ]);
+});
+
+test('parses every contextual result into editable review units', () => {
+  assert.deepEqual(parseAiReviewItems('extract_source_claims', '- Freedom requires responsibility.\n- Power changes what people notice.'), [
+    { title: 'claim 1', content: 'Freedom requires responsibility.' },
+    { title: 'claim 2', content: 'Power changes what people notice.' },
+  ]);
+  assert.deepEqual(parseAiReviewItems('socratic_inquiry_challenge', '## Questions\nWhat would disprove this?\n\n## Next step\nCompare the strongest alternative.'), [
+    { title: 'Questions', content: 'What would disprove this?' },
+    { title: 'Next step', content: 'Compare the strongest alternative.' },
+  ]);
+  assert.equal(serializeAiReviewItems('clarify_concept_boundaries', [
+    { title: 'boundary 1', content: 'It is not mere preference.' },
+    { title: 'boundary 2', content: 'It does not require certainty.' },
+  ]), 'It is not mere preference.\nIt does not require certainty.');
 });

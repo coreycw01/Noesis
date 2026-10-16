@@ -1630,7 +1630,7 @@ function ReadexWorkspace({
     return payload as VaultEntry;
   };
 
-  const updateVaultEntry = (entry: VaultEntry) => {
+  const updateVaultEntry = async (entry: VaultEntry) => {
     ensureConcepts(entry.tags || []);
     const vaultRef = doc(refs.vault, entry.id);
     const previous = vault.find((item) => item.id === entry.id);
@@ -1690,15 +1690,14 @@ function ReadexWorkspace({
     } else {
       positionEvents.push({ collection: refs.thinkingEvents as any, userId: effectiveUid, eventType: changeClassification.eventType, entityType: 'position', entityId: entry.id, before: previous || null, after: nextEntry, origin: 'user', summary: `${changeClassification.eventType === 'position_revised' ? 'Position revised' : 'Position edited'}: ${entry.title}`, importance: changeClassification.importance, sourceActionId: makeActionId() });
     }
-    void commitAndReport({
+    await commitAndReport({
       db,
       ref: vaultRef as any,
       operation: 'update',
       data: nextEntry,
       thinkingEvents: positionEvents,
-    }, { operation: 'update', data: nextEntry, rethrow: true }).then(() => {
-      refreshBeliefProfile(entry, profilePatch);
-    }).catch(() => undefined);
+    }, { operation: 'update', data: nextEntry, rethrow: true });
+    refreshBeliefProfile(entry, profilePatch);
   };
 
   const deleteVaultEntry = async (id: string) => {

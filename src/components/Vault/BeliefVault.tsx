@@ -47,7 +47,7 @@ interface BeliefVaultProps {
   beliefProfiles: BeliefProfile[];
   unknowns: Unknown[];
   onAddEntry: (data: Partial<VaultEntry>) => void;
-  onUpdateEntry: (entry: VaultEntry) => void;
+  onUpdateEntry: (entry: VaultEntry) => void | Promise<void>;
   onDeleteEntry: (id: string) => Promise<void>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
@@ -992,19 +992,19 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       };
     };
 
-    const acceptPositionAiResult = (result: AiReviewResult, content: string) => {
+    const acceptPositionAiResult = async (result: AiReviewResult, content: string) => {
       const baseHistory = selected.versionHistory || [];
       const reviewEntry = { date: today(), eventType: 'revised' as const, description: `Reviewed assistance (${result.action.replace(/_/g, ' ')}): ${content}` };
       if (result.action === 'find_position_assumptions') {
-        onUpdateEntry({ ...selected, assumptions: Array.from(new Set([...(selected.assumptions || []), ...splitLines(content)])), versionHistory: [...baseHistory, reviewEntry], dateUpdated: today() });
+        await onUpdateEntry({ ...selected, assumptions: Array.from(new Set([...(selected.assumptions || []), ...splitLines(content)])), versionHistory: [...baseHistory, reviewEntry], dateUpdated: today() });
         return;
       }
       if (result.action === 'generate_position_counterargument') {
-        onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), content], versionHistory: [...baseHistory, reviewEntry], dateUpdated: today() });
+        await onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), content], versionHistory: [...baseHistory, reviewEntry], dateUpdated: today() });
         return;
       }
       if (result.action === 'identify_missing_position_evidence') {
-        onUpdateEntry({
+        await onUpdateEntry({
           ...selected,
           confidenceReasoning: [selected.confidenceReasoning, `Missing evidence review: ${content}`].filter(Boolean).join('\n\n'),
           versionHistory: [...baseHistory, reviewEntry],
@@ -1012,7 +1012,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         });
         return;
       }
-      onUpdateEntry({
+      await onUpdateEntry({
         ...selected,
         versionHistory: [...baseHistory, reviewEntry],
         dateUpdated: today(),
@@ -2154,7 +2154,7 @@ function TensionResolutionPanel({
 }: {
   selected: VaultEntry;
   tensionLinks: PhilosophicalLink[];
-  onUpdateEntry: (entry: VaultEntry) => void;
+  onUpdateEntry: (entry: VaultEntry) => void | Promise<void>;
   onUpdateLink?: (link: PhilosophicalLink) => void;
 }) {
   if (!tensionLinks.length) return null;
