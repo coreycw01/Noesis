@@ -21,7 +21,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
 
@@ -508,6 +508,12 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         positions={positions}
         drafts={drafts}
         onAddConcept={onAddConcept}
+        onSaveAiOutcome={async (content) => {
+          if (!draft.id) return;
+          const next = { ...draft, aiOutcomeReview: content, dateUpdated: new Date().toISOString() } as Practice;
+          setDraft(next);
+          await onUpdatePractice(next);
+        }}
         onSave={handleSave}
         routeOwned={Boolean(focusedPracticeId && draft.id === focusedPracticeId)}
       />
@@ -849,7 +855,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   );
 }
 
-function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onSave, routeOwned = false }: {
+function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onSaveAiOutcome, onSave, routeOwned = false }: {
   aiSettings: import('@/lib/types').AiSettings;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -861,6 +867,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
   positions: VaultEntry[];
   drafts: Draft[];
   onAddConcept: (data: Partial<Concept>) => void;
+  onSaveAiOutcome: (content: string) => void | Promise<void>;
   onSave: () => void;
   routeOwned?: boolean;
 }) {
@@ -872,12 +879,19 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
             <div className="flex flex-wrap items-center justify-between gap-3">
               <DialogTitle className="font-headline text-3xl italic">{draft.id ? 'Refine Practice' : 'Start Practice'}</DialogTitle>
               <ContextualAiPanel
-                enabled={Boolean(aiSettings.aiAssistanceEnabled && draft.id && isPracticeConcluded(draft as Practice))}
+                enabled={Boolean(
+                  aiSettings.aiAssistanceEnabled
+                  && draft.id
+                  && isPracticeConcluded(draft as Practice)
+                  && ((draft.logs?.length || 0) > 0 || draft.observedOutcome?.trim())
+                )}
                 showContextBeforeSending={aiSettings.showContextBeforeSending}
                 reasoningDepth={aiSettings.defaultReasoningDepth}
                 retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
                 actions={['synthesize_practice_outcome']}
                 buttonLabel="Synthesize Outcome"
+                promptLabel="What should Noesis examine?"
+                promptPlaceholder="For example: Did the logs support my hypothesis, or is there a better explanation?"
                 buildEnvelope={() => ({
                   action: 'synthesize_practice_outcome',
                   scope: 'linked_items',
@@ -885,19 +899,35 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   targetId: draft.id || '',
                   itemMemory: [
                     `Practice: ${draft.title || 'Untitled'}`,
+                    `Status: ${draft.status || 'planned'}; type: ${draft.type || 'experiment'}; duration: ${draft.durationDays || 0} days`,
+                    draft.intellectualBasis ? `Intellectual basis: ${draft.intellectualBasis}` : '',
                     draft.hypothesis ? `Hypothesis: ${draft.hypothesis}` : '',
-                    draft.action ? `Method: ${draft.action}` : '',
+                    draft.action ? `Action performed: ${draft.action}` : '',
+                    draft.context ? `Planned context: ${draft.context}` : '',
+                    draft.observationMethod ? `Observation method: ${draft.observationMethod}` : '',
                     draft.expectedOutcome ? `Expected: ${draft.expectedOutcome}` : '',
                     draft.observedOutcome ? `Observed: ${draft.observedOutcome}` : '',
                     draft.interpretation ? `Interpretation: ${draft.interpretation}` : '',
-                    ...(draft.logs || []).slice(-8).map((log) => `Log ${log.date}: ${log.observations || log.outcome || log.context || 'completed'}`),
+                    draft.alternativeExplanation ? `User's alternative explanation: ${draft.alternativeExplanation}` : '',
+                    draft.effectOnPosition ? `Recorded intellectual effect: ${draft.effectOnPosition}` : '',
+                    ...(draft.logs || []).slice(-10).map((log) => [
+                      `Log ${log.date}`,
+                      `performed: ${log.actionCompleted ? 'yes' : 'no'}`,
+                      log.context ? `context: ${log.context}` : '',
+                      log.observations ? `observations: ${log.observations}` : '',
+                      log.outcome ? `outcome: ${log.outcome}` : '',
+                      log.unexpectedResult ? `unexpected: ${log.unexpectedResult}` : '',
+                      log.confidence != null ? `confidence: ${log.confidence}/5` : '',
+                    ].filter(Boolean).join('; ')),
                   ].filter(Boolean),
                   linkedMemory: [
-                    ...positions.filter((position) => (draft.positionIds || []).includes(position.id)).slice(0, 4).map((position) => `Position: ${position.statement || position.title}`),
-                    ...questions.filter((question) => (draft.questionIds || []).includes(question.id)).slice(0, 4).map((question) => `Inquiry: ${question.text}`),
+                    ...positions.filter((position) => (draft.positionIds || []).includes(position.id)).slice(0, 4).map((position) => `Position: ${position.statement || position.title}; confidence ${position.confidence}%; support ${position.evidenceFor?.length || 0}; challenges ${position.evidenceAgainst?.length || 0}`),
+                    ...questions.filter((question) => (draft.questionIds || []).includes(question.id)).slice(0, 4).map((question) => `Inquiry: ${question.text}; status ${question.status}; current answer ${question.answer || 'none'}; uncertainty ${question.uncertainty || 'not recorded'}`),
+                    ...media.filter((source) => (draft.sourceIds || []).includes(source.id)).slice(0, 3).map((source) => `Source: ${source.title}${source.creator ? ` by ${source.creator}` : ''}; engagement ${(source.capture?.after?.coreArgument || source.capture?.after?.lasting || source.description || 'none recorded').slice(0, 400)}`),
+                    ...drafts.filter((work) => (draft.draftIds || []).includes(work.id)).slice(0, 3).map((work) => `Work: ${work.title}; status ${work.status || 'not recorded'}; excerpt ${(work.body || work.draftContent || '').slice(0, 300) || 'none recorded'}`),
                   ],
                 })}
-                onAccept={(_result, content) => setDraft((previous) => ({ ...previous, observedOutcome: content }))}
+                onAccept={async (_result, content) => onSaveAiOutcome(content)}
               />
             </div>
           </DialogHeader>
@@ -959,6 +989,15 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   <Field label="ALTERNATIVE EXPLANATION"><Textarea value={draft.alternativeExplanation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What else could explain the result?" /></Field>
                   <Field label="EFFECT ON POSITION"><Textarea value={draft.effectOnPosition || ''} onChange={(event) => setDraft((prev) => ({ ...prev, effectOnPosition: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What position, inquiry, or concept should change because of this?" /></Field>
                 </div>
+                {draft.aiOutcomeReview?.trim() && (
+                  <div className="mt-5 border-t border-border/60 pt-5">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h4 className="font-code text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Saved Outcome Review</h4>
+                      <Badge variant="outline" className="text-[9px] uppercase tracking-wider">AI-assisted</Badge>
+                    </div>
+                    <ContextualAiDocument content={draft.aiOutcomeReview} />
+                  </div>
+                )}
               </div>
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
                 <LinkGrid title="Linked Sources" items={media.map((item) => ({ id: item.id, label: item.title }))} selected={draft.sourceIds || []} onChange={(sourceIds) => setDraft((prev) => ({ ...prev, sourceIds }))} />

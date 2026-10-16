@@ -11,6 +11,7 @@ export interface EvolutionRoutePageProps {
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
   metrics: ThinkingMetrics;
+  onSaveSynthesis: (event: TimelineEvent) => void | Promise<void>;
 }
 
 export function EvolutionRoutePage({
@@ -21,6 +22,7 @@ export function EvolutionRoutePage({
   unknowns,
   thinkingPatterns,
   metrics,
+  onSaveSynthesis,
 }: EvolutionRoutePageProps) {
   return (
     <EvolutionTimeline
@@ -31,6 +33,7 @@ export function EvolutionRoutePage({
       unknowns={unknowns}
       thinkingPatterns={thinkingPatterns}
       metrics={metrics}
+      onSaveSynthesis={onSaveSynthesis}
     />
   );
 }

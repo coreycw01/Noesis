@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
-import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 
 interface EvolutionTimelineProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -30,6 +30,7 @@ interface EvolutionTimelineProps {
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
   metrics: ThinkingMetrics;
+  onSaveSynthesis: (event: TimelineEvent) => void | Promise<void>;
 }
 type EvolutionFilter =
   | 'all'
@@ -156,6 +157,10 @@ function isNotableTimelineEvent(event: TimelineEvent) {
     'source distilled',
     'practice concluded',
   ].some((signal) => text.includes(signal));
+}
+
+function isReviewedEvolutionSynthesis(event: TimelineEvent) {
+  return event.entityType === 'evolution' && event.entityTitle.toLowerCase().startsWith('period synthesis');
 }
 
 function normalizedEvolutionDate(value: unknown): string | null {
@@ -316,6 +321,14 @@ function EventTypeIcon({ targetType, className }: { targetType: string; classNam
 }
 
 function eventEvidenceQuality(event: DisplayEvent) {
+  if (event.kind === 'timeline' && event.targetType === 'evolution') {
+    return {
+      label: 'Reviewed synthesis',
+      detail: 'This interpretation was generated from a bounded period of recorded events and saved after user review.',
+      className: 'noesis-status-badge',
+    };
+  }
+
   const hasBeforeAfter = Boolean(event.beforeLabel || event.afterLabel || event.changedFields?.length);
 
   if (event.kind === 'thinking' && hasBeforeAfter) {
@@ -375,7 +388,7 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
   return 'gained';
 }
 
-export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, unknowns, thinkingPatterns }: EvolutionTimelineProps) {
+export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, unknowns, thinkingPatterns, onSaveSynthesis }: EvolutionTimelineProps) {
   const [view, setView] = useState<EvolutionView>('timeline');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
@@ -401,7 +414,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
     })).filter((event) => Boolean(event.date));
 
     const useLegacyFallback = fromThinking.length === 0;
-    const fromTimeline = useLegacyFallback ? events.filter(isNotableTimelineEvent).map((event) => ({
+    const fromTimeline = events.filter((event) => useLegacyFallback ? isNotableTimelineEvent(event) : isReviewedEvolutionSynthesis(event)).map((event) => ({
       id: event.id,
       kind: 'timeline' as const,
       targetId: event.entityId,
@@ -412,7 +425,9 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
       filter: 'all' as const,
       chips: [event.eventType, event.entityType],
       sourceIds: event.influencedBy,
-    })).filter((event) => Boolean(event.date)) : [];
+      trigger: isReviewedEvolutionSynthesis(event) ? 'Created after the user reviewed and accepted a contextual synthesis.' : event.reason,
+      significance: isReviewedEvolutionSynthesis(event) ? 'This is an AI-assisted interpretation of recorded changes, reviewed and saved by the user.' : undefined,
+    })).filter((event) => Boolean(event.date));
 
     const fromUnknowns = useLegacyFallback ? unknowns.filter((item) => item.status === 'resolved').map((item) => ({
       id: item.unknownId,
@@ -613,6 +628,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
   ].filter(Boolean) as string[];
   const selectedPeriodEvents = displayEvents.filter((event) => {
     if (!completePeriod) return false;
+    if (event.targetType === 'evolution') return false;
     const time = eventTime(event.date);
     return time >= new Date(`${periodStart}T00:00:00`).getTime() && time <= new Date(`${periodEnd}T23:59:59`).getTime();
   });
@@ -958,15 +974,43 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
               retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
               actions={['synthesize_evolution_period']}
               buttonLabel="Synthesize Period"
+              promptLabel="What should Noesis examine in this period?"
+              promptPlaceholder="For example: Did my confidence change faster than my evidence, or did I resolve a recurring tension?"
               buildEnvelope={() => ({
                 action: 'synthesize_evolution_period',
                 scope: 'selected_period',
                 targetType: 'evolution',
                 targetId: `${periodStart}:${periodEnd}`,
                 selectedRange: { from: periodStart, to: periodEnd },
-                itemMemory: [`Selected period: ${periodStart} through ${periodEnd}`, `${selectedPeriodEvents.length} meaningful recorded changes`],
-                linkedMemory: selectedPeriodEvents.slice(0, 20).map((event) => `${event.date}: ${event.title} - ${event.detail}`),
+                itemMemory: [
+                  `Selected period: ${periodStart} through ${periodEnd}`,
+                  `${selectedPeriodEvents.length} meaningful recorded changes`,
+                  `Change areas: ${Array.from(new Set(selectedPeriodEvents.map(changeAreaForEvent))).join(', ') || 'none'}`,
+                  `Event types: ${Array.from(new Set(selectedPeriodEvents.flatMap((event) => event.chips.slice(0, 1)))).join(', ') || 'none'}`,
+                ],
+                linkedMemory: selectedPeriodEvents.slice(0, 20).map((event) => [
+                  `${event.date}: ${event.title}`,
+                  `object: ${event.targetType}`,
+                  `record: ${event.detail}`,
+                  event.beforeLabel ? `before: ${event.beforeLabel}` : '',
+                  event.afterLabel ? `after: ${event.afterLabel}` : '',
+                  event.trigger ? `reason: ${event.trigger}` : '',
+                  event.significance ? `significance: ${event.significance}` : '',
+                ].filter(Boolean).join('; ')),
               })}
+              onAccept={async (_, content) => {
+                const id = crypto.randomUUID();
+                await onSaveSynthesis({
+                  id,
+                  entityId: `${periodStart}:${periodEnd}`,
+                  entityType: 'evolution',
+                  entityTitle: `Period synthesis · ${periodStart} to ${periodEnd}`,
+                  eventType: 'refined',
+                  reason: content,
+                  influencedBy: selectedPeriodEvents.map((event) => event.targetId).filter(Boolean).slice(0, 20),
+                  date: new Date().toISOString(),
+                });
+              }}
             />
           )}
         </div>
@@ -1047,6 +1091,16 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
                             <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">After</div>
                             <p className="mt-1 text-sm leading-5 text-foreground/80">{event.afterLabel || 'Current state not recorded.'}</p>
                           </div>
+                        </div>
+                      )}
+
+                      {event.targetType === 'evolution' && event.detail.trim() && (
+                        <div className="border-t border-border/40 pt-4 sm:col-span-3">
+                          <div className="mb-3 flex items-center gap-2">
+                            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Saved period review</div>
+                            <Badge variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-wider">AI-assisted</Badge>
+                          </div>
+                          <ContextualAiDocument content={event.detail} />
                         </div>
                       )}
 

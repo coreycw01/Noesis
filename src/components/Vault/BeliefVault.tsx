@@ -202,6 +202,8 @@ function safePosition(entry: VaultEntry): VaultEntry {
     sourceIds: entry.sourceIds || [],
     evidenceFor: entry.evidenceFor || [],
     evidenceAgainst: entry.evidenceAgainst || [],
+    missingEvidence: entry.missingEvidence || [],
+    comparisonReviews: entry.comparisonReviews || [],
     versionHistory: entry.versionHistory || [],
     dateCreated: entry.dateCreated || entry.dateUpdated || new Date().toISOString(),
     dateUpdated: entry.dateUpdated || entry.dateCreated || new Date().toISOString(),
@@ -581,7 +583,26 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
   const saveEntry = () => {
     if (!draftEntry.title?.trim()) return;
-    if (draftEntry.id) onUpdateEntry({ ...(draftEntry as VaultEntry), tags: normalizeConceptTags(draftEntry.tags), dateUpdated: today() });
+    if (draftEntry.id) {
+      const previous = safeEntries.find((entry) => entry.id === draftEntry.id);
+      const nextConfidence = confidencePercent(draftEntry.confidence);
+      const confidenceChanged = previous && confidencePercent(previous.confidence) !== nextConfidence;
+      onUpdateEntry({
+        ...(draftEntry as VaultEntry),
+        tags: normalizeConceptTags(draftEntry.tags),
+        confidence: nextConfidence,
+        versionHistory: confidenceChanged ? [
+          ...(draftEntry.versionHistory || []),
+          {
+            date: today(),
+            eventType: 'revised',
+            description: `Confidence changed from ${confidencePercent(previous.confidence)}% to ${nextConfidence}%.`,
+            confidence: nextConfidence,
+          },
+        ] : draftEntry.versionHistory,
+        dateUpdated: today(),
+      });
+    }
     else onAddEntry({ ...draftEntry, tags: normalizeConceptTags(draftEntry.tags) });
     setEditorOpen(false);
   };
@@ -973,6 +994,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           `Statement: ${selected.statement || selected.description || 'No statement'}`,
           selected.description ? `Scope: ${selected.description}` : '',
           `Confidence: ${confidencePercent(selected.confidence)}%`,
+          `Recorded support: ${(selected.evidenceFor || []).length} supporting notes and ${linkedSources.length} linked sources`,
+          `Recorded pressure: ${(selected.evidenceAgainst || []).length} challenges, ${(selected.assumptions || []).length} assumptions, and ${linkedPractices.length} linked practices`,
           (selected.assumptions || []).length ? `Assumptions: ${(selected.assumptions || []).join('; ')}` : '',
           (selected.evidenceFor || []).length ? `Evidence for: ${(selected.evidenceFor || []).join('; ')}` : '',
           (selected.evidenceAgainst || []).length ? `Evidence against: ${(selected.evidenceAgainst || []).join('; ')}` : '',
@@ -987,7 +1010,15 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           targetType: 'position',
           targetId: comparisonTarget.id,
           label: comparisonTarget.title,
-          memory: [comparisonTarget.title, comparisonTarget.statement || comparisonTarget.description || 'No statement'],
+          memory: [
+            `Position: ${comparisonTarget.title}`,
+            `Statement: ${comparisonTarget.statement || comparisonTarget.description || 'No statement'}`,
+            `Confidence: ${confidencePercent(comparisonTarget.confidence)}%`,
+            `Evidence for: ${(comparisonTarget.evidenceFor || []).join('; ') || 'none recorded'}`,
+            `Evidence against: ${(comparisonTarget.evidenceAgainst || []).join('; ') || 'none recorded'}`,
+            `Assumptions: ${(comparisonTarget.assumptions || []).join('; ') || 'none recorded'}`,
+            `Falsification condition: ${comparisonTarget.falsification || 'none recorded'}`,
+          ],
         } : undefined,
       };
     };
@@ -1006,7 +1037,19 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       if (result.action === 'identify_missing_position_evidence') {
         await onUpdateEntry({
           ...selected,
-          confidenceReasoning: [selected.confidenceReasoning, `Missing evidence review: ${content}`].filter(Boolean).join('\n\n'),
+          missingEvidence: Array.from(new Set([...(selected.missingEvidence || []), ...splitLines(content)])),
+          versionHistory: [...baseHistory, reviewEntry],
+          dateUpdated: today(),
+        });
+        return;
+      }
+      if (result.action === 'compare_selected_positions' && comparisonTarget) {
+        await onUpdateEntry({
+          ...selected,
+          comparisonReviews: [
+            ...(selected.comparisonReviews || []),
+            { positionId: comparisonTarget.id, positionTitle: comparisonTarget.title, content, date: today() },
+          ],
           versionHistory: [...baseHistory, reviewEntry],
           dateUpdated: today(),
         });
@@ -1026,7 +1069,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           <div className="flex gap-2">
             {aiSettings.aiAssistanceEnabled && (
               <Select value={comparePositionId} onValueChange={setComparePositionId}>
-                <SelectTrigger className="hidden h-8 w-48 rounded-full md:flex"><SelectValue placeholder="Compare position" /></SelectTrigger>
+                <SelectTrigger className="h-8 w-40 rounded-full sm:w-48"><SelectValue placeholder="Compare position" /></SelectTrigger>
                 <SelectContent>
                   {safeEntries.filter((entry) => entry.id !== selected.id).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.title}</SelectItem>)}
                 </SelectContent>
@@ -1393,6 +1436,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               ]}
               empty="No ledger data yet."
             />
+            <InfoPanel title="Evidence Still Needed" items={selected.missingEvidence || []} empty="No missing-evidence review has been saved yet." />
           </div>
         )}
 
@@ -1454,6 +1498,11 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   .join(', '),
                 onClick: () => openEntry(entry.id),
               }))}
+            />
+            <InfoPanel
+              title="Saved Position Comparisons"
+              items={(selected.comparisonReviews || []).map((review) => `${review.positionTitle} · ${safePositionDate(review.date)}\n${review.content}`)}
+              empty="No reviewed position comparison has been saved yet."
             />
             <EntityListPanel
               title="Linked Inquiries"
@@ -2362,25 +2411,41 @@ function MiniMetricCard({ label, value, sub }: { label: string; value: number; s
 function ConfidenceHistoryChart({ entry }: { entry: VaultEntry }) {
   const points = (entry.versionHistory || [])
     .filter((item) => typeof item.confidence === 'number')
-    .map((item) => ({ date: item.date, value: confidencePercent(item.confidence) }));
-  const series = points.length ? points : [{ date: entry.dateCreated, value: confidencePercent(entry.confidence) }];
-  if (series[series.length - 1]?.value !== confidencePercent(entry.confidence)) {
-    series.push({ date: entry.dateUpdated, value: confidencePercent(entry.confidence) });
+    .map((item) => ({ date: item.date, value: confidencePercent(item.confidence) }))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const current = { date: entry.dateUpdated, value: confidencePercent(entry.confidence) };
+  const series = (points.length ? [...points] : [{ date: entry.dateCreated, value: current.value }]).slice(-11);
+  const last = series[series.length - 1];
+  if (!last || last.value !== current.value || safePositionDate(last.date) !== safePositionDate(current.date)) {
+    series.push(current);
   }
+  const width = 640;
+  const height = 220;
+  const padding = { top: 18, right: 18, bottom: 42, left: 38 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const x = (index: number) => series.length === 1 ? padding.left + chartWidth / 2 : padding.left + (index / (series.length - 1)) * chartWidth;
+  const y = (value: number) => padding.top + ((100 - value) / 100) * chartHeight;
+  const linePoints = series.map((point, index) => `${x(index)},${y(point.value)}`).join(' ');
   return (
     <div className="rounded-xl border border-border/50 bg-background/50 p-4 md:col-span-2">
       <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Confidence over time</div>
-      <div className="mt-4 flex min-h-28 items-end gap-2" role="img" aria-label={`Confidence history for ${entry.title}`}>
-        {series.slice(-12).map((point, index) => (
-          <div key={`${point.date}-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-            <span className="font-code text-[8px] text-foreground">{point.value}%</span>
-            <div className="flex h-20 w-full items-end rounded-sm bg-muted/40">
-              <div className="w-full rounded-sm bg-accent" style={{ height: `${Math.max(4, point.value)}%` }} />
-            </div>
-            <span className="max-w-full truncate font-code text-[7px] text-muted-foreground">{safePositionDate(point.date)}</span>
-          </div>
+      <svg className="mt-3 h-auto w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Line graph of confidence history for ${entry.title}`}>
+        {[0, 25, 50, 75, 100].map((value) => (
+          <g key={value}>
+            <line x1={padding.left} x2={width - padding.right} y1={y(value)} y2={y(value)} className="stroke-border" strokeWidth="1" />
+            <text x={padding.left - 8} y={y(value) + 3} textAnchor="end" className="fill-muted-foreground font-code text-[9px]">{value}</text>
+          </g>
         ))}
-      </div>
+        {series.length > 1 && <polyline points={linePoints} fill="none" className="stroke-accent" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />}
+        {series.map((point, index) => (
+          <g key={`${point.date}-${index}`}>
+            <circle cx={x(index)} cy={y(point.value)} r="6" className="fill-background stroke-accent" strokeWidth="4" />
+            <text x={x(index)} y={Math.max(12, y(point.value) - 12)} textAnchor="middle" className="fill-foreground font-code text-[10px] font-semibold">{point.value}%</text>
+            <text x={x(index)} y={height - 14} textAnchor="middle" className="fill-muted-foreground font-code text-[8px]">{safePositionDate(point.date)}</text>
+          </g>
+        ))}
+      </svg>
       <p className="mt-3 text-xs leading-5 text-muted-foreground">Confidence is recorded when it changes. A flat history means no earlier confidence snapshots exist.</p>
     </div>
   );

@@ -161,6 +161,7 @@ export interface NoesisRouteContentProps {
   addUnknown: (data: Partial<Unknown>) => Unknown;
   updateUnknown: (unknown: Unknown) => void;
   updateThinkingPattern: (pattern: ThinkingPattern) => void;
+  addTimelineEvent: (event: TimelineEvent) => void | Promise<void>;
   saveGoal: (goal: GoalSettings) => Promise<void>;
   saveProfile: (profile: UserProfile) => Promise<void>;
   saveProfilePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot) => Promise<void>;
@@ -256,6 +257,7 @@ export function NoesisRouteContent({
   addUnknown,
   updateUnknown,
   updateThinkingPattern,
+  addTimelineEvent,
   saveGoal,
   saveProfile,
   saveProfilePrivacy,
@@ -457,7 +459,7 @@ export function NoesisRouteContent({
     case 'writing':
       return <WorksRoutePage uid={effectiveUid} isReviewWorkspace={isOfflineReviewPreview} drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onMarkDraftOpened={markDraftOpened} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
     case 'evolution':
-      return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} />;
+      return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} onSaveSynthesis={addTimelineEvent} />;
     case 'practices':
       return <PracticesRoutePage aiSettings={aiSettings} practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
     case 'settings':

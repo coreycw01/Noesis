@@ -13,10 +13,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import type { ContextualAiAction } from '@/lib/contextual-ai';
+import { profileStatementFromSynthesis, type ContextualAiAction } from '@/lib/contextual-ai';
 import { cn } from '@/lib/utils';
 import type { AiSettings, BeliefProfile, Concept, Draft, Media, Practice, ProfilePrivacySettings, PublicProfileSnapshot, Question, ThinkingEvent, ThinkingMetrics, ThinkingPattern, ThinkingPatternUserResponse, Unknown, UserProfile, VaultEntry } from '@/lib/types';
 
@@ -98,6 +99,12 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
     return { sufficient: thinkingEvents.length >= 8 && objectFamilies >= 3, count: thinkingEvents.length, objectFamilies, range: dates.length ? `${formatDate(new Date(Math.min(...dates)).toISOString())} - ${formatDate(new Date(Math.max(...dates)).toISOString())}` : 'Not enough history' };
   }, [thinkingEvents]);
 
+  const philosophyEvidenceCount = rankedConcepts.length
+    + activePositions.length
+    + inquiries.filter((item) => item.answer?.trim() || item.currentIntuition?.trim()).length
+    + practices.filter((item) => item.observedOutcome?.trim() || item.logs?.length).length
+    + works.filter((item) => (item.body || item.draftContent || '').trim()).length;
+
   const saveProfile = async () => {
     setSaving('profile');
     try { await onSaveProfile(profileDraft); toast({ title: 'Profile saved', description: 'Your identity and philosophy name are up to date.' }); }
@@ -159,14 +166,17 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
       `Naming status: ${profileDraft.philosophyNameStatus || 'working'}`,
       `Current statement: ${profileDraft.philosophyStatement?.trim() || 'Not written yet'}`,
       `Current season: ${derivedIdentity.season}`,
+      `Record coverage: ${concepts.length} concepts, ${activePositions.length} active positions, ${inquiries.length} inquiries, ${practices.length} practices, ${works.length} works, ${sources.length} sources`,
+      `Open edges: ${openUnknowns.length} unknowns; ${openEdges.tensions.length} challenged positions; ${openEdges.unsupported.length} positions without recorded support`,
     ];
     const linkedMemory = [
-      ...rankedConcepts.slice(0, 4).map((concept) => `Concept: ${concept.name}${concept.description ? ` — ${concept.description.slice(0, 320)}` : ''}`),
-      ...activePositions.slice(0, 5).map((position) => `Position (${Math.round(position.confidence)}% confidence): ${(position.statement || position.title).slice(0, 420)}`),
-      ...openInquiries.slice(0, 3).map((inquiry) => `Open inquiry: ${inquiry.text.slice(0, 420)}`),
-      ...practices.filter((practice) => practice.status === 'active').slice(0, 3).map((practice) => `Active practice: ${practice.title}${practice.hypothesis ? ` — ${practice.hypothesis.slice(0, 260)}` : ''}`),
-      ...works.slice(0, 2).map((work) => `Work: ${work.title} (${work.type})`),
-      ...sourceLeaders.slice(0, 3).map((source) => `Influential source: ${source.title}${source.creator ? ` by ${source.creator}` : ''}`),
+      ...rankedConcepts.slice(0, 4).map((concept) => `Concept: ${concept.name}; definition: ${concept.description || 'not recorded'}; links ${concept.links.length}; sources ${concept.sourceIds.length}`),
+      ...activePositions.slice(0, 5).map((position) => `Position: ${(position.statement || position.title).slice(0, 420)}; confidence ${Math.round(position.confidence)}%; support ${position.evidenceFor?.length || 0}; challenges ${position.evidenceAgainst?.length || 0}; assumptions ${position.assumptions?.length || 0}; status ${position.status}`),
+      ...inquiries.filter((inquiry) => inquiry.answer?.trim() || inquiry.currentIntuition?.trim() || inquiry.uncertainty?.trim()).slice(0, 3).map((inquiry) => `Inquiry: ${inquiry.text.slice(0, 300)}; status ${inquiry.status}; current view ${inquiry.answer || inquiry.currentIntuition || 'none'}; uncertainty ${inquiry.uncertainty || 'not recorded'}`),
+      ...practices.filter((practice) => practice.observedOutcome?.trim() || practice.logs?.length).slice(0, 3).map((practice) => `Practice: ${practice.title}; hypothesis ${practice.hypothesis || 'not recorded'}; observed ${practice.observedOutcome || 'not summarized'}; interpretation ${practice.interpretation || 'not recorded'}; effect ${practice.effectOnPosition || 'not recorded'}`),
+      ...works.filter((work) => (work.body || work.draftContent || '').trim()).slice(0, 2).map((work) => `Work: ${work.title} (${work.type}, ${work.status}); excerpt ${(work.body || work.draftContent || '').slice(0, 360)}`),
+      ...sourceLeaders.slice(0, 2).map((source) => `Source reflection: ${source.title}${source.creator ? ` by ${source.creator}` : ''}; lasting idea ${source.capture?.after?.lasting || source.capture?.after?.beliefChange || source.capture?.after?.coreArgument || 'not recorded'}`),
+      ...recentBeliefEvents.slice(0, 1).map((event) => `Recent position change: ${event.summary}; reason ${event.userReason || event.systemReason || 'not recorded'}`),
     ].slice(0, 20);
     return {
       action,
@@ -177,10 +187,18 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
       linkedMemory,
       userPrompt,
     };
-  }, [activePositions, derivedIdentity.season, openInquiries, practices, profile.id, profileDraft.philosophyName, profileDraft.philosophyNameStatus, profileDraft.philosophyStatement, rankedConcepts, sourceLeaders, user?.uid, works]);
+  }, [activePositions, concepts.length, derivedIdentity.season, inquiries, openEdges.tensions.length, openEdges.unsupported.length, openUnknowns.length, practices, profile.id, profileDraft.philosophyName, profileDraft.philosophyNameStatus, profileDraft.philosophyStatement, rankedConcepts, recentBeliefEvents, sourceLeaders, sources.length, user?.uid, works]);
 
   const acceptPhilosophySynthesis = async (_result: unknown, editedContent: string) => {
-    const nextProfile = { ...profileDraft, philosophyStatement: editedContent, dateUpdated: new Date().toISOString() };
+    const statement = profileStatementFromSynthesis(editedContent);
+    const reviewedAt = new Date().toISOString();
+    const nextProfile = {
+      ...profileDraft,
+      ...(statement ? { philosophyStatement: statement } : {}),
+      philosophySynthesisReview: editedContent,
+      philosophySynthesisReviewedAt: reviewedAt,
+      dateUpdated: reviewedAt,
+    };
     await onSaveProfile(nextProfile);
     setProfileDraft(nextProfile);
   };
@@ -210,7 +228,41 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
 
           <TabsContent value="philosophy" className="mt-0"><SectionCard title="Your Philosophy" description="Name the worldview taking shape, then inspect the records that give it substance.">
             <div className="space-y-4 rounded-xl border border-border bg-background/50 p-4"><div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end"><Field label="Philosophy name"><Input value={profileDraft.philosophyName || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, philosophyName: event.target.value }))} placeholder="Name it now, or leave it unnamed" /></Field><div><div className="mb-2 font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Naming status</div><div className="flex gap-2"><Button type="button" size="sm" variant={(profileDraft.philosophyNameStatus || 'working') === 'working' ? 'default' : 'outline'} onClick={() => setProfileDraft((previous) => ({ ...previous, philosophyNameStatus: 'working' }))} className="rounded-full">Working name</Button><Button type="button" size="sm" variant={profileDraft.philosophyNameStatus === 'established' ? 'default' : 'outline'} onClick={() => setProfileDraft((previous) => ({ ...previous, philosophyNameStatus: 'established' }))} className="rounded-full">Established</Button></div></div></div><Field label="Working philosophy statement"><Textarea value={profileDraft.philosophyStatement || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, philosophyStatement: event.target.value }))} className="min-h-[110px]" placeholder="Describe the central idea that connects your current thinking." /></Field></div>
-            <div className="mt-4 flex flex-col gap-4 rounded-xl border border-accent/30 bg-accent/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="max-w-2xl"><div className="flex items-center gap-2 font-medium"><Brain className="size-4 text-accent" />Shape My Philosophy</div><p className="mt-1 text-sm leading-6 text-muted-foreground">Review a bounded set of your strongest concepts, positions, questions, practices, works, and sources. Noesis suggests language; you decide what becomes yours.</p></div>{aiSettings.aiAssistanceEnabled ? <ContextualAiPanel actions={['synthesize_profile_philosophy']} buildEnvelope={buildPhilosophyEnvelope} showContextBeforeSending={aiSettings.showContextBeforeSending} reasoningDepth={aiSettings.defaultReasoningDepth} retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance} onAccept={acceptPhilosophySynthesis} buttonLabel="Shape My Philosophy" promptLabel="What should Noesis focus on? (optional)" promptPlaceholder="For example: help me name the tension between discipline and freedom." /> : <Button variant="outline" size="sm" className="shrink-0 rounded-full" onClick={() => onNavigate('settings')}>Enable in Settings</Button>}</div>
+            <div className="mt-4 flex flex-col gap-4 rounded-xl border border-accent/30 bg-accent/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="max-w-2xl">
+                <div className="flex items-center gap-2 font-medium"><NoesisAiMark className="size-6" />Shape My Philosophy</div>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Noesis compares a bounded set of your strongest records, tests their consistency, and proposes language for you to review. It never names or publishes your philosophy automatically.</p>
+                {philosophyEvidenceCount < 3 && <p className="mt-2 text-xs text-muted-foreground">Add or develop at least three concepts, positions, inquiry answers, practices, or works before requesting a synthesis.</p>}
+              </div>
+              {aiSettings.aiAssistanceEnabled ? (
+                <ContextualAiPanel
+                  actions={['synthesize_profile_philosophy']}
+                  buildEnvelope={buildPhilosophyEnvelope}
+                  enabled={philosophyEvidenceCount >= 3}
+                  showContextBeforeSending={aiSettings.showContextBeforeSending}
+                  reasoningDepth={aiSettings.defaultReasoningDepth}
+                  retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
+                  onAccept={acceptPhilosophySynthesis}
+                  buttonLabel="Shape My Philosophy"
+                  promptLabel="What should Noesis examine?"
+                  promptPlaceholder="For example: Is my confidence consistent with my evidence and tested practices?"
+                />
+              ) : <Button variant="outline" size="sm" className="shrink-0 rounded-full" onClick={() => onNavigate('settings')}>Enable in Settings</Button>}
+            </div>
+            {profileDraft.philosophySynthesisReview?.trim() && (
+              <details className="group mt-4 rounded-xl border border-border bg-background/50">
+                <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-medium">Saved philosophy review <Badge variant="outline" className="text-[9px] uppercase tracking-wider">AI-assisted</Badge></div>
+                    <div className="mt-1 text-xs text-muted-foreground">Reviewed {formatDate(profileDraft.philosophySynthesisReviewedAt)}</div>
+                  </div>
+                  <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+                </summary>
+                <div className="border-t border-border px-4 py-4">
+                  <ContextualAiDocument content={profileDraft.philosophySynthesisReview} />
+                </div>
+              </details>
+            )}
             <SegmentedNav className="mt-5" value={philosophyView} onChange={(value) => setPhilosophyView(value as PhilosophyView)} items={[["foundation", "Foundation"], ["influences", "Influences"], ["development", "Development"]]} label="Philosophy sections" />
             {philosophyView === 'foundation' && <div className="mt-5 grid gap-4 lg:grid-cols-2"><LinkGroup title="Recurring concepts" empty="No concepts yet." onOpenAll={() => onNavigate('concepts')}>{rankedConcepts.slice(0, 5).map((concept) => <MiniLink key={concept.id} label={concept.name} meta={`${concept.links.length} links`} onClick={() => onNavigate('concepts', concept.id)} />)}</LinkGroup><LinkGroup title="Current positions" empty="No active positions yet." onOpenAll={() => onNavigate('vault')}>{activePositions.slice(0, 5).map((position) => <MiniLink key={position.id} label={position.statement || position.title} meta={`${Math.round(position.confidence)}%`} onClick={() => onNavigate('vault', position.id)} />)}</LinkGroup></div>}
             {philosophyView === 'influences' && <div className="mt-5 grid gap-4 lg:grid-cols-2"><LinkGroup title="Sources shaping the work" empty="No sources yet." onOpenAll={() => onNavigate('source-index')}>{sourceLeaders.map((source) => <MiniLink key={source.id} label={source.title} meta={source.type} onClick={() => onNavigate('library', source.id)} />)}</LinkGroup><LinkGroup title="Questions still open" empty="No open inquiries." onOpenAll={() => onNavigate('questions')}>{openInquiries.slice(0, 5).map((inquiry) => <MiniLink key={inquiry.id} label={inquiry.text} meta={inquiry.status} onClick={() => onNavigate('questions', inquiry.id)} />)}</LinkGroup></div>}

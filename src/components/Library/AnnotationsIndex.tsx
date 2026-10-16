@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
-import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface AnnotationsIndexProps {
@@ -969,22 +969,37 @@ export function AnnotationsIndex({
                       showContextBeforeSending={aiSettings?.showContextBeforeSending}
                       reasoningDepth={aiSettings?.defaultReasoningDepth}
                       retainAcceptedProvenance={aiSettings?.retainAcceptedAiProvenance}
-                      buttonLabel="Suggest Effect"
-                      buildEnvelope={(action) => ({
+                      buttonLabel="Review Effect"
+                      promptLabel="What do you want to understand about this note?"
+                      promptPlaceholder="For example: Does this challenge my linked position, or only qualify it?"
+                      buildEnvelope={(action, userPrompt) => ({
                         action,
                         targetType: 'annotation',
                         targetId: `${editing.source.id}:${editing.id}`,
                         scope: 'linked_items',
-                        itemMemory: [`Annotation: ${editing.text}`, `Type: ${editing.type}`, `Source: ${editing.source.title}`, editing.context ? `Context: ${editing.context}` : 'No surrounding context supplied.'],
+                        itemMemory: [
+                          `Annotation: ${editing.text}`,
+                          `Type: ${editing.type}`,
+                          `Source: ${editing.source.title}${editing.source.creator ? ` by ${editing.source.creator}` : ''}`,
+                          `Source description: ${editing.source.description || 'Not recorded.'}`,
+                          editing.context ? `Surrounding context: ${editing.context}` : 'No surrounding context supplied.',
+                          editing.consequenceNote ? `User note: ${editing.consequenceNote}` : 'No user interpretation supplied.',
+                        ],
                         linkedMemory: [
                           ...(editing.conceptTags || []).map((tag) => `Concept: ${tag}`),
                           ...(editing.linkedPositionIds || []).map((id) => {
                             const position = positions.find((item) => item.id === id);
-                            return position ? `Position: ${position.statement || position.title}` : 'A previously linked position is no longer available.';
+                            return position ? `Position (${position.confidence}% confidence): ${position.statement || position.title}; support: ${(position.evidenceFor || []).length}; challenges: ${(position.evidenceAgainst || []).length}` : 'A previously linked position is no longer available.';
                           }),
                         ],
+                        userPrompt,
                       })}
-                      onAccept={(_, content) => onUpdateAnnotation(editing.source.id, { ...editing, consequenceNote: content, philosophyStatus: 'reviewed' })}
+                      onAccept={(_, content) => {
+                        const { source, ...annotation } = editing;
+                        const next = { ...annotation, aiEffectReview: content };
+                        onUpdateAnnotation(source.id, next);
+                        setEditing({ ...next, source });
+                      }}
                     />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -1068,6 +1083,19 @@ export function AnnotationsIndex({
                   </div>
                 </details>
               </section>
+
+              {editing.aiEffectReview && (
+                <section className="rounded-2xl border border-accent/25 bg-accent/5 p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">Contextual Review</div>
+                      <p className="mt-1 text-xs text-muted-foreground">A reviewed analysis saved on this annotation. It does not change your links or status.</p>
+                    </div>
+                    <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
+                  </div>
+                  <ContextualAiDocument content={editing.aiEffectReview} />
+                </section>
+              )}
 
               <section className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

@@ -88,15 +88,17 @@ export function inquiryNextMove(question: Question) {
 export function inquiryAiItemMemory(question: Question) {
   return [
     `Inquiry: ${question.text}`,
+    `Status: ${question.status.replace(/_/g, ' ')}`,
     question.whyItMatters?.trim() ? `Why it matters: ${question.whyItMatters.trim()}` : '',
     question.currentIntuition?.trim() ? `Current view: ${question.currentIntuition.trim()}` : '',
     question.uncertainty?.trim() ? `Remaining uncertainty: ${question.uncertainty.trim()}` : '',
     (question.assumptions || []).some((item) => item.trim())
       ? `Assumptions: ${(question.assumptions || []).filter((item) => item.trim()).join('; ')}`
       : '',
-    (question.candidateAnswers || []).some((item) => item.statement.trim())
-      ? `Candidate answers: ${(question.candidateAnswers || []).filter((item) => item.statement.trim()).map((item) => item.statement.trim()).join('; ')}`
-      : '',
+    ...(question.candidateAnswers || []).filter((item) => item.statement.trim()).slice(0, 5).map((item, index) =>
+      `Candidate ${index + 1} (${item.confidence ?? 'unrated'}): ${item.statement.trim()}; support: ${item.support?.trim() || 'none'}; objection: ${item.objection?.trim() || 'none'}; consequence: ${item.consequence?.trim() || 'none'}`
+    ),
     question.answer?.trim() ? `Current answer: ${question.answer.trim()}` : '',
+    question.resolutionSummary?.trim() ? `Resolution context: ${question.resolutionSummary.trim()}` : '',
   ].filter(Boolean);
 }
