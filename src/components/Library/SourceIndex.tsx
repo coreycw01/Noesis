@@ -194,13 +194,13 @@ function sourceCatalogState(m: Media) {
 export function SourceIndex({ media, vault, drafts, practices, questions, onOpenSource }: SourceIndexProps) {
   const [view, setView] = usePersistentView<SourceIndexView>('noesis:source-index-view', 'table', ['table', 'covers']);
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<MediaType | 'all'>('all');
-  const [filterStatus, setFilterStatus] = useState<MediaStatus | 'all'>('all');
+  const [filterType, setFilterType] = usePersistentView<MediaType | 'all'>('noesis:source-index-type', 'all', ['all', ...PRIMARY_SOURCE_TYPE_FILTERS]);
+  const [filterStatus, setFilterStatus] = usePersistentView<MediaStatus | 'all'>('noesis:source-index-status', 'all', ['all', ...statuses]);
   const [filterConcept, setFilterConcept] = useState<string>('all');
-  const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('dateAdded');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [sortOption, setSortOption] = useState<SortOption>('date_desc');
+  const [catalogFilter, setCatalogFilter] = usePersistentView<CatalogFilter>('noesis:source-index-filter', 'all', ['all', 'missing_metadata', 'no_annotations', 'high_influence', 'unfinished', 'recent']);
+  const [sortKey, setSortKey] = usePersistentView<SortKey>('noesis:source-index-sort-key', 'dateAdded', ['creator', 'dateAdded', 'title', 'year', 'influence', 'annotations', 'connected', 'progress']);
+  const [sortOrder, setSortOrder] = usePersistentView<'asc' | 'desc'>('noesis:source-index-sort-order', 'desc', ['asc', 'desc']);
+  const [sortOption, setSortOption] = usePersistentView<SortOption>('noesis:source-index-sort', 'date_desc', Object.keys(SOURCE_SORT_LABELS) as SortOption[]);
   const [exportPreviewOpen, setExportPreviewOpen] = useState(false);
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const { toast } = useToast();

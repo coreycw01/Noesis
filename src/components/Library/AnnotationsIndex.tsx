@@ -23,6 +23,7 @@ import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today }
 import { cn } from '@/lib/utils';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
+import { usePersistentView } from '@/hooks/use-persistent-view';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
@@ -119,10 +120,16 @@ export function AnnotationsIndex({
   aiSettings,
 }: AnnotationsIndexProps) {
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<AnnotationFilter>('all');
+  const [filterType, setFilterType] = usePersistentView<AnnotationFilter>('noesis:annotations-filter', 'all', [
+    'all',
+    'has_relationships',
+    'unanswered',
+    ...ANNOTATION_TYPES.map((item) => item.id),
+    ...ANNOTATION_STATUSES.map((item) => item.id),
+  ]);
   const [filterConcept, setFilterConcept] = useState<string>('all');
   const [filterSource, setFilterSource] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<AnnotationSort>('newest');
+  const [sortBy, setSortBy] = usePersistentView<AnnotationSort>('noesis:annotations-sort', 'newest', ['newest', 'oldest', 'source', 'type', 'status']);
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
   const [annotationWorkflowStep, setAnnotationWorkflowStep] = useState<'capture' | 'interpret' | 'apply' | 'connect' | 'trace'>('capture');
   const [editingMetadata, setEditingMetadata] = useState(false);

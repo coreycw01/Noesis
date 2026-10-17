@@ -17,6 +17,7 @@ import { allQuestions, conceptKey, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
+import { usePersistentView } from '@/hooks/use-persistent-view';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
@@ -117,7 +118,7 @@ function conceptReferenceLabel(reference: string, concepts: Concept[]) {
 
 export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<FilterType>('all');
+  const [filter, setFilter] = usePersistentView<FilterType>('noesis:inquiries-filter', 'all', Object.keys(INQUIRY_FILTER_LABELS) as FilterType[]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailSection, setDetailSection] = useState<'investigation' | 'answer'>('investigation');
   const [isAddOpen, setIsAddOpen] = useState(false);
