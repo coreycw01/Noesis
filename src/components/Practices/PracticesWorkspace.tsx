@@ -25,6 +25,7 @@ import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/Context
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
+import { usePersistentView } from '@/hooks/use-persistent-view';
 
 interface PracticesWorkspaceProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -175,12 +176,12 @@ function practiceExperimentShape(practice: Practice, linkedQuestions: Question[]
 export function PracticesWorkspace({ aiSettings, practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute }: PracticesWorkspaceProps) {
   const { toast } = useToast();
   const savingRef = React.useRef(false);
-  const [statusFilter, setStatusFilter] = useState<PracticeStatus | 'all'>('all');
-  const [typeFilter, setTypeFilter] = useState<PracticeType | 'all'>('all');
+  const [statusFilter, setStatusFilter] = usePersistentView<PracticeStatus | 'all'>('noesis:practices-status', 'all', ['all', ...statuses]);
+  const [typeFilter, setTypeFilter] = usePersistentView<PracticeType | 'all'>('noesis:practices-type', 'all', ['all', ...practiceTypes]);
   const [conceptFilter, setConceptFilter] = useState('all');
-  const [viewFilter, setViewFilter] = useState<PracticeViewFilter>('all');
-  const [otherStatus, setOtherStatus] = useState<PracticeStatus>('planned');
-  const [practiceSection, setPracticeSection] = useState<'active' | 'other'>('active');
+  const [viewFilter, setViewFilter] = usePersistentView<PracticeViewFilter>('noesis:practices-filter', 'all', practiceViewFilters.map((item) => item.value));
+  const [otherStatus, setOtherStatus] = usePersistentView<PracticeStatus>('noesis:practices-other-status', 'planned', statuses);
+  const [practiceSection, setPracticeSection] = usePersistentView<'active' | 'other'>('noesis:practices-section', 'active', ['active', 'other']);
   const [search, setSearch] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Practice | null>(null);

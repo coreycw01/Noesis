@@ -20,6 +20,7 @@ import { MEDIA_LABELS, MEDIA_STATUS_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, norma
 import { cn } from '@/lib/utils';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
+import { usePersistentView } from '@/hooks/use-persistent-view';
 import { sourceResultToMediaPatch, type NormalizedSourceResult } from '@/lib/source-intake';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
@@ -70,8 +71,6 @@ const LIBRARY_VIEW_LABELS: Record<LibraryViewFilter, string> = {
   paused_or_abandoned: 'Paused / Abandoned',
   influential: 'Influential',
 };
-
-const LIBRARY_VIEW_STORAGE_KEY = 'noesis:library-view-filter';
 
 function sourceNeedsReflection(item: Media) {
   return item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange;
@@ -175,9 +174,9 @@ export function MediaLibrary({
   onOpenSourceRoute,
   aiSettings,
 }: MediaLibraryProps) {
-  const [filter, setFilter] = useState<MediaType | 'all'>('all');
-  const [statusFilter, setStatusFilter] = useState<MediaStatus | 'active' | 'all'>('all');
-  const [viewFilter, setViewFilter] = useState<LibraryViewFilter>('all');
+  const [filter, setFilter] = usePersistentView<MediaType | 'all'>('noesis:library-type', 'all', ['all', ...MEDIA_TYPES]);
+  const [statusFilter, setStatusFilter] = usePersistentView<MediaStatus | 'active' | 'all'>('noesis:library-status', 'all', ['all', 'active', ...statuses]);
+  const [viewFilter, setViewFilter] = usePersistentView<LibraryViewFilter>('noesis:library-view-filter', 'all', Object.keys(LIBRARY_VIEW_LABELS) as LibraryViewFilter[]);
   const [searchQuery, setSearchQuery] = useState('');
   const [readingRoomOpen, setReadingRoomOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -191,15 +190,6 @@ export function MediaLibrary({
   const [showSourceConceptPicker, setShowSourceConceptPicker] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'source'; item: Media } | { type: 'claim'; item: VaultEntry } | null>(null);
   const { toast } = useToast();
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem(LIBRARY_VIEW_STORAGE_KEY) as LibraryViewFilter | null;
-    if (saved && Object.prototype.hasOwnProperty.call(LIBRARY_VIEW_LABELS, saved)) setViewFilter(saved);
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(LIBRARY_VIEW_STORAGE_KEY, viewFilter);
-  }, [viewFilter]);
 
   const selected = media.find((item) => item.id === selectedId) || null;
   const [captureDraft, setCaptureDraft] = useState<Media['capture'] | null>(null);

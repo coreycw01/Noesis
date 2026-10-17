@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useToast } from '@/hooks/use-toast';
+import { usePersistentView } from '@/hooks/use-persistent-view';
 import { MEDIA_LABELS, MEDIA_TYPES, today, uid } from '@/lib/readex';
 import type { Concept, Draft, GoalItem, GoalSettings, GoalType, InquiryGoalMeasure, IntellectualGoalKind, IntellectualGoalStatus, Media, MediaType, PositionGoalMeasure, Practice, PracticeGoalMeasure, Question, SourceGoalMeasure, UserProfile, VaultEntry, WorkGoalMeasure } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -303,7 +304,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
   const [draft, setDraft] = useState<GoalSettings>(goal);
   const [saving, setSaving] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<IntellectualGoalStatus | 'all'>('active');
+  const [statusFilter, setStatusFilter] = usePersistentView<IntellectualGoalStatus | 'all'>('noesis:goals-status', 'active', ['all', ...GOAL_STATUS_OPTIONS]);
   const [questFilter, setQuestFilter] = useState<QuestFilter>('all');
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
   const [activeView, setActiveView] = useState<GoalsView>('progress');

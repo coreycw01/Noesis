@@ -443,9 +443,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [comparePositionId, setComparePositionId] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | VaultType>('all');
+  const [typeFilter, setTypeFilter] = usePersistentView<'all' | VaultType>('noesis:positions-type', 'all', ['all', ...vaultTypes]);
   const [conceptFilter, setConceptFilter] = useState('all');
-  const [viewFilter, setViewFilter] = useState<PositionViewFilter>('all');
+  const [viewFilter, setViewFilter] = usePersistentView<PositionViewFilter>('noesis:positions-filter', 'all', Object.keys(POSITION_VIEW_LABELS) as PositionViewFilter[]);
   const [viewMode, setViewMode] = usePersistentView<'cards' | 'table'>('noesis:positions-view', 'table', ['cards', 'table']);
   const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'opposition' | 'relations' | 'history'>('overview');
   const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', rationale: '', confidence: 60, status: 'active', tags: [] });

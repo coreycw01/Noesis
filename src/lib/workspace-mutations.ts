@@ -18,6 +18,17 @@ import type { PhilosophicalObjectType } from '@/lib/types';
 
 type MutationOperation = 'set' | 'update' | 'delete' | 'create';
 
+export const NOESIS_WORKSPACE_SYNC_EVENT = 'noesis:workspace-sync';
+export type WorkspaceSyncState = 'saving' | 'saved' | 'error';
+
+let activeWorkspaceMutations = 0;
+let mutationBatchFailed = false;
+
+function reportWorkspaceSync(state: WorkspaceSyncState) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(NOESIS_WORKSPACE_SYNC_EVENT, { detail: { state } }));
+}
+
 interface CommitWorkspaceMutationInput<T extends DocumentData = DocumentData> {
   db: Firestore;
   ref: DocumentReference<T>;
@@ -39,6 +50,11 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
   thinkingEvents,
   relatedUpdates = [],
 }: CommitWorkspaceMutationInput<T>) {
+  if (activeWorkspaceMutations === 0) mutationBatchFailed = false;
+  activeWorkspaceMutations += 1;
+  reportWorkspaceSync('saving');
+
+  try {
   const collectionType: Partial<Record<string, PhilosophicalObjectType>> = {
     media: 'source',
     concepts: 'concept',
@@ -67,7 +83,7 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
 
   if (operation === 'create') {
     const events = eventQueue.map(makeThinkingEventPayload);
-    return runTransaction(db, async (transaction) => {
+    await runTransaction(db, async (transaction) => {
       if ((await transaction.get(ref)).exists()) {
         throw new Error('This item already exists. Open the current item instead of restoring an older copy.');
       }
@@ -75,12 +91,14 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
       relatedUpdates.forEach((update) => transaction.update(update.ref, update.data));
       events.forEach(({ eventRef, payload }) => transaction.set(eventRef, payload));
     });
+    return;
   }
 
   if (!eventQueue.length && !relatedUpdates.length) {
-    if (operation === 'delete') return deleteDoc(ref);
-    if (operation === 'update') return updateDoc(ref, mutationData as any);
-    return setDoc(ref, mutationData as any, setOptions as any);
+    if (operation === 'delete') await deleteDoc(ref);
+    else if (operation === 'update') await updateDoc(ref, mutationData as any);
+    else await setDoc(ref, mutationData as any, setOptions as any);
+    return;
   }
 
   const batch = writeBatch(db);
@@ -93,5 +111,13 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
   }
   eventQueue.forEach((event) => queueThinkingEvent(batch, event));
   relatedUpdates.forEach((update) => batch.update(update.ref, update.data));
-  return batch.commit();
+  await batch.commit();
+  } catch (error) {
+    mutationBatchFailed = true;
+    reportWorkspaceSync('error');
+    throw error;
+  } finally {
+    activeWorkspaceMutations = Math.max(0, activeWorkspaceMutations - 1);
+    if (activeWorkspaceMutations === 0 && !mutationBatchFailed) reportWorkspaceSync('saved');
+  }
 }

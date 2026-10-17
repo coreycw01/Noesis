@@ -24,6 +24,9 @@ import {
   Search,
   Target,
   WifiOff,
+  Check,
+  LoaderCircle,
+  CloudAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -37,6 +40,7 @@ import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
 import type { NoesisRouteTargetType } from '@/lib/noesis-routes';
 import { NOESIS_OBJECT_PREVIEW_EVENT, type NoesisObjectPreviewItem } from '@/lib/noesis-object-preview';
 import placeholderData from '@/app/lib/placeholder-images.json';
+import { NOESIS_WORKSPACE_SYNC_EVENT, type WorkspaceSyncState } from '@/lib/workspace-mutations';
 
 export interface MovementMetrics {
   rawAnnotations: number;
@@ -78,6 +82,36 @@ export interface CommandPaletteItem {
 
 const RECENT_COMMAND_ITEMS_KEY = 'noesis:recent-command-items';
 const MAX_RECENT_COMMAND_ITEMS = 8;
+
+function WorkspaceSyncIndicator({ state, compact = false, offline = false }: { state: WorkspaceSyncState | 'idle'; compact?: boolean; offline?: boolean }) {
+  const visibleState = offline ? 'error' : state;
+  const label = offline
+    ? 'Offline'
+    : visibleState === 'saving'
+      ? 'Saving'
+      : visibleState === 'saved'
+        ? 'Saved'
+        : visibleState === 'error'
+          ? 'Save failed'
+          : 'Synced';
+  const Icon = visibleState === 'saving' ? LoaderCircle : visibleState === 'error' ? CloudAlert : Check;
+
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      title={label}
+      className={cn(
+        'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-[9px] font-medium',
+        visibleState === 'error' ? 'text-destructive' : visibleState === 'saving' ? 'text-accent' : 'text-sidebar-foreground/45',
+        compact && 'justify-center px-1.5'
+      )}
+    >
+      <Icon className={cn('size-3.5', visibleState === 'saving' && 'animate-spin')} aria-hidden="true" />
+      {!compact && <span>{label}</span>}
+    </span>
+  );
+}
 const STRUCTURED_COMMAND_EXAMPLES = [
   'create inquiry',
   'open position',
@@ -226,6 +260,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const [recentCommandItems, setRecentCommandItems] = useState<CommandPaletteItem[]>([]);
   const [attentionOpen, setAttentionOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+  const [syncState, setSyncState] = useState<WorkspaceSyncState | 'idle'>('idle');
   const navItems = [
     { id: 'home', icon: Home },
     { id: 'atlas', icon: MapIcon },
@@ -249,6 +284,22 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     return () => {
       window.removeEventListener('online', updateConnectivity);
       window.removeEventListener('offline', updateConnectivity);
+    };
+  }, []);
+
+  useEffect(() => {
+    let savedTimer: ReturnType<typeof setTimeout> | undefined;
+    const onWorkspaceSync = (event: Event) => {
+      const state = (event as CustomEvent<{ state?: WorkspaceSyncState }>).detail?.state;
+      if (!state) return;
+      if (savedTimer) clearTimeout(savedTimer);
+      setSyncState(state);
+      if (state === 'saved') savedTimer = setTimeout(() => setSyncState('idle'), 2400);
+    };
+    window.addEventListener(NOESIS_WORKSPACE_SYNC_EVENT, onWorkspaceSync);
+    return () => {
+      if (savedTimer) clearTimeout(savedTimer);
+      window.removeEventListener(NOESIS_WORKSPACE_SYNC_EVENT, onWorkspaceSync);
     };
   }, []);
 
@@ -641,7 +692,10 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             </>
           )}
         </button>
-        <span className="text-[9px] font-code text-sidebar-foreground/20">v1.3.0 cloud</span>
+        <div className={cn('flex items-center gap-2', collapsed && !isMobile ? 'justify-center' : 'justify-between')}>
+          {(!collapsed || isMobile) && <span className="text-[9px] font-code text-sidebar-foreground/20">v1.3.0 cloud</span>}
+          <WorkspaceSyncIndicator state={isOnline ? syncState : 'error'} compact={collapsed && !isMobile} offline={!isOnline} />
+        </div>
       </div>
     </>
   );
@@ -674,6 +728,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 <div className="truncate font-headline text-lg font-semibold italic leading-none text-foreground/85">{activePage.title}</div>
                 <div className="mt-0.5 truncate font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{activePage.section}</div>
               </div>
+              <WorkspaceSyncIndicator state={isOnline ? syncState : 'error'} compact offline={!isOnline} />
               <Button
                 variant="outline"
                 size="icon"
