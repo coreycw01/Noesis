@@ -9,6 +9,38 @@ runConfig:
   concurrency: 40
 
 env:
+  # Firebase Web SDK identifiers are public configuration. NEXT_PUBLIC values
+  # must be available while Next.js builds the browser bundle.
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyC-P57Li3_0vetBtbas0bGl5oPnmtttabE
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: studio-4677603495-e05e8.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: studio-4677603495-e05e8
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: studio-4677603495-e05e8.firebasestorage.app
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "758100043066"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:758100043066:web:e28288d3b0d11fd6ed9c03
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: GEMINI_MODEL
     value: gemini-2.5-flash
     availability:
