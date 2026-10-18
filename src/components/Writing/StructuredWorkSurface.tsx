@@ -2,13 +2,13 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
-import type { DocumentPaperPattern, WorkTemplateData, WorkTimelineEntry, WritingStyle } from '@/lib/types';
+import type { DocumentPaperPattern, WorkTemplateData, WorkTimelineEntry, WorkToolKind, WritingStyle } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
-export type StructuredWorkStyle = Exclude<WritingStyle, 'blank_paper' | 'ruled_notebook' | 'manuscript'>;
+export type StructuredWorkStyle = WorkToolKind;
 
 type FieldDefinition = { key: string; label: string; prompt: string; multiline?: boolean };
 
@@ -64,7 +64,42 @@ const FORMAT_COPY: Record<StructuredWorkStyle, { title: string; purpose: string;
   },
   mind_map: { title: 'Mind Map', purpose: 'Start with one central idea, then add the ideas that belong around it. Use branches for association, not a disguised outline.', fields: [] },
   timeline: { title: 'Timeline', purpose: 'Place only the events, shifts, or stages that make the development of an idea easier to understand.', fields: [] },
+  venn_diagram: {
+    title: 'Venn Diagram',
+    purpose: 'Compare two ideas by separating what belongs to each from what they genuinely share.',
+    fields: [
+      { key: 'left_label', label: 'First idea', prompt: 'Name the first idea' },
+      { key: 'left_only', label: 'Only the first', prompt: 'What belongs only to the first idea?', multiline: true },
+      { key: 'shared', label: 'Shared ground', prompt: 'What do both ideas share?', multiline: true },
+      { key: 'right_label', label: 'Second idea', prompt: 'Name the second idea' },
+      { key: 'right_only', label: 'Only the second', prompt: 'What belongs only to the second idea?', multiline: true },
+    ],
+  },
+  comparison_matrix: {
+    title: 'Comparison Matrix',
+    purpose: 'Compare alternatives against the same criteria so the differences remain visible and fair.',
+    fields: [
+      { key: 'options', label: 'Options', prompt: 'Which ideas, choices, or interpretations are you comparing?', multiline: true },
+      { key: 'criteria', label: 'Criteria', prompt: 'What standards should each option be judged against?', multiline: true },
+      { key: 'comparison', label: 'Comparison', prompt: 'How does each option perform against those standards?', multiline: true },
+      { key: 'conclusion', label: 'Working conclusion', prompt: 'What survives the comparison, and why?', multiline: true },
+    ],
+  },
+  causal_chain: {
+    title: 'Causal Chain',
+    purpose: 'Trace how one condition may lead to another while marking uncertain or disputed links.',
+    fields: [
+      { key: 'starting_condition', label: 'Starting condition', prompt: 'Where does the chain begin?' },
+      { key: 'steps', label: 'Intermediate links', prompt: 'List each step in order and explain why it follows.', multiline: true },
+      { key: 'outcome', label: 'Outcome', prompt: 'What result does the chain produce?' },
+      { key: 'weak_link', label: 'Weakest link', prompt: 'Which causal step is least certain or most contestable?', multiline: true },
+    ],
+  },
 };
+
+export function workToolLabel(style: StructuredWorkStyle) {
+  return FORMAT_COPY[style].title;
+}
 
 const paperTone = {
   blank: 'bg-card text-foreground',
@@ -82,7 +117,7 @@ function paperPatternStyle(paperColor: keyof typeof paperTone, pattern: Document
   return { backgroundImage: `linear-gradient(${guide} 1px, transparent 1px), linear-gradient(90deg, ${guide} 1px, transparent 1px), radial-gradient(${guide} 1px, transparent 1px)`, backgroundSize: '28px 28px, 28px 28px, 14px 14px' };
 }
 
-export function isStructuredWorkStyle(style: WritingStyle): style is StructuredWorkStyle {
+export function isStructuredWorkStyle(style: WritingStyle | WorkToolKind): style is StructuredWorkStyle {
   return style in FORMAT_COPY;
 }
 
@@ -107,6 +142,33 @@ export function StructuredWorkSurface({
   const current: WorkTemplateData = data || { version: 1, fields: {}, branches: [], timeline: [] };
   const updateFields = (key: string, value: string) => onChange({ ...current, fields: { ...current.fields, [key]: value } });
   const widthClass = pageSize === 'letter' ? 'max-w-[850px]' : 'max-w-[827px]';
+
+  if (style === 'venn_diagram') {
+    return (
+      <TemplateFrame title={FORMAT_COPY[style].title} purpose={FORMAT_COPY[style].purpose} tone={paperTone[paperColor]} patternStyle={paperPatternStyle(paperColor, paperPattern)} widthClass={widthClass} embedded={embedded}>
+        <div className="p-5 sm:p-8">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input aria-label="First idea" value={current.fields.left_label || ''} onChange={(event) => updateFields('left_label', event.target.value)} placeholder="First idea" className="bg-background/55" />
+            <Input aria-label="Second idea" value={current.fields.right_label || ''} onChange={(event) => updateFields('right_label', event.target.value)} placeholder="Second idea" className="bg-background/55" />
+          </div>
+          <div className="relative mx-auto mt-6 grid min-h-[460px] max-w-3xl place-items-center overflow-hidden">
+            <div className="absolute left-[5%] top-8 flex size-[68%] max-h-[390px] max-w-[390px] flex-col rounded-full border-2 border-accent/45 bg-accent/5 p-10 pr-20 sm:p-14 sm:pr-24">
+              <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">Only {current.fields.left_label || 'the first'}</label>
+              <Textarea value={current.fields.left_only || ''} onChange={(event) => updateFields('left_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-3 min-h-44 resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0" />
+            </div>
+            <div className="absolute right-[5%] top-8 flex size-[68%] max-h-[390px] max-w-[390px] flex-col rounded-full border-2 border-foreground/25 bg-background/45 p-10 pl-20 sm:p-14 sm:pl-24">
+              <label className="text-right font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">Only {current.fields.right_label || 'the second'}</label>
+              <Textarea value={current.fields.right_only || ''} onChange={(event) => updateFields('right_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-3 min-h-44 resize-none border-0 bg-transparent p-0 text-right text-sm shadow-none focus-visible:ring-0" />
+            </div>
+            <div className="relative z-10 w-[32%] min-w-36 text-center">
+              <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-accent">Shared ground</label>
+              <Textarea value={current.fields.shared || ''} onChange={(event) => updateFields('shared', event.target.value)} placeholder="What genuinely overlaps?" className="mt-3 min-h-36 resize-none border border-accent/25 bg-background/80 text-center text-sm shadow-sm" />
+            </div>
+          </div>
+        </div>
+      </TemplateFrame>
+    );
+  }
 
   if (style === 'mind_map') {
     const branches = current.branches?.length ? current.branches : ['', '', '', ''];

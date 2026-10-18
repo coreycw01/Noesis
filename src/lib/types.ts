@@ -59,7 +59,17 @@ export interface WorkTimelineEntry {
   detail: string;
 }
 
-export type WorkToolKind = 'cornell_notes' | 'two_column_debate' | 'dialectic' | 'belief_audit' | 'source_analysis' | 'mind_map' | 'timeline';
+export type WorkToolKind =
+  | 'cornell_notes'
+  | 'two_column_debate'
+  | 'dialectic'
+  | 'belief_audit'
+  | 'source_analysis'
+  | 'mind_map'
+  | 'timeline'
+  | 'venn_diagram'
+  | 'comparison_matrix'
+  | 'causal_chain';
 
 export interface WorkToolData {
   fields: Record<string, string>;

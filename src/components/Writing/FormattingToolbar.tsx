@@ -278,7 +278,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
 
         <div className="flex items-center gap-2 border-r border-border/40 pr-2">
           <Type className="size-3.5 text-muted-foreground" />
-          <select aria-label="Paragraph style" defaultValue="P" onPointerDown={rememberSelection} onChange={(event) => applyFormat('formatBlock', event.target.value)} className="bg-transparent text-[11px] font-body italic text-foreground/80 outline-none" title="Paragraph style">
+          <select aria-label="Paragraph style" defaultValue="P" onPointerDown={rememberSelection} onChange={(event) => applyFormat('formatBlock', event.target.value)} className="bg-card text-[11px] font-body italic text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Paragraph style">
             <option value="P">Paragraph</option>
             <option value="H1">Heading 1</option>
             <option value="H2">Heading 2</option>
@@ -288,13 +288,31 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
         </div>
 
         <div className="flex items-center gap-2 border-r border-border/40 pr-2">
-          <select aria-label="Font family" defaultValue="Georgia" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontName', event.target.value)} className="max-w-24 bg-transparent text-[11px] text-foreground/80 outline-none" title="Font family">
-            <option value="Georgia">Georgia</option>
-            <option value="Arial">Arial</option>
-            <option value="Times New Roman">Times</option>
-            <option value="Courier New">Mono</option>
+          <select aria-label="Font family" defaultValue="Georgia" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontName', event.target.value)} className="max-w-32 bg-card text-[11px] text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Font family">
+            <optgroup label="Serif">
+              <option value="Georgia">Georgia</option>
+              <option value="Garamond">Garamond</option>
+              <option value="Baskerville">Baskerville</option>
+              <option value="Palatino Linotype">Palatino</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Book Antiqua">Book Antiqua</option>
+            </optgroup>
+            <optgroup label="Sans serif">
+              <option value="Arial">Arial</option>
+              <option value="Helvetica">Helvetica</option>
+              <option value="Aptos">Aptos</option>
+              <option value="Calibri">Calibri</option>
+              <option value="Verdana">Verdana</option>
+              <option value="Trebuchet MS">Trebuchet</option>
+              <option value="Tahoma">Tahoma</option>
+            </optgroup>
+            <optgroup label="Monospace">
+              <option value="Courier New">Courier New</option>
+              <option value="Consolas">Consolas</option>
+              <option value="Lucida Console">Lucida Console</option>
+            </optgroup>
           </select>
-          <select aria-label="Font size" defaultValue="3" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontSize', event.target.value)} className="bg-transparent text-[11px] text-foreground/80 outline-none" title="Font size">
+          <select aria-label="Font size" defaultValue="3" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontSize', event.target.value)} className="bg-card text-[11px] text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Font size">
             <option value="2">Small</option>
             <option value="3">Body</option>
             <option value="4">Large</option>
@@ -306,6 +324,8 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
           <ToolbarButton icon={Bold} onClick={() => applyFormat('bold')} title="Bold" />
           <ToolbarButton icon={Italic} onClick={() => applyFormat('italic')} title="Italic" />
           <ToolbarButton icon={Underline} onClick={() => applyFormat('underline')} title="Underline" />
+          <ColorButton icon={Palette} value={textColor} onChange={(value) => { setTextColor(value); applyFormat('foreColor', value); }} title="Text color" />
+          <ColorButton icon={Highlighter} value={highlightColor} onChange={(value) => { setHighlightColor(value); applyFormat('hiliteColor', value); applyFormat('backColor', value); }} title="Highlight color" />
         </div>
 
         <div className="flex items-center gap-0.5 border-r border-border/40 pr-2">
@@ -320,13 +340,8 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
             <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
               <Button type="button" variant="ghost" size="sm" className="h-8 rounded-md px-2 font-code text-[9px] font-bold uppercase tracking-wider">Format</Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuContent align="start" className="w-56 border-border bg-popover text-popover-foreground">
               <DropdownMenuLabel>Text and spacing</DropdownMenuLabel>
-              <div className="grid grid-cols-2 gap-1 px-2 pb-2">
-                <ColorButton icon={Palette} value={textColor} onChange={(value) => { setTextColor(value); applyFormat('foreColor', value); }} title="Text color" />
-                <ColorButton icon={Highlighter} value={highlightColor} onChange={(value) => { setHighlightColor(value); applyFormat('hiliteColor', value); applyFormat('backColor', value); }} title="Highlight color" />
-              </div>
-              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => applyFormat('strikeThrough')}><Strikethrough className="mr-2 size-4" /> Strikethrough</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => applyFormat('superscript')}><Superscript className="mr-2 size-4" /> Superscript</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => applyFormat('subscript')}><Subscript className="mr-2 size-4" /> Subscript</DropdownMenuItem>
@@ -335,7 +350,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Line spacing</DropdownMenuLabel>
               <div className="px-2 pb-2">
-                <select aria-label="Line spacing" defaultValue="1.6" onChange={(event) => applyLineSpacing(event.target.value)} className="h-8 w-full rounded-md border border-border/60 bg-background px-2 text-xs outline-none">
+                <select aria-label="Line spacing" defaultValue="1.6" onChange={(event) => applyLineSpacing(event.target.value)} className="h-8 w-full rounded-md border border-border/60 bg-card px-2 text-xs text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground">
                   <option value="1.2">Single</option>
                   <option value="1.6">1.5</option>
                   <option value="2">Double</option>
@@ -351,7 +366,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
             <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
               <Button type="button" variant="outline" size="sm" className="h-8 rounded-md border-border/60 px-2.5 font-code text-[9px] font-bold uppercase tracking-wider">Insert</Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-52 border-border bg-popover text-popover-foreground">
               <DropdownMenuItem onSelect={() => openUtilityDialog('table')}><Table2 className="mr-2 size-4" /> Table</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => openUtilityDialog('image')}><ImagePlus className="mr-2 size-4" /> Image</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setIsGraphDialogOpen(true)}><ChartColumn className="mr-2 size-4" /> Inline graph</DropdownMenuItem>
@@ -360,9 +375,9 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
-              <Button type="button" variant="ghost" size="sm" className="h-8 rounded-md px-2 font-code text-[9px] font-bold uppercase tracking-wider">Tools</Button>
+              <Button type="button" variant="ghost" size="sm" className="h-8 rounded-md px-2 font-code text-[9px] font-bold uppercase tracking-wider">Edit</Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-52 border-border bg-popover text-popover-foreground">
               <DropdownMenuItem onSelect={() => applyFormat('unlink')}><Unlink className="mr-2 size-4" /> Remove link</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => applyFormat('justifyFull')}><AlignJustify className="mr-2 size-4" /> Justify text</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => applyFormat('insertUnorderedList')}><List className="mr-2 size-4" /> Bulleted list</DropdownMenuItem>

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Edit, MoreHorizontal, PauseCircle, Play, Plus, Repeat, Trash2 } from 'lucide-react';
+import { CheckCircle2, Edit, MoreHorizontal, PauseCircle, Play, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,9 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import type { Concept, Draft, Media, PhilosophicalLink, Practice, PracticeLog, PracticeStatus, PracticeType, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, normalizeConceptTags, PRACTICE_LABELS, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { NOESIS_ICONS } from '@/lib/noesis-icons';
+
+const PracticeIcon = NOESIS_ICONS.practice;
 import { StageBadge } from '@/components/shared/StageBadge';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
@@ -416,7 +419,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       {practiceSection === 'active' && <section className="mb-6 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Repeat className="size-4 text-accent" />
+            <PracticeIcon className="size-4 text-accent" />
             <h2 className="font-headline text-xl font-bold italic text-primary/80">Active loops</h2>
           </div>
           <p className="max-w-xl text-xs italic leading-5 text-muted-foreground">
@@ -441,7 +444,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           <ActiveLoopGroup title="Ongoing" practices={ongoingLoops} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
           {!visibleActiveLoops.length && (
             <Card className="border-dashed border-border/60 bg-muted/5 p-8 text-center shadow-inner md:col-span-2 xl:col-span-3 2xl:col-span-4 rounded-xl">
-              <Repeat className="size-12 mx-auto mb-4 text-muted-foreground/30" />
+              <PracticeIcon className="size-12 mx-auto mb-4 text-muted-foreground/30" />
               <h3 className="font-headline text-xl italic mb-2 text-primary/60">No active loops match</h3>
               <p className="max-w-sm mx-auto text-sm text-muted-foreground italic mb-5">Start a planned practice or adjust your filters.</p>
               <Button variant="outline" onClick={() => setPracticeSection('other')} className="rounded-full px-8 font-bold border-border/60 shadow-sm bg-card">View other practices</Button>
@@ -481,7 +484,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           ))}
           {filtered.length === 0 && (
             <PageEmptyState
-              icon={Repeat}
+              icon={PracticeIcon}
               title="No practices found"
               description="Clear filters or create a lived test that connects a position to behavior."
               action={practiceFiltersActive ? <Button variant="outline" onClick={clearPracticeFilters} className="rounded-full">Clear filters</Button> : <Button onClick={() => openEditor()} className="rounded-full"><Plus className="mr-1.5 size-4" /> New practice</Button>}

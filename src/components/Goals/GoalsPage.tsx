@@ -18,6 +18,8 @@ import type { CommitmentFrequency, Concept, Draft, GoalItem, GoalSettings, GoalT
 import { cn } from '@/lib/utils';
 import { expectedCommitmentProgress } from '@/lib/workflow-integrity';
 import { commitmentDueToday, commitmentExpectedDuration, completedCommitmentDates, localCommitmentDateKey } from '@/lib/commitments';
+import { deriveAutomaticGoalProgress } from '@/lib/goal-progress';
+import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
 const QUEST_KIND_OPTIONS: Array<{ value: IntellectualGoalKind; label: string; description: string }> = [
   { value: 'consumption', label: 'Consumption', description: 'Complete and reflect on sources.' },
@@ -105,76 +107,20 @@ function questKindForGoal(item: Pick<GoalItem, 'title' | 'goalKind'>, type?: Goa
   return item.goalKind || goalKindForType(type, item.title);
 }
 
-function hasConceptTag(tags: string[] | undefined, conceptNames: string[]) {
-  return !conceptNames.length || (tags || []).some((tag) => conceptNames.includes(tag.toLowerCase()));
-}
-
-function positionHasReviewActivity(position: VaultEntry) {
-  return Boolean(
-    position.lastChallengedAt ||
-    position.lastRevisedAt ||
-    (position.versionHistory?.length || 0) > 1 ||
-    ['revised', 'challenged', 'contested', 'unstable', 'uncertain'].includes(position.status)
-  );
-}
-
-function completedPractice(practice: Practice) {
-  return ['completed', 'concluded', 'integrated'].includes(practice.status);
-}
-
-function completedWork(work: Draft) {
-  return ['complete', 'final', 'published'].includes(work.status);
-}
-
-function sourceHasCompleteDetails(source: Media) {
-  const reflection = source.capture?.after;
-  return Boolean(
-    source.status === 'Finished' &&
-    source.creator?.trim() &&
-    source.description?.trim() &&
-    source.tags?.length &&
-    reflection?.coreArgument?.trim() &&
-    reflection?.beliefChange?.trim() &&
-    reflection?.nextAction?.trim()
-  );
-}
-
-function fullyAnsweredInquiry(inquiry: Question) {
-  return ['answered', 'resolved'].includes(inquiry.status) && Boolean(inquiry.answer?.trim());
-}
-
-function longestDateStreak(values: string[]) {
-  const uniqueDates = [...new Set(values.map((value) => value.slice(0, 10)).filter(Boolean))].sort();
-  let longest = 0;
-  let current = 0;
-  let previous: number | undefined;
-  uniqueDates.forEach((date) => {
-    const day = Date.parse(`${date}T00:00:00Z`);
-    if (!Number.isFinite(day)) return;
-    current = previous === day - 86_400_000 ? current + 1 : 1;
-    longest = Math.max(longest, current);
-    previous = day;
-  });
-  return longest;
-}
-
-function longestPracticeLogStreak(practices: Practice[]) {
-  return longestDateStreak(practices.flatMap((practice) => [
-    ...(practice.logDates || []),
-    ...(practice.logs || []).filter((log) => log.actionCompleted).map((log) => log.date),
-  ]));
-}
-
-function practiceLogDayCount(practices: Practice[]) {
-  return new Set(practices.flatMap((practice) => [
-    ...(practice.logDates || []),
-    ...(practice.logs || []).filter((log) => log.actionCompleted).map((log) => log.date),
-  ]).map((value) => value.slice(0, 10)).filter(Boolean)).size;
-}
-
 function questTypeForGoal(item: GoalItem, type?: GoalType) {
   const kind = questKindForGoal(item, type);
   return QUEST_KIND_OPTIONS.find((option) => option.value === kind)?.label || 'Custom';
+}
+
+function goalIconForKind(kind: IntellectualGoalKind) {
+  if (kind === 'consumption') return NOESIS_ICONS.source;
+  if (kind === 'understanding') return NOESIS_ICONS.concept;
+  if (kind === 'inquiry') return NOESIS_ICONS.inquiry;
+  if (kind === 'position') return NOESIS_ICONS.position;
+  if (kind === 'expression') return NOESIS_ICONS.work;
+  if (kind === 'practice') return NOESIS_ICONS.practice;
+  if (kind === 'reflection' || kind === 'transformation') return NOESIS_ICONS.evolution;
+  return NOESIS_ICONS.commitment;
 }
 
 function goalProgressDescription(item: GoalItem, type?: GoalType) {
@@ -332,50 +278,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
     const type = goalTypes.find((goalType) => goalType.id === item.typeId);
     const kind = questKindForGoal(item, type);
     const mediaProgress = (type?.mediaTypes || []).reduce((sum, mediaType) => sum + (goalProgress[mediaType] || 0), 0);
-    const conceptId = item.relatedObjectIds?.conceptIds?.[0];
-    const scopedConcept = concepts.find((concept) => concept.id === conceptId);
-    const conceptNames = scopedConcept ? [scopedConcept.name, ...(scopedConcept.aliases || [])].map((name) => name.toLowerCase()) : [];
-    const positionId = item.relatedObjectIds?.positionIds?.[0];
-    const practiceId = item.relatedObjectIds?.practiceIds?.[0];
-    const sourceMeasure: SourceGoalMeasure = item.sourceMeasure || 'finished';
-    const inquiryMeasure: InquiryGoalMeasure = item.inquiryMeasure || 'active';
-    const positionMeasure: PositionGoalMeasure = item.positionMeasure || 'reviewed';
-    const practiceMeasure: PracticeGoalMeasure = item.practiceMeasure || 'completed';
-    const workMeasure: WorkGoalMeasure = item.workMeasure || 'completed';
-    const matchingSources = sources.filter((source) => (!item.sourceType || source.type === item.sourceType) && hasConceptTag(source.tags, conceptNames));
-    const sourceProgress = kind === 'consumption'
-      ? matchingSources.filter((source) => sourceMeasure === 'fully_reflected' ? sourceHasCompleteDetails(source) : source.status === 'Finished').length
-      : null;
-    const inquiryProgress = kind === 'inquiry'
-      ? inquiries.filter((inquiry) => {
-        const matchesFocus = (!conceptId || (inquiry.conceptIds || []).includes(conceptId)) && (!item.relatedObjectIds?.inquiryIds?.[0] || inquiry.id === item.relatedObjectIds.inquiryIds[0]);
-        if (!matchesFocus) return false;
-        if (inquiryMeasure === 'answered') return ['answered', 'resolved'].includes(inquiry.status) && Boolean(inquiry.answer?.trim());
-        if (inquiryMeasure === 'resolved') return inquiry.status === 'resolved' && Boolean(inquiry.answer?.trim());
-        return !['archived', 'no_longer_meaningful'].includes(inquiry.status);
-      }).length
-      : null;
-    const positionProgress = kind === 'position'
-      ? positions.filter((position) => {
-        const matchesFocus = (!positionId || position.id === positionId) && hasConceptTag(position.tags, conceptNames);
-        if (!matchesFocus) return false;
-        if (positionMeasure === 'revised') return Boolean(position.lastRevisedAt || position.status === 'revised' || (position.versionHistory?.some((version) => version.eventType === 'revised')));
-        if (positionMeasure === 'confident') return position.status !== 'abandoned' && position.confidence >= 100;
-        return positionHasReviewActivity(position);
-      }).length
-      : null;
-    const practiceProgress = kind === 'practice'
-      ? (() => {
-        const matchingPractices = practices.filter((practice) => (!practiceId || practice.id === practiceId) && (!positionId || (practice.positionIds || []).includes(positionId)) && hasConceptTag(practice.conceptTags, conceptNames));
-        if (practiceMeasure === 'logged_days') return practiceLogDayCount(matchingPractices);
-        if (practiceMeasure === 'log_streak') return longestPracticeLogStreak(matchingPractices);
-        return matchingPractices.filter(completedPractice).length;
-      })()
-      : null;
-    const workProgress = kind === 'expression'
-      ? works.filter((work) => (workMeasure === 'published' ? work.status === 'published' : completedWork(work)) && hasConceptTag(work.conceptTags, conceptNames)).length
-      : null;
-    const automaticProgress = sourceProgress ?? inquiryProgress ?? positionProgress ?? practiceProgress ?? workProgress;
+    const automaticProgress = deriveAutomaticGoalProgress(item, kind, { concepts, inquiries, sources, positions, works, practices });
     const checkInProgress = completedCommitmentDates(item).length;
     const currentProgress = automaticProgress === null
       ? Math.max(item.currentProgress || 0, mediaProgress, checkInProgress)
@@ -727,7 +630,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
 
         <div className="mb-6 flex flex-wrap items-center gap-1 border-y border-border/70 py-2" role="tablist" aria-label="Commitment views">
           {([
-            { id: 'today', label: 'Today', icon: Target },
+            { id: 'today', label: 'Today', icon: NOESIS_ICONS.commitment },
             { id: 'active', label: 'Active', icon: Settings2 },
             { id: 'review', label: 'Review', icon: Clock3 },
           ] as const).map(({ id, label, icon: Icon }) => (
@@ -797,9 +700,12 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               {todayCommitments.length ? (
                 <div className="divide-y divide-border border-y border-border">
                   {todayCommitments.map((item) => {
+                    const ItemIcon = goalIconForKind(questKindForGoal(item, item.type));
                     return (
                       <article key={item.id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(150px,220px)_auto] sm:items-center">
-                        <div className="min-w-0">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <ItemIcon className="mt-0.5 size-5 shrink-0 text-accent" strokeWidth={2.25} aria-hidden="true" />
+                          <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">{questTypeForGoal(item, item.type)}</span>
                             {item.status === 'stalled' && <Badge variant="outline" className="rounded-full text-[9px] uppercase">Needs a restart</Badge>}
@@ -807,6 +713,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                           </div>
                           <h3 className="mt-1 text-base font-semibold leading-6 text-foreground">{item.title}</h3>
                           <p className="mt-1 text-sm leading-5 text-muted-foreground">{item.commitmentAction || questNextStep(item, item.type)}</p>
+                          </div>
                         </div>
                         <div className="min-w-0">
                           <div className="mb-1 flex justify-between font-code text-[9px] uppercase tracking-widest text-muted-foreground"><span>Progress</span><span>{item.currentProgress}/{item.targetProgress}</span></div>
@@ -845,15 +752,20 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">Continue, revise, pause, complete, or abandon commitments based on what actually happened.</p>
               </div>
               <div className="divide-y divide-border border-y border-border">
-                {activeGoals.filter((item) => goalReviewDue(item) || (item.commitmentReviewDate && item.commitmentReviewDate <= localCommitmentDateKey())).map((item) => (
+                {activeGoals.filter((item) => goalReviewDue(item) || (item.commitmentReviewDate && item.commitmentReviewDate <= localCommitmentDateKey())).map((item) => {
+                  const ItemIcon = goalIconForKind(questKindForGoal(item, item.type));
+                  return (
                   <article key={item.id} className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                    <div>
+                    <div className="flex items-start gap-3">
+                      <ItemIcon className="mt-0.5 size-5 shrink-0 text-accent" strokeWidth={2.25} aria-hidden="true" />
+                      <div>
                       <h3 className="font-semibold text-foreground">{item.title}</h3>
                       <p className="mt-1 text-sm text-muted-foreground">{completedCommitmentDates(item).length} completed check-ins · {item.currentProgress} of {item.targetProgress} recorded</p>
+                      </div>
                     </div>
                     <Button variant="outline" onClick={() => { setPlanningGoalId(item.id); setActiveView('active'); }} className="min-h-10 rounded-full">Review commitment</Button>
                   </article>
-                ))}
+                )})}
                 {!activeGoals.some((item) => goalReviewDue(item) || (item.commitmentReviewDate && item.commitmentReviewDate <= localCommitmentDateKey())) && (
                   <div className="py-6 text-sm text-muted-foreground">No commitment reviews are due.</div>
                 )}
@@ -923,7 +835,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                 {enrichedGoals.map((row) => (
                   <article key={row.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(220px,1.3fr)_minmax(150px,.7fr)_minmax(170px,.8fr)_auto] lg:items-end">
                     <div>
-                      <Label className="readex-kicker">Goal</Label>
+                      <Label className="readex-kicker flex items-center gap-1.5">{React.createElement(goalIconForKind(questKindForGoal(row, row.type)), { className: 'size-3.5 text-accent', 'aria-hidden': true })} Commitment</Label>
                       <Input value={row.title} onChange={(event) => updateGoal(row.id, { title: event.target.value })} className="mt-2 h-10 font-medium" placeholder="What are you working toward?" />
                     </div>
                     <div>
@@ -1091,97 +1003,44 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                   </div>
                 </div>
                 {(['consumption', 'inquiry', 'position', 'practice', 'expression'].includes(questKindForGoal(row, row.type))) ? (
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    {questKindForGoal(row, row.type) === 'consumption' && (
+                  <div className="mt-4 border-t border-border pt-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Target className="size-4 text-accent" aria-hidden="true" />
                       <div>
-                        <Label htmlFor={`goal-source-measure-${row.id}`} className="text-sm font-medium">Count</Label>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose the source milestone that advances this goal.</p>
-                        <Select value={row.sourceMeasure || 'finished'} onValueChange={(value) => updateGoal(row.id, { sourceMeasure: value as SourceGoalMeasure })}>
-                          <SelectTrigger id={`goal-source-measure-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                          <SelectContent><SelectItem value="finished">Finished sources</SelectItem><SelectItem value="fully_reflected">Complete source records</SelectItem></SelectContent>
-                        </Select>
+                        <h4 className="text-sm font-medium">What advances this commitment</h4>
+                        <p className="text-xs leading-5 text-muted-foreground">Use the same order every time: result, concept, then a specific item or type.</p>
                       </div>
-                    )}
-                    {questKindForGoal(row, row.type) === 'consumption' && (
-                      <div>
-                        <Label htmlFor={`goal-source-type-${row.id}`} className="text-sm font-medium">Source type</Label>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">Only finished sources of this type will count.</p>
-                        <Select value={row.sourceType || 'all-source-types'} onValueChange={(value) => updateGoal(row.id, { sourceType: value === 'all-source-types' ? undefined : value as MediaType })}>
-                          <SelectTrigger id={`goal-source-type-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                          <SelectContent><SelectItem value="all-source-types">Any source type</SelectItem>{MEDIA_TYPES.map((mediaType) => <SelectItem key={mediaType} value={mediaType}>{MEDIA_LABELS[mediaType]}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                    {questKindForGoal(row, row.type) === 'inquiry' && (
-                      <>
-                        <div>
-                          <Label htmlFor={`goal-inquiry-measure-${row.id}`} className="text-sm font-medium">Count</Label>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose the inquiry result that advances this goal.</p>
-                          <Select value={row.inquiryMeasure || 'active'} onValueChange={(value) => updateGoal(row.id, { inquiryMeasure: value as InquiryGoalMeasure })}>
-                            <SelectTrigger id={`goal-inquiry-measure-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="active">Active inquiries</SelectItem><SelectItem value="answered">Inquiries with an answer</SelectItem><SelectItem value="resolved">Resolved inquiries</SelectItem></SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor={`goal-inquiry-${row.id}`} className="text-sm font-medium">Inquiry focus</Label>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">Optional. Count one specific inquiry only.</p>
-                          <Select value={row.relatedObjectIds?.inquiryIds?.[0] || 'all-inquiries'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, inquiryIds: value === 'all-inquiries' ? [] : [value] } })}>
-                            <SelectTrigger id={`goal-inquiry-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="all-inquiries">Any inquiry</SelectItem>{inquiries.filter((inquiry) => !['archived', 'no_longer_meaningful'].includes(inquiry.status)).map((inquiry) => <SelectItem key={inquiry.id} value={inquiry.id}>{inquiry.text}</SelectItem>)}</SelectContent>
-                          </Select>
-                        </div>
-                      </>
-                    )}
-                    {(['consumption', 'inquiry', 'position', 'practice', 'expression'].includes(questKindForGoal(row, row.type))) && (
-                    <div>
-                      <Label htmlFor={`goal-concept-${row.id}`} className="text-sm font-medium">Concept focus</Label>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Optional. Count only activity tagged with this concept.</p>
-                      <Select value={row.relatedObjectIds?.conceptIds?.[0] || 'all-concepts'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, conceptIds: value === 'all-concepts' ? [] : [value] } })}>
-                        <SelectTrigger id={`goal-concept-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="all-concepts">Any concept</SelectItem>{concepts.map((concept) => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}</SelectContent>
-                      </Select>
                     </div>
-                    )}
-                    {questKindForGoal(row, row.type) === 'position' && (
+                    <div className="grid gap-4 md:grid-cols-3">
                       <div>
-                        <Label htmlFor={`goal-position-measure-${row.id}`} className="text-sm font-medium">Evidence counted</Label>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose the Position change that demonstrates progress.</p>
-                        <Select value={row.positionMeasure || 'reviewed'} onValueChange={(value) => updateGoal(row.id, { positionMeasure: value as PositionGoalMeasure })}>
-                          <SelectTrigger id={`goal-position-measure-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                          <SelectContent><SelectItem value="reviewed">Position reviewed</SelectItem><SelectItem value="revised">Position revised</SelectItem><SelectItem value="confident">Position at 100% confidence</SelectItem></SelectContent>
+                        <Label className="text-sm font-medium">Count</Label>
+                        <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">Choose the result that moves the number.</p>
+                        {questKindForGoal(row, row.type) === 'consumption' && <Select value={row.sourceMeasure || 'finished'} onValueChange={(value) => updateGoal(row.id, { sourceMeasure: value as SourceGoalMeasure })}><SelectTrigger className="mt-2 h-10" aria-label="Source result counted"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="finished">Finished sources</SelectItem><SelectItem value="fully_reflected">Complete source records</SelectItem></SelectContent></Select>}
+                        {questKindForGoal(row, row.type) === 'inquiry' && <Select value={row.inquiryMeasure || 'active'} onValueChange={(value) => updateGoal(row.id, { inquiryMeasure: value as InquiryGoalMeasure })}><SelectTrigger className="mt-2 h-10" aria-label="Inquiry result counted"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active inquiries</SelectItem><SelectItem value="answered">Inquiries with an answer</SelectItem><SelectItem value="resolved">Resolved inquiries</SelectItem></SelectContent></Select>}
+                        {questKindForGoal(row, row.type) === 'position' && <Select value={row.positionMeasure || 'reviewed'} onValueChange={(value) => updateGoal(row.id, { positionMeasure: value as PositionGoalMeasure })}><SelectTrigger className="mt-2 h-10" aria-label="Position result counted"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="reviewed">Positions reviewed</SelectItem><SelectItem value="revised">Positions revised</SelectItem><SelectItem value="confident">Positions at 100% confidence</SelectItem></SelectContent></Select>}
+                        {questKindForGoal(row, row.type) === 'practice' && <Select value={row.practiceMeasure || 'completed'} onValueChange={(value) => updateGoal(row.id, { practiceMeasure: value as PracticeGoalMeasure })}><SelectTrigger className="mt-2 h-10" aria-label="Practice result counted"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completed">Completed practices</SelectItem><SelectItem value="logged_days">Days logged</SelectItem><SelectItem value="log_streak">Longest log streak</SelectItem></SelectContent></Select>}
+                        {questKindForGoal(row, row.type) === 'expression' && <Select value={row.workMeasure || 'completed'} onValueChange={(value) => updateGoal(row.id, { workMeasure: value as WorkGoalMeasure })}><SelectTrigger className="mt-2 h-10" aria-label="Work result counted"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completed">Completed works</SelectItem><SelectItem value="published">Published works</SelectItem></SelectContent></Select>}
+                      </div>
+
+                      <div>
+                        <Label htmlFor={`goal-concept-${row.id}`} className="text-sm font-medium">Content focus</Label>
+                        <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">Optional. Count only activity tagged with one concept.</p>
+                        <Select value={row.relatedObjectIds?.conceptIds?.[0] || 'all-concepts'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, conceptIds: value === 'all-concepts' ? [] : [value] } })}>
+                          <SelectTrigger id={`goal-concept-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="all-concepts">Any concept</SelectItem>{concepts.map((concept) => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                    )}
-                    {questKindForGoal(row, row.type) === 'practice' && (
-                      <>
-                        <div>
-                          <Label htmlFor={`goal-practice-measure-${row.id}`} className="text-sm font-medium">Count</Label>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose whether completion, logged days, or consistency advances this goal.</p>
-                          <Select value={row.practiceMeasure || 'completed'} onValueChange={(value) => updateGoal(row.id, { practiceMeasure: value as PracticeGoalMeasure })}>
-                            <SelectTrigger id={`goal-practice-measure-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="completed">Completed practices</SelectItem><SelectItem value="logged_days">Days logged</SelectItem><SelectItem value="log_streak">Longest log streak</SelectItem></SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor={`goal-practice-${row.id}`} className="text-sm font-medium">Practice focus</Label>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">Optional. Count one completed practice only.</p>
-                          <Select value={row.relatedObjectIds?.practiceIds?.[0] || 'all-practices'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, practiceIds: value === 'all-practices' ? [] : [value] } })}>
-                            <SelectTrigger id={`goal-practice-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="all-practices">Any practice</SelectItem>{practices.filter((practice) => practice.status !== 'abandoned').map((practice) => <SelectItem key={practice.id} value={practice.id}>{practice.title}</SelectItem>)}</SelectContent>
-                          </Select>
-                        </div>
-                      </>
-                    )}
-                    {questKindForGoal(row, row.type) === 'expression' && (
+
                       <div>
-                        <Label htmlFor={`goal-work-measure-${row.id}`} className="text-sm font-medium">Count</Label>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose the work milestone that advances this goal.</p>
-                        <Select value={row.workMeasure || 'completed'} onValueChange={(value) => updateGoal(row.id, { workMeasure: value as WorkGoalMeasure })}>
-                          <SelectTrigger id={`goal-work-measure-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                          <SelectContent><SelectItem value="completed">Completed works</SelectItem><SelectItem value="published">Published works</SelectItem></SelectContent>
-                        </Select>
+                        <Label className="text-sm font-medium">Item focus</Label>
+                        <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">Optional. Narrow progress to one item or source type.</p>
+                        {questKindForGoal(row, row.type) === 'consumption' && <Select value={row.sourceType || 'all-source-types'} onValueChange={(value) => updateGoal(row.id, { sourceType: value === 'all-source-types' ? undefined : value as MediaType })}><SelectTrigger className="mt-2 h-10" aria-label="Source type focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-source-types">Any source type</SelectItem>{MEDIA_TYPES.map((mediaType) => <SelectItem key={mediaType} value={mediaType}>{MEDIA_LABELS[mediaType]}</SelectItem>)}</SelectContent></Select>}
+                        {questKindForGoal(row, row.type) === 'inquiry' && <Select value={row.relatedObjectIds?.inquiryIds?.[0] || 'all-inquiries'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, inquiryIds: value === 'all-inquiries' ? [] : [value] } })}><SelectTrigger className="mt-2 h-10" aria-label="Inquiry focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-inquiries">Any inquiry</SelectItem>{inquiries.filter((inquiry) => !['archived', 'no_longer_meaningful'].includes(inquiry.status)).map((inquiry) => <SelectItem key={inquiry.id} value={inquiry.id}>{inquiry.text}</SelectItem>)}</SelectContent></Select>}
+                        {questKindForGoal(row, row.type) === 'position' && <Select value={row.relatedObjectIds?.positionIds?.[0] || 'all-positions'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, positionIds: value === 'all-positions' ? [] : [value] } })}><SelectTrigger className="mt-2 h-10" aria-label="Position focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-positions">Any position</SelectItem>{positions.filter((position) => position.status !== 'abandoned').map((position) => <SelectItem key={position.id} value={position.id}>{position.title || position.statement}</SelectItem>)}</SelectContent></Select>}
+                        {questKindForGoal(row, row.type) === 'practice' && <Select value={row.relatedObjectIds?.practiceIds?.[0] || 'all-practices'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, practiceIds: value === 'all-practices' ? [] : [value] } })}><SelectTrigger className="mt-2 h-10" aria-label="Practice focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-practices">Any practice</SelectItem>{practices.filter((practice) => practice.status !== 'abandoned').map((practice) => <SelectItem key={practice.id} value={practice.id}>{practice.title}</SelectItem>)}</SelectContent></Select>}
+                        {questKindForGoal(row, row.type) === 'expression' && <Select value={row.relatedObjectIds?.workIds?.[0] || 'all-works'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, workIds: value === 'all-works' ? [] : [value] } })}><SelectTrigger className="mt-2 h-10" aria-label="Work focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-works">Any work</SelectItem>{works.filter((work) => !['archived', 'abandoned'].includes(work.status)).map((work) => <SelectItem key={work.id} value={work.id}>{work.title}</SelectItem>)}</SelectContent></Select>}
                       </div>
-                    )}
+                    </div>
                   </div>
                 ) : <p className="mt-4 text-sm leading-6 text-muted-foreground">This goal tracks {questTypeForGoal(row, row.type).toLowerCase()} activity across your workspace.</p>}
               </section>

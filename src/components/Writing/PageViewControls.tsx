@@ -71,10 +71,10 @@ export function PageViewControls({
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="h-9 rounded-md border-border/60 bg-card px-4 font-bold shadow-sm">
             <Settings2 className="size-4 text-accent" />
-            Document settings
+            Document defaults
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64 font-body">
+        <DropdownMenuContent align="end" className="w-64 border-border bg-popover font-body text-popover-foreground">
           <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Document view</DropdownMenuLabel>
           {modes.map((mode) => (
             <DropdownMenuItem 
@@ -181,11 +181,11 @@ export function PageSettingsControl({
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm" aria-label={`Page settings for ${pageLabel}`}>
           <FileCog className="size-4 text-accent" />
-          <span className="hidden sm:inline">Page settings</span>
+          <span>This page</span>
           {overridden && <span className="size-1.5 rounded-full bg-accent" aria-label="Custom page settings" />}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64 font-body">
+      <DropdownMenuContent align="end" className="w-64 border-border bg-popover font-body text-popover-foreground">
         <DropdownMenuLabel>
           <span className="block font-code text-[9px] uppercase tracking-widest text-muted-foreground">This page only</span>
           <span className="mt-1 block truncate text-xs font-normal text-foreground">{pageLabel}</span>

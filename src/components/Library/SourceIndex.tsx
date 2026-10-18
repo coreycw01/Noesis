@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { Download, Copy, ArrowUpDown, ExternalLink, MessageSquare, Library, X } from 'lucide-react';
+import { Download, Copy, ArrowUpDown, ExternalLink, MessageSquare, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,6 +20,9 @@ import { inquirySourceIds } from '@/lib/inquiry-state';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { Checkbox } from '@/components/ui/checkbox';
+import { NOESIS_ICONS } from '@/lib/noesis-icons';
+
+const SourceIcon = NOESIS_ICONS.source;
 
 interface SourceIndexProps {
   media: Media[];
@@ -37,7 +40,7 @@ function SourceIndexCover({ source }: { source: Media }) {
   }
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 bg-muted/30 p-3 text-center text-muted-foreground">
-      <Library className="size-7 text-accent/70" aria-hidden="true" />
+      <SourceIcon className="size-7 text-accent/70" aria-hidden="true" />
       <span className="line-clamp-2 font-headline text-xs font-semibold italic text-foreground/75">{source.title}</span>
     </div>
   );
@@ -703,7 +706,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           {domainRows.length === 0 && (
             <div className="col-span-full">
               <PageEmptyState
-                icon={Library}
+                icon={SourceIcon}
                 title="No source domains yet"
                 description="Add concept tags to sources so the catalog can group them by intellectual territory."
               />
@@ -754,7 +757,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           ))}
           {timelineRows.length === 0 && (
             <PageEmptyState
-              icon={Library}
+              icon={SourceIcon}
               title="No timeline results"
               description="Clear filters or add dated sources to see when material entered your system."
               action={filtersActive ? <Button variant="outline" onClick={clearFilters} className="rounded-full">Clear filters</Button> : undefined}
@@ -880,7 +883,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               <TableRow>
                 <TableCell colSpan={8} className="p-8">
                   <PageEmptyState
-                    icon={Library}
+                    icon={SourceIcon}
                     title="No sources match this view"
                     description="Clear filters or search for a different title, creator, identifier, or concept tag."
                     action={filtersActive ? <Button variant="outline" onClick={clearFilters} className="rounded-full">Clear filters</Button> : undefined}
