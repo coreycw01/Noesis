@@ -15,12 +15,12 @@ import {
   Map as MapIcon,
   PenTool,
   Plus,
-  Repeat,
   Settings,
   ShieldCheck,
   Command,
   Highlighter,
   Home,
+  FlaskConical,
   Search,
   Target,
   WifiOff,
@@ -270,7 +270,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'annotations', icon: Highlighter, count: counts.annotations },
     { id: 'vault', icon: ShieldCheck, count: counts.vault },
     { id: 'writing', icon: PenTool, count: counts.drafts },
-    { id: 'practices', icon: Repeat, count: counts.practices },
+    { id: 'practices', icon: FlaskConical, count: counts.practices },
     { id: 'goals', icon: Target },
     { id: 'evolution', icon: History, count: counts.timeline },
     { id: 'settings', icon: Settings },
@@ -389,7 +389,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       { id: 'create-inquiry', label: 'Create Inquiry', section: 'Create', description: 'Open Inquiries to start a structured investigation.', view: 'questions', kind: 'create' as const, intellectualStage: 'Question', hierarchyLevel: 'Interpretive', objectType: 'Inquiry', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating or resolving an inquiry should create a thinking event because uncertainty changed state.', aliases: ['create question', 'ask question', 'create an inquiry about', 'investigate', 'unknown question'] },
       { id: 'create-position', label: 'Create Position', section: 'Create', description: 'Open Positions to state or draft a belief for testing.', view: 'vault', kind: 'create' as const, intellectualStage: 'Judge', hierarchyLevel: 'Judgment', objectType: 'Position', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, revising, challenging, supporting, or changing confidence on a position should create a thinking event.', aliases: ['create belief', 'state claim', 'open my position', 'draft position', 'judge idea'] },
       { id: 'create-work', label: 'Create Work', section: 'Create', description: 'Open Works to start writing, notes, drawing, or recording.', view: 'writing', kind: 'create' as const, intellectualStage: 'Express', hierarchyLevel: 'Expression', objectType: 'Work', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating a work can be ordinary drafting; completing or substantially revising it should create a thinking event.', aliases: ['write essay', 'continue essay', 'unfinished essay', 'start note', 'record idea', 'draw idea'] },
-      { id: 'start-practice', label: 'Start Practice', section: 'Create', description: 'Open Practices to turn an idea into a lived test.', view: 'practices', kind: 'create' as const, intellectualStage: 'Test', hierarchyLevel: 'Expression', objectType: 'Practice', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, concluding, or logging a practice result that changes a belief should create a thinking event.', aliases: ['start experiment', 'test belief', 'behavioral commitment', 'lived test', 'practice result'] },
+      { id: 'start-practice', label: 'Start Practice', section: 'Create', description: 'Open Labs to turn an idea into a lived test.', view: 'practices', kind: 'create' as const, intellectualStage: 'Test', hierarchyLevel: 'Expression', objectType: 'Practice', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, concluding, or logging a practice result that changes a belief should create a thinking event.', aliases: ['open labs', 'start experiment', 'test belief', 'behavioral commitment', 'lived test', 'practice result'] },
     ];
     const core: CommandPaletteItem[] = navItems.map((item) => ({
       id: item.id,
@@ -484,7 +484,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'home', label: 'Today', icon: Home, view: 'home' },
     { id: 'questions', label: 'Question', icon: HelpCircle, view: 'questions' },
     { id: 'vault', label: 'Claim', icon: ShieldCheck, view: 'vault' },
-    { id: 'practices', label: 'Test', icon: Repeat, view: 'practices' },
+    { id: 'practices', label: 'Test', icon: FlaskConical, view: 'practices' },
     { id: 'more', label: 'More', icon: Menu, view: null },
   ];
   const attentionTotal = movement

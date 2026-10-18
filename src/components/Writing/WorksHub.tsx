@@ -171,6 +171,7 @@ function createDraftPayload(type: DraftType, defaults: UserPreferences['writingD
       paperColor: 'blank',
       paperPattern: 'none',
     },
+    pageSettings: {},
     drawingState: type === 'drawing' || type === 'drawing_note' ? {
       version: 1,
       width: type === 'drawing_note' ? 720 : 1120,

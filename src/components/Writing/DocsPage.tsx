@@ -164,8 +164,8 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
   };
 
   const sizeClasses = {
-    letter: "w-[850px] min-h-[1100px]",
-    a4: "w-[827px] min-h-[1169px]"
+    letter: "w-full max-w-[850px] min-h-[1100px]",
+    a4: "w-full max-w-[827px] min-h-[1169px]"
   };
 
   const colorClasses = {
@@ -236,12 +236,12 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       colorClasses[paperColor],
       structureClasses[writingStyle],
       showBoundary && "border border-border/20",
-      paperPattern === 'notebook' && "before:absolute before:left-20 before:top-0 before:bottom-0 before:w-px before:bg-red-200/60"
+      paperPattern === 'notebook' && "before:absolute before:bottom-0 before:left-8 before:top-0 before:w-px before:bg-red-200/60 sm:before:left-12 lg:before:left-20"
     )}
     style={getPatternStyles()}
     >
       {backgroundArtwork && <img src={backgroundArtwork} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-85" />}
-      <div className="absolute top-8 right-12 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute right-6 top-6 opacity-0 transition-opacity group-hover:opacity-100 sm:right-12 sm:top-8">
         <span className={cn(
           "font-code text-[9px] uppercase tracking-widest font-bold",
           paperColor === 'dark' ? "text-slate-500" : "text-muted-foreground/40"
@@ -261,10 +261,10 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
         data-placeholder="Start writing…"
         onInput={(e) => onContentChange(sanitizeHtml(e.currentTarget.innerHTML))}
         className={cn(
-          "relative z-[1] flex-1 p-24 focus:outline-none font-body text-[18px] italic leading-[2.4] empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)]",
+          "relative z-[1] flex-1 p-6 font-body text-base italic leading-8 focus:outline-none empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)] sm:p-12 sm:text-[17px] sm:leading-9 lg:p-24 lg:text-[18px] lg:leading-[2.4]",
           !isEditable && "pointer-events-none opacity-20",
-          paperPattern === 'notebook' && "pl-28",
-          writingStyle === 'cornell_notes' && "pl-[240px] pb-36",
+          paperPattern === 'notebook' && "pl-12 sm:pl-16 lg:pl-28",
+          writingStyle === 'cornell_notes' && "pb-36 sm:pl-[240px]",
           writingStyle === 'two_column_debate' && "columns-2 gap-20",
           writingStyle === 'manuscript' && "leading-[2.8]",
           writingStyle === 'mind_map' && "pt-[420px] text-center",

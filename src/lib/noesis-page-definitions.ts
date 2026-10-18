@@ -127,11 +127,11 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
   },
   {
     view: 'practices',
-    route: '/practices',
-    title: 'Practices',
-    purpose: 'Test positions through habits, experiments, observations, and lived commitments.',
+    route: '/labs',
+    title: 'Labs',
+    purpose: 'Design, run, and review practices that test ideas through lived experience.',
     section: 'Test',
-    signatureExperience: 'An intellectual experiment field with logs and outcomes.',
+    signatureExperience: 'An intellectual laboratory for practices, observations, logs, and outcomes.',
     loadingLayout: 'detail',
   },
   {

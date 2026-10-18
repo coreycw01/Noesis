@@ -331,8 +331,8 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   return (
     <div className="noesis-page">
       <PageHeader
-        title="Practices"
-        description="Turn understanding into small lived tests, then reflect only when the action produces evidence."
+        title="Labs"
+        description="Design practices as lived tests, record what happens, and carry the result back into your thinking."
         meta={
           <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
             {practiceStats.total} practices · {practiceStats.active} active · {practiceStats.needsSetup} need setup · {practiceStats.readyForReview} ready for review

@@ -1152,26 +1152,21 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         )}
 
         <section className="mb-5 rounded-xl border border-border/60 bg-card p-5" aria-label="Position summary">
-          <h2 className="font-headline text-xl font-semibold italic text-foreground">Why I hold it</h2>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{selected.rationale || selected.confidenceReasoning || 'No rationale recorded yet.'}</p>
+          <h2 className="font-headline text-xl font-semibold italic text-foreground">Current reasoning</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">The reason this position currently seems warranted. Evidence and objections are reviewed separately in the workbench.</p>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.rationale || selected.confidenceReasoning || 'No reasoning has been recorded yet. Edit this position to explain what presently supports it.'}</p>
           {!selected.rationale && selected.description && (
-            <p className="mt-2 text-xs italic text-muted-foreground">Add your own rationale when you edit this position. Scope and boundaries now live separately below.</p>
+            <p className="mt-2 text-xs italic text-muted-foreground">The position description is kept separate so it does not stand in for your reasoning.</p>
           )}
-          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-border/50 pt-3 text-xs text-muted-foreground">
-            <span>{diagnostic.supportCount} supporting items</span>
-            <span>{diagnostic.challengeCount} challenges</span>
-            <span>{linkedPractices.length} linked practices</span>
-          </div>
         </section>
 
-        <details className="group rounded-2xl border border-border bg-card shadow-sm">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
+        <section className="rounded-2xl border border-border bg-card shadow-sm" aria-label="Position workbench">
+          <header className="px-5 py-4 sm:px-6">
             <div>
               <div className="text-sm font-semibold text-foreground">Position workbench</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">Use the tools you need: add grounds, test objections, compare relationships, or review history.</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Develop the position, examine evidence, challenge it, connect it, or review how it changed.</p>
             </div>
-            <Triangle className="size-4 shrink-0 rotate-180 text-muted-foreground transition-transform group-open:rotate-0" />
-          </summary>
+          </header>
           <div className="border-t border-border p-4 sm:p-5">
 
         <NextMoveCard
@@ -1192,7 +1187,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 positionIds: [selected.id],
                 conceptTags: selected.tags || [],
                 sourceIds: selected.sourceIds || [],
-              })).then(() => toast({ title: 'Practice created', description: 'Open Practices to finish its setup.' })).catch(() => toast({ title: 'Practice not created', description: 'Please retry. Your position is unchanged.', variant: 'destructive' })),
+              })).then(() => toast({ title: 'Practice created', description: 'Open Labs to finish its setup.' })).catch(() => toast({ title: 'Practice not created', description: 'Please retry. Your position is unchanged.', variant: 'destructive' })),
             },
             {
               label: 'Connect inquiry',
@@ -1513,7 +1508,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         )}
         
           </div>
-        </details>
+        </section>
 
         <ConceptDetailDialog 
           name={conceptPopupName} 

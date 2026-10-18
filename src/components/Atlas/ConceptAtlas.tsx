@@ -1611,7 +1611,7 @@ export function ConceptAtlas({
         "z-40 flex shrink-0 flex-col overflow-hidden border border-border bg-card shadow-lg",
         isFullScreen
           ? "absolute inset-x-2 bottom-2 h-[42%] rounded-xl sm:inset-y-4 sm:left-auto sm:right-4 sm:h-auto sm:w-80 sm:rounded-2xl"
-          : "absolute inset-x-2 bottom-2 h-[42%] rounded-xl sm:static sm:h-full sm:w-80"
+          : "absolute inset-x-2 bottom-2 h-[min(52%,32rem)] rounded-xl md:inset-y-2 md:left-auto md:right-2 md:h-auto md:w-[min(22rem,calc(100%-1rem))]"
       )}
     >
       {selectedName ? (
@@ -2350,7 +2350,7 @@ export function ConceptAtlas({
   return (
     <div className={cn(
       "relative flex w-full min-h-0 flex-col bg-background font-body",
-      isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-[calc(100vh-3.5rem)] overflow-hidden"
+      isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-full flex-1 overflow-hidden"
     )}>
       {!isFullScreen && (
       <header className="z-20 mb-1 flex flex-col gap-3 px-4 pt-4 md:px-8 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
@@ -2638,7 +2638,7 @@ export function ConceptAtlas({
         <div
           ref={mapRef}
           className={cn(
-            "relative h-full min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-background shadow-inner",
+            "relative h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-background shadow-inner",
             quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
             isFullScreen && "rounded-none"
           )}

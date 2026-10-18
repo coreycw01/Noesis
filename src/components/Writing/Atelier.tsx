@@ -49,9 +49,9 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { FormattingToolbar } from './FormattingToolbar';
 import { DocumentCanvas } from './DocumentCanvas';
 import { DrawingOverlayToolbar } from './DrawingOverlayToolbar';
-import { PageViewControls } from './PageViewControls';
+import { PageSettingsControl, PageViewControls } from './PageViewControls';
 import { isStructuredWorkStyle, StructuredWorkSurface, type StructuredWorkStyle } from './StructuredWorkSurface';
-import type { Annotation, Concept, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkToolSection, WritingStyle } from '@/lib/types';
+import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkToolSection, WritingStyle } from '@/lib/types';
 import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -66,6 +66,7 @@ import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import { cleanupReplacedDraftAssets, persistInlineDraftAssets, uploadPrivateAsset, validateAssetBlob } from '@/lib/storage-assets';
 import { saveDemoRecording } from '@/lib/demo-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
+import { removeDocumentPageSettings, resolveDocumentPageSettings, updateDocumentPageSettings } from '@/lib/work-page-settings';
 
 export type PageViewMode = DocumentViewMode;
 export type PageSize = DocumentPageSize;
@@ -162,6 +163,7 @@ const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'drawingState',
   'templateData',
   'documentSettings',
+  'pageSettings',
   'writingOverlayData',
   'overlayAsset',
   'writingStyle',
@@ -472,6 +474,20 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     updateActive({ documentSettings: { ...defaults, ...active.documentSettings, ...patch } });
   }, [active, activeWritingStyle, updateActive]);
 
+  const updatePageSettings = useCallback((pageId: string, patch: DocumentPageSettings) => {
+    const current = latestDraftRef.current;
+    if (!current) return;
+    updateActive({
+      pageSettings: updateDocumentPageSettings(current.pageSettings, pageId, patch),
+    });
+  }, [updateActive]);
+
+  const resetPageSettings = useCallback((pageId: string) => {
+    const current = latestDraftRef.current;
+    if (!current?.pageSettings?.[pageId]) return;
+    updateActive({ pageSettings: removeDocumentPageSettings(current.pageSettings, pageId) });
+  }, [updateActive]);
+
   const openDraft = useCallback((id: string) => {
     if (onOpenDraftRoute) onOpenDraftRoute(id);
     else setActiveId(id);
@@ -633,6 +649,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       status: writingDefaults.status,
       writingStyle: writingDefaults.writingStyle,
       documentSettings: documentDefaultsForWriting(writingDefaults.writingStyle),
+      pageSettings: {},
       drawingState: type === 'drawing' || type === 'drawing_note' ? {
         version: 1,
         width: type === 'drawing_note' ? 720 : 1120,
@@ -931,6 +948,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       : activeToolSections.length
         ? 'tools'
         : 'compose';
+  const mainPageOverride = active?.pageSettings?.main;
+  const mainPageAppearance = resolveDocumentPageSettings({ pageSize, paperColor, paperPattern }, active?.pageSettings, 'main');
+  const mainPageSize = mainPageAppearance.pageSize;
+  const mainPaperColor = mainPageAppearance.paperColor;
+  const mainPaperPattern = mainPageAppearance.paperPattern;
 
   if (active) {
     return (
@@ -1064,7 +1086,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
             </div>
 
-            <div className="flex justify-end lg:hidden">
+            <div className="flex justify-end xl:hidden">
               <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="sm" className="h-9 rounded-full bg-card">
@@ -1126,6 +1148,17 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     paperPattern={paperPattern}
                     onPaperPatternChange={(next) => { setPaperPattern(next); updateDocumentSettings({ paperPattern: next }); }}
                   />
+                  <PageSettingsControl
+                    pageLabel="Main writing page"
+                    pageSize={mainPageSize}
+                    onPageSizeChange={(next) => updatePageSettings('main', { pageSize: next })}
+                    paperColor={mainPaperColor}
+                    onPaperColorChange={(next) => updatePageSettings('main', { paperColor: next })}
+                    paperPattern={mainPaperPattern}
+                    onPaperPatternChange={(next) => updatePageSettings('main', { paperPattern: next })}
+                    overridden={Boolean(mainPageOverride)}
+                    onReset={() => resetPageSettings('main')}
+                  />
                 </div>
               )}
             </div>
@@ -1144,7 +1177,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
         <div className={cn(
           "grid min-h-0 flex-1 grid-cols-1 overflow-hidden",
-          railCollapsed ? "lg:grid-cols-[minmax(0,1fr)_64px]" : "lg:grid-cols-[minmax(0,1fr)_340px]"
+          railCollapsed ? "xl:grid-cols-[minmax(0,1fr)_64px]" : "xl:grid-cols-[minmax(0,1fr)_340px]"
         )}>
           <div className="relative min-h-0 overflow-hidden">
             {isDocumentSurface ? (
@@ -1167,9 +1200,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   content={activeContent}
                   onContentChange={handleUpdateContent}
                   viewMode={viewMode}
-                  pageSize={pageSize}
-                  paperColor={paperColor}
-                  paperPattern={paperPattern}
+                  pageSize={mainPageSize}
+                  paperColor={mainPaperColor}
+                  paperPattern={mainPaperPattern}
                   writingStyle="blank_paper"
                   title={active.title}
                   overlayData={activeOverlayUrl}
@@ -1186,17 +1219,31 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                         <section key={section.id} id={`work-tool-${section.id}`} className="scroll-mt-6 border-t border-border/50 pt-8">
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Thinking tool</span>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))} className="h-8 rounded-md text-muted-foreground hover:text-destructive">
-                              <Trash2 className="mr-1.5 size-3.5" /> Remove section
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <PageSettingsControl
+                                pageLabel={`${WRITING_STYLE_LABELS[section.tool]} page`}
+                                pageSize={active.pageSettings?.[section.id]?.pageSize || pageSize}
+                                onPageSizeChange={(next) => updatePageSettings(section.id, { pageSize: next })}
+                                paperColor={active.pageSettings?.[section.id]?.paperColor || paperColor}
+                                onPaperColorChange={(next) => updatePageSettings(section.id, { paperColor: next })}
+                                paperPattern={active.pageSettings?.[section.id]?.paperPattern || paperPattern}
+                                onPaperPatternChange={(next) => updatePageSettings(section.id, { paperPattern: next })}
+                                overridden={Boolean(active.pageSettings?.[section.id])}
+                                onReset={() => resetPageSettings(section.id)}
+                              />
+                              <Button type="button" variant="ghost" size="sm" onClick={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))} className="h-8 rounded-md text-muted-foreground hover:text-destructive">
+                                <Trash2 className="mr-1.5 size-3.5" /> Remove section
+                              </Button>
+                            </div>
                           </div>
                           <StructuredWorkSurface
                             embedded
                             style={section.tool}
                             data={{ version: 1, ...section.data }}
                             onChange={(data) => updateToolSections(activeToolSections.map((item) => item.id === section.id ? { ...item, data: { fields: data.fields, branches: data.branches, timeline: data.timeline } } : item))}
-                            paperColor={paperColor}
-                            pageSize={pageSize}
+                            paperColor={active.pageSettings?.[section.id]?.paperColor || paperColor}
+                            pageSize={active.pageSettings?.[section.id]?.pageSize || pageSize}
+                            paperPattern={active.pageSettings?.[section.id]?.paperPattern || paperPattern}
                           />
                         </section>
                       ))}
@@ -2646,7 +2693,7 @@ function WorkIntellectualRail({
 
   return (
     <aside className={cn(
-      "hidden min-h-0 border-l border-border/40 bg-muted/10 lg:block",
+      "hidden min-h-0 border-l border-border/40 bg-muted/10 xl:block",
       collapsed ? "overflow-hidden p-2" : "overflow-y-auto p-4"
     )}>
       {collapsed ? (

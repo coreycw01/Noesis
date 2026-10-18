@@ -2015,6 +2015,7 @@ function ReadexWorkspace({
       drawingState: data.drawingState,
       templateData: data.templateData,
       documentSettings: data.documentSettings,
+      pageSettings: data.pageSettings || {},
       writingOverlayData: data.writingOverlayData || '',
       overlayAsset: data.overlayAsset,
       writingStyle: data.writingStyle || preferences.writingDefaults.writingStyle,

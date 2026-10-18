@@ -8,7 +8,9 @@ import {
   Settings2,
   Check,
   Palette,
-  LayoutGrid
+  LayoutGrid,
+  FileCog,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -136,5 +138,93 @@ export function PageViewControls({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+export function PageSettingsControl({
+  pageLabel,
+  pageSize,
+  onPageSizeChange,
+  paperColor,
+  onPaperColorChange,
+  paperPattern,
+  onPaperPatternChange,
+  overridden = false,
+  onReset,
+}: {
+  pageLabel: string;
+  pageSize: PageSize;
+  onPageSizeChange: (size: PageSize) => void;
+  paperColor: PaperColor;
+  onPaperColorChange: (color: PaperColor) => void;
+  paperPattern: PaperPattern;
+  onPaperPatternChange: (pattern: PaperPattern) => void;
+  overridden?: boolean;
+  onReset?: () => void;
+}) {
+  const colors: { id: PaperColor; label: string; bg: string }[] = [
+    { id: 'blank', label: 'White', bg: 'bg-white' },
+    { id: 'warm', label: 'Warm', bg: 'bg-amber-50' },
+    { id: 'sepia', label: 'Sepia', bg: 'bg-[#f4ecd8]' },
+    { id: 'dark', label: 'Dark', bg: 'bg-slate-900' },
+  ];
+  const patterns: { id: PaperPattern; label: string }[] = [
+    { id: 'none', label: 'Plain' },
+    { id: 'notebook', label: 'Lined' },
+    { id: 'grid', label: 'Grid' },
+    { id: 'dotted', label: 'Dotted' },
+    { id: 'dotted_grid', label: 'Dot grid' },
+  ];
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm" aria-label={`Page settings for ${pageLabel}`}>
+          <FileCog className="size-4 text-accent" />
+          <span className="hidden sm:inline">Page settings</span>
+          {overridden && <span className="size-1.5 rounded-full bg-accent" aria-label="Custom page settings" />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64 font-body">
+        <DropdownMenuLabel>
+          <span className="block font-code text-[9px] uppercase tracking-widest text-muted-foreground">This page only</span>
+          <span className="mt-1 block truncate text-xs font-normal text-foreground">{pageLabel}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-50">Page size</DropdownMenuLabel>
+        {(['letter', 'a4'] as PageSize[]).map((size) => (
+          <DropdownMenuItem key={size} onClick={() => onPageSizeChange(size)} className="flex cursor-pointer items-center justify-between text-xs">
+            {size === 'letter' ? 'US Letter (8.5 x 11)' : 'A4'}
+            {pageSize === size && <Check className="size-3 text-accent" />}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-50">Paper color</DropdownMenuLabel>
+        <div className="grid grid-cols-4 gap-2 p-2">
+          {colors.map((color) => (
+            <button key={color.id} type="button" onClick={() => onPaperColorChange(color.id)} aria-label={`${color.label} paper`} className={cn('flex h-8 items-center justify-center rounded-md border', color.bg, paperColor === color.id ? 'border-accent ring-2 ring-accent/20' : 'border-border/50')}>
+              {paperColor === color.id && <Check className={cn('size-3', color.id === 'dark' ? 'text-white' : 'text-accent')} />}
+            </button>
+          ))}
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-50">Writing guide</DropdownMenuLabel>
+        <div className="grid grid-cols-2 gap-1 p-2">
+          {patterns.map((pattern) => (
+            <button key={pattern.id} type="button" onClick={() => onPaperPatternChange(pattern.id)} className={cn('rounded-md border px-2 py-2 text-xs', paperPattern === pattern.id ? 'border-accent bg-accent/5 text-accent' : 'border-border/50 text-muted-foreground')}>
+              {pattern.label}
+            </button>
+          ))}
+        </div>
+        {onReset && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onReset} disabled={!overridden} className="cursor-pointer text-xs">
+              <RotateCcw className="mr-2 size-3.5" /> Use document settings
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
