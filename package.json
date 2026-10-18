@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=24.0.0"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
@@ -12,6 +12,7 @@
     "lint": "eslint src tests scripts --no-warn-ignored",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "audit:production": "node scripts/audit-production.mjs",
+    "audit:performance": "node scripts/audit-performance.mjs",
     "test:security": "tsx --test tests/security/*.test.ts",
     "test:logic": "tsx --test tests/logic/*.test.ts",
     "firestore:schema": "node scripts/seed-firestore-schema.mjs",

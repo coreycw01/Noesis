@@ -1,45 +1,23 @@
-"use client";
-
-import { useEffect, useState } from 'react';
-import { BookOpen, Compass, FileText, FlaskConical, Library, Loader2 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
+import { BookOpen, Compass, FileText, FlaskConical, Library } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { adminFirestore } from '@/lib/server/firebase-admin';
 import type { PublicProfileSnapshot } from '@/lib/types';
 
-export default function PublicProfilePage({ params }: { params: Promise<{ slug: string }> }) {
-  const [profile, setProfile] = useState<PublicProfileSnapshot | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
+export default async function PublicProfilePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  let profile: PublicProfileSnapshot | null = null;
 
-  useEffect(() => {
-    let active = true;
-    void params.then(async ({ slug }) => {
-      try {
-        const { firestore } = initializeFirebase();
-        const snapshot = await getDoc(doc(firestore, 'publicProfiles', slug.toLowerCase()));
-        if (!active) return;
-        if (!snapshot.exists() || snapshot.data().enabled !== true) {
-          setState('missing');
-          return;
-        }
-        setProfile(snapshot.data() as PublicProfileSnapshot);
-        setState('ready');
-      } catch {
-        if (active) setState('error');
-      }
-    });
-    return () => { active = false; };
-  }, [params]);
-
-  if (state === 'loading') {
-    return <PublicState icon={<Loader2 className="size-6 animate-spin" />} title="Opening philosophy" body="Loading the public profile." />;
-  }
-  if (state === 'missing') {
-    return <PublicState title="Profile unavailable" body="This philosophy profile is private, unpublished, or no longer available." />;
-  }
-  if (state === 'error' || !profile) {
+  try {
+    const snapshot = await adminFirestore().collection('publicProfiles').doc(slug.toLowerCase()).get();
+    const data = snapshot.data();
+    if (snapshot.exists && data?.enabled === true) profile = data as PublicProfileSnapshot;
+  } catch {
     return <PublicState title="Profile could not be loaded" body="Please try this link again in a moment." />;
+  }
+
+  if (!profile) {
+    return <PublicState title="Profile unavailable" body="This philosophy profile is private, unpublished, or no longer available." />;
   }
 
   return (
