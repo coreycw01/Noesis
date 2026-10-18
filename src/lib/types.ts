@@ -59,7 +59,17 @@ export interface WorkTimelineEntry {
   detail: string;
 }
 
-export type WorkToolKind = 'cornell_notes' | 'two_column_debate' | 'dialectic' | 'belief_audit' | 'source_analysis' | 'mind_map' | 'timeline';
+export type WorkToolKind =
+  | 'cornell_notes'
+  | 'two_column_debate'
+  | 'dialectic'
+  | 'belief_audit'
+  | 'source_analysis'
+  | 'mind_map'
+  | 'timeline'
+  | 'venn_diagram'
+  | 'comparison_matrix'
+  | 'causal_chain';
 
 export interface WorkToolData {
   fields: Record<string, string>;
@@ -93,6 +103,7 @@ export interface DocumentSettings {
   paperColor: DocumentPaperColor;
   paperPattern: DocumentPaperPattern;
 }
+export type DocumentPageSettings = Partial<Pick<DocumentSettings, 'pageSize' | 'paperColor' | 'paperPattern'>>;
 export type RecordingType = 'video' | 'audio' | 'screen';
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type AccentTheme = 'violet' | 'sage' | 'blue' | 'amber' | 'rose' | 'mono';
@@ -424,6 +435,8 @@ export interface Draft extends NoesisStageState {
   drawingState?: DrawingDocumentState;
   templateData?: WorkTemplateData;
   documentSettings?: DocumentSettings;
+  /** Per-page appearance overrides. `main` identifies the primary writing page; tool section IDs identify inserted pages. */
+  pageSettings?: Record<string, DocumentPageSettings>;
   writingOverlayData?: string;
   overlayAsset?: StoredAsset;
   writingStyle?: WritingStyle;
@@ -697,6 +710,14 @@ export type InquiryGoalMeasure = 'active' | 'answered' | 'resolved';
 export type PositionGoalMeasure = 'reviewed' | 'revised' | 'confident';
 export type PracticeGoalMeasure = 'completed' | 'logged_days' | 'log_streak';
 export type WorkGoalMeasure = 'completed' | 'published';
+export type CommitmentFrequency = 'daily' | 'weekly' | 'monthly' | 'custom';
+
+export interface CommitmentCheckIn {
+  id: string;
+  date: string;
+  status: 'completed' | 'skipped';
+  note?: string;
+}
 
 export interface GoalItem {
   id: string;
@@ -711,6 +732,10 @@ export interface GoalItem {
   positionMeasure?: PositionGoalMeasure;
   practiceMeasure?: PracticeGoalMeasure;
   workMeasure?: WorkGoalMeasure;
+  commitmentAction?: string;
+  commitmentFrequency?: CommitmentFrequency;
+  commitmentReviewDate?: string;
+  commitmentCheckIns?: CommitmentCheckIn[];
   sortOrder: number;
   status: IntellectualGoalStatus;
   purpose?: string;

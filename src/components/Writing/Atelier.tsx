@@ -49,9 +49,9 @@ import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { FormattingToolbar } from './FormattingToolbar';
 import { DocumentCanvas } from './DocumentCanvas';
 import { DrawingOverlayToolbar } from './DrawingOverlayToolbar';
-import { PageViewControls } from './PageViewControls';
-import { isStructuredWorkStyle, StructuredWorkSurface, type StructuredWorkStyle } from './StructuredWorkSurface';
-import type { Annotation, Concept, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkToolSection, WritingStyle } from '@/lib/types';
+import { PageSettingsControl, PageViewControls } from './PageViewControls';
+import { isStructuredWorkStyle, StructuredWorkSurface, workToolLabel, type StructuredWorkStyle } from './StructuredWorkSurface';
+import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkToolSection, WritingStyle } from '@/lib/types';
 import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -60,12 +60,12 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import { cleanupReplacedDraftAssets, persistInlineDraftAssets, uploadPrivateAsset, validateAssetBlob } from '@/lib/storage-assets';
 import { saveDemoRecording } from '@/lib/demo-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
+import { removeDocumentPageSettings, resolveDocumentPageSettings, updateDocumentPageSettings } from '@/lib/work-page-settings';
 
 export type PageViewMode = DocumentViewMode;
 export type PageSize = DocumentPageSize;
@@ -78,6 +78,9 @@ const WORK_TOOL_OPTIONS: Array<{ tool: StructuredWorkStyle; label: string; descr
   // source, and belief-analysis workflows remain in their dedicated pages.
   { tool: 'mind_map', label: 'Diagram', description: 'Arrange ideas visually for this document without changing Atlas.' },
   { tool: 'timeline', label: 'Timeline', description: 'Add a sequence, stages, or branches to this document.' },
+  { tool: 'venn_diagram', label: 'Venn diagram', description: 'Compare two ideas and isolate their shared ground.' },
+  { tool: 'comparison_matrix', label: 'Comparison matrix', description: 'Judge several alternatives against the same criteria.' },
+  { tool: 'causal_chain', label: 'Causal chain', description: 'Map a sequence of causes and expose its weakest link.' },
 ];
 type BrowserSpeechRecognitionCtor = new () => {
   continuous: boolean;
@@ -108,8 +111,8 @@ interface AtelierProps {
 }
 
 const WORK_STATUS_OPTIONS: Array<{ value: DraftStatus; label: string }> = [
-  { value: 'drafting', label: 'In progress' },
-  { value: 'complete', label: 'Ready' },
+  { value: 'drafting', label: 'Drafting' },
+  { value: 'final', label: 'Final' },
   { value: 'published', label: 'Published' },
   { value: 'archived', label: 'Archived' },
 ];
@@ -117,7 +120,7 @@ const WORK_STATUS_OPTIONS: Array<{ value: DraftStatus; label: string }> = [
 function compactWorkStatus(status: DraftStatus) {
   if (status === 'published') return 'published';
   if (status === 'archived' || status === 'abandoned') return 'archived';
-  if (status === 'complete' || status === 'final') return 'complete';
+  if (status === 'complete' || status === 'final' || status === 'revised') return 'final';
   return 'drafting';
 }
 const articulationTypes: DraftType[] = ['essay', 'script', 'field_note', 'manuscript', 'reflection', 'argument', 'source_analysis', 'text_note', 'voice_note', 'talk_to_text', 'drawing_note', 'drawing', 'recording'];
@@ -162,6 +165,7 @@ const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'drawingState',
   'templateData',
   'documentSettings',
+  'pageSettings',
   'writingOverlayData',
   'overlayAsset',
   'writingStyle',
@@ -348,11 +352,14 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [writingStrokeColor, setWritingStrokeColor] = useState('#4c1d95');
   const [writingStrokeSize, setWritingStrokeSize] = useState(3);
   const [writingStrokeOpacity, setWritingStrokeOpacity] = useState(1);
+  const [editorRibbon, setEditorRibbon] = useState<'writing' | 'drawing'>('writing');
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const latestDraftRef = useRef<Draft | null>(null);
+  const autosaveErrorShownRef = useRef(false);
+  const autosavePausedRef = useRef(false);
 
   const { toast } = useToast();
   const activeFromStore = drafts.find((draft) => draft.id === activeId) || null;
@@ -389,6 +396,12 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       setActiveId(focusedDraftId);
     }
   }, [drafts, focusedDraftId]);
+
+  useEffect(() => {
+    setEditorRibbon(activeFromStore?.activeRibbon || 'writing');
+    autosaveErrorShownRef.current = false;
+    autosavePausedRef.current = false;
+  }, [activeFromStore?.activeRibbon, activeFromStore?.id]);
 
   useEffect(() => {
     try {
@@ -472,6 +485,20 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     updateActive({ documentSettings: { ...defaults, ...active.documentSettings, ...patch } });
   }, [active, activeWritingStyle, updateActive]);
 
+  const updatePageSettings = useCallback((pageId: string, patch: DocumentPageSettings) => {
+    const current = latestDraftRef.current;
+    if (!current) return;
+    updateActive({
+      pageSettings: updateDocumentPageSettings(current.pageSettings, pageId, patch),
+    });
+  }, [updateActive]);
+
+  const resetPageSettings = useCallback((pageId: string) => {
+    const current = latestDraftRef.current;
+    if (!current?.pageSettings?.[pageId]) return;
+    updateActive({ pageSettings: removeDocumentPageSettings(current.pageSettings, pageId) });
+  }, [updateActive]);
+
   const openDraft = useCallback((id: string) => {
     if (onOpenDraftRoute) onOpenDraftRoute(id);
     else setActiveId(id);
@@ -484,6 +511,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
   const saveActive = useCallback(async (patch?: Partial<Draft>) => {
     if (!active) return null;
+    autosavePausedRef.current = false;
     const requestedId = active.id;
     const task = saveQueueRef.current.catch(() => undefined).then(async () => {
     const base = latestDraftRef.current;
@@ -527,6 +555,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         setDirty(!unchanged);
         setSaveStatus(unchanged ? 'saved' : 'unsaved');
       }
+      autosaveErrorShownRef.current = false;
+      autosavePausedRef.current = false;
       return persistedDraft;
     } catch (error) {
       setSaveStatus('unsaved');
@@ -562,12 +592,12 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
   const handleUpdateContent = useCallback((newContent: string) => {
     const clean = sanitizeHtml(newContent);
-    if (active?.activeMode === 'final') {
+    if (active && ['final', 'published', 'archived'].includes(compactWorkStatus(active.status))) {
       updateActive({ body: clean, finalContent: clean });
     } else {
       updateActive({ body: clean, draftContent: clean });
     }
-  }, [active?.activeMode, updateActive]);
+  }, [active?.status, updateActive]);
 
   const exportManuscript = () => {
     if (!active) return;
@@ -633,6 +663,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       status: writingDefaults.status,
       writingStyle: writingDefaults.writingStyle,
       documentSettings: documentDefaultsForWriting(writingDefaults.writingStyle),
+      pageSettings: {},
       drawingState: type === 'drawing' || type === 'drawing_note' ? {
         version: 1,
         width: type === 'drawing_note' ? 720 : 1120,
@@ -773,6 +804,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
   useEffect(() => {
     if (!dirty || !draftBuffer) return;
+    if (autosavePausedRef.current) return;
     if (draftBufferSignature === activeStoreSignature) {
       setDirty(false);
       setSaveStatus('saved');
@@ -807,11 +839,15 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         })
         .catch((error) => {
           setSaveStatus('unsaved');
-          toast({
-            title: 'Autosave paused',
-            description: error instanceof Error ? error.message : 'Your edits remain in this tab.',
-            variant: 'destructive',
-          });
+          autosavePausedRef.current = true;
+          if (!autosaveErrorShownRef.current) {
+            autosaveErrorShownRef.current = true;
+            toast({
+              title: 'Autosave paused',
+              description: `${error instanceof Error ? error.message : 'Your edits remain in this tab.'} Use Save to retry.`,
+              variant: 'destructive',
+            });
+          }
         });
     }, 750);
     return () => window.clearTimeout(timeout);
@@ -839,11 +875,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     return () => window.clearInterval(interval);
   }, [active?.id, active?.externalDoc?.autoSync]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const activeContent = active
-    ? active.activeMode === 'final'
-      ? active.finalContent || ''
-      : active.draftContent || active.body || ''
-    : '';
+  const activeContent = active ? active.body || active.draftContent || active.finalContent || '' : '';
 
   const activeTypeLabel = active ? DRAFT_LABELS[active.type] : '';
   const showPaperControls = !!active && isDocumentSurface;
@@ -924,13 +956,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     }
     return signals.slice(0, 5);
   }, [active, activeCategory, activePositions, activeSources, workConcepts]);
-  const workWorkflowStep = active && ['complete', 'final', 'published'].includes(active.status)
-    ? 'finish'
-    : active && (active.activeMode === 'final' || ['revising', 'revised'].includes(active.status))
-      ? 'review'
-      : activeToolSections.length
-        ? 'tools'
-        : 'compose';
+  const mainPageOverride = active?.pageSettings?.main;
+  const mainPageAppearance = resolveDocumentPageSettings({ pageSize, paperColor, paperPattern }, active?.pageSettings, 'main');
+  const mainPageSize = mainPageAppearance.pageSize;
+  const mainPaperColor = mainPageAppearance.paperColor;
+  const mainPaperPattern = mainPageAppearance.paperPattern;
 
   if (active) {
     return (
@@ -950,6 +980,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 onChange={(event) => updateActive({ title: event.target.value })}
                 placeholder={`Untitled ${activeTypeLabel}`}
               />
+              {isDocumentSurface && (
+                <Badge variant="outline" className="h-7 shrink-0 rounded-md border-border/50 bg-card px-2 font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <FileText className="mr-1.5 size-3.5" /> Document
+                </Badge>
+              )}
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <div className="hidden items-center gap-2 border border-border/30 bg-muted/10 px-3 py-1.5 sm:flex">
                   <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
@@ -1000,22 +1035,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
             <div className="flex flex-wrap items-center gap-2 border-t border-border/10 pt-2">
               <div className="flex flex-wrap items-center gap-2">
-                {activeCategory === 'writing' && <div className="flex border border-border/60 bg-card p-1 shadow-sm">
-                  {(['draft', 'final'] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      onClick={() => updateActive({ activeMode: mode, body: mode === 'final' ? active.finalContent || '' : active.draftContent || active.body || '' })}
-                      className={cn(
-                        'px-3 py-1 font-code text-[9px] font-bold uppercase tracking-widest transition-colors',
-                        (active.activeMode || 'draft') === mode ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {mode === 'draft' ? 'Drafting' : 'Final'}
-                    </button>
-                  ))}
-                </div>}
                 <div className="flex items-center gap-2">
-                  <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus })}>
+                  <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
                     <SelectTrigger className="h-8 w-32 rounded-md border-border/40 bg-background px-3 font-code text-[9px] font-bold uppercase tracking-wider shadow-sm">
                       <SelectValue />
                     </SelectTrigger>
@@ -1026,12 +1047,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     </SelectContent>
                   </Select>
                 </div>
-                {showPaperControls && <span className="border border-border/40 bg-background px-3 py-2 font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Document</span>}
                 {showPaperControls && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="h-8 rounded-md border-border/40 bg-background px-3 font-code text-[9px] font-bold uppercase tracking-wider">
-                        <Plus className="mr-1.5 size-3.5" /> Add tool
+                        <Plus className="mr-1.5 size-3.5" /> Insert section
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-72">
@@ -1064,7 +1084,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
             </div>
 
-            <div className="flex justify-end lg:hidden">
+            <div className="flex justify-end xl:hidden">
               <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="sm" className="h-9 rounded-full bg-card">
@@ -1126,30 +1146,31 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     paperPattern={paperPattern}
                     onPaperPatternChange={(next) => { setPaperPattern(next); updateDocumentSettings({ paperPattern: next }); }}
                   />
+                  <PageSettingsControl
+                    pageLabel="Main writing page"
+                    pageSize={mainPageSize}
+                    onPageSizeChange={(next) => updatePageSettings('main', { pageSize: next })}
+                    paperColor={mainPaperColor}
+                    onPaperColorChange={(next) => updatePageSettings('main', { paperColor: next })}
+                    paperPattern={mainPaperPattern}
+                    onPaperPatternChange={(next) => updatePageSettings('main', { paperPattern: next })}
+                    overridden={Boolean(mainPageOverride)}
+                    onReset={() => resetPageSettings('main')}
+                  />
                 </div>
               )}
             </div>
-            <WorkbenchFlow
-              label="Works studio workflow"
-              activeId={workWorkflowStep}
-              steps={[
-                { id: 'compose', label: 'Compose', description: 'Write, draw, record, or shape the central work.' },
-                { id: 'tools', label: 'Add tools', description: 'Insert only the thinking structures this work needs.' },
-                { id: 'review', label: 'Review', description: 'Check claims, support, objections, concepts, and coherence.' },
-                { id: 'finish', label: 'Finish', description: 'Save a version, refine the final form, then export or publish.' },
-              ]}
-            />
           </div>
         </header>
 
         <div className={cn(
           "grid min-h-0 flex-1 grid-cols-1 overflow-hidden",
-          railCollapsed ? "lg:grid-cols-[minmax(0,1fr)_64px]" : "lg:grid-cols-[minmax(0,1fr)_340px]"
+          railCollapsed ? "xl:grid-cols-[minmax(0,1fr)_64px]" : "xl:grid-cols-[minmax(0,1fr)_340px]"
         )}>
           <div className="relative min-h-0 overflow-hidden">
             {isDocumentSurface ? (
               <>
-                {active.activeRibbon === 'drawing' ? (
+                {editorRibbon === 'drawing' ? (
                   <DrawingOverlayToolbar
                     tool={writingTool}
                     color={writingStrokeColor}
@@ -1160,16 +1181,16 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     onSizeChange={setWritingStrokeSize}
                     onOpacityChange={setWritingStrokeOpacity}
                     onClear={() => updateActive({ writingOverlayData: '' })}
-                    onReturnToWriting={() => updateActive({ activeRibbon: 'writing' })}
+                    onReturnToWriting={() => setEditorRibbon('writing')}
                   />
-                ) : <FormattingToolbar saveStatus={saveStatus} onOpenDrawing={() => updateActive({ activeRibbon: 'drawing' })} />}
+                ) : <FormattingToolbar saveStatus={saveStatus} onOpenDrawing={() => setEditorRibbon('drawing')} />}
                 <DocumentCanvas
                   content={activeContent}
                   onContentChange={handleUpdateContent}
                   viewMode={viewMode}
-                  pageSize={pageSize}
-                  paperColor={paperColor}
-                  paperPattern={paperPattern}
+                  pageSize={mainPageSize}
+                  paperColor={mainPaperColor}
+                  paperPattern={mainPaperPattern}
                   writingStyle="blank_paper"
                   title={active.title}
                   overlayData={activeOverlayUrl}
@@ -1179,24 +1200,38 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   overlayColor={writingStrokeColor}
                   overlayBrushSize={writingStrokeSize}
                   overlayOpacity={writingStrokeOpacity}
-                  overlayEnabled={active.activeRibbon === 'drawing'}
+                  overlayEnabled={editorRibbon === 'drawing'}
                   toolSections={activeToolSections.length ? (
                     <div className="space-y-8">
                       {activeToolSections.map((section) => (
                         <section key={section.id} id={`work-tool-${section.id}`} className="scroll-mt-6 border-t border-border/50 pt-8">
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Thinking tool</span>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))} className="h-8 rounded-md text-muted-foreground hover:text-destructive">
-                              <Trash2 className="mr-1.5 size-3.5" /> Remove section
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <PageSettingsControl
+                                pageLabel={`${workToolLabel(section.tool)} page`}
+                                pageSize={active.pageSettings?.[section.id]?.pageSize || pageSize}
+                                onPageSizeChange={(next) => updatePageSettings(section.id, { pageSize: next })}
+                                paperColor={active.pageSettings?.[section.id]?.paperColor || paperColor}
+                                onPaperColorChange={(next) => updatePageSettings(section.id, { paperColor: next })}
+                                paperPattern={active.pageSettings?.[section.id]?.paperPattern || paperPattern}
+                                onPaperPatternChange={(next) => updatePageSettings(section.id, { paperPattern: next })}
+                                overridden={Boolean(active.pageSettings?.[section.id])}
+                                onReset={() => resetPageSettings(section.id)}
+                              />
+                              <Button type="button" variant="ghost" size="sm" onClick={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))} className="h-8 rounded-md text-muted-foreground hover:text-destructive">
+                                <Trash2 className="mr-1.5 size-3.5" /> Remove section
+                              </Button>
+                            </div>
                           </div>
                           <StructuredWorkSurface
                             embedded
                             style={section.tool}
                             data={{ version: 1, ...section.data }}
                             onChange={(data) => updateToolSections(activeToolSections.map((item) => item.id === section.id ? { ...item, data: { fields: data.fields, branches: data.branches, timeline: data.timeline } } : item))}
-                            paperColor={paperColor}
-                            pageSize={pageSize}
+                            paperColor={active.pageSettings?.[section.id]?.paperColor || paperColor}
+                            pageSize={active.pageSettings?.[section.id]?.pageSize || pageSize}
+                            paperPattern={active.pageSettings?.[section.id]?.paperPattern || paperPattern}
                           />
                         </section>
                       ))}
@@ -2646,7 +2681,7 @@ function WorkIntellectualRail({
 
   return (
     <aside className={cn(
-      "hidden min-h-0 border-l border-border/40 bg-muted/10 lg:block",
+      "hidden min-h-0 border-l border-border/40 bg-muted/10 xl:block",
       collapsed ? "overflow-hidden p-2" : "overflow-y-auto p-4"
     )}>
       {collapsed ? (

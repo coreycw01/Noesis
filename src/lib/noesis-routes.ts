@@ -79,6 +79,8 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
       return { view: 'vault', focusedPositionId: maybeId || null };
     case 'works':
       return { view: 'writing', focusedWorkId: maybeId || null };
+    case 'labs':
+      return { view: 'practices' };
     case 'practices':
       return { view: 'practices', focusedPracticeId: maybeId || null };
     case 'evolution':
@@ -124,7 +126,7 @@ export function viewToPath(view: NoesisView, options?: {
     case 'writing':
       return options?.workId ? `${prefix}/works/${options.workId}` : `${prefix}/works`;
     case 'practices':
-      return options?.practiceId ? `${prefix}/practices/${options.practiceId}` : `${prefix}/practices`;
+      return options?.practiceId ? `${prefix}/practices/${options.practiceId}` : `${prefix}/labs`;
     case 'evolution':
       return `${prefix}/evolution`;
     case 'profile':

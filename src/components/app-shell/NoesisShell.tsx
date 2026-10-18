@@ -238,9 +238,9 @@ export function NoesisShell({
         lastChangedAt: position.dateUpdated || position.dateCreated,
         thinkingEventHint: 'Creating a practice that tests this position should record a practice_created or tested thinking event.',
         aliases: ['untested belief', 'test position', 'create practice', 'lived experiment', 'practice for belief'],
-        quickActionLabel: 'Open Practices',
+        quickActionLabel: 'Open Labs',
         quickActions: [
-          { label: 'Open Practices', view: 'practices' },
+          { label: 'Open Labs', view: 'practices' },
           { label: 'Open Position First', view: 'vault', targetId: position.id, targetType: 'position' as const },
         ],
       });

@@ -4,18 +4,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   AlertTriangle,
-  BookOpen,
   ChevronRight,
-  ClipboardCheck,
   Compass,
-  History,
   GitBranch,
-  HelpCircle,
-  Lightbulb,
-  PenTool,
-  Repeat,
-  ShieldCheck,
-  Target,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,6 +15,17 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { Progress } from '@/components/ui/progress';
 import { allAnnotations, MEDIA_LABELS } from '@/lib/readex';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
+import { NOESIS_ICONS } from '@/lib/noesis-icons';
+
+const BookOpen = NOESIS_ICONS.source;
+const ClipboardCheck = NOESIS_ICONS.annotation;
+const Lightbulb = NOESIS_ICONS.concept;
+const HelpCircle = NOESIS_ICONS.inquiry;
+const ShieldCheck = NOESIS_ICONS.position;
+const PenTool = NOESIS_ICONS.work;
+const Repeat = NOESIS_ICONS.practice;
+const Target = NOESIS_ICONS.commitment;
+const History = NOESIS_ICONS.evolution;
 import type {
   Concept,
   Draft,
@@ -635,13 +637,13 @@ export function ThinkingDesk({
     const openUnknowns = unknowns.filter((item) => item.status === 'active' || item.status === 'exploring').length;
 
     return [
-      { label: 'Sources in motion', value: activeSources, view: 'library' as NoesisView, icon: BookOpen },
-      { label: 'Notes to process', value: unprocessedAnnotations, view: 'annotations' as NoesisView, icon: ClipboardCheck },
-      { label: 'Concepts to define', value: undefinedConcepts, view: 'concepts' as NoesisView, icon: Lightbulb },
-      { label: 'Open inquiries', value: openInquiries, view: 'questions' as NoesisView, icon: HelpCircle },
-      { label: 'Positions needing evidence', value: positionsNeedingEvidence, view: 'vault' as NoesisView, icon: ShieldCheck },
-      { label: 'Works in progress', value: activeWorks, view: 'writing' as NoesisView, icon: PenTool },
-      { label: 'Active practices', value: activePractices, view: 'practices' as NoesisView, icon: Repeat },
+      { label: 'Sources in motion', value: activeSources, view: 'library' as NoesisView, icon: NOESIS_ICONS.source },
+      { label: 'Annotations to process', value: unprocessedAnnotations, view: 'annotations' as NoesisView, icon: NOESIS_ICONS.annotation },
+      { label: 'Concepts to define', value: undefinedConcepts, view: 'concepts' as NoesisView, icon: NOESIS_ICONS.concept },
+      { label: 'Open inquiries', value: openInquiries, view: 'questions' as NoesisView, icon: NOESIS_ICONS.inquiry },
+      { label: 'Positions needing evidence', value: positionsNeedingEvidence, view: 'vault' as NoesisView, icon: NOESIS_ICONS.position },
+      { label: 'Works in progress', value: activeWorks, view: 'writing' as NoesisView, icon: NOESIS_ICONS.work },
+      { label: 'Active practices', value: activePractices, view: 'practices' as NoesisView, icon: NOESIS_ICONS.practice },
       { label: 'Open unknowns', value: openUnknowns, view: 'profile' as NoesisView, icon: Compass },
     ];
   }, [annotations, concepts, inquiries, media, positions, practices, unknowns, works]);

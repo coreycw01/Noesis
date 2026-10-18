@@ -5,24 +5,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import {
   AlertTriangle,
-  BookOpen,
   ChevronLeft,
   ChevronRight,
-  HelpCircle,
-  History,
-  Library,
   Menu,
-  Map as MapIcon,
-  PenTool,
   Plus,
-  Repeat,
-  Settings,
-  ShieldCheck,
   Command,
-  Highlighter,
-  Home,
   Search,
-  Target,
   WifiOff,
   Check,
   LoaderCircle,
@@ -41,6 +29,7 @@ import type { NoesisRouteTargetType } from '@/lib/noesis-routes';
 import { NOESIS_OBJECT_PREVIEW_EVENT, type NoesisObjectPreviewItem } from '@/lib/noesis-object-preview';
 import placeholderData from '@/app/lib/placeholder-images.json';
 import { NOESIS_WORKSPACE_SYNC_EVENT, type WorkspaceSyncState } from '@/lib/workspace-mutations';
+import { iconForNoesisView } from '@/lib/noesis-icons';
 
 export interface MovementMetrics {
   rawAnnotations: number;
@@ -261,20 +250,20 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const [attentionOpen, setAttentionOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [syncState, setSyncState] = useState<WorkspaceSyncState | 'idle'>('idle');
-  const navItems = [
-    { id: 'home', icon: Home },
-    { id: 'atlas', icon: MapIcon },
-    { id: 'concepts', icon: BookOpen, count: counts.concepts },
-    { id: 'questions', icon: HelpCircle, count: counts.questions },
-    { id: 'library', icon: Library, count: counts.media },
-    { id: 'annotations', icon: Highlighter, count: counts.annotations },
-    { id: 'vault', icon: ShieldCheck, count: counts.vault },
-    { id: 'writing', icon: PenTool, count: counts.drafts },
-    { id: 'practices', icon: Repeat, count: counts.practices },
-    { id: 'goals', icon: Target },
-    { id: 'evolution', icon: History, count: counts.timeline },
-    { id: 'settings', icon: Settings },
-  ];
+  const navItems = useMemo(() => [
+    { id: 'home', icon: iconForNoesisView('home') },
+    { id: 'atlas', icon: iconForNoesisView('atlas') },
+    { id: 'concepts', icon: iconForNoesisView('concepts'), count: counts.concepts },
+    { id: 'questions', icon: iconForNoesisView('questions'), count: counts.questions },
+    { id: 'library', icon: iconForNoesisView('library'), count: counts.media },
+    { id: 'annotations', icon: iconForNoesisView('annotations'), count: counts.annotations },
+    { id: 'vault', icon: iconForNoesisView('vault'), count: counts.vault },
+    { id: 'writing', icon: iconForNoesisView('writing'), count: counts.drafts },
+    { id: 'practices', icon: iconForNoesisView('practices'), count: counts.practices },
+    { id: 'goals', icon: iconForNoesisView('goals') },
+    { id: 'evolution', icon: iconForNoesisView('evolution'), count: counts.timeline },
+    { id: 'settings', icon: iconForNoesisView('settings') },
+  ], [counts.annotations, counts.concepts, counts.drafts, counts.media, counts.practices, counts.questions, counts.timeline, counts.vault]);
 
   useEffect(() => {
     const updateConnectivity = () => setIsOnline(navigator.onLine);
@@ -389,7 +378,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       { id: 'create-inquiry', label: 'Create Inquiry', section: 'Create', description: 'Open Inquiries to start a structured investigation.', view: 'questions', kind: 'create' as const, intellectualStage: 'Question', hierarchyLevel: 'Interpretive', objectType: 'Inquiry', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating or resolving an inquiry should create a thinking event because uncertainty changed state.', aliases: ['create question', 'ask question', 'create an inquiry about', 'investigate', 'unknown question'] },
       { id: 'create-position', label: 'Create Position', section: 'Create', description: 'Open Positions to state or draft a belief for testing.', view: 'vault', kind: 'create' as const, intellectualStage: 'Judge', hierarchyLevel: 'Judgment', objectType: 'Position', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, revising, challenging, supporting, or changing confidence on a position should create a thinking event.', aliases: ['create belief', 'state claim', 'open my position', 'draft position', 'judge idea'] },
       { id: 'create-work', label: 'Create Work', section: 'Create', description: 'Open Works to start writing, notes, drawing, or recording.', view: 'writing', kind: 'create' as const, intellectualStage: 'Express', hierarchyLevel: 'Expression', objectType: 'Work', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating a work can be ordinary drafting; completing or substantially revising it should create a thinking event.', aliases: ['write essay', 'continue essay', 'unfinished essay', 'start note', 'record idea', 'draw idea'] },
-      { id: 'start-practice', label: 'Start Practice', section: 'Create', description: 'Open Practices to turn an idea into a lived test.', view: 'practices', kind: 'create' as const, intellectualStage: 'Test', hierarchyLevel: 'Expression', objectType: 'Practice', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, concluding, or logging a practice result that changes a belief should create a thinking event.', aliases: ['start experiment', 'test belief', 'behavioral commitment', 'lived test', 'practice result'] },
+      { id: 'start-practice', label: 'Start Practice', section: 'Create', description: 'Open Labs to turn an idea into a lived test.', view: 'practices', kind: 'create' as const, intellectualStage: 'Test', hierarchyLevel: 'Expression', objectType: 'Practice', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, concluding, or logging a practice result that changes a belief should create a thinking event.', aliases: ['open labs', 'start experiment', 'test belief', 'behavioral commitment', 'lived test', 'practice result'] },
     ];
     const core: CommandPaletteItem[] = navItems.map((item) => ({
       id: item.id,
@@ -481,10 +470,10 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const previewThinkingEventHint = normalizeThinkingEventHint(previewItem);
   const activePage = NOESIS_PAGE_BY_VIEW[activeView as keyof typeof NOESIS_PAGE_BY_VIEW] || NOESIS_PAGE_BY_VIEW.home;
   const mobilePrimaryNav = [
-    { id: 'home', label: 'Today', icon: Home, view: 'home' },
-    { id: 'questions', label: 'Question', icon: HelpCircle, view: 'questions' },
-    { id: 'vault', label: 'Claim', icon: ShieldCheck, view: 'vault' },
-    { id: 'practices', label: 'Test', icon: Repeat, view: 'practices' },
+    { id: 'home', label: 'Today', icon: iconForNoesisView('home'), view: 'home' },
+    { id: 'questions', label: 'Question', icon: iconForNoesisView('questions'), view: 'questions' },
+    { id: 'vault', label: 'Claim', icon: iconForNoesisView('vault'), view: 'vault' },
+    { id: 'practices', label: 'Test', icon: iconForNoesisView('practices'), view: 'practices' },
     { id: 'more', label: 'More', icon: Menu, view: null },
   ];
   const attentionTotal = movement

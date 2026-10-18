@@ -146,10 +146,10 @@ export const noesisGuide = {
     },
     {
       id: 'practices',
-      label: 'Practices',
+      label: 'Labs',
       viewId: 'practices',
       section: 'Outputs',
-      definition: 'The place where positions become tests, commitments, habits, and experiments.',
+      definition: 'The workspace where practices turn positions into tests, commitments, habits, and experiments.',
       whatYouDo: [
         'Create a practice tied to a concept, position, inquiry, source, or work.',
         'Track notes and streak-like log dates over time.',

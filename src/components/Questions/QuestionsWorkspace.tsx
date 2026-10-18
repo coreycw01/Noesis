@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, HelpCircle, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, HelpCircle, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -483,9 +483,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   routeOwned?: boolean;
   initialSection?: 'investigation' | 'answer';
 }) {
-  const answerRef = useRef<HTMLDivElement>(null);
-  const frameRef = useRef<HTMLDivElement>(null);
-  const toolsRef = useRef<HTMLDetailsElement>(null);
   const saveLock = useRef(false);
   const [saving, setSaving] = useState(false);
   const onUpdateQuestion = async (next: Question) => {
@@ -523,16 +520,10 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const [testDraft, setTestDraft] = useState({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
   const [checkpointSkipReason, setCheckpointSkipReason] = useState('');
   React.useEffect(() => {
-    if (initialSection !== 'answer') return;
-    const target = answerRef.current;
-    const frame = window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-    return () => window.cancelAnimationFrame(frame);
-  }, [initialSection, question.id]);
-  React.useEffect(() => {
     setInitialAnswer(question.answer || '');
     setQuestionDraft(question.text);
     setEditingQuestion(false);
-    setWorkflowStep('frame');
+    setWorkflowStep(initialSection === 'answer' ? 'answer' : 'frame');
     setSelectedTool(null);
     setInvestigationDraft({
       whyItMatters: question.whyItMatters || '',
@@ -545,19 +536,17 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     setEvidenceDraft({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
     setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
     setCheckpointSkipReason('');
-  }, [question.id]);
+  }, [initialSection, question.id]);
   const { tools, recommended } = investigationTools(question, drafts, practices);
   const candidateAnswers = question.candidateAnswers || [];
   const candidateAnswerCount = inquiryCandidateCount(question);
   const recommendedMove = INQUIRY_TOOL_COPY[recommended].description;
   const openWorkflowStep = (step: 'frame' | 'answer' | 'investigate' | 'decide') => {
     setWorkflowStep(step);
-    if (step === 'investigate' || step === 'decide') {
-      toolsRef.current?.setAttribute('open', '');
-      setSelectedTool(step === 'decide' ? 'Decide outcome' : (selectedTool || recommended));
+    if (step === 'decide') setSelectedTool('Decide outcome');
+    if (step === 'investigate' && (!selectedTool || selectedTool === 'Decide outcome')) {
+      setSelectedTool(recommended === 'Decide outcome' ? 'Clarify question' : recommended);
     }
-    const target = step === 'frame' ? frameRef.current : step === 'answer' ? answerRef.current : toolsRef.current;
-    window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
   const saveProvisionalAnswer = async (status: Question['status'] = 'provisionally_answered') => {
@@ -907,7 +896,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             { id: 'decide', label: 'Decide', description: 'Resolve, suspend, transform, archive, or keep the inquiry open.' },
           ]}
         />
-        <Card ref={frameRef} className="scroll-mt-6 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        {workflowStep === 'frame' && <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
           <div className="mb-4">
             <div className="readex-kicker">Your thinking</div>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">Socratic Challenge can start from the question alone. These optional fields make its challenge more precise without turning the inquiry into a worksheet.</p>
@@ -929,9 +918,9 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           <div className="mt-4 flex justify-end">
             <Button onClick={saveInvestigationFrame} disabled={saving} className="rounded-full px-5">{saving ? 'Saving...' : 'Save Context'}</Button>
           </div>
-        </Card>
+        </Card>}
 
-        <Card ref={answerRef} className="scroll-mt-6 rounded-2xl border border-accent/20 bg-card p-5 shadow-sm sm:p-6">
+        {workflowStep === 'answer' && <Card className="rounded-2xl border border-accent/20 bg-card p-5 shadow-sm sm:p-6">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="readex-kicker text-accent">Current answer</div>
@@ -944,9 +933,9 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground"><span className="font-medium text-foreground">Next:</span> {recommendedMove}</p>
             <Button onClick={() => saveProvisionalAnswer('provisionally_answered')} disabled={saving || !initialAnswer.trim()} className="rounded-full px-5">{saving ? 'Saving...' : 'Save Answer'}</Button>
           </div>
-        </Card>
+        </Card>}
 
-        {!!question.investigationNotes?.length && (
+        {workflowStep === 'investigate' && !!question.investigationNotes?.length && (
           <details className="rounded-2xl border border-border bg-card px-5 py-4">
             <summary className="cursor-pointer font-code text-[10px] uppercase tracking-widest text-muted-foreground">Reviewed challenge notes ({question.investigationNotes.length})</summary>
             <div className="mt-4 space-y-3">
@@ -963,29 +952,28 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           </details>
         )}
 
-        <details ref={toolsRef} className="group scroll-mt-6 rounded-2xl border border-border bg-card shadow-sm">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
+        {(workflowStep === 'investigate' || workflowStep === 'decide') && <section className="rounded-2xl border border-border bg-card shadow-sm">
+          <header className="px-5 py-4 sm:px-6">
             <div>
-              <div className="text-sm font-semibold text-foreground">More tools</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose one focused action when you are ready to take the inquiry further.</p>
+              <div className="text-sm font-semibold text-foreground">{workflowStep === 'decide' ? 'Decide the inquiry' : 'Investigation tools'}</div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{workflowStep === 'decide' ? 'Choose the outcome that best reflects where the inquiry stands now.' : 'Choose one focused action and work on it without leaving this section.'}</p>
             </div>
-            <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-          </summary>
+          </header>
           <div className="border-t border-border p-4 sm:p-5">
-            <section className="rounded-xl border border-accent/20 bg-accent/5 p-4">
+            {workflowStep === 'investigate' && <section className="rounded-xl border border-accent/20 bg-accent/5 p-4">
               <div className="readex-kicker text-accent">Recommended next step</div>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
                 <p className="max-w-2xl text-sm leading-6 text-foreground">{INQUIRY_TOOL_COPY[recommended].description}</p>
                 <Button onClick={() => { setWorkflowStep(recommended === 'Decide outcome' ? 'decide' : 'investigate'); setSelectedTool(recommended); }} className="rounded-full px-4">Open {recommended}</Button>
               </div>
-            </section>
+            </section>}
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {tools.map((tool) => (
+            {workflowStep === 'investigate' && <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {tools.filter((tool) => tool !== 'Decide outcome').map((tool) => (
                 <button
                   key={tool}
                   type="button"
-                  onClick={() => { setWorkflowStep(tool === 'Decide outcome' ? 'decide' : 'investigate'); setSelectedTool(tool); }}
+                  onClick={() => { setWorkflowStep('investigate'); setSelectedTool(tool); }}
                   className={cn(
                     'min-h-20 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     selectedTool === tool ? 'border-accent bg-accent/10' : 'border-border bg-background/60 hover:border-accent/50 hover:bg-accent/5'
@@ -995,7 +983,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">{INQUIRY_TOOL_COPY[tool].description}</span>
                 </button>
               ))}
-            </div>
+            </div>}
 
             {selectedTool && (
               <section className="mt-4 rounded-xl border border-border bg-background/60 p-4">
@@ -1101,7 +1089,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               </section>
             )}
           </div>
-        </details>
+        </section>}
       </div>
       <ConfirmActionDialog
         open={deleteOpen}

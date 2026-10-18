@@ -27,11 +27,10 @@ export function WorkbenchFlow({
   return (
     <nav aria-label={label} className={cn('border-y border-border/60 py-3', className)}>
       <ol className="grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-[repeat(var(--workbench-steps),minmax(0,1fr))]" style={{ '--workbench-steps': steps.length } as CSSProperties}>
-        {steps.map((step, index) => {
+        {steps.map((step) => {
           const active = step.id === activeId;
           const content = (
-            <span className="flex min-h-9 items-center gap-2">
-              <span className={cn('font-code text-[9px] font-bold tabular-nums', active ? 'text-accent' : 'text-muted-foreground')}>{index + 1}</span>
+            <span className="flex min-h-9 items-center">
               <span className={cn('text-sm font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>{step.label}</span>
             </span>
           );

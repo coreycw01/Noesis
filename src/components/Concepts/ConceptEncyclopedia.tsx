@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Brain, ChevronDown, Edit, Plus, Trash2, MoreHorizontal } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, BookOpen, ChevronDown, Edit, Plus, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Concept, Draft, Insight, Media, PhilosophicalLink, PhilosophicalLinkType, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import { conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { NOESIS_ICONS } from '@/lib/noesis-icons';
+
+const ConceptIcon = NOESIS_ICONS.concept;
 import { StageBadge } from '@/components/shared/StageBadge';
 import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
 import type { ClarityLevel } from '@/lib/clarity';
@@ -1012,7 +1015,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
-                <Brain className="size-4 text-muted-foreground/40" />
+                <ConceptIcon className="size-4 text-muted-foreground/40" />
                 <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Growth Diagnosis</h2>
               </div>
             </div>

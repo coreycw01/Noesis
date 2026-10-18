@@ -62,7 +62,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
 
   const canvasClasses = cn(
     "flex transition-all duration-500",
-    useContinuousCanvas && "flex-col items-center gap-10 p-6 sm:p-12",
+    useContinuousCanvas && "w-full flex-col items-center gap-10 p-3 sm:p-6 lg:p-8",
     !useContinuousCanvas && viewMode === 'vertical-single' && "h-full flex-col items-center justify-center",
     !useContinuousCanvas && viewMode === 'horizontal-single' && "h-full flex-row items-center justify-center min-w-full"
   );
