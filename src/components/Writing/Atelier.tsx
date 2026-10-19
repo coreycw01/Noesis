@@ -1510,8 +1510,16 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
           destructive
           onConfirm={async () => {
             if (!deleteTarget) return;
-            await onDeleteDraft(deleteTarget.id);
-            if (activeId === deleteTarget.id) closeDraft();
+            const target = deleteTarget;
+            if (activeId === target.id) {
+              autosavePausedRef.current = true;
+              latestDraftRef.current = null;
+              setDraftBuffer(null);
+              setDirty(false);
+              setSaveStatus('saved');
+              closeDraft();
+            }
+            await onDeleteDraft(target.id);
             setDeleteTarget(null);
           }}
         />

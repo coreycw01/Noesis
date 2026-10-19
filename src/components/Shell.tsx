@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
   AlertTriangle,
@@ -243,6 +243,16 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pullDistanceRef = useRef(0);
+  const pullGestureRef = useRef<{
+    startX: number;
+    startY: number;
+    scrollElement: HTMLElement | null;
+    eligible: boolean;
+  } | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
   const [previewItem, setPreviewItem] = useState<CommandPaletteItem | null>(null);
@@ -351,13 +361,76 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const handleNavChange = (view: string) => {
     if (view === activeView && !pendingPath) {
       setMobileNavOpen(false);
+      setMobileMoreOpen(false);
       setCommandOpen(false);
       return;
     }
     onViewChange(view);
     setMobileNavOpen(false);
+    setMobileMoreOpen(false);
     setCommandOpen(false);
     setCommandQuery('');
+  };
+
+  const findMobileScrollElement = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) return null;
+    let element: HTMLElement | null = target;
+    while (element && !element.classList.contains('noesis-app-main')) {
+      const style = window.getComputedStyle(element);
+      const canScroll = /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+      if (canScroll) return element;
+      element = element.parentElement;
+    }
+    return null;
+  };
+
+  const handleMobileTouchStart = (event: React.TouchEvent<HTMLElement>) => {
+    if (!isMobile || event.touches.length !== 1 || mobileNavOpen || mobileMoreOpen || commandOpen || syncState === 'saving') return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+    const touch = event.touches[0];
+    const scrollElement = findMobileScrollElement(target);
+    const atTop = scrollElement ? scrollElement.scrollTop <= 0 : window.scrollY <= 0;
+    pullGestureRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      scrollElement,
+      eligible: atTop,
+    };
+  };
+
+  const handleMobileTouchMove = (event: React.TouchEvent<HTMLElement>) => {
+    const gesture = pullGestureRef.current;
+    if (!gesture?.eligible || event.touches.length !== 1 || isRefreshing) return;
+    const touch = event.touches[0];
+    const deltaX = Math.abs(touch.clientX - gesture.startX);
+    const deltaY = touch.clientY - gesture.startY;
+    const stillAtTop = gesture.scrollElement ? gesture.scrollElement.scrollTop <= 0 : window.scrollY <= 0;
+    if (!stillAtTop || deltaX > Math.max(12, deltaY)) {
+      gesture.eligible = false;
+      pullDistanceRef.current = 0;
+      setPullDistance(0);
+      return;
+    }
+    if (deltaY > 0) {
+      const nextDistance = Math.min(92, deltaY * 0.48);
+      pullDistanceRef.current = nextDistance;
+      setPullDistance(nextDistance);
+    }
+  };
+
+  const finishMobilePull = () => {
+    const shouldRefresh = pullGestureRef.current?.eligible && pullDistanceRef.current >= 64;
+    pullGestureRef.current = null;
+    if (!shouldRefresh) {
+      pullDistanceRef.current = 0;
+      setPullDistance(0);
+      return;
+    }
+    setIsRefreshing(true);
+    pullDistanceRef.current = 64;
+    setPullDistance(64);
+    window.setTimeout(() => window.location.reload(), 140);
   };
 
   const commandItems = useMemo<CommandPaletteItem[]>(() => {
@@ -475,6 +548,11 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'vault', label: 'Claim', icon: iconForNoesisView('vault'), view: 'vault' },
     { id: 'practices', label: 'Test', icon: iconForNoesisView('practices'), view: 'practices' },
     { id: 'more', label: 'More', icon: Menu, view: null },
+  ];
+  const mobilePrimaryViews = new Set(['home', 'questions', 'vault', 'practices']);
+  const mobileMoreItems = [
+    ...navItems.filter((item) => !mobilePrimaryViews.has(item.id)),
+    { id: 'profile', icon: iconForNoesisView('profile') },
   ];
   const attentionTotal = movement
     ? movement.rawAnnotations + movement.unsupportedPositions + movement.openInquiries + movement.practicesWithoutPosition + movement.positionsWithoutPractice
@@ -734,10 +812,73 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 <div className="flex h-full flex-col">{sidebarContent}</div>
               </SheetContent>
             </Sheet>
+            <Sheet open={mobileMoreOpen} onOpenChange={setMobileMoreOpen}>
+              <SheetContent side="bottom" className="max-h-[78dvh] rounded-t-2xl border-border bg-background px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4">
+                <SheetHeader className="border-b border-border/70 pb-3 text-left">
+                  <SheetTitle className="font-headline text-xl font-semibold italic">More pages</SheetTitle>
+                  <SheetDescription>Open another part of your thinking workspace.</SheetDescription>
+                </SheetHeader>
+                <div className="grid max-h-[58dvh] grid-cols-2 gap-2 overflow-y-auto py-4">
+                  {mobileMoreItems.map((item) => {
+                    const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
+                    const isActive = activeView === item.id;
+                    const count = 'count' in item ? item.count : undefined;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          if (item.id === 'profile' && onOpenProfile) {
+                            setMobileMoreOpen(false);
+                            onOpenProfile();
+                            return;
+                          }
+                          handleNavChange(item.id);
+                        }}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={cn(
+                          'flex min-h-[76px] items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                          isActive
+                            ? 'border-accent/45 bg-accent/10 text-foreground'
+                            : 'border-border/70 bg-card text-foreground hover:border-accent/35 hover:bg-muted/35'
+                        )}
+                      >
+                        <item.icon className={cn('mt-0.5 size-5 shrink-0', isActive ? 'text-accent' : 'text-muted-foreground')} aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-semibold">{page.title}</span>
+                            {typeof count === 'number' && <span className="font-code text-[10px] text-muted-foreground">{count}</span>}
+                          </span>
+                          <span className="mt-1 block line-clamp-2 text-xs leading-4 text-muted-foreground">{page.purpose}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </SheetContent>
+            </Sheet>
           </>
         )}
 
-        <main className="noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-32 pt-14 md:pb-0 md:pt-0" aria-busy={Boolean(pendingPath)}>
+        <main
+          className="noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-32 pt-14 md:pb-0 md:pt-0"
+          aria-busy={Boolean(pendingPath)}
+          onTouchStart={handleMobileTouchStart}
+          onTouchMove={handleMobileTouchMove}
+          onTouchEnd={finishMobilePull}
+          onTouchCancel={finishMobilePull}
+        >
+          {isMobile && (pullDistance > 0 || isRefreshing) && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="pointer-events-none fixed left-1/2 top-[calc(3.75rem+env(safe-area-inset-top))] z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border/70 bg-card px-3 py-2 text-xs font-medium text-foreground shadow-lg transition-opacity"
+              style={{ opacity: Math.min(1, Math.max(0.35, pullDistance / 64)) }}
+            >
+              <LoaderCircle className={cn('size-4 text-accent', isRefreshing && 'animate-spin')} aria-hidden="true" />
+              <span>{isRefreshing ? 'Refreshing' : pullDistance >= 64 ? 'Release to refresh' : 'Pull to refresh'}</span>
+            </div>
+          )}
           {!isOnline && (
             <div role="status" className="flex shrink-0 items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs leading-5 text-foreground sm:px-6">
               <WifiOff className="size-4 shrink-0 text-destructive" aria-hidden="true" />
@@ -754,7 +895,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => item.view ? handleNavChange(item.view) : setMobileNavOpen(true)}
+                      onClick={() => item.view ? handleNavChange(item.view) : setMobileMoreOpen(true)}
                       aria-label={item.label === 'More' ? 'Open more pages' : `Open ${item.label}`}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
