@@ -2012,8 +2012,10 @@ function ReadexWorkspace({
       thumbnailUrl: data.thumbnailUrl || '',
       canvasData: data.canvasData || '',
       canvasAsset: data.canvasAsset,
+      inlineAssets: data.inlineAssets || [],
       drawingState: data.drawingState,
       templateData: data.templateData,
+      documentPages: data.documentPages || [],
       documentSettings: data.documentSettings,
       pageSettings: data.pageSettings || {},
       writingOverlayData: data.writingOverlayData || '',
@@ -2066,8 +2068,8 @@ function ReadexWorkspace({
     }
     ensureConcepts(draft.conceptTags || []);
     const draftRef = doc(refs.drafts, draft.id);
-    const previousContent = `${previous?.body || ''}\n${previous?.draftContent || ''}\n${previous?.finalContent || ''}`;
-    const nextContent = `${nextDraft.body || ''}\n${nextDraft.draftContent || ''}\n${nextDraft.finalContent || ''}`;
+    const previousContent = `${previous?.body || ''}\n${previous?.draftContent || ''}\n${previous?.finalContent || ''}\n${JSON.stringify(previous?.documentPages || [])}`;
+    const nextContent = `${nextDraft.body || ''}\n${nextDraft.draftContent || ''}\n${nextDraft.finalContent || ''}\n${JSON.stringify(nextDraft.documentPages || [])}`;
     const contentDelta = Math.abs(nextContent.length - previousContent.length);
     const statusChanged = previous?.status !== nextDraft.status;
     const reflectionChanged = JSON.stringify(previous?.completionReflection || {}) !== JSON.stringify(nextDraft.completionReflection || {});

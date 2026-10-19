@@ -862,6 +862,47 @@
     line-height: 1.4;
   }
 
+  .noesis-app [contenteditable="true"] figure[data-noesis-image] {
+    margin: 2rem 0;
+    border: 1px solid hsl(var(--border) / .65);
+    border-radius: var(--card-radius);
+    padding: .75rem;
+  }
+
+  .noesis-app [contenteditable="true"] figure[data-noesis-image] img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    margin-inline: auto;
+  }
+
+  .noesis-app [contenteditable="true"] figure[data-noesis-image] figcaption {
+    margin-top: .625rem;
+    color: hsl(var(--muted-foreground));
+    font-family: var(--font-interface);
+    font-size: .75rem;
+    font-style: normal;
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  .noesis-app .noesis-inline-tool,
+  .noesis-app .noesis-inline-tool input,
+  .noesis-app .noesis-inline-tool textarea,
+  .noesis-app .noesis-inline-tool select,
+  .noesis-app .noesis-inline-tool [class*="bg-background"] {
+    color: inherit;
+  }
+
+  .noesis-app .noesis-inline-tool input,
+  .noesis-app .noesis-inline-tool textarea,
+  .noesis-app .noesis-inline-tool select,
+  .noesis-app .noesis-inline-tool [class*="bg-background"] {
+    background-color: color-mix(in srgb, currentColor 4%, transparent) !important;
+    border-color: color-mix(in srgb, currentColor 22%, transparent) !important;
+  }
+
   @media (max-width: 767px) {
     .noesis-app-main .text-\[8px\],
     .noesis-app-main .text-\[9px\],

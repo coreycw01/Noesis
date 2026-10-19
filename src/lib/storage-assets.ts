@@ -3,6 +3,7 @@
 import {
   deleteObject,
   getBlob,
+  getDownloadURL,
   getStorage,
   ref,
   uploadBytesResumable,
@@ -74,6 +75,11 @@ export async function privateAssetObjectUrl(storagePath: string) {
   return URL.createObjectURL(blob);
 }
 
+export async function privateAssetDownloadUrl(storagePath: string) {
+  const storage = getStorage(initializeFirebase().firebaseApp);
+  return getDownloadURL(ref(storage, storagePath));
+}
+
 export async function deletePrivateAsset(storagePath?: string) {
   if (!storagePath) return;
   const storage = getStorage(initializeFirebase().firebaseApp);
@@ -90,11 +96,13 @@ export async function cleanupReplacedDraftAssets(previous: DraftAssetInput, next
     previous.asset?.storagePath || previous.storagePath,
     previous.canvasAsset?.storagePath,
     previous.overlayAsset?.storagePath,
+    ...(previous.inlineAssets || []).map((asset) => asset.storagePath),
   ].filter(Boolean) as string[];
   const retainedPaths = new Set([
     next.asset?.storagePath || next.storagePath,
     next.canvasAsset?.storagePath,
     next.overlayAsset?.storagePath,
+    ...(next.inlineAssets || []).map((asset) => asset.storagePath),
   ].filter(Boolean) as string[]);
   await Promise.all(previousPaths
     .filter((path) => !retainedPaths.has(path))
@@ -140,4 +148,5 @@ type DraftAssetInput = {
   thumbnailUrl?: string;
   writingOverlayData?: string;
   overlayAsset?: StoredAsset;
+  inlineAssets?: StoredAsset[];
 };
