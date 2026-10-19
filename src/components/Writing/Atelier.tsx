@@ -11,11 +11,13 @@ import {
   Download,
   Eraser,
   ExternalLink,
+  FilePlus2,
   FileText,
   ImageIcon,
   Grid3X3,
   History,
   Link2,
+  ListTree,
   Mic,
   Minus,
   MoreHorizontal,
@@ -43,15 +45,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { FormattingToolbar } from './FormattingToolbar';
 import { DocumentCanvas } from './DocumentCanvas';
+import { DocsPage } from './DocsPage';
 import { DrawingOverlayToolbar } from './DrawingOverlayToolbar';
 import { PageSettingsControl, PageViewControls } from './PageViewControls';
 import { isStructuredWorkStyle, StructuredWorkSurface, workToolLabel, type StructuredWorkStyle } from './StructuredWorkSurface';
-import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkToolSection, WritingStyle } from '@/lib/types';
+import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkDocumentPage, WorkToolSection, WritingStyle } from '@/lib/types';
 import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -62,7 +65,7 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
-import { cleanupReplacedDraftAssets, persistInlineDraftAssets, uploadPrivateAsset, validateAssetBlob } from '@/lib/storage-assets';
+import { cleanupReplacedDraftAssets, persistInlineDraftAssets, privateAssetDownloadUrl, uploadPrivateAsset, validateAssetBlob } from '@/lib/storage-assets';
 import { saveDemoRecording } from '@/lib/demo-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 import { removeDocumentPageSettings, resolveDocumentPageSettings, updateDocumentPageSettings } from '@/lib/work-page-settings';
@@ -73,15 +76,6 @@ export type PaperColor = DocumentPaperColor;
 export type PaperPattern = DocumentPaperPattern;
 type WorkRailAnnotation = Annotation & { sourceTitle: string; sourceId: string };
 type WorkFilter = 'all' | DraftType | DraftStatus | 'awaiting_revision' | 'external_docs';
-const WORK_TOOL_OPTIONS: Array<{ tool: StructuredWorkStyle; label: string; description: string }> = [
-  // Works only owns tools that shape the current creative artifact. Inquiry,
-  // source, and belief-analysis workflows remain in their dedicated pages.
-  { tool: 'mind_map', label: 'Diagram', description: 'Arrange ideas visually for this document without changing Atlas.' },
-  { tool: 'timeline', label: 'Timeline', description: 'Add a sequence, stages, or branches to this document.' },
-  { tool: 'venn_diagram', label: 'Venn diagram', description: 'Compare two ideas and isolate their shared ground.' },
-  { tool: 'comparison_matrix', label: 'Comparison matrix', description: 'Judge several alternatives against the same criteria.' },
-  { tool: 'causal_chain', label: 'Causal chain', description: 'Map a sequence of causes and expose its weakest link.' },
-];
 type BrowserSpeechRecognitionCtor = new () => {
   continuous: boolean;
   interimResults: boolean;
@@ -162,8 +156,10 @@ const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'thumbnailUrl',
   'canvasData',
   'canvasAsset',
+  'inlineAssets',
   'drawingState',
   'templateData',
+  'documentPages',
   'documentSettings',
   'pageSettings',
   'writingOverlayData',
@@ -218,6 +214,7 @@ function toolSectionsForDraft(draft: Draft | null, writingStyle: WritingStyle): 
     data: {
       fields: draft.templateData?.fields || {},
       branches: draft.templateData?.branches || [],
+      mindMapNodes: draft.templateData?.mindMapNodes || [],
       timeline: draft.templateData?.timeline || [],
     },
   }];
@@ -249,7 +246,10 @@ function isWritingWork(draft: Draft) {
 }
 
 function plainTextFromDraft(draft: Draft) {
-  return (draft.body || draft.draftContent || draft.finalContent || '')
+  return [
+    draft.body || draft.draftContent || draft.finalContent || '',
+    ...(draft.documentPages || []).map((page) => `${page.title} ${page.content}`),
+  ].join(' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
@@ -347,6 +347,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [pageSize, setPageSize] = useState<PageSize>('letter');
   const [paperColor, setPaperColor] = useState<PaperColor>('blank');
   const [paperPattern, setPaperPattern] = useState<PaperPattern>('none');
+  const [currentPageId, setCurrentPageId] = useState('main');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [writingTool, setWritingTool] = useState<DrawingTool>('pencil');
   const [writingStrokeColor, setWritingStrokeColor] = useState('#4c1d95');
@@ -399,6 +400,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
   useEffect(() => {
     setEditorRibbon(activeFromStore?.activeRibbon || 'writing');
+    setCurrentPageId('main');
     autosaveErrorShownRef.current = false;
     autosavePausedRef.current = false;
   }, [activeFromStore?.activeRibbon, activeFromStore?.id]);
@@ -523,7 +525,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     const shouldSnapshot = dirty && (!latest
       || latest.body !== patched.body
       || latest.title !== patched.title
-      || JSON.stringify(latest.templateData || {}) !== JSON.stringify(patched.templateData || {}));
+      || JSON.stringify(latest.templateData || {}) !== JSON.stringify(patched.templateData || {})
+      || JSON.stringify(latest.documentPages || []) !== JSON.stringify(patched.documentPages || []));
     const nextDraft = {
       ...patched,
       dateUpdated: today(),
@@ -536,6 +539,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             finalContent: patched.finalContent,
             activeMode: patched.activeMode,
             templateData: patched.templateData,
+            documentPages: patched.documentPages,
             createdAt: new Date().toISOString(),
           }].slice(-50)
         : priorVersions,
@@ -616,7 +620,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
           ...(template.sections || []).map((section) => serializeTool(section.tool.replace(/_/g, ' '), section.data)),
         ].filter(Boolean).join('\n\n')
       : '';
-    const content = `# ${active.title}\n\nType: ${DRAFT_LABELS[active.type]}\nStatus: ${active.status}\nConcepts: ${(active.conceptTags || []).join(', ')}\n\n---\n\n${structuredContent || active.body.replace(/<[^>]+>/g, '\n')}`;
+    const proseContent = [
+      active.body.replace(/<[^>]+>/g, '\n'),
+      ...(active.documentPages || []).map((page) => `## ${page.title || 'Untitled page'}\n\n${page.content.replace(/<[^>]+>/g, '\n')}`),
+    ].filter(Boolean).join('\n\n');
+    const content = `# ${active.title}\n\nType: ${DRAFT_LABELS[active.type]}\nStatus: ${active.status}\nConcepts: ${(active.conceptTags || []).join(', ')}\n\n---\n\n${[proseContent, structuredContent].filter(Boolean).join('\n\n')}`;
     const blob = new Blob([content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -664,6 +672,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       writingStyle: writingDefaults.writingStyle,
       documentSettings: documentDefaultsForWriting(writingDefaults.writingStyle),
       pageSettings: {},
+      documentPages: [],
       drawingState: type === 'drawing' || type === 'drawing_note' ? {
         version: 1,
         width: type === 'drawing_note' ? 720 : 1120,
@@ -895,19 +904,70 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     });
   }, [active, updateActive]);
 
+  const activeDocumentPages = useMemo(() => active?.documentPages || [], [active?.documentPages]);
+
   const addDocumentTool = useCallback((tool: StructuredWorkStyle) => {
     const section: WorkToolSection = {
       id: crypto.randomUUID(),
       tool,
+      pageId: currentPageId === 'main' || activeDocumentPages.some((page) => page.id === currentPageId) ? currentPageId : 'main',
       createdAt: today(),
-      data: { fields: {}, branches: [], timeline: [] },
+      data: { fields: {}, branches: [], mindMapNodes: [], timeline: [] },
     };
     updateToolSections([
       ...activeToolSections,
       section,
     ]);
-    window.setTimeout(() => document.getElementById(`work-tool-${section.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
-  }, [activeToolSections, updateToolSections]);
+    window.setTimeout(() => document.getElementById(`work-tool-${section.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+  }, [activeDocumentPages, activeToolSections, currentPageId, updateToolSections]);
+
+  const uploadInlineImage = useCallback(async (file: File) => {
+    if (!active) throw new Error('Open a work before adding an image.');
+    validateAssetBlob(file);
+    if (isReviewWorkspace) {
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('The image could not be read.'));
+        reader.readAsDataURL(file);
+      });
+    }
+    const asset = await uploadPrivateAsset({ uid, area: 'works', entityId: active.id, blob: file, originalName: file.name });
+    updateActive({ inlineAssets: [...(latestDraftRef.current?.inlineAssets || []), asset] });
+    return privateAssetDownloadUrl(asset.storagePath);
+  }, [active, isReviewWorkspace, uid, updateActive]);
+  const updateDocumentPages = useCallback((pages: WorkDocumentPage[]) => {
+    updateActive({ documentPages: pages });
+  }, [updateActive]);
+  const addDocumentPage = useCallback(() => {
+    const page: WorkDocumentPage = {
+      id: crypto.randomUUID(),
+      title: `Page ${activeDocumentPages.length + 2}`,
+      content: '',
+      createdAt: today(),
+    };
+    updateDocumentPages([...activeDocumentPages, page]);
+    setCurrentPageId(page.id);
+    window.setTimeout(() => document.getElementById(`work-page-${page.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  }, [activeDocumentPages, updateDocumentPages]);
+  const updateDocumentPage = useCallback((pageId: string, patch: Partial<WorkDocumentPage>) => {
+    const pages = latestDraftRef.current?.documentPages || [];
+    updateDocumentPages(pages.map((page) => page.id === pageId ? { ...page, ...patch } : page));
+  }, [updateDocumentPages]);
+  const removeDocumentPage = useCallback((pageId: string) => {
+    const current = latestDraftRef.current;
+    if (!current) return;
+    updateActive({
+      documentPages: (current.documentPages || []).filter((page) => page.id !== pageId),
+      pageSettings: removeDocumentPageSettings(current.pageSettings, pageId),
+    });
+    setCurrentPageId('main');
+    window.setTimeout(() => document.getElementById('work-page-main')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  }, [updateActive]);
+  const jumpToDocumentPage = useCallback((pageId: string) => {
+    setCurrentPageId(pageId);
+    document.getElementById(`work-page-${pageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
   const activeSources = useMemo(() => {
     if (!active) return [];
     return media.filter((source) => (active.sourceIds || []).includes(source.id));
@@ -956,11 +1016,41 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     }
     return signals.slice(0, 5);
   }, [active, activeCategory, activePositions, activeSources, workConcepts]);
-  const mainPageOverride = active?.pageSettings?.main;
   const mainPageAppearance = resolveDocumentPageSettings({ pageSize, paperColor, paperPattern }, active?.pageSettings, 'main');
   const mainPageSize = mainPageAppearance.pageSize;
   const mainPaperColor = mainPageAppearance.paperColor;
   const mainPaperPattern = mainPageAppearance.paperPattern;
+  const currentDocumentPage = activeDocumentPages.find((page) => page.id === currentPageId);
+  const resolvedCurrentPageId = (currentDocumentPage || currentPageId === 'main') ? currentPageId : 'main';
+  const currentPageLabel = currentDocumentPage
+    ? currentDocumentPage.title.trim() || 'Untitled page'
+    : 'Main page';
+  const currentPageAppearance = resolveDocumentPageSettings(
+    { pageSize, paperColor, paperPattern },
+    active?.pageSettings,
+    resolvedCurrentPageId,
+  );
+  const inlineToolsForPage = (pageId: string, appearance = currentPageAppearance) => activeToolSections
+    .filter((section) => (section.pageId || 'main') === pageId)
+    .map((section) => (
+      <section key={section.id} id={`work-tool-${section.id}`} className="noesis-inline-tool scroll-mt-28 border border-current/15" aria-label={`${workToolLabel(section.tool)} inline tool`}>
+        <div className="flex items-center justify-between gap-3 border-b border-current/10 px-4 py-2">
+          <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">{workToolLabel(section.tool)}</span>
+          <Button type="button" variant="ghost" size="sm" onClick={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))} className="h-8 rounded-md text-muted-foreground hover:text-destructive" aria-label={`Remove ${workToolLabel(section.tool)}`}>
+            <Trash2 className="mr-1.5 size-3.5" /> Remove
+          </Button>
+        </div>
+        <StructuredWorkSurface
+          embedded
+          style={section.tool}
+          data={{ version: 1, ...section.data }}
+          onChange={(data) => updateToolSections(activeToolSections.map((item) => item.id === section.id ? { ...item, data: { fields: data.fields, branches: data.branches, mindMapNodes: data.mindMapNodes, timeline: data.timeline } } : item))}
+          paperColor={appearance.paperColor}
+          pageSize={appearance.pageSize}
+          paperPattern={appearance.paperPattern}
+        />
+      </section>
+    ));
 
   if (active) {
     return (
@@ -980,12 +1070,27 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 onChange={(event) => updateActive({ title: event.target.value })}
                 placeholder={`Untitled ${activeTypeLabel}`}
               />
-              {isDocumentSurface && (
-                <Badge variant="outline" className="h-7 shrink-0 rounded-md border-border/50 bg-card px-2 font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                  <FileText className="mr-1.5 size-3.5" /> Document
-                </Badge>
-              )}
+              <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
+                <SelectTrigger className="h-8 w-28 shrink-0 rounded-md border-border/40 bg-background px-2 font-code text-[9px] font-bold uppercase tracking-wider shadow-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WORK_STATUS_OPTIONS.map((status) => <SelectItem key={status.value} value={status.value} className="font-code text-[9px] uppercase">{status.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <div className="min-w-0 max-w-full shrink basis-full sm:basis-auto">
+                <ConceptTagPicker
+                  concepts={concepts}
+                  value={active.conceptTags || []}
+                  onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })}
+                  onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
+                  compact
+                  inline
+                  className="min-w-0"
+                />
+              </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
+                {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Doc' : 'Connect'}</Button>}
                 <div className="hidden items-center gap-2 border border-border/30 bg-muted/10 px-3 py-1.5 sm:flex">
                   <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
                   <span className="font-code text-[8px] uppercase tracking-widest font-bold text-muted-foreground">
@@ -1030,57 +1135,6 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 border-t border-border/10 pt-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-2">
-                  <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
-                    <SelectTrigger className="h-8 w-32 rounded-md border-border/40 bg-background px-3 font-code text-[9px] font-bold uppercase tracking-wider shadow-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WORK_STATUS_OPTIONS.map((status) => (
-                        <SelectItem key={status.value} value={status.value} className="font-code text-[9px] uppercase">{status.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {showPaperControls && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-8 rounded-md border-border/40 bg-background px-3 font-code text-[9px] font-bold uppercase tracking-wider">
-                        <Plus className="mr-1.5 size-3.5" /> Insert section
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-72">
-                      {WORK_TOOL_OPTIONS.map((option) => (
-                        <DropdownMenuItem key={option.tool} onSelect={() => addDocumentTool(option.tool)} className="items-start py-2.5">
-                          <span><span className="block font-medium">{option.label}</span><span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{option.description}</span></span>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-                {showExternalDocControls && (
-                  <Button variant="outline" size="sm" onClick={openDocDialog} className="h-9 rounded-md border-border/60 bg-card px-5 font-bold shadow-sm">
-                    <Link2 className="size-4 mr-2" /> {active.externalDoc ? 'Doc' : 'Connect Doc'}
-                  </Button>
-                )}
-              </div>
-
-              <div className="flex min-w-0 w-full flex-wrap items-center gap-2 border-t border-border/10 pt-2">
-                <span className="font-code text-[9px] uppercase tracking-widest opacity-40 font-bold">CONCEPTS</span>
-                <ConceptTagPicker
-                  concepts={concepts}
-                  value={active.conceptTags || []}
-                  onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })}
-                  onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
-                  compact
-                  inline
-                  className="min-w-0"
-                />
               </div>
             </div>
 
@@ -1146,17 +1200,43 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     paperPattern={paperPattern}
                     onPaperPatternChange={(next) => { setPaperPattern(next); updateDocumentSettings({ paperPattern: next }); }}
                   />
-                  <PageSettingsControl
-                    pageLabel="Main writing page"
-                    pageSize={mainPageSize}
-                    onPageSizeChange={(next) => updatePageSettings('main', { pageSize: next })}
-                    paperColor={mainPaperColor}
-                    onPaperColorChange={(next) => updatePageSettings('main', { paperColor: next })}
-                    paperPattern={mainPaperPattern}
-                    onPaperPatternChange={(next) => updatePageSettings('main', { paperPattern: next })}
-                    overridden={Boolean(mainPageOverride)}
-                    onReset={() => resetPageSettings('main')}
-                  />
+                  <div className="flex min-w-0 items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-9 max-w-[min(52vw,260px)] rounded-md border-border/60 bg-card px-3 shadow-sm" aria-label={`Document pages. Current page: ${currentPageLabel}`}>
+                          <ListTree className="size-4 shrink-0 text-accent" />
+                          <span className="truncate">{currentPageLabel}</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-72">
+                        <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Document pages</DropdownMenuLabel>
+                        <DropdownMenuItem onSelect={() => jumpToDocumentPage('main')} className={cn('cursor-pointer', resolvedCurrentPageId === 'main' && 'text-accent')}>
+                          <FileText className="mr-2 size-4" /> Main page
+                        </DropdownMenuItem>
+                        {activeDocumentPages.map((page, index) => (
+                          <DropdownMenuItem key={page.id} onSelect={() => jumpToDocumentPage(page.id)} className={cn('cursor-pointer', resolvedCurrentPageId === page.id && 'text-accent')}>
+                            <FileText className="mr-2 size-4" />
+                            <span className="min-w-0 flex-1 truncate">{page.title || `Page ${index + 2}`}</span>
+                          </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={addDocumentPage} className="cursor-pointer font-medium">
+                          <FilePlus2 className="mr-2 size-4 text-accent" /> Add subpage
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <PageSettingsControl
+                      pageLabel={currentPageLabel}
+                      pageSize={currentPageAppearance.pageSize}
+                      onPageSizeChange={(next) => updatePageSettings(resolvedCurrentPageId, { pageSize: next })}
+                      paperColor={currentPageAppearance.paperColor}
+                      onPaperColorChange={(next) => updatePageSettings(resolvedCurrentPageId, { paperColor: next })}
+                      paperPattern={currentPageAppearance.paperPattern}
+                      onPaperPatternChange={(next) => updatePageSettings(resolvedCurrentPageId, { paperPattern: next })}
+                      overridden={Boolean(active.pageSettings?.[resolvedCurrentPageId])}
+                      onReset={() => resetPageSettings(resolvedCurrentPageId)}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -1183,7 +1263,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     onClear={() => updateActive({ writingOverlayData: '' })}
                     onReturnToWriting={() => setEditorRibbon('writing')}
                   />
-                ) : <FormattingToolbar saveStatus={saveStatus} onOpenDrawing={() => setEditorRibbon('drawing')} />}
+                ) : <FormattingToolbar saveStatus={saveStatus} onOpenDrawing={() => setEditorRibbon('drawing')} onInsertTool={addDocumentTool} onUploadImage={uploadInlineImage} />}
                 <DocumentCanvas
                   content={activeContent}
                   onContentChange={handleUpdateContent}
@@ -1201,42 +1281,50 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   overlayBrushSize={writingStrokeSize}
                   overlayOpacity={writingStrokeOpacity}
                   overlayEnabled={editorRibbon === 'drawing'}
-                  toolSections={activeToolSections.length ? (
-                    <div className="space-y-8">
-                      {activeToolSections.map((section) => (
-                        <section key={section.id} id={`work-tool-${section.id}`} className="scroll-mt-6 border-t border-border/50 pt-8">
-                          <div className="mb-3 flex items-center justify-between gap-3">
-                            <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Thinking tool</span>
-                            <div className="flex items-center gap-2">
-                              <PageSettingsControl
-                                pageLabel={`${workToolLabel(section.tool)} page`}
-                                pageSize={active.pageSettings?.[section.id]?.pageSize || pageSize}
-                                onPageSizeChange={(next) => updatePageSettings(section.id, { pageSize: next })}
-                                paperColor={active.pageSettings?.[section.id]?.paperColor || paperColor}
-                                onPaperColorChange={(next) => updatePageSettings(section.id, { paperColor: next })}
-                                paperPattern={active.pageSettings?.[section.id]?.paperPattern || paperPattern}
-                                onPaperPatternChange={(next) => updatePageSettings(section.id, { paperPattern: next })}
-                                overridden={Boolean(active.pageSettings?.[section.id])}
-                                onReset={() => resetPageSettings(section.id)}
-                              />
-                              <Button type="button" variant="ghost" size="sm" onClick={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))} className="h-8 rounded-md text-muted-foreground hover:text-destructive">
-                                <Trash2 className="mr-1.5 size-3.5" /> Remove section
-                              </Button>
-                            </div>
-                          </div>
-                          <StructuredWorkSurface
-                            embedded
-                            style={section.tool}
-                            data={{ version: 1, ...section.data }}
-                            onChange={(data) => updateToolSections(activeToolSections.map((item) => item.id === section.id ? { ...item, data: { fields: data.fields, branches: data.branches, timeline: data.timeline } } : item))}
-                            paperColor={active.pageSettings?.[section.id]?.paperColor || paperColor}
-                            pageSize={active.pageSettings?.[section.id]?.pageSize || pageSize}
-                            paperPattern={active.pageSettings?.[section.id]?.paperPattern || paperPattern}
+                  inlineTools={inlineToolsForPage('main')}
+                  onCurrentPageChange={setCurrentPageId}
+                  subpages={activeDocumentPages.length ? activeDocumentPages.map((page, index) => {
+                    const appearance = resolveDocumentPageSettings(
+                      { pageSize, paperColor, paperPattern },
+                      active.pageSettings,
+                      page.id,
+                    );
+                    return (
+                      <section key={page.id} id={`work-page-${page.id}`} data-work-page-id={page.id} className="scroll-mt-6">
+                        <div className="mb-3 flex items-center gap-2">
+                          <Input
+                            value={page.title}
+                            onChange={(event) => updateDocumentPage(page.id, { title: event.target.value })}
+                            aria-label={`Title for page ${index + 2}`}
+                            placeholder={`Page ${index + 2}`}
+                            className="h-9 min-w-0 flex-1 border-0 bg-transparent px-1 font-headline text-lg font-semibold italic shadow-none focus-visible:ring-1"
                           />
-                        </section>
-                      ))}
-                    </div>
-                  ) : undefined}
+                          <Button type="button" variant="ghost" size="icon" onClick={() => removeDocumentPage(page.id)} className="size-9 shrink-0 rounded-md text-muted-foreground hover:text-destructive" aria-label={`Remove ${page.title || `page ${index + 2}`}`}>
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
+                        <DocsPage
+                          pageNumber={index + 2}
+                          pageSize={appearance.pageSize}
+                          paperColor={appearance.paperColor}
+                          paperPattern={appearance.paperPattern}
+                          writingStyle="blank_paper"
+                          isEditable
+                          content={page.content}
+                          onContentChange={(content) => updateDocumentPage(page.id, { content })}
+                          showBoundary
+                          overlayData=""
+                          onOverlayChange={() => undefined}
+                          overlayTool={writingTool}
+                          overlayColor={writingStrokeColor}
+                          overlayBrushSize={writingStrokeSize}
+                          overlayOpacity={writingStrokeOpacity}
+                          overlayEnabled={false}
+                          inlineTools={inlineToolsForPage(page.id, appearance)}
+                        />
+                      </section>
+                    );
+                  }) : undefined}
                 />
               </>
             ) : active.type === 'recording' ? (
@@ -1296,6 +1384,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                         finalContent: revision.finalContent,
                         activeMode: revision.activeMode,
                         templateData: revision.templateData,
+                        documentPages: revision.documentPages,
                       });
                       setIsVersionHistoryOpen(false);
                       toast({ title: 'Version restored', description: 'Review the restored content, then save to keep it.' });

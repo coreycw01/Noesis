@@ -8,9 +8,11 @@ import {
   AlignRight,
   Bold,
   ChartColumn,
+  CircleDotDashed,
   CaseUpper,
   Code2,
   FileSearch,
+  GitBranch,
   Highlighter,
   ImagePlus,
   IndentDecrease,
@@ -30,6 +32,8 @@ import {
   Subscript,
   Superscript,
   Table2,
+  Upload,
+  Workflow,
   Type,
   Underline,
   Unlink,
@@ -42,10 +46,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import type { WorkToolKind } from '@/lib/types';
 
 interface FormattingToolbarProps {
   saveStatus?: string;
   onOpenDrawing?: () => void;
+  onInsertTool?: (tool: WorkToolKind) => void;
+  onUploadImage?: (file: File) => Promise<string>;
 }
 
 type SpeechRecognitionCtor = new () => {
@@ -60,7 +67,7 @@ type SpeechRecognitionCtor = new () => {
 
 type UtilityDialog = 'image' | 'link' | 'table' | 'find' | 'replace' | null;
 
-export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolbarProps) {
+export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onUploadImage }: FormattingToolbarProps) {
   const { toast } = useToast();
   const [textColor, setTextColor] = useState('#31241d');
   const [highlightColor, setHighlightColor] = useState('#fef3c7');
@@ -68,7 +75,9 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
   const [isGraphDialogOpen, setIsGraphDialogOpen] = useState(false);
   const [graphValues, setGraphValues] = useState('Support:5, Challenge:2, Unknown:3');
   const [utilityDialog, setUtilityDialog] = useState<UtilityDialog>(null);
-  const [imageUrl, setImageUrl] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageAlt, setImageAlt] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [tableRows, setTableRows] = useState('3');
   const [tableColumns, setTableColumns] = useState('3');
@@ -176,14 +185,24 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
     }
   };
 
-  const runUtilityDialog = () => {
+  const runUtilityDialog = async () => {
     if (utilityDialog === 'image') {
-      const url = validExternalUrl(imageUrl);
-      if (!url) {
-        toast({ title: 'Use a web image URL', description: 'Images must use an http or https address.', variant: 'destructive' });
+      if (!imageFile || !onUploadImage) {
+        toast({ title: 'Choose an image', description: 'Select an image from this device first.', variant: 'destructive' });
         return;
       }
-      insertHtml(`<img src="${escapeTextAsHtml(url)}" alt="" style="max-width:100%; border-radius:var(--card-radius); margin:16px 0;" />`);
+      try {
+        setUploadingImage(true);
+        const url = await onUploadImage(imageFile);
+        insertHtml(`<figure contenteditable="false" data-noesis-image="uploaded"><img src="${escapeTextAsHtml(url)}" alt="${escapeTextAsHtml(imageAlt)}" style="display:block;max-width:100%;height:auto;margin:0 auto;" />${imageAlt.trim() ? `<figcaption>${escapeTextAsHtml(imageAlt.trim())}</figcaption>` : ''}</figure><p><br></p>`);
+        setImageFile(null);
+        setImageAlt('');
+      } catch (error) {
+        toast({ title: 'Image could not be added', description: error instanceof Error ? error.message : 'Try another image.', variant: 'destructive' });
+        return;
+      } finally {
+        setUploadingImage(false);
+      }
     }
     if (utilityDialog === 'link') {
       const url = validExternalUrl(linkUrl);
@@ -368,8 +387,19 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 border-border bg-popover text-popover-foreground">
               <DropdownMenuItem onSelect={() => openUtilityDialog('table')}><Table2 className="mr-2 size-4" /> Table</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => openUtilityDialog('image')}><ImagePlus className="mr-2 size-4" /> Image</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => openUtilityDialog('image')}><ImagePlus className="mr-2 size-4" /> Upload image</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setIsGraphDialogOpen(true)}><ChartColumn className="mr-2 size-4" /> Inline graph</DropdownMenuItem>
+              {onInsertTool && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Inline thinking tools</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => onInsertTool('mind_map')}><GitBranch className="mr-2 size-4" /> Mind map</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onInsertTool('timeline')}><Workflow className="mr-2 size-4" /> Timeline</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onInsertTool('venn_diagram')}><CircleDotDashed className="mr-2 size-4" /> Venn diagram</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onInsertTool('comparison_matrix')}><Table2 className="mr-2 size-4" /> Comparison matrix</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onInsertTool('causal_chain')}><Workflow className="mr-2 size-4" /> Causal chain</DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuItem onSelect={insertDivider}><Pilcrow className="mr-2 size-4" /> Divider</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -420,10 +450,10 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{utilityDialog === 'image' ? 'Insert image' : utilityDialog === 'link' ? 'Add link' : utilityDialog === 'table' ? 'Insert table' : utilityDialog === 'replace' ? 'Find and replace' : 'Find in document'}</DialogTitle>
-            <DialogDescription>{utilityDialog === 'image' ? 'Use a public web image URL. It will be added at your current cursor position.' : utilityDialog === 'link' ? 'Select text first, then enter the web address to link it.' : utilityDialog === 'table' ? 'Choose the starting table size. You can fill the cells directly in the document.' : utilityDialog === 'replace' ? 'Replace matching text throughout this document.' : 'Find the next matching phrase in this document.'}</DialogDescription>
+            <DialogDescription>{utilityDialog === 'image' ? 'Choose an image from this device. It will be stored with this work and placed in the document.' : utilityDialog === 'link' ? 'Select text first, then enter the web address to link it.' : utilityDialog === 'table' ? 'Choose the starting table size. You can fill the cells directly in the document.' : utilityDialog === 'replace' ? 'Replace matching text throughout this document.' : 'Find the next matching phrase in this document.'}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            {utilityDialog === 'image' && <div className="space-y-2"><Label htmlFor="image-url">Image URL</Label><Input id="image-url" value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://example.com/image.jpg" autoFocus /></div>}
+            {utilityDialog === 'image' && <div className="space-y-3"><div className="space-y-2"><Label htmlFor="image-file">Image file</Label><label htmlFor="image-file" className="flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border bg-muted/20 p-4 text-center text-sm text-muted-foreground transition-colors hover:border-accent hover:text-foreground"><Upload className="size-5" /><span>{imageFile ? imageFile.name : 'Choose PNG, JPEG, WebP, or GIF'}</span></label><Input id="image-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => setImageFile(event.target.files?.[0] || null)} className="sr-only" /></div><div className="space-y-2"><Label htmlFor="image-alt">Caption and description</Label><Input id="image-alt" value={imageAlt} onChange={(event) => setImageAlt(event.target.value)} placeholder="Describe the image" /></div></div>}
             {utilityDialog === 'link' && <div className="space-y-2"><Label htmlFor="link-url">Link URL</Label><Input id="link-url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://example.com" autoFocus /></div>}
             {utilityDialog === 'table' && <div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="table-rows">Rows</Label><Input id="table-rows" type="number" min="1" max="12" value={tableRows} onChange={(event) => setTableRows(event.target.value)} autoFocus /></div><div className="space-y-2"><Label htmlFor="table-columns">Columns</Label><Input id="table-columns" type="number" min="1" max="8" value={tableColumns} onChange={(event) => setTableColumns(event.target.value)} /></div></div>}
             {(utilityDialog === 'find' || utilityDialog === 'replace') && <div className="space-y-2"><Label htmlFor="find-query">Find</Label><Input id="find-query" value={findQuery} onChange={(event) => setFindQuery(event.target.value)} placeholder="Text to find" autoFocus /></div>}
@@ -431,7 +461,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing }: FormattingToolb
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setUtilityDialog(null)}>Cancel</Button>
-            <Button type="button" onClick={runUtilityDialog}>{utilityDialog === 'replace' ? 'Replace all' : utilityDialog === 'find' ? 'Find next' : utilityDialog === 'table' ? 'Insert table' : utilityDialog === 'image' ? 'Insert image' : 'Add link'}</Button>
+            <Button type="button" onClick={() => void runUtilityDialog()} disabled={uploadingImage}>{utilityDialog === 'replace' ? 'Replace all' : utilityDialog === 'find' ? 'Find next' : utilityDialog === 'table' ? 'Insert table' : utilityDialog === 'image' ? uploadingImage ? 'Uploading…' : 'Insert image' : 'Add link'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

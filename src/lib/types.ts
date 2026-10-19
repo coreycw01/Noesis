@@ -59,6 +59,12 @@ export interface WorkTimelineEntry {
   detail: string;
 }
 
+export interface WorkMindMapNode {
+  id: string;
+  label: string;
+  parentId: string | null;
+}
+
 export type WorkToolKind =
   | 'cornell_notes'
   | 'two_column_debate'
@@ -74,14 +80,24 @@ export type WorkToolKind =
 export interface WorkToolData {
   fields: Record<string, string>;
   branches?: string[];
+  mindMapNodes?: WorkMindMapNode[];
   timeline?: WorkTimelineEntry[];
 }
 
 export interface WorkToolSection {
   id: string;
   tool: WorkToolKind;
+  /** The document page containing this inline tool. Older tools default to the main page. */
+  pageId?: string;
   createdAt?: string;
   data: WorkToolData;
+}
+
+export interface WorkDocumentPage {
+  id: string;
+  title: string;
+  content: string;
+  createdAt?: string;
 }
 
 /**
@@ -432,8 +448,11 @@ export interface Draft extends NoesisStageState {
   thumbnailUrl?: string;
   canvasData?: string;
   canvasAsset?: StoredAsset;
+  inlineAssets?: StoredAsset[];
   drawingState?: DrawingDocumentState;
   templateData?: WorkTemplateData;
+  /** Prose pages after the primary `body` page, in document order. */
+  documentPages?: WorkDocumentPage[];
   documentSettings?: DocumentSettings;
   /** Per-page appearance overrides. `main` identifies the primary writing page; tool section IDs identify inserted pages. */
   pageSettings?: Record<string, DocumentPageSettings>;
@@ -523,6 +542,7 @@ export interface DraftRevision {
   finalContent?: string;
   activeMode?: WorkMode;
   templateData?: WorkTemplateData;
+  documentPages?: WorkDocumentPage[];
   createdAt: string;
 }
 

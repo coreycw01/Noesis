@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, type ReactNode } from 'react';
 import type { PageSize, PaperColor, PaperPattern } from './Atelier';
 import type { DrawingTool, WritingStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -25,9 +25,10 @@ interface DocsPageProps {
   overlayBrushSize: number;
   overlayOpacity: number;
   overlayEnabled: boolean;
+  inlineTools?: ReactNode;
 }
 
-export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary, overlayData, backgroundArtwork, onOverlayChange, overlayTool, overlayColor, overlayBrushSize, overlayOpacity, overlayEnabled }: DocsPageProps) {
+export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary, overlayData, backgroundArtwork, onOverlayChange, overlayTool, overlayColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools }: DocsPageProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const overlayDrawingRef = useRef(false);
@@ -261,7 +262,8 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
         data-placeholder="Start writing…"
         onInput={(e) => onContentChange(sanitizeHtml(e.currentTarget.innerHTML))}
         className={cn(
-          "relative z-[1] flex-1 p-6 font-body text-base italic leading-8 focus:outline-none empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)] sm:p-12 sm:text-[17px] sm:leading-9 lg:p-24 lg:text-[18px] lg:leading-[2.4]",
+          "relative z-[1] p-6 font-body text-base italic leading-8 focus:outline-none empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)] sm:p-12 sm:text-[17px] sm:leading-9 lg:p-24 lg:text-[18px] lg:leading-[2.4]",
+          inlineTools ? "min-h-64 pb-8 sm:pb-10 lg:pb-12" : "flex-1",
           !isEditable && "pointer-events-none opacity-20",
           paperPattern === 'notebook' && "pl-12 sm:pl-16 lg:pl-28",
           writingStyle === 'cornell_notes' && "pb-36 sm:pl-[240px]",
@@ -275,6 +277,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
           whiteSpace: 'pre-wrap'
         }}
       />
+      {inlineTools && <div className="relative z-[2] space-y-6 px-6 pb-10 sm:px-12 lg:px-24" aria-label="Inline document tools">{inlineTools}</div>}
       <canvas
         ref={overlayRef}
         onPointerDown={startOverlayDraw}

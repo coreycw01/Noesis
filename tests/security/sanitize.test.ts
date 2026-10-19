@@ -14,3 +14,17 @@ test('keeps only the supported rich-text vocabulary', () => {
   assert.match(clean, /<h2>Title<\/h2>/);
   assert.match(clean, /rel="noopener noreferrer nofollow"/);
 });
+
+test('keeps uploaded document images while rejecting executable image content', () => {
+  const clean = sanitizeHtml('<figure data-noesis-image="uploaded" contenteditable="false"><img src="data:image/png;base64,AAAA" alt="Argument map" onerror="alert(1)"><figcaption>Argument map</figcaption></figure>');
+  assert.match(clean, /data-noesis-image="uploaded"/);
+  assert.match(clean, /src="data:image\/png;base64,AAAA"/);
+  assert.match(clean, /alt="Argument map"/);
+  assert.doesNotMatch(clean, /onerror/i);
+});
+
+test('keeps inline graph opacity and non-editable semantics', () => {
+  const clean = sanitizeHtml('<figure data-noesis-chart="bar" contenteditable="false"><svg viewBox="0 0 10 10"><rect x="0" y="0" width="8" height="4" fill="currentColor" opacity="0.25"></rect></svg></figure>');
+  assert.match(clean, /contenteditable="false"/);
+  assert.match(clean, /opacity="0.25"/);
+});

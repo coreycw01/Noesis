@@ -1,8 +1,8 @@
 "use client";
 
 import { Plus, Trash2 } from 'lucide-react';
-import type { CSSProperties, ReactNode } from 'react';
-import type { DocumentPaperPattern, WorkTemplateData, WorkTimelineEntry, WorkToolKind, WritingStyle } from '@/lib/types';
+import { useState, type CSSProperties, type ReactNode } from 'react';
+import type { DocumentPaperPattern, WorkMindMapNode, WorkTemplateData, WorkTimelineEntry, WorkToolKind, WritingStyle } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -102,7 +102,7 @@ export function workToolLabel(style: StructuredWorkStyle) {
 }
 
 const paperTone = {
-  blank: 'bg-card text-foreground',
+  blank: 'bg-transparent text-inherit',
   warm: 'bg-amber-50 text-stone-900',
   sepia: 'bg-[#f4ecd8] text-[#493727]',
   dark: 'bg-slate-900 text-slate-100',
@@ -140,6 +140,7 @@ export function StructuredWorkSurface({
   embedded?: boolean;
 }) {
   const current: WorkTemplateData = data || { version: 1, fields: {}, branches: [], timeline: [] };
+  const [newBranchParentId, setNewBranchParentId] = useState('central');
   const updateFields = (key: string, value: string) => onChange({ ...current, fields: { ...current.fields, [key]: value } });
   const widthClass = pageSize === 'letter' ? 'max-w-[850px]' : 'max-w-[827px]';
 
@@ -171,28 +172,93 @@ export function StructuredWorkSurface({
   }
 
   if (style === 'mind_map') {
-    const branches = current.branches?.length ? current.branches : ['', '', '', ''];
-    const updateBranch = (index: number, value: string) => {
-      const next = [...branches];
-      next[index] = value;
-      onChange({ ...current, branches: next });
+    const legacyNodes: WorkMindMapNode[] = (current.branches || []).map((label, index) => ({
+      id: `legacy-branch-${index}`,
+      label,
+      parentId: null,
+    }));
+    const nodes = current.mindMapNodes?.length ? current.mindMapNodes : legacyNodes;
+    const saveNodes = (next: WorkMindMapNode[]) => onChange({
+      ...current,
+      mindMapNodes: next,
+      branches: next.map((node) => node.label),
+    });
+    const updateNode = (id: string, patch: Partial<WorkMindMapNode>) => {
+      const next = nodes.map((node) => node.id === id ? { ...node, ...patch } : node);
+      saveNodes(next);
+    };
+    const removeNode = (id: string) => {
+      const removed = nodes.find((node) => node.id === id);
+      saveNodes(nodes
+        .filter((node) => node.id !== id)
+        .map((node) => node.parentId === id ? { ...node, parentId: removed?.parentId || null } : node));
+    };
+    const depthFor = (node: WorkMindMapNode) => {
+      let depth = 0;
+      let parentId = node.parentId;
+      const visited = new Set<string>();
+      while (parentId && depth < 4 && !visited.has(parentId)) {
+        visited.add(parentId);
+        depth += 1;
+        parentId = nodes.find((candidate) => candidate.id === parentId)?.parentId || null;
+      }
+      return depth;
+    };
+    const wouldCreateCycle = (nodeId: string, parentId: string) => {
+      let cursor: string | null = parentId;
+      const visited = new Set<string>();
+      while (cursor && !visited.has(cursor)) {
+        if (cursor === nodeId) return true;
+        visited.add(cursor);
+        cursor = nodes.find((node) => node.id === cursor)?.parentId || null;
+      }
+      return false;
+    };
+    const addBranch = () => {
+      const parentId = newBranchParentId === 'central' ? null : newBranchParentId;
+      saveNodes([...nodes, { id: crypto.randomUUID(), label: '', parentId }]);
     };
     return (
       <TemplateFrame title={FORMAT_COPY[style].title} purpose={FORMAT_COPY[style].purpose} tone={paperTone[paperColor]} patternStyle={paperPatternStyle(paperColor, paperPattern)} widthClass={widthClass} embedded={embedded}>
-        <div className="grid min-h-[540px] place-items-center p-6 sm:p-10">
-          <div className="grid w-full max-w-3xl grid-cols-1 items-center gap-5 md:grid-cols-3">
-            <div className="order-2 space-y-4 md:order-1">
-              {branches.slice(0, 2).map((branch, index) => <BranchInput key={index} value={branch} onChange={(value) => updateBranch(index, value)} />)}
-            </div>
-            <div className="order-1 border-2 border-accent bg-background/70 p-4 text-center md:order-2">
-              <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Central idea</label>
-              <Input value={current.fields.central || ''} onChange={(event) => updateFields('central', event.target.value)} placeholder="Name the idea" className="mt-3 h-auto border-0 bg-transparent px-0 text-center font-headline text-2xl font-bold italic shadow-none focus-visible:ring-0" />
-            </div>
-            <div className="order-3 space-y-4">
-              {branches.slice(2).map((branch, index) => <BranchInput key={index + 2} value={branch} onChange={(value) => updateBranch(index + 2, value)} />)}
-            </div>
+        <div className="space-y-5 p-5 sm:p-8">
+          <div className="border-2 border-accent bg-background/70 p-4 text-center">
+            <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Central idea</label>
+            <Input value={current.fields.central || ''} onChange={(event) => updateFields('central', event.target.value)} placeholder="Name the idea" className="mt-2 h-auto border-0 bg-transparent px-0 text-center font-headline text-2xl font-bold italic shadow-none focus-visible:ring-0" />
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={() => onChange({ ...current, branches: [...branches, ''] })} className="mt-8 rounded-md"><Plus className="mr-2 size-4" /> Add branch</Button>
+
+          <div className="space-y-2" aria-label="Mind map branches">
+            {nodes.length === 0 && <p className="border border-dashed border-current/20 p-4 text-center text-sm opacity-60">Add a branch, then choose whether it grows from the central idea or another branch.</p>}
+            {nodes.map((node) => {
+              const depth = depthFor(node);
+              return (
+                <div key={node.id} className="grid gap-2 border border-current/15 bg-background/55 p-3 sm:grid-cols-[minmax(0,1fr)_200px_auto]" style={{ marginLeft: `${Math.min(depth, 3) * 20}px` }}>
+                  <Input value={node.label} onChange={(event) => updateNode(node.id, { label: event.target.value })} placeholder="Related idea" className="h-9 border-border/50 bg-background/70 text-sm" aria-label="Branch idea" />
+                  <select
+                    aria-label={`Where ${node.label || 'this branch'} branches from`}
+                    value={node.parentId || 'central'}
+                    onChange={(event) => updateNode(node.id, { parentId: event.target.value === 'central' ? null : event.target.value })}
+                    className="h-9 w-full border border-border/50 bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="central">From central idea</option>
+                    {nodes.filter((candidate) => candidate.id !== node.id && !wouldCreateCycle(node.id, candidate.id)).map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>From {candidate.label || 'untitled branch'}</option>
+                    ))}
+                  </select>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeNode(node.id)} className="size-9 text-muted-foreground hover:text-destructive" aria-label={`Remove ${node.label || 'branch'}`}><Trash2 className="size-4" /></Button>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-end gap-2 border-t border-current/15 pt-4">
+            <label className="min-w-48 flex-1 text-xs font-medium">New branch grows from
+              <select value={newBranchParentId} onChange={(event) => setNewBranchParentId(event.target.value)} className="mt-1 h-9 w-full border border-border/50 bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <option value="central">Central idea</option>
+                {nodes.map((node) => <option key={node.id} value={node.id}>{node.label || 'Untitled branch'}</option>)}
+              </select>
+            </label>
+            <Button type="button" variant="outline" size="sm" onClick={addBranch} className="h-9 rounded-md"><Plus className="mr-2 size-4" /> Add branch</Button>
+          </div>
         </div>
       </TemplateFrame>
     );
@@ -231,13 +297,9 @@ export function StructuredWorkSurface({
 }
 
 function TemplateFrame({ title, purpose, tone, patternStyle, widthClass, children, embedded }: { title: string; purpose: string; tone: string; patternStyle: CSSProperties; widthClass: string; children: ReactNode; embedded: boolean }) {
-  return <div className={cn(!embedded && 'h-full min-h-0 overflow-y-auto bg-muted/10 p-4 sm:p-8')}><section className={cn('mx-auto min-h-full w-full border border-border/30 shadow-sm', widthClass, tone)} style={patternStyle}><header className="border-b border-current/15 px-5 py-4 sm:px-8"><h2 className="font-headline text-2xl font-bold italic">{title}</h2><p className="mt-1 max-w-2xl text-sm leading-6 opacity-70">{purpose}</p></header>{children}</section></div>;
+  return <div className={cn(!embedded && 'h-full min-h-0 overflow-y-auto bg-muted/10 p-4 sm:p-8')}><section className={cn('mx-auto w-full border border-current/20', !embedded && 'min-h-full shadow-sm', widthClass, tone)} style={patternStyle}><header className="border-b border-current/15 px-5 py-4 sm:px-8"><h2 className="font-headline text-2xl font-bold italic">{title}</h2><p className="mt-1 max-w-2xl text-sm leading-6 opacity-70">{purpose}</p></header>{children}</section></div>;
 }
 
 function WorkField({ field, value, onChange }: { field: FieldDefinition; value: string; onChange: (value: string) => void }) {
   return <section className="border border-current/15 bg-background/35 p-4"><label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">{field.label}</label>{field.multiline ? <Textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.prompt} className="mt-3 min-h-28 border-0 bg-transparent px-0 text-sm leading-6 shadow-none focus-visible:ring-0" /> : <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.prompt} className="mt-3 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" />}</section>;
-}
-
-function BranchInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return <div className="border border-border/60 bg-background/70 p-3"><Input value={value} onChange={(event) => onChange(event.target.value)} placeholder="Related idea" className="h-auto border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0" /></div>;
 }
