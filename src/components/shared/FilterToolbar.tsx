@@ -85,10 +85,10 @@ export function FilterToolbar({
     : activeFilterLabels.map((label) => ({ id: label, label }));
   return (
     <section aria-label="Page filters and search" className={cn('sticky top-0 z-20 mb-5 border-b border-border/30 bg-background/95 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:mb-7', className)}>
-      <div className="flex min-h-10 flex-wrap items-center gap-2">
-        <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto sm:flex-1">
+      <div className="flex min-h-10 flex-nowrap items-center gap-2 sm:flex-wrap">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {typeof search === 'string' && onSearchChange && (
-          <div className="relative min-w-[180px] flex-1 md:max-w-xl">
+          <div className="relative min-w-0 flex-1 md:max-w-xl">
             <label htmlFor={searchId} className="sr-only">{searchLabel}</label>
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input

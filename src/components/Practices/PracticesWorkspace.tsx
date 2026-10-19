@@ -879,8 +879,8 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
   const [practiceWorkflowStep, setPracticeWorkflowStep] = useState<'design' | 'run' | 'review' | 'integrate'>('design');
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto bg-card border-none shadow-2xl rounded-2xl p-0">
-        <div className="p-8">
+      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto bg-card border-none shadow-2xl rounded-2xl p-0 max-sm:grid max-sm:h-[calc(100dvh-1rem)] max-sm:w-[calc(100vw-1rem)] max-sm:max-w-none max-sm:grid-rows-[minmax(0,1fr)_auto] max-sm:overflow-hidden">
+        <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-8">
           <DialogHeader className="mb-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <DialogTitle className="font-headline text-3xl italic">{draft.id ? 'Refine Practice' : 'Start Practice'}</DialogTitle>
@@ -1034,7 +1034,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
             </details>}
           </div>
         </div>
-        <div className="p-8 pt-4 bg-muted/10 border-t flex justify-end gap-3">
+        <div className="flex shrink-0 justify-end gap-3 border-t bg-muted/10 p-4 sm:p-8 sm:pt-4">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 px-8 rounded-full font-bold text-muted-foreground hover:bg-transparent">CANCEL</Button>
           <Button onClick={onSave} className="h-11 px-10 bg-accent shadow-xl shadow-accent/20 rounded-full font-bold uppercase tracking-widest text-[11px]">{draft.id ? 'Save Practice' : 'Create Practice'}</Button>
         </div>

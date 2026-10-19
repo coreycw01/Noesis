@@ -22,6 +22,7 @@ import {
   ListOrdered,
   Link,
   Mic,
+  MoreHorizontal,
   Palette,
   PencilLine,
   Pilcrow,
@@ -65,26 +66,23 @@ type SpeechRecognitionCtor = new () => {
   stop: () => void;
 };
 
-type UtilityDialog = 'image' | 'link' | 'table' | 'find' | 'replace' | null;
+type UtilityDialog = 'image' | 'link' | 'find' | 'replace' | null;
 
 export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onUploadImage }: FormattingToolbarProps) {
   const { toast } = useToast();
   const [textColor, setTextColor] = useState('#31241d');
   const [highlightColor, setHighlightColor] = useState('#fef3c7');
   const [listening, setListening] = useState(false);
-  const [isGraphDialogOpen, setIsGraphDialogOpen] = useState(false);
-  const [graphValues, setGraphValues] = useState('Support:5, Challenge:2, Unknown:3');
   const [utilityDialog, setUtilityDialog] = useState<UtilityDialog>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageAlt, setImageAlt] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
-  const [tableRows, setTableRows] = useState('3');
-  const [tableColumns, setTableColumns] = useState('3');
   const [findQuery, setFindQuery] = useState('');
   const [replacementText, setReplacementText] = useState('');
   const recognitionRef = useRef<any>(null);
   const selectionRef = useRef<Range | null>(null);
+  const findCursorRef = useRef(0);
 
   const rememberSelection = () => {
     const selection = window.getSelection();
@@ -139,15 +137,6 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
     if (block?.closest('[contenteditable="true"]')) block.style.lineHeight = value;
   };
 
-  const insertTable = (rowsValue: string, columnsValue: string) => {
-    const rows = Math.min(12, Math.max(1, Number(rowsValue) || 3));
-    const columns = Math.min(8, Math.max(1, Number(columnsValue) || 3));
-    const body = Array.from({ length: rows }, () =>
-      `<tr>${Array.from({ length: columns }, () => '<td style="border:1px solid #cfc6bb;padding:8px;min-width:80px;"><br></td>').join('')}</tr>`
-    ).join('');
-    insertHtml(`<table style="width:100%;border-collapse:collapse;margin:16px 0;"><tbody>${body}</tbody></table><p><br></p>`);
-  };
-
   const insertDivider = () => insertHtml('<hr style="border:0;border-top:1px solid currentColor;opacity:.25;margin:24px 0;"><p><br></p>');
 
   const replaceInDocument = (query: string, replacement: string) => {
@@ -169,6 +158,40 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
     } else {
       toast({ title: 'No matches found', description: `“${query}” does not appear in this work.` });
     }
+  };
+
+  const findInDocument = (query: string) => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    if (!normalizedQuery || !editor) return false;
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    const matches: Array<{ node: Text; index: number }> = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      const haystack = node.data.toLocaleLowerCase();
+      let index = haystack.indexOf(normalizedQuery);
+      while (index >= 0) {
+        matches.push({ node, index });
+        index = haystack.indexOf(normalizedQuery, index + normalizedQuery.length);
+      }
+    }
+    if (!matches.length) {
+      toast({ title: 'No matches found', description: `“${query.trim()}” does not appear in this work.` });
+      findCursorRef.current = 0;
+      return false;
+    }
+    const matchIndex = findCursorRef.current % matches.length;
+    const match = matches[matchIndex];
+    const range = document.createRange();
+    range.setStart(match.node, match.index);
+    range.setEnd(match.node, match.index + query.trim().length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    match.node.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    findCursorRef.current = matchIndex + 1;
+    toast({ title: `Match ${matchIndex + 1} of ${matches.length}` });
+    return true;
   };
 
   const openUtilityDialog = (dialog: Exclude<UtilityDialog, null>) => {
@@ -212,45 +235,9 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
       }
       applyFormat('createLink', url);
     }
-    if (utilityDialog === 'table') insertTable(tableRows, tableColumns);
-    if (utilityDialog === 'find' && findQuery.trim()) (window as unknown as { find: (text: string) => boolean }).find(findQuery.trim());
+    if (utilityDialog === 'find' && findQuery.trim()) findInDocument(findQuery);
     if (utilityDialog === 'replace') replaceInDocument(findQuery, replacementText);
     setUtilityDialog(null);
-  };
-
-  const insertChart = () => {
-    const raw = graphValues.trim();
-    if (!raw) return;
-    const rows = raw.split(',').map((part) => {
-      const [label, value] = part.split(':');
-      return { label: label?.trim() || 'Item', value: Math.max(0, Number(value) || 0) };
-    }).filter((row) => row.label).slice(0, 8);
-    if (!rows.length) return;
-    const max = Math.max(1, ...rows.map((row) => row.value));
-    const width = 640;
-    const labelWidth = 170;
-    const plotWidth = 360;
-    const rowHeight = 42;
-    const height = Math.max(120, rows.length * rowHeight + 56);
-    const chartRows = rows.map((row, index) => {
-      const y = 34 + index * rowHeight;
-      const barWidth = Math.max(2, Math.round((row.value / max) * plotWidth));
-      return `
-        <text x="${labelWidth - 12}" y="${y + 14}" text-anchor="end" fill="currentColor" font-size="13" font-family="Georgia, serif">${escapeTextAsHtml(row.label)}</text>
-        <rect x="${labelWidth}" y="${y}" width="${plotWidth}" height="18" rx="4" fill="currentColor" opacity="0.12"></rect>
-        <rect x="${labelWidth}" y="${y}" width="${barWidth}" height="18" rx="4" fill="currentColor" opacity="0.75"></rect>
-        <text x="${labelWidth + plotWidth + 12}" y="${y + 14}" fill="currentColor" font-size="12" font-family="Arial, sans-serif">${row.value}</text>`;
-    }).join('');
-    insertHtml(`
-      <figure contenteditable="false" data-noesis-chart="bar">
-        <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Inline bar chart">
-          <text x="${labelWidth}" y="18" fill="currentColor" font-size="12" font-family="Arial, sans-serif">Relative values</text>
-          ${chartRows}
-        </svg>
-        <figcaption>Inline bar chart</figcaption>
-      </figure><p><br></p>
-    `);
-    setIsGraphDialogOpen(false);
   };
 
   const toggleTalkToText = () => {
@@ -288,14 +275,14 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
   return (
     <>
     <div className="sticky top-0 z-40 border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur sm:px-6">
-      <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-[var(--card-radius)] border border-border/60 bg-card p-1.5 shadow-sm">
+      <div className="flex flex-nowrap items-center justify-start gap-1 rounded-[var(--card-radius)] border border-border/60 bg-card p-1.5 shadow-sm sm:flex-wrap sm:justify-center sm:gap-1.5">
         <div className="flex items-center gap-1 border-r border-border/40 pr-2">
           {onOpenDrawing && <ToolbarButton icon={PencilLine} onClick={onOpenDrawing} title="Open drawing tools" />}
           <ToolbarButton icon={RotateCcw} onClick={() => applyFormat('undo')} title="Undo" />
           <ToolbarButton icon={RotateCw} onClick={() => applyFormat('redo')} title="Redo" />
         </div>
 
-        <div className="flex items-center gap-2 border-r border-border/40 pr-2">
+        <div className="hidden items-center gap-2 border-r border-border/40 pr-2 sm:flex">
           <Type className="size-3.5 text-muted-foreground" />
           <select aria-label="Paragraph style" defaultValue="P" onPointerDown={rememberSelection} onChange={(event) => applyFormat('formatBlock', event.target.value)} className="bg-card text-[11px] font-body italic text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Paragraph style">
             <option value="P">Paragraph</option>
@@ -306,7 +293,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
           </select>
         </div>
 
-        <div className="flex items-center gap-2 border-r border-border/40 pr-2">
+        <div className="hidden items-center gap-2 border-r border-border/40 pr-2 sm:flex">
           <select aria-label="Font family" defaultValue="Georgia" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontName', event.target.value)} className="max-w-32 bg-card text-[11px] text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Font family">
             <optgroup label="Serif">
               <option value="Georgia">Georgia</option>
@@ -343,24 +330,29 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
           <ToolbarButton icon={Bold} onClick={() => applyFormat('bold')} title="Bold" />
           <ToolbarButton icon={Italic} onClick={() => applyFormat('italic')} title="Italic" />
           <ToolbarButton icon={Underline} onClick={() => applyFormat('underline')} title="Underline" />
-          <ColorButton icon={Palette} value={textColor} onChange={(value) => { setTextColor(value); applyFormat('foreColor', value); }} title="Text color" />
-          <ColorButton icon={Highlighter} value={highlightColor} onChange={(value) => { setHighlightColor(value); applyFormat('hiliteColor', value); applyFormat('backColor', value); }} title="Highlight color" />
+          <div className="hidden sm:contents"><ColorButton icon={Palette} value={textColor} onChange={(value) => { setTextColor(value); applyFormat('foreColor', value); }} title="Text color" /></div>
+          <div className="hidden sm:contents"><ColorButton icon={Highlighter} value={highlightColor} onChange={(value) => { setHighlightColor(value); applyFormat('hiliteColor', value); applyFormat('backColor', value); }} title="Highlight color" /></div>
         </div>
 
-        <div className="flex items-center gap-0.5 border-r border-border/40 pr-2">
+        <div className="hidden items-center gap-0.5 border-r border-border/40 pr-2 sm:flex">
           <ToolbarButton icon={AlignLeft} onClick={() => applyFormat('justifyLeft')} active title="Align left" />
           <ToolbarButton icon={AlignCenter} onClick={() => applyFormat('justifyCenter')} title="Align center" />
           <ToolbarButton icon={AlignRight} onClick={() => applyFormat('justifyRight')} title="Align right" />
         </div>
 
         <div className="flex items-center gap-0.5 border-r border-border/40 pr-2">
-          <ToolbarButton icon={Link} onClick={() => openUtilityDialog('link')} title="Add link" />
+          <div className="hidden sm:block"><ToolbarButton icon={Link} onClick={() => openUtilityDialog('link')} title="Add link" /></div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
-              <Button type="button" variant="ghost" size="sm" className="h-8 rounded-md px-2 font-code text-[9px] font-bold uppercase tracking-wider">Format</Button>
+              <Button type="button" variant="ghost" size="sm" className="size-8 rounded-md p-0 font-code text-[9px] font-bold uppercase tracking-wider sm:h-8 sm:w-auto sm:px-2" aria-label="Format text"><Pilcrow className="size-4 sm:hidden" /><span className="hidden sm:inline">Format</span></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56 border-border bg-popover text-popover-foreground">
               <DropdownMenuLabel>Text and spacing</DropdownMenuLabel>
+              <div className="space-y-2 px-2 pb-2 sm:hidden" onPointerDown={rememberSelection}>
+                <select aria-label="Paragraph style" defaultValue="P" onChange={(event) => applyFormat('formatBlock', event.target.value)} className="h-8 w-full rounded-md border border-border/60 bg-card px-2 text-xs text-foreground"><option value="P">Paragraph</option><option value="H1">Heading 1</option><option value="H2">Heading 2</option><option value="H3">Heading 3</option><option value="BLOCKQUOTE">Quote</option></select>
+                <div className="grid grid-cols-2 gap-2"><select aria-label="Font family" defaultValue="Georgia" onChange={(event) => applyFormat('fontName', event.target.value)} className="h-8 rounded-md border border-border/60 bg-card px-2 text-xs text-foreground"><option value="Georgia">Georgia</option><option value="Garamond">Garamond</option><option value="Arial">Arial</option><option value="Helvetica">Helvetica</option><option value="Consolas">Consolas</option></select><select aria-label="Font size" defaultValue="3" onChange={(event) => applyFormat('fontSize', event.target.value)} className="h-8 rounded-md border border-border/60 bg-card px-2 text-xs text-foreground"><option value="2">Small</option><option value="3">Body</option><option value="4">Large</option><option value="5">Display</option></select></div>
+                <div className="flex items-center gap-3"><ColorButton icon={Palette} value={textColor} onChange={(value) => { setTextColor(value); applyFormat('foreColor', value); }} title="Text color" /><ColorButton icon={Highlighter} value={highlightColor} onChange={(value) => { setHighlightColor(value); applyFormat('hiliteColor', value); applyFormat('backColor', value); }} title="Highlight color" /></div>
+              </div>
               <DropdownMenuItem onSelect={() => applyFormat('strikeThrough')}><Strikethrough className="mr-2 size-4" /> Strikethrough</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => applyFormat('superscript')}><Superscript className="mr-2 size-4" /> Superscript</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => applyFormat('subscript')}><Subscript className="mr-2 size-4" /> Subscript</DropdownMenuItem>
@@ -383,16 +375,20 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
         <div className="flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
-              <Button type="button" variant="outline" size="sm" className="h-8 rounded-md border-border/60 px-2.5 font-code text-[9px] font-bold uppercase tracking-wider">Insert</Button>
+              <Button type="button" variant="outline" size="sm" className="size-8 rounded-md border-border/60 p-0 font-code text-[9px] font-bold uppercase tracking-wider sm:h-8 sm:w-auto sm:px-2.5" aria-label="Insert visual or media"><ImagePlus className="size-4 sm:hidden" /><span className="hidden sm:inline">Insert</span></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 border-border bg-popover text-popover-foreground">
-              <DropdownMenuItem onSelect={() => openUtilityDialog('table')}><Table2 className="mr-2 size-4" /> Table</DropdownMenuItem>
+              <DropdownMenuItem className="sm:hidden" onSelect={() => openUtilityDialog('link')}><Link className="mr-2 size-4" /> Add link</DropdownMenuItem>
+              <DropdownMenuLabel>Media</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => openUtilityDialog('image')}><ImagePlus className="mr-2 size-4" /> Upload image</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setIsGraphDialogOpen(true)}><ChartColumn className="mr-2 size-4" /> Inline graph</DropdownMenuItem>
               {onInsertTool && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Inline thinking tools</DropdownMenuLabel>
+                  <DropdownMenuLabel>Visuals</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => onInsertTool('bar_chart')}><ChartColumn className="mr-2 size-4" /> Bar chart</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onInsertTool('visual_table')}><Table2 className="mr-2 size-4" /> Visual table</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Thinking tools</DropdownMenuLabel>
                   <DropdownMenuItem onSelect={() => onInsertTool('mind_map')}><GitBranch className="mr-2 size-4" /> Mind map</DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => onInsertTool('timeline')}><Workflow className="mr-2 size-4" /> Timeline</DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => onInsertTool('venn_diagram')}><CircleDotDashed className="mr-2 size-4" /> Venn diagram</DropdownMenuItem>
@@ -405,7 +401,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
-              <Button type="button" variant="ghost" size="sm" className="h-8 rounded-md px-2 font-code text-[9px] font-bold uppercase tracking-wider">Edit</Button>
+              <Button type="button" variant="ghost" size="sm" className="size-8 rounded-md p-0 font-code text-[9px] font-bold uppercase tracking-wider sm:h-8 sm:w-auto sm:px-2" aria-label="More editing actions"><MoreHorizontal className="size-4 sm:hidden" /><span className="hidden sm:inline">Edit</span></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 border-border bg-popover text-popover-foreground">
               <DropdownMenuItem onSelect={() => applyFormat('unlink')}><Unlink className="mr-2 size-4" /> Remove link</DropdownMenuItem>
@@ -423,45 +419,21 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
         </div>
       </div>
     </div>
-      <Dialog open={isGraphDialogOpen} onOpenChange={setIsGraphDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Insert inline graph</DialogTitle>
-            <DialogDescription>Enter a few labeled values to add a simple bar graph at your cursor.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="graph-values">Values</Label>
-            <Input
-              id="graph-values"
-              value={graphValues}
-              onChange={(event) => setGraphValues(event.target.value)}
-              placeholder="Support:5, Challenge:2, Unknown:3"
-              autoFocus
-            />
-            <p className="text-xs leading-5 text-muted-foreground">Use comma-separated label and value pairs. The graph is inserted as part of this document.</p>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsGraphDialogOpen(false)}>Cancel</Button>
-            <Button type="button" onClick={insertChart}>Insert graph</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <Dialog open={utilityDialog !== null} onOpenChange={(open) => !open && setUtilityDialog(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{utilityDialog === 'image' ? 'Insert image' : utilityDialog === 'link' ? 'Add link' : utilityDialog === 'table' ? 'Insert table' : utilityDialog === 'replace' ? 'Find and replace' : 'Find in document'}</DialogTitle>
-            <DialogDescription>{utilityDialog === 'image' ? 'Choose an image from this device. It will be stored with this work and placed in the document.' : utilityDialog === 'link' ? 'Select text first, then enter the web address to link it.' : utilityDialog === 'table' ? 'Choose the starting table size. You can fill the cells directly in the document.' : utilityDialog === 'replace' ? 'Replace matching text throughout this document.' : 'Find the next matching phrase in this document.'}</DialogDescription>
+            <DialogTitle>{utilityDialog === 'image' ? 'Insert image' : utilityDialog === 'link' ? 'Add link' : utilityDialog === 'replace' ? 'Find and replace' : 'Find in document'}</DialogTitle>
+            <DialogDescription>{utilityDialog === 'image' ? 'Choose an image from this device. It will be stored with this work and placed in the document.' : utilityDialog === 'link' ? 'Select text first, then enter the web address to link it.' : utilityDialog === 'replace' ? 'Replace matching text throughout this document.' : 'Find the next matching phrase in this document.'}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             {utilityDialog === 'image' && <div className="space-y-3"><div className="space-y-2"><Label htmlFor="image-file">Image file</Label><label htmlFor="image-file" className="flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border bg-muted/20 p-4 text-center text-sm text-muted-foreground transition-colors hover:border-accent hover:text-foreground"><Upload className="size-5" /><span>{imageFile ? imageFile.name : 'Choose PNG, JPEG, WebP, or GIF'}</span></label><Input id="image-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => setImageFile(event.target.files?.[0] || null)} className="sr-only" /></div><div className="space-y-2"><Label htmlFor="image-alt">Caption and description</Label><Input id="image-alt" value={imageAlt} onChange={(event) => setImageAlt(event.target.value)} placeholder="Describe the image" /></div></div>}
             {utilityDialog === 'link' && <div className="space-y-2"><Label htmlFor="link-url">Link URL</Label><Input id="link-url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://example.com" autoFocus /></div>}
-            {utilityDialog === 'table' && <div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="table-rows">Rows</Label><Input id="table-rows" type="number" min="1" max="12" value={tableRows} onChange={(event) => setTableRows(event.target.value)} autoFocus /></div><div className="space-y-2"><Label htmlFor="table-columns">Columns</Label><Input id="table-columns" type="number" min="1" max="8" value={tableColumns} onChange={(event) => setTableColumns(event.target.value)} /></div></div>}
             {(utilityDialog === 'find' || utilityDialog === 'replace') && <div className="space-y-2"><Label htmlFor="find-query">Find</Label><Input id="find-query" value={findQuery} onChange={(event) => setFindQuery(event.target.value)} placeholder="Text to find" autoFocus /></div>}
             {utilityDialog === 'replace' && <div className="space-y-2"><Label htmlFor="replacement-text">Replace with</Label><Input id="replacement-text" value={replacementText} onChange={(event) => setReplacementText(event.target.value)} placeholder="Replacement text" /></div>}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setUtilityDialog(null)}>Cancel</Button>
-            <Button type="button" onClick={() => void runUtilityDialog()} disabled={uploadingImage}>{utilityDialog === 'replace' ? 'Replace all' : utilityDialog === 'find' ? 'Find next' : utilityDialog === 'table' ? 'Insert table' : utilityDialog === 'image' ? uploadingImage ? 'Uploading…' : 'Insert image' : 'Add link'}</Button>
+            <Button type="button" onClick={() => void runUtilityDialog()} disabled={uploadingImage}>{utilityDialog === 'replace' ? 'Replace all' : utilityDialog === 'find' ? 'Find next' : utilityDialog === 'image' ? uploadingImage ? 'Uploading…' : 'Insert image' : 'Add link'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

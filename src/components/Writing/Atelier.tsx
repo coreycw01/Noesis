@@ -54,7 +54,7 @@ import { DocsPage } from './DocsPage';
 import { DrawingOverlayToolbar } from './DrawingOverlayToolbar';
 import { PageSettingsControl, PageViewControls } from './PageViewControls';
 import { isStructuredWorkStyle, StructuredWorkSurface, workToolLabel, type StructuredWorkStyle } from './StructuredWorkSurface';
-import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkDocumentPage, WorkToolSection, WritingStyle } from '@/lib/types';
+import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkDocumentPage, WorkTemplateData, WorkToolSection, WritingStyle } from '@/lib/types';
 import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -227,6 +227,87 @@ function draftSaveSignature(draft: Draft | null | undefined) {
       acc[key] = draft[key];
       return acc;
     }, {})
+  );
+}
+
+function BufferedStructuredWorkSurface({
+  data,
+  onCommit,
+  ...surfaceProps
+}: Omit<React.ComponentProps<typeof StructuredWorkSurface>, 'data' | 'onChange'> & {
+  data: WorkTemplateData;
+  onCommit: (data: WorkTemplateData) => void;
+}) {
+  const [buffer, setBuffer] = useState(data);
+  const onCommitRef = useRef(onCommit);
+  const propSignature = useMemo(() => JSON.stringify(data), [data]);
+  const bufferSignature = useMemo(() => JSON.stringify(buffer), [buffer]);
+  const previousPropSignatureRef = useRef(propSignature);
+
+  useEffect(() => {
+    onCommitRef.current = onCommit;
+  }, [onCommit]);
+
+  useEffect(() => {
+    if (propSignature === previousPropSignatureRef.current) return;
+    previousPropSignatureRef.current = propSignature;
+    if (propSignature !== bufferSignature) setBuffer(data);
+  }, [bufferSignature, data, propSignature]);
+
+  useEffect(() => {
+    if (bufferSignature === propSignature) return;
+    const timeout = window.setTimeout(() => onCommitRef.current(buffer), 350);
+    return () => window.clearTimeout(timeout);
+  }, [buffer, bufferSignature, propSignature]);
+
+  return <StructuredWorkSurface {...surfaceProps} data={buffer} onChange={setBuffer} />;
+}
+
+function ResizableInlineToolFrame({ section, onRemove, onResize, children }: {
+  section: WorkToolSection;
+  onRemove: () => void;
+  onResize: (widthPercent: number) => void;
+  children: React.ReactNode;
+}) {
+  const [widthPercent, setWidthPercent] = useState(Math.min(100, Math.max(55, section.widthPercent || 100)));
+
+  useEffect(() => {
+    setWidthPercent(Math.min(100, Math.max(55, section.widthPercent || 100)));
+  }, [section.id, section.widthPercent]);
+
+  return (
+    <section
+      id={`work-tool-${section.id}`}
+      className="noesis-inline-tool mx-auto max-sm:!w-full scroll-mt-28 border border-current/15"
+      style={{ width: `${widthPercent}%` }}
+      aria-label={`${workToolLabel(section.tool)} inline tool`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-current/10 px-4 py-2">
+        <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">{workToolLabel(section.tool)}</span>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 font-code text-[8px] font-bold uppercase tracking-wider text-muted-foreground">
+            Width
+            <input
+              type="range"
+              min="55"
+              max="100"
+              step="5"
+              value={widthPercent}
+              onChange={(event) => setWidthPercent(Number(event.target.value))}
+              onPointerUp={() => onResize(widthPercent)}
+              onKeyUp={() => onResize(widthPercent)}
+              aria-label={`${workToolLabel(section.tool)} width`}
+              className="w-20 accent-[hsl(var(--accent))]"
+            />
+            <span className="w-7 tabular-nums">{widthPercent}%</span>
+          </label>
+          <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="h-8 rounded-md text-muted-foreground hover:text-destructive" aria-label={`Remove ${workToolLabel(section.tool)}`}>
+            <Trash2 className="mr-1.5 size-3.5" /> Remove
+          </Button>
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -479,7 +560,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     setDraftBuffer(next);
     setDirty(true);
     setSaveStatus('unsaved');
-  }, [activeFromStore, draftBuffer]);
+  }, [activeFromStore]);
 
   const updateDocumentSettings = useCallback((patch: Partial<DocumentSettings>) => {
     if (!active) return;
@@ -891,18 +972,46 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const showExternalDocControls = !!active && activeCategory === 'writing';
 
   const updateToolSections = useCallback((sections: WorkToolSection[]) => {
-    if (!active) return;
+    const current = latestDraftRef.current;
+    if (!current) return;
     updateActive({
       writingStyle: 'blank_paper',
       templateData: {
         version: 1,
-        fields: active.templateData?.fields || {},
-        branches: active.templateData?.branches || [],
-        timeline: active.templateData?.timeline || [],
+        fields: current.templateData?.fields || {},
+        branches: current.templateData?.branches || [],
+        mindMapNodes: current.templateData?.mindMapNodes || [],
+        timeline: current.templateData?.timeline || [],
         sections,
       },
     });
-  }, [active, updateActive]);
+  }, [updateActive]);
+
+  const updateToolSectionData = useCallback((sectionId: string, data: WorkTemplateData) => {
+    const current = latestDraftRef.current;
+    if (!current) return;
+    const currentStyle = current.writingStyle
+      || (current.type === 'drawing' || current.type === 'drawing_note' ? 'blank_paper' : writingDefaults.writingStyle);
+    const sections = toolSectionsForDraft(current, currentStyle);
+    updateToolSections(sections.map((item) => item.id === sectionId ? {
+      ...item,
+      data: {
+        fields: data.fields,
+        branches: data.branches,
+        mindMapNodes: data.mindMapNodes,
+        timeline: data.timeline,
+      },
+    } : item));
+  }, [updateToolSections, writingDefaults.writingStyle]);
+
+  const updateToolSectionWidth = useCallback((sectionId: string, widthPercent: number) => {
+    const current = latestDraftRef.current;
+    if (!current) return;
+    const currentStyle = current.writingStyle
+      || (current.type === 'drawing' || current.type === 'drawing_note' ? 'blank_paper' : writingDefaults.writingStyle);
+    const sections = toolSectionsForDraft(current, currentStyle);
+    updateToolSections(sections.map((item) => item.id === sectionId ? { ...item, widthPercent } : item));
+  }, [updateToolSections, writingDefaults.writingStyle]);
 
   const activeDocumentPages = useMemo(() => active?.documentPages || [], [active?.documentPages]);
 
@@ -1033,23 +1142,22 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const inlineToolsForPage = (pageId: string, appearance = currentPageAppearance) => activeToolSections
     .filter((section) => (section.pageId || 'main') === pageId)
     .map((section) => (
-      <section key={section.id} id={`work-tool-${section.id}`} className="noesis-inline-tool scroll-mt-28 border border-current/15" aria-label={`${workToolLabel(section.tool)} inline tool`}>
-        <div className="flex items-center justify-between gap-3 border-b border-current/10 px-4 py-2">
-          <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">{workToolLabel(section.tool)}</span>
-          <Button type="button" variant="ghost" size="sm" onClick={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))} className="h-8 rounded-md text-muted-foreground hover:text-destructive" aria-label={`Remove ${workToolLabel(section.tool)}`}>
-            <Trash2 className="mr-1.5 size-3.5" /> Remove
-          </Button>
-        </div>
-        <StructuredWorkSurface
+      <ResizableInlineToolFrame
+        key={section.id}
+        section={section}
+        onRemove={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))}
+        onResize={(widthPercent) => updateToolSectionWidth(section.id, widthPercent)}
+      >
+        <BufferedStructuredWorkSurface
           embedded
           style={section.tool}
           data={{ version: 1, ...section.data }}
-          onChange={(data) => updateToolSections(activeToolSections.map((item) => item.id === section.id ? { ...item, data: { fields: data.fields, branches: data.branches, mindMapNodes: data.mindMapNodes, timeline: data.timeline } } : item))}
+          onCommit={(data) => updateToolSectionData(section.id, data)}
           paperColor={appearance.paperColor}
           pageSize={appearance.pageSize}
           paperPattern={appearance.paperPattern}
         />
-      </section>
+      </ResizableInlineToolFrame>
     ));
 
   if (active) {
@@ -1057,62 +1165,33 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       <div className="flex-1 flex flex-col h-full bg-background text-foreground overflow-hidden font-body">
         <header className="border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur z-50 sm:px-5">
           <div className="mx-auto flex max-w-[1800px] flex-col gap-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap sm:items-start sm:justify-between">
               <button
                 onClick={closeDraft}
                 className="flex h-9 items-center gap-1 rounded-full px-2 font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
               >
-                <ChevronLeft className="size-4" /> Works
+                <ChevronLeft className="size-4" /> <span className="hidden sm:inline">Works</span>
               </button>
               <Input
-                className="min-w-[180px] flex-1 border-none bg-transparent p-0 font-headline text-xl font-bold italic text-foreground shadow-none outline-none placeholder:text-muted-foreground/30 focus-visible:ring-0 sm:text-2xl"
+                className="min-w-0 flex-1 border-none bg-transparent p-0 font-headline text-lg font-bold italic text-foreground shadow-none outline-none placeholder:text-muted-foreground/30 focus-visible:ring-0 sm:min-w-[180px] sm:text-2xl"
                 value={active.title}
                 onChange={(event) => updateActive({ title: event.target.value })}
                 placeholder={`Untitled ${activeTypeLabel}`}
               />
-              <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
-                <SelectTrigger className="h-8 w-28 shrink-0 rounded-md border-border/40 bg-background px-2 font-code text-[9px] font-bold uppercase tracking-wider shadow-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {WORK_STATUS_OPTIONS.map((status) => <SelectItem key={status.value} value={status.value} className="font-code text-[9px] uppercase">{status.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <div className="min-w-0 max-w-full shrink basis-full sm:basis-auto">
-                <ConceptTagPicker
-                  concepts={concepts}
-                  value={active.conceptTags || []}
-                  onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })}
-                  onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
-                  compact
-                  inline
-                  className="min-w-0"
-                />
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Doc' : 'Connect'}</Button>}
+              <div className="flex shrink-0 items-center justify-end gap-1 border-l border-border/30 pl-2 sm:gap-2">
+                {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Open' : 'Connect'}</Button>}
                 <div className="hidden items-center gap-2 border border-border/30 bg-muted/10 px-3 py-1.5 sm:flex">
                   <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
                   <span className="font-code text-[8px] uppercase tracking-widest font-bold text-muted-foreground">
                     {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}
                   </span>
                 </div>
-                <Button variant="outline" size="sm" disabled={saveStatus === 'saving'} onClick={() => saveActive()} className="h-9 rounded-md border-border/60 bg-card px-4 font-bold shadow-sm">
-                  <Save className="size-4 mr-2" /> {dirty ? 'Save*' : 'Save'}
+                <Button aria-label={dirty ? 'Save work with unsaved changes' : 'Save work'} variant="outline" size="sm" disabled={saveStatus === 'saving'} onClick={() => saveActive()} className="size-9 rounded-md border-border/60 bg-card px-0 font-bold shadow-sm sm:h-9 sm:w-auto sm:px-4">
+                  <Save className="size-4 sm:mr-2" /> <span className="hidden sm:inline">{dirty ? 'Save*' : 'Save'}</span>
                 </Button>
                 {activeCategory === 'writing' && (
                     <Button variant="outline" size="sm" onClick={() => setIsVersionHistoryOpen(true)} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" title="Version history">
                     <History className="size-4" /><span className="ml-2 hidden xl:inline">Versions</span>
-                  </Button>
-                )}
-                {activeCategory === 'writing' && (
-                    <Button variant="outline" size="sm" onClick={() => window.print()} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" title="Print">
-                    <Printer className="size-4" />
-                  </Button>
-                )}
-                {activeCategory === 'writing' && (
-                    <Button variant="outline" size="sm" onClick={exportManuscript} className="hidden h-9 rounded-md border-border/60 bg-card px-4 font-bold shadow-sm md:inline-flex">
-                    <Download className="size-4 mr-2" /> Export
                   </Button>
                 )}
                 <DropdownMenu>
@@ -1125,9 +1204,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     {activeCategory === 'writing' && (
                       <>
                         <DropdownMenuItem className="md:hidden" onSelect={() => setIsVersionHistoryOpen(true)}><History className="mr-2 size-4" /> Version history</DropdownMenuItem>
-                        <DropdownMenuItem className="md:hidden" onSelect={() => window.print()}><Printer className="mr-2 size-4" /> Print</DropdownMenuItem>
-                        <DropdownMenuItem className="md:hidden" onSelect={exportManuscript}><Download className="mr-2 size-4" /> Export</DropdownMenuItem>
-                        <DropdownMenuSeparator className="md:hidden" />
+                        <DropdownMenuItem onSelect={() => window.print()}><Printer className="mr-2 size-4" /> Print</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={exportManuscript}><Download className="mr-2 size-4" /> Export</DropdownMenuItem>
+                        <DropdownMenuSeparator />
                       </>
                     )}
                     <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteTarget(active)}>
@@ -1138,11 +1217,30 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
             </div>
 
-            <div className="flex justify-end xl:hidden">
+            <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto border-t border-border/20 pt-2">
+              <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
+                <SelectTrigger className="h-8 w-28 shrink-0 rounded-md border-border/40 bg-background px-2 font-code text-[9px] font-bold uppercase tracking-wider shadow-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WORK_STATUS_OPTIONS.map((status) => <SelectItem key={status.value} value={status.value} className="font-code text-[9px] uppercase">{status.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <div className="min-w-0 flex-1">
+                <ConceptTagPicker
+                  concepts={concepts}
+                  value={active.conceptTags || []}
+                  onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })}
+                  onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
+                  compact
+                  inline
+                  className="min-w-0"
+                />
+              </div>
               <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 rounded-full bg-card">
-                    <NotebookPen className="mr-2 size-4" /> Studio context
+                  <Button variant="outline" size="sm" className="size-8 shrink-0 rounded-md bg-card px-0 sm:h-9 sm:w-auto sm:rounded-full sm:px-3" aria-label="Open studio context" title="Studio context">
+                    <NotebookPen className="size-4 sm:mr-2" /> <span className="hidden sm:inline">Studio context</span>
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto rounded-t-2xl border-border bg-background p-4">
@@ -1189,7 +1287,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               )}
 
               {showPaperControls && (
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-nowrap items-center gap-2 overflow-x-auto sm:flex-wrap sm:justify-between sm:gap-3">
                   <PageViewControls
                     viewMode={viewMode}
                     onViewModeChange={(next) => { setViewMode(next); updateDocumentSettings({ viewMode: next }); }}

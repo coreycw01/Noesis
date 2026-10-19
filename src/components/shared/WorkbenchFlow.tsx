@@ -25,8 +25,8 @@ export function WorkbenchFlow({
   const activeStep = steps.find((step) => step.id === activeId) || steps[0];
 
   return (
-    <nav aria-label={label} className={cn('border-y border-border/60 py-3', className)}>
-      <ol className="grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-[repeat(var(--workbench-steps),minmax(0,1fr))]" style={{ '--workbench-steps': steps.length } as CSSProperties}>
+    <nav aria-label={label} className={cn('border-y border-border/60 bg-background/95 py-3 max-sm:sticky max-sm:top-0 max-sm:z-20', className)}>
+      <ol className="flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-[repeat(var(--workbench-steps),minmax(0,1fr))]" style={{ '--workbench-steps': steps.length } as CSSProperties}>
         {steps.map((step) => {
           const active = step.id === activeId;
           const content = (
@@ -36,7 +36,7 @@ export function WorkbenchFlow({
           );
 
           return (
-            <li key={step.id} className={cn('min-w-0 border-l-2 pl-2.5', active ? 'border-accent' : 'border-border')}>
+            <li key={step.id} className={cn('min-w-[7.5rem] shrink-0 snap-start border-l-2 pl-2.5 sm:min-w-0', active ? 'border-accent' : 'border-border')}>
               {onSelect ? (
                 <button type="button" onClick={() => onSelect(step.id)} aria-current={active ? 'step' : undefined} className="w-full rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   {content}
@@ -48,7 +48,7 @@ export function WorkbenchFlow({
           );
         })}
       </ol>
-      {activeStep && <p className="mt-2 border-t border-border/40 pt-2 text-xs leading-5 text-muted-foreground">{activeStep.description}</p>}
+      {activeStep && <p className="mt-2 min-h-12 border-t border-border/40 pt-2 text-xs leading-5 text-muted-foreground sm:min-h-0">{activeStep.description}</p>}
     </nav>
   );
 }

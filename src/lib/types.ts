@@ -66,6 +66,8 @@ export interface WorkMindMapNode {
 }
 
 export type WorkToolKind =
+  | 'bar_chart'
+  | 'visual_table'
   | 'cornell_notes'
   | 'two_column_debate'
   | 'dialectic'
@@ -90,6 +92,8 @@ export interface WorkToolSection {
   /** The document page containing this inline tool. Older tools default to the main page. */
   pageId?: string;
   createdAt?: string;
+  /** Width of the inline object within its document page. */
+  widthPercent?: number;
   data: WorkToolData;
 }
 

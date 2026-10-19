@@ -111,7 +111,14 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
       <div className={containerClasses} ref={canvasRef} aria-label={`${title || 'Untitled work'} document canvas`}>
         <div className={canvasClasses}>
           {useContinuousCanvas ? (
-            <div id="work-page-main" data-work-page-id="main" className="scroll-mt-6">
+            <div
+              id="work-page-main"
+              data-work-page-id="main"
+              className={cn(
+                "w-full scroll-mt-6",
+                pageSize === 'letter' ? "max-w-[850px]" : "max-w-[827px]"
+              )}
+            >
               <DocsPage
                 pageNumber={1}
                 pageSize={pageSize}
