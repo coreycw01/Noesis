@@ -131,7 +131,7 @@ export function AnnotationsIndex({
   const [filterSource, setFilterSource] = useState<string>('all');
   const [sortBy, setSortBy] = usePersistentView<AnnotationSort>('noesis:annotations-sort', 'newest', ['newest', 'oldest', 'source', 'type', 'status']);
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
-  const [annotationWorkflowStep, setAnnotationWorkflowStep] = useState<'capture' | 'interpret' | 'apply' | 'connect' | 'trace'>('capture');
+  const [annotationWorkflowStep, setAnnotationWorkflowStep] = useState<'understand' | 'apply' | 'connect' | 'trace'>('understand');
   const [editingMetadata, setEditingMetadata] = useState(false);
   const [detailEffect, setDetailEffect] = useState<ConsequenceAction>('reference');
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
@@ -530,7 +530,7 @@ export function AnnotationsIndex({
   };
 
   const openAnnotationDetail = (annotation: FlatAnnotation) => {
-    setAnnotationWorkflowStep('capture');
+    setAnnotationWorkflowStep('understand');
     setDetailEffect(selectedEffectForAnnotation(annotation));
     setEditingMetadata(false);
     setEditing(annotation);
@@ -952,7 +952,7 @@ export function AnnotationsIndex({
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent
-          className="max-w-2xl border-none shadow-2xl rounded-2xl"
+          className="max-w-2xl border-none shadow-2xl rounded-2xl max-sm:h-[calc(100dvh-1rem)] max-sm:w-[calc(100vw-1rem)] max-sm:max-w-none max-sm:grid-rows-[auto_minmax(0,1fr)_auto] max-sm:gap-0 max-sm:overflow-hidden max-sm:p-4"
           onCloseAutoFocus={(event) => {
             const target = pendingDetailDeleteRef.current;
             if (!target) return;
@@ -965,7 +965,7 @@ export function AnnotationsIndex({
             <DialogTitle className="font-headline text-2xl italic">Annotation Detail</DialogTitle>
           </DialogHeader>
           {editing && (
-            <div className="space-y-4 pt-2">
+            <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pt-2 max-sm:pr-1">
               <WorkbenchFlow
                 label="Annotation workbench workflow"
                 activeId={annotationWorkflowStep}
@@ -979,15 +979,14 @@ export function AnnotationsIndex({
                   });
                 }}
                 steps={[
-                  { id: 'capture', label: 'Capture', description: 'Preserve the note and its source context.' },
-                  { id: 'interpret', label: 'Interpret', description: 'Write what the note means in your own thinking.' },
+                  { id: 'understand', label: 'Understand', description: 'Keep the original annotation in view while you explain what it means in your thinking.' },
                   { id: 'apply', label: 'Apply', description: 'Decide whether it supports, challenges, clarifies, or raises a question.' },
                   { id: 'connect', label: 'Connect', description: 'Attach the concepts and objects it actually affects.' },
                   { id: 'trace', label: 'Trace', description: 'Review where it came from and how it has been used.' },
                 ]}
               />
 
-              <section id="annotation-capture" className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'capture' && 'hidden')}>
+              <section id="annotation-understand" className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'understand' && 'hidden')}>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{annotationLabel(annotationType(editing))}</Badge>
@@ -1042,7 +1041,7 @@ export function AnnotationsIndex({
                 </details>
               </section>
 
-              <section id="annotation-interpret" className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'interpret' && 'hidden')}>
+              <section className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'understand' && 'hidden')}>
                 <details open={Boolean(editing.consequenceNote || editing.context)}>
                   <summary className="cursor-pointer list-none">
                     <div className="flex items-center justify-between gap-3">
@@ -1222,7 +1221,7 @@ export function AnnotationsIndex({
               </details>
             </div>
           )}
-          <DialogFooter className="pt-4">
+          <DialogFooter className="pt-4 max-sm:border-t max-sm:border-border/50">
             <Button variant="ghost" onClick={() => setEditing(null)} className="rounded-full">Cancel</Button>
             <Button onClick={saveEditing} className="rounded-full px-8">Save Annotation</Button>
           </DialogFooter>

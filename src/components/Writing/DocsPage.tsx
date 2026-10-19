@@ -33,7 +33,8 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const overlayDrawingRef = useRef(false);
   const overlayStartRef = useRef<{ x: number; y: number } | null>(null);
-  const overlayBaseRef = useRef<ImageData | null>(null);
+  const overlayBaseRef = useRef<HTMLCanvasElement | null>(null);
+  const overlayCommitVersionRef = useRef(0);
 
   useEffect(() => {
     if (editorRef.current && editorRef.current !== document.activeElement) {
@@ -75,6 +76,18 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
 
+  const commitOverlay = useCallback((canvas: HTMLCanvasElement) => {
+    const version = ++overlayCommitVersionRef.current;
+    canvas.toBlob((blob) => {
+      if (!blob || version !== overlayCommitVersionRef.current) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (version === overlayCommitVersionRef.current) onOverlayChange(String(reader.result));
+      };
+      reader.readAsDataURL(blob);
+    }, 'image/png');
+  }, [onOverlayChange]);
+
   const drawShape = (ctx: CanvasRenderingContext2D, tool: DrawingTool, start: { x: number; y: number }, end: { x: number; y: number }) => {
     const width = end.x - start.x;
     const height = end.y - start.y;
@@ -115,7 +128,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       ctx.textBaseline = 'top';
       ctx.fillText(text.trim(), point.x, point.y);
       ctx.restore();
-      onOverlayChange(event.currentTarget.toDataURL('image/png'));
+      commitOverlay(event.currentTarget);
       return;
     }
     overlayDrawingRef.current = true;
@@ -128,7 +141,11 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     ctx.globalAlpha = overlayTool === 'marker' ? Math.min(overlayOpacity, 0.3) : overlayTool === 'pencil' ? Math.min(overlayOpacity, 0.65) : overlayOpacity;
     ctx.globalCompositeOperation = overlayTool === 'eraser' ? 'destination-out' : 'source-over';
     if (['line', 'rectangle', 'ellipse', 'arrow'].includes(overlayTool)) {
-      overlayBaseRef.current = ctx.getImageData(0, 0, event.currentTarget.width, event.currentTarget.height);
+      const snapshot = document.createElement('canvas');
+      snapshot.width = event.currentTarget.width;
+      snapshot.height = event.currentTarget.height;
+      snapshot.getContext('2d')?.drawImage(event.currentTarget, 0, 0);
+      overlayBaseRef.current = snapshot;
       return;
     }
     ctx.beginPath();
@@ -141,7 +158,13 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     if (!ctx) return;
     const point = getOverlayPoint(event);
     if (overlayStartRef.current && ['line', 'rectangle', 'ellipse', 'arrow'].includes(overlayTool)) {
-      if (overlayBaseRef.current) ctx.putImageData(overlayBaseRef.current, 0, 0);
+      if (overlayBaseRef.current) {
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, event.currentTarget.width, event.currentTarget.height);
+        ctx.drawImage(overlayBaseRef.current, 0, 0);
+        ctx.restore();
+      }
       drawShape(ctx, overlayTool, overlayStartRef.current, point);
       return;
     }
@@ -160,8 +183,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
     }
-    const data = overlayRef.current?.toDataURL('image/png');
-    if (data) onOverlayChange(data);
+    if (overlayRef.current) commitOverlay(overlayRef.current);
   };
 
   const sizeClasses = {
@@ -277,7 +299,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
           whiteSpace: 'pre-wrap'
         }}
       />
-      {inlineTools && <div className="relative z-[2] space-y-6 px-6 pb-10 sm:px-12 lg:px-24" aria-label="Inline document tools">{inlineTools}</div>}
+      {inlineTools && <div className="relative z-[2] space-y-6 px-6 pb-10 sm:px-10 lg:px-12" aria-label="Inline document tools">{inlineTools}</div>}
       <canvas
         ref={overlayRef}
         onPointerDown={startOverlayDraw}

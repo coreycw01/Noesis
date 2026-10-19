@@ -103,7 +103,10 @@ export function EntityPicker({
           <PopoverContent
             className="z-[100] w-[min(22rem,calc(100vw-2rem))] p-0"
             align="end"
-            onOpenAutoFocus={(event) => event.preventDefault()}
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              window.requestAnimationFrame(() => document.getElementById(inputId)?.focus());
+            }}
           >
             <div className="border-b border-border/50 p-2">
               <label htmlFor={inputId} className="sr-only">{searchPlaceholder}</label>
@@ -152,11 +155,11 @@ export function EntityPicker({
                       role="option"
                       aria-selected={isSelected}
                       onMouseEnter={() => setActiveIndex(index)}
-                      onPointerDown={(event) => {
+                      onClick={(event) => {
                         event.preventDefault();
                         onToggle(item.id);
                       }}
-                      onClick={(event) => event.preventDefault()}
+                      onPointerDown={(event) => event.stopPropagation()}
                       className={cn('flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40', index === activeIndex && 'bg-muted/70', isSelected && 'bg-accent/10 text-accent')}
                     >
                       <span className={cn('flex size-4 shrink-0 items-center justify-center rounded border', isSelected ? 'border-accent bg-accent text-accent-foreground' : 'border-input')}>
@@ -175,13 +178,13 @@ export function EntityPicker({
                 {canCreate && (
                   <button
                     type="button"
-                    onPointerDown={(event) => {
+                    onClick={(event) => {
                       event.preventDefault();
                       onCreate?.(normalizedQuery);
                       setQuery('');
                       setOpen(false);
                     }}
-                    onClick={(event) => event.preventDefault()}
+                    onPointerDown={(event) => event.stopPropagation()}
                     className="flex w-full items-center gap-2 rounded-lg border-t border-border/50 p-2 text-left text-accent hover:bg-accent/10"
                   >
                     <Plus className="size-3" />
@@ -193,9 +196,9 @@ export function EntityPicker({
           </PopoverContent>
         </Popover>
       </div>
-      <div className={cn('flex min-h-[42px] flex-wrap items-start gap-1.5 rounded-lg border border-dashed border-border bg-muted/5 p-2', inline && 'order-1 min-h-0 border-0 bg-transparent p-0')}>
+      <div className={cn('flex min-h-[42px] flex-wrap items-start gap-1.5 rounded-lg border border-dashed border-border bg-muted/5 p-2', inline && 'order-1 min-h-0 flex-nowrap overflow-x-auto border-0 bg-transparent p-0')}>
         {selected.length > 0 ? selected.map((item) => (
-          <Badge key={item.id} variant="secondary" className="flex items-center gap-1 bg-card font-body text-[11px]">
+          <Badge key={item.id} variant="secondary" className="flex shrink-0 items-center gap-1 bg-card font-body text-[11px]">
             <span className="max-w-[180px] truncate italic">{item.label}</span>
             <button type="button" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); onToggle(item.id); }} aria-label={`Remove ${item.label}`} className="ml-1 hover:text-destructive">
               <X className="size-3" />
