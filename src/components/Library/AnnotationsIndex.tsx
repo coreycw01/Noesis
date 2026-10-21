@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Quote, Trash2 } from 'lucide-react';
+import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
@@ -24,11 +24,13 @@ import { cn } from '@/lib/utils';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
+import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface AnnotationsIndexProps {
   media: Media[];
@@ -130,6 +132,7 @@ export function AnnotationsIndex({
   const [filterConcept, setFilterConcept] = useState<string>('all');
   const [filterSource, setFilterSource] = useState<string>('all');
   const [sortBy, setSortBy] = usePersistentView<AnnotationSort>('noesis:annotations-sort', 'newest', ['newest', 'oldest', 'source', 'type', 'status']);
+  const [viewMode, setViewMode] = useEntityViewPreference('annotations');
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
   const [annotationWorkflowStep, setAnnotationWorkflowStep] = useState<'understand' | 'apply' | 'connect' | 'trace'>('understand');
   const [editingMetadata, setEditingMetadata] = useState(false);
@@ -691,6 +694,14 @@ export function AnnotationsIndex({
             })),
           },
         ]}
+        viewControl={
+          <ViewModeToggle
+            value={viewMode === 'table' ? 'table' : 'grid'}
+            modes={['grid', 'table']}
+            onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')}
+            label="Annotation view"
+          />
+        }
         className="mb-5"
       >
         <Select value={sortBy} onValueChange={(value) => setSortBy(value as AnnotationSort)}>
@@ -767,7 +778,89 @@ export function AnnotationsIndex({
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {viewMode === 'table' && filtered.length > 0 ? (
+        <section className="hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block" aria-label="Annotations table">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/25 hover:bg-muted/25">
+                <TableHead className="w-12"><span className="sr-only">Select</span></TableHead>
+                <TableHead>Annotation</TableHead>
+                <TableHead className="w-36">Type and state</TableHead>
+                <TableHead className="w-56">Source</TableHead>
+                <TableHead className="w-44">Location</TableHead>
+                <TableHead className="w-28">Added</TableHead>
+                <TableHead className="w-14"><span className="sr-only">Actions</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((annotation) => (
+                <TableRow
+                  key={annotationKey(annotation)}
+                  tabIndex={0}
+                  data-state={selectedKeys.includes(annotationKey(annotation)) ? 'selected' : undefined}
+                  className="cursor-pointer align-top focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest('button,a,input,[role="checkbox"],[role="menuitem"]')) return;
+                    openAnnotationDetail(annotation);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault();
+                      openAnnotationDetail(annotation);
+                    }
+                  }}
+                >
+                  <TableCell className="pt-5">
+                    <Checkbox checked={selectedKeys.includes(annotationKey(annotation))} onCheckedChange={() => toggleSelected(annotation)} aria-label={`Select annotation from ${annotation.source.title}`} />
+                  </TableCell>
+                  <TableCell className="max-w-xl py-4">
+                    <p className="font-body text-sm leading-6 text-foreground">{annotation.text}</p>
+                    {annotationTags(annotation).length > 0 && (
+                      <p className="mt-1.5 truncate font-code text-[9px] uppercase tracking-[0.13em] text-muted-foreground">
+                        {annotationTags(annotation).slice(0, 3).join(' · ')}
+                      </p>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-4">
+                    <div className="space-y-1.5">
+                      <span className="block font-code text-[9px] font-bold uppercase tracking-[0.14em] text-foreground">{annotationLabel(annotationType(annotation))}</span>
+                      <StageBadge type="annotation" stage={annotation.stage} status={annotation.philosophyStatus} />
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-4">
+                    <button type="button" onClick={() => previewSource(annotation.source, annotation)} className="block max-w-full text-left hover:text-accent">
+                      <span className="block truncate text-sm font-medium">{annotation.source.title}</span>
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">{annotation.source.creator || MEDIA_LABELS[annotation.source.type]}</span>
+                    </button>
+                  </TableCell>
+                  <TableCell className="py-4 text-xs leading-5 text-muted-foreground">
+                    <span className="line-clamp-2">{annotation.context?.trim() || 'Context not added'}</span>
+                  </TableCell>
+                  <TableCell className="py-4 font-code text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {annotation.date ? new Date(annotation.date).toLocaleDateString() : 'Unknown'}
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon" className="size-10 rounded-full" aria-label={`Actions for annotation from ${annotation.source.title}`}>
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={() => openAnnotationDetail(annotation)}><Pencil className="mr-2 size-4" /> Review and edit</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => previewSource(annotation.source, annotation)}><BookOpen className="mr-2 size-4" /> Open source</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteTarget(annotation)}><Trash2 className="mr-2 size-4" /> Delete</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      ) : null}
+
+      <div className={cn("grid grid-cols-1 gap-3 md:grid-cols-2", viewMode === 'table' && "md:hidden")}>
         {filtered.map((annotation) => {
           const selectedEffect = selectedEffectForAnnotation(annotation);
           const relationLabels = [
@@ -783,22 +876,22 @@ export function AnnotationsIndex({
           }} onKeyDown={(event) => {
             if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openAnnotationDetail(annotation); }
           }} className={cn(
-            "p-3.5 sm:p-4 bg-card border border-accent/10 shadow-sm rounded-xl group hover:shadow-md transition-all",
+            "group border border-border/60 bg-card p-0 shadow-sm transition-all hover:border-accent/35 hover:shadow-md",
             selectedKeys.includes(annotationKey(annotation)) && "border-accent/50 ring-2 ring-accent/10"
           )}>
-            <div className="flex items-start gap-3 mb-3">
-              <div className="flex items-center gap-3">
+            <div className="flex items-start justify-between gap-3 border-b border-border/40 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <Checkbox
                   checked={selectedKeys.includes(annotationKey(annotation))}
                   onCheckedChange={() => toggleSelected(annotation)}
                   aria-label={`Select annotation from ${annotation.source.title}`}
                 />
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <StageBadge type="annotation" stage={annotation.stage} status={annotation.philosophyStatus} />
-                  <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold px-3 py-1">
+                  <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-foreground">
                     {annotationLabel(annotationType(annotation))}
-                  </Badge>
-                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest rounded-full bg-accent/5 text-accent font-bold">
+                  </span>
+                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest font-bold">
                     {annotationLabel(annotationStatus(annotation))}
                   </Badge>
                   {missingSourceContext(annotation) && (
@@ -808,21 +901,33 @@ export function AnnotationsIndex({
                   )}
                 </div>
               </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" className="-mr-2 size-10 shrink-0 rounded-full" aria-label={`Actions for annotation from ${annotation.source.title}`}>
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => openAnnotationDetail(annotation)}><Pencil className="mr-2 size-4" /> Review and edit</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => previewSource(annotation.source, annotation)}><BookOpen className="mr-2 size-4" /> Open source</DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteTarget(annotation)}><Trash2 className="mr-2 size-4" /> Delete</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
-            <button type="button" onClick={() => openAnnotationDetail(annotation)} className="relative mb-3 block w-full text-left">
-              <Quote className="absolute -left-6 -top-2 size-10 text-accent/5" />
-              <p className="font-body italic leading-relaxed text-[15px] text-primary/90 relative z-10 line-clamp-4">&quot;{annotation.text}&quot;</p>
+            <button type="button" onClick={() => openAnnotationDetail(annotation)} className="block w-full px-4 py-4 text-left">
+              <p className="font-body text-[15px] leading-6 text-foreground line-clamp-4">{annotation.text}</p>
+              {annotation.context?.trim() && <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{annotation.context}</p>}
             </button>
 
-            <div className="flex flex-wrap gap-2 mb-3">
+            <div className="flex flex-wrap gap-1.5 px-4 pb-3">
               {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).map((tag) => (
                 <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-wider rounded-full bg-muted/20 text-muted-foreground font-bold">{tag}</Badge>
               ))}
             </div>
 
             {relationLabels.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5 border-t border-border/30 px-4 py-3">
                 {relationLabels.map((label) => (
                   <Badge key={label} variant="outline" className="rounded-full border-accent/20 bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">
                     {label}
@@ -831,7 +936,7 @@ export function AnnotationsIndex({
               </div>
             )}
 
-            <div className="mb-3 flex items-center gap-2">
+            <div className="flex items-center gap-2 px-4 pb-3">
               <Button
                 type="button"
                 variant={selectedEffect ? 'secondary' : 'outline'}
@@ -847,7 +952,7 @@ export function AnnotationsIndex({
               </Button>
             </div>
 
-            <div className="flex min-w-0 items-center gap-2 border-t border-border/20 pt-2.5">
+            <div className="flex min-w-0 items-center gap-2 border-t border-border/40 px-4 py-3">
                 <div className="flex size-5 shrink-0 items-center justify-center rounded bg-muted/40">
                   <BookOpen className="size-3 text-muted-foreground/60" />
                 </div>

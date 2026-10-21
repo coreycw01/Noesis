@@ -42,6 +42,7 @@ try {
   var headerFont = saved.headerFont || 'editorial';
   var fontSize = saved.fontSize || 'md';
   var interfaceShape = saved.interfaceShape || 'pills';
+  var collectionView = saved.defaultCollectionView || 'cards';
   var dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.toggle('dark', dark);
   document.documentElement.classList.toggle('high-contrast', Boolean(saved.highContrastMode));
@@ -50,6 +51,7 @@ try {
   document.documentElement.setAttribute('data-header-font', headerFont);
   document.documentElement.setAttribute('data-font-size', fontSize);
   document.documentElement.setAttribute('data-interface-shape', interfaceShape);
+  document.documentElement.setAttribute('data-collection-view', collectionView);
 } catch (error) {
   console.warn('Theme init failed', error);
 }

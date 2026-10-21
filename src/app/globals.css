@@ -841,6 +841,21 @@
     top: 1.18rem;
     height: 1px;
     background: hsl(var(--border));
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .noesis-thought-spine ol > li > button,
+  .noesis-thought-spine ol > li > div {
+    position: relative;
+    z-index: 1;
+  }
+
+  .noesis-thought-spine ol > li > button > span,
+  .noesis-thought-spine ol > li > div > span {
+    width: fit-content;
+    max-width: 100%;
+    background: hsl(var(--background) / .97);
   }
 
   .noesis-editorial-section {

@@ -19,6 +19,7 @@ import { searchMatches } from '@/lib/search';
 import { inquirySourceIds } from '@/lib/inquiry-state';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { usePersistentView } from '@/hooks/use-persistent-view';
+import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { Checkbox } from '@/components/ui/checkbox';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
@@ -195,7 +196,17 @@ function sourceCatalogState(m: Media) {
 }
 
 export function SourceIndex({ media, vault, drafts, practices, questions, onOpenSource }: SourceIndexProps) {
-  const [view, setView] = usePersistentView<SourceIndexView>('noesis:source-index-view', 'table', ['table', 'covers']);
+  const [collectionView, setCollectionView] = useEntityViewPreference('source-index');
+  const [specializedView, setSpecializedView] = useState<Exclude<SourceIndexView, 'table' | 'covers'> | null>(null);
+  const view: SourceIndexView = specializedView || (collectionView === 'table' ? 'table' : 'covers');
+  const setView = (nextView: SourceIndexView) => {
+    if (nextView === 'table' || nextView === 'covers') {
+      setSpecializedView(null);
+      setCollectionView(nextView === 'table' ? 'table' : 'cards');
+      return;
+    }
+    setSpecializedView(nextView);
+  };
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = usePersistentView<MediaType | 'all'>('noesis:source-index-type', 'all', ['all', ...PRIMARY_SOURCE_TYPE_FILTERS]);
   const [filterStatus, setFilterStatus] = usePersistentView<MediaStatus | 'all'>('noesis:source-index-status', 'all', ['all', ...statuses]);

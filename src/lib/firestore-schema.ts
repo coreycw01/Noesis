@@ -270,6 +270,7 @@ export const DEFAULT_APPEARANCE_SETTINGS: AppearanceSettings = {
   headerFont: 'editorial',
   fontSize: 'md',
   interfaceShape: 'pills',
+  defaultCollectionView: 'cards',
   reducedMotion: false,
   highContrastMode: false,
 };

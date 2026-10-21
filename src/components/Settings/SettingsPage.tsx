@@ -105,7 +105,7 @@ const SETTINGS_SECTION_STORAGE_KEY = 'noesis:settings-section';
 
 const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: string }> = [
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
-  { id: 'appearance', label: 'Appearance', description: 'Theme, typography, interface scale, contrast, and motion.' },
+  { id: 'appearance', label: 'Appearance', description: 'Theme, typography, collection layout, contrast, and motion.' },
   { id: 'works', label: 'Work Defaults', description: 'Starting type, status, paper, and editor feel for new Works.' },
   { id: 'ai', label: 'AI Assistance', description: 'Manual, bounded assistance and context privacy.' },
   { id: 'data', label: 'Data', description: 'Workspace export and demo refresh tools.' },
@@ -134,9 +134,9 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
     limitations: [],
   },
   appearance: {
-    current: 'Previews theme, color, headline typography, interface size, contrast, and motion immediately, then persists them when saved.',
-    affects: ['Light, dark, and system mode', 'Accent theme tokens', 'Header typography', 'Interface text scale', 'Contrast and motion preferences'],
-    limitations: ['Some older surfaces may still contain hard-coded colors until each page is fully tokenized.'],
+    current: 'Previews theme, color, headline typography, interface size, collection layout, contrast, and motion immediately, then persists them when saved.',
+    affects: ['Light, dark, and system mode', 'Accent theme tokens', 'Header typography', 'Default card or table collection layout', 'Interface text scale', 'Contrast and motion preferences'],
+    limitations: [],
   },
   workspace: {
     current: 'Sets navigation defaults, source creation behavior, deletion confirmation, review prompts, goal reminders, and Atlas defaults.',
@@ -250,6 +250,7 @@ export function SettingsPage({
       headerFont: drafts.appearance.headerFont,
       fontSize: drafts.appearance.fontSize,
       interfaceShape: drafts.appearance.interfaceShape,
+      defaultCollectionView: drafts.appearance.defaultCollectionView,
       highContrastMode: drafts.appearance.highContrastMode,
       reducedMotion: drafts.appearance.reducedMotion,
     }),
@@ -275,6 +276,7 @@ export function SettingsPage({
           headerFont: drafts.appearance.headerFont,
           fontSize: drafts.appearance.fontSize,
           interfaceShape: drafts.appearance.interfaceShape,
+          defaultCollectionView: drafts.appearance.defaultCollectionView,
           highContrastMode: drafts.appearance.highContrastMode,
           reducedMotion: drafts.appearance.reducedMotion,
         });
@@ -382,7 +384,7 @@ export function SettingsPage({
       case 'appearance':
         return (
           <div className="space-y-6">
-            <SettingsCard title="Appearance" description="Theme, typography, interface scale, contrast, and motion across the workspace.">
+            <SettingsCard title="Appearance" description="Theme, typography, collection layout, interface scale, contrast, and motion across the workspace.">
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Mode">
                   <Select value={drafts.appearance.themeMode} onValueChange={(value) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, themeMode: value as AppearanceSettings['themeMode'] } }))}>
@@ -435,6 +437,15 @@ export function SettingsPage({
                     <SelectContent>
                       <SelectItem value="pills">Pills and rounded surfaces</SelectItem>
                       <SelectItem value="square">Square tabs and controls</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Default Collection View">
+                  <Select value={drafts.appearance.defaultCollectionView} onValueChange={(value) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, defaultCollectionView: value as AppearanceSettings['defaultCollectionView'] } }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cards">Cards</SelectItem>
+                      <SelectItem value="table">Table</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>

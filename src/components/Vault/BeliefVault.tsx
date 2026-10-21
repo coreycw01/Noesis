@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
+import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -447,7 +448,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [typeFilter, setTypeFilter] = usePersistentView<'all' | VaultType>('noesis:positions-type', 'all', ['all', ...vaultTypes]);
   const [conceptFilter, setConceptFilter] = useState('all');
   const [viewFilter, setViewFilter] = usePersistentView<PositionViewFilter>('noesis:positions-filter', 'all', Object.keys(POSITION_VIEW_LABELS) as PositionViewFilter[]);
-  const [viewMode, setViewMode] = usePersistentView<'cards' | 'table'>('noesis:positions-view', 'table', ['cards', 'table']);
+  const [viewMode, setViewMode] = useEntityViewPreference('positions');
   const [detailTab, setDetailTab] = useState<'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'>('state');
   const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', rationale: '', confidence: 60, status: 'active', tags: [] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);

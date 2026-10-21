@@ -15,12 +15,14 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Media, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 
 interface EvolutionTimelineProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -390,6 +392,7 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
 
 export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, unknowns, thinkingPatterns, onSaveSynthesis }: EvolutionTimelineProps) {
   const [view, setView] = useState<EvolutionView>('timeline');
+  const [timelineLayout, setTimelineLayout] = useEntityViewPreference('evolution');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
   const [visibleCount, setVisibleCount] = useState(12);
@@ -881,6 +884,13 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
         activeFilterLabels={activeEvolutionFilterLabels}
         onClear={clearEvolutionFilters}
         clearDisabled={!evolutionFiltersActive}
+        viewControl={
+          <ViewModeToggle
+            value={timelineLayout === 'table' ? 'table' : 'grid'}
+            modes={['grid', 'table']}
+            onChange={(nextView) => setTimelineLayout(nextView === 'table' ? 'table' : 'cards')}
+          />
+        }
         className="mb-5"
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -1016,7 +1026,59 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
         </div>
       </div>
 
-      <div className="space-y-1">
+      {timelineLayout === 'table' && pagedEvents.length > 0 && (
+        <div className="mb-6 hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[9rem]">Date</TableHead>
+                <TableHead>Change</TableHead>
+                <TableHead className="w-[9rem]">Object</TableHead>
+                <TableHead className="w-[10rem]">Before / after</TableHead>
+                <TableHead className="w-[15rem]">Why it matters</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pagedEvents.map((event) => {
+                const meaning = displayEventMeaning(event);
+                const eventDate = new Date(event.date);
+                return (
+                  <TableRow key={event.id}>
+                    <TableCell className="align-top font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+                      {eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <div className="flex items-center gap-2 text-accent">
+                        <EventTypeIcon targetType={event.targetType} className="size-4 shrink-0 stroke-[2.4]" />
+                        <span className="font-code text-[9px] font-bold uppercase tracking-[0.14em]">
+                          {event.chips[0] || event.targetType.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <div className="mt-1 font-headline text-base font-semibold leading-snug text-foreground">{event.title}</div>
+                    </TableCell>
+                    <TableCell className="align-top capitalize text-sm text-muted-foreground">{event.targetType.replace(/_/g, ' ')}</TableCell>
+                    <TableCell className="align-top text-sm leading-5 text-foreground/75">
+                      {event.beforeLabel || event.afterLabel ? (
+                        <>
+                          <div className="line-clamp-2">{event.beforeLabel || 'Previous state not recorded'}</div>
+                          <div className="mt-1 line-clamp-2 text-accent">{event.afterLabel || 'Current state not recorded'}</div>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">No state comparison</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="align-top text-sm leading-5 text-foreground/75">
+                      <p className="line-clamp-3">{meaning.significance || 'No significance note recorded.'}</p>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <div className={cn('space-y-1', timelineLayout === 'table' && 'md:hidden')}>
         {groupEventsByMonth(pagedEvents).map((group) => (
           <section key={group.key} className="relative ml-2 border-l border-border/70 pl-6 sm:pl-8">
             <div className="relative border-b border-border/60 py-3">

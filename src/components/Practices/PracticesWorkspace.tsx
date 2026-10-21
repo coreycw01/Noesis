@@ -21,7 +21,9 @@ import { NOESIS_ICONS } from '@/lib/noesis-icons';
 const PracticeIcon = NOESIS_ICONS.practice;
 import { StageBadge } from '@/components/shared/StageBadge';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
@@ -188,6 +190,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   const [practiceSection, setPracticeSection] = usePersistentView<'active' | 'other'>('noesis:practices-section', 'active', ['active', 'other']);
   const [labTool, setLabTool] = usePersistentView<'practices' | 'experiments'>('noesis:labs-tool', 'practices', ['practices', 'experiments']);
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useEntityViewPreference('practices');
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Practice | null>(null);
   const [draft, setDraft] = useState<Partial<Practice>>({ title: '', description: '', type: 'experiment', status: 'planned', durationDays: 7, durationMode: 'repeated', conceptTags: [] });
@@ -504,6 +507,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         activeFilterLabels={activePracticeFilterLabels}
         onClear={clearPracticeFilters}
         clearDisabled={!practiceFiltersActive}
+        viewControl={<ViewModeToggle value={viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')} label="Labs view" />}
         className="mb-3"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PracticeViewFilter)}>
@@ -567,7 +571,27 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         ]}
       />
 
-      {practiceSection === 'active' && <section className="mb-6 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
+      {viewMode === 'table' && (
+        <section className="mb-6 hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block" aria-label={`${practiceSection} ${labTool} table`}>
+          <Table>
+            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>{labTool === 'experiments' ? 'Experiment' : 'Practice'}</TableHead><TableHead className="w-36">Type</TableHead><TableHead className="w-36">Status</TableHead><TableHead>Action or hypothesis</TableHead><TableHead className="w-40">Progress</TableHead><TableHead className="w-24"><span className="sr-only">Action</span></TableHead></TableRow></TableHeader>
+            <TableBody>{(practiceSection === 'active' ? visibleActiveLoops : otherPractices).map((practice) => {
+              const state = practiceState.get(practice.id);
+              const progress = state?.needsDesign ? 'Needs setup' : state?.needsLog ? 'Log due' : state?.needsOutcome ? 'Review outcome' : state?.needsConsequence ? 'Connect result' : 'On track';
+              return <TableRow key={practice.id} tabIndex={0} className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={(event) => { if ((event.target as HTMLElement).closest('button,a')) return; openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openEditor(practice); onOpenPracticeRoute?.(practice.id); } }}>
+                <TableCell className="max-w-lg py-4"><div className="font-headline text-base font-semibold text-foreground">{practice.title}</div><div className="mt-1 line-clamp-1 text-xs text-muted-foreground">{practice.description || practice.intellectualBasis || 'Purpose not added'}</div></TableCell>
+                <TableCell className="font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground">{simplifiedTypeLabels[normalizePracticeType(practice.type)]}</TableCell>
+                <TableCell><StageBadge type="practice" stage={practice.stage} status={practice.status} /></TableCell>
+                <TableCell className="text-xs leading-5 text-muted-foreground">{practice.action || practice.hypothesis || 'Action not defined'}</TableCell>
+                <TableCell className="font-code text-[9px] uppercase tracking-wider text-muted-foreground">{progress}</TableCell>
+                <TableCell><Button size="sm" variant="outline" className="min-h-9 rounded-full" onClick={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }}>{state?.needsLog ? 'Log' : 'Open'}</Button></TableCell>
+              </TableRow>;
+            })}</TableBody>
+          </Table>
+        </section>
+      )}
+
+      {practiceSection === 'active' && <section className={cn("mb-6 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm", viewMode === 'table' && "md:hidden")}>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {labTool === 'experiments' ? <NOESIS_ICONS.lab className="size-4 text-accent" /> : <PracticeIcon className="size-4 text-accent" />}
@@ -604,7 +628,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         </div>
       </section>}
 
-      {practiceSection === 'other' && <section className="rounded-2xl border border-border/50 bg-card/60 p-4 shadow-sm">
+      {practiceSection === 'other' && <section className={cn("rounded-2xl border border-border/50 bg-card/60 p-4 shadow-sm", viewMode === 'table' && "md:hidden")}>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-headline text-xl font-bold italic text-primary/80">Other {labTool}</h2>

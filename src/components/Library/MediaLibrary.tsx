@@ -23,7 +23,9 @@ import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { sourceResultToMediaPatch, type NormalizedSourceResult } from '@/lib/source-intake';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
@@ -186,6 +188,7 @@ export function MediaLibrary({
   const [statusFilter, setStatusFilter] = usePersistentView<MediaStatus | 'active' | 'all'>('noesis:library-status', 'all', ['all', 'active', ...statuses]);
   const [viewFilter, setViewFilter] = usePersistentView<LibraryViewFilter>('noesis:library-view-filter', 'all', Object.keys(LIBRARY_VIEW_LABELS) as LibraryViewFilter[]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useEntityViewPreference('library');
   const [readingRoomOpen, setReadingRoomOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sourceWorkbenchStep, setSourceWorkbenchStep] = useState<SourceWorkbenchStep>('overview');
@@ -1051,6 +1054,7 @@ export function MediaLibrary({
         resultLabel="sources"
         onClear={clearLibraryFilters}
         clearDisabled={!libraryFiltersActive}
+        viewControl={<ViewModeToggle value={viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')} label="Library view" />}
         className="mb-6"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as LibraryViewFilter)}>
@@ -1147,7 +1151,26 @@ export function MediaLibrary({
         </div>}
       </section>
 
-      <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7">
+      {viewMode === 'table' && filtered.length > 0 && (
+        <section className="hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block" aria-label="Library table">
+          <Table>
+            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Source</TableHead><TableHead className="w-40">Type</TableHead><TableHead className="w-44">Status</TableHead><TableHead>Concept focus</TableHead><TableHead className="w-28">Annotations</TableHead><TableHead className="w-28">Connections</TableHead></TableRow></TableHeader>
+            <TableBody>{filtered.map((item) => {
+              const influence = sourceInfluenceCount(item, vault, drafts, practices, questions);
+              return <TableRow key={item.id} tabIndex={0} className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={() => openSelectedSource(item.id)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openSelectedSource(item.id); } }}>
+                <TableCell className="max-w-xl py-4"><div className="font-headline text-base font-semibold text-foreground">{item.title}</div><div className="mt-1 text-xs text-muted-foreground">{item.creator || 'Creator not added'}</div></TableCell>
+                <TableCell className="font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground">{MEDIA_LABELS[item.type]}</TableCell>
+                <TableCell><div className="flex flex-wrap gap-1.5"><Badge variant="outline" className="rounded-full">{MEDIA_STATUS_LABELS[item.status]}</Badge><StageBadge type="source" stage={item.stage} status={item.status} /></div></TableCell>
+                <TableCell className="text-xs text-muted-foreground">{item.tags?.length ? item.tags.slice(0, 3).join(' · ') : 'No concept linked'}</TableCell>
+                <TableCell className="font-code text-[10px] tabular-nums text-muted-foreground">{item.annotations?.length || 0}</TableCell>
+                <TableCell className="font-code text-[10px] tabular-nums text-muted-foreground">{influence}</TableCell>
+              </TableRow>;
+            })}</TableBody>
+          </Table>
+        </section>
+      )}
+
+      <div className={cn("grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7", viewMode === 'table' && "md:hidden")}>
         {filtered.map((item) => {
           const influence = sourceInfluenceCount(item, vault, drafts, practices, questions);
           return (
