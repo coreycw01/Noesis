@@ -33,6 +33,7 @@ interface PageViewControlsProps {
   onPaperColorChange: (color: PaperColor) => void;
   paperPattern: PaperPattern;
   onPaperPatternChange: (pattern: PaperPattern) => void;
+  className?: string;
 }
 
 export function PageViewControls({ 
@@ -43,7 +44,8 @@ export function PageViewControls({
   paperColor,
   onPaperColorChange,
   paperPattern,
-  onPaperPatternChange
+  onPaperPatternChange,
+  className,
 }: PageViewControlsProps) {
   const modes: { id: PageViewMode; label: string; icon: any }[] = [
     { id: 'vertical-continuous', label: 'Continuous document', icon: MonitorPlay },
@@ -66,10 +68,10 @@ export function PageViewControls({
   ];
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={cn('flex items-center gap-2', className)}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9 rounded-md border-border/60 bg-card px-4 font-bold shadow-sm">
+          <Button variant="outline" size="sm" className="h-9 w-full justify-start rounded-md border-border/60 bg-card px-4 font-bold shadow-sm sm:w-auto">
             <Settings2 className="size-4 text-accent" />
             Document defaults
           </Button>

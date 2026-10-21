@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export type WorkbenchStep = {
   id: string;
@@ -26,7 +27,18 @@ export function WorkbenchFlow({
 
   return (
     <nav aria-label={label} className={cn('border-y border-border/60 bg-background/95 py-3 max-sm:sticky max-sm:top-0 max-sm:z-20', className)}>
-      <ol className="flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-[repeat(var(--workbench-steps),minmax(0,1fr))]" style={{ '--workbench-steps': steps.length } as CSSProperties}>
+      <div className="sm:hidden">
+        <Select value={activeStep?.id} onValueChange={(value) => onSelect?.(value)} disabled={!onSelect}>
+          <SelectTrigger aria-label={label} className="min-h-11 w-full bg-background text-left">
+            <SelectValue placeholder="Choose a workbench step" />
+          </SelectTrigger>
+          <SelectContent>
+            {steps.map((step) => <SelectItem key={step.id} value={step.id}>{step.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {activeStep && <p className="mt-2 min-h-[3.75rem] border-t border-border/40 pt-2 text-xs leading-5 text-muted-foreground">{activeStep.description}</p>}
+      </div>
+      <ol className="hidden gap-2 sm:grid sm:grid-cols-2 lg:grid-cols-[repeat(var(--workbench-steps),minmax(0,1fr))]" style={{ '--workbench-steps': steps.length } as CSSProperties}>
         {steps.map((step) => {
           const active = step.id === activeId;
           const content = (
@@ -48,7 +60,7 @@ export function WorkbenchFlow({
           );
         })}
       </ol>
-      {activeStep && <p className="mt-2 min-h-12 border-t border-border/40 pt-2 text-xs leading-5 text-muted-foreground sm:min-h-0">{activeStep.description}</p>}
+      {activeStep && <p className="mt-2 hidden border-t border-border/40 pt-2 text-xs leading-5 text-muted-foreground sm:block">{activeStep.description}</p>}
     </nav>
   );
 }

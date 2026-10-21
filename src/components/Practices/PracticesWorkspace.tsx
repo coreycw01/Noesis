@@ -6,7 +6,7 @@ import { CheckCircle2, Edit, MoreHorizontal, PauseCircle, Play, Plus, Trash2 } f
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,6 +26,7 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
+import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
@@ -185,6 +186,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   const [viewFilter, setViewFilter] = usePersistentView<PracticeViewFilter>('noesis:practices-filter', 'all', practiceViewFilters.map((item) => item.value));
   const [otherStatus, setOtherStatus] = usePersistentView<PracticeStatus>('noesis:practices-other-status', 'planned', statuses);
   const [practiceSection, setPracticeSection] = usePersistentView<'active' | 'other'>('noesis:practices-section', 'active', ['active', 'other']);
+  const [labTool, setLabTool] = usePersistentView<'practices' | 'experiments'>('noesis:labs-tool', 'practices', ['practices', 'experiments']);
   const [search, setSearch] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Practice | null>(null);
@@ -197,7 +199,10 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       .sort((a, b) => a.localeCompare(b)),
     [concepts]
   );
-  const activeLoops = practices.filter((practice) => normalizePracticeStatus(practice.status) === 'active');
+  const matchesLabTool = (practice: Practice) => labTool === 'experiments'
+    ? normalizePracticeType(practice.type) === 'experiment'
+    : normalizePracticeType(practice.type) !== 'experiment';
+  const activeLoops = practices.filter((practice) => matchesLabTool(practice) && normalizePracticeStatus(practice.status) === 'active');
   const practiceState = useMemo(() => {
     const questionById = new Map(questionList.map((question) => [question.id, question]));
     const positionById = new Map(positions.map((position) => [position.id, position]));
@@ -240,7 +245,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       (viewFilter === 'needs_setup' && (!state?.hasBasis || state?.needsDesign)) ||
       (viewFilter === 'ready_review' && (state?.needsOutcome || state?.needsConsequence || state?.recentlyConcluded)) ||
       (viewFilter === 'testing_positions' && (practice.positionIds || []).length > 0);
-    return matchesSearch && matchesConcept && matchesView && (statusFilter === 'all' || normalizePracticeStatus(practice.status) === statusFilter) && (typeFilter === 'all' || normalizePracticeType(practice.type) === typeFilter);
+    return matchesLabTool(practice) && matchesSearch && matchesConcept && matchesView && (statusFilter === 'all' || normalizePracticeStatus(practice.status) === statusFilter) && (typeFilter === 'all' || normalizePracticeType(practice.type) === typeFilter);
   });
   const otherPractices = filtered.filter((practice) => normalizePracticeStatus(practice.status) === otherStatus);
   const visibleActiveLoops = activeLoops.filter((practice) => filtered.some((item) => item.id === practice.id));
@@ -290,8 +295,18 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
     conceptFilter !== 'all' ? `Concept: ${conceptFilter}` : null,
   ].filter(Boolean) as string[];
 
-  const openEditor = (practice?: Practice) => {
-    setDraft(practice ? { ...practice, type: normalizePracticeType(practice.type), status: normalizePracticeStatus(practice.status) } : { title: '', description: '', type: 'experiment', status: 'planned', durationDays: 7, durationMode: 'repeated', startDate: today().slice(0, 10), endDate: '', conceptTags: [] });
+  const openEditor = (practice?: Practice, newType: 'practice' | 'experiment' = labTool === 'experiments' ? 'experiment' : 'practice') => {
+    setDraft(practice ? { ...practice, type: normalizePracticeType(practice.type), status: normalizePracticeStatus(practice.status) } : {
+      title: '',
+      description: '',
+      type: newType === 'experiment' ? 'experiment' : 'habit',
+      status: 'planned',
+      durationDays: newType === 'experiment' ? 7 : 30,
+      durationMode: newType === 'experiment' ? 'one_time' : 'repeated',
+      startDate: today().slice(0, 10),
+      endDate: '',
+      conceptTags: [],
+    });
     setEditorOpen(true);
   };
 
@@ -343,20 +358,37 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         }
         className="mb-5"
         actions={
-          <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
-            <Plus className="size-4 mr-1.5" /> NEW PRACTICE
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="h-9 rounded-full bg-accent px-6 font-bold shadow-md shadow-accent/20 hover:bg-accent/90"><Plus className="mr-1.5 size-4" /> ADD IN LABS</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => { setLabTool('practices'); openEditor(undefined, 'practice'); }}><PracticeIcon className="mr-2 size-4" /> New practice</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => { setLabTool('experiments'); openEditor(undefined, 'experiment'); }}><NOESIS_ICONS.lab className="mr-2 size-4" /> New experiment</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         }
+      />
+
+      <WorkspaceTabs
+        value={labTool}
+        onChange={(value) => { setLabTool(value); setTypeFilter('all'); }}
+        label="Labs tools"
+        className="mb-4"
+        items={[
+          { id: 'practices', label: 'Practices', icon: PracticeIcon },
+          { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
+        ]}
       />
 
 
       <FilterToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search practices, hypotheses, outcomes..."
-        searchLabel="Search practices"
+        searchPlaceholder={labTool === 'experiments' ? 'Search experiments, hypotheses, outcomes...' : 'Search practices, actions, observations...'}
+        searchLabel={`Search ${labTool}`}
         resultCount={filtered.length}
-        resultLabel="practices"
+        resultLabel={labTool}
         activeFilterLabels={activePracticeFilterLabels}
         onClear={clearPracticeFilters}
         clearDisabled={!practiceFiltersActive}
@@ -375,13 +407,13 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             {statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[9px] uppercase">{status}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as PracticeType | 'all')}>
+        {labTool === 'practices' && <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as PracticeType | 'all')}>
           <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-card shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Types" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="font-code text-[9px] uppercase">All Practice Types</SelectItem>
-            {practiceTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{simplifiedTypeLabels[type]}</SelectItem>)}
+            {practiceTypes.filter((type) => type !== 'experiment').map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{simplifiedTypeLabels[type]}</SelectItem>)}
           </SelectContent>
-        </Select>
+        </Select>}
         <Select value={conceptFilter} onValueChange={setConceptFilter}>
           <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-card shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Concepts" /></SelectTrigger>
           <SelectContent className="max-h-80">
@@ -411,19 +443,26 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         ))}
       </div>
 
-      <div className="mb-4 flex gap-2" role="tablist" aria-label="Practice groups">
-        <Button role="tab" aria-selected={practiceSection === 'active'} variant={practiceSection === 'active' ? 'default' : 'outline'} onClick={() => setPracticeSection('active')}>Active loops {visibleActiveLoops.length}</Button>
-        <Button role="tab" aria-selected={practiceSection === 'other'} variant={practiceSection === 'other' ? 'default' : 'outline'} onClick={() => setPracticeSection('other')}>Other practices {filtered.length - visibleActiveLoops.length}</Button>
-      </div>
+      <WorkspaceTabs
+        value={practiceSection}
+        onChange={setPracticeSection}
+        label="Practice groups"
+        variant="segmented"
+        className="mb-4"
+        items={[
+          { id: 'active', label: labTool === 'experiments' ? 'Running experiments' : 'Active loops', count: visibleActiveLoops.length },
+          { id: 'other', label: `Other ${labTool}`, count: filtered.length - visibleActiveLoops.length },
+        ]}
+      />
 
       {practiceSection === 'active' && <section className="mb-6 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <PracticeIcon className="size-4 text-accent" />
-            <h2 className="font-headline text-xl font-bold italic text-primary/80">Active loops</h2>
+            <h2 className="font-headline text-xl font-bold italic text-primary/80">{labTool === 'experiments' ? 'Running experiments' : 'Active loops'}</h2>
           </div>
           <p className="max-w-xl text-xs italic leading-5 text-muted-foreground">
-            Log the action first. Reflect when the practice starts producing evidence.
+            {labTool === 'experiments' ? 'Record observations against the hypothesis, then conclude the bounded test.' : 'Log the action first. Reflect when the practice starts producing evidence.'}
           </p>
           {practiceStats.testedPositions > 0 && (
             <button
@@ -456,8 +495,8 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       {practiceSection === 'other' && <section className="rounded-2xl border border-border/50 bg-card/60 p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-headline text-xl font-bold italic text-primary/80">Other practices</h2>
-            <p className="text-xs italic text-muted-foreground">Planned, paused, completed, and abandoned practices stay available without crowding the doing surface.</p>
+            <h2 className="font-headline text-xl font-bold italic text-primary/80">Other {labTool}</h2>
+            <p className="text-xs italic text-muted-foreground">Planned, paused, completed, and abandoned {labTool} stay available without crowding the active surface.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {statuses.filter((status) => status !== 'active').map((status) => {
@@ -936,6 +975,9 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                 onAccept={async (_result, content) => onSaveAiOutcome(content)}
               />
             </div>
+            <DialogDescription>
+              Define the action, evidence, and review conditions that make this practice a useful test of your thinking.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-6">
             <WorkbenchFlow

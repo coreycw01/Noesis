@@ -126,6 +126,15 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     loadingLayout: 'studio',
   },
   {
+    view: 'context-desk',
+    route: '/context-desk',
+    title: 'Context Desk',
+    purpose: 'Bring selected records together for a focused, bounded contextual review.',
+    section: 'More',
+    signatureExperience: 'A deliberate review desk where the user chooses every record the assistant may consider.',
+    loadingLayout: 'desk',
+  },
+  {
     view: 'practices',
     route: '/labs',
     title: 'Labs',
@@ -187,6 +196,7 @@ export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDa
   annotations: ['media', 'concepts', 'questions', 'vault', 'aiSettings'],
   vault: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns', 'aiSettings'],
   writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences'],
+  'context-desk': ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'aiSettings'],
   practices: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
   evolution: ['media', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'aiSettings'],
   profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs', 'aiSettings'],

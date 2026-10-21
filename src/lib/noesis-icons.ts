@@ -8,10 +8,12 @@ import {
   History,
   Home,
   Library,
+  Layers3,
   Map,
   MapPinned,
   Network,
   PenTool,
+  Repeat2,
   Settings,
   ShieldCheck,
   Target,
@@ -30,6 +32,8 @@ export type NoesisIconKey =
   | 'annotation'
   | 'position'
   | 'work'
+  | 'context'
+  | 'lab'
   | 'practice'
   | 'commitment'
   | 'evolution'
@@ -48,7 +52,9 @@ export const NOESIS_ICONS: Record<NoesisIconKey, LucideIcon> = {
   annotation: Highlighter,
   position: ShieldCheck,
   work: PenTool,
-  practice: FlaskConical,
+  context: Layers3,
+  lab: FlaskConical,
+  practice: Repeat2,
   commitment: Target,
   evolution: History,
   profile: UserCircle2,
@@ -65,7 +71,8 @@ export const NOESIS_VIEW_ICON_KEYS = {
   annotations: 'annotation',
   vault: 'position',
   writing: 'work',
-  practices: 'practice',
+  'context-desk': 'context',
+  practices: 'lab',
   goals: 'commitment',
   evolution: 'evolution',
   profile: 'profile',

@@ -31,9 +31,9 @@ interface PageErrorStateProps extends PageStateProps {
 
 export function PageEmptyState({ title, description, icon: Icon = Search, action, className, belongsHere, whyItMatters, firstAction, filterCause }: PageStateProps) {
   return (
-    <div className={cn('flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/5 p-10 text-center', className)}>
-      <Icon className="mb-5 size-12 text-muted-foreground/35" />
-      <h3 className="font-headline text-2xl font-semibold italic text-primary/70">{title}</h3>
+    <div className={cn('flex min-h-[220px] flex-col items-center justify-center rounded-[var(--card-radius)] border border-dashed border-border/60 bg-surface p-6 text-center sm:p-8', className)}>
+      <Icon className="mb-4 size-10 text-muted-foreground/40" />
+      <h3 className="font-headline text-xl font-semibold italic text-foreground/80 sm:text-2xl">{title}</h3>
       {description && <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{description}</p>}
       {(belongsHere || whyItMatters || firstAction || filterCause) && (
         <div className="mt-5 grid max-w-2xl gap-3 text-left sm:grid-cols-2">
@@ -50,7 +50,7 @@ export function PageEmptyState({ title, description, icon: Icon = Search, action
 
 export function PageLoadingState({ title, description = 'Syncing the data this page needs.', className, loadingLayout = 'list', loadingDetails }: Omit<PageStateProps, 'icon' | 'action'>) {
   return (
-    <div className={cn('min-h-[60vh] flex-1 p-8', className)} aria-busy="true" aria-live="polite">
+    <div className={cn('min-h-[60vh] flex-1 px-4 py-6 sm:px-6 sm:py-8', className)} aria-busy="true" aria-live="polite">
       <div className="mx-auto w-full max-w-7xl">
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -79,18 +79,18 @@ export function PageLoadingState({ title, description = 'Syncing the data this p
 
 export function PageErrorState({ title, description, onRetry, retryLabel = 'Try Again', savedState, nextStep, alternateAction, technicalDetails, className }: PageErrorStateProps) {
   return (
-    <div role="alert" className={cn('flex min-h-[280px] flex-col items-center justify-center rounded-xl border border-destructive/25 bg-destructive/5 p-10 text-center', className)}>
-      <AlertTriangle className="mb-5 size-12 text-destructive" />
+    <div role="alert" className={cn('flex min-h-[280px] flex-col items-center justify-center rounded-[var(--card-radius)] border border-destructive/25 bg-destructive/5 p-6 text-center sm:p-8', className)}>
+      <AlertTriangle className="mb-4 size-10 text-destructive" />
       <h3 className="font-headline text-2xl font-semibold italic text-destructive">{title}</h3>
       {description && <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{description}</p>}
       {(savedState || nextStep) && (
-        <div className="mt-5 max-w-lg rounded-2xl border border-border bg-background/70 p-4 text-left text-sm leading-6 text-muted-foreground">
+        <div className="mt-5 max-w-lg rounded-[var(--card-radius)] border border-border bg-surface-elevated p-4 text-left text-sm leading-6 text-muted-foreground">
           {savedState && <p><span className="font-medium text-foreground">Save state:</span> {savedState}</p>}
           {nextStep && <p className={savedState ? 'mt-2' : undefined}><span className="font-medium text-foreground">Next step:</span> {nextStep}</p>}
         </div>
       )}
       {technicalDetails && (
-        <details className="mt-4 max-w-lg rounded-2xl border border-border bg-background/70 p-4 text-left text-sm text-muted-foreground">
+        <details className="mt-4 max-w-lg rounded-[var(--card-radius)] border border-border bg-surface-elevated p-4 text-left text-sm text-muted-foreground">
           <summary className="cursor-pointer font-medium text-foreground">Technical details</summary>
           <pre className="mt-3 whitespace-pre-wrap break-words font-code text-[11px] leading-5">{technicalDetails}</pre>
         </details>
@@ -111,7 +111,7 @@ export function PageErrorState({ title, description, onRetry, retryLabel = 'Try 
 
 function StateDetail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
+    <div className="rounded-[var(--card-radius)] border border-border/60 bg-surface-elevated p-4">
       <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{value}</p>
     </div>
@@ -122,7 +122,7 @@ function LoadingSkeleton({ layout }: { layout: NonNullable<PageStateProps['loadi
   if (layout === 'map') {
     return (
       <div className="grid min-h-[520px] gap-4 lg:grid-cols-[1fr_320px]">
-        <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card p-6">
+        <div className="relative overflow-hidden rounded-[var(--card-radius)] border border-border/60 bg-card p-6">
           <SkeletonPulse className="absolute left-[12%] top-[18%] h-16 w-36 rounded-2xl" />
           <SkeletonPulse className="absolute left-[42%] top-[28%] h-16 w-40 rounded-2xl" />
           <SkeletonPulse className="absolute right-[10%] top-[14%] h-16 w-32 rounded-2xl" />
@@ -131,7 +131,7 @@ function LoadingSkeleton({ layout }: { layout: NonNullable<PageStateProps['loadi
           <div className="absolute inset-x-16 top-1/2 h-px bg-border/60" />
           <div className="absolute bottom-8 left-8 h-9 w-48 rounded-full bg-muted/40" />
         </div>
-        <div className="rounded-3xl border border-border/60 bg-card p-5">
+        <div className="rounded-[var(--card-radius)] border border-border/60 bg-card p-5">
           <SkeletonPulse className="h-5 w-28 rounded-full" />
           <SkeletonPulse className="mt-5 h-24 rounded-2xl" />
           <SkeletonPulse className="mt-4 h-24 rounded-2xl" />
@@ -145,7 +145,7 @@ function LoadingSkeleton({ layout }: { layout: NonNullable<PageStateProps['loadi
     return (
       <div className="grid gap-4 lg:grid-cols-[260px_1fr_300px]">
         <SkeletonPanel rows={5} />
-        <div className="min-h-[520px] rounded-3xl border border-border/60 bg-card p-6">
+        <div className="min-h-[520px] rounded-[var(--card-radius)] border border-border/60 bg-card p-6">
           <SkeletonPulse className="h-10 w-2/3 rounded-xl" />
           <SkeletonPulse className="mt-6 h-8 w-full rounded-xl" />
           <SkeletonPulse className="mt-4 h-8 w-5/6 rounded-xl" />
@@ -160,7 +160,7 @@ function LoadingSkeleton({ layout }: { layout: NonNullable<PageStateProps['loadi
     return (
       <div className="space-y-8 border-l border-border/60 pl-8">
         {[0, 1, 2, 3].map((item) => (
-          <div key={item} className="relative rounded-3xl border border-border/60 bg-card p-5">
+          <div key={item} className="relative rounded-[var(--card-radius)] border border-border/60 bg-card p-5">
             <span className="absolute -left-[37px] top-7 size-3 rounded-full bg-accent/40" />
             <SkeletonPulse className="h-4 w-40 rounded-full" />
             <SkeletonPulse className="mt-4 h-7 w-2/3 rounded-xl" />
@@ -174,7 +174,7 @@ function LoadingSkeleton({ layout }: { layout: NonNullable<PageStateProps['loadi
   if (layout === 'desk') {
     return (
       <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-        <div className="rounded-3xl border border-border/60 bg-card p-6">
+        <div className="rounded-[var(--card-radius)] border border-border/60 bg-card p-6">
           <SkeletonPulse className="h-7 w-64 rounded-xl" />
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             <SkeletonPulse className="h-36 rounded-2xl" />
@@ -190,7 +190,7 @@ function LoadingSkeleton({ layout }: { layout: NonNullable<PageStateProps['loadi
   if (layout === 'detail') {
     return (
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-        <div className="rounded-3xl border border-border/60 bg-card p-6">
+        <div className="rounded-[var(--card-radius)] border border-border/60 bg-card p-6">
           <SkeletonPulse className="h-8 w-2/3 rounded-xl" />
           <SkeletonPulse className="mt-5 h-28 rounded-2xl" />
           <SkeletonPulse className="mt-4 h-28 rounded-2xl" />
@@ -204,7 +204,7 @@ function LoadingSkeleton({ layout }: { layout: NonNullable<PageStateProps['loadi
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {[0, 1, 2, 3, 4, 5].map((item) => (
-        <div key={item} className="rounded-3xl border border-border/60 bg-card p-5">
+        <div key={item} className="rounded-[var(--card-radius)] border border-border/60 bg-card p-5">
           <SkeletonPulse className="h-5 w-32 rounded-full" />
           <SkeletonPulse className="mt-4 h-8 w-4/5 rounded-xl" />
           <SkeletonPulse className="mt-4 h-20 rounded-2xl" />
@@ -217,7 +217,7 @@ function LoadingSkeleton({ layout }: { layout: NonNullable<PageStateProps['loadi
 
 function SkeletonPanel({ rows }: { rows: number }) {
   return (
-    <div className="rounded-3xl border border-border/60 bg-card p-5">
+    <div className="rounded-[var(--card-radius)] border border-border/60 bg-card p-5">
       <SkeletonPulse className="h-5 w-32 rounded-full" />
       {Array.from({ length: rows }).map((_, index) => (
         <SkeletonPulse key={index} className="mt-4 h-14 rounded-2xl" />

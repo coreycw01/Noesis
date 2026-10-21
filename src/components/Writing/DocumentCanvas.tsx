@@ -4,7 +4,7 @@
 import React, { type ReactNode, useRef, useState, useEffect } from 'react';
 import { DocsPage } from './DocsPage';
 import type { PageViewMode, PageSize, PaperColor, PaperPattern } from './Atelier';
-import type { DrawingTool, WritingStyle } from '@/lib/types';
+import type { DrawingStroke, DrawingTool, WritingStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface DocumentCanvasProps {
@@ -17,8 +17,10 @@ interface DocumentCanvasProps {
   writingStyle: WritingStyle;
   title: string;
   overlayData: string;
+  overlayStrokes?: DrawingStroke[];
   backgroundArtwork?: string;
   onOverlayChange: (content: string) => void;
+  onOverlayStrokesChange?: (strokes: DrawingStroke[]) => void;
   overlayTool: DrawingTool;
   overlayColor: string;
   overlayBrushSize: number;
@@ -30,7 +32,7 @@ interface DocumentCanvasProps {
   onCurrentPageChange?: (pageId: string) => void;
 }
 
-export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title, overlayData, backgroundArtwork, onOverlayChange, overlayTool, overlayColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools, subpages, toolSections, onCurrentPageChange }: DocumentCanvasProps) {
+export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title, overlayData, overlayStrokes, backgroundArtwork, onOverlayChange, onOverlayStrokesChange, overlayTool, overlayColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools, subpages, toolSections, onCurrentPageChange }: DocumentCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
 
@@ -130,8 +132,10 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
                 onContentChange={onContentChange}
                 showBoundary
                 overlayData={overlayData}
+                overlayStrokes={overlayStrokes}
                 backgroundArtwork={backgroundArtwork}
                 onOverlayChange={onOverlayChange}
+                onOverlayStrokesChange={onOverlayStrokesChange}
                 overlayTool={overlayTool}
                 overlayColor={overlayColor}
                 overlayBrushSize={overlayBrushSize}
@@ -162,8 +166,10 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
                   onContentChange={onContentChange}
                   showBoundary
                   overlayData={overlayData}
+                  overlayStrokes={overlayStrokes}
                   backgroundArtwork={backgroundArtwork}
                   onOverlayChange={onOverlayChange}
+                  onOverlayStrokesChange={onOverlayStrokesChange}
                   overlayTool={overlayTool}
                   overlayColor={overlayColor}
                   overlayBrushSize={overlayBrushSize}

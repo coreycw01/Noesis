@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Menu,
   Plus,
-  Command,
   Search,
   WifiOff,
   Check,
@@ -102,11 +101,11 @@ function WorkspaceSyncIndicator({ state, compact = false, offline = false }: { s
   );
 }
 const STRUCTURED_COMMAND_EXAMPLES = [
-  'create inquiry',
-  'open position',
-  'challenge autonomy',
-  'continue essay',
-  'start practice',
+  'identity',
+  'unfinished inquiry',
+  'current position',
+  'recent source',
+  'practice result',
 ];
 const NOESIS_STAGE_ORDER = ['Encounter', 'Capture', 'Interpret', 'Question', 'Judge', 'Express', 'Test', 'Revise', 'Understand'] as const;
 const STAGE_DESCRIPTIONS: Record<(typeof NOESIS_STAGE_ORDER)[number], string> = {
@@ -254,6 +253,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     eligible: boolean;
   } | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [commandPurpose, setCommandPurpose] = useState<'find' | 'create'>('find');
   const [commandQuery, setCommandQuery] = useState('');
   const [previewItem, setPreviewItem] = useState<CommandPaletteItem | null>(null);
   const [recentCommandItems, setRecentCommandItems] = useState<CommandPaletteItem[]>([]);
@@ -269,6 +269,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'annotations', icon: iconForNoesisView('annotations'), count: counts.annotations },
     { id: 'vault', icon: iconForNoesisView('vault'), count: counts.vault },
     { id: 'writing', icon: iconForNoesisView('writing'), count: counts.drafts },
+    { id: 'context-desk', icon: iconForNoesisView('context-desk') },
     { id: 'practices', icon: iconForNoesisView('practices'), count: counts.practices },
     { id: 'goals', icon: iconForNoesisView('goals') },
     { id: 'evolution', icon: iconForNoesisView('evolution'), count: counts.timeline },
@@ -336,6 +337,8 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
+        setCommandPurpose('find');
+        setCommandQuery('');
         setCommandOpen((open) => !open);
       }
     };
@@ -467,7 +470,10 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       activityClass: 'non_meaningful' as const,
     }));
     const query = commandQuery.trim().toLowerCase();
-    return [...recent, ...creation, ...core, ...utilities, ...workspaceCommandItems]
+    const availableItems = commandPurpose === 'create'
+      ? creation
+      : [...recent, ...core, ...utilities, ...workspaceCommandItems.filter((item) => item.kind !== 'create')];
+    return availableItems
       .filter((item) => {
         const searchable = [
           item.label,
@@ -488,7 +494,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         return !query || searchable.toLowerCase().includes(query);
       })
       .slice(0, 18);
-  }, [commandQuery, navItems, recentCommandItems, workspaceCommandItems]);
+  }, [commandPurpose, commandQuery, navItems, recentCommandItems, workspaceCommandItems]);
 
   const rememberCommandItem = (item: CommandPaletteItem) => {
     if (!item.targetId || item.kind !== 'object') return;
@@ -544,12 +550,12 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const activePage = NOESIS_PAGE_BY_VIEW[activeView as keyof typeof NOESIS_PAGE_BY_VIEW] || NOESIS_PAGE_BY_VIEW.home;
   const mobilePrimaryNav = [
     { id: 'home', label: 'Today', icon: iconForNoesisView('home'), view: 'home' },
-    { id: 'questions', label: 'Question', icon: iconForNoesisView('questions'), view: 'questions' },
-    { id: 'vault', label: 'Claim', icon: iconForNoesisView('vault'), view: 'vault' },
-    { id: 'practices', label: 'Test', icon: iconForNoesisView('practices'), view: 'practices' },
+    { id: 'library', label: 'Library', icon: iconForNoesisView('library'), view: 'library' },
+    { id: 'questions', label: 'Inquiries', icon: iconForNoesisView('questions'), view: 'questions' },
+    { id: 'vault', label: 'Positions', icon: iconForNoesisView('vault'), view: 'vault' },
     { id: 'more', label: 'More', icon: Menu, view: null },
   ];
-  const mobilePrimaryViews = new Set(['home', 'questions', 'vault', 'practices']);
+  const mobilePrimaryViews = new Set(['home', 'library', 'questions', 'vault']);
   const mobileMoreItems = [
     ...navItems.filter((item) => !mobilePrimaryViews.has(item.id)),
     { id: 'profile', icon: iconForNoesisView('profile') },
@@ -743,18 +749,18 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       <div className={cn("shrink-0 border-t border-sidebar-border bg-transparent", collapsed && !isMobile ? "p-3 text-center" : "p-4")}>
         <button
           type="button"
-          onClick={() => setCommandOpen(true)}
+          onClick={() => { setCommandPurpose('find'); setCommandQuery(''); setCommandOpen(true); }}
           className={cn(
             "mb-2 flex w-full items-center rounded-xl border border-sidebar-border bg-sidebar-foreground/5 text-sidebar-foreground/55 transition-colors hover:border-sidebar-foreground/20 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground",
             collapsed && !isMobile ? "justify-center p-2.5" : "gap-2 px-3 py-2"
           )}
-          aria-label="Open command palette"
-          title="Open command palette (Ctrl K)"
+          aria-label="Find in Noesis"
+          title="Find in Noesis (Ctrl K)"
         >
-          <Command className="size-4 shrink-0" />
+          <Search className="size-4 shrink-0" />
           {(!collapsed || isMobile) && (
             <>
-              <span className="flex-1 text-left font-code text-[8px] uppercase tracking-[0.14em]">Search</span>
+              <span className="flex-1 text-left font-code text-[8px] uppercase tracking-[0.14em]">Find in Noesis</span>
               <span className="font-code text-[8px] uppercase tracking-[0.12em] text-sidebar-foreground/30">Ctrl K</span>
             </>
           )}
@@ -799,11 +805,11 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setCommandOpen(true)}
+                onClick={() => { setCommandPurpose('find'); setCommandQuery(''); setCommandOpen(true); }}
                 className="size-9 rounded-full border-border/60 bg-card shadow-sm"
-                aria-label="Open command palette"
+                aria-label="Find in Noesis"
               >
-                <Command className="size-4" />
+                <Search className="size-4" />
               </Button>
             </div>
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
@@ -890,7 +896,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             <nav className="noesis-mobile-nav fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-2 py-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur md:hidden" aria-label="Primary mobile navigation">
               <div className="grid grid-cols-5 gap-1">
                 {mobilePrimaryNav.map((item) => {
-                  const isActive = item.view !== null && activeView === item.view;
+                  const isActive = item.view !== null ? activeView === item.view : !mobilePrimaryViews.has(activeView);
                   return (
                     <button
                       key={item.id}
@@ -904,7 +910,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                       )}
                     >
                       <item.icon className="size-[18px]" aria-hidden="true" />
-                      <span className="mt-0.5 max-w-full truncate font-code text-[10px] uppercase tracking-[0.08em]">{item.label}</span>
+                      <span className="mt-0.5 max-w-full whitespace-nowrap font-code text-[9px] uppercase tracking-0">{item.label}</span>
                     </button>
                   );
                 })}
@@ -914,7 +920,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           {isMobile && (
             <Button
               type="button"
-              onClick={() => { setCommandQuery(''); setCommandOpen(true); }}
+              onClick={() => { setCommandPurpose('create'); setCommandQuery(''); setCommandOpen(true); }}
               className="fixed bottom-[76px] right-4 z-40 size-12 rounded-full shadow-lg md:hidden"
               aria-label="Capture or create an item"
               title="Capture or create"
@@ -967,8 +973,8 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
           <DialogContent className="max-w-xl rounded-3xl border-border bg-card p-0 shadow-2xl">
             <DialogHeader className="border-b border-border px-6 py-5">
-              <DialogTitle className="font-headline text-2xl font-semibold italic">Search Noesis</DialogTitle>
-              <DialogDescription>Find an item, open a workspace, or start a new thought.</DialogDescription>
+              <DialogTitle className="font-headline text-2xl font-semibold italic">{commandPurpose === 'find' ? 'Find in Noesis' : 'Create in Noesis'}</DialogTitle>
+              <DialogDescription>{commandPurpose === 'find' ? 'Find and open an existing item or workspace.' : 'Choose the kind of thought you want to add.'}</DialogDescription>
             </DialogHeader>
             <div className="p-4">
               <div className="relative">
@@ -977,11 +983,11 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                   autoFocus
                   value={commandQuery}
                   onChange={(event) => setCommandQuery(event.target.value)}
-                  placeholder="Search Atlas, Positions, Works..."
+                  placeholder={commandPurpose === 'find' ? 'Find concepts, inquiries, sources, positions...' : 'Filter creation choices...'}
                   className="h-11 rounded-full pl-9"
                 />
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              {commandPurpose === 'find' && <div className="mt-3 flex flex-wrap gap-2">
                 {STRUCTURED_COMMAND_EXAMPLES.map((example) => (
                   <button
                     key={example}
@@ -992,7 +998,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                     {example}
                   </button>
                 ))}
-              </div>
+              </div>}
               <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto">
                 {commandItems.map((item) => (
                   <button
@@ -1034,7 +1040,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 ))}
                 {!commandItems.length && (
                   <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                    No matching destinations.
+                    {commandPurpose === 'find' ? 'No matching items or destinations.' : 'No creation choices match.'}
                   </div>
                 )}
               </div>

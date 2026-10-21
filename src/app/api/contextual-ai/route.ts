@@ -12,13 +12,13 @@ const actions = [
   'socratic_inquiry_challenge', 'find_position_assumptions',
   'generate_position_counterargument', 'identify_missing_position_evidence',
   'compare_selected_positions', 'synthesize_practice_outcome',
-  'synthesize_evolution_period', 'synthesize_profile_philosophy',
+  'synthesize_evolution_period', 'synthesize_profile_philosophy', 'review_selected_context',
 ] as const;
 
 const memoryLine = z.string().trim().min(1).max(4_000);
 const requestSchema = z.object({
   action: z.enum(actions),
-  targetType: z.enum(['source', 'annotation', 'concept', 'inquiry', 'position', 'practice', 'evolution', 'profile']),
+  targetType: z.enum(['source', 'annotation', 'concept', 'inquiry', 'position', 'practice', 'evolution', 'profile', 'context_desk']),
   targetId: z.string().trim().min(1).max(256),
   scope: z.enum(['current_item', 'linked_items', 'selected_pair', 'selected_period']),
   itemMemory: z.array(memoryLine).min(1).max(20),
@@ -69,6 +69,7 @@ const instructions: Record<(typeof actions)[number], string> = {
   synthesize_practice_outcome: 'Compare the practice hypothesis and expected outcome with the recorded logs and observed outcome. Distinguish whether the action was actually performed from whether the expected result occurred. Account for incomplete or missed observations, identify contradictions and plausible alternative explanations, and explain what the result supports, weakens, or leaves unresolved in the linked position or inquiry. Do not overclaim causality. Recommend one proportionate next iteration or follow-up test.',
   synthesize_evolution_period: 'Analyze the trajectory of the user’s thinking during the selected period using only the supplied event records. Identify meaningful before-and-after changes, revisions in confidence or position, resolved and unresolved contradictions, and relationships between changes across object types. Distinguish recorded causes or reasons from mere timing, distinguish user-authored changes from system observations, and do not turn routine activity into intellectual progress. Explain where the evidence is thin and recommend one useful point for the user’s next review.',
   synthesize_profile_philosophy: 'Help the user articulate the philosophy taking shape across their supplied records. Compare concepts, positions, inquiry answers and uncertainties, practice outcomes, works, source reflections, unknowns, and meaningful revisions. Identify genuine recurring commitments, contradictions, mismatches between confidence and evidence, and differences between stated positions and tested practice. Propose rather than declare: distinguish well-supported patterns from tentative interpretation, cite the supplied records behind each major inference, and do not invent beliefs or present the synthesis as a settled identity.',
+  review_selected_context: 'Analyze only the records the user explicitly assembled. Compare their claims, interpretations, evidence, confidence, uncertainty, tests, and outcomes. Trace influence only when the supplied records support it. Identify contradictions, missing perspectives, alternative interpretations, and one proportionate next inquiry or test. Name every contributing record behind an important conclusion and clearly label inference. If the selection is insufficient, say exactly what is missing.',
 };
 
 const outputFormats: Record<(typeof actions)[number], string> = {
@@ -87,6 +88,7 @@ const outputFormats: Record<(typeof actions)[number], string> = {
   synthesize_practice_outcome: 'Use exactly these Markdown headings when relevant: Observed pattern, Hypothesis assessment, Alternative explanation, Intellectual consequence, Next iteration.',
   synthesize_evolution_period: 'Use exactly these Markdown headings when relevant: Direction of change, Evidence, Tensions, Unresolved direction, Next review.',
   synthesize_profile_philosophy: 'Use exactly these Markdown headings when relevant: Working statement, Possible names, Recurring commitments, Tensions, What would change it.',
+  review_selected_context: 'Use exactly these Markdown headings when relevant: Synthesis, Contradictions, Evidence gaps, Missing perspective, Next inquiry or test.',
 };
 
 function buildPrompt(input: z.infer<typeof requestSchema>) {

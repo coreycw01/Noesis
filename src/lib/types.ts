@@ -27,13 +27,17 @@ export type DraftStatus = 'idea' | 'rough' | 'seed' | 'drafting' | 'developing' 
 export type WorkCategory = 'writing' | 'notes' | 'drawing' | 'recording';
 export type WorkMode = 'draft' | 'final';
 export type WorkPurpose = 'explore' | 'explain' | 'persuade' | 'synthesize' | 'reflect' | 'document' | 'teach' | 'challenge' | 'imagine';
-export type DrawingTool = 'pen' | 'pencil' | 'marker' | 'eraser' | 'line' | 'rectangle' | 'ellipse' | 'arrow' | 'text';
+export type DrawingTool = 'pen' | 'calligraphy' | 'pencil' | 'marker' | 'highlighter' | 'eraser' | 'line' | 'rectangle' | 'ellipse' | 'arrow' | 'text';
 export interface DrawingStroke {
   id: string;
   tool: DrawingTool;
   color: string;
   opacity: number;
   width: number;
+  nibAngle?: number;
+  edgeSoftness?: number;
+  pressureResponse?: boolean;
+  coordinateSpace?: 'pixels' | 'normalized';
   points: Array<{ x: number; y: number }>;
   text?: string;
 }
@@ -94,6 +98,15 @@ export interface WorkToolSection {
   createdAt?: string;
   /** Width of the inline object within its document page. */
   widthPercent?: number;
+  /** Persisted desktop-window geometry. Missing values are derived for legacy inline tools. */
+  window?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    minimized?: boolean;
+    zIndex?: number;
+  };
   data: WorkToolData;
 }
 
@@ -101,6 +114,8 @@ export interface WorkDocumentPage {
   id: string;
   title: string;
   content: string;
+  overlayData?: string;
+  overlayStrokes?: DrawingStroke[];
   createdAt?: string;
 }
 
@@ -461,6 +476,7 @@ export interface Draft extends NoesisStageState {
   /** Per-page appearance overrides. `main` identifies the primary writing page; tool section IDs identify inserted pages. */
   pageSettings?: Record<string, DocumentPageSettings>;
   writingOverlayData?: string;
+  writingOverlayStrokes?: DrawingStroke[];
   overlayAsset?: StoredAsset;
   writingStyle?: WritingStyle;
   externalDoc?: ExternalDraftDocument;

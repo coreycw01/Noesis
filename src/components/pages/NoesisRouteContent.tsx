@@ -58,6 +58,7 @@ const EvolutionRoutePage = dynamic(() => import('./EvolutionRoutePage').then((mo
 const SettingsRoutePage = dynamic(() => import('./SettingsRoutePage').then((module) => module.SettingsRoutePage));
 const PositionsRoutePage = dynamic(() => import('./PositionsRoutePage').then((module) => module.PositionsRoutePage));
 const WorksRoutePage = dynamic(() => import('./WorksRoutePage').then((module) => module.WorksRoutePage), { ssr: false });
+const ContextDeskRoutePage = dynamic(() => import('./ContextDeskRoutePage').then((module) => module.ContextDeskRoutePage));
 
 export interface NoesisRouteContentProps {
   activeView: NoesisView;
@@ -458,6 +459,28 @@ export function NoesisRouteContent({
       return <InquiriesRoutePage aiSettings={aiSettings} questions={questions} media={media} vault={vault} drafts={drafts} practices={practices} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onUpdateDraft={updateDraft} onAddPractice={addPractice} onUpdatePractice={updatePractice} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
     case 'writing':
       return <WorksRoutePage uid={effectiveUid} isReviewWorkspace={isOfflineReviewPreview} drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onMarkDraftOpened={markDraftOpened} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
+    case 'context-desk':
+      return (
+        <ContextDeskRoutePage
+          aiSettings={aiSettings}
+          media={media}
+          concepts={concepts}
+          questions={questions}
+          positions={vault}
+          works={drafts}
+          practices={practices}
+          timeline={timeline}
+          onAddDraft={addDraft}
+          onNavigate={(view, targetId) => navigateToView(view as NoesisView, {
+            conceptId: view === 'concepts' ? targetId : null,
+            questionId: view === 'questions' ? targetId : null,
+            sourceId: view === 'library' ? targetId : null,
+            positionId: view === 'vault' ? targetId : null,
+            workId: view === 'writing' ? targetId : null,
+            practiceId: view === 'practices' ? targetId : null,
+          })}
+        />
+      );
     case 'evolution':
       return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} onSaveSynthesis={addTimelineEvent} />;
     case 'practices':

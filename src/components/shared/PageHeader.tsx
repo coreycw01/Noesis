@@ -27,6 +27,7 @@ export function PageHeader({ title, description, actions, meta, className, child
     annotations: 'annotations',
     positions: 'vault',
     works: 'writing',
+    'context-desk': 'context-desk',
     labs: 'practices',
     practices: 'practices',
     evolution: 'evolution',
