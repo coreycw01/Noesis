@@ -83,7 +83,10 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
     case 'context-desk':
       return { view: 'context-desk' };
     case 'labs':
-      return { view: 'practices' };
+  return {
+    view: 'practices',
+    focusedPracticeId: maybeId || null,
+  };
     case 'practices':
       return { view: 'practices', focusedPracticeId: maybeId || null };
     case 'evolution':
@@ -131,7 +134,7 @@ export function viewToPath(view: NoesisView, options?: {
     case 'context-desk':
       return `${prefix}/context-desk`;
     case 'practices':
-      return options?.practiceId ? `${prefix}/practices/${options.practiceId}` : `${prefix}/labs`;
+  return options?.practiceId ? `${prefix}/labs/${options.practiceId}` : `${prefix}/labs`;
     case 'evolution':
       return `${prefix}/evolution`;
     case 'profile':
