@@ -23,7 +23,7 @@ test('existing practice detail links remain compatible', () => {
     view: 'practices',
     focusedPracticeId: 'practice-1',
   });
-  assert.equal(viewToPath('practices', { practiceId: 'practice-1' }), '/practices/practice-1');
+  assert.equal(viewToPath('practices', { practiceId: 'practice-1' }), '/labs/practice-1');
 });
 
 test('Labs and individual practices use distinct visual semantics', () => {

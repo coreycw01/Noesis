@@ -1491,7 +1491,7 @@ export function buildReviewExport(args: {
     { route: '/works', surface: 'Works', purpose: 'Writing, notes, drawing, recording, and external-doc artifacts.' },
     { route: '/works/[workId]', surface: 'Work detail', purpose: 'Deep-link focused work editor.' },
     { route: '/labs', surface: 'Labs', purpose: 'Workspace for lived tests, habits, experiments, and observations.' },
-    { route: '/practices/[practiceId]', surface: 'Practice detail', purpose: 'Deep-link focused practice editor.' },
+    { route: '/labs/[practiceId]', surface: 'Practice detail', purpose: 'Deep-link focused practice editor.' },
     { route: '/evolution', surface: 'Evolution', purpose: 'Meaningful intellectual change over time.' },
     { route: '/profile', surface: 'Profile', purpose: 'Identity, thinking tendencies, unknowns, and public philosophy controls.' },
     { route: '/goals', surface: 'Goals', purpose: 'Intellectual commitments and progress categories.' },

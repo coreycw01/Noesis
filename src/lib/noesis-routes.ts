@@ -83,7 +83,10 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
     case 'context-desk':
       return { view: 'context-desk' };
     case 'labs':
-      return { view: 'practices' };
+  return {
+    view: 'practices',
+    focusedPracticeId: maybeId || null,
+  };
     case 'practices':
       return { view: 'practices', focusedPracticeId: maybeId || null };
     case 'evolution':
