@@ -1,8 +1,8 @@
-import NoesisHomePage from '@/app/noesis-home-page';
+import { NoesisRouteSurface } from '../noesis-route-surface';
 import { metadataForNoesisView } from '@/lib/noesis-page-definitions';
 
 export const metadata = metadataForNoesisView('context-desk');
 
 export default function ContextDeskPage() {
-  return <NoesisHomePage />;
+  return <NoesisRouteSurface routeState={{ view: 'context-desk' }} />;
 }

@@ -465,10 +465,10 @@ export function MediaLibrary({
     const sourcePurpose = capture.before?.reasonForAdding || capture.before?.openQuestion || capture.before?.expectation || selected.description || 'This source still needs a clear reason for being studied.';
     
     return (
-      <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
-        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <button onClick={closeSelectedSource} className="font-code text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground flex items-center transition-colors">
+      <div className="noesis-source-detail flex-1 w-full overflow-y-auto px-3 pb-28 pt-3 font-body sm:px-6 sm:py-6 lg:px-8" data-noesis-identity="research-record">
+        <header className="mb-4 space-y-3 border-b border-border/60 pb-4 sm:mb-6 sm:flex sm:items-center sm:justify-between sm:space-y-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <button onClick={closeSelectedSource} className="flex min-h-10 items-center rounded-md font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <ArrowLeft className="size-3 mr-2" /> LIBRARY
             </button>
             <span className="font-code text-[11px] uppercase tracking-widest text-primary/30">/</span>
@@ -476,8 +476,9 @@ export function MediaLibrary({
               {MEDIA_LABELS[selected.type]}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <ContextualAiPanel
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(8.5rem,1fr)_2.5rem] items-center gap-2 sm:flex sm:flex-wrap">
+            <div className="min-w-0 [&>span]:flex [&>span]:w-full [&>span>button:first-child]:min-w-0 [&>span>button:first-child]:flex-1 [&>span>button:first-child]:justify-center [&>span>button:first-child]:truncate">
+              <ContextualAiPanel
               actions={['summarize_source', 'extract_source_claims', 'propose_inquiry_prompts']}
               enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
               showContextBeforeSending={aiSettings?.showContextBeforeSending}
@@ -528,13 +529,14 @@ export function MediaLibrary({
                   annotations: mergeGeneratedAnnotations(selected.annotations || [], generatedListItems(content, 6).map((text) => ({ id: uid(), type: 'question' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'questioned' as const }))),
                 });
               }}
-            />
+              />
+            </div>
             <Select value={selected.status} onValueChange={(value) => updateSelected({ status: value as MediaStatus })}>
-              <SelectTrigger className="w-36 sm:w-44 font-code text-[10px] uppercase h-9 bg-card shadow-sm border-border/60 rounded-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-10 w-full min-w-0 rounded-md border-border/60 bg-card font-code text-[9px] uppercase shadow-sm sm:w-44"><SelectValue /></SelectTrigger>
               <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{MEDIA_STATUS_LABELS[status]}</SelectItem>)}</SelectContent>
             </Select>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Source actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Source actions" className="size-10 rounded-md bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => openEditor(selected)}><Edit className="mr-2 size-4" /> Edit source</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setDeleteTarget({ type: 'source', item: selected })} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete source</DropdownMenuItem>
@@ -543,8 +545,8 @@ export function MediaLibrary({
           </div>
         </header>
 
-        <div className="mb-6 flex flex-col gap-5 rounded-xl border border-border/50 bg-card p-5 shadow-sm sm:flex-row sm:p-6">
-          <div className="h-40 w-full shrink-0 overflow-hidden rounded-lg border border-border/30 bg-accent/5 shadow-inner sm:size-44">
+        <section className="mb-5 grid grid-cols-[5.25rem_minmax(0,1fr)] gap-x-4 gap-y-3 border-b border-border/60 pb-5 sm:flex sm:gap-5 sm:rounded-lg sm:border sm:border-border/50 sm:bg-card sm:p-6 sm:shadow-sm">
+          <div className="h-28 w-[5.25rem] shrink-0 overflow-hidden rounded-md border border-border/40 bg-accent/5 sm:size-44 sm:rounded-lg">
             {selected.thumbnailUrl ? (
               <img src={selected.thumbnailUrl} alt={selected.title} className="w-full h-full object-cover" />
             ) : (
@@ -553,16 +555,16 @@ export function MediaLibrary({
               </div>
             )}
           </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="noesis-page-title mb-3 break-words text-3xl sm:text-4xl">{selected.title}</h1>
-            <div className="flex items-center gap-4 mb-5">
-              <span className="font-body text-xl italic text-muted-foreground">{selected.creator}</span>
-              {selected.year && <span className="font-code text-xs text-muted-foreground/40 font-bold tracking-widest">{selected.year}</span>}
+          <div className="min-w-0 flex-1 self-center sm:self-auto">
+            <h1 className="noesis-page-title mb-2 break-words text-2xl leading-tight sm:mb-3 sm:text-4xl">{selected.title}</h1>
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 sm:mb-5">
+              <span className="font-body text-base italic text-muted-foreground sm:text-xl">{selected.creator || 'Unknown creator'}</span>
+              {selected.year && <span className="font-code text-[10px] font-bold tracking-widest text-muted-foreground/60 sm:text-xs">{selected.year}</span>}
             </div>
-            <p className="mb-5 max-w-3xl font-body text-base italic leading-relaxed text-primary/80 sm:text-lg">
-              {selected.description || "A placeholder for the central thesis or importance of this scholarly source."}
+            <p className="mt-2 hidden max-w-3xl font-body text-base italic leading-relaxed text-primary/80 sm:block sm:text-lg">
+              {selected.description || 'No description recorded yet.'}
             </p>
-            <div className="flex flex-wrap gap-2.5">
+            <div className="mt-4 hidden flex-wrap gap-2.5 sm:flex">
               {(selected.tags || []).map(tag => (
                 <button
                   key={tag}
@@ -577,14 +579,27 @@ export function MediaLibrary({
               </Badge>
             </div>
           </div>
-        </div>
+          <p className="col-span-2 text-sm italic leading-6 text-foreground/75 sm:hidden">
+            {selected.description || 'No description recorded yet.'}
+          </p>
+          <div className="col-span-2 flex flex-wrap gap-2 sm:hidden">
+            {(selected.tags || []).map(tag => (
+              <button key={tag} onClick={() => setConceptPopupName(tag)} className="min-h-9 rounded-md border border-border/60 bg-card px-3 font-code text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                {tag}
+              </button>
+            ))}
+            <Badge variant="outline" className="min-h-9 rounded-md border-border/60 bg-card px-3 font-code text-[9px] font-bold uppercase tracking-[0.12em]">
+              {selected.annotations?.length || 0} notes
+            </Badge>
+          </div>
+        </section>
 
         <Tabs value={sourceWorkbenchStep} onValueChange={(value) => setSourceWorkbenchStep(value as SourceWorkbenchStep)} className="w-full">
           <WorkbenchFlow
             label="Source workbench workflow"
             activeId={sourceWorkbenchStep}
             onSelect={(id) => setSourceWorkbenchStep(id as SourceWorkbenchStep)}
-            className="mb-6"
+            className="mb-5"
             steps={[
               { id: 'overview', label: 'Understand', description: 'Identify the source, purpose, and central idea.' },
               { id: 'capture', label: 'Engage', description: 'Record intent, sessions, and what changed in your thinking.' },
@@ -593,9 +608,9 @@ export function MediaLibrary({
             ]}
           />
 
-          <TabsContent value="overview" className="space-y-8">
+          <TabsContent value="overview" className="space-y-5 sm:space-y-8">
             {capture.after?.aiSummary && (
-              <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
+              <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="readex-kicker opacity-50 font-bold">SAVED SOURCE SUMMARY</div>
                   <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
@@ -604,7 +619,7 @@ export function MediaLibrary({
               </Card>
             )}
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-              <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
+                <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
                 <div className="readex-kicker mb-3 opacity-50 font-bold">MEDIA SUMMARY</div>
                 <div className="grid gap-3 text-sm">
                   {[
@@ -615,25 +630,25 @@ export function MediaLibrary({
                     { label: 'Locator', value: selected.isbn || selected.doi || selected.url || selected.externalIds?.url || selected.externalIds?.doi || 'No locator recorded' },
                     { label: 'Status', value: MEDIA_STATUS_LABELS[selected.status] },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-background/70 px-4 py-3">
+                    <div key={item.label} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-start gap-3 border-b border-border/40 py-3 last:border-b-0 sm:rounded-lg sm:border sm:bg-background/70 sm:px-4">
                       <span className="font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">{item.label}</span>
-                      <span className="max-w-[70%] text-right text-foreground/80 break-words">{item.value}</span>
+                      <span className="min-w-0 break-words text-right text-foreground/80">{item.value}</span>
                     </div>
                   ))}
                 </div>
               </Card>
 
-              <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
+              <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
                 <div className="readex-kicker mb-3 opacity-50 font-bold">SOURCE PURPOSE</div>
-                <p className="font-headline text-2xl italic leading-snug text-primary/90">{sourcePurpose}</p>
-                <p className="mt-6 text-sm leading-6 text-muted-foreground">
+                <p className="font-headline text-xl italic leading-snug text-primary/90 sm:text-2xl">{sourcePurpose}</p>
+                <p className="mt-4 text-sm leading-6 text-muted-foreground sm:mt-6">
                   Open <span className="font-medium text-foreground">Engage &amp; Reflect</span> to track progress and save what this source changed for you.
                 </p>
               </Card>
             </div>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-              <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
+              <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <div className="readex-kicker opacity-50 font-bold">KEY CONCEPTS</div>
                   <span className="text-xs text-muted-foreground">Latest {linkedConcepts.length}</span>
@@ -652,7 +667,7 @@ export function MediaLibrary({
                 {showSourceConceptPicker && <div className="mt-4 max-w-md"><ConceptTagPicker concepts={concepts} value={selected.tags || []} onChange={(tags) => updateSelected({ tags })} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></div>}
               </Card>
 
-              <Card className="rounded-xl border border-border/40 bg-card p-6 shadow-sm">
+              <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
                 <div className="readex-kicker mb-2 opacity-50 font-bold">CURRENT TAKEAWAY</div>
                 <p className="font-body text-lg italic leading-7 text-foreground/85">
                   {capture.after?.lasting || capture.after?.coreArgument || 'No takeaway saved yet.'}
@@ -660,12 +675,12 @@ export function MediaLibrary({
                 <p className="mt-4 text-sm leading-6 text-muted-foreground">
                   {capture.after?.remainsUnanswered || 'After engaging with this source, name the question that is still worth carrying forward.'}
                 </p>
-                <Button variant="outline" onClick={() => setInsightOpen(true)} className="mt-5 rounded-full bg-card">Create position from this source</Button>
+                <Button variant="outline" onClick={() => setInsightOpen(true)} className="mt-5 w-full rounded-md bg-card sm:w-auto sm:rounded-full">Create position from this source</Button>
               </Card>
             </div>
           </TabsContent>
 
-          <TabsContent value="capture" className="space-y-12">
+          <TabsContent value="capture" className="space-y-8 sm:space-y-12">
             <p className="max-w-2xl font-body text-sm leading-6 text-muted-foreground">
               Prepare for the source, record useful moments while engaging with it, then reflect on what deserves to change or continue.
             </p>
@@ -696,21 +711,21 @@ export function MediaLibrary({
             </section>
 
             <section>
-              <div className="flex justify-between items-center mb-6">
+              <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="readex-kicker flex items-center gap-3 opacity-40 font-bold">
                   <Plus className="size-2.5" /> SESSIONS
                 </h3>
                 {!activeSession && (
-                  <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
                     <Input
                       type="number"
                       min={1}
                       placeholder="Target min"
                       value={sessionTargetMinutes}
                       onChange={(event) => setSessionTargetMinutes(event.target.value)}
-                      className="h-8 w-28 rounded-full text-right font-code text-[10px]"
+                      className="h-10 w-full rounded-md text-right font-code text-[10px] sm:h-8 sm:w-28 sm:rounded-full"
                     />
-                    <Button variant="outline" size="sm" onClick={startSession} className="h-8 px-5 font-code text-[10px] tracking-widest uppercase border-border/60 shadow-sm bg-card rounded-full font-bold">
+                    <Button variant="outline" size="sm" onClick={startSession} className="h-10 rounded-md border-border/60 bg-card px-4 font-code text-[9px] font-bold uppercase tracking-widest shadow-sm sm:h-8 sm:rounded-full sm:px-5 sm:text-[10px]">
                       <Play className="mr-2 size-3.5" /> Start Session
                     </Button>
                   </div>
@@ -719,7 +734,7 @@ export function MediaLibrary({
               <div className="space-y-4">
                 {activeSession && (
                   <Card className="rounded-xl border-accent/25 bg-accent/[0.04] p-5 shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                       <div className="flex items-center gap-4">
                         <div className="flex size-12 items-center justify-center rounded-full bg-card text-accent shadow-sm">
                           <Clock className="size-5" />
@@ -736,7 +751,7 @@ export function MediaLibrary({
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="grid grid-cols-2 gap-2 sm:flex">
                         {activeSession.status === 'paused' ? (
                           <Button onClick={resumeSession} className="rounded-full"><Play className="mr-2 size-4" /> Resume</Button>
                         ) : (
@@ -793,7 +808,7 @@ export function MediaLibrary({
                   </div>
                 </details>
               </div>
-              <div className="mt-4 rounded-xl border border-accent/20 bg-accent/5 p-4">
+              <div className="mt-4 rounded-lg border border-accent/20 bg-accent/5 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-sm font-medium text-foreground">Source reflection</div>
@@ -846,8 +861,8 @@ export function MediaLibrary({
               </div>
             </section>
 
-            <div className="flex gap-4 pt-10 border-t border-border/30">
-              <Button onClick={() => updateSelected({ capture })} className="bg-accent px-10 h-11 font-code text-[11px] tracking-widest uppercase shadow-lg shadow-accent/20 rounded-full font-bold">SAVE CAPTURE</Button>
+            <div className="flex gap-4 border-t border-border/30 pt-6 sm:pt-10">
+              <Button onClick={() => updateSelected({ capture })} className="h-11 w-full rounded-md bg-accent px-10 font-code text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20 sm:w-auto sm:rounded-full">SAVE CAPTURE</Button>
             </div>
           </TabsContent>
 
@@ -858,9 +873,9 @@ export function MediaLibrary({
                   <h3 className="readex-kicker font-bold text-muted-foreground">NOTES FROM THIS SOURCE</h3>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">Save a highlight, your own thought, a question, or a connection. Keep each note to one idea.</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto]">
                   <Select value={annotationDraft.type} onValueChange={(value) => setAnnotationDraft((prev) => ({ ...prev, type: value as Annotation['type'] }))}>
-                    <SelectTrigger className="w-48 font-code text-[10px] uppercase h-11 border-border/60 bg-card shadow-sm rounded-full font-bold"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-11 w-full rounded-md border-border/60 bg-card font-code text-[10px] font-bold uppercase shadow-sm sm:rounded-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="highlight" className="font-code text-[10px] uppercase">Highlight</SelectItem>
                       <SelectItem value="thought" className="font-code text-[10px] uppercase">Thought</SelectItem>
@@ -869,11 +884,11 @@ export function MediaLibrary({
                     </SelectContent>
                   </Select>
                   <Input value={annotationDraft.text} onChange={(event) => setAnnotationDraft((prev) => ({ ...prev, text: event.target.value }))} placeholder="Extract highlight, thought, or connection..." className="font-body italic text-base h-11" />
-                  <Button onClick={addAnnotation} size="sm" className="h-11 px-8 rounded-full font-bold">ADD</Button>
+                  <Button onClick={addAnnotation} size="sm" className="h-11 w-full rounded-md px-8 font-bold sm:w-auto sm:rounded-full">ADD</Button>
                 </div>
                 <div className="space-y-5">
                   {(selected.annotations || []).map((annotation) => (
-                    <div key={annotation.id} className="rounded-xl border border-border/30 bg-card p-8 shadow-sm hover:shadow-md transition-shadow">
+                    <div key={annotation.id} className="rounded-lg border border-border/30 bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:p-8">
                       <div className="flex justify-between items-start mb-4">
                         <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold">
                           {annotation.type}
@@ -889,12 +904,12 @@ export function MediaLibrary({
           </TabsContent>
 
           <TabsContent value="connections" className="space-y-8">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
               <div>
                 <h3 className="readex-kicker font-bold text-muted-foreground">WHERE THIS SOURCE IS USED</h3>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">These are the objects that explicitly cite, question, test, or develop this source. A source claim stays separate from your position until you create one.</p>
               </div>
-              <Button onClick={() => setInsightOpen(true)} className="rounded-full">Create position</Button>
+              <Button onClick={() => setInsightOpen(true)} className="w-full rounded-md sm:w-auto sm:rounded-full">Create position</Button>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {[
@@ -903,7 +918,7 @@ export function MediaLibrary({
                 { label: 'Works', items: relatedDrafts.map((item) => item.title), empty: 'No works use this source.' },
                 { label: 'Practices', items: relatedPractices.map((item) => item.title), empty: 'No practices test ideas from this source.' },
               ].map((group) => (
-                <Card key={group.label} className="rounded-xl border border-border/40 bg-card p-5 shadow-sm">
+                <Card key={group.label} className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
                   <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{group.label}</div>
                   {group.items.length ? (
                     <ul className="mt-3 space-y-2 text-sm leading-6 text-foreground/85">{group.items.slice(0, 4).map((item) => <li key={item}>- {item}</li>)}</ul>
@@ -1011,7 +1026,7 @@ export function MediaLibrary({
   }
 
   return (
-    <div className="noesis-page">
+    <div className="noesis-page noesis-library-index" data-noesis-identity="research-library">
       <PageHeader
         title="Library"
         description="Engage actively, capture what matters, and trace what each source changes."
@@ -1363,19 +1378,23 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden border-none rounded-2xl shadow-2xl bg-card font-body">
-        <ScrollArea className="max-h-[85vh]">
-          <div className="p-8">
-            <DialogHeader className="mb-8">
-              <DialogTitle className="text-4xl font-headline italic mb-2">Add to Library</DialogTitle>
-              <p className="text-muted-foreground text-sm font-body italic">Archiving {MEDIA_LABELS[draft.type || 'book']}.</p>
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-xl overflow-hidden rounded-lg border-none bg-card p-0 font-body shadow-2xl sm:rounded-2xl">
+        <ScrollArea className="max-h-[calc(100dvh-9rem)] sm:max-h-[85vh]">
+          <div className="p-4 sm:p-8">
+            <DialogHeader className="mb-5 sm:mb-8">
+              <DialogTitle className="mb-1 text-2xl font-headline italic sm:mb-2 sm:text-4xl">
+                {draft.id ? 'Edit Source' : 'Add to Library'}
+              </DialogTitle>
+              <p className="text-sm font-body italic text-muted-foreground">
+                {draft.id ? `Update this ${MEDIA_LABELS[draft.type || 'book']}.` : `Archive a ${MEDIA_LABELS[draft.type || 'book']}.`}
+              </p>
             </DialogHeader>
 
-            <div className="space-y-8">
+            <div className="space-y-6 sm:space-y-8">
               {!draft.id && (
                 <>
                   {showSearch && (
-                    <section className="bg-muted/5 p-5 rounded-xl border border-dashed border-border/60">
+                    <section className="rounded-lg border border-dashed border-border/60 bg-muted/5 p-4 sm:rounded-xl sm:p-5">
                       <Label className="readex-kicker block mb-4 font-bold text-[10px] text-accent flex items-center gap-2">
                         <Globe className="size-3" /> INTELLECTUAL LOCATOR
                       </Label>
@@ -1388,7 +1407,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                             setLocatorQuery(e.target.value);
                             handleLocateSource(e.target.value);
                           }}
-                          className="pl-9 h-11 text-sm italic rounded-full bg-card"
+                          className="h-11 rounded-md bg-card pl-9 text-sm italic sm:rounded-full"
                         />
                         {isLocating && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 size-4 animate-spin text-accent" />}
                       </div>
@@ -1420,18 +1439,18 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   )}
 
                   {showImport && (
-                    <section className="bg-muted/5 p-5 rounded-xl border border-dashed border-border/60">
+                    <section className="rounded-lg border border-dashed border-border/60 bg-muted/5 p-4 sm:rounded-xl sm:p-5">
                       <Label className="readex-kicker block mb-4 font-bold text-[10px] text-accent flex items-center gap-2">
                         <Link2 className="size-3" /> PASTE URL
                       </Label>
-                      <div className="flex gap-2">
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                         <Input 
                           placeholder="Paste source URL for auto-metadata..." 
                           value={importUrl}
                           onChange={(e) => setImportUrl(e.target.value)}
-                          className="h-11 text-sm italic rounded-full bg-card"
+                          className="h-11 rounded-md bg-card text-sm italic sm:rounded-full"
                         />
-                        <Button variant="outline" onClick={handleImportUrl} disabled={isImporting || !importUrl.trim()} className="h-11 px-6 rounded-full font-bold">
+                        <Button variant="outline" onClick={handleImportUrl} disabled={isImporting || !importUrl.trim()} className="h-11 w-full rounded-md px-6 font-bold sm:w-auto sm:rounded-full">
                           {isImporting ? <Loader2 className="size-4 animate-spin" /> : 'IMPORT'}
                         </Button>
                       </div>
@@ -1442,7 +1461,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
 
               <section>
                 <Label className="readex-kicker block mb-4 font-bold text-[10px]">MEDIA TYPE</Label>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                   {MEDIA_TYPES.map((type) => {
                     const Icon = MEDIA_ICONS_COMP[type];
                     const isActive = draft.type === type;
@@ -1451,7 +1470,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                         key={type}
                         onClick={() => setDraft(prev => ({ ...prev, type }))}
                         className={cn(
-                          "flex items-center gap-2 px-4 py-2 rounded-full border transition-all font-code text-[9px] font-bold uppercase tracking-widest shadow-sm",
+                          "flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 py-2 text-center font-code text-[9px] font-bold uppercase tracking-widest shadow-sm transition-all sm:min-h-0 sm:justify-start sm:rounded-full sm:px-4",
                           isActive 
                             ? "bg-accent text-accent-foreground border-accent"
                             : "bg-card text-muted-foreground border-border/60 hover:border-accent hover:text-accent"
@@ -1484,7 +1503,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid gap-6 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">YEAR</Label>
                     <Input 
@@ -1512,7 +1531,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid gap-6 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">{terms.identifier.toUpperCase()}</Label>
                     <Input 
@@ -1541,15 +1560,15 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                       </Badge>
                     ))}
                   </div>
-                  <div className="flex gap-3">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:gap-3">
                     <Input 
                       placeholder="Add concept vocabulary..." 
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && addTag()}
-                      className="h-11 text-sm rounded-full"
+                      className="h-11 rounded-md text-sm sm:rounded-full"
                     />
-                    <Button variant="outline" onClick={addTag} className="h-11 font-code text-[10px] font-bold uppercase tracking-widest bg-card shadow-sm border-border/60 rounded-full px-6">ADD</Button>
+                    <Button variant="outline" onClick={addTag} className="h-11 rounded-md border-border/60 bg-card px-4 font-code text-[10px] font-bold uppercase tracking-widest shadow-sm sm:rounded-full sm:px-6">ADD</Button>
                   </div>
                 </div>
 
@@ -1568,7 +1587,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   <select 
                     value={draft.status || 'Want to Read'}
                     onChange={(e) => setDraft(prev => ({ ...prev, status: e.target.value as MediaStatus }))}
-                    className="w-full h-11 rounded-full border border-border/60 bg-card px-5 text-sm font-body appearance-none focus:outline-none focus:ring-2 focus:ring-accent shadow-sm"
+                    className="h-11 w-full appearance-none rounded-md border border-border/60 bg-card px-4 font-body text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-accent sm:rounded-full sm:px-5"
                   >
                     {statuses.map(status => <option key={status} value={status}>{MEDIA_STATUS_LABELS[status]}</option>)}
                   </select>
@@ -1578,9 +1597,11 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
           </div>
         </ScrollArea>
 
-        <div className="p-8 pt-4 bg-muted/10 border-t flex justify-end gap-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 px-8 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent rounded-full">CANCEL</Button>
-          <Button onClick={onSave} className="h-11 px-10 bg-accent font-code text-[11px] font-bold uppercase tracking-widest shadow-xl shadow-accent/20 rounded-full">ADD TO LIBRARY</Button>
+        <div className="grid grid-cols-2 gap-2 border-t bg-muted/10 p-4 sm:flex sm:justify-end sm:gap-4 sm:p-8 sm:pt-4">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 rounded-md px-4 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent sm:rounded-full sm:px-8">CANCEL</Button>
+          <Button onClick={onSave} className="h-11 rounded-md bg-accent px-4 font-code text-[11px] font-bold uppercase tracking-widest shadow-xl shadow-accent/20 sm:rounded-full sm:px-10">
+            {draft.id ? 'SAVE CHANGES' : 'ADD TO LIBRARY'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

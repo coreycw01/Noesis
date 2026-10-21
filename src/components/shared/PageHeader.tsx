@@ -36,17 +36,27 @@ export function PageHeader({ title, description, actions, meta, className, child
     settings: 'settings',
   } as Record<string, string>)[routeSegment] || 'home';
   const PageIcon = iconForNoesisView(view);
+  const section = ({
+    home: 'Today', atlas: 'Map', concepts: 'Vocabulary', questions: 'Investigation', library: 'Encounter',
+    'source-index': 'Research index', annotations: 'Marginalia', vault: 'Argument', writing: 'Studio',
+    'context-desk': 'Synthesis', practices: 'Experiment', evolution: 'History', profile: 'Portrait',
+    goals: 'Commitment', settings: 'System',
+  } as Record<string, string>)[view] || 'Workspace';
 
   return (
-    <header className={cn('noesis-page-header mb-5 border border-transparent md:mb-8 lg:mb-10', className)}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-5">
-        <div className="min-w-0">
-          <div className="flex items-start gap-2.5">
-            <PageIcon className="mt-1 size-5 shrink-0 text-accent md:size-6" strokeWidth={2.25} aria-hidden="true" />
-            <h1 className="noesis-page-title min-w-0 text-[24px] md:text-[28px]">{title}</h1>
+    <header data-noesis-route={view} className={cn('noesis-page-header mb-6 md:mb-9 lg:mb-11', className)}>
+      <div className="noesis-page-header__rule" aria-hidden="true" />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+        <div className="min-w-0 max-w-4xl">
+          <div className="mb-2 flex items-center gap-2.5">
+            <span className="noesis-margin-marker"><PageIcon className="size-3.5" strokeWidth={2.2} aria-hidden="true" /></span>
+            <span className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{section}</span>
           </div>
-          <p className="noesis-page-description mt-1.5 line-clamp-2 max-w-2xl text-[13px] leading-5 md:mt-2 md:line-clamp-none md:text-sm md:leading-6">{description}</p>
-          {meta && <div className="mt-3 flex flex-wrap gap-2 md:mt-4">{meta}</div>}
+          <div>
+            <h1 className="noesis-page-title min-w-0 text-[30px] md:text-[38px] lg:text-[42px]">{title}</h1>
+          </div>
+          <p className="noesis-page-description mt-2 max-w-3xl text-sm leading-6 md:mt-3 md:text-base md:leading-7">{description}</p>
+          {meta && <div className="mt-3 border-l border-border pl-3 text-muted-foreground md:mt-4">{meta}</div>}
         </div>
         {actions && <div className="noesis-page-header-actions">{actions}</div>}
       </div>

@@ -205,7 +205,7 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
   };
 
   return (
-    <div className="noesis-page">
+    <div className="noesis-page noesis-profile-page" data-noesis-identity="intellectual-portrait">
       <div className="noesis-page-inner flex flex-col gap-5">
         <PageHeader title="Profile" description="Who you are, the philosophy taking shape, and exactly what you choose to share." actions={<><Button variant="outline" onClick={handleSignOut} className="rounded-full bg-card px-4 font-semibold text-destructive hover:text-destructive"><LogOut className="mr-2 size-4" />Sign Out</Button>{(activeTab === 'profile' || activeTab === 'philosophy') && <Button onClick={saveProfile} disabled={saving === 'profile'} className="rounded-full px-5 font-semibold"><Save className="mr-2 size-4" />{saving === 'profile' ? 'Saving' : 'Save'}</Button>}</>} />
 

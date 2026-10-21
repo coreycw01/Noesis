@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Edit, MoreHorizontal, PauseCircle, Play, Plus, Trash2 } from 'lucide-react';
+import { Activity, CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -202,7 +202,8 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   const matchesLabTool = (practice: Practice) => labTool === 'experiments'
     ? normalizePracticeType(practice.type) === 'experiment'
     : normalizePracticeType(practice.type) !== 'experiment';
-  const activeLoops = practices.filter((practice) => matchesLabTool(practice) && normalizePracticeStatus(practice.status) === 'active');
+  const labRecords = practices.filter(matchesLabTool);
+  const activeLoops = labRecords.filter((practice) => normalizePracticeStatus(practice.status) === 'active');
   const practiceState = useMemo(() => {
     const questionById = new Map(questionList.map((question) => [question.id, question]));
     const positionById = new Map(positions.map((position) => [position.id, position]));
@@ -277,6 +278,19 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       return state ? !state.hasBasis : !hasPracticeBasis(practice);
     }).length,
   }), [practices, practiceState]);
+  const labStats = useMemo(() => ({
+    total: labRecords.length,
+    active: labRecords.filter((practice) => normalizePracticeStatus(practice.status) === 'active').length,
+    needsSetup: labRecords.filter((practice) => {
+      const state = practiceState.get(practice.id);
+      return !state?.hasBasis || state?.needsDesign;
+    }).length,
+    awaitingLog: labRecords.filter((practice) => practiceNeedsLog(practice)).length,
+    readyForReview: labRecords.filter((practice) => {
+      const state = practiceState.get(practice.id);
+      return state?.needsOutcome || state?.needsConsequence || state?.recentlyConcluded;
+    }).length,
+  }), [labRecords, practiceState]);
 
   const clearPracticeFilters = () => {
     setStatusFilter('all');
@@ -308,6 +322,35 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       conceptTags: [],
     });
     setEditorOpen(true);
+  };
+
+  const focusLabStage = (stage: 'setup' | 'active' | 'observe' | 'review') => {
+    setSearch('');
+    setConceptFilter('all');
+    setTypeFilter('all');
+    if (stage === 'setup') {
+      setStatusFilter('all');
+      setViewFilter('needs_setup');
+      setPracticeSection('other');
+      setOtherStatus('planned');
+      return;
+    }
+    if (stage === 'active') {
+      setStatusFilter('active');
+      setViewFilter('all');
+      setPracticeSection('active');
+      return;
+    }
+    if (stage === 'observe') {
+      setStatusFilter('all');
+      setViewFilter('awaiting_log');
+      setPracticeSection('active');
+      return;
+    }
+    setStatusFilter('all');
+    setViewFilter('ready_review');
+    setPracticeSection('other');
+    setOtherStatus('completed');
   };
 
   const openedPracticeId = React.useRef<string | null>(null);
@@ -347,18 +390,18 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   };
 
   return (
-    <div className="noesis-page">
+    <div className="noesis-page noesis-labs-page" data-noesis-identity="experiment-log">
       <PageHeader
         title="Labs"
         description="Design practices as lived tests, record what happens, and carry the result back into your thinking."
         meta={
           <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
-            {practiceStats.total} practices · {practiceStats.active} active · {practiceStats.needsSetup} need setup · {practiceStats.readyForReview} ready for review
+            {practiceStats.total} lab records · {practiceStats.active} active · {practiceStats.needsSetup} need setup · {practiceStats.readyForReview} ready for review
           </span>
         }
         className="mb-5"
         actions={
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button size="sm" className="h-9 rounded-full bg-accent px-6 font-bold shadow-md shadow-accent/20 hover:bg-accent/90"><Plus className="mr-1.5 size-4" /> ADD IN LABS</Button>
             </DropdownMenuTrigger>
@@ -380,6 +423,75 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
         ]}
       />
+
+      <section className="relative mb-5 overflow-hidden border-y border-border/70 bg-card/45" aria-label={`${labTool === 'experiments' ? 'Experiment' : 'Practice'} cycle`}>
+        <div className="flex flex-col gap-1 border-b border-border/60 px-4 py-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+          <div>
+            <p className="font-code text-[9px] font-semibold uppercase tracking-[0.18em] text-accent">{labTool === 'experiments' ? 'Experiment cycle' : 'Practice cycle'}</p>
+            <h2 className="mt-1 text-base font-semibold text-foreground">{labTool === 'experiments' ? 'Move a claim through contact with reality' : 'Move an intention into repeatable evidence'}</h2>
+          </div>
+          <p className="text-xs leading-5 text-muted-foreground">Select a stage to focus the workspace.</p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4">
+          {[
+            {
+              id: 'setup' as const,
+              label: 'Design',
+              count: labStats.needsSetup,
+              description: labTool === 'experiments' ? 'Hypothesis and measure' : 'Action and success signal',
+              icon: ClipboardList,
+              active: viewFilter === 'needs_setup',
+            },
+            {
+              id: 'active' as const,
+              label: labTool === 'experiments' ? 'Run' : 'Practice',
+              count: labStats.active,
+              description: labTool === 'experiments' ? 'Bounded test in progress' : 'Active repetition',
+              icon: Activity,
+              active: statusFilter === 'active' && viewFilter === 'all',
+            },
+            {
+              id: 'observe' as const,
+              label: 'Observe',
+              count: labStats.awaitingLog,
+              description: labTool === 'experiments' ? 'Evidence waiting to be logged' : 'Today\'s action and result',
+              icon: Eye,
+              active: viewFilter === 'awaiting_log',
+            },
+            {
+              id: 'review' as const,
+              label: labTool === 'experiments' ? 'Conclude' : 'Integrate',
+              count: labStats.readyForReview,
+              description: labTool === 'experiments' ? 'Compare result to prediction' : 'Carry learning into thought',
+              icon: CheckCircle2,
+              active: viewFilter === 'ready_review',
+            },
+          ].map((stage, index) => (
+            <button
+              key={stage.id}
+              type="button"
+              onClick={() => focusLabStage(stage.id)}
+              aria-pressed={stage.active}
+              className={cn(
+                'group relative min-h-28 border-border/60 px-4 py-4 text-left transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+                index % 2 === 0 ? 'border-r' : '',
+                index < 2 ? 'border-b sm:border-b-0' : '',
+                index > 0 ? 'sm:border-l' : '',
+                index === 2 ? 'border-r sm:border-r-0' : '',
+                stage.active ? 'bg-accent/10' : 'hover:bg-muted/45'
+              )}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <stage.icon className={cn('size-5', stage.active ? 'text-accent' : 'text-muted-foreground group-hover:text-foreground')} aria-hidden="true" />
+                <span className={cn('font-code text-xl font-semibold tabular-nums', stage.active ? 'text-accent' : 'text-foreground')}>{stage.count}</span>
+              </div>
+              <div className="mt-3 text-sm font-semibold text-foreground">{stage.label}</div>
+              <div className="mt-1 text-xs leading-4 text-muted-foreground">{stage.description}</div>
+              {stage.active && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-accent" aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+      </section>
 
 
       <FilterToolbar
@@ -425,9 +537,9 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {[
-          { label: 'Needs setup', value: practiceStats.needsSetup, filter: 'needs_setup' as PracticeViewFilter },
-          { label: 'Log due', value: practiceStats.awaitingLog, filter: 'awaiting_log' as PracticeViewFilter },
-          { label: 'Ready for review', value: practiceStats.readyForReview, filter: 'ready_review' as PracticeViewFilter },
+          { label: 'Needs setup', value: labStats.needsSetup, filter: 'needs_setup' as PracticeViewFilter },
+          { label: 'Log due', value: labStats.awaitingLog, filter: 'awaiting_log' as PracticeViewFilter },
+          { label: 'Ready for review', value: labStats.readyForReview, filter: 'ready_review' as PracticeViewFilter },
         ].filter((item) => item.value > 0).map((item) => (
           <button
             key={item.filter}
@@ -458,7 +570,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       {practiceSection === 'active' && <section className="mb-6 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <PracticeIcon className="size-4 text-accent" />
+            {labTool === 'experiments' ? <NOESIS_ICONS.lab className="size-4 text-accent" /> : <PracticeIcon className="size-4 text-accent" />}
             <h2 className="font-headline text-xl font-bold italic text-primary/80">{labTool === 'experiments' ? 'Running experiments' : 'Active loops'}</h2>
           </div>
           <p className="max-w-xl text-xs italic leading-5 text-muted-foreground">
@@ -483,10 +595,10 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           <ActiveLoopGroup title="Ongoing" practices={ongoingLoops} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
           {!visibleActiveLoops.length && (
             <Card className="border-dashed border-border/60 bg-muted/5 p-8 text-center shadow-inner md:col-span-2 xl:col-span-3 2xl:col-span-4 rounded-xl">
-              <PracticeIcon className="size-12 mx-auto mb-4 text-muted-foreground/30" />
+              {labTool === 'experiments' ? <NOESIS_ICONS.lab className="size-12 mx-auto mb-4 text-muted-foreground/30" /> : <PracticeIcon className="size-12 mx-auto mb-4 text-muted-foreground/30" />}
               <h3 className="font-headline text-xl italic mb-2 text-primary/60">No active loops match</h3>
               <p className="max-w-sm mx-auto text-sm text-muted-foreground italic mb-5">Start a planned practice or adjust your filters.</p>
-              <Button variant="outline" onClick={() => setPracticeSection('other')} className="rounded-full px-8 font-bold border-border/60 shadow-sm bg-card">View other practices</Button>
+              <Button variant="outline" onClick={() => setPracticeSection('other')} className="rounded-full px-8 font-bold border-border/60 shadow-sm bg-card">View other {labTool}</Button>
             </Card>
           )}
         </div>

@@ -1037,7 +1037,7 @@ export function SettingsPage({
 
   return (
     <>
-    <div className="noesis-page">
+    <div className="noesis-page noesis-settings-page" data-noesis-identity="utility">
       <div className="noesis-page-inner">
         <PageHeader
           title="Settings"

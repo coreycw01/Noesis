@@ -40,6 +40,7 @@ const WORKSPACE_SECTIONS = new Set([
   'annotations',
   'positions',
   'works',
+  'context-desk',
   'practices',
   'evolution',
   'profile',

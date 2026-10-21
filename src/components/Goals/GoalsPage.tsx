@@ -606,7 +606,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
   };
 
   return (
-    <div className="noesis-page">
+    <div className="noesis-page noesis-commitments-page" data-noesis-identity="commitment-ledger">
       <div className="noesis-page-inner">
         <PageHeader
           title="Commitments"

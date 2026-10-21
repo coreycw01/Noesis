@@ -508,7 +508,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
     catalogFilter !== 'all' ? `Catalog: ${catalogFilter.replace(/_/g, ' ')}` : null,
   ].filter(Boolean) as string[];
   return (
-    <div className="noesis-page">
+    <div className="noesis-page noesis-source-ledger" data-noesis-identity="citation-ledger">
       <PageHeader
         title="Source Index"
         description="Browse, cite, and manage every source feeding your thinking."

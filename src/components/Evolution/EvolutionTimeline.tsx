@@ -634,7 +634,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
   });
 
   return (
-    <div className="noesis-page">
+    <div className="noesis-page noesis-evolution-page" data-noesis-identity="chronology">
       <PageHeader
         title="Evolution"
         description="Trace meaningful changes in positions, concepts, inquiries, practices, unknowns, and thinking patterns over time."
@@ -647,8 +647,8 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
             type="button"
             onClick={() => setView(option.value)}
             className={cn(
-              'rounded-full border px-4 py-2 text-left font-code text-[10px] font-bold uppercase tracking-[0.14em] transition-all',
-              view === option.value ? 'border-accent bg-accent text-accent-foreground shadow-sm' : 'border-border/50 bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground'
+              'border-b-2 px-3 py-2 text-left font-code text-[10px] font-bold uppercase tracking-[0.14em] transition-colors',
+              view === option.value ? 'border-accent text-foreground' : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
             )}
           >
             {option.label}
@@ -657,7 +657,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
       </div>
 
       {view === 'turning_points' && (
-        <section className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+        <section className="mb-8 border-y border-border/60 py-6">
           <div className="mb-5">
             <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Turning Points</div>
             <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">The moments that changed the system</h2>
@@ -666,18 +666,18 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
             {turningPoints.length ? turningPoints.map((event) => {
               const meaning = displayEventMeaning(event);
               return (
-                <div key={event.id} className="rounded-2xl border border-border/50 bg-background p-4">
+                <article key={event.id} className="border-l-2 border-accent/50 py-1 pl-4">
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{meaning.turningPoint}</Badge>
                     <Badge variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{event.targetType.replace(/_/g, ' ')}</Badge>
                   </div>
                   <h3 className="mt-3 font-headline text-xl font-bold italic leading-tight text-primary">{event.title}</h3>
                   {meaning.significance && <p className="mt-2 line-clamp-3 text-sm italic leading-6 text-muted-foreground">{meaning.significance}</p>}
-                  <div className="mt-4 rounded-xl bg-muted/20 p-3">
+                  <div className="mt-4 border-t border-border/50 pt-3">
                     <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Trigger</div>
                     <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{meaning.trigger}</p>
                   </div>
-                </div>
+                </article>
               );
             }) : (
               <PageEmptyState icon={History} title="No turning points yet" description="Major revisions, abandonments, resolutions, and challenges will appear here once recorded." />
@@ -687,14 +687,14 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
       )}
 
       {view === 'belief_rivers' && (
-        <section className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+        <section className="mb-8 border-y border-border/60 py-6">
           <div className="mb-5">
             <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Belief Rivers</div>
             <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Follow positions through time</h2>
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             {beliefRivers.length ? beliefRivers.map((river) => (
-              <div key={river.id} className="rounded-2xl border border-border/50 bg-background p-4">
+              <article key={river.id} className="border-t border-border/60 py-4 first:border-t-0">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="font-headline text-xl font-bold italic text-primary">{river.title}</h3>
                   <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{river.events.length} events</Badge>
@@ -707,13 +707,13 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
                 </div>
                 <div className="mt-4 space-y-2">
                   {river.events.slice(-4).map((event) => (
-                    <div key={event.id} className="rounded-xl border border-border/40 bg-muted/10 px-3 py-2">
+                    <div key={event.id} className="border-l border-border px-3 py-1">
                       <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">{event.chips[0]}</div>
                       <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{event.title}</p>
                     </div>
                   ))}
                 </div>
-              </div>
+              </article>
             )) : (
               <PageEmptyState icon={History} title="No belief rivers yet" description="Create, revise, challenge, or abandon positions to build a visible belief biography." />
             )}
@@ -722,7 +722,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
       )}
 
       {view === 'periods' && (
-        <section className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+        <section className="mb-8 border-y border-border/60 py-6">
           <div className="mb-5">
             <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Periods</div>
             <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Emerging intellectual chapters</h2>

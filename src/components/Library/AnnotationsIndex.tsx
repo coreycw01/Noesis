@@ -651,7 +651,7 @@ export function AnnotationsIndex({
   const filtersActive = Boolean(search || filterType !== 'all' || filterConcept !== 'all' || filterSource !== 'all');
 
   return (
-    <div className="noesis-page">
+    <div className="noesis-page noesis-annotations-index" data-noesis-identity="marginalia">
       <PageHeader
         title="Annotations"
         description="Review and refine captured highlights, thoughts, questions, and connections across all sources."

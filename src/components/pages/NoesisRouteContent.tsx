@@ -469,7 +469,6 @@ export function NoesisRouteContent({
           positions={vault}
           works={drafts}
           practices={practices}
-          timeline={timeline}
           onAddDraft={addDraft}
           onNavigate={(view, targetId) => navigateToView(view as NoesisView, {
             conceptId: view === 'concepts' ? targetId : null,

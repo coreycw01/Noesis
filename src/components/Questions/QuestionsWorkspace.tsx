@@ -23,6 +23,7 @@ import { FilterToolbar } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
+import { ContextRail, EditorialSection, EntityMeta, IntellectualRoleLabel } from '@/components/shared/IntellectualStructures';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { parseAiReviewItems, type AiContextEnvelope } from '@/lib/contextual-ai';
@@ -802,14 +803,15 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   }
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body" data-noesis-scroll-region>
+    <div className="noesis-inquiry-detail flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body" data-noesis-scroll-region data-noesis-identity="investigation">
       <header className="mb-6 border-b border-border/70 pb-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="ghost" onClick={onBack} className="h-9 rounded-full px-3 font-code text-[10px] uppercase tracking-widest hover:bg-muted/50">
               <ArrowLeft className="mr-2 size-4" /> Back
             </Button>
-            <Badge variant="outline" className="rounded-full capitalize">{question.status.replace(/_/g, ' ')}</Badge>
+            <IntellectualRoleLabel role="question">Inquiry</IntellectualRoleLabel>
+            <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{question.status.replace(/_/g, ' ')}</span>
             {!!sources.length && <span className="max-w-[260px] truncate text-xs text-muted-foreground">From {sources[0].title}</span>}
           </div>
           <div className="flex items-center gap-2">
@@ -896,51 +898,57 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             { id: 'decide', label: 'Decide', description: 'Resolve, suspend, transform, archive, or keep the inquiry open.' },
           ]}
         />
-        {workflowStep === 'frame' && <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-          <div className="mb-4">
-            <div className="readex-kicker">Your thinking</div>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">Socratic Challenge can start from the question alone. These optional fields make its challenge more precise without turning the inquiry into a worksheet.</p>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="space-y-2">
+        {workflowStep === 'frame' && <EditorialSection
+          eyebrow="Frame"
+          title="Your thinking"
+          description="Socratic Challenge can start from the question alone. Add only the context that makes the investigation more precise."
+        >
+          <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_16rem]">
+            <div className="space-y-6">
+              <div className="space-y-2">
               <Label htmlFor={`why-${question.id}`}>Why does this matter?</Label>
               <Textarea id={`why-${question.id}`} value={investigationDraft.whyItMatters} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, whyItMatters: event.target.value }))} placeholder="Name the stakes, if useful." className="min-h-[108px]" />
-            </div>
-            <div className="space-y-2">
+              </div>
+              <div className="space-y-2">
               <Label htmlFor={`view-${question.id}`}>What do you currently think?</Label>
               <Textarea id={`view-${question.id}`} value={investigationDraft.currentIntuition} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, currentIntuition: event.target.value }))} placeholder="Your present view can be tentative." className="min-h-[108px]" />
-            </div>
-            <div className="space-y-2">
+              </div>
+              <div className="space-y-2">
               <Label htmlFor={`uncertainty-${question.id}`}>What remains uncertain?</Label>
               <Textarea id={`uncertainty-${question.id}`} value={investigationDraft.uncertainty} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, uncertainty: event.target.value }))} placeholder="Name the part you cannot settle yet." className="min-h-[108px]" />
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={saveInvestigationFrame} disabled={saving}>{saving ? 'Saving...' : 'Save Context'}</Button>
+              </div>
             </div>
+            <ContextRail title="Investigation context">
+              <EntityMeta items={[
+                { label: 'Status', value: question.status.replace(/_/g, ' ') },
+                { label: 'Sources', value: sources.length },
+                { label: 'Candidate answers', value: candidateAnswers.length },
+                { label: 'Evidence', value: (question.evidenceIds || []).length },
+              ]} />
+            </ContextRail>
           </div>
-          <div className="mt-4 flex justify-end">
-            <Button onClick={saveInvestigationFrame} disabled={saving} className="rounded-full px-5">{saving ? 'Saving...' : 'Save Context'}</Button>
-          </div>
-        </Card>}
+        </EditorialSection>}
 
-        {workflowStep === 'answer' && <Card className="rounded-2xl border border-accent/20 bg-card p-5 shadow-sm sm:p-6">
+        {workflowStep === 'answer' && <EditorialSection eyebrow="Provisional conclusion" title="Current answer" description="Write the answer that leads right now. Saving it marks the inquiry provisionally answered, not permanently settled.">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="readex-kicker text-accent">Current answer</div>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">Write the answer that leads right now. Saving it marks the inquiry provisionally answered, not permanently settled.</p>
-            </div>
-            {question.answer?.trim() && <Badge variant="outline" className="rounded-full">Saved</Badge>}
+            {question.answer?.trim() && <span className="font-code text-[10px] uppercase tracking-widest text-accent">Saved answer</span>}
           </div>
           <Textarea aria-label="Current answer" value={initialAnswer} onChange={(event) => setInitialAnswer(event.target.value)} className="min-h-[180px] text-base leading-8" placeholder="What answer currently leads, and why does it remain revisable?" />
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground"><span className="font-medium text-foreground">Next:</span> {recommendedMove}</p>
-            <Button onClick={() => saveProvisionalAnswer('provisionally_answered')} disabled={saving || !initialAnswer.trim()} className="rounded-full px-5">{saving ? 'Saving...' : 'Save Answer'}</Button>
+            <Button onClick={() => saveProvisionalAnswer('provisionally_answered')} disabled={saving || !initialAnswer.trim()}>{saving ? 'Saving...' : 'Save Answer'}</Button>
           </div>
-        </Card>}
+        </EditorialSection>}
 
         {workflowStep === 'investigate' && !!question.investigationNotes?.length && (
-          <details className="rounded-2xl border border-border bg-card px-5 py-4">
+          <details className="border-y border-border px-1 py-4">
             <summary className="cursor-pointer font-code text-[10px] uppercase tracking-widest text-muted-foreground">Reviewed challenge notes ({question.investigationNotes.length})</summary>
             <div className="mt-4 space-y-3">
               {question.investigationNotes.map((note) => (
-                <div key={note.id} className="rounded-xl border border-border/60 bg-background/60 p-4">
+                <div key={note.id} className="border-l-2 border-accent/40 py-2 pl-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{note.origin.replace('-', ' ')} · {note.date}</div>
                     {note.title && <Badge variant="outline" className="rounded-full text-[9px]">{note.title}</Badge>}
@@ -952,7 +960,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           </details>
         )}
 
-        {(workflowStep === 'investigate' || workflowStep === 'decide') && <section className="rounded-2xl border border-border bg-card shadow-sm">
+        {(workflowStep === 'investigate' || workflowStep === 'decide') && <section className="border-y border-border bg-background/20" aria-label="Inquiry investigation tools">
           <header className="px-5 py-4 sm:px-6">
             <div>
               <div className="text-sm font-semibold text-foreground">{workflowStep === 'decide' ? 'Decide the inquiry' : 'Investigation tools'}</div>
@@ -960,11 +968,11 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             </div>
           </header>
           <div className="border-t border-border p-4 sm:p-5">
-            {workflowStep === 'investigate' && <section className="rounded-xl border border-accent/20 bg-accent/5 p-4">
+            {workflowStep === 'investigate' && <section className="border-l-2 border-accent bg-accent/5 p-4">
               <div className="readex-kicker text-accent">Recommended next step</div>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
                 <p className="max-w-2xl text-sm leading-6 text-foreground">{INQUIRY_TOOL_COPY[recommended].description}</p>
-                <Button onClick={() => { setWorkflowStep(recommended === 'Decide outcome' ? 'decide' : 'investigate'); setSelectedTool(recommended); }} className="rounded-full px-4">Open {recommended}</Button>
+                <Button onClick={() => { setWorkflowStep(recommended === 'Decide outcome' ? 'decide' : 'investigate'); setSelectedTool(recommended); }}>Open {recommended}</Button>
               </div>
             </section>}
 
@@ -975,8 +983,8 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                   type="button"
                   onClick={() => { setWorkflowStep('investigate'); setSelectedTool(tool); }}
                   className={cn(
-                    'min-h-20 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    selectedTool === tool ? 'border-accent bg-accent/10' : 'border-border bg-background/60 hover:border-accent/50 hover:bg-accent/5'
+                    'min-h-20 border-l-2 border-y-0 border-r-0 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    selectedTool === tool ? 'border-accent bg-accent/10' : 'border-border bg-transparent hover:border-accent/50 hover:bg-accent/5'
                   )}
                 >
                   <span className="block text-sm font-semibold text-foreground">{tool}</span>
@@ -986,7 +994,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             </div>}
 
             {selectedTool && (
-              <section className="mt-4 rounded-xl border border-border bg-background/60 p-4">
+              <section className="mt-6 border-t border-border pt-5">
                 <div className="mb-4">
                   <div className="readex-kicker">{selectedTool}</div>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">{INQUIRY_TOOL_COPY[selectedTool].instruction}</p>

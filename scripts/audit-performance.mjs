@@ -27,9 +27,32 @@ function routeSizeKb(files = []) {
   return Math.round(bytes / 1024);
 }
 
+function routeFiles(route) {
+  const legacyFiles = manifest.pages?.[route];
+  if (legacyFiles?.length) return legacyFiles;
+
+  const routePath = route.replace(/^\//, '').replace(/\/page$/, '');
+  const referencePath = path.join(nextDir, 'server', 'app', routePath, 'page_client-reference-manifest.js');
+  if (!existsSync(referencePath)) return null;
+
+  const source = readFileSync(referencePath, 'utf8');
+  const marker = `globalThis.__RSC_MANIFEST[${JSON.stringify(route)}]=`;
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex < 0) return null;
+
+  try {
+    const routeManifest = JSON.parse(source.slice(markerIndex + marker.length));
+    const chunks = Object.values(routeManifest.clientModules || {}).flatMap((module) => module.chunks || []);
+    const css = Object.values(routeManifest.entryCSSFiles || {}).flatMap((entries) => entries.map((entry) => entry.path));
+    return [...new Set([...chunks, ...css])];
+  } catch {
+    return null;
+  }
+}
+
 let failed = false;
 for (const [route, budgetKb] of Object.entries(routeBudgets)) {
-  const files = manifest.pages?.[route];
+  const files = routeFiles(route);
   if (!files) {
     console.error(`Missing route ${route} in ${manifestPath}.`);
     failed = true;
