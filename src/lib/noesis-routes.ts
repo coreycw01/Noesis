@@ -131,7 +131,7 @@ export function viewToPath(view: NoesisView, options?: {
     case 'context-desk':
       return `${prefix}/context-desk`;
     case 'practices':
-      return options?.practiceId ? `${prefix}/practices/${options.practiceId}` : `${prefix}/labs`;
+  return options?.practiceId ? `${prefix}/labs/${options.practiceId}` : `${prefix}/labs`;
     case 'evolution':
       return `${prefix}/evolution`;
     case 'profile':
