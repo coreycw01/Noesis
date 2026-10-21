@@ -16,13 +16,14 @@ import {
   Trash2,
   Video,
 } from 'lucide-react';
-import { usePersistentView } from '@/hooks/use-persistent-view';
+import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
@@ -38,7 +39,6 @@ import { StageBadge } from '@/components/shared/StageBadge';
 type HubCategory = WorkCategory | 'all';
 type HubStatus = 'all' | 'needs_revision' | 'external_docs' | DraftStatus;
 type HubSort = 'activity' | 'created' | 'title';
-type HubView = 'grid' | 'list';
 type ActivityMode = 'edited' | 'opened';
 
 interface WorksHubProps {
@@ -198,7 +198,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
   const [status, setStatus] = useState<HubStatus>('all');
   const [sort, setSort] = useState<HubSort>('activity');
   const [activityMode, setActivityMode] = useState<ActivityMode>('edited');
-  const [view, setView] = usePersistentView<HubView>('noesis:works-view', 'grid', ['grid', 'list']);
+  const [view, setView] = useEntityViewPreference('works');
   const [addOpen, setAddOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Draft | null>(null);
@@ -316,7 +316,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         activeFilterLabels={activeFilterLabels}
         onClear={clearFilters}
         clearDisabled={!hasFilters}
-        viewControl={<ViewModeToggle value={view} onChange={(value) => setView(value === 'list' ? 'list' : 'grid')} />}
+        viewControl={<ViewModeToggle value={view === 'cards' ? 'grid' : 'table'} modes={['grid', 'table']} onChange={(value) => setView(value === 'table' ? 'table' : 'cards')} label="Works view" />}
         className="mb-5"
       >
         <Select value={category} onValueChange={(value) => setCategory(value as HubCategory)}>
@@ -422,7 +422,79 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         />
       ) : (
         <>
-          <div className={cn(view === 'grid' ? 'grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'divide-y divide-border/60 border-y border-border/60')}>
+          {view === 'table' && (
+            <div className="mb-6 hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block">
+              <Table aria-label="Works table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Work</TableHead>
+                    <TableHead className="w-36">Type</TableHead>
+                    <TableHead className="w-40">Status</TableHead>
+                    <TableHead className="w-28">Linked</TableHead>
+                    <TableHead className="w-36">Updated</TableHead>
+                    <TableHead className="w-16"><span className="sr-only">Actions</span></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleDrafts.map((draft) => {
+                    const Icon = workIcon(draft);
+                    const categoryLabel = workLabel(draft);
+                    const text = cleanText(draft);
+                    const linkCount = (draft.conceptTags || []).length + (draft.sourceIds || []).length + (draft.questionIds || []).length + (draft.beliefIds || []).length;
+                    return (
+                      <TableRow
+                        key={draft.id}
+                        tabIndex={0}
+                        className="cursor-pointer"
+                        aria-label={`Open ${draft.title || 'untitled work'}`}
+                        onClick={() => openDraft(draft)}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ') return;
+                          event.preventDefault();
+                          openDraft(draft);
+                        }}
+                      >
+                        <TableCell className="max-w-xl">
+                          <div className="flex items-start gap-3">
+                            <Icon className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
+                            <div className="min-w-0">
+                              <div className="font-headline text-base font-semibold text-foreground">{draft.title || 'Untitled work'}</div>
+                              <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{text || 'A blank creative surface waiting for its first mark.'}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-code text-[9px] uppercase tracking-wider text-muted-foreground">{categoryLabel}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1.5">
+                            <StageBadge type="work" stage={draft.stage} status={draft.status} />
+                            <Badge variant="outline" className="rounded-full border-border/70 font-code text-[8px] uppercase tracking-wider">{draft.status}</Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{linkCount}</TableCell>
+                        <TableCell className="font-code text-[9px] uppercase tracking-wider text-muted-foreground">{updatedLabel(draft.dateUpdated)}</TableCell>
+                        <TableCell onClick={(event) => event.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" className="size-10 rounded-md text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`}>
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteTarget(draft)}>
+                                <Trash2 className="mr-2 size-4" /> Delete work
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          <div className={cn(view === 'cards' ? 'grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'divide-y divide-border/60 border-y border-border/60 md:hidden')}>
           {visibleDrafts.map((draft) => {
             const Icon = workIcon(draft);
             const categoryLabel = workLabel(draft);
@@ -437,7 +509,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                 role="button"
                 tabIndex={0}
                 aria-label={`Open ${draft.title || 'untitled work'}`}
-                className={cn('group border-border/60 bg-card transition-colors hover:border-accent/50 hover:bg-muted/20', view === 'grid' ? 'overflow-hidden rounded-md' : 'border-0 rounded-none bg-transparent shadow-none')}
+                className={cn('group border-border/60 bg-card transition-colors hover:border-accent/50 hover:bg-muted/20', view === 'cards' ? 'overflow-hidden rounded-md' : 'border-0 rounded-none bg-transparent shadow-none')}
                 onClick={() => openDraft(draft)}
                 onKeyDown={(event) => {
                   if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -445,14 +517,14 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                   openDraft(draft);
                 }}
               >
-                <div className={cn('flex gap-4', view === 'grid' ? 'flex-col' : 'items-start p-3')}>
-                  {view === 'grid' && hasVisualPreview && (
+                <div className={cn('flex gap-4', view === 'cards' ? 'flex-col' : 'items-start p-3')}>
+                  {view === 'cards' && hasVisualPreview && (
                     <div className="relative flex h-20 items-center justify-center overflow-hidden border-b border-border/50 bg-muted/15 sm:h-24">
                       <DraftThumbnail draft={draft} Icon={Icon} />
                       {isRecording && <span className="absolute bottom-3 left-3 rounded-full border border-border/60 bg-background/90 px-2.5 py-1 font-code text-[9px] font-bold uppercase tracking-widest text-foreground">{durationLabel(draft.durationSeconds)}</span>}
                     </div>
                   )}
-                  <div className={cn('min-w-0 flex-1', view === 'grid' ? 'p-4' : 'py-1')}>
+                  <div className={cn('min-w-0 flex-1', view === 'cards' ? 'p-4' : 'py-1')}>
                     <div className="flex min-w-0 items-start gap-3">
                       {!hasVisualPreview && <div className="flex size-9 shrink-0 items-center justify-center border border-border/60 text-accent"><Icon className="size-4" aria-hidden="true" /></div>}
                       <div className="min-w-0 flex-1">
@@ -462,10 +534,10 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                           <Badge variant="outline" className="rounded-full border-border/70 font-code text-[8px] uppercase tracking-wider">{draft.status}</Badge>
                           {draft.externalDoc && <Cloud className="size-3.5 text-accent" aria-label="External document linked" />}
                         </div>
-                        <h2 className={cn('mt-2 font-headline text-xl font-bold italic text-foreground transition-colors group-hover:text-accent', view === 'grid' ? 'line-clamp-2' : 'line-clamp-1')}>{draft.title || 'Untitled work'}</h2>
+                        <h2 className={cn('mt-2 font-headline text-xl font-bold italic text-foreground transition-colors group-hover:text-accent', view === 'cards' ? 'line-clamp-2' : 'line-clamp-1')}>{draft.title || 'Untitled work'}</h2>
                       </div>
                     </div>
-                    <p className={cn('mt-3 text-sm leading-6 text-muted-foreground', view === 'list' && 'line-clamp-1')}>{text || 'A blank creative surface waiting for its first mark.'}</p>
+                    <p className={cn('mt-3 text-sm leading-6 text-muted-foreground', view === 'table' && 'line-clamp-1')}>{text || 'A blank creative surface waiting for its first mark.'}</p>
                     <div className="mt-4 flex flex-wrap items-center gap-2 font-code text-[9px] uppercase tracking-wider text-muted-foreground/70">
                       {categoryLabel === 'Writing' || draft.workCategory === 'writing' ? <span>{wordCount(draft)} words</span> : null}
                       {isRecording ? <span>{durationLabel(draft.durationSeconds)}</span> : null}
@@ -491,7 +563,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                       </DropdownMenu>
                     </div>
                   </div>
-                  {view === 'list' && <ArrowUpRight className="mr-4 size-4 shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />}
+                  {view === 'table' && <ArrowUpRight className="mr-4 size-4 shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />}
                 </div>
               </Card>
             );

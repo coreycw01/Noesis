@@ -23,7 +23,9 @@ import { StageBadge } from '@/components/shared/StageBadge';
 import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
 import type { ClarityLevel } from '@/lib/clarity';
 import { useToast } from '@/hooks/use-toast';
-import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -235,6 +237,7 @@ function conceptMaturityScore({
 export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept, onDeleteConcept, onCreateIdea, onCreateLink, focusedConceptId, onOpenConceptRoute, aiSettings } = props;
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useEntityViewPreference('concepts');
   const [listView, setListView] = useState<ConceptListView>('all');
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [conceptWorkflowStep, setConceptWorkflowStep] = useState<'define' | 'boundaries' | 'diagnose' | 'connect' | 'history'>('define');
@@ -1377,6 +1380,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         activeFilterLabels={activeConceptFilterLabels}
         onClear={clearConceptFilters}
         clearDisabled={!conceptFiltersActive}
+        viewControl={<ViewModeToggle value={viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')} label="Concept view" />}
         className="mb-6"
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -1418,7 +1422,26 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         </div>
       </FilterToolbar>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
+      {viewMode === 'table' && conceptRows.length > 0 && (
+        <section className="hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block" aria-label="Concepts table">
+          <Table>
+            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Concept</TableHead><TableHead className="w-40">Maturity</TableHead><TableHead className="w-28">Links</TableHead><TableHead>Missing requirements</TableHead><TableHead className="w-16"><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
+            <TableBody>
+              {conceptRows.map(({ name, concept, diagnosis: diag, connectionCount, repairFlags }) => (
+                <TableRow key={name} tabIndex={0} className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={(event) => { if ((event.target as HTMLElement).closest('button,a')) return; openConceptDetail(name, concept); }} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openConceptDetail(name, concept); } }}>
+                  <TableCell className="max-w-xl py-4"><div className="font-headline text-base font-semibold text-foreground">{name}</div><p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{concept?.description || 'Definition not added'}</p></TableCell>
+                  <TableCell><div className="space-y-1.5"><StageBadge type="concept" stage={concept?.stage} status={concept?.philosophyStatus} /><span className={cn('block w-fit font-code text-[8px] font-bold uppercase tracking-widest', CLARITY_BG[diag.level])}>{diag.level}</span></div></TableCell>
+                  <TableCell className="font-code text-[10px] uppercase tracking-wider text-muted-foreground">{connectionCount}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{repairFlags.length ? repairFlags.slice(0, 3).map((flag) => flag.label).join(' · ') : 'Ready for use'}</TableCell>
+                  <TableCell>{concept && <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-10 rounded-full" onClick={() => openEditor(concept)}><Edit className="size-4" /></Button>}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      )}
+
+      <div className={cn("grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4", viewMode === 'table' && "md:hidden")}>
         {conceptRows.map(({ name, concept, related, diagnosis: diag, maturity, connectionCount, possibleDuplicates, repairFlags }) => {
 
           return (

@@ -693,6 +693,7 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
     headerFont: 'editorial',
     fontSize: 'md',
     interfaceShape: 'pills',
+    defaultCollectionView: 'cards',
     reducedMotion: false,
     highContrastMode: false,
     dateUpdated: iso(24),

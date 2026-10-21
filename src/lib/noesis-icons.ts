@@ -1,4 +1,5 @@
-import type { LucideIcon } from 'lucide-react';
+import { createElement, forwardRef } from 'react';
+import type { LucideIcon, LucideProps } from 'lucide-react';
 import {
   BookOpen,
   CircleHelp,
@@ -19,6 +20,15 @@ import {
   Target,
   UserCircle2,
 } from 'lucide-react';
+
+const ThoughtBubble = forwardRef<SVGSVGElement, LucideProps>(({ children, ...props }, ref) => createElement(
+  Cloud,
+  { ...props, ref },
+  createElement('circle', { cx: 5, cy: 19.25, r: 1 }),
+  createElement('circle', { cx: 2.25, cy: 21.75, r: 0.65 }),
+  children,
+));
+ThoughtBubble.displayName = 'ThoughtBubble';
 
 export type NoesisIconKey =
   | 'home'
@@ -45,7 +55,7 @@ export const NOESIS_ICONS: Record<NoesisIconKey, LucideIcon> = {
   atlas: Map,
   region: MapPinned,
   connection: Network,
-  concept: Cloud,
+  concept: ThoughtBubble as LucideIcon,
   inquiry: CircleHelp,
   library: Library,
   source: BookOpen,

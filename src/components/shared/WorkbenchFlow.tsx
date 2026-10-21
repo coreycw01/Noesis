@@ -53,7 +53,7 @@ export function WorkbenchFlow({
           );
 
           return (
-            <li key={step.id} className="min-w-[7.5rem] shrink-0 snap-start sm:min-w-0">
+            <li key={step.id} className="relative z-10 min-w-[7.5rem] shrink-0 snap-start sm:min-w-0">
               {onSelect ? (
                 <button type="button" onClick={() => onSelect(step.id)} aria-current={active ? 'step' : undefined} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   {content}

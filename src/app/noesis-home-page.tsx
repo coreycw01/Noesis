@@ -631,6 +631,7 @@ function ReadexWorkspace({
         headerFont: appearanceSettings.headerFont,
         fontSize: appearanceSettings.fontSize,
         interfaceShape: appearanceSettings.interfaceShape,
+        defaultCollectionView: appearanceSettings.defaultCollectionView,
         highContrastMode: appearanceSettings.highContrastMode,
         reducedMotion: appearanceSettings.reducedMotion,
       };
@@ -640,7 +641,7 @@ function ReadexWorkspace({
     applyTheme();
     mediaQuery.addEventListener('change', applyTheme);
     return () => mediaQuery.removeEventListener('change', applyTheme);
-  }, [appearanceSettings.fontSize, appearanceSettings.headerFont, appearanceSettings.highContrastMode, appearanceSettings.interfaceShape, appearanceSettings.reducedMotion, loading.requirements.appearance, loading.requirements.preferences, preferences.themeMode, preferences.accentTheme]);
+  }, [appearanceSettings.defaultCollectionView, appearanceSettings.fontSize, appearanceSettings.headerFont, appearanceSettings.highContrastMode, appearanceSettings.interfaceShape, appearanceSettings.reducedMotion, loading.requirements.appearance, loading.requirements.preferences, preferences.themeMode, preferences.accentTheme]);
 
   useEffect(() => {
     lastReadyRouteContentRef.current = null;

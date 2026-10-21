@@ -944,6 +944,7 @@ export interface AppearanceSettings {
   headerFont: HeaderFont;
   fontSize: 'sm' | 'md' | 'lg';
   interfaceShape: 'pills' | 'square';
+  defaultCollectionView: 'cards' | 'table';
   reducedMotion: boolean;
   highContrastMode: boolean;
   dateUpdated?: string;

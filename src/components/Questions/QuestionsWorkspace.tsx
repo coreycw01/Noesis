@@ -19,7 +19,9 @@ import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
@@ -119,6 +121,7 @@ function conceptReferenceLabel(reference: string, concepts: Concept[]) {
 
 export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useEntityViewPreference('inquiries');
   const [filter, setFilter] = usePersistentView<FilterType>('noesis:inquiries-filter', 'all', Object.keys(INQUIRY_FILTER_LABELS) as FilterType[]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailSection, setDetailSection] = useState<'investigation' | 'answer'>('investigation');
@@ -278,6 +281,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
         activeFilterLabels={activeFilterLabels}
         onClear={clearInquiryFilters}
         clearDisabled={!inquiryFiltersActive}
+        viewControl={<ViewModeToggle value={viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')} label="Inquiry view" />}
         className="mb-3"
       >
         <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
@@ -320,7 +324,26 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
         ))}
       </section>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {viewMode === 'table' && filtered.length > 0 && (
+        <section className="hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block" aria-label="Inquiries table">
+          <Table>
+            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Inquiry</TableHead><TableHead className="w-40">State</TableHead><TableHead className="w-56">Source context</TableHead><TableHead>Next step</TableHead><TableHead className="w-32"><span className="sr-only">Action</span></TableHead></TableRow></TableHeader>
+            <TableBody>{filtered.map((question) => {
+              const sources = media.filter((source) => inquirySourceIds(question).includes(source.id));
+              const closed = isInquiryClosed(question);
+              return <TableRow key={question.id} tabIndex={0} className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={(event) => { if ((event.target as HTMLElement).closest('button,a')) return; openQuestion(question.id); }} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openQuestion(question.id); } }}>
+                <TableCell className="max-w-xl py-4 font-headline text-base font-semibold leading-6">{question.text}</TableCell>
+                <TableCell><StageBadge type="inquiry" stage={question.stage} status={question.status} /></TableCell>
+                <TableCell className="text-xs leading-5 text-muted-foreground">{sources.length ? sources.map((source) => source.title).join(', ') : 'No source linked'}</TableCell>
+                <TableCell className="text-xs leading-5 text-muted-foreground">{inquiryCardNextStep(question)}</TableCell>
+                <TableCell><Button size="sm" variant={closed ? 'outline' : 'default'} onClick={() => openQuestion(question.id, closed ? 'answer' : 'investigation')} className="min-h-9 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">{closed ? 'Review' : 'Investigate'}</Button></TableCell>
+              </TableRow>;
+            })}</TableBody>
+          </Table>
+        </section>
+      )}
+
+      <div className={cn("grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3", viewMode === 'table' && "md:hidden")}>
         {filtered.map((question) => {
           const sources = media.filter(m => inquirySourceIds(question).includes(m.id));
           const nextStep = inquiryCardNextStep(question);
