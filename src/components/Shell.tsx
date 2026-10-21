@@ -548,17 +548,26 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const previewActivityClass = normalizeActivityClass(previewItem);
   const previewThinkingEventHint = normalizeThinkingEventHint(previewItem);
   const activePage = NOESIS_PAGE_BY_VIEW[activeView as keyof typeof NOESIS_PAGE_BY_VIEW] || NOESIS_PAGE_BY_VIEW.home;
+  const mobilePrimaryViews = new Set(['home', 'library', 'questions', 'vault']);
+  const mobileMoreItems = [
+    ...navItems.filter((item) => !mobilePrimaryViews.has(item.id)),
+    { id: 'profile', icon: iconForNoesisView('profile') },
+  ];
+  const activeMobileMoreItem = mobileMoreItems.find((item) => item.id === activeView);
+  const activeMobileMorePage = activeMobileMoreItem
+    ? NOESIS_PAGE_BY_VIEW[activeMobileMoreItem.id as keyof typeof NOESIS_PAGE_BY_VIEW]
+    : null;
+  const activeMobileMoreLabel = activeView === 'context-desk'
+    ? 'Context'
+    : activeView === 'source-index'
+      ? 'Sources'
+      : activeMobileMorePage?.title || 'More';
   const mobilePrimaryNav = [
     { id: 'home', label: 'Today', icon: iconForNoesisView('home'), view: 'home' },
     { id: 'library', label: 'Library', icon: iconForNoesisView('library'), view: 'library' },
     { id: 'questions', label: 'Inquiries', icon: iconForNoesisView('questions'), view: 'questions' },
     { id: 'vault', label: 'Positions', icon: iconForNoesisView('vault'), view: 'vault' },
-    { id: 'more', label: 'More', icon: Menu, view: null },
-  ];
-  const mobilePrimaryViews = new Set(['home', 'library', 'questions', 'vault']);
-  const mobileMoreItems = [
-    ...navItems.filter((item) => !mobilePrimaryViews.has(item.id)),
-    { id: 'profile', icon: iconForNoesisView('profile') },
+    { id: 'more', label: activeMobileMoreLabel, icon: activeMobileMoreItem?.icon || Menu, view: null },
   ];
   const attentionTotal = movement
     ? movement.rawAnnotations + movement.unsupportedPositions + movement.openInquiries + movement.practicesWithoutPosition + movement.positionsWithoutPractice
@@ -606,18 +615,19 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     const button = (
       <button
         onClick={() => handleNavChange(item.id)}
+        aria-current={activeView === item.id ? 'page' : undefined}
         className={cn(
           'w-full flex items-center transition-all group',
           collapsed && !isMobile ? 'justify-center px-3 py-2.5' : 'gap-2.5 px-5 py-2.5',
           activeView === item.id
-            ? 'border-accent bg-accent/10 text-sidebar-foreground border-l-2'
+            ? 'border-accent bg-accent/15 text-sidebar-foreground border-l-[3px]'
             : 'border-transparent text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5 border-l-2'
         )}
       >
         <item.icon className={cn('size-4 shrink-0', activeView === item.id ? 'text-accent' : 'group-hover:text-accent')} />
         {(!collapsed || isMobile) && (
           <>
-            <span className="text-[13px] font-body font-medium tracking-wide flex-1 text-left">{page.title}</span>
+            <span className={cn('text-[13px] font-body tracking-wide flex-1 text-left', activeView === item.id ? 'font-semibold' : 'font-medium')}>{page.title}</span>
             {typeof item.count === 'number' && (
               <span className="rounded-full bg-sidebar-foreground/10 px-2 py-0.5 font-code text-[9px] text-sidebar-foreground/65">{item.count}</span>
             )}
@@ -902,7 +912,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                       key={item.id}
                       type="button"
                       onClick={() => item.view ? handleNavChange(item.view) : setMobileMoreOpen(true)}
-                      aria-label={item.label === 'More' ? 'Open more pages' : `Open ${item.label}`}
+                      aria-label={item.id === 'more' ? 'Open more pages' : `Open ${item.label}`}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
                         'flex min-h-11 flex-col items-center justify-center rounded-2xl px-1 py-1 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',

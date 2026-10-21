@@ -1,19 +1,31 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Layers3, Plus, Search, X } from 'lucide-react';
+import { Check, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { iconForNoesisView } from '@/lib/noesis-icons';
 import type { AiContextEnvelope, ContextualAiAction } from '@/lib/contextual-ai';
-import type { AiSettings, Concept, Draft, Media, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
+import type { AiSettings, Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-type ContextRecordType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'evolution';
+type ContextRecordType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice';
+type ContextDateFilter = 'all' | '7d' | '30d' | '90d' | 'year';
+type ContextSort = 'updated' | 'created' | 'title';
 
 interface ContextRecord {
   key: string;
@@ -22,6 +34,11 @@ interface ContextRecord {
   label: string;
   summary: string;
   memory: string[];
+  sourceIds: string[];
+  conceptIds: string[];
+  conceptTags: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface ContextDeskRoutePageProps {
@@ -32,12 +49,12 @@ interface ContextDeskRoutePageProps {
   positions: VaultEntry[];
   works: Draft[];
   practices: Practice[];
-  timeline: TimelineEvent[];
   onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
   onNavigate: (view: string, targetId?: string | null) => void;
 }
 
 const SESSION_KEY = 'noesis:context-desk:selected';
+const EXCLUSION_SESSION_KEY = 'noesis:context-desk:excluded';
 const MAX_CONTEXT_ITEMS = 12;
 
 const viewForType: Record<ContextRecordType, string> = {
@@ -48,13 +65,33 @@ const viewForType: Record<ContextRecordType, string> = {
   position: 'vault',
   work: 'writing',
   practice: 'practices',
-  evolution: 'evolution',
+};
+
+const contextTypeLabels: Record<ContextRecordType, string> = {
+  source: 'Sources',
+  annotation: 'Annotations',
+  concept: 'Concepts',
+  inquiry: 'Inquiries',
+  position: 'Positions',
+  work: 'Works',
+  practice: 'Practices',
 };
 
 function compact(value?: string, fallback = 'No additional context recorded.') {
   const text = value?.replace(/\s+/g, ' ').trim();
   if (!text) return fallback;
   return text.length > 220 ? `${text.slice(0, 217)}...` : text;
+}
+
+function dateValue(value?: string) {
+  const parsed = value ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatRecordDate(value?: string) {
+  const parsed = value ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function ContextDeskRoutePage({
@@ -65,10 +102,10 @@ export function ContextDeskRoutePage({
   positions,
   works,
   practices,
-  timeline,
   onAddDraft,
   onNavigate,
 }: ContextDeskRoutePageProps) {
+  const conceptNameById = useMemo(() => new Map(concepts.map((concept) => [concept.id, concept.name])), [concepts]);
   const records = useMemo<ContextRecord[]>(() => [
     ...media.map((item) => ({
       key: `source:${item.id}`,
@@ -83,6 +120,11 @@ export function ContextDeskRoutePage({
         `Main idea: ${item.capture?.after?.coreArgument || 'Not recorded.'}`,
         `User reflection: ${item.capture?.after?.lasting || item.capture?.after?.beliefChange || 'Not recorded.'}`,
       ],
+      sourceIds: [item.id],
+      conceptIds: [],
+      conceptTags: item.tags || [],
+      createdAt: item.dateAdded,
+      updatedAt: item.dateUpdated || item.dateAdded,
     })),
     ...media.flatMap((source) => (source.annotations || []).map((annotation) => ({
       key: `annotation:${source.id}:${annotation.id}`,
@@ -97,6 +139,11 @@ export function ContextDeskRoutePage({
         `User interpretation: ${annotation.consequenceNote || 'Not recorded.'}`,
         `Concepts: ${(annotation.conceptTags || []).join(', ') || 'None linked.'}`,
       ],
+      sourceIds: [source.id],
+      conceptIds: [],
+      conceptTags: annotation.conceptTags || [],
+      createdAt: annotation.date,
+      updatedAt: annotation.date,
     }))),
     ...concepts.map((item) => ({
       key: `concept:${item.id}`,
@@ -111,6 +158,11 @@ export function ContextDeskRoutePage({
         `Not the same as: ${(item.notSameAs || []).join(', ') || 'Not recorded.'}`,
         `Examples: ${(item.examples || []).join('; ') || 'Not recorded.'}`,
       ],
+      sourceIds: item.sourceIds || [],
+      conceptIds: [item.id],
+      conceptTags: [item.name, ...(item.aliases || [])],
+      createdAt: item.dateCreated,
+      updatedAt: item.dateUpdated || item.dateCreated,
     })),
     ...questions.map((item) => ({
       key: `inquiry:${item.id}`,
@@ -125,6 +177,11 @@ export function ContextDeskRoutePage({
         `Current view: ${item.currentIntuition || item.answer || 'Not recorded.'}`,
         `Remaining uncertainty: ${item.uncertainty || 'Not recorded.'}`,
       ],
+      sourceIds: item.sourceIds || [],
+      conceptIds: item.conceptIds || [],
+      conceptTags: (item.conceptIds || []).map((id) => conceptNameById.get(id)).filter((name): name is string => Boolean(name)),
+      createdAt: item.dateCreated,
+      updatedAt: item.dateUpdated || item.dateCreated,
     })),
     ...positions.map((item) => ({
       key: `position:${item.id}`,
@@ -140,6 +197,11 @@ export function ContextDeskRoutePage({
         `Supporting evidence: ${(item.evidenceFor || []).join('; ') || 'None recorded.'}`,
         `Challenging evidence: ${(item.evidenceAgainst || []).join('; ') || 'None recorded.'}`,
       ],
+      sourceIds: item.sourceIds || [],
+      conceptIds: [],
+      conceptTags: item.tags || [],
+      createdAt: item.dateCreated,
+      updatedAt: item.dateUpdated || item.dateCreated,
     })),
     ...works.map((item) => ({
       key: `work:${item.id}`,
@@ -153,6 +215,11 @@ export function ContextDeskRoutePage({
         `Content: ${compact(item.body || item.draftContent, 'No written content recorded.')}`,
         `Concepts: ${(item.conceptTags || []).join(', ') || 'None linked.'}`,
       ],
+      sourceIds: item.sourceIds || [],
+      conceptIds: [],
+      conceptTags: item.conceptTags || [],
+      createdAt: item.dateCreated,
+      updatedAt: item.dateUpdated || item.dateCreated,
     })),
     ...practices.map((item) => ({
       key: `practice:${item.id}`,
@@ -168,24 +235,24 @@ export function ContextDeskRoutePage({
         `Observed outcome: ${item.observedOutcome || item.conclusion?.whatHappened || 'Not recorded.'}`,
         ...(item.logs || []).slice(-5).map((log) => `Log ${log.date}: performed ${log.actionCompleted ? 'yes' : 'no'}; ${log.observations || log.outcome || 'no observation recorded'}`),
       ],
+      sourceIds: item.sourceIds || [],
+      conceptIds: [],
+      conceptTags: item.conceptTags || [],
+      createdAt: item.dateCreated,
+      updatedAt: item.dateUpdated || item.dateCreated,
     })),
-    ...timeline.map((item) => ({
-      key: `evolution:${item.id}`,
-      id: item.id,
-      type: 'evolution' as const,
-      label: item.entityTitle || item.reason,
-      summary: compact(item.reason, `${item.eventType} on ${item.date}`),
-      memory: [
-        `Evolution event: ${item.eventType} - ${item.entityTitle}`,
-        `Date: ${item.date}`,
-        `Recorded reason: ${item.reason || 'Not recorded.'}`,
-        `Object type: ${item.entityType}`,
-      ],
-    })),
-  ], [concepts, media, positions, practices, questions, timeline, works]);
+  ], [conceptNameById, concepts, media, positions, practices, questions, works]);
 
   const [query, setQuery] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = useState<ContextRecordType | 'all'>('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [conceptFilter, setConceptFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState<ContextDateFilter>('all');
+  const [sortBy, setSortBy] = useState<ContextSort>('updated');
+  const [excludedKeys, setExcludedKeys] = useState<string[]>([]);
+  const [excludedTypes, setExcludedTypes] = useState<ContextRecordType[]>([]);
+  const [excludedSourceIds, setExcludedSourceIds] = useState<string[]>([]);
 
   useEffect(() => {
     try {
@@ -198,24 +265,104 @@ export function ContextDeskRoutePage({
   }, []);
 
   useEffect(() => {
+    try {
+      const stored = window.sessionStorage.getItem(EXCLUSION_SESSION_KEY);
+      const parsed = stored ? JSON.parse(stored) : {};
+      if (Array.isArray(parsed.keys)) setExcludedKeys(parsed.keys.filter((value: unknown): value is string => typeof value === 'string'));
+      if (Array.isArray(parsed.types)) setExcludedTypes(parsed.types.filter((value: unknown): value is ContextRecordType => typeof value === 'string' && value in contextTypeLabels));
+      if (Array.isArray(parsed.sourceIds)) setExcludedSourceIds(parsed.sourceIds.filter((value: unknown): value is string => typeof value === 'string'));
+    } catch {
+      setExcludedKeys([]);
+      setExcludedTypes([]);
+      setExcludedSourceIds([]);
+    }
+  }, []);
+
+  useEffect(() => {
     window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(selectedKeys));
   }, [selectedKeys]);
 
+  useEffect(() => {
+    window.sessionStorage.setItem(EXCLUSION_SESSION_KEY, JSON.stringify({ keys: excludedKeys, types: excludedTypes, sourceIds: excludedSourceIds }));
+  }, [excludedKeys, excludedSourceIds, excludedTypes]);
+
   const selected = useMemo(() => selectedKeys
     .map((key) => records.find((record) => record.key === key))
-    .filter((record): record is ContextRecord => Boolean(record)), [records, selectedKeys]);
-  const staleSelectionCount = selectedKeys.length - selected.length;
+    .filter((record): record is ContextRecord => Boolean(record))
+    .filter((record) => !excludedKeys.includes(record.key) && !excludedTypes.includes(record.type) && !record.sourceIds.some((id) => excludedSourceIds.includes(id))),
+  [excludedKeys, excludedSourceIds, excludedTypes, records, selectedKeys]);
+  const staleSelectionCount = selectedKeys.filter((key) => !records.some((record) => record.key === key)).length;
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return records.slice(0, 60);
-    return records.filter((record) => `${record.label} ${record.summary} ${record.type}`.toLowerCase().includes(normalized)).slice(0, 60);
-  }, [query, records]);
+    const dateWindow = dateFilter === 'all' ? 0 : ({ '7d': 7, '30d': 30, '90d': 90, year: 365 } as const)[dateFilter];
+    const cutoff = dateWindow ? Date.now() - dateWindow * 24 * 60 * 60 * 1000 : 0;
+    return records
+      .filter((record) => !excludedKeys.includes(record.key))
+      .filter((record) => !excludedTypes.includes(record.type))
+      .filter((record) => !record.sourceIds.some((id) => excludedSourceIds.includes(id)))
+      .filter((record) => typeFilter === 'all' || record.type === typeFilter)
+      .filter((record) => sourceFilter === 'all' || record.sourceIds.includes(sourceFilter))
+      .filter((record) => conceptFilter === 'all' || record.conceptIds.includes(conceptFilter) || record.conceptTags.some((tag) => tag.toLowerCase() === conceptNameById.get(conceptFilter)?.toLowerCase()))
+      .filter((record) => !cutoff || dateValue(record.createdAt) >= cutoff)
+      .filter((record) => !normalized || `${record.label} ${record.summary} ${record.type} ${record.conceptTags.join(' ')}`.toLowerCase().includes(normalized))
+      .sort((left, right) => {
+        if (sortBy === 'title') return left.label.localeCompare(right.label);
+        if (sortBy === 'created') return dateValue(right.createdAt) - dateValue(left.createdAt);
+        return dateValue(right.updatedAt) - dateValue(left.updatedAt);
+      })
+      .slice(0, 100);
+  }, [conceptFilter, conceptNameById, dateFilter, excludedKeys, excludedSourceIds, excludedTypes, query, records, sortBy, sourceFilter, typeFilter]);
+
+  const activeFilterCount = [typeFilter !== 'all', sourceFilter !== 'all', conceptFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
+  const exclusionCount = excludedKeys.length + excludedTypes.length + excludedSourceIds.length;
 
   const toggleRecord = (record: ContextRecord) => {
     setSelectedKeys((current) => {
       if (current.includes(record.key)) return current.filter((key) => key !== record.key);
       if (current.length >= MAX_CONTEXT_ITEMS) return current;
       return [...current, record.key];
+    });
+  };
+
+  const excludeRecord = (record: ContextRecord) => {
+    setExcludedKeys((current) => current.includes(record.key) ? current : [...current, record.key]);
+    setSelectedKeys((current) => current.filter((key) => key !== record.key));
+  };
+
+  const toggleExcludedType = (type: ContextRecordType) => {
+    const willExclude = !excludedTypes.includes(type);
+    setExcludedTypes((current) => willExclude ? [...current, type] : current.filter((value) => value !== type));
+    if (willExclude) setSelectedKeys((current) => current.filter((key) => records.find((record) => record.key === key)?.type !== type));
+  };
+
+  const toggleExcludedSource = (sourceId: string) => {
+    const willExclude = !excludedSourceIds.includes(sourceId);
+    setExcludedSourceIds((current) => willExclude ? [...current, sourceId] : current.filter((value) => value !== sourceId));
+    if (willExclude) setSelectedKeys((current) => current.filter((key) => !records.find((record) => record.key === key)?.sourceIds.includes(sourceId)));
+  };
+
+  const clearFilters = () => {
+    setTypeFilter('all');
+    setSourceFilter('all');
+    setConceptFilter('all');
+    setDateFilter('all');
+    setQuery('');
+  };
+
+  const addVisibleRecords = () => {
+    setSelectedKeys((current) => {
+      const next = current.filter((key) => {
+        const record = records.find((candidate) => candidate.key === key);
+        return Boolean(record)
+          && !excludedKeys.includes(key)
+          && !excludedTypes.includes(record!.type)
+          && !record!.sourceIds.some((id) => excludedSourceIds.includes(id));
+      });
+      for (const record of filtered) {
+        if (next.length >= MAX_CONTEXT_ITEMS) break;
+        if (!next.includes(record.key)) next.push(record.key);
+      }
+      return next;
     });
   };
 
@@ -235,12 +382,16 @@ export function ContextDeskRoutePage({
 
   const selectedConceptNames = selected.filter((record) => record.type === 'concept').map((record) => record.label);
   const selectedIds = (type: ContextRecordType) => selected.filter((record) => record.type === type).map((record) => record.id);
+  const activeSource = media.find((source) => source.id === sourceFilter);
+  const activeConcept = concepts.find((concept) => concept.id === conceptFilter);
+  const ContextDeskIcon = iconForNoesisView('context-desk');
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
+    <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
       <header className="border-b border-border pb-5">
         <div className="flex items-start gap-3">
-          <Layers3 className="mt-1 size-6 shrink-0 text-accent" aria-hidden="true" />
+          <ContextDeskIcon className="mt-1 size-6 shrink-0 text-accent" aria-hidden="true" />
           <div>
             <p className="font-code text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Selected-context reasoning</p>
             <h1 className="mt-1 text-3xl font-semibold text-foreground">Context Desk</h1>
@@ -262,27 +413,126 @@ export function ContextDeskRoutePage({
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a source, concept, inquiry, position, work, or practice" className="h-11 pl-10" aria-label="Search workspace records" />
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as ContextRecordType | 'all')}>
+              <SelectTrigger className="h-10 min-w-0 rounded-md bg-card text-xs" aria-label="Filter by item type"><SelectValue placeholder="Item type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All item types</SelectItem>
+                {(Object.entries(contextTypeLabels) as Array<[ContextRecordType, string]>).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="h-10 min-w-0 rounded-md bg-card text-xs" aria-label="Filter by related source"><SelectValue placeholder="Related source" /></SelectTrigger>
+              <SelectContent className="max-h-80">
+                <SelectItem value="all">All related sources</SelectItem>
+                {media.map((source) => <SelectItem key={source.id} value={source.id}>{source.title}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={conceptFilter} onValueChange={setConceptFilter}>
+              <SelectTrigger className="h-10 min-w-0 rounded-md bg-card text-xs" aria-label="Filter by concept or tag"><SelectValue placeholder="Concept or tag" /></SelectTrigger>
+              <SelectContent className="max-h-80">
+                <SelectItem value="all">All concepts and tags</SelectItem>
+                {concepts.map((concept) => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={dateFilter} onValueChange={(value) => setDateFilter(value as ContextDateFilter)}>
+              <SelectTrigger className="h-10 min-w-0 rounded-md bg-card text-xs" aria-label="Filter by creation date"><SelectValue placeholder="Date created" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Created anytime</SelectItem>
+                <SelectItem value="7d">Created in last 7 days</SelectItem>
+                <SelectItem value="30d">Created in last 30 days</SelectItem>
+                <SelectItem value="90d">Created in last 90 days</SelectItem>
+                <SelectItem value="year">Created in last year</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as ContextSort)}>
+              <SelectTrigger className="h-10 min-w-0 rounded-md bg-card text-xs" aria-label="Sort context records"><SelectValue placeholder="Sort records" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="updated">Latest edited</SelectItem>
+                <SelectItem value="created">Newest created</SelectItem>
+                <SelectItem value="title">Title A-Z</SelectItem>
+              </SelectContent>
+            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" className="h-10 min-w-0 justify-between rounded-md bg-card px-3 text-xs font-normal">
+                  <span className="flex min-w-0 items-center gap-2"><SlidersHorizontal className="size-4 shrink-0" aria-hidden="true" /><span className="truncate">Exclusions{exclusionCount ? ` (${exclusionCount})` : ''}</span></span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72 max-h-[min(70vh,32rem)] overflow-y-auto">
+                <DropdownMenuLabel>Exclude item types</DropdownMenuLabel>
+                {(Object.entries(contextTypeLabels) as Array<[ContextRecordType, string]>).map(([type, label]) => (
+                  <DropdownMenuCheckboxItem key={type} checked={excludedTypes.includes(type)} onCheckedChange={() => toggleExcludedType(type)}>{label}</DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Exclude everything from a source</DropdownMenuLabel>
+                {media.map((source) => (
+                  <DropdownMenuCheckboxItem key={source.id} checked={excludedSourceIds.includes(source.id)} onCheckedChange={() => toggleExcludedSource(source.id)}>{source.title}</DropdownMenuCheckboxItem>
+                ))}
+                {excludedKeys.length > 0 && <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Individually excluded</DropdownMenuLabel>
+                  {excludedKeys.map((key) => {
+                    const record = records.find((candidate) => candidate.key === key);
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={key}
+                        checked
+                        onCheckedChange={() => setExcludedKeys((current) => current.filter((value) => value !== key))}
+                      >
+                        {record?.label || 'Unavailable record'}
+                      </DropdownMenuCheckboxItem>
+                    );
+                  })}
+                </>}
+                {exclusionCount > 0 && <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => { setExcludedKeys([]); setExcludedTypes([]); setExcludedSourceIds([]); }}>Clear all exclusions</DropdownMenuItem>
+                </>}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-y border-border/60 py-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Filter className="size-4 shrink-0" aria-hidden="true" />
+              <span>Showing {filtered.length} matching record{filtered.length === 1 ? '' : 's'}</span>
+              {activeSource && <Badge variant="outline" className="max-w-56 truncate">Source: {activeSource.title}</Badge>}
+              {activeConcept && <Badge variant="outline">Concept: {activeConcept.name}</Badge>}
+              {exclusionCount > 0 && <Badge variant="outline">{exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</Badge>}
+            </div>
+            <div className="flex items-center gap-1">
+              {(activeFilterCount > 0 || query) && <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
+              <Button type="button" variant="outline" size="sm" onClick={addVisibleRecords} disabled={!filtered.length || selected.length >= MAX_CONTEXT_ITEMS}>Add visible</Button>
+            </div>
+          </div>
           <ScrollArea className="mt-3 h-[min(52vh,34rem)] border-y border-border">
             <div className="divide-y divide-border">
               {filtered.map((record) => {
                 const active = selectedKeys.includes(record.key);
                 const Icon = iconForNoesisView(viewForType[record.type]);
                 return (
-                  <button
-                    key={record.key}
-                    type="button"
-                    onClick={() => toggleRecord(record)}
-                    disabled={!active && selected.length >= MAX_CONTEXT_ITEMS}
-                    className={cn('grid w-full grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-start gap-3 px-2 py-3 text-left transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:opacity-45', active && 'bg-accent/8')}
-                    aria-pressed={active}
-                  >
-                    <span className="flex size-9 items-center justify-center text-muted-foreground"><Icon className="size-[18px]" aria-hidden="true" /></span>
-                    <span className="min-w-0">
-                      <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{record.label}</span><Badge variant="outline" className="text-[9px] uppercase">{record.type}</Badge></span>
-                      <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{record.summary}</span>
-                    </span>
-                    <span className={cn('mt-1 flex size-8 items-center justify-center border', active ? 'border-accent bg-accent text-accent-foreground' : 'border-border text-muted-foreground')} aria-hidden="true">{active ? <Check className="size-4" /> : <Plus className="size-4" />}</span>
-                  </button>
+                  <div key={record.key} className={cn('grid grid-cols-[minmax(0,1fr)_2.5rem] items-stretch transition-colors', active && 'bg-accent/8')}>
+                    <button
+                      type="button"
+                      onClick={() => toggleRecord(record)}
+                      disabled={!active && selected.length >= MAX_CONTEXT_ITEMS}
+                      className="grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-start gap-3 px-2 py-3 text-left transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:opacity-45"
+                      aria-pressed={active}
+                    >
+                      <span className="flex size-9 items-center justify-center text-muted-foreground"><Icon className="size-[18px]" aria-hidden="true" /></span>
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{record.label}</span><Badge variant="outline" className="text-[9px] uppercase">{record.type}</Badge></span>
+                        <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{record.summary}</span>
+                        {formatRecordDate(sortBy === 'created' ? record.createdAt : record.updatedAt) && (
+                          <span className="mt-1 block font-code text-[10px] uppercase text-muted-foreground">
+                            {sortBy === 'created' ? 'Created' : 'Edited'} {formatRecordDate(sortBy === 'created' ? record.createdAt : record.updatedAt)}
+                          </span>
+                        )}
+                      </span>
+                      <span className={cn('mt-1 flex size-8 items-center justify-center border', active ? 'border-accent bg-accent text-accent-foreground' : 'border-border text-muted-foreground')} aria-hidden="true">{active ? <Check className="size-4" /> : <Plus className="size-4" />}</span>
+                    </button>
+                    <Button type="button" variant="ghost" size="icon" className="my-2 size-9 self-start text-muted-foreground hover:text-destructive" onClick={() => excludeRecord(record)} aria-label={`Exclude ${record.label} from Context Desk`} title="Exclude from Context Desk"><X className="size-4" /></Button>
+                  </div>
                 );
               })}
               {!filtered.length && <p className="px-3 py-10 text-center text-sm text-muted-foreground">No records match that search.</p>}
@@ -363,6 +613,7 @@ export function ContextDeskRoutePage({
             {!aiSettings.aiAssistanceEnabled && <p className="text-xs text-muted-foreground">Contextual assistance is disabled in Settings.</p>}
           </div>
         </section>
+      </div>
       </div>
     </main>
   );

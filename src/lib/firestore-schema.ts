@@ -170,7 +170,7 @@ export const DEFAULT_ATLAS_NODE_SETTINGS: { positions: Record<string, { x: numbe
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   themeMode: 'light',
-  accentTheme: 'violet',
+  accentTheme: 'rose',
   writingDefaults: {
     type: 'essay',
     status: 'seed',

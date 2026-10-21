@@ -7,7 +7,14 @@ import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { releaseStaleModalInteractionLock } from "@/lib/modal-interaction"
 
-const Dialog = DialogPrimitive.Root
+const Dialog = ({ onOpenChange, ...props }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Root>) => {
+  const handleOpenChange = React.useCallback((open: boolean) => {
+    onOpenChange?.(open)
+    if (!open) releaseStaleModalInteractionLock()
+  }, [onOpenChange])
+
+  return <DialogPrimitive.Root {...props} onOpenChange={handleOpenChange} />
+}
 
 const DialogTrigger = DialogPrimitive.Trigger
 

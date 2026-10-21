@@ -2373,7 +2373,7 @@ export function ConceptAtlas({
 
 
   return (
-    <div className={cn(
+    <div data-noesis-identity="network" className={cn(
       "relative flex w-full min-h-0 flex-col bg-background font-body",
       isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-full flex-1 overflow-hidden"
     )}>
@@ -2669,7 +2669,7 @@ export function ConceptAtlas({
         <div
           ref={mapRef}
           className={cn(
-            "relative h-full min-h-0 min-w-0 flex-1 touch-none overflow-hidden rounded-xl border border-border bg-background shadow-inner",
+            "relative h-full min-h-0 min-w-0 flex-1 touch-none overflow-hidden border-y border-border bg-background",
             quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
             isFullScreen && "rounded-none"
           )}

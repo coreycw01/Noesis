@@ -686,7 +686,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     };
 
     return (
-      <div className="flex-1 overflow-y-auto font-body">
+      <div className="noesis-concept-entry flex-1 overflow-y-auto font-body" data-noesis-identity="encyclopedia-entry">
         {/* Sticky nav bar */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/20 px-8 py-3 flex items-center justify-between">
           <Button variant="ghost" onClick={back} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full">
@@ -1338,7 +1338,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   }
 
   return (
-    <div className="noesis-page">
+    <div className="noesis-page noesis-concepts-index" data-noesis-identity="encyclopedia-index">
       <PageHeader
         title="Concepts"
         description="Build the vocabulary lab for definitions, boundaries, consistency, and conceptual drift."

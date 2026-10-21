@@ -28,6 +28,7 @@ import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
+import { ContextRail, EditorialSection, EntityMeta, IntellectualRoleLabel, RevisionEvent } from '@/components/shared/IntellectualStructures';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
@@ -1065,7 +1066,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     };
 
     return (
-      <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
+      <div className="noesis-position-detail flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body" data-noesis-identity="examination">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button variant="ghost" onClick={closeEntry} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full"><ArrowLeft className="size-4 mr-2" /> Positions</Button>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
@@ -1099,27 +1100,22 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </div>
         </div>
 
-        <Card className="mb-5 rounded-2xl border-border/50 bg-card p-5 shadow-sm">
-            <div className="mb-3 flex flex-wrap gap-2">
-              <Badge variant="outline" className="font-code uppercase bg-card border-border/60 shadow-sm rounded-full">{(selected.type || 'belief').replace('_', ' ')}</Badge>
-              <Badge variant="outline" className="font-code uppercase bg-card border-border/60 shadow-sm rounded-full">{(selected.positionKind || 'interpretive').replace(/_/g, ' ')}</Badge>
-              <Badge variant="secondary" className="font-code uppercase rounded-full bg-accent/10 text-accent">personal confidence {confidencePercent(selected.confidence)}%</Badge>
-              <Badge
-                variant={formation.fullyFormed ? 'default' : 'outline'}
-                className={cn(
-                  'font-code uppercase rounded-full shadow-sm',
-                  formation.fullyFormed ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground border-border'
-                )}
-              >
-                {diagnostic.readinessLabel}
-              </Badge>
-            </div>
-          <div className="flex flex-col items-start gap-5 sm:flex-row sm:justify-between">
+        <section className="mb-8 border-y border-border py-6">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <IntellectualRoleLabel role="claim">Position</IntellectualRoleLabel>
+            <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{diagnostic.readinessLabel}</span>
+          </div>
+          <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_17rem]">
             <div className="w-full min-w-0 flex-1">
               <h1 className="noesis-page-title text-3xl">{selected.title}</h1>
               <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>
+              {!!(selected.tags || []).length && <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2">
+                {(selected.tags || []).map((tag) => (
+                  <button key={tag} onClick={() => setConceptPopupName(tag)} className="border-b border-border font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:border-accent hover:text-accent">{tag}</button>
+                ))}
+              </div>}
             </div>
-            <div className="w-full rounded-xl border border-border/50 bg-muted/10 p-4 sm:w-64 sm:shrink-0">
+            <ContextRail title="Position record">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Confidence</span>
                 <span className="font-headline text-lg font-semibold italic">{confidencePercent(selected.confidence)}%</span>
@@ -1131,20 +1127,15 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <span>{diagnostic.supportCount} support items</span>
                 <span>{diagnostic.challengeCount} challenges</span>
               </div>
-            </div>
+              <EntityMeta className="mt-5" items={[
+                { label: 'Type', value: (selected.type || 'belief').replace('_', ' ') },
+                { label: 'Mode', value: (selected.positionKind || 'interpretive').replace(/_/g, ' ') },
+                { label: 'Status', value: selected.status },
+                { label: 'Updated', value: selected.dateUpdated },
+              ]} />
+            </ContextRail>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {(selected.tags || []).map((tag) => (
-              <button 
-                key={tag} 
-                onClick={() => setConceptPopupName(tag)}
-                className="font-code text-[9px] uppercase tracking-widest px-3 py-1 bg-card border border-border/60 shadow-sm rounded-full font-bold hover:bg-accent/10 hover:text-accent transition-all"
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        </Card>
+        </section>
 
         {!formation.fullyFormed && (
           <details className="mb-5 rounded-xl border border-border bg-muted/30 p-4 shadow-sm">
@@ -1155,16 +1146,14 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </details>
         )}
 
-        <section className="mb-5 rounded-xl border border-border/60 bg-card p-5" aria-label="Position summary">
-          <h2 className="font-headline text-xl font-semibold italic text-foreground">Current reasoning</h2>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">The reason this position currently seems warranted. Evidence and objections are reviewed separately in the workbench.</p>
+        <EditorialSection className="mb-5" eyebrow="Grounding" title="Current reasoning" description="The reason this position currently seems warranted. Evidence and objections are reviewed separately in the workbench.">
           <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.rationale || selected.confidenceReasoning || 'No reasoning has been recorded yet. Edit this position to explain what presently supports it.'}</p>
           {!selected.rationale && selected.description && (
             <p className="mt-2 text-xs italic text-muted-foreground">The position description is kept separate so it does not stand in for your reasoning.</p>
           )}
-        </section>
+        </EditorialSection>
 
-        <section className="rounded-2xl border border-border bg-card shadow-sm" aria-label="Position workbench">
+        <section className="border-y border-border bg-background/20" aria-label="Position workbench">
           <header className="px-5 py-4 sm:px-6">
             <div>
               <div className="text-sm font-semibold text-foreground">Position workbench</div>
@@ -1585,15 +1574,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
         {detailTab === 'history' && (
           <div>
-            <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
+            <EditorialSection eyebrow="Belief biography" title="How this position has changed" description="Confidence, challenges, and revisions recorded across the life of this position.">
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Belief Biography</div>
-                  <h3 className="mt-1 font-headline text-2xl font-bold italic">How this position has changed</h3>
-                </div>
-                <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                  {beliefProfile?.reviewStatus || 'current'}
-                </Badge>
+                <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{beliefProfile?.reviewStatus || 'current'}</span>
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <ConfidenceHistoryChart entry={selected} />
@@ -1601,9 +1584,13 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <InfoPanel title="Strengthened By" items={beliefProfile?.strengthenedBy || []} empty="No supporting developments recorded yet." />
                 <InfoPanel title="Challenged By" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
                 <InfoPanel title="Weakened By" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
-                <InfoPanel title="Version History" items={(selected.versionHistory || []).map((v) => `${v.date}: ${v.description}`)} empty="No revisions recorded yet." />
+                <div className="md:col-span-2">
+                  {(selected.versionHistory || []).length ? (selected.versionHistory || []).map((version, index) => (
+                    <RevisionEvent key={`${version.date}-${index}`} date={version.date} action={version.eventType?.replace(/_/g, ' ') || 'Revision'} description={version.description} current={index === (selected.versionHistory || []).length - 1} />
+                  )) : <p className="noesis-inline-empty">No revisions recorded yet.</p>}
+                </div>
               </div>
-            </Card>
+            </EditorialSection>
           </div>
         )}
         

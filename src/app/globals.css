@@ -25,18 +25,18 @@
     --secondary-foreground: 30 6% 10%;
     --muted: 48 21% 95%;
     --muted-foreground: 27 5% 40%;
-    --accent: 262 73% 46%; /* prototype purple #6D28D9 */
+    --accent: 346 70% 46%;
     --accent-foreground: 0 0% 100%;
-    --accent-muted: 262 60% 95%;
-    --accent-border: 262 38% 82%;
+    --accent-muted: 347 64% 94%;
+    --accent-border: 346 35% 80%;
     --surface: 0 0% 100%;
     --surface-elevated: 0 0% 100%;
-    --page-tint: 260 34% 98%;
+    --page-tint: 348 31% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 40 10% 87%;
     --input: 40 10% 87%;
-    --ring: 262 73% 46%;
+    --ring: 346 70% 46%;
     --card-radius: 0.75rem;
     --button-radius: 999px;
     --border-strength: 1px;
@@ -46,9 +46,9 @@
     --radius: var(--card-radius);
     --sidebar-background: 30 6% 10%;
     --sidebar-foreground: 0 0% 88%;
-    --sidebar-primary: 262 73% 46%;
+    --sidebar-primary: 346 70% 46%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 262 40% 18%;
+    --sidebar-accent: 346 38% 18%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 30 4% 16%;
     --sidebar-ring: 262 73% 46%;
@@ -710,9 +710,7 @@
   }
 
   .noesis-app-main {
-    background:
-      linear-gradient(180deg, hsl(var(--page-tint) / .62), transparent 15rem),
-      hsl(var(--background));
+    background: hsl(var(--background));
     min-width: 0;
     overscroll-behavior-y: contain;
   }
@@ -755,8 +753,23 @@
     }
   }
 
-  .noesis-page-header {
-    border-color: hsl(var(--accent-border) / .28);
+  .noesis-page-header { position: relative; }
+
+  .noesis-page-header__rule {
+    width: 2.75rem;
+    height: 2px;
+    margin-bottom: 1rem;
+    background: hsl(var(--accent));
+  }
+
+  .noesis-margin-marker {
+    display: inline-flex;
+    width: 1.5rem;
+    height: 1.5rem;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--accent));
+    border-left: 2px solid hsl(var(--accent));
   }
 
   /* Main list and workspace routes share one frame. Specialized canvases such
@@ -812,6 +825,232 @@
   .noesis-page-description {
     color: hsl(var(--muted-foreground));
     font-family: var(--font-body);
+  }
+
+  .noesis-thought-spine {
+    border-block: 1px solid hsl(var(--border) / .78);
+    background: hsl(var(--background) / .97);
+    padding-block: .85rem;
+  }
+
+  .noesis-thought-spine ol::before {
+    content: "";
+    position: absolute;
+    left: .3rem;
+    right: 1.25rem;
+    top: 1.18rem;
+    height: 1px;
+    background: hsl(var(--border));
+  }
+
+  .noesis-editorial-section {
+    border-top: 1px solid hsl(var(--border) / .8);
+    padding-block: 1.4rem;
+  }
+
+  .noesis-editorial-section__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .noesis-editorial-section__title {
+    margin-top: .25rem;
+    color: hsl(var(--foreground));
+    font-family: var(--font-heading);
+    font-size: 1.35rem;
+    font-style: italic;
+    font-weight: var(--heading-weight);
+    line-height: 1.25;
+  }
+
+  .noesis-editorial-section__description {
+    margin-top: .35rem;
+    max-width: 46rem;
+    color: hsl(var(--muted-foreground));
+    font-size: .875rem;
+    line-height: 1.55;
+  }
+
+  .noesis-editorial-section__actions { flex-shrink: 0; }
+
+  .noesis-entity-meta { border-top: 1px solid hsl(var(--border) / .75); }
+  .noesis-entity-meta__row {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, .75fr) minmax(0, 1.5fr);
+    gap: 1rem;
+    border-bottom: 1px solid hsl(var(--border) / .55);
+    padding-block: .65rem;
+  }
+  .noesis-entity-meta dt {
+    color: hsl(var(--muted-foreground));
+    font-family: var(--font-interface);
+    font-size: .625rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  .noesis-entity-meta dd { min-width: 0; color: hsl(var(--foreground) / .86); font-size: .875rem; text-align: right; }
+
+  .noesis-context-rail {
+    border-left: 1px solid hsl(var(--border));
+    padding-left: 1.25rem;
+  }
+  .noesis-context-rail__body { margin-top: .75rem; }
+
+  .noesis-intellectual-role {
+    display: inline-block;
+    color: hsl(var(--muted-foreground));
+    font-family: var(--font-interface);
+    font-size: .625rem;
+    font-weight: 750;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  .noesis-intellectual-role--question,
+  .noesis-intellectual-role--claim { color: hsl(var(--accent)); }
+  .noesis-intellectual-role--assumption,
+  .noesis-intellectual-role--note { font-style: italic; }
+
+  .noesis-evidence-row {
+    display: grid;
+    grid-template-columns: 6.75rem minmax(0, 1fr);
+    gap: 1rem;
+    border-bottom: 1px solid hsl(var(--border) / .6);
+    padding-block: .85rem;
+  }
+  .noesis-evidence-row__direction {
+    position: relative;
+    padding-left: 1rem;
+    color: hsl(var(--muted-foreground));
+    font-family: var(--font-interface);
+    font-size: .625rem;
+    font-weight: 750;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .noesis-evidence-row__direction::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: .4rem;
+    width: .5rem;
+    height: 1px;
+    background: currentColor;
+  }
+  .noesis-evidence-row--supports .noesis-evidence-row__direction,
+  .noesis-evidence-row--contradicts .noesis-evidence-row__direction { color: hsl(var(--accent)); }
+  .noesis-evidence-row--contradicts .noesis-evidence-row__direction::before { transform: rotate(-35deg); }
+  .noesis-evidence-row__source { margin-bottom: .2rem; font-size: .75rem; font-weight: 650; }
+  .noesis-evidence-row__excerpt { font-size: .95rem; line-height: 1.65; }
+  .noesis-evidence-row__meta { margin-top: .3rem; color: hsl(var(--muted-foreground)); font-size: .75rem; }
+
+  .noesis-relationship-list { border-top: 1px solid hsl(var(--border) / .65); }
+  .noesis-relationship-list__row {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    gap: 1rem;
+    border-bottom: 1px solid hsl(var(--border) / .55);
+    padding-block: .75rem;
+    text-align: left;
+  }
+  .noesis-relationship-list__relation { color: hsl(var(--accent)); font-family: var(--font-interface); font-size: .625rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+  .noesis-relationship-list__title { display: block; font-size: .9rem; font-weight: 650; }
+  .noesis-relationship-list__meta { display: block; margin-top: .2rem; color: hsl(var(--muted-foreground)); font-size: .75rem; }
+  button.noesis-relationship-list__row:hover .noesis-relationship-list__title { color: hsl(var(--accent)); }
+
+  .noesis-inline-empty { border-top: 1px solid hsl(var(--border) / .6); padding-block: .85rem; color: hsl(var(--muted-foreground)); font-size: .875rem; font-style: italic; }
+
+  .noesis-revision-event {
+    position: relative;
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: 1rem;
+    margin-left: .35rem;
+    border-left: 1px solid hsl(var(--border));
+    padding: 0 0 1.25rem 1.25rem;
+  }
+  .noesis-revision-event__marker { position: absolute; left: -.32rem; top: .25rem; width: .6rem; height: .6rem; border: 1px solid hsl(var(--border)); border-radius: 999px; background: hsl(var(--background)); }
+  .noesis-revision-event.is-current .noesis-revision-event__marker { border-color: hsl(var(--accent)); background: hsl(var(--accent)); }
+  .noesis-revision-event__date { color: hsl(var(--muted-foreground)); font-family: var(--font-interface); font-size: .675rem; font-variant-numeric: tabular-nums; }
+  .noesis-revision-event__action { font-weight: 650; }
+  .noesis-revision-event__description { margin-top: .25rem; color: hsl(var(--muted-foreground)); font-size: .875rem; line-height: 1.55; }
+
+  @media (max-width: 639px) {
+    .noesis-context-rail { border-left: 0; border-top: 1px solid hsl(var(--border)); padding: 1rem 0 0; }
+    .noesis-evidence-row { grid-template-columns: 1fr; gap: .35rem; }
+    .noesis-relationship-list__row { grid-template-columns: 6.25rem minmax(0, 1fr); gap: .65rem; }
+    .noesis-revision-event { grid-template-columns: 4.5rem minmax(0, 1fr); padding-left: 1rem; }
+  }
+
+  /* Route silhouettes: shared grammar, deliberately different intellectual jobs. */
+  [data-noesis-identity="encyclopedia-entry"] > .sticky + div {
+    max-width: 74rem;
+  }
+
+  [data-noesis-identity="research-record"] > section:first-of-type {
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  [data-noesis-identity="marginalia"] [role="button"] {
+    box-shadow: none;
+  }
+
+  [data-noesis-identity="experiment-log"] .noesis-workbench-flow,
+  [data-noesis-identity="commitment-ledger"] .noesis-workbench-flow {
+    background: transparent;
+  }
+
+  [data-noesis-identity="chronology"] details > summary {
+    scroll-margin-top: 6rem;
+  }
+
+  [data-noesis-identity="studio"] [role="button"] {
+    box-shadow: none;
+  }
+
+  [data-noesis-identity="utility"] .noesis-page-header {
+    max-width: 54rem;
+  }
+
+  .noesis-concept-entry .rounded-full.border,
+  .noesis-source-detail .rounded-full.border {
+    box-shadow: none;
+  }
+
+  .noesis-position-detail textarea,
+  .noesis-inquiry-detail textarea {
+    border-radius: .375rem;
+    background: hsl(var(--background));
+  }
+
+  .noesis-evolution-page > section,
+  .noesis-evolution-page > div {
+    scroll-margin-top: 5rem;
+  }
+
+  @media (max-width: 767px) {
+    [data-noesis-identity="investigation"],
+    [data-noesis-identity="examination"],
+    [data-noesis-identity="research-record"] {
+      padding-inline: 1rem;
+    }
+
+    [data-noesis-identity="network"] {
+      min-height: calc(100dvh - 4rem);
+    }
+
+    .noesis-editorial-section__header {
+      display: block;
+    }
+
+    .noesis-editorial-section__actions {
+      margin-top: .75rem;
+    }
   }
 
   /* Compatibility bridge while older workspaces finish moving to semantic surfaces. */

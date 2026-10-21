@@ -291,7 +291,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
   const externalDocs = drafts.filter((draft) => Boolean(draft.externalDoc)).length;
 
   return (
-    <div className="noesis-page max-w-none text-foreground xl:px-10">
+    <div className="noesis-page noesis-works-studio max-w-none text-foreground xl:px-10" data-noesis-identity="studio">
       <PageHeader
         title="Works"
         description="Develop ideas through documents, notes, recordings, and visual thinking on the page."
