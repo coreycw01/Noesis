@@ -76,6 +76,14 @@ function sourceNeedsReflection(item: Media) {
   return item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange;
 }
 
+function sourceEngagementVerb(type: MediaType) {
+  if (['audiobook', 'podcast'].includes(type)) return 'listen to';
+  if (['video', 'movie', 'documentary'].includes(type)) return 'watch';
+  if (['course', 'lecture', 'interview', 'conversation'].includes(type)) return 'engage with';
+  if (['book', 'article', 'paper'].includes(type)) return 'read';
+  return 'explore';
+}
+
 function sourceWorkGaps(item: Media) {
   const gaps: string[] = [];
   if (!item.capture?.before?.reasonForAdding && !item.capture?.before?.openQuestion && !item.capture?.before?.affectedPosition) gaps.push('intent');
@@ -659,22 +667,23 @@ export function MediaLibrary({
 
           <TabsContent value="capture" className="space-y-12">
             <p className="max-w-2xl font-body text-sm leading-6 text-muted-foreground">
-              Use this space while you engage with the source. Start with a reason, log time only when it helps, then save the one or two ideas worth carrying forward.
+              Prepare for the source, record useful moments while engaging with it, then reflect on what deserves to change or continue.
             </p>
 
             <section>
               <h3 className="readex-kicker flex items-center gap-3 mb-6 opacity-40 font-bold">
-                <Plus className="size-2.5" /> SET YOUR INTENTION
+                <Plus className="size-2.5" /> BEFORE ENGAGING
               </h3>
               <div className="bg-muted/5 border border-border/30 rounded-xl overflow-hidden shadow-sm">
-                <CaptureRow label="WHY ARE YOU HERE?" value={capture.before?.reasonForAdding} placeholder="What made this source worth your attention?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, reasonForAdding: val }, sessions: capture.sessions || [] })} />
-                <CaptureRow label="WHAT QUESTION ARE YOU BRINGING?" value={capture.before?.openQuestion} placeholder="What would you like this source to help you understand?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, openQuestion: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT BROUGHT YOU HERE?" value={capture.before?.reasonForAdding} placeholder={`What made you choose to ${sourceEngagementVerb(selected.type)} this source?`} onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, reasonForAdding: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT DO YOU EXPECT?" value={capture.before?.expectation} placeholder="What do you expect this source to argue, reveal, or help you notice?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, expectation: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT QUESTION MAKES THIS WORTH YOUR ATTENTION?" value={capture.before?.openQuestion} placeholder="Name the question you want to carry into this source." onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, openQuestion: val }, sessions: capture.sessions || [] })} />
                 <details className="border-t border-border/30 bg-background/30 px-4 py-3 text-sm text-muted-foreground">
                   <summary className="cursor-pointer font-medium text-foreground">More context (optional)</summary>
                   <div className="mt-3 overflow-hidden rounded-lg border border-border/30 bg-card">
-                    <CaptureRow label="CURRENT VIEW" value={capture.before?.priorBeliefs} placeholder="What do you currently think about this?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, priorBeliefs: val }, sessions: capture.sessions || [] })} />
+                    <CaptureRow label="WHAT DO YOU CURRENTLY THINK?" value={capture.before?.priorBeliefs} placeholder="Record your current view so you can recognize what changes." onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, priorBeliefs: val }, sessions: capture.sessions || [] })} />
                     <CaptureRow label="POSITION THAT MAY CHANGE" value={capture.before?.affectedPosition} placeholder="Which position could this complicate or strengthen?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, affectedPosition: val }, sessions: capture.sessions || [] })} />
-                    <CaptureRow label="WHAT WOULD MAKE THIS WORTHWHILE?" value={capture.before?.worthwhileIf} placeholder="What would make this attention worthwhile?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, worthwhileIf: val }, sessions: capture.sessions || [] })} />
+                    <CaptureRow label="WHAT WOULD COUNT AS VALUE?" value={capture.before?.worthwhileIf} placeholder="What would make the time you give this source worthwhile?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, worthwhileIf: val }, sessions: capture.sessions || [] })} />
                   </div>
                 </details>
               </div>
@@ -768,18 +777,18 @@ export function MediaLibrary({
 
             <section>
               <h3 className="readex-kicker flex items-center gap-3 mb-6 opacity-40 font-bold">
-                <Plus className="size-2.5" /> WHAT DID YOU TAKE FROM IT?
+                <Plus className="size-2.5" /> AFTER ENGAGING
               </h3>
               <div className="bg-muted/5 border border-border/30 rounded-xl overflow-hidden shadow-sm">
-                <CaptureRow label="MAIN IDEA" value={capture.after?.coreArgument} placeholder="What is this source really saying?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, coreArgument: val }, sessions: capture.sessions || [] })} />
-                <CaptureRow label="WHAT STAYS WITH YOU?" value={capture.after?.lasting} placeholder="What is the one idea you want to carry forward?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, lasting: val }, sessions: capture.sessions || [] })} />
-                <CaptureRow label="WHAT REMAINS OPEN?" value={capture.after?.remainsUnanswered} placeholder="What question remains after this source?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, remainsUnanswered: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT IS THE CENTRAL IDEA IN YOUR OWN WORDS?" value={capture.after?.coreArgument} placeholder="State what you think the source is actually saying." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, coreArgument: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT STRENGTHENED, CHALLENGED, OR CHANGED YOUR THINKING?" value={capture.after?.beliefChange} placeholder="Describe the movement in your thinking, even if your view did not fully change." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, beliefChange: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT EVIDENCE, EXAMPLE, OR MOMENT MATTERED MOST?" value={capture.after?.strongestArgument} placeholder="Record the specific part that carried the most intellectual weight." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, strongestArgument: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT DID NOT HOLD UP FOR YOU?" value={capture.after?.weakestArgument} placeholder="Name what seemed weak, unsupported, incomplete, or unconvincing." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, weakestArgument: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT QUESTION REMAINS WORTH CARRYING FORWARD?" value={capture.after?.remainsUnanswered} placeholder="Keep the uncertainty that still deserves attention." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, remainsUnanswered: val }, sessions: capture.sessions || [] })} />
                 <details className="border-t border-border/30 bg-background/30 px-4 py-3 text-sm text-muted-foreground">
                   <summary className="cursor-pointer font-medium text-foreground">Go deeper (optional)</summary>
                   <div className="mt-3 overflow-hidden rounded-lg border border-border/30 bg-card">
-                    <CaptureRow label="STRONGEST POINT" value={capture.after?.strongestArgument} placeholder="What was most convincing?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, strongestArgument: val }, sessions: capture.sessions || [] })} />
-                    <CaptureRow label="WEAKEST POINT" value={capture.after?.weakestArgument} placeholder="What felt weak, incomplete, or unconvincing?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, weakestArgument: val }, sessions: capture.sessions || [] })} />
-                    <CaptureRow label="WHAT CHANGED FOR YOU?" value={capture.after?.beliefChange} placeholder="How did this affect your view?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, beliefChange: val }, sessions: capture.sessions || [] })} />
+                    <CaptureRow label="WHAT WILL YOU CARRY FORWARD?" value={capture.after?.lasting} placeholder="Name the idea, distinction, or question you expect to keep using." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, lasting: val }, sessions: capture.sessions || [] })} />
                     <CaptureRow label="NEXT STEP" value={capture.after?.nextAction} placeholder="What should you do with this next?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, nextAction: val }, sessions: capture.sessions || [] })} />
                   </div>
                 </details>
@@ -1245,16 +1254,16 @@ function SourceLane({ label, value, description, active, onClick }: { label: str
 
 function CaptureRow({ label, value, placeholder, onChange }: { label: string; value?: string; placeholder: string; onChange: (val: string) => void }) {
   return (
-    <div className="flex items-center border-b border-border/30 last:border-b-0 min-h-[70px] bg-card">
-      <div className="w-60 px-8 shrink-0">
-        <span className="font-code text-[9px] uppercase tracking-[0.25em] text-muted-foreground font-bold">{label}</span>
+    <div className="flex min-w-0 flex-col border-b border-border/30 bg-card last:border-b-0 sm:grid sm:min-h-[92px] sm:grid-cols-[minmax(11rem,15rem)_minmax(0,1fr)] sm:items-stretch">
+      <div className="px-4 pb-0 pt-4 sm:flex sm:items-start sm:px-6 sm:py-5">
+        <span className="font-code text-[10px] font-bold uppercase leading-5 tracking-[0.16em] text-muted-foreground">{label}</span>
       </div>
-      <div className="flex-1 p-0 h-full flex items-center">
+      <div className="flex min-w-0 flex-1 items-stretch">
         <Textarea 
           value={value || ''} 
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="bg-transparent border-none shadow-none focus-visible:ring-0 font-body text-[17px] italic text-primary/90 placeholder:text-muted-foreground/30 py-5 h-auto min-h-0 resize-none rounded-none"
+          className="min-h-[112px] w-full resize-y rounded-none border-0 bg-transparent px-4 py-3 font-body text-base leading-7 text-primary/90 shadow-none placeholder:text-muted-foreground/55 focus-visible:ring-0 sm:min-h-[92px] sm:px-6 sm:py-5"
         />
       </div>
     </div>

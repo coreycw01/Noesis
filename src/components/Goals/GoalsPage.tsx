@@ -11,6 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { MEDIA_LABELS, MEDIA_TYPES, today, uid } from '@/lib/readex';
@@ -628,28 +629,17 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
           )}
         />
 
-        <div className="mb-6 flex flex-wrap items-center gap-1 border-y border-border/70 py-2" role="tablist" aria-label="Commitment views">
-          {([
+        <WorkspaceTabs
+          value={activeView}
+          onChange={setActiveView}
+          label="Commitment views"
+          className="mb-6"
+          items={[
             { id: 'today', label: 'Today', icon: NOESIS_ICONS.commitment },
             { id: 'active', label: 'Active', icon: Settings2 },
             { id: 'review', label: 'Review', icon: Clock3 },
-          ] as const).map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={activeView === id}
-              onClick={() => setActiveView(id)}
-              className={cn(
-                'inline-flex min-h-10 items-center gap-2 border-b-2 px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                activeView === id ? 'border-accent text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <Icon className="size-4" aria-hidden="true" />
-              {label}
-            </button>
-          ))}
-        </div>
+          ]}
+        />
 
         {activeView === 'today' && (
           <div className="space-y-6" role="tabpanel" aria-label="Commitments due today">

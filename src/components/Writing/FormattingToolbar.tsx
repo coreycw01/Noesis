@@ -274,7 +274,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
 
   return (
     <>
-    <div className="sticky top-0 z-40 border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur sm:px-6">
+    <div className="sticky top-0 z-40 h-[60px] shrink-0 overflow-hidden border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur sm:h-[101px] sm:px-6">
       <div className="flex flex-nowrap items-center justify-start gap-1 rounded-[var(--card-radius)] border border-border/60 bg-card p-1.5 shadow-sm sm:flex-wrap sm:justify-center sm:gap-1.5">
         <div className="flex items-center gap-1 border-r border-border/40 pr-2">
           {onOpenDrawing && <ToolbarButton icon={PencilLine} onClick={onOpenDrawing} title="Open drawing tools" />}

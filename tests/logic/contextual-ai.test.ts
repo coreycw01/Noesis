@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CONTEXTUAL_AI_POLICIES, isContextualAiRequestCompatible, parseAiReviewItems, parseAssumptionSuggestions, profileStatementFromSynthesis, serializeAiReviewItems } from '../../src/lib/contextual-ai';
+import { CONTEXTUAL_AI_POLICIES, CONTEXTUAL_AI_SUGGESTED_PROMPTS, isContextualAiRequestCompatible, parseAiReviewItems, parseAssumptionSuggestions, profileStatementFromSynthesis, serializeAiReviewItems } from '../../src/lib/contextual-ai';
 import {
   NOESIS_DETAIL_DATA_REQUIREMENTS,
   NOESIS_PAGE_DATA_REQUIREMENTS,
@@ -13,6 +13,7 @@ test('allows each contextual action only on its intended object and scope', () =
   assert.equal(isContextualAiRequestCompatible({ action: 'compare_selected_positions', targetType: 'position', scope: 'selected_pair' }), true);
   assert.equal(isContextualAiRequestCompatible({ action: 'synthesize_evolution_period', targetType: 'evolution', scope: 'selected_period' }), true);
   assert.equal(isContextualAiRequestCompatible({ action: 'synthesize_profile_philosophy', targetType: 'profile', scope: 'linked_items' }), true);
+  assert.equal(isContextualAiRequestCompatible({ action: 'review_selected_context', targetType: 'context_desk', scope: 'linked_items' }), true);
 });
 
 test('rejects cross-page or overly broad contextual action combinations', () => {
@@ -33,6 +34,7 @@ test('exposes only the approved detail-level assistance tools', () => {
     'propose_inquiry_prompts',
     'refine_concept_definition',
     'reflect_on_source',
+    'review_selected_context',
     'socratic_inquiry_challenge',
     'suggest_annotation_effect',
     'summarize_source',
@@ -44,7 +46,7 @@ test('exposes only the approved detail-level assistance tools', () => {
 });
 
 test('loads AI settings only on routes that expose contextual assistance', () => {
-  for (const view of ['concepts', 'questions', 'library', 'annotations', 'vault', 'practices', 'evolution', 'profile'] as const) {
+  for (const view of ['concepts', 'questions', 'library', 'annotations', 'vault', 'practices', 'evolution', 'profile', 'context-desk'] as const) {
     assert.ok(NOESIS_PAGE_DATA_REQUIREMENTS[view].includes('aiSettings'), `${view} must load AI settings`);
   }
 
@@ -65,6 +67,15 @@ test('parses assumptions into independently reviewable suggestions', () => {
     { assumption: 'Comfort always reduces growth', reason: 'The position depends on comfort and growth moving in opposite directions.' },
     { assumption: 'Discomfort reliably reveals reality', reason: 'Otherwise discomfort would not be a useful corrective.' },
   ]);
+});
+
+test('provides a concise editable question set for every contextual action', () => {
+  assert.deepEqual(Object.keys(CONTEXTUAL_AI_SUGGESTED_PROMPTS).sort(), Object.keys(CONTEXTUAL_AI_POLICIES).sort());
+  for (const [action, prompts] of Object.entries(CONTEXTUAL_AI_SUGGESTED_PROMPTS)) {
+    assert.ok(prompts.length >= 4 && prompts.length <= 6, `${action} should expose four to six suggested questions`);
+    assert.equal(new Set(prompts).size, prompts.length, `${action} prompts should be unique`);
+    assert.ok(prompts.every((prompt) => prompt.endsWith('?')), `${action} prompts should read as questions`);
+  }
 });
 
 test('parses every contextual result into editable review units', () => {

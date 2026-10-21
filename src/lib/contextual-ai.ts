@@ -15,11 +15,12 @@ export type ContextualAiAction =
   | 'compare_selected_positions'
   | 'synthesize_practice_outcome'
   | 'synthesize_evolution_period'
-  | 'synthesize_profile_philosophy';
+  | 'synthesize_profile_philosophy'
+  | 'review_selected_context';
 
 export interface AiContextEnvelope {
   action: ContextualAiAction;
-  targetType: 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'practice' | 'evolution' | 'profile';
+  targetType: 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'practice' | 'evolution' | 'profile' | 'context_desk';
   targetId: string;
   scope: ContextualAiScope;
   itemMemory: string[];
@@ -111,6 +112,7 @@ export const CONTEXTUAL_AI_REVIEW: Record<ContextualAiAction, AiReviewPresentati
   synthesize_practice_outcome: { mode: 'sections', heading: 'Review the practice analysis', guidance: 'Check each finding against your logs. Edit or remove anything that overstates what the practice established.', destination: 'the practice’s saved Outcome Review', itemName: 'finding' },
   synthesize_evolution_period: { mode: 'sections', heading: 'Review this period of change', guidance: 'Keep only conclusions supported by recorded events. Edit any interpretation that does not match how your thinking changed.', destination: 'the Evolution timeline as a reviewed synthesis', itemName: 'change' },
   synthesize_profile_philosophy: { mode: 'sections', heading: 'Review your philosophy draft', guidance: 'Edit each inference until it is recognizably yours. Only the approved Working statement updates your statement; the complete review remains available on Profile.', destination: 'the Profile philosophy review', itemName: 'section' },
+  review_selected_context: { mode: 'sections', heading: 'Review the selected records together', guidance: 'Check every finding against the records you explicitly selected. Keep only useful, supported conclusions.', destination: 'a new user-owned Work', itemName: 'finding' },
 };
 
 function cleanReviewText(value: string) {
@@ -189,6 +191,107 @@ export const CONTEXTUAL_AI_LABELS: Record<ContextualAiAction, string> = {
   synthesize_practice_outcome: 'Synthesize Outcome',
   synthesize_evolution_period: 'Synthesize Period',
   synthesize_profile_philosophy: 'Shape My Philosophy',
+  review_selected_context: 'Review Selected Context',
+};
+
+export const CONTEXTUAL_AI_SUGGESTED_PROMPTS: Record<ContextualAiAction, string[]> = {
+  summarize_source: [
+    'What is the central argument?',
+    'Which ideas carry the most weight?',
+    'What would be lost in a shorter summary?',
+    'Where is the source most qualified or uncertain?',
+  ],
+  reflect_on_source: [
+    'What changed in my thinking?',
+    'What in my notes challenges the source?',
+    'Which idea should I carry forward?',
+    'What remains unresolved for me?',
+  ],
+  extract_source_claims: [
+    'Which claims are essential to the argument?',
+    'Which claims depend on hidden assumptions?',
+    'Which claims have the strongest support?',
+    'Which claims should I verify elsewhere?',
+  ],
+  propose_inquiry_prompts: [
+    'What question is most worth pursuing?',
+    'What assumption should become an inquiry?',
+    'Where does this source conflict with my thinking?',
+    'What question could change a position I hold?',
+  ],
+  suggest_annotation_effect: [
+    'What could this note change in my thinking?',
+    'Am I overstating what the source says?',
+    'Which position does this note support or pressure?',
+    'Is this evidence, interpretation, reaction, or question?',
+  ],
+  refine_concept_definition: [
+    'Where is my definition vague?',
+    'What must be true for this concept to apply?',
+    'Which nearby concept should I distinguish it from?',
+    'Do I use this term consistently?',
+  ],
+  clarify_concept_boundaries: [
+    'What counterexample breaks this boundary?',
+    'What belongs outside this concept?',
+    'Where does this overlap another concept?',
+    'Which distinction matters most?',
+  ],
+  socratic_inquiry_challenge: [
+    'What assumption is hiding in this question?',
+    'What is the strongest competing answer?',
+    'What evidence could change my current answer?',
+    'What observation would move this inquiry forward?',
+  ],
+  find_position_assumptions: [
+    'Which assumption carries the most weight?',
+    'What must be true for this position to hold?',
+    'Which assumption has the least support?',
+    'What am I treating as obvious without evidence?',
+  ],
+  generate_position_counterargument: [
+    'What is the strongest fair objection?',
+    'How would an informed critic respond?',
+    'What evidence points in the opposite direction?',
+    'What tradeoff does this position understate?',
+  ],
+  identify_missing_position_evidence: [
+    'Is my confidence proportionate to my evidence?',
+    'What evidence would most change my confidence?',
+    'Which claim remains unsupported?',
+    'What challenge have I not answered?',
+  ],
+  compare_selected_positions: [
+    'Where do these positions genuinely disagree?',
+    'Which assumptions do they share?',
+    'Can both positions be true under different conditions?',
+    'Which position has stronger support?',
+  ],
+  synthesize_practice_outcome: [
+    'Do the logs support the hypothesis?',
+    'What alternative explanation fits the result?',
+    'What should change in the linked position?',
+    'Is another run justified?',
+  ],
+  synthesize_evolution_period: [
+    'What changed meaningfully in this period?',
+    'Did confidence move ahead of evidence?',
+    'Which contradiction was resolved or avoided?',
+    'What pattern repeated?',
+  ],
+  synthesize_profile_philosophy: [
+    'Which commitments recur across my thinking?',
+    'What tension prevents a coherent worldview?',
+    'Which positions form the strongest throughline?',
+    'What working philosophy is supported by my records?',
+  ],
+  review_selected_context: [
+    'Where do these records contradict one another?',
+    'What influence can I trace across these items?',
+    'Which claim has the weakest support?',
+    'What perspective is missing from this selection?',
+    'What inquiry or test should come next?',
+  ],
 };
 
 export const CONTEXTUAL_AI_POLICIES: Record<ContextualAiAction, {
@@ -210,6 +313,7 @@ export const CONTEXTUAL_AI_POLICIES: Record<ContextualAiAction, {
   synthesize_practice_outcome: { targetType: 'practice', scope: 'linked_items' },
   synthesize_evolution_period: { targetType: 'evolution', scope: 'selected_period' },
   synthesize_profile_philosophy: { targetType: 'profile', scope: 'linked_items' },
+  review_selected_context: { targetType: 'context_desk', scope: 'linked_items' },
 };
 
 export function isContextualAiRequestCompatible(input: Pick<AiContextEnvelope, 'action' | 'targetType' | 'scope'>) {

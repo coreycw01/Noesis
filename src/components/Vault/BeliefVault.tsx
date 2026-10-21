@@ -447,13 +447,14 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [conceptFilter, setConceptFilter] = useState('all');
   const [viewFilter, setViewFilter] = usePersistentView<PositionViewFilter>('noesis:positions-filter', 'all', Object.keys(POSITION_VIEW_LABELS) as PositionViewFilter[]);
   const [viewMode, setViewMode] = usePersistentView<'cards' | 'table'>('noesis:positions-view', 'table', ['cards', 'table']);
-  const [detailTab, setDetailTab] = useState<'overview' | 'evidence' | 'opposition' | 'relations' | 'history'>('overview');
+  const [detailTab, setDetailTab] = useState<'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'>('state');
   const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', rationale: '', confidence: 60, status: 'active', tags: [] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VaultEntry | null>(null);
   const { toast } = useToast();
 
   const [stressAnswer, setStressAnswer] = useState('');
+  const [revisionReason, setRevisionReason] = useState('');
   const [stressStageIndex, setStressStageIndex] = useState(0);
   const [tensionDrawerOpen, setTensionDrawerOpen] = useState(false);
 
@@ -577,7 +578,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     }
     if (safeEntries.some((entry) => entry.id === focusedEntryId)) {
       setSelectedId(focusedEntryId);
-      setDetailTab('overview');
+      setDetailTab('state');
       onFocusedEntryHandled?.();
     }
   }, [safeEntries, focusedEntryId, onFocusedEntryHandled]);
@@ -610,7 +611,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
   const openEntry = (id: string) => {
     setSelectedId(id);
-    setDetailTab('overview');
+    setDetailTab('state');
     onOpenEntryRoute?.(id);
   };
 
@@ -704,12 +705,13 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       linkedPractices,
     });
     const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
-    const reviewTabs: Array<{ id: 'overview' | 'evidence' | 'opposition' | 'relations' | 'history'; label: string; description: string }> = [
-      { id: 'overview', label: 'Develop', description: 'Clarify the claim, its scope, confidence, and the next gap to resolve.' },
-      { id: 'evidence', label: 'Evidence', description: 'Review support, counterevidence, linked sources, and what evidence is still missing.' },
-      { id: 'opposition', label: 'Challenge', description: 'Pressure-test assumptions, objections, tensions, and what could change your mind.' },
-      { id: 'relations', label: 'Connections', description: 'See the concepts, inquiries, works, practices, and typed links this position depends on or affects.' },
-      { id: 'history', label: 'History', description: 'Review only how the position and its confidence changed over time.' },
+    const reviewTabs: Array<{ id: 'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'; label: string; description: string }> = [
+      { id: 'state', label: 'State', description: 'Clarify the claim, its scope, conditions, and present confidence.' },
+      { id: 'ground', label: 'Ground', description: 'Record why it seems warranted, its evidence, assumptions, and dependencies.' },
+      { id: 'pressure', label: 'Pressure', description: 'Examine counterpositions, contradictions, missing evidence, and steelman challenges.' },
+      { id: 'test', label: 'Test', description: 'Define a practice, prediction, or observation that could affect confidence.' },
+      { id: 'revise', label: 'Revise', description: 'Retain, update, replace, or retire the position with a recorded reason.' },
+      { id: 'history', label: 'History', description: 'Review only the belief biography and confidence changes over time.' },
     ];
 
     const previewSource = (source: Media) => {
@@ -1064,16 +1066,18 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
     return (
       <div className="flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body">
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button variant="ghost" onClick={closeEntry} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full"><ArrowLeft className="size-4 mr-2" /> Positions</Button>
-          <div className="flex gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
             {aiSettings.aiAssistanceEnabled && (
-              <Select value={comparePositionId} onValueChange={setComparePositionId}>
-                <SelectTrigger className="h-8 w-40 rounded-full sm:w-48"><SelectValue placeholder="Compare position" /></SelectTrigger>
-                <SelectContent>
-                  {safeEntries.filter((entry) => entry.id !== selected.id).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.title}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="basis-full sm:basis-auto">
+                <Select value={comparePositionId} onValueChange={setComparePositionId}>
+                  <SelectTrigger className="h-9 w-full rounded-full sm:w-48"><SelectValue placeholder="Compare position" /></SelectTrigger>
+                  <SelectContent>
+                    {safeEntries.filter((entry) => entry.id !== selected.id).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.title}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
             <ContextualAiPanel
               enabled={aiSettings.aiAssistanceEnabled}
@@ -1164,7 +1168,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           <header className="px-5 py-4 sm:px-6">
             <div>
               <div className="text-sm font-semibold text-foreground">Position workbench</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">Develop the position, examine evidence, challenge it, connect it, or review how it changed.</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">State the claim, ground it, pressure it, test it, then decide whether to revise it.</p>
             </div>
           </header>
           <div className="border-t border-border p-4 sm:p-5">
@@ -1173,8 +1177,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           className="mb-5"
           recommended={diagnostic.nextAction}
           actions={[
-            { label: 'Add support', onClick: () => setDetailTab('evidence') },
-            { label: 'Add challenge', onClick: () => setDetailTab('opposition') },
+            { label: 'Add support', onClick: () => setDetailTab('ground') },
+            { label: 'Add challenge', onClick: () => setDetailTab('pressure') },
             { label: 'Clarify terms', onClick: () => openEditor(selected) },
             {
               label: 'Test in practice',
@@ -1223,7 +1227,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           className="mb-5"
         />
 
-        {detailTab === 'overview' && (
+        {detailTab === 'state' && (
           <>
             <details className="group mb-6 rounded-xl border border-border/60 bg-background/40">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
@@ -1261,7 +1265,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </>
         )}
 
-        {detailTab === 'opposition' && (
+        {detailTab === 'pressure' && (
             <Card className="mb-6 rounded-xl border-border/50 bg-card p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -1353,7 +1357,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             </Card>
         )}
 
-        {detailTab === 'evidence' && (
+        {detailTab === 'ground' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <EvidencePanel title="Evidence For" items={selected.evidenceFor || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceFor: [...(selected.evidenceFor || []), text], dateUpdated: today() })} />
             <EvidencePanel title="Evidence Against" items={selected.evidenceAgainst || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() })} />
@@ -1381,7 +1385,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </div>
         )}
 
-        {detailTab === 'opposition' && (
+        {detailTab === 'pressure' && (
           <div className="space-y-6">
             <TensionResolutionPanel
               selected={selected}
@@ -1422,7 +1426,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </div>
         )}
 
-        {detailTab === 'relations' && (
+        {detailTab === 'ground' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
             <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
@@ -1481,6 +1485,102 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             <InfoPanel title="Linked Unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />
             <InfoPanel title="Typed Relationships" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed relationships recorded yet." />
           </div>
+        )}
+
+        {detailTab === 'test' && (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.72fr)]">
+            <Card className="rounded-xl border-border/60 bg-card p-5 shadow-sm">
+              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">A test that could matter</div>
+              <h3 className="mt-2 text-lg font-semibold text-foreground">What observation would change your confidence?</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Create a bounded experiment in Labs. Finish its hypothesis, action, and success signal there before it can begin.</p>
+              <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 p-4">
+                <p className="text-sm font-medium text-foreground">Current revision condition</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">{selected.falsification || 'No revision condition is recorded. Add one in Edit position so the test has a clear standard.'}</p>
+              </div>
+              <Button
+                className="mt-4 min-h-11"
+                onClick={() => Promise.resolve(onAddPractice({
+                  title: `Test: ${selected.title.slice(0, 60)}`,
+                  description: `A bounded test of the position: “${selected.statement}”`,
+                  type: 'experiment',
+                  status: 'planned',
+                  durationMode: 'one_time',
+                  durationDays: 7,
+                  intellectualBasis: selected.rationale || selected.description,
+                  hypothesis: selected.falsification ? `If this position is mistaken, I expect: ${selected.falsification}` : '',
+                  positionIds: [selected.id],
+                  conceptTags: selected.tags || [],
+                  sourceIds: selected.sourceIds || [],
+                })).then(() => toast({ title: 'Experiment created', description: 'Open Labs to finish the protocol before running it.' })).catch(() => toast({ title: 'Experiment not created', description: 'Please retry. Your position is unchanged.', variant: 'destructive' }))}
+              >
+                Create bounded experiment
+              </Button>
+            </Card>
+            <EntityListPanel
+              title="Tests of this position"
+              empty="No practice or experiment is linked yet."
+              items={linkedPractices.map((item) => ({
+                id: item.id,
+                title: item.title,
+                meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`,
+                onClick: () => previewPractice(item),
+              }))}
+            />
+          </div>
+        )}
+
+        {detailTab === 'revise' && (
+          <Card className="rounded-xl border-border/60 bg-card p-5 shadow-sm">
+            <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Decision after review</div>
+            <h3 className="mt-2 text-lg font-semibold text-foreground">What should happen to this position now?</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Record the reason first. The choice updates status and adds a dated entry to the belief biography; it does not erase earlier versions.</p>
+            <Label htmlFor="position-revision-reason" className="mt-5 block text-sm font-medium">Reason for this decision</Label>
+            <Textarea
+              id="position-revision-reason"
+              value={revisionReason}
+              onChange={(event) => setRevisionReason(event.target.value)}
+              placeholder="What evidence, contradiction, experience, or clarification justifies this decision?"
+              className="mt-2 min-h-28"
+            />
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              {([
+                ['active', 'Retain'],
+                ['revised', 'Revise'],
+                ['replaced', 'Replace'],
+                ['suspended', 'Suspend'],
+                ['abandoned', 'Retire'],
+              ] as const).map(([status, label]) => (
+                <Button
+                  key={status}
+                  type="button"
+                  variant={status === 'revised' ? 'default' : 'outline'}
+                  className="min-h-11"
+                  disabled={!revisionReason.trim()}
+                  onClick={async () => {
+                    await onUpdateEntry({
+                      ...selected,
+                      status,
+                      versionHistory: [
+                        ...(selected.versionHistory || []),
+                        {
+                          date: today(),
+                          eventType: status === 'active' ? 'refined' : status === 'abandoned' ? 'abandoned' : status === 'suspended' ? 'challenged' : 'revised',
+                          description: revisionReason.trim(),
+                          confidence: selected.confidence,
+                        },
+                      ],
+                      lastRevisedAt: today(),
+                      dateUpdated: today(),
+                    });
+                    setRevisionReason('');
+                    toast({ title: `Position ${label.toLowerCase()} decision saved`, description: 'The reason is now part of the belief biography.' });
+                  }}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </Card>
         )}
 
         {detailTab === 'history' && (

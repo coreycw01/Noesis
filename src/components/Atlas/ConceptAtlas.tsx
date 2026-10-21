@@ -28,6 +28,7 @@ import { AtlasConnectionsView } from '@/components/Atlas/AtlasConnectionsView';
 import { AtlasReviewQueue } from '@/components/Atlas/AtlasReviewQueue';
 import { AtlasTerritoryView } from '@/components/Atlas/AtlasTerritoryView';
 import { AtlasTensionsBoard } from '@/components/Atlas/AtlasTensionsBoard';
+import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { SourceLinker } from '@/components/SourceLinker';
 import { initializeFirebase } from '@/firebase';
 import type {
@@ -406,6 +407,7 @@ export function ConceptAtlas({
   const [draggingName, setDraggingName] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+  const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
   const [panelSection, setPanelSection] = useState<'links' | 'evidence' | 'events' | 'actions'>('links');
   const mapRef = useRef<HTMLDivElement | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
@@ -590,6 +592,28 @@ export function ConceptAtlas({
       setStyleDraft(normalizeAtlasMapStyle(activeMap?.style));
     }
   }, [activeMap?.style, isStyleOpen]);
+
+  useEffect(() => {
+    if (atlasSection !== 'map') return;
+    const element = mapRef.current;
+    if (!element) return;
+    const updateSize = () => {
+      const rect = element.getBoundingClientRect();
+      setMapSize((current) => {
+        const width = Math.round(rect.width);
+        const height = Math.round(rect.height);
+        return current.width === width && current.height === height ? current : { width, height };
+      });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(element);
+    window.addEventListener('orientationchange', updateSize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('orientationchange', updateSize);
+    };
+  }, [atlasSection, isFullScreen]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -2041,12 +2065,13 @@ export function ConceptAtlas({
     }
     if (draggingName) return;
     if (event.target !== event.currentTarget) return;
+    if ('pointerId' in event) event.currentTarget.setPointerCapture?.(event.pointerId);
     setIsPanning(true);
     setLastMousePos({ x: event.clientX, y: event.clientY });
     setSelectedName(null);
   };
 
-  const handleMouseMove = (event: React.MouseEvent) => {
+  const handlePointerMove = (event: React.PointerEvent) => {
     if (quickLinkSource) {
       setQuickLinkCursor({ x: event.clientX, y: event.clientY });
     }
@@ -2605,10 +2630,16 @@ export function ConceptAtlas({
           )}
           {atlasSection === 'connections' && (
             <div className="space-y-5">
-              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Atlas connection views">
-                <Button role="tab" aria-selected={connectionsTab === 'relationships'} variant={connectionsTab === 'relationships' ? 'default' : 'outline'} onClick={() => setConnectionsTab('relationships')}>Relationships</Button>
-                <Button role="tab" aria-selected={connectionsTab === 'tensions'} variant={connectionsTab === 'tensions' ? 'default' : 'outline'} onClick={() => setConnectionsTab('tensions')}>System tensions</Button>
-              </div>
+              <WorkspaceTabs
+                value={connectionsTab}
+                onChange={setConnectionsTab}
+                label="Atlas connection views"
+                variant="segmented"
+                items={[
+                  { id: 'relationships', label: 'Relationships', icon: Link2 },
+                  { id: 'tensions', label: 'System tensions', icon: FlaskConical },
+                ]}
+              />
               {connectionsTab === 'relationships' ? (
                 <AtlasConnectionsView links={links} concepts={concepts} regionConceptIds={selectedRegion?.conceptIds || []} regionObjectIds={selectedRegion ? [...selectedRegion.conceptIds, ...selectedRegion.positionIds, ...selectedRegion.practiceIds, ...selectedRegion.inquiryIds, ...selectedRegion.sourceIds, ...selectedRegion.workIds] : []} regionName={selectedRegion?.name} onUpdateLink={onUpdateLink} onDeleteLink={onDeleteLink} />
               ) : (
@@ -2632,13 +2663,13 @@ export function ConceptAtlas({
 
       {atlasSection === 'map' && (
       <div className={cn(
-        "relative flex min-h-0 flex-1 gap-4",
+        "relative flex min-h-0 flex-1 gap-4 max-md:min-h-[22rem]",
         isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-hidden px-4 pb-4 md:px-8"
       )}>
         <div
           ref={mapRef}
           className={cn(
-            "relative h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-background shadow-inner",
+            "relative h-full min-h-0 min-w-0 flex-1 touch-none overflow-hidden rounded-xl border border-border bg-background shadow-inner",
             quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
             isFullScreen && "rounded-none"
           )}
@@ -2646,10 +2677,13 @@ export function ConceptAtlas({
             if (quickLinkSource) clearQuickLinkMode();
             else setActiveEdgeId(null);
           }}
-          onMouseDown={startPanning}
-          onMouseMove={handleMouseMove}
-          onMouseUp={() => setIsPanning(false)}
-          onMouseLeave={() => setIsPanning(false)}
+          onPointerDown={startPanning}
+          onPointerMove={handlePointerMove}
+          onPointerUp={(event) => { event.currentTarget.releasePointerCapture?.(event.pointerId); setIsPanning(false); }}
+          onPointerCancel={() => setIsPanning(false)}
+          onPointerLeave={(event) => { if (event.pointerType === 'mouse') setIsPanning(false); }}
+          data-map-width={mapSize.width || undefined}
+          data-map-height={mapSize.height || undefined}
         >
           {mode === 'custom' && (
             <div

@@ -8,6 +8,7 @@ export type NoesisView =
   | 'annotations'
   | 'vault'
   | 'writing'
+  | 'context-desk'
   | 'practices'
   | 'evolution'
   | 'profile'
@@ -72,13 +73,15 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
     case 'library':
       return { view: 'library', focusedSourceId: maybeId || null };
     case 'sources':
-      return { view: 'library' };
+      return { view: 'source-index' };
     case 'annotations':
       return { view: 'annotations' };
     case 'positions':
       return { view: 'vault', focusedPositionId: maybeId || null };
     case 'works':
       return { view: 'writing', focusedWorkId: maybeId || null };
+    case 'context-desk':
+      return { view: 'context-desk' };
     case 'labs':
       return { view: 'practices' };
     case 'practices':
@@ -125,6 +128,8 @@ export function viewToPath(view: NoesisView, options?: {
       return options?.positionId ? `${prefix}/positions/${options.positionId}` : `${prefix}/positions`;
     case 'writing':
       return options?.workId ? `${prefix}/works/${options.workId}` : `${prefix}/works`;
+    case 'context-desk':
+      return `${prefix}/context-desk`;
     case 'practices':
       return options?.practiceId ? `${prefix}/practices/${options.practiceId}` : `${prefix}/labs`;
     case 'evolution':

@@ -52,6 +52,7 @@ import { FormattingToolbar } from './FormattingToolbar';
 import { DocumentCanvas } from './DocumentCanvas';
 import { DocsPage } from './DocsPage';
 import { DrawingOverlayToolbar } from './DrawingOverlayToolbar';
+import { FloatingWorkToolWindow } from './FloatingWorkToolWindow';
 import { PageSettingsControl, PageViewControls } from './PageViewControls';
 import { isStructuredWorkStyle, StructuredWorkSurface, workToolLabel, type StructuredWorkStyle } from './StructuredWorkSurface';
 import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkDocumentPage, WorkTemplateData, WorkToolSection, WritingStyle } from '@/lib/types';
@@ -163,6 +164,7 @@ const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'documentSettings',
   'pageSettings',
   'writingOverlayData',
+  'writingOverlayStrokes',
   'overlayAsset',
   'writingStyle',
   'externalDoc',
@@ -261,54 +263,6 @@ function BufferedStructuredWorkSurface({
   }, [buffer, bufferSignature, propSignature]);
 
   return <StructuredWorkSurface {...surfaceProps} data={buffer} onChange={setBuffer} />;
-}
-
-function ResizableInlineToolFrame({ section, onRemove, onResize, children }: {
-  section: WorkToolSection;
-  onRemove: () => void;
-  onResize: (widthPercent: number) => void;
-  children: React.ReactNode;
-}) {
-  const [widthPercent, setWidthPercent] = useState(Math.min(100, Math.max(55, section.widthPercent || 100)));
-
-  useEffect(() => {
-    setWidthPercent(Math.min(100, Math.max(55, section.widthPercent || 100)));
-  }, [section.id, section.widthPercent]);
-
-  return (
-    <section
-      id={`work-tool-${section.id}`}
-      className="noesis-inline-tool mx-auto max-sm:!w-full scroll-mt-28 border border-current/15"
-      style={{ width: `${widthPercent}%` }}
-      aria-label={`${workToolLabel(section.tool)} inline tool`}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-current/10 px-4 py-2">
-        <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">{workToolLabel(section.tool)}</span>
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 font-code text-[8px] font-bold uppercase tracking-wider text-muted-foreground">
-            Width
-            <input
-              type="range"
-              min="55"
-              max="100"
-              step="5"
-              value={widthPercent}
-              onChange={(event) => setWidthPercent(Number(event.target.value))}
-              onPointerUp={() => onResize(widthPercent)}
-              onKeyUp={() => onResize(widthPercent)}
-              aria-label={`${workToolLabel(section.tool)} width`}
-              className="w-20 accent-[hsl(var(--accent))]"
-            />
-            <span className="w-7 tabular-nums">{widthPercent}%</span>
-          </label>
-          <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="h-8 rounded-md text-muted-foreground hover:text-destructive" aria-label={`Remove ${workToolLabel(section.tool)}`}>
-            <Trash2 className="mr-1.5 size-3.5" /> Remove
-          </Button>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
 }
 
 function splitWorkLines(value?: string) {
@@ -430,11 +384,13 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [paperPattern, setPaperPattern] = useState<PaperPattern>('none');
   const [currentPageId, setCurrentPageId] = useState('main');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
-  const [writingTool, setWritingTool] = useState<DrawingTool>('pencil');
+  const [writingTool, setWritingTool] = useState<DrawingTool>('pen');
   const [writingStrokeColor, setWritingStrokeColor] = useState('#4c1d95');
   const [writingStrokeSize, setWritingStrokeSize] = useState(3);
   const [writingStrokeOpacity, setWritingStrokeOpacity] = useState(1);
   const [editorRibbon, setEditorRibbon] = useState<'writing' | 'drawing'>('writing');
+  const [focusedToolId, setFocusedToolId] = useState<string | null>(null);
+  const [drawingRedoByPage, setDrawingRedoByPage] = useState<Record<string, DrawingStroke[]>>({});
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
@@ -482,8 +438,10 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   useEffect(() => {
     setEditorRibbon(activeFromStore?.activeRibbon || 'writing');
     setCurrentPageId('main');
+    setFocusedToolId(null);
     autosaveErrorShownRef.current = false;
     autosavePausedRef.current = false;
+    setDrawingRedoByPage({});
   }, [activeFromStore?.activeRibbon, activeFromStore?.id]);
 
   useEffect(() => {
@@ -1004,30 +962,51 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     } : item));
   }, [updateToolSections, writingDefaults.writingStyle]);
 
-  const updateToolSectionWidth = useCallback((sectionId: string, widthPercent: number) => {
+  const updateToolSectionWindow = useCallback((sectionId: string, patch: Partial<NonNullable<WorkToolSection['window']>>) => {
     const current = latestDraftRef.current;
     if (!current) return;
     const currentStyle = current.writingStyle
       || (current.type === 'drawing' || current.type === 'drawing_note' ? 'blank_paper' : writingDefaults.writingStyle);
     const sections = toolSectionsForDraft(current, currentStyle);
-    updateToolSections(sections.map((item) => item.id === sectionId ? { ...item, widthPercent } : item));
+    updateToolSections(sections.map((item) => item.id === sectionId ? {
+      ...item,
+      window: {
+        x: item.window?.x ?? 72,
+        y: item.window?.y ?? 220,
+        width: item.window?.width ?? Math.round(760 * ((item.widthPercent || 80) / 100)),
+        height: item.window?.height ?? 430,
+        minimized: item.window?.minimized ?? false,
+        zIndex: item.window?.zIndex ?? 1,
+        ...patch,
+      },
+    } : item));
   }, [updateToolSections, writingDefaults.writingStyle]);
 
   const activeDocumentPages = useMemo(() => active?.documentPages || [], [active?.documentPages]);
 
   const addDocumentTool = useCallback((tool: StructuredWorkStyle) => {
+    const siblingCount = activeToolSections.filter((item) => (item.pageId || 'main') === currentPageId).length;
+    const topZ = activeToolSections.reduce((highest, item) => Math.max(highest, item.window?.zIndex || 1), 1);
     const section: WorkToolSection = {
       id: crypto.randomUUID(),
       tool,
       pageId: currentPageId === 'main' || activeDocumentPages.some((page) => page.id === currentPageId) ? currentPageId : 'main',
       createdAt: today(),
+      window: {
+        x: 54 + (siblingCount % 4) * 34,
+        y: 190 + (siblingCount % 5) * 36,
+        width: 620,
+        height: 440,
+        minimized: false,
+        zIndex: topZ + 1,
+      },
       data: { fields: {}, branches: [], mindMapNodes: [], timeline: [] },
     };
     updateToolSections([
       ...activeToolSections,
       section,
     ]);
-    window.setTimeout(() => document.getElementById(`work-tool-${section.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+    setFocusedToolId(section.id);
   }, [activeDocumentPages, activeToolSections, currentPageId, updateToolSections]);
 
   const uploadInlineImage = useCallback(async (file: File) => {
@@ -1063,6 +1042,40 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     const pages = latestDraftRef.current?.documentPages || [];
     updateDocumentPages(pages.map((page) => page.id === pageId ? { ...page, ...patch } : page));
   }, [updateDocumentPages]);
+  const clearCurrentPageDrawing = useCallback(() => {
+    if (currentPageId === 'main') {
+      updateActive({ writingOverlayData: '', writingOverlayStrokes: [] });
+      return;
+    }
+    updateDocumentPage(currentPageId, { overlayData: '', overlayStrokes: [] });
+  }, [currentPageId, updateActive, updateDocumentPage]);
+  const currentPageStrokes = currentPageId === 'main'
+    ? active?.writingOverlayStrokes || []
+    : activeDocumentPages.find((page) => page.id === currentPageId)?.overlayStrokes || [];
+  const setPageStrokes = useCallback((pageId: string, strokes: DrawingStroke[], clearRedo = true) => {
+    if (pageId === 'main') updateActive({ writingOverlayStrokes: strokes });
+    else updateDocumentPage(pageId, { overlayStrokes: strokes });
+    if (clearRedo) setDrawingRedoByPage((current) => ({ ...current, [pageId]: [] }));
+  }, [updateActive, updateDocumentPage]);
+  const undoDrawingStroke = useCallback(() => {
+    const strokes = currentPageId === 'main'
+      ? latestDraftRef.current?.writingOverlayStrokes || []
+      : latestDraftRef.current?.documentPages?.find((page) => page.id === currentPageId)?.overlayStrokes || [];
+    const removed = strokes.at(-1);
+    if (!removed) return;
+    setPageStrokes(currentPageId, strokes.slice(0, -1), false);
+    setDrawingRedoByPage((current) => ({ ...current, [currentPageId]: [...(current[currentPageId] || []), removed] }));
+  }, [currentPageId, setPageStrokes]);
+  const redoDrawingStroke = useCallback(() => {
+    const redo = drawingRedoByPage[currentPageId] || [];
+    const restored = redo.at(-1);
+    if (!restored) return;
+    const strokes = currentPageId === 'main'
+      ? latestDraftRef.current?.writingOverlayStrokes || []
+      : latestDraftRef.current?.documentPages?.find((page) => page.id === currentPageId)?.overlayStrokes || [];
+    setPageStrokes(currentPageId, [...strokes, restored], false);
+    setDrawingRedoByPage((current) => ({ ...current, [currentPageId]: (current[currentPageId] || []).slice(0, -1) }));
+  }, [currentPageId, drawingRedoByPage, setPageStrokes]);
   const removeDocumentPage = useCallback((pageId: string) => {
     const current = latestDraftRef.current;
     if (!current) return;
@@ -1077,6 +1090,13 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     setCurrentPageId(pageId);
     document.getElementById(`work-page-${pageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
+  const jumpToDocumentTool = useCallback((section: WorkToolSection) => {
+    const pageId = section.pageId || 'main';
+    setCurrentPageId(pageId);
+    setFocusedToolId(section.id);
+    updateToolSectionWindow(section.id, { minimized: false });
+    document.getElementById(`work-page-${pageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [updateToolSectionWindow]);
   const activeSources = useMemo(() => {
     if (!active) return [];
     return media.filter((source) => (active.sourceIds || []).includes(source.id));
@@ -1142,11 +1162,18 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const inlineToolsForPage = (pageId: string, appearance = currentPageAppearance) => activeToolSections
     .filter((section) => (section.pageId || 'main') === pageId)
     .map((section) => (
-      <ResizableInlineToolFrame
+      <FloatingWorkToolWindow
         key={section.id}
         section={section}
+        label={workToolLabel(section.tool)}
+        mobileActive={focusedToolId === section.id}
+        onFocus={() => {
+          setFocusedToolId(section.id);
+          const topZ = activeToolSections.reduce((highest, item) => Math.max(highest, item.window?.zIndex || 1), 1);
+          if ((section.window?.zIndex || 1) < topZ) updateToolSectionWindow(section.id, { zIndex: topZ + 1 });
+        }}
         onRemove={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))}
-        onResize={(widthPercent) => updateToolSectionWidth(section.id, widthPercent)}
+        onPatch={(patch) => updateToolSectionWindow(section.id, patch)}
       >
         <BufferedStructuredWorkSurface
           embedded
@@ -1157,7 +1184,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
           pageSize={appearance.pageSize}
           paperPattern={appearance.paperPattern}
         />
-      </ResizableInlineToolFrame>
+      </FloatingWorkToolWindow>
     ));
 
   if (active) {
@@ -1217,7 +1244,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
             </div>
 
-            <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto border-t border-border/20 pt-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 border-t border-border/20 pt-2">
               <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
                 <SelectTrigger className="h-8 w-28 shrink-0 rounded-md border-border/40 bg-background px-2 font-code text-[9px] font-bold uppercase tracking-wider shadow-sm">
                   <SelectValue />
@@ -1226,7 +1253,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   {WORK_STATUS_OPTIONS.map((status) => <SelectItem key={status.value} value={status.value} className="font-code text-[9px] uppercase">{status.label}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-[1_1_13rem]">
                 <ConceptTagPicker
                   concepts={concepts}
                   value={active.conceptTags || []}
@@ -1239,13 +1266,13 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
               <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="size-8 shrink-0 rounded-md bg-card px-0 sm:h-9 sm:w-auto sm:rounded-full sm:px-3" aria-label="Open studio context" title="Studio context">
-                    <NotebookPen className="size-4 sm:mr-2" /> <span className="hidden sm:inline">Studio context</span>
+                  <Button variant="outline" size="sm" className="size-8 shrink-0 rounded-md bg-card px-0 sm:h-9 sm:w-auto sm:rounded-full sm:px-3" aria-label="Open studio reel" title="Studio reel">
+                    <NotebookPen className="size-4 sm:mr-2" /> <span className="hidden sm:inline">Studio reel</span>
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto rounded-t-2xl border-border bg-background p-4">
                   <SheetHeader className="pb-3 text-left">
-                    <SheetTitle className="font-headline text-2xl font-bold italic">Studio context</SheetTitle>
+                    <SheetTitle className="font-headline text-2xl font-bold italic">Studio reel</SheetTitle>
                   </SheetHeader>
                   <WorkRailContent
                     sources={activeSources}
@@ -1287,8 +1314,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               )}
 
               {showPaperControls && (
-                <div className="flex flex-nowrap items-center gap-2 overflow-x-auto sm:flex-wrap sm:justify-between sm:gap-3">
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap sm:justify-between sm:gap-3">
                   <PageViewControls
+                    className="col-span-2 min-w-0 sm:col-span-1"
                     viewMode={viewMode}
                     onViewModeChange={(next) => { setViewMode(next); updateDocumentSettings({ viewMode: next }); }}
                     pageSize={pageSize}
@@ -1298,10 +1326,10 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     paperPattern={paperPattern}
                     onPaperPatternChange={(next) => { setPaperPattern(next); updateDocumentSettings({ paperPattern: next }); }}
                   />
-                  <div className="flex min-w-0 items-center gap-2">
+                  <div className="contents sm:flex sm:min-w-0 sm:items-center sm:gap-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-9 max-w-[min(52vw,260px)] rounded-md border-border/60 bg-card px-3 shadow-sm" aria-label={`Document pages. Current page: ${currentPageLabel}`}>
+                        <Button variant="outline" size="sm" className="h-9 w-full min-w-0 justify-start rounded-md border-border/60 bg-card px-3 shadow-sm sm:max-w-[260px]" aria-label={`Document pages. Current page: ${currentPageLabel}`}>
                           <ListTree className="size-4 shrink-0 text-accent" />
                           <span className="truncate">{currentPageLabel}</span>
                         </Button>
@@ -1317,6 +1345,19 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                             <span className="min-w-0 flex-1 truncate">{page.title || `Page ${index + 2}`}</span>
                           </DropdownMenuItem>
                         ))}
+                        {!!activeToolSections.length && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Tool windows</DropdownMenuLabel>
+                            {activeToolSections.map((section) => (
+                              <DropdownMenuItem key={section.id} onSelect={() => jumpToDocumentTool(section)} className={cn('cursor-pointer', focusedToolId === section.id && 'text-accent')}>
+                                <ListTree className="mr-2 size-4" />
+                                <span className="min-w-0 flex-1 truncate">{workToolLabel(section.tool)}</span>
+                                <span className="ml-2 text-[9px] uppercase text-muted-foreground">{section.window?.minimized ? 'Minimized' : section.pageId && section.pageId !== 'main' ? 'Subpage' : 'Main'}</span>
+                              </DropdownMenuItem>
+                            ))}
+                          </>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={addDocumentPage} className="cursor-pointer font-medium">
                           <FilePlus2 className="mr-2 size-4 text-accent" /> Add subpage
@@ -1358,10 +1399,20 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     onColorChange={setWritingStrokeColor}
                     onSizeChange={setWritingStrokeSize}
                     onOpacityChange={setWritingStrokeOpacity}
-                    onClear={() => updateActive({ writingOverlayData: '' })}
-                    onReturnToWriting={() => setEditorRibbon('writing')}
+                    onClear={clearCurrentPageDrawing}
+                    onUndo={undoDrawingStroke}
+                    onRedo={redoDrawingStroke}
+                    canUndo={currentPageStrokes.length > 0}
+                    canRedo={(drawingRedoByPage[currentPageId] || []).length > 0}
+                    onReturnToWriting={() => {
+                      setEditorRibbon('writing');
+                      updateActive({ activeRibbon: 'writing' });
+                    }}
                   />
-                ) : <FormattingToolbar saveStatus={saveStatus} onOpenDrawing={() => setEditorRibbon('drawing')} onInsertTool={addDocumentTool} onUploadImage={uploadInlineImage} />}
+                ) : <FormattingToolbar saveStatus={saveStatus} onOpenDrawing={() => {
+                  setEditorRibbon('drawing');
+                  updateActive({ activeRibbon: 'drawing' });
+                }} onInsertTool={addDocumentTool} onUploadImage={uploadInlineImage} />}
                 <DocumentCanvas
                   content={activeContent}
                   onContentChange={handleUpdateContent}
@@ -1372,8 +1423,10 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   writingStyle="blank_paper"
                   title={active.title}
                   overlayData={activeOverlayUrl}
+                  overlayStrokes={active.writingOverlayStrokes || []}
                   backgroundArtwork={activeCategory === 'drawing' ? activeCanvasUrl : ''}
                   onOverlayChange={(overlayData) => updateActive({ writingOverlayData: overlayData })}
+                  onOverlayStrokesChange={(writingOverlayStrokes) => setPageStrokes('main', writingOverlayStrokes)}
                   overlayTool={writingTool}
                   overlayColor={writingStrokeColor}
                   overlayBrushSize={writingStrokeSize}
@@ -1411,13 +1464,15 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                           content={page.content}
                           onContentChange={(content) => updateDocumentPage(page.id, { content })}
                           showBoundary
-                          overlayData=""
+                          overlayData={page.overlayData || ''}
+                          overlayStrokes={page.overlayStrokes || []}
                           onOverlayChange={() => undefined}
+                          onOverlayStrokesChange={(overlayStrokes) => setPageStrokes(page.id, overlayStrokes)}
                           overlayTool={writingTool}
                           overlayColor={writingStrokeColor}
                           overlayBrushSize={writingStrokeSize}
                           overlayOpacity={writingStrokeOpacity}
-                          overlayEnabled={false}
+                          overlayEnabled={editorRibbon === 'drawing'}
                           inlineTools={inlineToolsForPage(page.id, appearance)}
                         />
                       </section>
@@ -2892,7 +2947,7 @@ function WorkIntellectualRail({
           </Button>
           <div className="h-px w-8 bg-border/60" />
           <div className="[writing-mode:vertical-rl] rotate-180 font-code text-[9px] font-bold uppercase tracking-[0.24em] text-muted-foreground">
-            Studio Rail
+            Studio Reel
           </div>
           <Badge variant="outline" className="mt-auto rounded-full font-code text-[8px] uppercase tracking-widest">
             {sources.length + positions.length + inquiries.length + concepts.length}
@@ -2903,7 +2958,7 @@ function WorkIntellectualRail({
         <div className="border-b border-border/60 pb-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Studio Rail</div>
+              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Studio Reel</div>
               <h3 className="mt-1 font-headline text-xl font-bold italic">Reference rail</h3>
             </div>
             <div className="flex items-center gap-2">

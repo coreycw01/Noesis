@@ -3,7 +3,7 @@
 
 import React, { useRef, useEffect, useCallback, type ReactNode } from 'react';
 import type { PageSize, PaperColor, PaperPattern } from './Atelier';
-import type { DrawingTool, WritingStyle } from '@/lib/types';
+import type { DrawingStroke, DrawingTool, WritingStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { sanitizeHtml } from '@/lib/sanitize';
 
@@ -18,8 +18,10 @@ interface DocsPageProps {
   isEditable: boolean;
   showBoundary?: boolean;
   overlayData: string;
+  overlayStrokes?: DrawingStroke[];
   backgroundArtwork?: string;
   onOverlayChange: (content: string) => void;
+  onOverlayStrokesChange?: (strokes: DrawingStroke[]) => void;
   overlayTool: DrawingTool;
   overlayColor: string;
   overlayBrushSize: number;
@@ -28,13 +30,93 @@ interface DocsPageProps {
   inlineTools?: ReactNode;
 }
 
-export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary, overlayData, backgroundArtwork, onOverlayChange, overlayTool, overlayColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools }: DocsPageProps) {
+export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary, overlayData, overlayStrokes = [], backgroundArtwork, onOverlayChange, onOverlayStrokesChange, overlayTool, overlayColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools }: DocsPageProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const overlayDrawingRef = useRef(false);
   const overlayStartRef = useRef<{ x: number; y: number } | null>(null);
+  const overlayLastPointRef = useRef<{ x: number; y: number } | null>(null);
   const overlayBaseRef = useRef<HTMLCanvasElement | null>(null);
   const overlayCommitVersionRef = useRef(0);
+  const activeStrokeRef = useRef<DrawingStroke | null>(null);
+  const overlayStrokesRef = useRef<DrawingStroke[]>(overlayStrokes);
+
+  useEffect(() => {
+    overlayStrokesRef.current = overlayStrokes;
+  }, [overlayStrokes]);
+
+  const appendOverlayStroke = useCallback((stroke: DrawingStroke) => {
+    const next = [...overlayStrokesRef.current, stroke];
+    overlayStrokesRef.current = next;
+    onOverlayStrokesChange?.(next);
+  }, [onOverlayStrokesChange]);
+
+  const pointForCanvas = useCallback((point: { x: number; y: number }, stroke: DrawingStroke, width: number, height: number) => stroke.coordinateSpace === 'normalized'
+    ? { x: point.x * width, y: point.y * height }
+    : point, []);
+
+  const renderStroke = useCallback((ctx: CanvasRenderingContext2D, stroke: DrawingStroke, width: number, height: number) => {
+    if (!stroke.points.length) return;
+    const points = stroke.points.map((point) => pointForCanvas(point, stroke, width, height));
+    ctx.save();
+    ctx.strokeStyle = stroke.color;
+    ctx.fillStyle = stroke.color;
+    ctx.globalAlpha = stroke.opacity;
+    ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+    ctx.lineCap = stroke.tool === 'marker' || stroke.tool === 'highlighter' ? 'square' : 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = stroke.width;
+    if (stroke.tool === 'text' && stroke.text) {
+      ctx.font = `${Math.max(14, stroke.width * 4)}px Georgia, serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillText(stroke.text, points[0].x, points[0].y);
+      ctx.restore();
+      return;
+    }
+    if (['line', 'rectangle', 'ellipse', 'arrow'].includes(stroke.tool) && points[1]) {
+      const start = points[0];
+      const end = points[1];
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      ctx.beginPath();
+      if (stroke.tool === 'rectangle') ctx.strokeRect(start.x, start.y, dx, dy);
+      else if (stroke.tool === 'ellipse') {
+        ctx.ellipse(start.x + dx / 2, start.y + dy / 2, Math.abs(dx / 2), Math.abs(dy / 2), 0, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+        if (stroke.tool === 'arrow') {
+          const angle = Math.atan2(dy, dx);
+          const head = Math.max(8, Math.min(18, stroke.width * 3));
+          ctx.beginPath();
+          ctx.moveTo(end.x, end.y);
+          ctx.lineTo(end.x - head * Math.cos(angle - Math.PI / 6), end.y - head * Math.sin(angle - Math.PI / 6));
+          ctx.moveTo(end.x, end.y);
+          ctx.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6));
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+      return;
+    }
+    if (stroke.tool === 'calligraphy') {
+      for (const point of points) {
+        ctx.beginPath();
+        ctx.ellipse(point.x, point.y, Math.max(2, stroke.width * 0.95), Math.max(1, stroke.width * 0.28), stroke.nibAngle ?? -Math.PI / 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    points.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
+    if (points.length === 1) ctx.lineTo(points[0].x + 0.01, points[0].y + 0.01);
+    ctx.stroke();
+    ctx.restore();
+  }, [pointForCanvas]);
 
   useEffect(() => {
     if (editorRef.current && editorRef.current !== document.activeElement) {
@@ -55,11 +137,18 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(ratio, ratio);
     ctx.clearRect(0, 0, width, height);
-    if (!overlayData) return;
+    const drawVectors = () => overlayStrokes.forEach((stroke) => renderStroke(ctx, stroke, width, height));
+    if (!overlayData) {
+      drawVectors();
+      return;
+    }
     const image = new Image();
-    image.onload = () => ctx.drawImage(image, 0, 0, width, height);
+    image.onload = () => {
+      ctx.drawImage(image, 0, 0, width, height);
+      drawVectors();
+    };
     image.src = overlayData;
-  }, [overlayData]);
+  }, [overlayData, overlayStrokes, renderStroke]);
 
   useEffect(() => {
     redrawOverlay();
@@ -76,7 +165,13 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
 
+  const normalizeOverlayPoint = (point: { x: number; y: number }, canvas: HTMLCanvasElement) => ({
+    x: point.x / Math.max(1, canvas.clientWidth),
+    y: point.y / Math.max(1, canvas.clientHeight),
+  });
+
   const commitOverlay = useCallback((canvas: HTMLCanvasElement) => {
+    if (onOverlayStrokesChange) return;
     const version = ++overlayCommitVersionRef.current;
     canvas.toBlob((blob) => {
       if (!blob || version !== overlayCommitVersionRef.current) return;
@@ -86,7 +181,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       };
       reader.readAsDataURL(blob);
     }, 'image/png');
-  }, [onOverlayChange]);
+  }, [onOverlayChange, onOverlayStrokesChange]);
 
   const drawShape = (ctx: CanvasRenderingContext2D, tool: DrawingTool, start: { x: number; y: number }, end: { x: number; y: number }) => {
     const width = end.x - start.x;
@@ -128,18 +223,56 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       ctx.textBaseline = 'top';
       ctx.fillText(text.trim(), point.x, point.y);
       ctx.restore();
+      appendOverlayStroke({
+        id: crypto.randomUUID(),
+        tool: 'text',
+        color: overlayColor,
+        opacity: overlayOpacity,
+        width: overlayBrushSize,
+        coordinateSpace: 'normalized',
+        points: [normalizeOverlayPoint(point, event.currentTarget)],
+        text: text.trim(),
+      });
       commitOverlay(event.currentTarget);
       return;
     }
     overlayDrawingRef.current = true;
     overlayStartRef.current = point;
+    overlayLastPointRef.current = point;
     event.currentTarget.setPointerCapture(event.pointerId);
-    ctx.lineCap = 'round';
+    ctx.lineCap = overlayTool === 'marker' ? 'square' : 'round';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = overlayTool === 'marker' ? overlayBrushSize * 3 : overlayTool === 'pencil' ? Math.max(1, overlayBrushSize * 0.65) : overlayBrushSize;
+    ctx.lineWidth = overlayTool === 'highlighter'
+      ? overlayBrushSize * 3.5
+      : overlayTool === 'marker'
+        ? overlayBrushSize * 2.5
+        : overlayTool === 'calligraphy'
+          ? overlayBrushSize * 1.6
+          : overlayTool === 'pencil'
+            ? Math.max(1, overlayBrushSize * 0.65)
+            : overlayBrushSize;
     ctx.strokeStyle = overlayColor;
-    ctx.globalAlpha = overlayTool === 'marker' ? Math.min(overlayOpacity, 0.3) : overlayTool === 'pencil' ? Math.min(overlayOpacity, 0.65) : overlayOpacity;
+    ctx.fillStyle = overlayColor;
+    ctx.globalAlpha = overlayTool === 'highlighter'
+      ? Math.min(overlayOpacity, 0.3)
+      : overlayTool === 'pencil'
+        ? Math.min(overlayOpacity, 0.65)
+        : overlayTool === 'marker'
+          ? Math.min(overlayOpacity, 0.9)
+          : overlayOpacity;
     ctx.globalCompositeOperation = overlayTool === 'eraser' ? 'destination-out' : 'source-over';
+    activeStrokeRef.current = {
+      id: crypto.randomUUID(),
+      tool: overlayTool,
+      color: overlayColor,
+      opacity: ctx.globalAlpha,
+      width: ctx.lineWidth,
+      nibAngle: overlayTool === 'calligraphy' ? -Math.PI / 5 : undefined,
+      edgeSoftness: overlayTool === 'highlighter' ? 0.35 : overlayTool === 'marker' ? 0.05 : undefined,
+      pressureResponse: overlayTool === 'pen' || overlayTool === 'calligraphy',
+      coordinateSpace: 'normalized',
+      points: [normalizeOverlayPoint(point, event.currentTarget)],
+    };
     if (['line', 'rectangle', 'ellipse', 'arrow'].includes(overlayTool)) {
       const snapshot = document.createElement('canvas');
       snapshot.width = event.currentTarget.width;
@@ -166,10 +299,34 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
         ctx.restore();
       }
       drawShape(ctx, overlayTool, overlayStartRef.current, point);
+      if (activeStrokeRef.current) activeStrokeRef.current.points = [activeStrokeRef.current.points[0], normalizeOverlayPoint(point, event.currentTarget)];
       return;
+    }
+    if (overlayTool === 'calligraphy') {
+      const last = overlayLastPointRef.current || point;
+      const distance = Math.max(1, Math.hypot(point.x - last.x, point.y - last.y));
+      const steps = Math.max(1, Math.ceil(distance / 2));
+      ctx.save();
+      for (let index = 0; index <= steps; index += 1) {
+        const progress = index / steps;
+        const x = last.x + (point.x - last.x) * progress;
+        const y = last.y + (point.y - last.y) * progress;
+        ctx.beginPath();
+        ctx.ellipse(x, y, Math.max(2, overlayBrushSize * 0.95), Math.max(1, overlayBrushSize * 0.28), -Math.PI / 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      overlayLastPointRef.current = point;
+      activeStrokeRef.current?.points.push(normalizeOverlayPoint(point, event.currentTarget));
+      return;
+    }
+    if (overlayTool === 'pen' && event.pressure > 0) {
+      ctx.lineWidth = overlayBrushSize * (0.65 + event.pressure * 0.75);
     }
     ctx.lineTo(point.x, point.y);
     ctx.stroke();
+    overlayLastPointRef.current = point;
+    activeStrokeRef.current?.points.push(normalizeOverlayPoint(point, event.currentTarget));
   };
 
   const endOverlayDraw = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -177,12 +334,16 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     overlayDrawingRef.current = false;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     overlayStartRef.current = null;
+    overlayLastPointRef.current = null;
     overlayBaseRef.current = null;
+    const completedStroke = activeStrokeRef.current;
+    activeStrokeRef.current = null;
     const ctx = overlayRef.current?.getContext('2d');
     if (ctx) {
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
     }
+    if (completedStroke) appendOverlayStroke(completedStroke);
     if (overlayRef.current) commitOverlay(overlayRef.current);
   };
 
@@ -285,7 +446,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
         onInput={(e) => onContentChange(sanitizeHtml(e.currentTarget.innerHTML))}
         className={cn(
           "relative z-[1] p-6 font-body text-base italic leading-8 focus:outline-none empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)] sm:p-12 sm:text-[17px] sm:leading-9 lg:p-24 lg:text-[18px] lg:leading-[2.4]",
-          inlineTools ? "min-h-64 pb-8 sm:pb-10 lg:pb-12" : "flex-1",
+          "flex-1",
           !isEditable && "pointer-events-none opacity-20",
           paperPattern === 'notebook' && "pl-12 sm:pl-16 lg:pl-28",
           writingStyle === 'cornell_notes' && "pb-36 sm:pl-[240px]",
@@ -299,7 +460,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
           whiteSpace: 'pre-wrap'
         }}
       />
-      {inlineTools && <div className="relative z-[2] space-y-6 px-6 pb-10 sm:px-10 lg:px-12" aria-label="Inline document tools">{inlineTools}</div>}
+      {inlineTools && <div className="pointer-events-none absolute inset-0 z-30 [&>*]:pointer-events-auto" aria-label="Document tool windows">{inlineTools}</div>}
       <canvas
         ref={overlayRef}
         onPointerDown={startOverlayDraw}

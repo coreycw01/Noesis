@@ -11,8 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 import { useAuth } from '@/firebase';
@@ -212,14 +213,24 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-4">
               <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted/30 text-muted-foreground">{profileDraft.photoURL || profileDraft.avatarUrl ? <img src={profileDraft.photoURL || profileDraft.avatarUrl} alt={profileDraft.displayName || 'Profile avatar'} className="h-full w-full object-cover" /> : <UserCircle2 className="size-9" />}</div>
-              <div className="min-w-0"><div className="font-code text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Thinker profile</div><h2 className="noesis-page-title mt-1 truncate text-2xl">{profileDraft.displayName || user?.displayName || 'Untitled Thinker'}</h2><p className="mt-1 text-sm text-muted-foreground">{profileDraft.philosophyName?.trim() || 'Unnamed philosophy'}<span className="mx-2">/</span>{derivedIdentity.season}</p></div>
+              <div className="min-w-0"><div className="font-code text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Thinker profile</div><h2 className="noesis-page-title mt-1 break-words text-xl sm:text-2xl">{profileDraft.displayName || user?.displayName || 'Untitled Thinker'}</h2><p className="mt-1 text-sm text-muted-foreground">{profileDraft.philosophyName?.trim() || 'Unnamed philosophy'}<span className="mx-2">/</span>{derivedIdentity.season}</p></div>
             </div>
             <div className="flex flex-wrap gap-2">{derivedIdentity.themes.slice(0, 3).map((theme) => <Badge key={theme} variant="secondary" className="rounded-full">{theme}</Badge>)}<Badge variant="outline" className="rounded-full">{concepts.length} concepts</Badge><Badge variant="outline" className="rounded-full">{activePositions.length} active positions</Badge></div>
           </div>
         </Card>
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProfileTab)} className="space-y-5">
-          <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-xl border border-border bg-card p-1.5"><TabsTrigger value="profile" className="rounded-lg">Profile</TabsTrigger><TabsTrigger value="philosophy" className="rounded-lg">Philosophy</TabsTrigger><TabsTrigger value="reflection" className="rounded-lg">Reflection</TabsTrigger><TabsTrigger value="public" className="rounded-lg">Public</TabsTrigger></TabsList>
+          <WorkspaceTabs
+            value={activeTab}
+            onChange={setActiveTab}
+            label="Profile views"
+            items={[
+              { id: 'profile', label: 'Profile' },
+              { id: 'philosophy', label: 'Philosophy' },
+              { id: 'reflection', label: 'Reflection' },
+              { id: 'public', label: 'Public' },
+            ]}
+          />
 
           <TabsContent value="profile" className="mt-0"><div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
             <SectionCard title="Your Identity" description="Only the details Noesis cannot infer responsibly."><div className="grid gap-4 sm:grid-cols-2"><Field label="Display name"><Input value={profileDraft.displayName || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, displayName: event.target.value }))} /></Field><Field label="Avatar URL"><Input value={profileDraft.avatarUrl || profileDraft.photoURL || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, avatarUrl: event.target.value, photoURL: event.target.value }))} placeholder="https://..." /></Field></div><Field label="Public introduction"><Textarea value={profileDraft.bio || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, bio: event.target.value }))} className="min-h-[100px]" placeholder="Introduce yourself and the questions that matter to you." /></Field><p className="mt-3 text-xs leading-5 text-muted-foreground">Your email is private and never included in the public profile.</p></SectionCard>
@@ -291,7 +302,7 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
 function SectionCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) { return <Card className="rounded-2xl border-border bg-card p-5 shadow-sm sm:p-6"><div className="mb-5"><h2 className="font-headline text-2xl font-semibold italic">{title}</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p></div>{children}</Card>; }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-2"><Label className="font-code text-[9px] font-bold uppercase tracking-[0.18em]">{label}</Label>{children}</div>; }
 function DerivedField({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) { return <div className={cn('rounded-xl border border-border bg-background/50 p-4', wide && 'sm:col-span-2')}><div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div><p className="mt-2 text-sm leading-6">{value}</p></div>; }
-function SegmentedNav({ value, onChange, items, label, className }: { value: string; onChange: (value: string) => void; items: Array<[string, string]>; label: string; className?: string }) { return <div role="tablist" aria-label={label} className={cn('flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl border border-border bg-background/50 p-1', className)}>{items.map(([id, text]) => <Button key={id} type="button" role="tab" aria-selected={value === id} size="sm" variant={value === id ? 'default' : 'ghost'} onClick={() => onChange(id)} className="shrink-0 rounded-lg">{text}</Button>)}</div>; }
+function SegmentedNav({ value, onChange, items, label, className }: { value: string; onChange: (value: string) => void; items: Array<[string, string]>; label: string; className?: string }) { return <WorkspaceTabs value={value} onChange={onChange} items={items.map(([id, text]) => ({ id, label: text }))} label={label} variant="segmented" className={className} />; }
 function LinkGroup({ title, empty, onOpenAll, children }: { title: string; empty: string; onOpenAll: () => void; children: React.ReactNode }) { const hasChildren = React.Children.count(children) > 0; return <div className="rounded-xl border border-border bg-background/50 p-4"><div className="mb-3 flex items-center justify-between gap-3"><div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{title}</div><Button variant="ghost" size="sm" onClick={onOpenAll} className="rounded-full">Open all</Button></div><div className="space-y-2">{hasChildren ? children : <EmptyCopy text={empty} />}</div></div>; }
 function MiniLink({ label, meta, onClick }: { label: string; meta: string; onClick: () => void }) { return <button onClick={onClick} className="flex min-h-11 w-full items-start justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="min-w-0 text-sm leading-5">{label}</span><span className="shrink-0 font-code text-[8px] uppercase tracking-wider text-muted-foreground">{meta}</span></button>; }
 
