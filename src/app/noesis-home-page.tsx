@@ -1391,6 +1391,8 @@ function ReadexWorkspace({
       year: data.year || '',
       genre: data.genre || '',
       description: data.description || '',
+      catalogSummary: data.catalogSummary || '',
+      sourceNotes: data.sourceNotes || '',
       url: data.url || '',
       thumbnailUrl: data.thumbnailUrl || '',
       publisher: data.publisher || '',

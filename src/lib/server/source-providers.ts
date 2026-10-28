@@ -1,7 +1,8 @@
 import 'server-only';
 
 import type { MediaType } from '@/lib/types';
-import type { NormalizedSourceResult } from '@/lib/source-intake';
+import { buildCatalogSummary, type NormalizedSourceResult } from '@/lib/source-intake';
+import { sourceSearchProviders, type SourceSearchProvider } from '@/lib/source-search-plan';
 import { fetchVerifiedPublicResource } from './public-url';
 
 const USER_AGENT = 'Noesis source intake';
@@ -27,6 +28,51 @@ function yearFromDate(value?: string | number | null) {
 
 function unique(values: Array<string | undefined | null>) {
   return Array.from(new Set(values.map((value) => cleanText(value)).filter(Boolean))).slice(0, 8);
+}
+
+function withCatalogSummary(result: NormalizedSourceResult): NormalizedSourceResult {
+  return {
+    ...result,
+    catalogSummary: result.catalogSummary || buildCatalogSummary(result.description),
+  };
+}
+
+function resultIdentity(result: NormalizedSourceResult) {
+  const strongId = result.doi || result.isbn || result.externalIds?.doi || result.externalIds?.isbn;
+  if (strongId) return `id:${strongId.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+  return [result.title, result.creators[0], result.year]
+    .map((value) => cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim())
+    .join('|');
+}
+
+function mergeSearchResults(groups: NormalizedSourceResult[][], forcedType: MediaType) {
+  const merged = new Map<string, NormalizedSourceResult>();
+  groups.flat().forEach((raw) => {
+    const result = withCatalogSummary({ ...raw, type: forcedType });
+    const key = resultIdentity(result);
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, result);
+      return;
+    }
+    const description = (result.description || '').length > (existing.description || '').length
+      ? result.description
+      : existing.description;
+    merged.set(key, withCatalogSummary({
+      ...existing,
+      description,
+      creators: unique([...existing.creators, ...result.creators]),
+      thumbnailUrl: existing.thumbnailUrl || result.thumbnailUrl,
+      sourceUrl: existing.sourceUrl || result.sourceUrl,
+      publisher: existing.publisher || result.publisher,
+      platform: existing.platform || result.platform,
+      isbn: existing.isbn || result.isbn,
+      doi: existing.doi || result.doi,
+      tags: unique([...(existing.tags || []), ...(result.tags || [])]),
+      externalIds: { ...result.externalIds, ...existing.externalIds },
+    }));
+  });
+  return Array.from(merged.values()).slice(0, 10);
 }
 
 function absoluteUrl(value: string | undefined, base: URL) {
@@ -417,7 +463,7 @@ export async function metadataFromUrl(rawUrl: string, forcedType?: MediaType): P
     || firstJsonLdValue(jsonLd, ['datePublished', 'dateCreated']);
   const canonical = absoluteUrl(html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["'][^>]*>/i)?.[1], url) || url.toString();
 
-  return {
+  return withCatalogSummary({
     provider: 'url_metadata',
     externalId: canonical,
     type: forcedType || 'article',
@@ -431,28 +477,23 @@ export async function metadataFromUrl(rawUrl: string, forcedType?: MediaType): P
     platform: siteName,
     tags: [],
     externalIds: { url: canonical },
-  };
+  });
+}
+
+async function searchWithProvider(provider: SourceSearchProvider, query: string, type: MediaType): Promise<NormalizedSourceResult[]> {
+  if (provider === 'books') return (await searchBooks(query)).map((result: NormalizedSourceResult) => ({ ...result, type }));
+  if (provider === 'papers') return (await searchPapers(query)).map((result: NormalizedSourceResult) => ({ ...result, type }));
+  if (provider === 'movies') return searchMovies(query, type);
+  if (provider === 'itunes') return searchItunes(query, type);
+  if (provider === 'articles') return searchArticles(query, type);
+  return searchInternetArchive(query, type);
 }
 
 export async function searchSources(query: string, type: MediaType) {
-  if (type === 'paper') return searchPapers(query);
-  if (type === 'article') return searchArticles(query, type);
-  if (type === 'podcast') return searchItunes(query, type);
-  if (type === 'audiobook') {
-    const [books, audio] = await Promise.allSettled([searchBooks(query), searchItunes(query, type)]);
-    return [
-      ...(audio.status === 'fulfilled' ? audio.value : []),
-      ...(books.status === 'fulfilled' ? books.value.map((item) => ({ ...item, type })) : []),
-    ].slice(0, 8);
-  }
-  if (type === 'movie' || type === 'documentary') {
-    const [tmdb, archive] = await Promise.allSettled([searchMovies(query, type), searchInternetArchive(query, type)]);
-    return [
-      ...(tmdb.status === 'fulfilled' ? tmdb.value : []),
-      ...(archive.status === 'fulfilled' ? archive.value : []),
-    ].slice(0, 8);
-  }
-  if (type === 'book') return searchBooks(query);
-  if (['video', 'course', 'lecture', 'interview', 'conversation', 'other'].includes(type)) return searchInternetArchive(query, type);
-  return searchInternetArchive(query, type);
+  const providers = sourceSearchProviders(type);
+  const settled = await Promise.allSettled(providers.map((provider) => searchWithProvider(provider, query, type)));
+  const groups = settled
+    .filter((result): result is PromiseFulfilledResult<NormalizedSourceResult[]> => result.status === 'fulfilled')
+    .map((result) => result.value);
+  return mergeSearchResults(groups, type);
 }

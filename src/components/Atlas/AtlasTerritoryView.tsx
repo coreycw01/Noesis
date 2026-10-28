@@ -178,7 +178,7 @@ export function AtlasTerritoryView({
       intellectualStage: 'Encounter',
       hierarchyLevel: 'Raw',
       currentState: source.status,
-      summary: source.description || source.capture?.after?.coreArgument || source.capture?.before?.openQuestion || 'A source feeding this territory.',
+      summary: source.catalogSummary || source.description || source.capture?.after?.coreArgument || source.capture?.before?.openQuestion || 'A source feeding this territory.',
       matchedBecause: `This source anchors ${selectedRegion?.name || 'the selected territory'} through concepts, annotations, or positions.`,
       connectedConcepts: source.tags || selectedRegion?.dominantConcepts || [],
       relatedObjects: [

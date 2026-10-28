@@ -264,6 +264,10 @@ export interface Media extends NoesisStageState {
   year?: string;
   genre?: string;
   description?: string;
+  /** Short factual summary derived from provider metadata, never from user notes. */
+  catalogSummary?: string;
+  /** Private user-authored source notes kept separate from provider descriptions. */
+  sourceNotes?: string;
   url?: string;
   thumbnailUrl?: string;
   publisher?: string;

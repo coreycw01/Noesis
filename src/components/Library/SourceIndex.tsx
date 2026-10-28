@@ -238,7 +238,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       intellectualStage: 'Encounter',
       hierarchyLevel: 'Raw',
       currentState: source.status,
-      summary: source.description || source.capture?.after?.coreArgument || source.capture?.before?.openQuestion || 'A source feeding the thinking system.',
+      summary: source.catalogSummary || source.description || source.capture?.after?.coreArgument || source.capture?.before?.openQuestion || 'A source feeding the thinking system.',
       matchedBecause: `Source Index matched this catalog record. Catalog state: ${catalogState.label}; next: ${catalogState.nextAction}.`,
       connectedConcepts: source.tags || [],
       relatedObjects: [
@@ -321,6 +321,8 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           { value: m.status, label: 'status' },
           { value: m.year, label: 'year' },
           { value: m.description, label: 'description' },
+          { value: m.catalogSummary, label: 'summary' },
+          { value: m.sourceNotes, label: 'notes' },
           { value: m.publisher, label: 'publisher' },
           { value: m.platform, label: 'platform' },
           { value: m.isbn, label: 'isbn' },
