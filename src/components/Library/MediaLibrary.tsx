@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
-import { sourceResultToMediaPatch, type NormalizedSourceResult } from '@/lib/source-intake';
+import { buildCatalogSummary, sourceResultToMediaPatch, type NormalizedSourceResult } from '@/lib/source-intake';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -237,6 +237,8 @@ export function MediaLibrary({
       { value: item.type, label: 'media type' },
       { value: item.status, label: 'status' },
       { value: item.description, label: 'description' },
+      { value: item.catalogSummary, label: 'summary' },
+      { value: item.sourceNotes, label: 'notes' },
       ...(item.tags || []).map((tag) => ({ value: tag, label: 'tag' })),
       ...linkedPositions.map((position) => ({ value: position.title, label: 'position' })),
       ...linkedWorks.map((work) => ({ value: work.title, label: 'work' })),
@@ -465,7 +467,8 @@ export function MediaLibrary({
     const relatedQuestions = questions.filter((question) => inquirySourceIds(question).includes(selected.id));
     const relatedDrafts = drafts.filter((draft) => (draft.sourceIds || []).includes(selected.id));
     const relatedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(selected.id));
-    const sourcePurpose = capture.before?.reasonForAdding || capture.before?.openQuestion || capture.before?.expectation || selected.description || 'This source still needs a clear reason for being studied.';
+    const catalogSummary = selected.catalogSummary || buildCatalogSummary(selected.description);
+    const sourcePurpose = capture.before?.reasonForAdding || capture.before?.openQuestion || capture.before?.expectation || selected.sourceNotes || 'This source still needs a clear reason for being studied.';
     
     return (
       <div className="noesis-source-detail flex-1 w-full overflow-y-auto px-3 pb-28 pt-3 font-body sm:px-6 sm:py-6 lg:px-8" data-noesis-identity="research-record">
@@ -565,7 +568,7 @@ export function MediaLibrary({
               {selected.year && <span className="font-code text-[10px] font-bold tracking-widest text-muted-foreground/60 sm:text-xs">{selected.year}</span>}
             </div>
             <p className="mt-2 hidden max-w-3xl font-body text-base italic leading-relaxed text-primary/80 sm:block sm:text-lg">
-              {selected.description || 'No description recorded yet.'}
+              {catalogSummary || 'No provider summary recorded yet.'}
             </p>
             <div className="mt-4 hidden flex-wrap gap-2.5 sm:flex">
               {(selected.tags || []).map(tag => (
@@ -583,7 +586,7 @@ export function MediaLibrary({
             </div>
           </div>
           <p className="col-span-2 text-sm italic leading-6 text-foreground/75 sm:hidden">
-            {selected.description || 'No description recorded yet.'}
+            {catalogSummary || 'No provider summary recorded yet.'}
           </p>
           <div className="col-span-2 flex flex-wrap gap-2 sm:hidden">
             {(selected.tags || []).map(tag => (
@@ -619,6 +622,18 @@ export function MediaLibrary({
                   <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
                 </div>
                 <ContextualAiDocument content={capture.after.aiSummary} />
+              </Card>
+            )}
+            {(selected.description || selected.sourceNotes) && (
+              <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
+                {selected.description && <div>
+                  <div className="readex-kicker mb-2 opacity-50 font-bold">SOURCE DESCRIPTION</div>
+                  <p className="text-sm leading-7 text-foreground/85">{selected.description}</p>
+                </div>}
+                {selected.sourceNotes && <div className={cn(selected.description && 'mt-5 border-t border-border/40 pt-5')}>
+                  <div className="readex-kicker mb-2 opacity-50 font-bold">YOUR NOTES</div>
+                  <p className="text-sm italic leading-7 text-foreground/85">{selected.sourceNotes}</p>
+                </div>}
               </Card>
             )}
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
@@ -1320,6 +1335,8 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
   const [locatorQuery, setLocatorQuery] = useState('');
   const [locatorResults, setLocatorResults] = useState<NormalizedSourceResult[]>([]);
   const [isLocating, setIsLocating] = useState(false);
+  const [locatorError, setLocatorError] = useState('');
+  const [completedLocatorQuery, setCompletedLocatorQuery] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importUrl, setImportUrl] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -1331,22 +1348,45 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
   const showSearch = true;
   const showImport = isDigital || isPaper || ['book', 'audiobook', 'movie'].includes(draft.type || 'book');
 
-  const handleLocateSource = useCallback(async (query: string) => {
-    if (query.trim().length < 3) return;
-    setIsLocating(true);
-    try {
-      const resp = await authenticatedFetch(`/api/source-search?query=${encodeURIComponent(query)}&type=${draft.type}`);
-      const data = await resp.json();
-      if (data.results) {
-        setLocatorResults(data.results);
-        setShowDropdown(true);
-      }
-    } catch (error) {
-      console.error("Locator failed", error);
-    } finally {
+  useEffect(() => {
+    const query = locatorQuery.trim();
+    if (query.length < 3) {
+      setLocatorResults([]);
+      setCompletedLocatorQuery('');
+      setLocatorError('');
+      setShowDropdown(false);
       setIsLocating(false);
+      return;
     }
-  }, [draft.type]);
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setIsLocating(true);
+      setLocatorError('');
+      try {
+        const response = await authenticatedFetch(`/api/source-search?query=${encodeURIComponent(query)}&type=${draft.type || 'book'}`, { signal: controller.signal });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Source search is unavailable.');
+        if (controller.signal.aborted) return;
+        setLocatorResults(Array.isArray(data.results) ? data.results : []);
+        setCompletedLocatorQuery(query);
+        setShowDropdown(true);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setLocatorResults([]);
+        setCompletedLocatorQuery(query);
+        setLocatorError(noesisUserError(error, 'Source search is unavailable. You can still enter the source manually or import its URL.'));
+        setShowDropdown(true);
+      } finally {
+        if (!controller.signal.aborted) setIsLocating(false);
+      }
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [draft.type, locatorQuery]);
 
   const handleImportUrl = useCallback(async () => {
     if (!importUrl.trim()) return;
@@ -1426,16 +1466,13 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                         <Input 
                           placeholder={`Search ${MEDIA_LABELS[draft.type || 'book']} locator...`} 
                           value={locatorQuery}
-                          onChange={(e) => {
-                            setLocatorQuery(e.target.value);
-                            handleLocateSource(e.target.value);
-                          }}
+                          onChange={(e) => setLocatorQuery(e.target.value)}
                           className="h-11 rounded-md bg-card pl-9 text-sm italic sm:rounded-full"
                         />
                         {isLocating && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 size-4 animate-spin text-accent" />}
                       </div>
-                      {showDropdown && locatorResults.length > 0 && (
-                        <div className="mt-4 space-y-2 border-t border-border/20 pt-4 animate-fade-in-up">
+                      {showDropdown && (
+                        <div className="mt-4 space-y-2 border-t border-border/20 pt-4 animate-fade-in-up" aria-live="polite">
                           {locatorResults.map((item, idx) => (
                             <button
                               key={idx}
@@ -1452,10 +1489,16 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                               <div className="flex-1 min-w-0">
                                 <div className="text-[13px] font-headline font-bold italic truncate group-hover:text-accent">{item.title}</div>
                                 <div className="text-[10px] text-muted-foreground truncate uppercase font-code tracking-tighter">{item.creators.join(', ')} {item.year && `(${item.year})`}</div>
+                                <div className="mt-1 line-clamp-2 text-xs leading-4 text-muted-foreground">{item.catalogSummary || buildCatalogSummary(item.description) || 'No provider description available.'}</div>
+                                <div className="mt-1 font-code text-[8px] uppercase tracking-wider text-muted-foreground/70">{item.provider.replace(/_/g, ' ')} · {MEDIA_LABELS[item.type]}</div>
                               </div>
                               <Check className="size-3.5 opacity-0 group-hover:opacity-100 text-accent" />
                             </button>
                           ))}
+                          {!locatorResults.length && !locatorError && completedLocatorQuery && (
+                            <p className="px-2 py-4 text-sm leading-6 text-muted-foreground">No provider match for “{completedLocatorQuery}.” Try the title with a creator name, paste a URL, or enter the source manually.</p>
+                          )}
+                          {locatorError && <p className="px-2 py-4 text-sm leading-6 text-destructive">{locatorError}</p>}
                         </div>
                       )}
                     </section>
@@ -1596,12 +1639,23 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">INTERNAL NOTES</Label>
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">SOURCE DESCRIPTION</Label>
                   <Textarea 
-                    placeholder="Brief rationale for adding this source..."
+                    placeholder="A factual description of the source. Provider metadata appears here when available."
                     value={draft.description || ''}
-                    onChange={(e) => setDraft(prev => ({ ...prev, description: e.target.value }))}
+                    onChange={(e) => setDraft(prev => ({ ...prev, description: e.target.value, catalogSummary: buildCatalogSummary(e.target.value) }))}
                     className="min-h-[120px] resize-none p-4 italic text-base"
+                  />
+                  {draft.catalogSummary && <p className="text-xs leading-5 text-muted-foreground"><span className="font-medium text-foreground">Automatic catalog summary:</span> {draft.catalogSummary}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">YOUR NOTES</Label>
+                  <Textarea
+                    placeholder="Why you added this source, what you expect from it, or anything private you want to remember."
+                    value={draft.sourceNotes || ''}
+                    onChange={(e) => setDraft(prev => ({ ...prev, sourceNotes: e.target.value }))}
+                    className="min-h-[100px] resize-y p-4 italic text-base"
                   />
                 </div>
 

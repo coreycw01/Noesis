@@ -191,7 +191,7 @@ export const CONTEXTUAL_AI_LABELS: Record<ContextualAiAction, string> = {
   synthesize_practice_outcome: 'Synthesize Outcome',
   synthesize_evolution_period: 'Synthesize Period',
   synthesize_profile_philosophy: 'Shape My Philosophy',
-  review_selected_context: 'Review Selected Context',
+  review_selected_context: 'Review Context',
 };
 
 export const CONTEXTUAL_AI_SUGGESTED_PROMPTS: Record<ContextualAiAction, string[]> = {

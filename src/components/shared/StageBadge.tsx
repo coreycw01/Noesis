@@ -6,7 +6,7 @@ const STAGE_LABELS: Record<NoesisStage, string> = {
   encounter: 'Encounter',
   question: 'Question',
   claim: 'Claim',
-  test: 'Test',
+  test: 'Praxis',
   revise: 'Revise',
 };
 

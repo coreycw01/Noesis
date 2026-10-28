@@ -433,7 +433,7 @@ export function NoesisShell({
       activityClass: 'orientation' as const,
       thinkingEventHint: 'Opening a source is orientation. Completing reflection, distilling a claim, or creating annotations from it should record intellectual development.',
       currentState: item.status,
-      summary: item.description || item.capture?.after?.coreArgument || item.capture?.before?.openQuestion || 'A source feeding the thinking system.',
+      summary: item.catalogSummary || item.description || item.capture?.after?.coreArgument || item.capture?.before?.openQuestion || 'A source feeding the thinking system.',
       matchedBecause: 'Sources are encounters that can become annotations, concepts, inquiries, and positions.',
       connectedConcepts: item.tags || [],
       relatedObjects: [

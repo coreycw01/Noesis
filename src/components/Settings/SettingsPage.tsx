@@ -797,7 +797,6 @@ export function SettingsPage({
               <div className="grid gap-3">
                 <SwitchRow label="Enable contextual assistance" checked={drafts.ai.aiAssistanceEnabled} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, aiAssistanceEnabled: checked } }))} />
                 <SwitchRow label="Show context before sending" checked={drafts.ai.showContextBeforeSending} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, showContextBeforeSending: checked } }))} />
-                <SwitchRow label="Retain provenance on accepted text" checked={drafts.ai.retainAcceptedAiProvenance} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, retainAcceptedAiProvenance: checked } }))} />
                 <Field label="Reasoning depth">
                   <Select value={drafts.ai.defaultReasoningDepth} onValueChange={(value) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, defaultReasoningDepth: value as AiSettings['defaultReasoningDepth'] } }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -810,7 +809,7 @@ export function SettingsPage({
                 </Field>
               </div>
               <div className="mt-4 rounded-xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
-                Each action is started by you on a specific item. Context is limited to that item and directly linked records; results remain drafts until you review and accept them. Keys, billing details, and raw provider errors are never shown here.
+                Each action is started by you on a specific item. Context is limited to that item and directly linked records; results remain suggestions until you review and accept them. Accepted material is recorded as AI-assisted. Keys, billing details, and raw provider errors are never shown here.
               </div>
               <div className="mt-3 rounded-xl border border-border bg-background/60 p-4">
                 <div className="text-sm font-medium text-foreground">Where assistance appears</div>

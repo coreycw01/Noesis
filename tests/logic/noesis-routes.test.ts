@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NOESIS_ICONS, NOESIS_VIEW_ICON_KEYS } from '../../src/lib/noesis-icons';
-import { pageNeedsData } from '../../src/lib/noesis-page-definitions';
+import { NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
 import { parseNoesisRoute, viewToPath } from '../../src/lib/noesis-routes';
 
 test('Labs is the workspace route for practices', () => {
-  assert.deepEqual(parseNoesisRoute('/labs'), { view: 'practices' });
-  assert.deepEqual(parseNoesisRoute('/demo/labs'), { view: 'practices' });
+  assert.deepEqual(parseNoesisRoute('/labs'), { view: 'practices', focusedPracticeId: null });
+  assert.deepEqual(parseNoesisRoute('/demo/labs'), { view: 'practices', focusedPracticeId: null });
   assert.equal(viewToPath('practices'), '/labs');
   assert.equal(viewToPath('practices', { reviewMode: true }), '/demo/labs');
+});
+
+test('Praxis is the approved user-facing stage for lived action', () => {
+  assert.equal(NOESIS_PAGE_BY_VIEW.practices.section, 'Praxis');
+  assert.equal(NOESIS_PAGE_BY_VIEW.goals.section, 'Praxis');
+  assert.equal(NOESIS_PAGE_DEFINITIONS.some((page) => (page.section as string) === 'Test'), false);
 });
 
 test('Context Desk keeps its own lightweight route identity', () => {

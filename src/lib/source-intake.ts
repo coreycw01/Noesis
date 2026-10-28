@@ -8,6 +8,7 @@ export interface NormalizedSourceResult {
   creators: string[];
   year?: string;
   description?: string;
+  catalogSummary?: string;
   thumbnailUrl?: string;
   sourceUrl?: string;
   publisher?: string;
@@ -29,7 +30,27 @@ export interface NormalizedSourceResult {
   };
 }
 
+export function buildCatalogSummary(value?: string, maxLength = 360) {
+  const text = (value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+
+  const sentences = text.match(/[^.!?]+[.!?]+(?:["'”’)]*)|[^.!?]+$/g) || [text];
+  let summary = '';
+  for (const sentence of sentences.slice(0, 3)) {
+    const candidate = `${summary} ${sentence.trim()}`.trim();
+    if (candidate.length > maxLength) break;
+    summary = candidate;
+  }
+  if (summary.length >= Math.min(120, maxLength) && summary.length < text.length) return summary;
+
+  const clipped = text.slice(0, Math.max(1, maxLength - 1));
+  const boundary = clipped.lastIndexOf(' ');
+  return `${(boundary > maxLength * 0.6 ? clipped.slice(0, boundary) : clipped).trim()}…`;
+}
+
 export function sourceResultToMediaPatch(result: NormalizedSourceResult) {
+  const description = result.description || '';
   return {
     title: result.title,
     creator: result.creators.join(', '),
@@ -37,7 +58,8 @@ export function sourceResultToMediaPatch(result: NormalizedSourceResult) {
     type: result.type,
     year: result.year || '',
     genre: (result.tags || []).slice(0, 2).join(', '),
-    description: result.description || '',
+    description,
+    catalogSummary: result.catalogSummary || buildCatalogSummary(description),
     url: result.sourceUrl || result.externalIds?.url || '',
     thumbnailUrl: result.thumbnailUrl || '',
     publisher: result.publisher || '',
