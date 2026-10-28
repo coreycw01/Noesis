@@ -742,10 +742,13 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       )}
 
       <nav className="min-h-0 flex-1 overflow-y-auto py-4 scrollbar-hide">
-        {['Today', 'Encounter', 'Question', 'Claim', 'Test', 'Revise', 'More'].map((section) => (
+        {['Today', 'Encounter', 'Question', 'Claim', 'Praxis', 'Revise', 'More'].map((section) => (
           <div key={section} className="mb-5">
             {(!collapsed || isMobile) && (
-              <h4 className="px-5 mb-1 font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/22 font-bold">{section}</h4>
+              <div className="px-5 mb-1">
+                <h4 className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/22 font-bold">{section}</h4>
+                {section === 'Praxis' && <p className="mt-1 text-[10px] leading-4 text-sidebar-foreground/35">Put thinking into practice.</p>}
+              </div>
             )}
             <ul className="space-y-1">
               {navItems.filter((item) => NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW].section === section).map((item) => (
@@ -927,7 +930,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
               </div>
             </nav>
           )}
-          {isMobile && (
+          {isMobile && activeView === 'home' && (
             <Button
               type="button"
               onClick={() => { setCommandPurpose('create'); setCommandQuery(''); setCommandOpen(true); }}

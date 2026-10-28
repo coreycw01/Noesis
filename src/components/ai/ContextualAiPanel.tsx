@@ -105,7 +105,6 @@ export function ContextualAiPanel({
   enabled = true,
   showContextBeforeSending = true,
   reasoningDepth = 'standard',
-  retainAcceptedProvenance = true,
   onAccept,
   buttonLabel = 'Assistance',
   promptLabel,
@@ -196,16 +195,14 @@ export function ContextualAiPanel({
     setAccepting(true);
     try {
       await onAccept(result, acceptedContent);
-      if (retainAcceptedProvenance) {
-        window.dispatchEvent(new CustomEvent('noesis:ai-assisted-accepted', {
-          detail: {
-            action: result.action,
-            targetType: result.targetType,
-            targetId: result.targetId,
-            content: acceptedContent,
-          },
-        }));
-      }
+      window.dispatchEvent(new CustomEvent('noesis:ai-assisted-accepted', {
+        detail: {
+          action: result.action,
+          targetType: result.targetType,
+          targetId: result.targetId,
+          content: acceptedContent,
+        },
+      }));
       toast({ title: 'Reviewed result applied', description: 'The reviewed text was applied through this item\'s normal editing flow.' });
       setOpen(false);
       setResult(null);

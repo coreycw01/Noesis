@@ -1,5 +1,7 @@
 # Noesis Product Blueprint
 
+For the broader product direction, decision status, confirmed repair backlog, and roadmap classification, see [NOESIS_PRODUCT_DIRECTION.md](./NOESIS_PRODUCT_DIRECTION.md).
+
 ## Mission
 
 Noesis turns thought into understanding.
@@ -13,7 +15,7 @@ It helps a person move from something encountered to something understood, teste
 3. **Concepts** clarify the vocabulary recurring across those materials.
 4. **Inquiries** organize uncertainty into evidence, assumptions, candidate answers, and unknowns.
 5. **Positions** record claims the user is prepared to examine, challenge, and revise.
-6. **Practices** test positions and inquiries through lived action and observation.
+6. **Praxis** brings positions and inquiries into lived action through Labs, Practices, and Commitments.
 7. **Works** let the user express, synthesize, and create without forcing every artifact into an argument template.
 8. **Evolution** records consequential changes as an intellectual history.
 9. **Atlas** reveals the structure of the system without inventing beliefs or replacing the underlying records.

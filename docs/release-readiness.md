@@ -1,7 +1,7 @@
 # Noesis completion work
 
 The product goal is a dependable, user-owned philosophy workspace that actively
-leads users through Encounter, Question, Claim, Test, and Revise. Guidance is the
+leads users through Encounter, Question, Claim, Praxis, and Revise. Guidance is the
 default, but checkpoints may be skipped with a recorded reason. Accepted AI
 output remains reviewed and user-owned. Goals become Commitments connected to
 positions and practices; points and collectible achievements are removed.
@@ -80,7 +80,7 @@ Deploy only after staging verification and explicit production release approval.
 4. UI/mobile: login inputs have associated labels; inquiry answer has an accessible label; practice setup warnings use theme tokens and the action says Finish setup. Mobile Home checked at 390x844 without horizontal document overflow. This does not establish all-page accessibility compliance.
 5. Works: shared save queue, retained media on recoverable deletion, shared demo persistence, and local demo recording storage. Hardware recording/upload and every ribbon control remain unverified.
 6. AI/security: item-first context capped to 32,000 characters; preview and submitted context match. Selected-pair and period validation are enforced. Request bodies are bounded while streaming, not only after allocation. Live model quality and authenticated provider success remain unverified.
-7. Guidance: Today now selects one next move and the longest-waiting unanswered inquiry. The navigation follows Encounter → Question → Claim → Test → Revise, and mutations preserve a canonical stage alongside legacy status. Commitments replace the visible points/achievement experience and include an evidence-backed Say/Do Mirror.
+7. Guidance: Today now selects one next move and the longest-waiting unanswered inquiry. The navigation follows Encounter → Question → Claim → Praxis → Revise, while the internal stage value remains `test` for data compatibility. Mutations preserve a canonical stage alongside legacy status. Commitments replace the visible points/achievement experience and include an evidence-backed Say/Do Mirror.
 8. Android: native Google credential bridge and Capacitor sync implemented. Missing project Firebase Android configuration and physical-device verification block release sign-off.
 9. Regression: 44 logic tests and 8 security tests pass; typecheck, production build and production dependency audit pass. Production audit reports no unapproved high/critical findings, not a claim that every development dependency is vulnerability-free.
 

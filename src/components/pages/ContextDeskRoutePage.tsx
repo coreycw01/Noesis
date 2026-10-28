@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { EntityPicker } from '@/components/search/EntityPicker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -253,6 +255,7 @@ export function ContextDeskRoutePage({
   const [excludedKeys, setExcludedKeys] = useState<string[]>([]);
   const [excludedTypes, setExcludedTypes] = useState<ContextRecordType[]>([]);
   const [excludedSourceIds, setExcludedSourceIds] = useState<string[]>([]);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -315,6 +318,21 @@ export function ContextDeskRoutePage({
 
   const activeFilterCount = [typeFilter !== 'all', sourceFilter !== 'all', conceptFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
   const exclusionCount = excludedKeys.length + excludedTypes.length + excludedSourceIds.length;
+  const selectedCounts = useMemo(() => (Object.keys(contextTypeLabels) as ContextRecordType[]).map((type) => ({
+    type,
+    count: selected.filter((record) => record.type === type).length,
+  })).filter((entry) => entry.count > 0), [selected]);
+  const excludedRecordCount = useMemo(() => records.filter((record) => (
+    excludedKeys.includes(record.key)
+    || excludedTypes.includes(record.type)
+    || record.sourceIds.some((id) => excludedSourceIds.includes(id))
+  )).length, [excludedKeys, excludedSourceIds, excludedTypes, records]);
+  const sourceExclusionItems = useMemo(() => media.map((source) => ({
+    id: source.id,
+    label: source.title,
+    secondary: [source.creator, source.type].filter(Boolean).join(' · '),
+    searchText: [source.creator || '', source.type, ...(source.tags || [])],
+  })), [media]);
 
   const toggleRecord = (record: ContextRecord) => {
     setSelectedKeys((current) => {
@@ -465,10 +483,6 @@ export function ContextDeskRoutePage({
                   <DropdownMenuCheckboxItem key={type} checked={excludedTypes.includes(type)} onCheckedChange={() => toggleExcludedType(type)}>{label}</DropdownMenuCheckboxItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel>Exclude everything from a source</DropdownMenuLabel>
-                {media.map((source) => (
-                  <DropdownMenuCheckboxItem key={source.id} checked={excludedSourceIds.includes(source.id)} onCheckedChange={() => toggleExcludedSource(source.id)}>{source.title}</DropdownMenuCheckboxItem>
-                ))}
                 {excludedKeys.length > 0 && <>
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel>Individually excluded</DropdownMenuLabel>
@@ -491,6 +505,19 @@ export function ContextDeskRoutePage({
                 </>}
               </DropdownMenuContent>
             </DropdownMenu>
+          </div>
+          <div className="mt-3 border-y border-border/60 py-3">
+            <EntityPicker
+              items={sourceExclusionItems}
+              selectedIds={excludedSourceIds}
+              onToggle={toggleExcludedSource}
+              label="Excluded sources"
+              triggerLabel="Exclude sources"
+              searchPlaceholder="Search title, author, type, or tag"
+              emptySelectedLabel="No sources excluded."
+              compact
+            />
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">Excluding a source also excludes its annotations and any selected record directly tied to it.</p>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-y border-border/60 py-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -578,7 +605,14 @@ export function ContextDeskRoutePage({
           )}
 
           <Separator className="my-5" />
-          <div className="space-y-3">
+          <div className="sticky bottom-3 z-10 space-y-3 border border-border bg-background/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/88">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">{selected.length} selected · {exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Only the reviewed selection is sent.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => setReviewOpen(true)}>Review Context</Button>
+            </div>
             <div>
               <h3 className="text-sm font-semibold">Review destination</h3>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">Approved findings become a new editable Work. The selected records remain unchanged.</p>
@@ -589,7 +623,7 @@ export function ContextDeskRoutePage({
               showContextBeforeSending={aiSettings.showContextBeforeSending}
               reasoningDepth={aiSettings.defaultReasoningDepth}
               retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
-              buttonLabel={selected.length ? 'Review Selected Context' : 'Select context first'}
+              buttonLabel={selected.length ? 'Analyze selected context' : 'Select context first'}
               promptLabel="What should Noesis examine across these records?"
               promptPlaceholder="For example: Where do these records contradict each other, and what should I investigate next?"
               buildEnvelope={buildEnvelope}
@@ -615,6 +649,40 @@ export function ContextDeskRoutePage({
         </section>
       </div>
       </div>
+
+      <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+        <DialogContent className="max-h-[min(84vh,46rem)] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Review Context</DialogTitle>
+            <DialogDescription>Confirm the exact records Noesis may consider before starting the analysis.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <section aria-labelledby="included-context-summary">
+              <h3 id="included-context-summary" className="text-sm font-semibold">Included · {selected.length}</h3>
+              <div className="mt-2 divide-y divide-border border-y border-border">
+                {selectedCounts.map(({ type, count }) => (
+                  <div key={type} className="flex items-center justify-between gap-3 py-2 text-sm">
+                    <span>{contextTypeLabels[type]}</span><span className="font-code text-xs text-muted-foreground">{count}</span>
+                  </div>
+                ))}
+                {!selected.length && <p className="py-4 text-sm text-muted-foreground">No records selected yet.</p>}
+              </div>
+            </section>
+            <section aria-labelledby="excluded-context-summary">
+              <h3 id="excluded-context-summary" className="text-sm font-semibold">Excluded · {excludedRecordCount} affected records</h3>
+              <div className="mt-2 space-y-2 text-sm text-muted-foreground">
+                <p>{excludedTypes.length} excluded item type{excludedTypes.length === 1 ? '' : 's'}</p>
+                <p>{excludedSourceIds.length} excluded source{excludedSourceIds.length === 1 ? '' : 's'}</p>
+                <p>{excludedKeys.length} individually excluded record{excludedKeys.length === 1 ? '' : 's'}</p>
+              </div>
+            </section>
+          </div>
+          <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setReviewOpen(false)}>Continue selecting</Button>
+            <Button type="button" onClick={() => setReviewOpen(false)} disabled={!selected.length}>Context confirmed</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

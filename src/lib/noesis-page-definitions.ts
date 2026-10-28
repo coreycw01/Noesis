@@ -12,7 +12,7 @@ export interface NoesisPageDefinition {
   route: string;
   title: string;
   purpose: string;
-  section: 'Today' | 'Encounter' | 'Question' | 'Claim' | 'Test' | 'Revise' | 'More';
+  section: 'Today' | 'Encounter' | 'Question' | 'Claim' | 'Praxis' | 'Revise' | 'More';
   signatureExperience: string;
   loadingLayout: 'desk' | 'map' | 'list' | 'detail' | 'studio' | 'timeline';
 }
@@ -139,7 +139,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/labs',
     title: 'Labs',
     purpose: 'Design, run, and review practices that test ideas through lived experience.',
-    section: 'Test',
+    section: 'Praxis',
     signatureExperience: 'An intellectual laboratory for practices, observations, logs, and outcomes.',
     loadingLayout: 'detail',
   },
@@ -166,7 +166,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/goals',
     title: 'Commitments',
     purpose: 'Connect what the user says matters to the practices through which it is lived.',
-    section: 'Test',
+    section: 'Praxis',
     signatureExperience: 'A Say/Do bridge between held positions and repeated practice.',
     loadingLayout: 'list',
   },

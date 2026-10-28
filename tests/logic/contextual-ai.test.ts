@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CONTEXTUAL_AI_POLICIES, CONTEXTUAL_AI_SUGGESTED_PROMPTS, isContextualAiRequestCompatible, parseAiReviewItems, parseAssumptionSuggestions, profileStatementFromSynthesis, serializeAiReviewItems } from '../../src/lib/contextual-ai';
+import { CONTEXTUAL_AI_LABELS, CONTEXTUAL_AI_POLICIES, CONTEXTUAL_AI_SUGGESTED_PROMPTS, isContextualAiRequestCompatible, parseAiReviewItems, parseAssumptionSuggestions, profileStatementFromSynthesis, serializeAiReviewItems } from '../../src/lib/contextual-ai';
 import {
   NOESIS_DETAIL_DATA_REQUIREMENTS,
   NOESIS_PAGE_DATA_REQUIREMENTS,
@@ -14,6 +14,10 @@ test('allows each contextual action only on its intended object and scope', () =
   assert.equal(isContextualAiRequestCompatible({ action: 'synthesize_evolution_period', targetType: 'evolution', scope: 'selected_period' }), true);
   assert.equal(isContextualAiRequestCompatible({ action: 'synthesize_profile_philosophy', targetType: 'profile', scope: 'linked_items' }), true);
   assert.equal(isContextualAiRequestCompatible({ action: 'review_selected_context', targetType: 'context_desk', scope: 'linked_items' }), true);
+});
+
+test('uses concise review language for selected context', () => {
+  assert.equal(CONTEXTUAL_AI_LABELS.review_selected_context, 'Review Context');
 });
 
 test('rejects cross-page or overly broad contextual action combinations', () => {
