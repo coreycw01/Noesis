@@ -43,6 +43,7 @@ import type {
 } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 import { weeklyReviewEvents } from '@/lib/weekly-review';
+import { ThoughtGamesPanel } from '@/components/Home/ThoughtGamesPanel';
 
 type HomeTarget = {
   view: NoesisView;
@@ -1002,6 +1003,15 @@ export function ThinkingDesk({
                 ))}
               </div>
             </section>
+
+            <ThoughtGamesPanel
+              concepts={concepts}
+              inquiries={inquiries}
+              positions={positions}
+              media={media}
+              links={links}
+              onNavigate={onNavigate}
+            />
 
             <section className="rounded-lg border border-border bg-card p-5">
               <div className="flex items-start gap-4">
