@@ -404,11 +404,21 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             {practiceStats.total} lab records · {practiceStats.active} active · {practiceStats.needsSetup} need setup · {practiceStats.readyForReview} ready for review
           </span>
         }
-        className="mb-5"
+        tabs={(
+          <WorkspaceTabs
+            value={labTool}
+            onChange={(value) => { setLabTool(value); setTypeFilter('all'); }}
+            label="Labs tools"
+            items={[
+              { id: 'practices', label: 'Practices', icon: PracticeIcon },
+              { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
+            ]}
+          />
+        )}
         actions={
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" className="h-9 rounded-full bg-accent px-6 font-bold shadow-md shadow-accent/20 hover:bg-accent/90"><Plus className="mr-1.5 size-4" /> ADD IN LABS</Button>
+              <Button size="sm" className="h-9 rounded-full bg-accent px-6 font-bold shadow-md shadow-accent/20 hover:bg-accent/90"><Plus className="mr-1.5 size-4" /> Add in Labs</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onSelect={() => { setLabTool('practices'); openEditor(undefined, 'practice'); }}><PracticeIcon className="mr-2 size-4" /> New practice</DropdownMenuItem>
@@ -416,17 +426,6 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             </DropdownMenuContent>
           </DropdownMenu>
         }
-      />
-
-      <WorkspaceTabs
-        value={labTool}
-        onChange={(value) => { setLabTool(value); setTypeFilter('all'); }}
-        label="Labs tools"
-        className="mb-4"
-        items={[
-          { id: 'practices', label: 'Practices', icon: PracticeIcon },
-          { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
-        ]}
       />
 
       <section className="relative mb-5 overflow-hidden border-y border-border/70 bg-card/45" aria-label={`${labTool === 'experiments' ? 'Experiment' : 'Practice'} cycle`}>
@@ -995,7 +994,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       )}
 
       {reviewOpen && (
-        <div className="mt-5 rounded-xl border border-accent/20 bg-accent/5 p-4">
+        <div className="mt-5 noesis-recommendation">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Conclusion Review</div>
@@ -1228,7 +1227,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
           </div>
         </div>
         <div className="flex shrink-0 justify-end gap-3 border-t bg-muted/10 p-4 sm:p-8 sm:pt-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 px-8 rounded-full font-bold text-muted-foreground hover:bg-transparent">CANCEL</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 px-8 rounded-full font-bold text-muted-foreground hover:bg-transparent">Cancel</Button>
           <Button onClick={onSave} className="h-11 px-10 bg-accent shadow-xl shadow-accent/20 rounded-full font-bold uppercase tracking-widest text-[11px]">{draft.id ? 'Save Practice' : 'Create Practice'}</Button>
         </div>
       </DialogContent>

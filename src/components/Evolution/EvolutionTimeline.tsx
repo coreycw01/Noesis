@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { Media, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
@@ -641,23 +642,15 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
       <PageHeader
         title="Evolution"
         description="Trace meaningful changes in positions, concepts, inquiries, practices, unknowns, and thinking patterns over time."
+        tabs={(
+          <WorkspaceTabs
+            value={view}
+            onChange={setView}
+            label="Evolution views"
+            items={VIEW_OPTIONS.map((option) => ({ id: option.value, label: option.label }))}
+          />
+        )}
       />
-
-      <div className="mb-5 flex flex-wrap gap-2">
-        {VIEW_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => setView(option.value)}
-            className={cn(
-              'border-b-2 px-3 py-2 text-left font-code text-[10px] font-bold uppercase tracking-[0.14em] transition-colors',
-              view === option.value ? 'border-accent text-foreground' : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
 
       {view === 'turning_points' && (
         <section className="mb-8 border-y border-border/60 py-6">

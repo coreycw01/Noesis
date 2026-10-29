@@ -32,6 +32,8 @@ interface SourceIndexProps {
   practices: Practice[];
   questions: Question[];
   onOpenSource: (sourceId: string) => void;
+  /** Sub-view tabs rendered in the shared page header. */
+  headerTabs?: React.ReactNode;
 }
 
 function SourceIndexCover({ source }: { source: Media }) {
@@ -195,7 +197,7 @@ function sourceCatalogState(m: Media) {
   };
 }
 
-export function SourceIndex({ media, vault, drafts, practices, questions, onOpenSource }: SourceIndexProps) {
+export function SourceIndex({ media, vault, drafts, practices, questions, onOpenSource, headerTabs }: SourceIndexProps) {
   const [collectionView, setCollectionView] = useEntityViewPreference('source-index');
   const [specializedView, setSpecializedView] = useState<Exclude<SourceIndexView, 'table' | 'covers'> | null>(null);
   const view: SourceIndexView = specializedView || (collectionView === 'table' ? 'table' : 'covers');
@@ -525,19 +527,19 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       <PageHeader
         title="Source Index"
         description="Browse, cite, and manage every source feeding your thinking."
+        tabs={headerTabs}
         meta={
           <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
             {media.length} sources
           </span>
         }
-        className="mb-5"
         actions={
           <>
           <Button variant="outline" onClick={() => setExportPreviewOpen(true)} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
-            <Copy className="size-4 mr-2" /> COPY BIBLIOGRAPHY
+            <Copy className="size-4 mr-2" /> Copy Bibliography
           </Button>
           <Button variant="outline" onClick={() => setExportPreviewOpen(true)} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
-            <Download className="size-4 mr-2" /> EXPORT BIBTEX
+            <Download className="size-4 mr-2" /> Export BibTeX
           </Button>
           </>
         }

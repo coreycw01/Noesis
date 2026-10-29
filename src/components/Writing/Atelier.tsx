@@ -1288,7 +1288,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
             <div className="flex flex-col gap-2">
               {showExternalDocControls && active.externalDoc && (
-                <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="noesis-recommendation flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="font-code text-[9px] uppercase tracking-widest text-accent font-bold">External Writing Source</div>
                     <p className="font-body text-sm italic text-foreground/80">
@@ -1592,7 +1592,6 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             {workStats.total} works · {workStats.writing} writings · {workStats.notes} note{workStats.notes === 1 ? '' : 's'} · {workStats.awaitingRevision} need revision
           </span>
         }
-        className="mb-5"
         actions={
           <Button onClick={() => setIsWorkTypeOpen(true)} size="sm" className="h-9 px-6 font-code text-[10px] tracking-widest rounded-full uppercase font-bold shadow-sm shadow-accent/20">
             <Plus className="mr-2 size-4" /> Add Work
@@ -2048,7 +2047,7 @@ function QuickNoteStudio({
 
       <Card className="rounded-2xl border-border bg-card p-6 shadow-sm">
         {isTalkToText && (
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 noesis-recommendation">
             <div>
               <p className="font-code text-[10px] font-bold uppercase tracking-widest text-accent">Dictation</p>
               <p className="mt-1 text-sm text-muted-foreground">

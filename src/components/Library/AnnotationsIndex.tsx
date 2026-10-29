@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { ToolOption, ToolOptions } from '@/components/shared/WorkbenchPanel';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
@@ -660,7 +661,7 @@ export function AnnotationsIndex({
       <PageHeader
         title="Annotations"
         description="Review and refine captured highlights, thoughts, questions, and connections across all sources."
-        actions={<Stat label="Total Excerpts" value={typeCounts.total} />}
+        meta={<span>{typeCounts.total} {typeCounts.total === 1 ? 'excerpt' : 'excerpts'}</span>}
       />
 
       <FilterToolbar
@@ -1093,7 +1094,7 @@ export function AnnotationsIndex({
                 ]}
               />
 
-              <section id="annotation-understand" className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'understand' && 'hidden')}>
+              <section id="annotation-understand" className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'understand' && 'hidden')}>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{annotationLabel(annotationType(editing))}</Badge>
@@ -1148,13 +1149,13 @@ export function AnnotationsIndex({
                 </details>
               </section>
 
-              <section className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'understand' && 'hidden')}>
+              <section className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'understand' && 'hidden')}>
                 <details open={Boolean(editing.consequenceNote || editing.context)}>
                   <summary className="cursor-pointer list-none">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Your note</div>
-                        <p className="mt-1 text-xs text-muted-foreground">{editing.consequenceNote || editing.context ? 'Personal context attached.' : 'Collapsed because no note has been added yet.'}</p>
+                        <div className="noesis-workbench-panel__eyebrow">Your note</div>
+                        <p className="noesis-workbench-panel__description">{editing.consequenceNote || editing.context ? 'Personal context attached.' : 'Collapsed because no note has been added yet.'}</p>
                       </div>
                       <Badge variant="outline" className="rounded-full text-[9px]">Edit</Badge>
                     </div>
@@ -1203,11 +1204,12 @@ export function AnnotationsIndex({
                 />
               )}
 
-              <section id="annotation-apply" className={cn('scroll-mt-4 rounded-xl border border-accent/20 bg-accent/5 p-4', annotationWorkflowStep !== 'apply' && 'hidden')}>
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">How does this affect your thinking?</div>
-                    <p className="mt-1 text-xs text-muted-foreground">
+              <section id="annotation-apply" className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'apply' && 'hidden')}>
+                <div className="noesis-workbench-panel__header mb-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="noesis-workbench-panel__eyebrow">Apply</div>
+                    <h3 className="noesis-workbench-panel__title">How does this affect your thinking?</h3>
+                    <p className="noesis-workbench-panel__description">
                       Choose the effect that best describes this note. Noesis will ask only for the destination needed to apply it.
                     </p>
                   </div>
@@ -1258,19 +1260,17 @@ export function AnnotationsIndex({
                     ].filter(Boolean).join(' and ')}. Open Connections below to see the exact item.
                   </p>
                 )}
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Annotation effect">
+                <ToolOptions label="Annotation effect">
                   {([
-                    ['supports_claim', 'Supports'],
-                    ['challenges_claim', 'Challenges'],
-                    ['raises_question', 'Raises a question'],
-                    ['clarifies', 'Clarifies'],
-                    ['reference', 'Reference'],
-                  ] as Array<[ConsequenceAction, string]>).map(([action, label]) => (
-                    <Button key={label} type="button" aria-pressed={detailEffect === action} variant={detailEffect === action ? 'default' : 'outline'} size="sm" onClick={() => setDetailEffect(action)} className="h-9 rounded-full px-3 text-xs">
-                      {label}
-                    </Button>
+                    ['supports_claim', 'Supports', 'Strengthens a position you hold.'],
+                    ['challenges_claim', 'Challenges', 'Weakens or questions a position.'],
+                    ['raises_question', 'Raises a question', 'Opens something to investigate.'],
+                    ['clarifies', 'Clarifies', 'Sharpens what a concept means.'],
+                    ['reference', 'Reference', 'Keep it on file without acting.'],
+                  ] as Array<[ConsequenceAction, string, string]>).map(([action, label, description]) => (
+                    <ToolOption key={label} label={label} description={description} active={detailEffect === action} onClick={() => setDetailEffect(action)} />
                   ))}
-                </div>
+                </ToolOptions>
                 {detailEffect === 'clarifies' && (
                   <div className="mt-3">
                     <Label className="mb-2 block text-xs text-muted-foreground">Which concept does this clarify?</Label>
@@ -1285,17 +1285,18 @@ export function AnnotationsIndex({
                 </div>
               </section>
 
-              <details id="annotation-connect" open className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'connect' && 'hidden')}>
+              <details id="annotation-connect" open className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'connect' && 'hidden')}>
                 <summary className="cursor-pointer list-none">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Connections</div>
-                    <p className="mt-1 text-xs text-muted-foreground">Concept tags and the objects this annotation currently touches.</p>
+                    <div className="noesis-workbench-panel__eyebrow">Connect</div>
+                    <h3 className="noesis-workbench-panel__title">Connections</h3>
+                    <p className="noesis-workbench-panel__description">Concept tags and the objects this annotation currently touches.</p>
                   </div>
                   <Badge variant="outline" className="rounded-full">{Math.max(0, connectionsForAnnotation(editing).reduce((total, group) => total + group.items.length, 0) - 1)} related items</Badge>
                 </div>
                 </summary>
-                <div className="mt-4">
+                <div className="noesis-workbench-panel__body">
                 <div className="space-y-2">
                   {connectionsForAnnotation(editing).map((group) => (
                     <div key={group.label} className="grid gap-2 rounded-xl border border-border/40 bg-background/70 p-3 sm:grid-cols-[120px_1fr]">
@@ -1320,11 +1321,12 @@ export function AnnotationsIndex({
                 </div>
               </details>
 
-              <details id="annotation-trace" open className={cn('scroll-mt-4 rounded-xl border border-border bg-card p-4', annotationWorkflowStep !== 'trace' && 'hidden')}>
-                <summary className="cursor-pointer list-none font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Provenance and use
+              <details id="annotation-trace" open className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'trace' && 'hidden')}>
+                <summary className="cursor-pointer list-none">
+                  <div className="noesis-workbench-panel__eyebrow">Trace</div>
+                  <h3 className="noesis-workbench-panel__title">Provenance and use</h3>
                 </summary>
-                <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                <div className="noesis-workbench-panel__body space-y-2 text-sm text-muted-foreground">
                   <p>Created from {editing.source.title}{editing.date ? ` on ${editing.date}` : ''}.</p>
                   {editing.createdInquiryId && <p>Used to create an inquiry.</p>}
                   {editing.createdPositionId && <p>Used to form a position.</p>}
@@ -1449,11 +1451,3 @@ export function AnnotationsIndex({
   );
 }
 
-function Stat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="text-right">
-      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/40 font-bold mb-1">{label}</div>
-      <div className="font-headline text-3xl font-bold italic text-primary leading-none">{value}</div>
-    </div>
-  );
-}

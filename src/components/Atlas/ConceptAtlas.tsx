@@ -55,6 +55,7 @@ import type {
 } from '@/lib/types';
 import { conceptKey, conceptRelated, taggedItemsForConcept, today, uid as makeId } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { deleteObject, getStorage, ref as storageRef } from 'firebase/storage';
 import { uploadPrivateAsset } from '@/lib/storage-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
@@ -2378,57 +2379,40 @@ export function ConceptAtlas({
       isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-full flex-1 overflow-hidden"
     )}>
       {!isFullScreen && (
-      <header className="z-20 mb-1 flex flex-col gap-3 px-4 pt-4 md:px-8 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="noesis-page-title text-[28px]">Atlas</h1>
-            <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{atlasSectionMeta[atlasSection].label}</Badge>
-          </div>
-          <p className="noesis-page-description mt-1 hidden max-w-3xl text-sm leading-5 sm:block">{atlasSectionMeta[atlasSection].description}</p>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:items-center md:justify-end md:overflow-visible md:pb-0">
-          {atlasSection === 'map' && (
+      <div className="px-4 pt-5 md:px-8 md:pt-7">
+        <PageHeader
+          title="Atlas"
+          description={atlasSectionMeta[atlasSection].description}
+          actions={atlasSection === 'map' ? (
             <>
               <div className="relative min-w-0 flex-1 sm:flex-none">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-full rounded-full pl-9 sm:w-56" />
               </div>
-              <Button onClick={() => setIsAddOpen(true)} size="sm" className="size-9 shrink-0 rounded-full bg-accent p-0 hover:bg-accent/90 sm:w-auto sm:px-3">
-                <Plus className="size-4 sm:mr-1.5" /> <span className="hidden sm:inline">New Concept</span>
+              <Button onClick={() => setIsAddOpen(true)} className="shrink-0">
+                <Plus className="size-4" /> New Concept
               </Button>
             </>
+          ) : undefined}
+          tabs={(
+            <WorkspaceTabs
+              value={atlasSection}
+              onChange={setAtlasSection}
+              label="Atlas views"
+              items={[
+                { id: 'map', label: 'Map' },
+                { id: 'territory', label: 'Regions', count: newRegionIds.length || undefined },
+                { id: 'connections', label: 'Connections' },
+                { id: 'review', label: 'Review' },
+              ]}
+            />
           )}
-        </div>
-      </header>
+        />
+      </div>
       )}
 
       {!isFullScreen && (
       <div className="z-10 space-y-2 px-4 pb-1 md:px-8">
-        <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
-          {([
-            ['map', 'Map'],
-            ['territory', 'Regions'],
-            ['connections', 'Connections'],
-            ['review', 'Review'],
-          ] as const).map(([section, label]) => (
-            <Button
-              key={section}
-              variant={atlasSection === section ? 'default' : 'outline'}
-              size="sm"
-              className="h-8 rounded-full"
-              onClick={() => {
-                setAtlasSection(section);
-              }}
-            >
-              {label}
-              {section === 'territory' && newRegionIds.length > 0 && (
-                <span className="ml-1 rounded-full bg-accent px-1.5 text-[10px] text-accent-foreground" aria-label={`${newRegionIds.length} new regions`}>
-                  {newRegionIds.length}
-                </span>
-              )}
-            </Button>
-          ))}
-        </div>
         {atlasSection === 'map' && (
         <>
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">

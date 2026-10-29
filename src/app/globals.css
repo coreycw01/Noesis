@@ -41,9 +41,19 @@
     --button-radius: 999px;
     --border-strength: 1px;
     --shadow-strength: 0.08;
-    --shadow-card: 0 1px 2px hsl(var(--foreground) / var(--shadow-strength)), 0 8px 24px hsl(var(--foreground) / var(--shadow-strength));
-    --shadow-elevated: 0 18px 48px hsl(var(--foreground) / var(--shadow-strength));
+    /* Paper-weight shadows: a hairline lift plus a short, soft falloff. Cards
+       should read as sheets resting on the desk, not as floating widgets. */
+    --shadow-card: 0 1px 0 hsl(var(--foreground) / calc(var(--shadow-strength) * .55)), 0 3px 12px -4px hsl(var(--foreground) / calc(var(--shadow-strength) * 1.1));
+    --shadow-elevated: 0 1px 0 hsl(var(--foreground) / calc(var(--shadow-strength) * .5)), 0 22px 48px -18px hsl(var(--foreground) / calc(var(--shadow-strength) * 2.2));
     --radius: var(--card-radius);
+    /* Shared rhythm for every route. */
+    --hairline: hsl(var(--border) / .72);
+    --label-size: .625rem;
+    --label-tracking: .1em;
+    --page-measure: 84rem;
+    --ease-noesis: cubic-bezier(.2, .7, .2, 1);
+    --motion-quick: 160ms;
+    --motion-calm: 320ms;
     --sidebar-background: 30 6% 10%;
     --sidebar-foreground: 0 0% 88%;
     --sidebar-primary: 346 70% 46%;
@@ -258,6 +268,8 @@
   }
 
   :root.dark[data-theme] {
+    --shadow-card: 0 0 0 1px hsl(var(--foreground) / .025), 0 6px 18px -8px hsl(0 0% 0% / .55);
+    --shadow-elevated: 0 0 0 1px hsl(var(--foreground) / .04), 0 28px 60px -20px hsl(0 0% 0% / .7);
     --foreground: 45 22% 92%;
     --card-foreground: 45 22% 92%;
     --popover-foreground: 45 22% 92%;
@@ -583,7 +595,10 @@
   }
 
   .readex-kicker {
-    @apply font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground;
+    @apply font-code uppercase text-muted-foreground;
+    font-size: var(--label-size);
+    font-weight: 600;
+    letter-spacing: var(--label-tracking);
   }
 
   .readex-title {
@@ -710,10 +725,29 @@
   }
 
   .noesis-app-main {
-    background: hsl(var(--background));
+    /* One continuous desk under every route: flat page colour with a
+       barely-there paper grain. No glows or gradients. */
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .03 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+      hsl(var(--background));
     min-width: 0;
     overscroll-behavior-y: contain;
   }
+
+  /* The sidebar is the spine of the same desk: it shares the page's grain
+     instead of reading as a separate dark slab. */
+  .noesis-sidebar {
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .035 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+      hsl(var(--sidebar-background));
+    box-shadow: inset -1px 0 0 hsl(var(--sidebar-foreground) / .05), 1px 0 0 hsl(var(--background));
+  }
+
+  .high-contrast .noesis-sidebar { background: hsl(var(--sidebar-background)); box-shadow: none; }
+
+  .dark .noesis-app-main { background: hsl(var(--background)); }
+
+  .high-contrast .noesis-app-main { background: hsl(var(--background)); }
 
   .noesis-mobile-header {
     height: calc(3.5rem + env(safe-area-inset-top));
@@ -753,13 +787,181 @@
     }
   }
 
-  .noesis-page-header { position: relative; }
+  /* One header on every route. Spacing, meta, actions, and sub-view tabs are
+     owned here so individual pages cannot drift. */
+  .noesis-page-header {
+    position: relative;
+    isolation: isolate;
+    margin-bottom: 1.75rem !important;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  @media (min-width: 768px) {
+    .noesis-page-header { margin-bottom: 2.25rem !important; }
+  }
+
+  .noesis-page-header--with-tabs { padding-bottom: 0; }
+
+  .noesis-page-header__tabs {
+    margin-top: 1.5rem;
+    margin-bottom: -1px;
+  }
+
+  .noesis-page-header__tabs [role="tablist"] { border-bottom: 0; }
+
+  .noesis-page-header__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .5rem;
+    margin-top: .9rem;
+  }
+
+  .noesis-page-header__meta,
+  .noesis-page-header__meta * {
+    border: 0 !important;
+    background: none !important;
+    padding: 0 !important;
+    color: hsl(var(--muted-foreground)) !important;
+    font-family: "JetBrains Mono", ui-monospace, monospace !important;
+    font-size: var(--label-size) !important;
+    font-style: normal !important;
+    font-weight: 500 !important;
+    letter-spacing: var(--label-tracking) !important;
+    line-height: 1.5 !important;
+    text-transform: uppercase;
+  }
+
+  .noesis-page-header__meta > * + *::before {
+    content: "·";
+    margin-right: .5rem;
+  }
+
+  .noesis-page-header__meta > * > * + * { margin-left: .4em; }
+
+  /* Header actions: one height, one shape, one voice. */
+  .noesis-page-header-actions [data-noesis-button] {
+    height: 2.25rem !important;
+    padding-inline: 1rem !important;
+    box-shadow: none !important;
+  }
+
+  /* Each route carries a faint motif in the header margin: one shared
+     grammar, a different intellectual instrument per page. The motif sits
+     behind the header text and fades out toward the reading column. */
+  .noesis-page-header::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    top: -1.5rem;
+    right: 0;
+    width: min(46%, 30rem);
+    height: calc(100% + 1.5rem);
+    pointer-events: none;
+    color: hsl(var(--accent));
+    opacity: .5;
+    -webkit-mask-image: linear-gradient(to left, #000 15%, transparent 92%), linear-gradient(to top, transparent 0%, #000 45%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to left, #000 15%, transparent 92%), linear-gradient(to top, transparent 0%, #000 45%);
+    mask-composite: intersect;
+  }
+
+  /* Today: a desk blotter — soft concentric light from the corner. */
+  .noesis-page-header[data-noesis-route="home"]::before {
+    background: repeating-radial-gradient(circle at 100% 0, transparent 0 22px, hsl(var(--accent) / .16) 22px 23px);
+  }
+  /* Atlas: a coordinate field. */
+  .noesis-page-header[data-noesis-route="atlas"]::before {
+    background: radial-gradient(hsl(var(--accent) / .45) 1.2px, transparent 1.6px) 0 0 / 18px 18px;
+  }
+  /* Concepts: encyclopedia columns. */
+  .noesis-page-header[data-noesis-route="concepts"]::before {
+    background: repeating-linear-gradient(to right, transparent 0 46px, hsl(var(--accent) / .2) 46px 47px, transparent 47px 52px, hsl(var(--accent) / .12) 52px 53px);
+  }
+  /* Inquiries: open interrogation marks scattered across a ruled field. */
+  .noesis-page-header[data-noesis-route="questions"]::before {
+    background:
+      radial-gradient(circle, hsl(var(--accent) / .4) 1.5px, transparent 2px) 9px 26px / 36px 36px,
+      repeating-linear-gradient(to bottom, transparent 0 35px, hsl(var(--accent) / .14) 35px 36px);
+  }
+  /* Library and Source Index: ruled reading lines and a ledger. */
+  .noesis-page-header[data-noesis-route="library"]::before {
+    background: repeating-linear-gradient(to bottom, transparent 0 13px, hsl(var(--accent) / .18) 13px 14px);
+  }
+  .noesis-page-header[data-noesis-route="source-index"]::before {
+    background:
+      repeating-linear-gradient(to bottom, transparent 0 21px, hsl(var(--accent) / .18) 21px 22px),
+      linear-gradient(to right, transparent 0 62%, hsl(var(--accent) / .22) 62% calc(62% + 1px), transparent calc(62% + 1px));
+  }
+  /* Annotations: marginalia — a double margin rule over ruled paper. */
+  .noesis-page-header[data-noesis-route="annotations"]::before {
+    background:
+      linear-gradient(to right, transparent 0 30%, hsl(var(--accent) / .32) 30% calc(30% + 1px), transparent calc(30% + 1px) calc(30% + 4px), hsl(var(--accent) / .32) calc(30% + 4px) calc(30% + 5px), transparent calc(30% + 5px)),
+      repeating-linear-gradient(to bottom, transparent 0 17px, hsl(var(--accent) / .12) 17px 18px);
+  }
+  /* Positions: an argument diagram — diagonal lines of support and objection. */
+  .noesis-page-header[data-noesis-route="vault"]::before {
+    background:
+      repeating-linear-gradient(45deg, transparent 0 22px, hsl(var(--accent) / .16) 22px 23px),
+      repeating-linear-gradient(-45deg, transparent 0 22px, hsl(var(--accent) / .09) 22px 23px);
+  }
+  /* Works: manuscript lines with a margin. */
+  .noesis-page-header[data-noesis-route="writing"]::before {
+    background:
+      linear-gradient(to right, hsl(var(--accent) / .28) 0 1px, transparent 1px) 18% 0 / 100% 100% no-repeat,
+      repeating-linear-gradient(to bottom, transparent 0 23px, hsl(var(--accent) / .16) 23px 24px);
+  }
+  /* Context Desk: two overlapping selection frames. */
+  .noesis-page-header[data-noesis-route="context-desk"]::before {
+    background:
+      repeating-linear-gradient(to right, transparent 0 31px, hsl(var(--accent) / .14) 31px 32px),
+      repeating-linear-gradient(to bottom, transparent 0 31px, hsl(var(--accent) / .14) 31px 32px);
+  }
+  /* Labs: graph paper. */
+  .noesis-page-header[data-noesis-route="practices"]::before {
+    background:
+      repeating-linear-gradient(to right, transparent 0 39px, hsl(var(--accent) / .2) 39px 40px),
+      repeating-linear-gradient(to bottom, transparent 0 39px, hsl(var(--accent) / .2) 39px 40px),
+      repeating-linear-gradient(to right, transparent 0 7px, hsl(var(--accent) / .07) 7px 8px),
+      repeating-linear-gradient(to bottom, transparent 0 7px, hsl(var(--accent) / .07) 7px 8px);
+  }
+  /* Evolution: a chronology — tick marks along a time axis. */
+  .noesis-page-header[data-noesis-route="evolution"]::before {
+    background:
+      repeating-linear-gradient(to right, hsl(var(--accent) / .3) 0 1px, transparent 1px 12px) 0 55% / 100% 10px no-repeat,
+      repeating-linear-gradient(to right, hsl(var(--accent) / .4) 0 1px, transparent 1px 60px) 0 calc(55% - 6px) / 100% 22px no-repeat,
+      linear-gradient(hsl(var(--accent) / .3), hsl(var(--accent) / .3)) 0 calc(55% + 5px) / 100% 1px no-repeat;
+  }
+  /* Profile: a portrait ring. */
+  .noesis-page-header[data-noesis-route="profile"]::before {
+    background: repeating-radial-gradient(circle at 78% 46%, transparent 0 15px, hsl(var(--accent) / .16) 15px 16px);
+  }
+  /* Commitments: a checked ledger. */
+  .noesis-page-header[data-noesis-route="goals"]::before {
+    background:
+      repeating-linear-gradient(to bottom, transparent 0 27px, hsl(var(--accent) / .16) 27px 28px),
+      linear-gradient(to right, transparent 0 12%, hsl(var(--accent) / .26) 12% calc(12% + 1px), transparent calc(12% + 1px));
+  }
+  /* Settings stays quiet: utility pages do not need a motif. */
+  .noesis-page-header[data-noesis-route="settings"]::before { display: none; }
+
+  @media (max-width: 767px) {
+    .noesis-page-header::before { display: none; }
+  }
+
+  .high-contrast .noesis-page-header::before { display: none; }
+
+  /* Atlas is a canvas: same header, tighter gap above the map controls. */
+  [data-noesis-identity="network"] .noesis-page-header { margin-bottom: 1rem !important; }
 
   .noesis-page-header__rule {
     width: 2.75rem;
     height: 2px;
     margin-bottom: 1rem;
     background: hsl(var(--accent));
+    transform-origin: left center;
+    animation: noesis-rule-draw 520ms var(--ease-noesis) both;
   }
 
   .noesis-margin-marker {
@@ -772,6 +974,76 @@
     border-left: 2px solid hsl(var(--accent));
   }
 
+  /* Record pages: one toolbar (way back on the left, tools on the right) and
+     one title scale, so a concept, inquiry, position, and source open alike. */
+  .noesis-detail-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: 1.75rem;
+    border-bottom: 1px solid var(--hairline);
+    padding-bottom: .75rem;
+  }
+
+  .noesis-back-link {
+    display: inline-flex;
+    min-height: 2.25rem;
+    align-items: center;
+    gap: .5rem;
+    border-radius: var(--button-radius);
+    padding-right: .5rem;
+    color: hsl(var(--muted-foreground));
+    font-family: var(--font-interface);
+    font-size: .8125rem;
+    font-weight: 500;
+    transition: color var(--motion-quick) var(--ease-noesis);
+  }
+
+  .noesis-back-link:hover { color: hsl(var(--foreground)); }
+  .noesis-back-link svg { width: 1rem; height: 1rem; }
+
+  .noesis-detail-label { margin-bottom: .6rem; }
+
+  .noesis-detail-title {
+    font-size: 30px !important;
+    line-height: var(--heading-line-height) !important;
+  }
+
+  @media (min-width: 768px) { .noesis-detail-title { font-size: 36px !important; } }
+  @media (min-width: 1024px) { .noesis-detail-title { font-size: 40px !important; } }
+
+  .noesis-route-label {
+    color: hsl(var(--muted-foreground));
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: var(--label-size);
+    font-weight: 600;
+    letter-spacing: var(--label-tracking);
+    text-transform: uppercase;
+  }
+
+  .noesis-route-label__section { color: hsl(var(--accent)); }
+
+  .noesis-route-label__divider {
+    display: inline-block;
+    width: .9rem;
+    height: 1px;
+    margin-inline: .5rem;
+    vertical-align: middle;
+    background: hsl(var(--border));
+  }
+
+  @keyframes noesis-rule-draw {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+
+  @keyframes noesis-page-enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+
   /* Main list and workspace routes share one frame. Specialized canvases such
      as Atlas and the editors keep their own viewport-driven layouts. */
   .noesis-page {
@@ -782,6 +1054,7 @@
     overflow-y: auto;
     padding: 1.5rem 1rem 2.5rem;
     font-family: var(--font-body);
+    animation: noesis-page-enter var(--motion-calm) var(--ease-noesis) both;
   }
 
   .noesis-page-inner {
@@ -809,7 +1082,17 @@
 
   @media (min-width: 1024px) {
     .noesis-page {
-      padding-inline: 2rem;
+      /* On wide displays every route shares one centred reading measure, so
+         moving between pages never shifts the left edge of the content. */
+      padding-inline: max(2.5rem, calc((100% - var(--page-measure)) / 2));
+      padding-top: 2.25rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .noesis-page,
+    .noesis-page-header__rule {
+      animation: none;
     }
   }
 
@@ -890,6 +1173,181 @@
   }
 
   .noesis-editorial-section__actions { flex-shrink: 0; }
+
+  /* Workbench tool tray: the same surface for every step on every detail
+     page. Hairline frame, quiet header, consistent padding. */
+  .noesis-workbench-panel {
+    border: var(--border-strength) solid var(--hairline);
+    border-radius: var(--card-radius);
+    background: hsl(var(--card));
+    padding: 1.1rem 1.15rem 1.25rem;
+  }
+
+  /* Panels nested inside a step (evidence lists, ledgers) are quieter. */
+  .noesis-workbench-panel--sub {
+    background: hsl(var(--background));
+    box-shadow: none;
+  }
+
+  .noesis-workbench-panel { box-shadow: none; }
+
+  .noesis-workbench-panel + .noesis-workbench-panel,
+  .noesis-workbench-panel + section,
+  section + .noesis-workbench-panel { margin-top: 1rem; }
+
+  @media (min-width: 640px) {
+    .noesis-workbench-panel { padding: 1.35rem 1.5rem 1.5rem; }
+  }
+
+  .noesis-workbench-panel__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .noesis-workbench-panel__eyebrow {
+    color: hsl(var(--muted-foreground));
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: var(--label-size);
+    font-weight: 600;
+    letter-spacing: var(--label-tracking);
+    line-height: 1.4;
+    text-transform: uppercase;
+  }
+
+  .noesis-workbench-panel__title {
+    margin-top: .3rem;
+    color: hsl(var(--foreground));
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    font-style: var(--heading-style);
+    font-weight: var(--heading-weight);
+    letter-spacing: var(--heading-tracking);
+    line-height: 1.25;
+  }
+
+  .noesis-workbench-panel__eyebrow:only-child { margin-bottom: 0; }
+
+  .noesis-workbench-panel__description {
+    margin-top: .35rem;
+    max-width: 44rem;
+    color: hsl(var(--muted-foreground));
+    font-size: .8125rem;
+    line-height: 1.55;
+  }
+
+  .noesis-workbench-panel__actions {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+  }
+
+  .noesis-workbench-panel__chevron {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    margin-top: .2rem;
+    color: hsl(var(--muted-foreground));
+    transition: transform var(--motion-quick) var(--ease-noesis);
+  }
+
+  .noesis-workbench-panel[open] .noesis-workbench-panel__chevron { transform: rotate(180deg); }
+  .noesis-workbench-panel summary::-webkit-details-marker { display: none; }
+
+  .noesis-workbench-panel__body {
+    margin-top: 1rem;
+    border-top: 1px solid var(--hairline);
+    padding-top: 1rem;
+  }
+
+  details.noesis-workbench-panel:not([open]) > .noesis-workbench-panel__body { display: none; }
+
+  /* A single recommended move. Same mark wherever Noesis suggests the next act. */
+  .noesis-recommendation {
+    border-width: 0 0 0 2px !important;
+    border-style: solid !important;
+    border-color: hsl(var(--accent)) !important;
+    border-radius: 0 !important;
+    background: hsl(var(--accent-muted) / .45) !important;
+    box-shadow: none !important;
+    padding: .85rem 1rem;
+  }
+
+  /* Tools offered inside a step. One grid, one option shape, one active
+     state: whether it is an annotation effect or an inquiry method. */
+  .noesis-tool-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+    gap: .5rem;
+  }
+
+  .noesis-tool-options--compact { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); }
+
+  .noesis-tool-option {
+    position: relative;
+    display: flex;
+    min-height: 2.75rem;
+    flex-direction: column;
+    justify-content: center;
+    gap: .2rem;
+    border: var(--border-strength) solid var(--hairline);
+    border-radius: max(0px, calc(var(--card-radius) - 4px));
+    background: hsl(var(--background));
+    padding: .7rem .85rem .7rem 1rem;
+    text-align: left;
+    transition: border-color var(--motion-quick) var(--ease-noesis), background-color var(--motion-quick) var(--ease-noesis);
+  }
+
+  .noesis-tool-option::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: .55rem;
+    bottom: .55rem;
+    width: 2px;
+    background: transparent;
+  }
+
+  .noesis-tool-option:hover { border-color: hsl(var(--accent-border)); }
+
+  .noesis-tool-option[aria-pressed="true"] {
+    border-color: hsl(var(--accent-border));
+    background: hsl(var(--accent-muted) / .55);
+  }
+
+  .noesis-tool-option[aria-pressed="true"]::before { background: hsl(var(--accent)); }
+
+  .noesis-tool-option:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  .noesis-tool-option:disabled { opacity: .5; }
+
+  .noesis-tool-option__kicker {
+    color: hsl(var(--muted-foreground));
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: var(--label-size);
+    letter-spacing: var(--label-tracking);
+    text-transform: uppercase;
+  }
+
+  .noesis-tool-option__label {
+    color: hsl(var(--foreground));
+    font-family: var(--font-interface);
+    font-size: .84rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .noesis-tool-option__description {
+    color: hsl(var(--muted-foreground));
+    font-size: .76rem;
+    line-height: 1.45;
+  }
 
   .noesis-entity-meta { border-top: 1px solid hsl(var(--border) / .75); }
   .noesis-entity-meta__row {
@@ -1155,6 +1613,56 @@
   .noesis-app .noesis-inline-tool [class*="bg-background"] {
     background-color: color-mix(in srgb, currentColor 4%, transparent) !important;
     border-color: color-mix(in srgb, currentColor 22%, transparent) !important;
+  }
+
+  /* Metadata voice. Older routes set mono labels anywhere from 8px to 10px
+     with three different trackings; read them all at one legible size. */
+  .noesis-app .text-\[8px\],
+  .noesis-app .text-\[9px\] {
+    font-size: var(--label-size);
+    line-height: 1.4;
+  }
+
+  .noesis-app .tracking-\[0\.2em\],
+  .noesis-app .tracking-\[0\.18em\],
+  .noesis-app .tracking-\[0\.16em\],
+  .noesis-app .tracking-widest {
+    letter-spacing: var(--label-tracking);
+  }
+
+  /* Actions speak in the interface voice, metadata in mono. Older call sites
+     still pass mono/uppercase classes to Button; the primitive wins. */
+  .noesis-app [data-noesis-button]:is(.font-code, .uppercase) {
+    font-family: var(--font-interface);
+    font-size: max(.75rem, 12px);
+    font-weight: 500;
+    letter-spacing: .005em;
+    text-transform: none;
+  }
+
+  /* Buttons are flat ink. Coloured glows under actions are removed wherever
+     older call sites still ask for them. */
+  .noesis-app [data-noesis-button][class*="shadow"] {
+    box-shadow: none;
+  }
+
+  /* Interactive surfaces share one motion curve. */
+  .noesis-app :is(button, a, [role="button"], [role="tab"]) {
+    transition-timing-function: var(--ease-noesis);
+  }
+
+  .noesis-app :is(.rounded-xl, .rounded-2xl, .rounded-3xl).border[role="button"]:hover,
+  .noesis-app button.text-left:is(.rounded-xl, .rounded-2xl).border:hover {
+    border-color: hsl(var(--accent-border));
+  }
+
+  ::selection {
+    background: hsl(var(--accent) / .18);
+    color: inherit;
+  }
+
+  .noesis-app :focus-visible {
+    outline-color: hsl(var(--ring));
   }
 
   @media (max-width: 767px) {
