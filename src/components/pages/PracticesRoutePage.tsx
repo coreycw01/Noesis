@@ -52,7 +52,7 @@ export function PracticesRoutePage({
       onAddConcept={onAddConcept}
       onCreateLink={onCreateLink}
       focusedPracticeId={focusedPracticeId}
-      onOpenPracticeRoute={(practiceId) => onNavigate('practices', { practiceId })}
+      onOpenPracticeRoute={(practiceId) => onNavigate('labs', { practiceId })}
     />
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { demoSessionVersion, readDemoSession, subscribeDemoSession } from '@/lib/demo-session';
 import { doc, limit, orderBy, query } from 'firebase/firestore';
 import { useCollection, useDoc } from '@/firebase';
@@ -16,6 +16,7 @@ import {
 import type {
   AccountSettings,
   AiSettings,
+  AnnotationRecord,
   AppearanceSettings,
   AtlasMap,
   AtlasSettings,
@@ -53,6 +54,7 @@ import type {
 import type { NoesisRouteState, NoesisView } from '@/lib/noesis-routes';
 import { withNoesisStage } from '@/lib/workflow-integrity';
 import type { PhilosophicalObjectType } from '@/lib/types';
+import { mergeAnnotationRecords } from '@/lib/collection-integrity';
 
 function recordsForWorkspace<T>(records: T[], uid: string) {
   return records.filter((record) => {
@@ -78,6 +80,7 @@ export function useNoesisWorkspaceData({
   routeState?: NoesisRouteState;
   isOfflineReviewPreview: boolean;
 }) {
+  const [thinkingEventsLimit, setThinkingEventsLimit] = useState(200);
   const refs = useMemo(() => readexRefs(db, uid), [db, uid]);
   const effectiveRouteState = routeState || { view: activeView };
   const demoVersion = useSyncExternalStore(subscribeDemoSession, demoSessionVersion, () => 0);
@@ -118,9 +121,10 @@ export function useNoesisWorkspaceData({
   const thinkingEventsQuery = useMemo(
     () => isOfflineReviewPreview || !needsThinkingEvents
       ? null
-      : query(refs.thinkingEvents as any, orderBy('createdAt', 'desc'), limit(200)),
-    [isOfflineReviewPreview, needsThinkingEvents, refs.thinkingEvents]
+      : query(refs.thinkingEvents as any, orderBy('createdAt', 'desc'), limit(thinkingEventsLimit)),
+    [isOfflineReviewPreview, needsThinkingEvents, refs.thinkingEvents, thinkingEventsLimit]
   );
+  useEffect(() => setThinkingEventsLimit(200), [uid]);
   const thinkingMetricsRef = useMemo(
     () => isOfflineReviewPreview || !needsThinkingMetrics
       ? null
@@ -129,6 +133,7 @@ export function useNoesisWorkspaceData({
   );
 
   const { data: mediaLive = [], loading: mediaLoadingLive, error: mediaErrorLive } = useCollection<Media>(isOfflineReviewPreview || !needsMedia ? null : refs.media as any);
+  const { data: annotationsLive = [], loading: annotationsLoadingLive, error: annotationsErrorLive } = useCollection<AnnotationRecord>(isOfflineReviewPreview || !needsMedia ? null : refs.annotations as any);
   const { data: vaultLive = [], loading: vaultLoadingLive, error: vaultErrorLive } = useCollection<VaultEntry>(isOfflineReviewPreview || !needsVault ? null : refs.vault as any);
   const { data: insightsLive = [], loading: insightsLoadingLive } = useCollection<Insight>(isOfflineReviewPreview || !needsInsights ? null : refs.insights as any);
   const { data: conceptsLive = [], loading: conceptsLoadingLive, error: conceptsErrorLive } = useCollection<Concept>(isOfflineReviewPreview || !needsConcepts ? null : refs.concepts as any);
@@ -178,7 +183,7 @@ export function useNoesisWorkspaceData({
     settingsDeveloperLoadingLive;
   const profileDocsLoading = profileMainLoadingLive || profilePrivacyLoadingLive || profileSummaryLoadingLive;
   const requirementLoading: Record<NoesisWorkspaceDataKey, boolean> = {
-    media: isOfflineReviewPreview ? false : mediaLoadingLive,
+    media: isOfflineReviewPreview ? false : mediaLoadingLive || annotationsLoadingLive,
     vault: isOfflineReviewPreview ? false : vaultLoadingLive,
     insights: isOfflineReviewPreview ? false : insightsLoadingLive,
     concepts: isOfflineReviewPreview ? false : conceptsLoadingLive,
@@ -207,7 +212,7 @@ export function useNoesisWorkspaceData({
   const pageLoading = activePageRequirements.some((key) => requirementLoading[key]);
   const shellLoading = NOESIS_SHELL_SUMMARY_REQUIREMENTS.some((key) => requirementLoading[key]);
   const requirementErrors: Partial<Record<NoesisWorkspaceDataKey, Error | null>> = {
-    media: mediaErrorLive,
+    media: mediaErrorLive || annotationsErrorLive,
     vault: vaultErrorLive,
     concepts: conceptsErrorLive,
     questions: questionsErrorLive,
@@ -221,10 +226,17 @@ export function useNoesisWorkspaceData({
 
   // Stage labels are derived UI data. Keep these arrays stable until the
   // underlying snapshot changes so editors are not reset by unrelated renders.
-  const mediaRecords = useMemo(
-    () => stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.media || []) : mediaLive, uid, 'source'),
-    [isOfflineReviewPreview, mediaLive, reviewPreviewData?.media, uid]
-  );
+  const mediaRecords = useMemo(() => {
+    const sources = stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.media || []) : mediaLive, uid, 'source');
+    if (isOfflineReviewPreview) return sources;
+    const annotations = recordsForWorkspace(annotationsLive, uid);
+    const bySource = new Map<string, AnnotationRecord[]>();
+    annotations.forEach((annotation) => bySource.set(annotation.sourceId, [...(bySource.get(annotation.sourceId) || []), annotation]));
+    return sources.map((source) => ({
+      ...source,
+      annotations: mergeAnnotationRecords(source.annotations || [], bySource.get(source.id) || []),
+    }));
+  }, [annotationsLive, isOfflineReviewPreview, mediaLive, reviewPreviewData?.media, uid]);
   const vaultRecords = useMemo(
     () => stagedRecords(isOfflineReviewPreview ? (reviewPreviewData?.vault || []) : vaultLive, uid, 'position'),
     [isOfflineReviewPreview, reviewPreviewData?.vault, uid, vaultLive]
@@ -259,6 +271,8 @@ export function useNoesisWorkspaceData({
     atlasMaps: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.atlasMaps || []) : atlasMapsLive, uid),
     links: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.links || []) : linksLive, uid),
     thinkingEvents: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.thinkingEvents || []) : thinkingEventsLive, uid),
+    thinkingEventsHasMore: !isOfflineReviewPreview && needsThinkingEvents && thinkingEventsLive.length >= thinkingEventsLimit,
+    loadMoreThinkingEvents: () => setThinkingEventsLimit((current) => current + 200),
     beliefProfiles: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.beliefProfiles || []) : beliefProfilesLive, uid),
     unknowns: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.unknowns || []) : unknownsLive, uid),
     thinkingPatterns: recordsForWorkspace(isOfflineReviewPreview ? (reviewPreviewData?.thinkingPatterns || []) : thinkingPatternsLive, uid),
@@ -285,7 +299,7 @@ export function useNoesisWorkspaceData({
     settingsGoalsDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsGoals || null) : settingsGoalsDocLive,
     settingsDeveloperDoc: isOfflineReviewPreview ? (reviewPreviewData?.settingsDeveloper || null) : settingsDeveloperDocLive,
     loading: {
-      media: isOfflineReviewPreview ? false : mediaLoadingLive,
+      media: isOfflineReviewPreview ? false : mediaLoadingLive || annotationsLoadingLive,
       vault: isOfflineReviewPreview ? false : vaultLoadingLive,
       insights: isOfflineReviewPreview ? false : insightsLoadingLive,
       concepts: isOfflineReviewPreview ? false : conceptsLoadingLive,

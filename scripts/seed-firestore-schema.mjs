@@ -35,6 +35,17 @@ const collectionPlaceholders = {
     dateUpdated: now,
     _schemaPlaceholder: true
   },
+  annotations: {
+    id: '_schema',
+    sourceId: '_schema',
+    userId: uid,
+    text: 'First-class annotations are linked to a source by sourceId.',
+    type: 'thought',
+    philosophyStatus: 'raw',
+    date: now,
+    dateUpdated: now,
+    _schemaPlaceholder: true
+  },
   concepts: {
     name: 'Unsorted Ideas',
     description: 'Fallback concept for untagged ideas and captured material.',

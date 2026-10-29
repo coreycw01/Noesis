@@ -34,7 +34,7 @@ import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { aiHistoryEntry, type ContextualAiAction } from '@/lib/contextual-ai';
+import { appendAiHistoryEntry, type ContextualAiAction } from '@/lib/contextual-ai';
 import { inquirySourceIds } from '@/lib/inquiry-state';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -514,7 +514,7 @@ export function MediaLibrary({
                 ],
               })}
               onAccept={(result, content) => {
-                const aiReviewHistory = [...(selected.aiReviewHistory || []), aiHistoryEntry(result, content)];
+                const aiReviewHistory = appendAiHistoryEntry(selected.aiReviewHistory, result, content);
                 if (result.action === 'summarize_source') {
                   const currentCapture = captureDraft || selected.capture || { sessions: [] };
                   const nextCapture = { ...currentCapture, after: { ...currentCapture.after, aiSummary: content }, sessions: currentCapture.sessions || [] };
@@ -875,7 +875,7 @@ export function MediaLibrary({
                     onAccept={(result, content) => {
                       const nextCapture = { ...capture, after: { ...capture.after, aiReflection: content }, sessions: capture.sessions || [] };
                       setCaptureDraft(nextCapture);
-                      updateSelected({ capture: nextCapture, aiReviewHistory: [...(selected.aiReviewHistory || []), aiHistoryEntry(result, content)] });
+                      updateSelected({ capture: nextCapture, aiReviewHistory: appendAiHistoryEntry(selected.aiReviewHistory, result, content) });
                     }}
                   />
                 </div>

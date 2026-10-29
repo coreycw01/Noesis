@@ -1,4 +1,5 @@
 import type { AiAssistedHistoryEntry } from './types';
+import { appendAiReviewHistory } from './collection-integrity';
 
 export type ContextualAiScope = 'current_item' | 'linked_items' | 'selected_pair' | 'selected_period';
 
@@ -77,6 +78,15 @@ export function aiHistoryEntry(result: Pick<AiReviewResult, 'action' | 'title'>,
     content: content.trim(),
     date,
   };
+}
+
+export function appendAiHistoryEntry(
+  entries: AiAssistedHistoryEntry[] | undefined,
+  result: Pick<AiReviewResult, 'action' | 'title'>,
+  content: string,
+  date = new Date().toISOString()
+) {
+  return appendAiReviewHistory(entries, aiHistoryEntry(result, content, date));
 }
 
 export function parseAssumptionSuggestions(content: string): AssumptionSuggestion[] {

@@ -22,6 +22,8 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "sourceId": { "type": "string" },
+        "userId": { "type": "string" },
         "text": { "type": "string" },
         "type": { "type": "string", "enum": ["highlight", "thought", "question", "connection"] },
         "philosophyStatus": { "type": "string", "enum": ["raw", "connected", "questioned", "used_in_position", "archived"] },
@@ -84,6 +86,23 @@
         "date": { "type": "string", "format": "date-time" }
       }
     },
+    "ThinkingEvent": {
+      "title": "Canonical Thinking Event",
+      "description": "Immutable intellectual history with provenance and stable entity references.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "schemaVersion": { "type": "number" },
+        "eventType": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "summary": { "type": "string" },
+        "origin": { "type": "string" },
+        "before": { "type": "object" },
+        "after": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "PhilosophicalLink": {
       "title": "Typed Philosophical Link",
       "description": "A typed relationship between two Noesis objects.",
@@ -98,23 +117,6 @@
         "type": { "type": "string", "enum": ["supports", "challenges", "coheres", "defines", "refines", "contradicts", "exemplifies", "inspired_by", "tested_by", "expressed_in", "changed_by"] },
         "note": { "type": "string" },
         "createdFrom": { "type": "string", "enum": ["manual", "suggestion", "system"] },
-        "dateCreated": { "type": "string", "format": "date-time" },
-        "dateUpdated": { "type": "string", "format": "date-time" }
-      }
-    },
-    "AiSuggestion": {
-      "title": "AI Suggestion",
-      "description": "Socratic assistant output stored separately until the user acts.",
-      "type": "object",
-      "properties": {
-        "targetType": { "type": "string" },
-        "targetId": { "type": "string" },
-        "suggestionType": { "type": "string", "enum": ["annotation_consequence", "position_draft", "typed_link", "possible_tension", "evolution_summary", "daily_prompt"] },
-        "title": { "type": "string" },
-        "body": { "type": "string" },
-        "payload": { "type": "object" },
-        "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "ignored"] },
-        "createdFrom": { "type": "string", "enum": ["ai"] },
         "dateCreated": { "type": "string", "format": "date-time" },
         "dateUpdated": { "type": "string", "format": "date-time" }
       }
@@ -168,6 +170,10 @@
       "schema": "Media",
       "description": "Library of captured sources."
     },
+    "/users/{userId}/annotations/{annotationId}": {
+      "schema": "Annotation",
+      "description": "First-class annotations linked to a source by stable sourceId."
+    },
     "/users/{userId}/vault/{vaultId}": {
       "schema": "VaultEntry",
       "description": "Repository of beliefs and principles."
@@ -182,7 +188,11 @@
     },
     "/users/{userId}/timeline/{eventId}": {
       "schema": "TimelineEvent",
-      "description": "Log of cognitive evolution."
+      "description": "Legacy cognitive evolution stream retained during migration."
+    },
+    "/users/{userId}/thinkingEvents/{eventId}": {
+      "schema": "ThinkingEvent",
+      "description": "Canonical immutable intellectual history and provenance stream."
     },
     "/users/{userId}/drafts/{draftId}": {
       "schema": "Draft",
@@ -192,13 +202,21 @@
       "schema": "Practice",
       "description": "Behavior-facing tests and consistency logs."
     },
+    "/users/{userId}/practiceLogs/{logId}": {
+      "schema": "Practice",
+      "description": "First-class preserved practice log entries."
+    },
+    "/users/{userId}/workRevisions/{revisionId}": {
+      "schema": "Draft",
+      "description": "First-class preserved Work revision snapshots."
+    },
+    "/users/{userId}/positionVersions/{versionId}": {
+      "schema": "VaultEntry",
+      "description": "First-class preserved Position version records."
+    },
     "/users/{userId}/links/{linkId}": {
       "schema": "PhilosophicalLink",
       "description": "Typed relationships between Noesis objects."
-    },
-    "/users/{userId}/suggestions/{suggestionId}": {
-      "schema": "AiSuggestion",
-      "description": "AI suggestions that do not mutate user philosophy until accepted."
     }
   }
 }

@@ -95,7 +95,7 @@ export function PositionsRoutePage({
       onUpdateLink={onUpdateLink}
       onOpenSource={(id) => onNavigate('library', { sourceId: id })}
       onOpenQuestion={(id) => onNavigate('questions', { questionId: id })}
-      onOpenPractice={(id) => onNavigate('practices', { practiceId: id })}
+      onOpenPractice={(id) => onNavigate('labs', { practiceId: id })}
       onOpenWork={(id) => onNavigate('writing', { workId: id })}
       focusedEntryId={focusedEntryId}
       onOpenEntryRoute={(positionId) => onNavigate('vault', { positionId })}

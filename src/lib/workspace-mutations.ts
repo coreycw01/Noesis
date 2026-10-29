@@ -11,6 +11,7 @@ import {
   type DocumentReference,
   type Firestore,
   type SetOptions,
+  type WriteBatch,
 } from 'firebase/firestore';
 import { makeThinkingEventPayload, queueThinkingEvent, type WriteThinkingEventInput } from '@/lib/thinkingEvents/writeThinkingEvent';
 import { withNoesisStage } from '@/lib/workflow-integrity';
@@ -38,6 +39,12 @@ interface CommitWorkspaceMutationInput<T extends DocumentData = DocumentData> {
   thinkingEvent?: WriteThinkingEventInput | null;
   thinkingEvents?: WriteThinkingEventInput[];
   relatedUpdates?: Array<{ ref: DocumentReference; data: DocumentData }>;
+  relatedWrites?: Array<{
+    ref: DocumentReference;
+    operation: 'set' | 'update' | 'delete';
+    data?: DocumentData;
+    setOptions?: SetOptions;
+  }>;
 }
 
 export async function commitWorkspaceMutation<T extends DocumentData = DocumentData>({
@@ -49,6 +56,7 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
   thinkingEvent,
   thinkingEvents,
   relatedUpdates = [],
+  relatedWrites = [],
 }: CommitWorkspaceMutationInput<T>) {
   if (activeWorkspaceMutations === 0) mutationBatchFailed = false;
   activeWorkspaceMutations += 1;
@@ -80,6 +88,17 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
     ...(thinkingEvent ? [thinkingEvent] : []),
     ...(thinkingEvents || []),
   ];
+  const companionWrites = [
+    ...relatedUpdates.map((update) => ({ ...update, operation: 'update' as const })),
+    ...relatedWrites,
+  ];
+
+  const applyCompanionWrite = (writer: Pick<WriteBatch, 'set' | 'update' | 'delete'>, write: typeof companionWrites[number]) => {
+    if (write.operation === 'delete') writer.delete(write.ref);
+    else if (write.operation === 'update') writer.update(write.ref, write.data || {});
+    else if (write.setOptions) writer.set(write.ref, write.data || {}, write.setOptions);
+    else writer.set(write.ref, write.data || {});
+  };
 
   if (operation === 'create') {
     const events = eventQueue.map(makeThinkingEventPayload);
@@ -88,13 +107,13 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
         throw new Error('This item already exists. Open the current item instead of restoring an older copy.');
       }
       transaction.set(ref, mutationData as any);
-      relatedUpdates.forEach((update) => transaction.update(update.ref, update.data));
+      companionWrites.forEach((write) => applyCompanionWrite(transaction as any, write));
       events.forEach(({ eventRef, payload }) => transaction.set(eventRef, payload));
     });
     return;
   }
 
-  if (!eventQueue.length && !relatedUpdates.length) {
+  if (!eventQueue.length && !companionWrites.length) {
     if (operation === 'delete') await deleteDoc(ref);
     else if (operation === 'update') await updateDoc(ref, mutationData as any);
     else await setDoc(ref, mutationData as any, setOptions as any);
@@ -110,7 +129,7 @@ export async function commitWorkspaceMutation<T extends DocumentData = DocumentD
     batch.set(ref, mutationData as any, setOptions as any);
   }
   eventQueue.forEach((event) => queueThinkingEvent(batch, event));
-  relatedUpdates.forEach((update) => batch.update(update.ref, update.data));
+  companionWrites.forEach((write) => applyCompanionWrite(batch, write));
   await batch.commit();
   } catch (error) {
     mutationBatchFailed = true;

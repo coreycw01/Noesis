@@ -135,7 +135,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     loadingLayout: 'desk',
   },
   {
-    view: 'practices',
+    view: 'labs',
     route: '/labs',
     title: 'Labs',
     purpose: 'Design, run, and review practices that test ideas through lived experience.',
@@ -197,7 +197,7 @@ export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDa
   vault: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns', 'aiSettings'],
   writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences'],
   'context-desk': ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'aiSettings'],
-  practices: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
+  labs: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
   evolution: ['media', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'aiSettings'],
   profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs', 'aiSettings'],
   goals: ['media', 'questions', 'vault', 'drafts', 'practices', 'goal'],

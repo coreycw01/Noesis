@@ -82,7 +82,7 @@ export const NOESIS_VIEW_ICON_KEYS = {
   vault: 'position',
   writing: 'work',
   'context-desk': 'context',
-  practices: 'lab',
+  labs: 'lab',
   goals: 'commitment',
   evolution: 'evolution',
   profile: 'profile',

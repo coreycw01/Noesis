@@ -39,10 +39,42 @@ service cloud.firestore {
         && validListField(data, 'positionIds', 500);
     }
 
+    function allowedWorkspaceCollection(collectionId) {
+      return collectionId == 'media'
+        || collectionId == 'annotations'
+        || collectionId == 'concepts'
+        || collectionId == 'questions'
+        || collectionId == 'vault'
+        || collectionId == 'drafts'
+        || collectionId == 'practices'
+        || collectionId == 'practiceLogs'
+        || collectionId == 'workRevisions'
+        || collectionId == 'positionVersions'
+        || collectionId == 'atlasMaps'
+        || collectionId == 'links'
+        || collectionId == 'timeline'
+        || collectionId == 'insights'
+        || collectionId == 'thinkingEvents'
+        || collectionId == 'beliefProfiles'
+        || collectionId == 'unknowns'
+        || collectionId == 'thinkingPatterns'
+        || collectionId == 'thinkingMetrics'
+        || collectionId == 'settings'
+        || collectionId == 'profile';
+    }
+
+    function validBoundedHistories(data) {
+      return validListField(data, 'aiReviewHistory', 500)
+        && validListField(data, 'annotations', 200)
+        && validListField(data, 'logs', 180)
+        && validListField(data, 'versionHistory', 100);
+    }
+
     function validOwnedWrite(uid, documentId) {
       return isOwner(uid)
         && hasValidOwnership(request.resource.data, uid)
-        && validCommonShape(request.resource.data, documentId);
+        && validCommonShape(request.resource.data, documentId)
+        && validBoundedHistories(request.resource.data);
     }
 
     // Server-controlled usage counters are never readable or writable by clients.
@@ -121,9 +153,12 @@ service cloud.firestore {
 
       match /{collectionId}/{documentId} {
         allow read: if isOwner(uid);
-        allow create, update: if collectionId != 'thinkingEvents'
+        allow create, update: if allowedWorkspaceCollection(collectionId)
+          && collectionId != 'thinkingEvents'
           && validOwnedWrite(uid, documentId);
-        allow delete: if collectionId != 'thinkingEvents' && isOwner(uid);
+        allow delete: if allowedWorkspaceCollection(collectionId)
+          && collectionId != 'thinkingEvents'
+          && isOwner(uid);
       }
 
       // No unreviewed deeply nested collection receives an implicit write grant.

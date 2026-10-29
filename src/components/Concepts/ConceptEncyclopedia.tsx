@@ -34,7 +34,7 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { aiHistoryEntry, type ContextualAiAction } from '@/lib/contextual-ai';
+import { appendAiHistoryEntry, type ContextualAiAction } from '@/lib/contextual-ai';
 import type { AiSettings } from '@/lib/types';
 
 interface ConceptEncyclopediaProps {
@@ -667,7 +667,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         label: practice.title,
         section: 'Related Practice',
         description: practice.description || practice.notes || 'Practice testing this concept in lived behavior.',
-        view: 'practices',
+        view: 'labs',
         targetId: practice.id,
         targetType: 'practice',
         objectType: practice.type || 'practice',
@@ -731,8 +731,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     userPrompt,
                   })}
                   onAccept={(result, content) => onUpdateConcept(result.action === 'clarify_concept_boundaries'
-                    ? { ...concept, boundaryReview: content, aiReviewHistory: [...(concept.aiReviewHistory || []), aiHistoryEntry(result, content)] }
-                    : { ...concept, description: content, aiReviewHistory: [...(concept.aiReviewHistory || []), aiHistoryEntry(result, content)] })}
+                    ? { ...concept, boundaryReview: content, aiReviewHistory: appendAiHistoryEntry(concept.aiReviewHistory, result, content) }
+                    : { ...concept, description: content, aiReviewHistory: appendAiHistoryEntry(concept.aiReviewHistory, result, content) })}
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Concept actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>

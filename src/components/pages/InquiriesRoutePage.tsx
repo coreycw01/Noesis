@@ -63,7 +63,7 @@ export function InquiriesRoutePage({
       onAddPractice={onAddPractice}
       onUpdatePractice={onUpdatePractice}
       onOpenWork={(workId) => onNavigate('writing', { workId })}
-      onOpenPractice={(practiceId) => onNavigate('practices', { practiceId })}
+      onOpenPractice={(practiceId) => onNavigate('labs', { practiceId })}
       onFormPositionFromInquiry={onFormPositionFromInquiry}
       focusedQuestionId={focusedQuestionId}
       onOpenQuestionRoute={(questionId) => onNavigate('questions', { questionId })}

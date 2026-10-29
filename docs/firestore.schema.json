@@ -1,6 +1,6 @@
 {
   "app": "Noesis",
-  "version": 2,
+  "version": 5,
   "root": "/users/{uid}",
   "prototypeUid": "anonymous-scholar",
   "collections": {
@@ -17,11 +17,26 @@
         "description": "string?",
         "url": "string?",
         "thumbnailUrl": "string?",
-        "tags": "string[] concept names",
-        "annotations": "Annotation[] with optional philosophyStatus: raw | connected | questioned | used_in_position | archived",
+        "tags": "string[] compatibility labels",
+        "conceptIds": "string[] stable concept ids",
+        "annotations": "Annotation[] bounded compatibility cache; canonical records live in /annotations",
         "capture": "MediaCapture",
         "dateAdded": "ISO string",
         "dateUpdated": "ISO string?"
+      }
+    },
+    "annotations": {
+      "path": "/users/{uid}/annotations/{annotationId}",
+      "purpose": "First-class source annotations. Source documents retain a bounded compatibility cache during migration.",
+      "fields": {
+        "id": "string",
+        "sourceId": "string stable media id",
+        "userId": "string owner id",
+        "text": "string",
+        "type": "highlight | thought | question | connection",
+        "philosophyStatus": "raw | connected | questioned | used_in_position | archived",
+        "date": "ISO string",
+        "dateUpdated": "ISO string"
       }
     },
     "concepts": {
@@ -48,7 +63,7 @@
         "status": "open | investigating | answered | archived | gathering_evidence | under_tension | partially_answered | resolved | reopened",
         "answer": "string?",
         "evidenceIds": "string[]",
-        "conceptIds": "string[] concept names",
+        "conceptIds": "string[] stable concept ids",
         "sourceIds": "string[]",
         "beliefIds": "string[] vault ids",
         "draftIds": "string[]",
@@ -65,14 +80,15 @@
         "type": "belief | principle | mental_model | life_rule | worldview",
         "statement": "string",
         "description": "string",
-        "confidence": "number 1-5",
+        "confidence": "number 0-100",
         "status": "draft | active | uncertain | challenged | revised | rejected | questioning | abandoned",
         "tags": "string[] concept names",
+        "conceptIds": "string[] stable concept ids",
         "sourceIds": "string[]",
         "insightIds": "string[]?",
         "evidenceFor": "string[]?",
         "evidenceAgainst": "string[]?",
-        "versionHistory": "VaultVersion[]?",
+        "versionHistory": "VaultVersion[]? bounded to 100 recent entries",
         "createdFrom": "manual | idea",
         "dateCreated": "ISO string",
         "dateUpdated": "ISO string"
@@ -88,12 +104,14 @@
         "status": "seed | drafting | revised | final",
         "writingStyle": "blank_paper | ruled_notebook | manuscript | cornell_notes | two_column_debate | dialectic | belief_audit | source_analysis | mind_map | timeline",
         "externalDoc": "ExternalDraftDocument?",
-        "conceptTags": "string[] concept names",
+        "conceptTags": "string[] compatibility labels",
+        "conceptIds": "string[] stable concept ids",
         "sourceIds": "string[]",
         "questionIds": "string[]",
         "beliefIds": "string[] vault ids",
         "dateCreated": "ISO string",
-        "dateUpdated": "ISO string"
+        "dateUpdated": "ISO string",
+        "versionHistory": "DraftRevision[]? bounded to 10 recent snapshots"
       },
       "externalDocFields": {
         "provider": "google_docs | notion | dropbox_paper | microsoft_word | markdown | other",
@@ -117,7 +135,8 @@
         "durationDays": "number",
         "startDate": "YYYY-MM-DD string",
         "endDate": "YYYY-MM-DD string",
-        "conceptTags": "string[] concept names",
+        "conceptTags": "string[] compatibility labels",
+        "conceptIds": "string[] stable concept ids",
         "sourceIds": "string[]",
         "questionIds": "string[]",
         "positionIds": "string[] vault ids",
@@ -125,7 +144,44 @@
         "notes": "string",
         "logDates": "YYYY-MM-DD string[]? consistency log",
         "dateCreated": "ISO string",
-        "dateUpdated": "ISO string"
+        "dateUpdated": "ISO string",
+        "logs": "PracticeLog[]? bounded to 180 recent entries"
+      }
+    },
+    "practiceLogs": {
+      "path": "/users/{uid}/practiceLogs/{practiceId}__{logId}",
+      "purpose": "Complete first-class practice history; Practice.logs is only a bounded recent cache.",
+      "fields": {
+        "id": "string",
+        "practiceId": "string stable practice id",
+        "userId": "string owner id",
+        "date": "ISO string",
+        "actionCompleted": "boolean",
+        "observations": "string?"
+      }
+    },
+    "workRevisions": {
+      "path": "/users/{uid}/workRevisions/{workId}__{revisionId}",
+      "purpose": "Complete first-class Work snapshots; Draft.versionHistory is only a bounded recent cache.",
+      "fields": {
+        "id": "string revision id",
+        "workId": "string stable work id",
+        "userId": "string owner id",
+        "title": "string",
+        "body": "string",
+        "createdAt": "ISO string"
+      }
+    },
+    "positionVersions": {
+      "path": "/users/{uid}/positionVersions/{positionId}__{versionKey}",
+      "purpose": "Complete first-class Position revision history; Vault.versionHistory is only a bounded recent cache.",
+      "fields": {
+        "id": "string deterministic version id",
+        "positionId": "string stable position id",
+        "userId": "string owner id",
+        "description": "string",
+        "date": "ISO string",
+        "confidence": "number?"
       }
     },
     "atlasMaps": {
@@ -153,7 +209,7 @@
     },
     "timeline": {
       "path": "/users/{uid}/timeline/{eventId}",
-      "purpose": "Evolution/history events for concepts, sources, inquiries, positions, works, practices, and insights.",
+      "purpose": "Legacy Evolution compatibility stream. New history is written to thinkingEvents and this collection remains read-only during parity verification.",
       "fields": {
         "entityId": "string",
         "entityType": "media | vault | concept | question | draft | practice | insight | string",
@@ -164,6 +220,23 @@
         "date": "ISO string"
       }
     },
+    "thinkingEvents": {
+      "path": "/users/{uid}/thinkingEvents/{eventId}",
+      "purpose": "Canonical immutable intellectual history with before/after snapshots, provenance, importance, and related stable ids.",
+      "fields": {
+        "eventId": "string",
+        "schemaVersion": "2",
+        "actorId": "string owner id",
+        "eventType": "ThinkingEventType",
+        "entityType": "source | annotation | concept | inquiry | position | work | practice | unknown | evolution",
+        "entityId": "string stable entity id",
+        "before": "object?",
+        "after": "object?",
+        "summary": "string",
+        "origin": "user | system | ai-assisted",
+        "createdAt": "Firestore timestamp or ISO string"
+      }
+    },
     "insights": {
       "path": "/users/{uid}/insights/{insightId}",
       "purpose": "Mirrored idea records for Atlas/concept linking when ideas become positions.",
@@ -172,6 +245,7 @@
         "body": "string",
         "sourceIds": "string[]",
         "tags": "string[] concept names",
+        "conceptIds": "string[] stable concept ids",
         "categories": "string[]?",
         "connections": "string[]?",
         "beliefId": "string?",
@@ -192,23 +266,6 @@
         "type": "supports | challenges | coheres | defines | refines | contradicts | exemplifies | inspired_by | tested_by | expressed_in | changed_by",
         "note": "string?",
         "createdFrom": "manual | suggestion | system",
-        "dateCreated": "ISO string",
-        "dateUpdated": "ISO string"
-      }
-    },
-    "suggestions": {
-      "path": "/users/{uid}/suggestions/{suggestionId}",
-      "purpose": "AI suggestions stored separately until the user accepts, rejects, ignores, or acts on them.",
-      "fields": {
-        "targetType": "source | annotation | concept | inquiry | position | work | practice | evolution",
-        "targetId": "string",
-        "targetLabel": "string?",
-        "suggestionType": "annotation_consequence | position_draft | typed_link | possible_tension | evolution_summary | daily_prompt",
-        "title": "string",
-        "body": "string",
-        "payload": "object?",
-        "status": "pending | accepted | rejected | ignored",
-        "createdFrom": "ai",
         "dateCreated": "ISO string",
         "dateUpdated": "ISO string"
       }

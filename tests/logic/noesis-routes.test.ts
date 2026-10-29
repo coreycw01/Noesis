@@ -5,14 +5,14 @@ import { NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../
 import { parseNoesisRoute, viewToPath } from '../../src/lib/noesis-routes';
 
 test('Labs is the workspace route for practices', () => {
-  assert.deepEqual(parseNoesisRoute('/labs'), { view: 'practices', focusedPracticeId: null });
-  assert.deepEqual(parseNoesisRoute('/demo/labs'), { view: 'practices', focusedPracticeId: null });
-  assert.equal(viewToPath('practices'), '/labs');
-  assert.equal(viewToPath('practices', { reviewMode: true }), '/demo/labs');
+  assert.deepEqual(parseNoesisRoute('/labs'), { view: 'labs', focusedPracticeId: null });
+  assert.deepEqual(parseNoesisRoute('/demo/labs'), { view: 'labs', focusedPracticeId: null });
+  assert.equal(viewToPath('labs'), '/labs');
+  assert.equal(viewToPath('labs', { reviewMode: true }), '/demo/labs');
 });
 
 test('Praxis is the approved user-facing stage for lived action', () => {
-  assert.equal(NOESIS_PAGE_BY_VIEW.practices.section, 'Praxis');
+  assert.equal(NOESIS_PAGE_BY_VIEW.labs.section, 'Praxis');
   assert.equal(NOESIS_PAGE_BY_VIEW.goals.section, 'Praxis');
   assert.equal(NOESIS_PAGE_DEFINITIONS.some((page) => (page.section as string) === 'Test'), false);
 });
@@ -26,14 +26,18 @@ test('Context Desk keeps its own lightweight route identity', () => {
 
 test('existing practice detail links remain compatible', () => {
   assert.deepEqual(parseNoesisRoute('/practices/practice-1'), {
-    view: 'practices',
+    view: 'labs',
     focusedPracticeId: 'practice-1',
   });
-  assert.equal(viewToPath('practices', { practiceId: 'practice-1' }), '/labs/practice-1');
+  assert.equal(viewToPath('labs', { practiceId: 'practice-1' }), '/labs/practice-1');
+  assert.deepEqual(parseNoesisRoute('/labs/practice-1'), {
+    view: 'labs',
+    focusedPracticeId: 'practice-1',
+  });
 });
 
 test('Labs and individual practices use distinct visual semantics', () => {
-  assert.equal(NOESIS_VIEW_ICON_KEYS.practices, 'lab');
+  assert.equal(NOESIS_VIEW_ICON_KEYS.labs, 'lab');
   assert.notEqual(NOESIS_ICONS.lab, NOESIS_ICONS.practice);
 });
 

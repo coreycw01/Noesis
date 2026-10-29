@@ -19,7 +19,7 @@ import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { aiHistoryEntry, profileStatementFromSynthesis, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
+import { appendAiHistoryEntry, profileStatementFromSynthesis, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
 import { cn } from '@/lib/utils';
 import type { AiSettings, BeliefProfile, Concept, Draft, Media, Practice, ProfilePrivacySettings, PublicProfileSnapshot, Question, ThinkingEvent, ThinkingMetrics, ThinkingPattern, ThinkingPatternUserResponse, Unknown, UserProfile, VaultEntry } from '@/lib/types';
 
@@ -199,7 +199,7 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
       ...(statement ? { philosophyStatement: statement } : {}),
       philosophySynthesisReview: editedContent,
       philosophySynthesisReviewedAt: reviewedAt,
-      aiReviewHistory: [...(profileDraft.aiReviewHistory || []), aiHistoryEntry(result, editedContent, reviewedAt)],
+      aiReviewHistory: appendAiHistoryEntry(profileDraft.aiReviewHistory, result, editedContent, reviewedAt),
       dateUpdated: reviewedAt,
     };
     await onSaveProfile(nextProfile);
