@@ -17,6 +17,14 @@ test('multi-format media use resilient fallback providers', () => {
   }
 });
 
+test('video-oriented media use YouTube with a non-YouTube fallback', () => {
+  for (const type of ['video', 'course', 'lecture', 'documentary', 'interview', 'conversation'] as const) {
+    const providers = SOURCE_SEARCH_PLAN[type];
+    assert.ok(providers.includes('youtube'), `${type} should search YouTube`);
+    assert.ok(providers.some((provider) => provider !== 'youtube'), `${type} needs a fallback when YouTube is unavailable`);
+  }
+});
+
 test('catalog summaries stay factual, bounded, and separate from user notes', () => {
   const description = [
     'This source examines how attention changes moral judgment.',

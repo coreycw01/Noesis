@@ -6,8 +6,13 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 import { releaseStaleModalInteractionLock } from "@/lib/modal-interaction"
+import { useInteractionLayerCleanup } from "@/hooks/use-interaction-layer-cleanup"
 
-const AlertDialog = AlertDialogPrimitive.Root
+const AlertDialog = ({ onOpenChange, ...props }: React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Root>) => {
+  const handleOpenChange = useInteractionLayerCleanup(props.open, onOpenChange)
+
+  return <AlertDialogPrimitive.Root {...props} onOpenChange={handleOpenChange} />
+}
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger
 

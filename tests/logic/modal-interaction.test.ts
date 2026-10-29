@@ -29,10 +29,48 @@ test('releases a stale pointer lock throughout the modal close animation', () =>
 
   try {
     releaseStaleModalInteractionLock();
-    assert.equal(scheduled.length, 5);
+    assert.equal(scheduled.length, 6);
     scheduled.forEach((callback) => callback());
-    assert.equal(removed.filter((value) => value === 'body:pointer-events').length, 5);
-    assert.equal(removed.filter((value) => value === 'html:pointer-events').length, 5);
+    assert.equal(removed.filter((value) => value === 'body:pointer-events').length, 6);
+    assert.equal(removed.filter((value) => value === 'html:pointer-events').length, 6);
+  } finally {
+    Object.assign(globalThis, { window: originalWindow, document: originalDocument });
+  }
+});
+
+test('releases the lock after the closing layer leaves the document', () => {
+  const scheduled: Array<() => void> = [];
+  let layerOpen = true;
+  let removeCount = 0;
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+
+  Object.assign(globalThis, {
+    window: {
+      queueMicrotask: (callback: () => void) => scheduled.push(callback),
+      requestAnimationFrame: (callback: () => void) => {
+        scheduled.push(callback);
+        return 1;
+      },
+      setTimeout: (callback: () => void) => {
+        scheduled.push(callback);
+        return 1;
+      },
+    },
+    document: {
+      querySelector: () => layerOpen ? ({ role: 'dialog' }) : null,
+      body: { style: { removeProperty: () => { removeCount += 1; } } },
+      documentElement: { style: { removeProperty: () => { removeCount += 1; } } },
+    },
+  });
+
+  try {
+    releaseStaleModalInteractionLock();
+    scheduled[0]?.();
+    assert.equal(removeCount, 0);
+    layerOpen = false;
+    scheduled.slice(1).forEach((callback) => callback());
+    assert.equal(removeCount, 10);
   } finally {
     Object.assign(globalThis, { window: originalWindow, document: originalDocument });
   }

@@ -1,3 +1,5 @@
+import type { AiAssistedHistoryEntry } from './types';
+
 export type ContextualAiScope = 'current_item' | 'linked_items' | 'selected_pair' | 'selected_period';
 
 export type ContextualAiAction =
@@ -67,6 +69,16 @@ export interface AiReviewPresentation {
   itemName: string;
 }
 
+export function aiHistoryEntry(result: Pick<AiReviewResult, 'action' | 'title'>, content: string, date = new Date().toISOString()): AiAssistedHistoryEntry {
+  return {
+    id: crypto.randomUUID(),
+    action: result.action,
+    title: result.title?.trim() || CONTEXTUAL_AI_LABELS[result.action],
+    content: content.trim(),
+    date,
+  };
+}
+
 export function parseAssumptionSuggestions(content: string): AssumptionSuggestion[] {
   const suggestions: AssumptionSuggestion[] = [];
   for (const rawLine of content.replace(/\r\n/g, '\n').split('\n')) {
@@ -116,17 +128,40 @@ export const CONTEXTUAL_AI_REVIEW: Record<ContextualAiAction, AiReviewPresentati
 };
 
 function cleanReviewText(value: string) {
-  return value.trim().replace(/^\*\*(.*?)\*\*:?[ \t]*/, '$1: ').trim();
+  return value
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line
+      .trim()
+      .replace(/^#{1,6}\s+/, '')
+      .replace(/^>\s?/, '')
+      .replace(/^[-*+]\s+/, '• ')
+      .replace(/^\d+[.)]\s+/, '')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/__([^_]+)__/g, '$1')
+      .replace(/\*([^*\n]+)\*/g, '$1')
+      .replace(/_([^_\n]+)_/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\*{1,2}(\w)/g, '$1')
+      .replace(/(\w)\*{1,2}/g, '$1')
+      .trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
 }
 
 export function parseAiReviewItems(action: ContextualAiAction, content: string): AiReviewItem[] {
   if (action === 'find_position_assumptions') {
-    return parseAssumptionSuggestions(content).map((item, index) => ({ title: `Assumption ${index + 1}`, content: item.assumption, detail: item.reason }));
+    return parseAssumptionSuggestions(content).map((item, index) => ({
+      title: `Assumption ${index + 1}`,
+      content: cleanReviewText(item.assumption),
+      detail: cleanReviewText(item.reason),
+    }));
   }
   const presentation = CONTEXTUAL_AI_REVIEW[action];
   const normalized = content.replace(/\r\n/g, '\n').trim();
   if (!normalized) return [];
-  if (presentation.mode === 'single') return [{ title: presentation.itemName, content: normalized }];
+  if (presentation.mode === 'single') return [{ title: presentation.itemName, content: cleanReviewText(normalized) }];
 
   if (presentation.mode === 'sections') {
     const sections: AiReviewItem[] = [];
@@ -134,7 +169,7 @@ export function parseAiReviewItems(action: ContextualAiAction, content: string):
     let body: string[] = [];
     const flush = () => {
       const value = body.join('\n').trim();
-      if (value) sections.push({ title: title || `${presentation.itemName} ${sections.length + 1}`, content: value });
+      if (value) sections.push({ title: cleanReviewText(title) || `${presentation.itemName} ${sections.length + 1}`, content: cleanReviewText(value) });
       body = [];
     };
     for (const line of normalized.split('\n')) {

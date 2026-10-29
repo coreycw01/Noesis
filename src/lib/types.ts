@@ -158,10 +158,18 @@ export type PositionKind = 'descriptive' | 'normative' | 'interpretive' | 'metho
 export type PhilosophicalObjectType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'evolution';
 export type NoesisStage = 'encounter' | 'question' | 'claim' | 'test' | 'revise';
 export type NoesisCondition = 'needs_evidence' | 'under_challenge' | 'stalled' | 'ready_for_review';
+export interface AiAssistedHistoryEntry {
+  id: string;
+  action: string;
+  title: string;
+  content: string;
+  date: string;
+}
 export interface NoesisStageState {
   stage?: NoesisStage;
   condition?: NoesisCondition;
   legacyStatus?: string;
+  aiReviewHistory?: AiAssistedHistoryEntry[];
 }
 export type PhilosophicalLinkType = 'supports' | 'challenges' | 'coheres' | 'defines' | 'refines' | 'contradicts' | 'exemplifies' | 'inspired_by' | 'tested_by' | 'expressed_in' | 'changed_by' | 'depends_on' | 'explains' | 'explained_by' | 'derived_from' | 'references' | 'replaces' | 'questions' | 'expands' | 'weakens' | 'strengthens';
 export type AtlasMapLinkType = PhilosophicalLinkType | 'examples' | 'causes' | 'questions' | 'practices' | 'relates' | 'custom';
@@ -171,7 +179,7 @@ export type AtlasMapBackgroundPreset = 'dark' | 'light' | 'paper' | 'grid' | 'bl
 export type AtlasMapFontFamily = 'system' | 'serif' | 'mono' | 'rounded' | 'condensed';
 export type AtlasMapNodeStyle = 'default' | 'compact' | 'pill' | 'card';
 export type AtlasMapMode = 'core' | 'conflict' | 'evidence' | 'practice' | 'evolution' | 'full' | 'custom';
-export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'itunes' | 'crossref' | 'internet_archive' | 'url_metadata' | 'manual';
+export type SourceProvider = 'google_books' | 'open_library' | 'openalex' | 'tmdb' | 'itunes' | 'crossref' | 'internet_archive' | 'youtube' | 'url_metadata' | 'manual';
 export type ThinkingEventType = 'created' | 'edited' | 'revised' | 'challenged' | 'supported' | 'abandoned' | 'deleted' | 'restored' | 'resolved' | 'linked' | 'unlinked' | 'link_removed' | 'tested' | 'synthesized' | 'confidence_changed' | 'evidence_added' | 'evidence_removed' | 'contradiction_detected' | 'contradiction_resolved' | 'unknown_created' | 'unknown_resolved' | 'question_created' | 'question_resolved' | 'position_formed' | 'practice_created' | 'source_distilled' | 'annotation_created' | 'ai_suggestion_generated' | 'ai_suggestion_accepted' | 'ai_suggestion_rejected' | 'position_created' | 'position_revised' | 'position_replaced' | 'position_abandoned' | 'question_promoted' | 'link_created' | 'suggestion_created' | 'suggestion_accepted' | 'suggestion_dismissed' | 'thinking_pattern_inferred' | 'thinking_pattern_acknowledged' | 'thinking_pattern_dismissed' | 'stress_test_generated' | 'stress_test_answered' | 'assumption_added' | 'assumption_challenged' | 'challenge_added' | 'source_created' | 'source_abandoned' | 'concept_defined' | 'concept_redefined' | 'concept_abandoned' | 'work_created' | 'work_revised' | 'work_abandoned' | 'practice_logged' | 'practice_concluded' | 'practice_abandoned';
 export type ThinkingPatternType = 'evidence_style' | 'reasoning_style' | 'questioning_style' | 'source_bias' | 'conceptual_gap' | 'revision_pattern' | 'contradiction_pattern' | 'certainty_pattern';
 export type ThinkingPatternStatus = 'pending' | 'acknowledged' | 'dismissed' | 'outdated';
@@ -283,6 +291,7 @@ export interface Media extends NoesisStageState {
     itunesId?: string;
     crossrefId?: string;
     internetArchiveId?: string;
+    youtubeId?: string;
     isbn?: string;
     doi?: string;
     url?: string;
@@ -832,6 +841,7 @@ export interface UserProfile {
   philosophyStatement?: string;
   philosophySynthesisReview?: string;
   philosophySynthesisReviewedAt?: string;
+  aiReviewHistory?: AiAssistedHistoryEntry[];
   intellectualFocus?: string[];
   currentThemes?: string[];
   disciplines?: string[];

@@ -31,8 +31,9 @@ import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import type { ContextualAiAction } from '@/lib/contextual-ai';
+import { aiHistoryEntry, type ContextualAiAction } from '@/lib/contextual-ai';
 import type { AiSettings } from '@/lib/types';
 
 interface ConceptEncyclopediaProps {
@@ -729,8 +730,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     userPrompt,
                   })}
                   onAccept={(result, content) => onUpdateConcept(result.action === 'clarify_concept_boundaries'
-                    ? { ...concept, boundaryReview: content }
-                    : { ...concept, description: content })}
+                    ? { ...concept, boundaryReview: content, aiReviewHistory: [...(concept.aiReviewHistory || []), aiHistoryEntry(result, content)] }
+                    : { ...concept, description: content, aiReviewHistory: [...(concept.aiReviewHistory || []), aiHistoryEntry(result, content)] })}
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Concept actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
@@ -912,6 +913,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
                 </div>
                 <ContextualAiDocument content={concept.boundaryReview} />
+              </div>
+            )}
+
+            {concept && (
+              <div className="mt-4">
+                <AiAssistedHistory
+                  entries={concept.aiReviewHistory || []}
+                  onChange={(aiReviewHistory) => onUpdateConcept({ ...concept, aiReviewHistory })}
+                />
               </div>
             )}
 

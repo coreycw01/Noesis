@@ -97,6 +97,30 @@ test('parses every contextual result into editable review units', () => {
   ]), '## Falls outside\nIt is not mere preference.\n\n## Unresolved boundary\nIt does not require certainty.');
 });
 
+test('removes Markdown notation from editable context-review items', () => {
+  assert.deepEqual(parseAiReviewItems('review_selected_context', [
+    '## **Contradiction**',
+    '**Confidence** is *higher* than the recorded evidence supports.',
+    '- `Position A` has no supporting source.',
+    '- __Position B__ has one unresolved assumption.',
+  ].join('\n')), [{
+    title: 'Contradiction',
+    content: [
+      'Confidence is higher than the recorded evidence supports.',
+      '• Position A has no supporting source.',
+      '• Position B has one unresolved assumption.',
+    ].join('\n'),
+  }]);
+
+  assert.deepEqual(parseAiReviewItems('find_position_assumptions', [
+    '- ASSUMPTION: **Discomfort reveals truth** || WHY: *The claim depends on it.*',
+  ].join('\n')), [{
+    title: 'Assumption 1',
+    content: 'Discomfort reveals truth',
+    detail: 'The claim depends on it.',
+  }]);
+});
+
 test('profile synthesis promotes only the reviewed working statement', () => {
   const review = [
     '## Working statement',

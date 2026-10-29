@@ -27,7 +27,8 @@ import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { ContextRail, EditorialSection, EntityMeta, IntellectualRoleLabel } from '@/components/shared/IntellectualStructures';
 import { searchMatches } from '@/lib/search';
-import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { parseAiReviewItems, type AiContextEnvelope } from '@/lib/contextual-ai';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
@@ -916,8 +917,8 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           onSelect={(id) => openWorkflowStep(id as typeof workflowStep)}
           steps={[
             { id: 'frame', label: 'Frame', description: 'Name why the question matters, your current view, and uncertainty.' },
-            { id: 'answer', label: 'Answer', description: 'Write the best provisional answer you can support now.' },
             { id: 'investigate', label: 'Investigate', description: 'Clarify, add evidence, compare answers, or test in practice.' },
+            { id: 'answer', label: 'Answer', description: 'Write the best provisional answer you can support now.' },
             { id: 'decide', label: 'Decide', description: 'Resolve, suspend, transform, archive, or keep the inquiry open.' },
           ]}
         />
@@ -966,21 +967,28 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           </div>
         </EditorialSection>}
 
-        {workflowStep === 'investigate' && !!question.investigationNotes?.length && (
-          <details className="border-y border-border px-1 py-4">
-            <summary className="cursor-pointer font-code text-[10px] uppercase tracking-widest text-muted-foreground">Reviewed challenge notes ({question.investigationNotes.length})</summary>
-            <div className="mt-4 space-y-3">
-              {question.investigationNotes.map((note) => (
-                <div key={note.id} className="border-l-2 border-accent/40 py-2 pl-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{note.origin.replace('-', ' ')} · {note.date}</div>
-                    {note.title && <Badge variant="outline" className="rounded-full text-[9px]">{note.title}</Badge>}
-                  </div>
-                  <div className="mt-2"><ContextualAiDocument content={note.text} /></div>
-                </div>
-              ))}
-            </div>
-          </details>
+        {workflowStep === 'investigate' && !!question.investigationNotes?.some((note) => note.origin === 'ai-assisted') && (
+          <AiAssistedHistory
+            title="Reviewed challenge notes"
+            entries={(question.investigationNotes || []).filter((note) => note.origin === 'ai-assisted').map((note) => ({
+              id: note.id,
+              action: 'socratic_inquiry_challenge',
+              title: note.title || 'Socratic challenge',
+              content: note.text,
+              date: note.date,
+            }))}
+            onChange={async (entries) => {
+              const userNotes = (question.investigationNotes || []).filter((note) => note.origin !== 'ai-assisted');
+              if (!await onUpdateQuestion({
+                ...question,
+                investigationNotes: [
+                  ...userNotes,
+                  ...entries.map((entry) => ({ id: entry.id, title: entry.title, text: entry.content, origin: 'ai-assisted' as const, date: entry.date })),
+                ],
+                dateUpdated: today(),
+              })) throw new Error('The challenge-note history was not saved.');
+            }}
+          />
         )}
 
         {(workflowStep === 'investigate' || workflowStep === 'decide') && <section className="border-y border-border bg-background/20" aria-label="Inquiry investigation tools">

@@ -6,12 +6,10 @@ import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { releaseStaleModalInteractionLock } from "@/lib/modal-interaction"
+import { useInteractionLayerCleanup } from "@/hooks/use-interaction-layer-cleanup"
 
 const Dialog = ({ onOpenChange, ...props }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Root>) => {
-  const handleOpenChange = React.useCallback((open: boolean) => {
-    onOpenChange?.(open)
-    if (!open) releaseStaleModalInteractionLock()
-  }, [onOpenChange])
+  const handleOpenChange = useInteractionLayerCleanup(props.open, onOpenChange)
 
   return <DialogPrimitive.Root {...props} onOpenChange={handleOpenChange} />
 }
