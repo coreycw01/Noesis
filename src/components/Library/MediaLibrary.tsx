@@ -33,7 +33,8 @@ import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
-import type { ContextualAiAction } from '@/lib/contextual-ai';
+import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { aiHistoryEntry, type ContextualAiAction } from '@/lib/contextual-ai';
 import { inquirySourceIds } from '@/lib/inquiry-state';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -516,23 +517,26 @@ export function MediaLibrary({
                 ],
               })}
               onAccept={(result, content) => {
+                const aiReviewHistory = [...(selected.aiReviewHistory || []), aiHistoryEntry(result, content)];
                 if (result.action === 'summarize_source') {
                   const currentCapture = captureDraft || selected.capture || { sessions: [] };
                   const nextCapture = { ...currentCapture, after: { ...currentCapture.after, aiSummary: content }, sessions: currentCapture.sessions || [] };
                   setCaptureDraft(nextCapture);
-                  updateSelected({ capture: nextCapture });
+                  updateSelected({ capture: nextCapture, aiReviewHistory });
                 }
                 else if (result.action === 'reflect_on_source') {
                   const currentCapture = captureDraft || selected.capture || { sessions: [] };
                   const nextCapture = { ...currentCapture, after: { ...currentCapture.after, aiReflection: content }, sessions: currentCapture.sessions || [] };
                   setCaptureDraft(nextCapture);
-                  updateSelected({ capture: nextCapture });
+                  updateSelected({ capture: nextCapture, aiReviewHistory });
                 }
                 else if (result.action === 'extract_source_claims') updateSelected({
                   annotations: mergeGeneratedAnnotations(selected.annotations || [], generatedListItems(content).map((text) => ({ id: uid(), type: 'claim' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'raw' as const }))),
+                  aiReviewHistory,
                 });
                 else updateSelected({
                   annotations: mergeGeneratedAnnotations(selected.annotations || [], generatedListItems(content, 6).map((text) => ({ id: uid(), type: 'question' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'questioned' as const }))),
+                  aiReviewHistory,
                 });
               }}
               />
@@ -615,6 +619,10 @@ export function MediaLibrary({
           />
 
           <TabsContent value="overview" className="space-y-5 sm:space-y-8">
+            <AiAssistedHistory
+              entries={selected.aiReviewHistory || []}
+              onChange={(aiReviewHistory) => updateSelected({ aiReviewHistory })}
+            />
             {capture.after?.aiSummary && (
               <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -866,10 +874,10 @@ export function MediaLibrary({
                       ],
                       userPrompt,
                     })}
-                    onAccept={(_, content) => {
+                    onAccept={(result, content) => {
                       const nextCapture = { ...capture, after: { ...capture.after, aiReflection: content }, sessions: capture.sessions || [] };
                       setCaptureDraft(nextCapture);
-                      updateSelected({ capture: nextCapture });
+                      updateSelected({ capture: nextCapture, aiReviewHistory: [...(selected.aiReviewHistory || []), aiHistoryEntry(result, content)] });
                     }}
                   />
                 </div>
@@ -1405,7 +1413,14 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
           ...patch,
           tags: normalizeConceptTags([...(prev.tags || []), ...(patch.tags || [])]),
         }));
-        toast({ title: "Source Imported", description: "Metadata harvested from the provided URL." });
+        setImportUrl('');
+        const filled = [patch.title, patch.creator, patch.description, patch.thumbnailUrl].filter(Boolean).length;
+        toast({
+          title: "Link Imported",
+          description: filled >= 3
+            ? "Title, creator, description, and available artwork were filled from the source."
+            : "Available source details were filled. Review any fields the provider did not publish.",
+        });
       } else {
         throw new Error(data.error || "Could not read metadata from URL.");
       }
@@ -1511,7 +1526,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                       </Label>
                       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                         <Input 
-                          placeholder="Paste source URL for auto-metadata..." 
+                          placeholder="Paste a YouTube, article, podcast, or other public URL..."
                           value={importUrl}
                           onChange={(e) => setImportUrl(e.target.value)}
                           className="h-11 rounded-md bg-card text-sm italic sm:rounded-full"

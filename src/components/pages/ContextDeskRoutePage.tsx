@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { aiHistoryEntry, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
 import { EntityPicker } from '@/components/search/EntityPicker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { iconForNoesisView } from '@/lib/noesis-icons';
-import type { AiContextEnvelope, ContextualAiAction } from '@/lib/contextual-ai';
 import type { AiSettings, Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -627,7 +627,7 @@ export function ContextDeskRoutePage({
               promptLabel="What should Noesis examine across these records?"
               promptPlaceholder="For example: Where do these records contradict each other, and what should I investigate next?"
               buildEnvelope={buildEnvelope}
-              onAccept={async (_result, content) => {
+              onAccept={async (result, content) => {
                 const created = await onAddDraft({
                   title: `Context review - ${new Date().toLocaleDateString()}`,
                   body: content,
@@ -640,6 +640,7 @@ export function ContextDeskRoutePage({
                   sourceIds: selectedIds('source'),
                   questionIds: selectedIds('inquiry'),
                   beliefIds: selectedIds('position'),
+                  aiReviewHistory: [aiHistoryEntry(result, content)],
                 });
                 onNavigate('writing', created.id);
               }}

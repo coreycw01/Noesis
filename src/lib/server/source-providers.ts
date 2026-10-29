@@ -3,6 +3,7 @@ import 'server-only';
 import type { MediaType } from '@/lib/types';
 import { buildCatalogSummary, type NormalizedSourceResult } from '@/lib/source-intake';
 import { sourceSearchProviders, type SourceSearchProvider } from '@/lib/source-search-plan';
+import { cleanMetadataText, inferMediaType, parsePageMetadata, youtubeVideoId } from '@/lib/source-url-metadata';
 import { fetchVerifiedPublicResource } from './public-url';
 
 const USER_AGENT = 'Noesis source intake';
@@ -73,15 +74,6 @@ function mergeSearchResults(groups: NormalizedSourceResult[][], forcedType: Medi
     }));
   });
   return Array.from(merged.values()).slice(0, 10);
-}
-
-function absoluteUrl(value: string | undefined, base: URL) {
-  if (!value) return '';
-  try {
-    return new URL(value, base).toString();
-  } catch {
-    return value;
-  }
 }
 
 async function fetchJson(url: string) {
@@ -326,6 +318,38 @@ function normalizeInternetArchiveDoc(doc: any, forcedType: MediaType): Normalize
   };
 }
 
+function youtubeApiKey() {
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key) throw new Error('YouTube search requires YOUTUBE_API_KEY in the server environment.');
+  return key;
+}
+
+function normalizeYouTubeVideo(item: any, forcedType: MediaType): NormalizedSourceResult | null {
+  const snippet = item?.snippet;
+  const youtubeId = cleanText(typeof item?.id === 'string' ? item.id : item?.id?.videoId);
+  if (!snippet?.title || !youtubeId) return null;
+  const sourceUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(youtubeId)}`;
+  return {
+    provider: 'youtube',
+    externalId: youtubeId,
+    type: forcedType,
+    title: cleanText(snippet.title),
+    creators: unique([snippet.channelTitle]),
+    year: yearFromDate(snippet.publishedAt || snippet.publishTime),
+    description: cleanText(snippet.description),
+    thumbnailUrl: snippet.thumbnails?.maxres?.url
+      || snippet.thumbnails?.high?.url
+      || snippet.thumbnails?.medium?.url
+      || snippet.thumbnails?.default?.url
+      || '',
+    sourceUrl,
+    publisher: cleanText(snippet.channelTitle || 'YouTube'),
+    platform: 'YouTube',
+    tags: unique(snippet.tags || []),
+    externalIds: { youtubeId, url: sourceUrl },
+  };
+}
+
 export async function searchBooks(query: string) {
   const googleUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=8&printType=books`;
   let results: NormalizedSourceResult[] = [];
@@ -392,91 +416,117 @@ export async function searchInternetArchive(query: string, type: MediaType) {
   return (data.response?.docs || []).map((doc: any) => normalizeInternetArchiveDoc(doc, type)).filter(Boolean).slice(0, 8);
 }
 
-function metaContent(html: string, selector: RegExp) {
-  return cleanText(html.match(selector)?.[1]);
+export async function searchYouTube(query: string, type: MediaType) {
+  const params = new URLSearchParams({
+    part: 'snippet',
+    type: 'video',
+    maxResults: '8',
+    q: query,
+    safeSearch: 'moderate',
+    key: youtubeApiKey(),
+  });
+  const data = await fetchJson(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
+  return (data.items || []).map((item: any) => normalizeYouTubeVideo(item, type)).filter(Boolean).slice(0, 8);
 }
 
-function jsonLdValues(html: string) {
-  const values: any[] = [];
-  const pattern = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(html))) {
-    try {
-      const parsed = JSON.parse(match[1].trim());
-      if (Array.isArray(parsed)) values.push(...parsed);
-      else values.push(parsed);
-    } catch {
-      // Ignore invalid structured data from third-party pages.
-    }
-  }
-  return values.flatMap((value) => value?.['@graph'] || value).filter(Boolean);
+interface OEmbedResponse {
+  type?: string;
+  title?: string;
+  author_name?: string;
+  provider_name?: string;
+  thumbnail_url?: string;
+  description?: string;
 }
 
-function firstJsonLdValue(items: any[], keys: string[]) {
-  for (const item of items) {
-    for (const key of keys) {
-      const value = item?.[key];
-      if (!value) continue;
-      if (typeof value === 'string') return cleanText(value);
-      if (Array.isArray(value)) {
-        const first = value[0];
-        if (typeof first === 'string') return cleanText(first);
-        if (first?.name) return cleanText(first.name);
-      }
-      if (value.name) return cleanText(value.name);
-    }
+async function fetchOEmbed(url: URL): Promise<OEmbedResponse | null> {
+  try {
+    const response = await fetchVerifiedPublicResource(url, {
+      headers: { accept: 'application/json', 'user-agent': USER_AGENT },
+      maxBytes: 256_000,
+      allowedContentTypes: ['application/json', 'text/json'],
+    });
+    if (!response.ok) return null;
+    return JSON.parse(response.text) as OEmbedResponse;
+  } catch {
+    return null;
   }
-  return '';
+}
+
+async function fetchYouTubeVideo(videoId: string) {
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key || !videoId) return null;
+  try {
+    const params = new URLSearchParams({ part: 'snippet', id: videoId, key });
+    const data = await fetchJson(`https://www.googleapis.com/youtube/v3/videos?${params.toString()}`);
+    return data.items?.[0] || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function metadataFromUrl(rawUrl: string, forcedType?: MediaType): Promise<NormalizedSourceResult> {
   const url = new URL(rawUrl);
-  const response = await fetchVerifiedPublicResource(url, {
-    headers: {
-      accept: 'text/html,application/xhtml+xml,text/plain;q=0.8,*/*;q=0.1',
-      'user-agent': USER_AGENT,
-    },
-    maxBytes: 2_000_000,
-    allowedContentTypes: ['text/html', 'application/xhtml+xml', 'text/plain'],
-  });
-  if (!response.ok) throw new Error(`URL could not be read (${response.status}).`);
+  const videoId = youtubeVideoId(url);
+  let page = parsePageMetadata('', url);
+  let pageWasRead = false;
+  try {
+    const response = await fetchVerifiedPublicResource(url, {
+      headers: {
+        accept: 'text/html,application/xhtml+xml,text/plain;q=0.8,*/*;q=0.1',
+        'user-agent': USER_AGENT,
+      },
+      maxBytes: 2_000_000,
+      allowedContentTypes: ['text/html', 'application/xhtml+xml', 'text/plain'],
+    });
+    if (response.ok) {
+      page = parsePageMetadata(response.text, response.url);
+      pageWasRead = true;
+    }
+  } catch {
+    // Known media providers can still resolve through their structured endpoint.
+  }
 
-  const html = response.text;
-  const jsonLd = jsonLdValues(html);
-  const title = metaContent(html, /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["'][^>]*>/i)
-    || metaContent(html, /<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["'][^>]*>/i)
-    || firstJsonLdValue(jsonLd, ['headline', 'name'])
-    || cleanText(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]);
-  const description = metaContent(html, /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["'][^>]*>/i)
-    || metaContent(html, /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["'][^>]*>/i)
-    || firstJsonLdValue(jsonLd, ['description']);
-  const image = absoluteUrl(
-    metaContent(html, /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i)
-      || metaContent(html, /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i),
-    url,
-  );
-  const siteName = metaContent(html, /<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)["'][^>]*>/i)
-    || url.hostname.replace(/^www\./, '');
-  const author = metaContent(html, /<meta[^>]+name=["']author["'][^>]+content=["']([^"']+)["'][^>]*>/i)
-    || firstJsonLdValue(jsonLd, ['author']);
-  const published = metaContent(html, /<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']+)["'][^>]*>/i)
-    || firstJsonLdValue(jsonLd, ['datePublished', 'dateCreated']);
-  const canonical = absoluteUrl(html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["'][^>]*>/i)?.[1], url) || url.toString();
+  const oEmbedUrl = videoId
+    ? new URL(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url.toString())}`)
+    : page.oEmbedUrl ? new URL(page.oEmbedUrl) : null;
+  const [oEmbed, youtube] = await Promise.all([
+    oEmbedUrl ? fetchOEmbed(oEmbedUrl) : Promise.resolve(null),
+    videoId ? fetchYouTubeVideo(videoId) : Promise.resolve(null),
+  ]);
+  if (!pageWasRead && !oEmbed && !youtube) throw new Error('URL could not be read by the page or its metadata provider.');
+
+  const youtubeSnippet = youtube?.snippet;
+  const detectedType = inferMediaType(url, page)
+    || (oEmbed?.type === 'video' ? 'video' : undefined);
+  const type = detectedType || forcedType || 'article';
+  const title = cleanMetadataText(youtubeSnippet?.title || page.title || oEmbed?.title) || url.toString();
+  const author = cleanMetadataText(youtubeSnippet?.channelTitle || page.author || oEmbed?.author_name);
+  const platform = cleanMetadataText(page.siteName || oEmbed?.provider_name)
+    || (videoId ? 'YouTube' : url.hostname.replace(/^www\./, ''));
+  const description = cleanMetadataText(youtubeSnippet?.description || page.description || oEmbed?.description)
+    || `${type.charAt(0).toUpperCase()}${type.slice(1)}${author ? ` by ${author}` : ''} on ${platform}.`;
+  const canonical = page.canonicalUrl || url.toString();
+  const thumbnail = youtubeSnippet?.thumbnails?.maxres?.url
+    || youtubeSnippet?.thumbnails?.high?.url
+    || page.imageUrl
+    || oEmbed?.thumbnail_url
+    || '';
+  const tags = unique([...(page.tags || []), ...(youtubeSnippet?.tags || [])]);
 
   return withCatalogSummary({
-    provider: 'url_metadata',
-    externalId: canonical,
-    type: forcedType || 'article',
-    title: title || canonical,
+    provider: videoId ? 'youtube' : 'url_metadata',
+    externalId: videoId || canonical,
+    type,
+    title,
     creators: author ? [author] : [],
-    year: yearFromDate(published),
+    year: yearFromDate(youtubeSnippet?.publishedAt || page.publishedAt),
     description,
-    thumbnailUrl: image,
+    thumbnailUrl: thumbnail,
     sourceUrl: canonical,
-    publisher: siteName,
-    platform: siteName,
-    tags: [],
-    externalIds: { url: canonical },
+    publisher: author || platform,
+    platform,
+    tags,
+    externalIds: { url: canonical, ...(videoId ? { youtubeId: videoId } : {}) },
   });
 }
 
@@ -486,6 +536,7 @@ async function searchWithProvider(provider: SourceSearchProvider, query: string,
   if (provider === 'movies') return searchMovies(query, type);
   if (provider === 'itunes') return searchItunes(query, type);
   if (provider === 'articles') return searchArticles(query, type);
+  if (provider === 'youtube') return searchYouTube(query, type);
   return searchInternetArchive(query, type);
 }
 

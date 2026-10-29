@@ -35,7 +35,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
-import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
+import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { aiHistoryEntry, type AiContextEnvelope, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
 
 interface BeliefVaultProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -1029,13 +1030,14 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
     const acceptPositionAiResult = async (result: AiReviewResult, content: string) => {
       const baseHistory = selected.versionHistory || [];
-      const reviewEntry = { date: today(), eventType: 'revised' as const, description: `Reviewed assistance (${result.action.replace(/_/g, ' ')}): ${content}` };
+      const reviewEntry = { date: today(), eventType: 'revised' as const, description: `Reviewed AI-assisted ${result.action.replace(/_/g, ' ')}.` };
+      const aiReviewHistory = [...(selected.aiReviewHistory || []), aiHistoryEntry(result, content)];
       if (result.action === 'find_position_assumptions') {
-        await onUpdateEntry({ ...selected, assumptions: Array.from(new Set([...(selected.assumptions || []), ...splitLines(content)])), versionHistory: [...baseHistory, reviewEntry], dateUpdated: today() });
+        await onUpdateEntry({ ...selected, assumptions: Array.from(new Set([...(selected.assumptions || []), ...splitLines(content)])), versionHistory: [...baseHistory, reviewEntry], aiReviewHistory, dateUpdated: today() });
         return;
       }
       if (result.action === 'generate_position_counterargument') {
-        await onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), content], versionHistory: [...baseHistory, reviewEntry], dateUpdated: today() });
+        await onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), content], versionHistory: [...baseHistory, reviewEntry], aiReviewHistory, dateUpdated: today() });
         return;
       }
       if (result.action === 'identify_missing_position_evidence') {
@@ -1043,6 +1045,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           ...selected,
           missingEvidence: Array.from(new Set([...(selected.missingEvidence || []), ...splitLines(content)])),
           versionHistory: [...baseHistory, reviewEntry],
+          aiReviewHistory,
           dateUpdated: today(),
         });
         return;
@@ -1055,6 +1058,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             { positionId: comparisonTarget.id, positionTitle: comparisonTarget.title, content, date: today() },
           ],
           versionHistory: [...baseHistory, reviewEntry],
+          aiReviewHistory,
           dateUpdated: today(),
         });
         return;
@@ -1062,6 +1066,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       await onUpdateEntry({
         ...selected,
         versionHistory: [...baseHistory, reviewEntry],
+        aiReviewHistory,
         dateUpdated: today(),
       });
     };
@@ -1153,6 +1158,13 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             <p className="mt-2 text-xs italic text-muted-foreground">The position description is kept separate so it does not stand in for your reasoning.</p>
           )}
         </EditorialSection>
+
+        <div className="mb-5">
+          <AiAssistedHistory
+            entries={selected.aiReviewHistory || []}
+            onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })}
+          />
+        </div>
 
         <section className="border-y border-border bg-background/20" aria-label="Position workbench">
           <header className="px-5 py-4 sm:px-6">

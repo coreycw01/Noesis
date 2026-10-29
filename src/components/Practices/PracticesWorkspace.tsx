@@ -26,7 +26,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { aiHistoryEntry, type AiReviewResult } from '@/lib/contextual-ai';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
@@ -688,9 +690,15 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         positions={positions}
         drafts={drafts}
         onAddConcept={onAddConcept}
-        onSaveAiOutcome={async (content) => {
+        onSaveAiOutcome={async (result, content) => {
           if (!draft.id) return;
-          const next = { ...draft, aiOutcomeReview: content, dateUpdated: new Date().toISOString() } as Practice;
+          const next = { ...draft, aiOutcomeReview: content, aiReviewHistory: [...(draft.aiReviewHistory || []), aiHistoryEntry(result, content)], dateUpdated: new Date().toISOString() } as Practice;
+          setDraft(next);
+          await onUpdatePractice(next);
+        }}
+        onSaveAiHistory={async (aiReviewHistory) => {
+          if (!draft.id) return;
+          const next = { ...draft, aiReviewHistory, dateUpdated: new Date().toISOString() } as Practice;
           setDraft(next);
           await onUpdatePractice(next);
         }}
@@ -1035,7 +1043,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   );
 }
 
-function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onSaveAiOutcome, onSave, routeOwned = false }: {
+function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onSaveAiOutcome, onSaveAiHistory, onSave, routeOwned = false }: {
   aiSettings: import('@/lib/types').AiSettings;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1047,7 +1055,8 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
   positions: VaultEntry[];
   drafts: Draft[];
   onAddConcept: (data: Partial<Concept>) => void;
-  onSaveAiOutcome: (content: string) => void | Promise<void>;
+  onSaveAiOutcome: (result: AiReviewResult, content: string) => void | Promise<void>;
+  onSaveAiHistory: (entries: NonNullable<Practice['aiReviewHistory']>) => void | Promise<void>;
   onSave: () => void;
   routeOwned?: boolean;
 }) {
@@ -1108,7 +1117,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                     ...drafts.filter((work) => (draft.draftIds || []).includes(work.id)).slice(0, 3).map((work) => `Work: ${work.title}; status ${work.status || 'not recorded'}; excerpt ${(work.body || work.draftContent || '').slice(0, 300) || 'none recorded'}`),
                   ],
                 })}
-                onAccept={async (_result, content) => onSaveAiOutcome(content)}
+                onAccept={onSaveAiOutcome}
               />
             </div>
             <DialogDescription>
@@ -1189,13 +1198,19 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   <Field label="ALTERNATIVE EXPLANATION"><Textarea value={draft.alternativeExplanation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What else could explain the result?" /></Field>
                   <Field label="EFFECT ON POSITION"><Textarea value={draft.effectOnPosition || ''} onChange={(event) => setDraft((prev) => ({ ...prev, effectOnPosition: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What position, inquiry, or concept should change because of this?" /></Field>
                 </div>
-                {draft.aiOutcomeReview?.trim() && (
-                  <div className="mt-5 border-t border-border/60 pt-5">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <h4 className="font-code text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Saved Outcome Review</h4>
-                      <Badge variant="outline" className="text-[9px] uppercase tracking-wider">AI-assisted</Badge>
-                    </div>
-                    <ContextualAiDocument content={draft.aiOutcomeReview} />
+                {(draft.aiReviewHistory?.length || draft.aiOutcomeReview?.trim()) && (
+                  <div className="mt-5">
+                    <AiAssistedHistory
+                      title="Saved outcome reviews"
+                      entries={draft.aiReviewHistory?.length ? draft.aiReviewHistory : [{
+                        id: 'legacy-outcome-review',
+                        action: 'synthesize_practice_outcome',
+                        title: 'Outcome review',
+                        content: draft.aiOutcomeReview || '',
+                        date: draft.dateUpdated || draft.endDate || new Date().toISOString(),
+                      }]}
+                      onChange={onSaveAiHistory}
+                    />
                   </div>
                 )}
               </div>

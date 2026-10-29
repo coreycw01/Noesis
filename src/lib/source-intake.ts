@@ -24,6 +24,7 @@ export interface NormalizedSourceResult {
     itunesId?: string;
     crossrefId?: string;
     internetArchiveId?: string;
+    youtubeId?: string;
     isbn?: string;
     doi?: string;
     url?: string;

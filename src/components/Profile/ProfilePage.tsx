@@ -14,11 +14,12 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
-import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { profileStatementFromSynthesis, type ContextualAiAction } from '@/lib/contextual-ai';
+import { aiHistoryEntry, profileStatementFromSynthesis, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
 import { cn } from '@/lib/utils';
 import type { AiSettings, BeliefProfile, Concept, Draft, Media, Practice, ProfilePrivacySettings, PublicProfileSnapshot, Question, ThinkingEvent, ThinkingMetrics, ThinkingPattern, ThinkingPatternUserResponse, Unknown, UserProfile, VaultEntry } from '@/lib/types';
 
@@ -190,7 +191,7 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
     };
   }, [activePositions, concepts.length, derivedIdentity.season, inquiries, openEdges.tensions.length, openEdges.unsupported.length, openUnknowns.length, practices, profile.id, profileDraft.philosophyName, profileDraft.philosophyNameStatus, profileDraft.philosophyStatement, rankedConcepts, recentBeliefEvents, sourceLeaders, sources.length, user?.uid, works]);
 
-  const acceptPhilosophySynthesis = async (_result: unknown, editedContent: string) => {
+  const acceptPhilosophySynthesis = async (result: AiReviewResult, editedContent: string) => {
     const statement = profileStatementFromSynthesis(editedContent);
     const reviewedAt = new Date().toISOString();
     const nextProfile = {
@@ -198,6 +199,7 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
       ...(statement ? { philosophyStatement: statement } : {}),
       philosophySynthesisReview: editedContent,
       philosophySynthesisReviewedAt: reviewedAt,
+      aiReviewHistory: [...(profileDraft.aiReviewHistory || []), aiHistoryEntry(result, editedContent, reviewedAt)],
       dateUpdated: reviewedAt,
     };
     await onSaveProfile(nextProfile);
@@ -260,19 +262,24 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
                 />
               ) : <Button variant="outline" size="sm" className="shrink-0 rounded-full" onClick={() => onNavigate('settings')}>Enable in Settings</Button>}
             </div>
-            {profileDraft.philosophySynthesisReview?.trim() && (
-              <details className="group mt-4 rounded-xl border border-border bg-background/50">
-                <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-medium">Saved philosophy review <Badge variant="outline" className="text-[9px] uppercase tracking-wider">AI-assisted</Badge></div>
-                    <div className="mt-1 text-xs text-muted-foreground">Reviewed {formatDate(profileDraft.philosophySynthesisReviewedAt)}</div>
-                  </div>
-                  <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
-                </summary>
-                <div className="border-t border-border px-4 py-4">
-                  <ContextualAiDocument content={profileDraft.philosophySynthesisReview} />
-                </div>
-              </details>
+            {(profileDraft.aiReviewHistory?.length || profileDraft.philosophySynthesisReview?.trim()) && (
+              <div className="mt-4">
+                <AiAssistedHistory
+                  title="Saved philosophy reviews"
+                  entries={profileDraft.aiReviewHistory?.length ? profileDraft.aiReviewHistory : [{
+                    id: 'legacy-philosophy-review',
+                    action: 'synthesize_profile_philosophy',
+                    title: 'Philosophy review',
+                    content: profileDraft.philosophySynthesisReview || '',
+                    date: profileDraft.philosophySynthesisReviewedAt || profileDraft.dateUpdated || '',
+                  }]}
+                  onChange={async (aiReviewHistory) => {
+                    const nextProfile = { ...profileDraft, aiReviewHistory, dateUpdated: new Date().toISOString() };
+                    await onSaveProfile(nextProfile);
+                    setProfileDraft(nextProfile);
+                  }}
+                />
+              </div>
             )}
             <SegmentedNav className="mt-5" value={philosophyView} onChange={(value) => setPhilosophyView(value as PhilosophyView)} items={[["foundation", "Foundation"], ["influences", "Influences"], ["development", "Development"]]} label="Philosophy sections" />
             {philosophyView === 'foundation' && <div className="mt-5 grid gap-4 lg:grid-cols-2"><LinkGroup title="Recurring concepts" empty="No concepts yet." onOpenAll={() => onNavigate('concepts')}>{rankedConcepts.slice(0, 5).map((concept) => <MiniLink key={concept.id} label={concept.name} meta={`${concept.links.length} links`} onClick={() => onNavigate('concepts', concept.id)} />)}</LinkGroup><LinkGroup title="Current positions" empty="No active positions yet." onOpenAll={() => onNavigate('vault')}>{activePositions.slice(0, 5).map((position) => <MiniLink key={position.id} label={position.statement || position.title} meta={`${Math.round(position.confidence)}%`} onClick={() => onNavigate('vault', position.id)} />)}</LinkGroup></div>}

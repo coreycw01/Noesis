@@ -28,7 +28,9 @@ import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
-import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { aiHistoryEntry } from '@/lib/contextual-ai';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -1181,17 +1183,24 @@ export function AnnotationsIndex({
                 </details>
               </section>
 
-              {editing.aiEffectReview && annotationWorkflowStep === 'apply' && (
-                <section className="rounded-2xl border border-accent/25 bg-accent/5 p-4">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">Saved effect review</div>
-                      <p className="mt-1 text-xs text-muted-foreground">Use this reviewed analysis when deciding how the note should affect your thinking. It does not change links or status by itself.</p>
-                    </div>
-                    <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
-                  </div>
-                  <ContextualAiDocument content={editing.aiEffectReview} />
-                </section>
+              {annotationWorkflowStep === 'apply' && (editing.aiReviewHistory?.length || editing.aiEffectReview) && (
+                <AiAssistedHistory
+                  title="Saved effect reviews"
+                  description="Reviewed assistance for this annotation. Editing or deleting a note does not change its links or status."
+                  entries={editing.aiReviewHistory?.length ? editing.aiReviewHistory : [{
+                    id: 'legacy-effect-review',
+                    action: 'suggest_annotation_effect',
+                    title: 'Effect review',
+                    content: editing.aiEffectReview || '',
+                    date: editing.date,
+                  }]}
+                  onChange={(aiReviewHistory) => {
+                    const { source, ...annotation } = editing;
+                    const next = { ...annotation, aiReviewHistory };
+                    onUpdateAnnotation(source.id, next);
+                    setEditing({ ...next, source });
+                  }}
+                />
               )}
 
               <section id="annotation-apply" className={cn('scroll-mt-4 rounded-xl border border-accent/20 bg-accent/5 p-4', annotationWorkflowStep !== 'apply' && 'hidden')}>
@@ -1233,9 +1242,9 @@ export function AnnotationsIndex({
                       ],
                       userPrompt,
                     })}
-                    onAccept={(_, content) => {
+                    onAccept={(result, content) => {
                       const { source, ...annotation } = editing;
-                      const next = { ...annotation, aiEffectReview: content };
+                      const next = { ...annotation, aiEffectReview: content, aiReviewHistory: [...(annotation.aiReviewHistory || []), aiHistoryEntry(result, content)] };
                       onUpdateAnnotation(source.id, next);
                       setEditing({ ...next, source });
                     }}
