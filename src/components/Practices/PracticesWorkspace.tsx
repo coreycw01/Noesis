@@ -28,7 +28,7 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { aiHistoryEntry, type AiReviewResult } from '@/lib/contextual-ai';
+import { appendAiHistoryEntry, type AiReviewResult } from '@/lib/contextual-ai';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
@@ -692,7 +692,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         onAddConcept={onAddConcept}
         onSaveAiOutcome={async (result, content) => {
           if (!draft.id) return;
-          const next = { ...draft, aiOutcomeReview: content, aiReviewHistory: [...(draft.aiReviewHistory || []), aiHistoryEntry(result, content)], dateUpdated: new Date().toISOString() } as Practice;
+          const next = { ...draft, aiOutcomeReview: content, aiReviewHistory: appendAiHistoryEntry(draft.aiReviewHistory, result, content), dateUpdated: new Date().toISOString() } as Practice;
           setDraft(next);
           await onUpdatePractice(next);
         }}

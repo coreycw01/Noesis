@@ -214,6 +214,13 @@ export interface Annotation extends NoesisStageState {
   linkedPositionIds?: string[];
 }
 
+/** First-class annotation record used during the nested-annotation migration. */
+export interface AnnotationRecord extends Annotation {
+  sourceId: string;
+  userId?: string;
+  dateUpdated?: string;
+}
+
 export interface ReadingSession {
   id: string;
   userId?: string;
@@ -297,6 +304,8 @@ export interface Media extends NoesisStageState {
     url?: string;
   };
   tags: string[];
+  /** Stable concept identities; tags remain as user-facing labels. */
+  conceptIds?: string[];
   annotations: Annotation[];
   capture: MediaCapture;
   dateAdded: string;
@@ -309,6 +318,12 @@ export interface VaultVersion {
   eventType?: EventType;
   date: string;
   confidence?: number;
+}
+
+export interface PositionVersionRecord extends VaultVersion {
+  id: string;
+  positionId: string;
+  userId?: string;
 }
 
 export interface PositionComparisonReview {
@@ -334,6 +349,7 @@ export interface VaultEntry extends NoesisStageState {
   consequences?: string[];
   applications?: string[];
   tags: string[];
+  conceptIds?: string[];
   sourceIds: string[];
   insightIds?: string[];
   evidenceFor?: string[];
@@ -362,6 +378,7 @@ export interface Insight {
   body: string;
   sourceIds: string[];
   tags: string[];
+  conceptIds?: string[];
   categories?: string[];
   connections?: string[];
   beliefId?: string;
@@ -494,6 +511,8 @@ export interface Draft extends NoesisStageState {
   writingStyle?: WritingStyle;
   externalDoc?: ExternalDraftDocument;
   conceptTags: string[];
+  /** Stable concept identities; conceptTags remain as user-facing labels. */
+  conceptIds?: string[];
   sourceIds: string[];
   questionIds: string[];
   beliefIds: string[];
@@ -556,6 +575,8 @@ export interface Practice extends NoesisStageState {
     shouldContinue?: string;
   };
   conceptTags: string[];
+  /** Stable concept identities; conceptTags remain as user-facing labels. */
+  conceptIds?: string[];
   sourceIds: string[];
   questionIds: string[];
   positionIds: string[];
@@ -579,6 +600,12 @@ export interface DraftRevision {
   createdAt: string;
 }
 
+export interface WorkRevisionRecord extends DraftRevision {
+  revisionId: string;
+  workId: string;
+  userId?: string;
+}
+
 export interface PracticeLog {
   id: string;
   date: string;
@@ -589,6 +616,12 @@ export interface PracticeLog {
   unexpectedResult?: string;
   confidence?: number;
   mediaIds?: string[];
+}
+
+export interface PracticeLogRecord extends PracticeLog {
+  logId: string;
+  practiceId: string;
+  userId?: string;
 }
 
 export interface PhilosophicalLink {

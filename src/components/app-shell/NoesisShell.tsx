@@ -223,7 +223,7 @@ export function NoesisShell({
         label: `Create a practice for: ${position.title || position.statement}`,
         section: 'Next Action',
         description: 'This position is not connected to a lived test yet.',
-        view: 'practices',
+        view: 'labs',
         targetId: null,
         objectType: 'Practice Action',
         kind: 'object',
@@ -240,7 +240,7 @@ export function NoesisShell({
         aliases: ['untested belief', 'test position', 'create practice', 'lived experiment', 'practice for belief'],
         quickActionLabel: 'Open Labs',
         quickActions: [
-          { label: 'Open Labs', view: 'practices' },
+          { label: 'Open Labs', view: 'labs' },
           { label: 'Open Position First', view: 'vault', targetId: position.id, targetType: 'position' as const },
         ],
       });
@@ -333,7 +333,7 @@ export function NoesisShell({
         label: `Log practice result: ${practice.title}`,
         section: 'Next Action',
         description: 'This practice needs a recent observation or outcome log.',
-        view: 'practices',
+        view: 'labs',
         targetId: practice.id,
         targetType: 'practice' as const,
         objectType: 'Practice Action',
@@ -350,7 +350,7 @@ export function NoesisShell({
         thinkingEventHint: 'Logging a result that affects a position or inquiry should create a tested/practice event.',
         aliases: ['log practice', 'practice result', 'needs observation', 'streak log', 'test outcome'],
         quickActionLabel: 'Open Practice',
-        quickActions: [{ label: 'Open Practice', view: 'practices', targetId: practice.id, targetType: 'practice' as const }],
+        quickActions: [{ label: 'Open Practice', view: 'labs', targetId: practice.id, targetType: 'practice' as const }],
       });
     });
 
@@ -573,7 +573,7 @@ export function NoesisShell({
       label: item.title,
       section: 'Practice',
       description: item.status || 'Open practice field.',
-      view: 'practices',
+      view: 'labs',
       targetId: item.id,
       targetType: 'practice' as const,
       objectType: 'Experiment Object',
@@ -594,7 +594,7 @@ export function NoesisShell({
       lastChangedAt: item.dateUpdated || item.dateCreated,
       quickActionLabel: 'Open Practice',
       quickActions: [
-        { label: 'Open Practice', view: 'practices', targetId: item.id, targetType: 'practice' as const },
+        { label: 'Open Practice', view: 'labs', targetId: item.id, targetType: 'practice' as const },
         { label: 'Open Positions', view: 'vault' },
       ],
     })),

@@ -1,8 +1,5 @@
-import { NoesisRouteSurface } from '../noesis-route-surface';
-import { metadataForNoesisView } from '@/lib/noesis-page-definitions';
-
-export const metadata = metadataForNoesisView('practices');
+import { redirect } from 'next/navigation';
 
 export default function PracticesPage() {
-  return <NoesisRouteSurface routeState={{ view: 'practices' }} />;
+  redirect('/labs');
 }

@@ -55,7 +55,7 @@ function routeOptionsForHomeTarget(target: HomeRouteTarget) {
     sourceId: target.view === 'library' ? target.targetId : null,
     positionId: target.view === 'vault' ? target.targetId : null,
     workId: target.view === 'writing' ? target.targetId : null,
-    practiceId: target.view === 'practices' ? target.targetId : null,
+    practiceId: target.view === 'labs' ? target.targetId : null,
   };
 }
 

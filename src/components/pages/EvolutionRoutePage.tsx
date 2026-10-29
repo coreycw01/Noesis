@@ -8,6 +8,8 @@ export interface EvolutionRoutePageProps {
   events: TimelineEvent[];
   media: Media[];
   thinkingEvents: ThinkingEvent[];
+  thinkingEventsHasMore: boolean;
+  loadMoreThinkingEvents: () => void;
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
   metrics: ThinkingMetrics;
@@ -19,6 +21,8 @@ export function EvolutionRoutePage({
   events,
   media,
   thinkingEvents,
+  thinkingEventsHasMore,
+  loadMoreThinkingEvents,
   unknowns,
   thinkingPatterns,
   metrics,
@@ -30,6 +34,8 @@ export function EvolutionRoutePage({
       events={events}
       media={media}
       thinkingEvents={thinkingEvents}
+      thinkingEventsHasMore={thinkingEventsHasMore}
+      loadMoreThinkingEvents={loadMoreThinkingEvents}
       unknowns={unknowns}
       thinkingPatterns={thinkingPatterns}
       metrics={metrics}

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
-import { aiHistoryEntry, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
+import { appendAiHistoryEntry, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
 import { EntityPicker } from '@/components/search/EntityPicker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -66,7 +66,7 @@ const viewForType: Record<ContextRecordType, string> = {
   inquiry: 'questions',
   position: 'vault',
   work: 'writing',
-  practice: 'practices',
+  practice: 'labs',
 };
 
 const contextTypeLabels: Record<ContextRecordType, string> = {
@@ -640,7 +640,7 @@ export function ContextDeskRoutePage({
                   sourceIds: selectedIds('source'),
                   questionIds: selectedIds('inquiry'),
                   beliefIds: selectedIds('position'),
-                  aiReviewHistory: [aiHistoryEntry(result, content)],
+                  aiReviewHistory: appendAiHistoryEntry([], result, content),
                 });
                 onNavigate('writing', created.id);
               }}

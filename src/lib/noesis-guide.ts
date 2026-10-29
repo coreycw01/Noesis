@@ -147,7 +147,7 @@ export const noesisGuide = {
     {
       id: 'practices',
       label: 'Labs',
-      viewId: 'practices',
+      viewId: 'labs',
       section: 'Outputs',
       definition: 'The workspace where practices turn positions into tests, commitments, habits, and experiments.',
       whatYouDo: [

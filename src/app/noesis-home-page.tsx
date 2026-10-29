@@ -112,6 +112,20 @@ import { inquirySourceIds } from '@/lib/inquiry-state';
 import { NOESIS_DATA_REQUIREMENT_LABELS, NOESIS_PAGE_BY_VIEW, type NoesisWorkspaceDataKey } from '@/lib/noesis-page-definitions';
 import { NoesisRouteProvider, useNoesisRoute } from '@/lib/noesis-route-context';
 import { normalizePositionConfidence, normalizePracticeStatusForSave, uniqueIds, withNoesisStage } from '@/lib/workflow-integrity';
+import { annotationRecord, boundedNestedAnnotations, boundedNestedPracticeLogs, boundedNestedWorkRevisions, boundedPositionVersionHistory, conceptIdsForLabels } from '@/lib/collection-integrity';
+
+function historyRecordId(parentId: string, entryId: string) {
+  return `${parentId}__${entryId}`.replace(/\//g, '_');
+}
+
+function stableHistoryToken(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
 
 function ReadexWorkspace({
   user,
@@ -141,7 +155,7 @@ function ReadexWorkspace({
   const focusedPositionId = focusedIdForNoesisView(routeState, 'vault');
   const focusedQuestionId = focusedIdForNoesisView(routeState, 'questions');
   const focusedWorkId = focusedIdForNoesisView(routeState, 'writing');
-  const focusedPracticeId = focusedIdForNoesisView(routeState, 'practices');
+  const focusedPracticeId = focusedIdForNoesisView(routeState, 'labs');
   const pendingNavigationRef = useRef<string | null>(null);
   const pendingNavigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
@@ -226,6 +240,8 @@ function ReadexWorkspace({
     atlasMaps,
     links: rawLinks,
     thinkingEvents,
+    thinkingEventsHasMore,
+    loadMoreThinkingEvents,
     beliefProfiles,
     unknowns,
     thinkingPatterns,
@@ -831,7 +847,23 @@ function ReadexWorkspace({
     URL.revokeObjectURL(url);
   };
 
-  const exportWorkspaceData = () => {
+  const exportWorkspaceData = async () => {
+    const readCollection = async (collectionRef: any) => (await getDocs(collectionRef)).docs.map((snapshot) => ({ id: snapshot.id, ...(snapshot.data() as Record<string, unknown>) }));
+    const persistedCollections = isOfflineReviewPreview ? {
+      media, annotations: allAnnotations(media), concepts, questions, vault, drafts, practices, timeline, links, atlasMaps,
+      thinkingEvents, beliefProfiles, unknowns, thinkingPatterns, insights,
+      practiceLogs: [], workRevisions: [], positionVersions: [],
+    } : await (async () => {
+      const entries = await Promise.all([
+        ['media', refs.media], ['annotations', refs.annotations], ['concepts', refs.concepts], ['questions', refs.questions],
+        ['vault', refs.vault], ['drafts', refs.drafts], ['practices', refs.practices], ['timeline', refs.timeline],
+        ['links', refs.links], ['atlasMaps', refs.atlasMaps], ['thinkingEvents', refs.thinkingEvents],
+        ['beliefProfiles', refs.beliefProfiles], ['unknowns', refs.unknowns], ['thinkingPatterns', refs.thinkingPatterns],
+        ['insights', refs.insights], ['practiceLogs', refs.practiceLogs], ['workRevisions', refs.workRevisions],
+        ['positionVersions', refs.positionVersions],
+      ].map(async ([name, collectionRef]) => [name, await readCollection(collectionRef)] as const));
+      return Object.fromEntries(entries);
+    })();
     const payload = {
       exportedAt: today(),
       user: {
@@ -854,21 +886,7 @@ function ReadexWorkspace({
         goals: goalPreferenceSettings,
         developer: developerSettings,
       },
-      collections: {
-        media,
-        concepts,
-        questions,
-        vault,
-        drafts,
-        practices,
-        timeline,
-        links,
-        atlasMaps,
-        thinkingEvents,
-        beliefProfiles,
-        unknowns,
-        thinkingPatterns,
-      },
+      collections: persistedCollections,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -925,6 +943,12 @@ function ReadexWorkspace({
       const events = [...(input.thinkingEvent ? [input.thinkingEvent] : []), ...(input.thinkingEvents || [])];
       const changes: DemoChange[] = [{ path: input.ref.path, operation: input.operation, data: input.data, merge: Boolean(input.setOptions && 'merge' in input.setOptions && input.setOptions.merge) }];
       (input.relatedUpdates || []).forEach((update) => changes.push({ path: update.ref.path, operation: 'update', data: update.data }));
+      (input.relatedWrites || []).forEach((write) => changes.push({
+        path: write.ref.path,
+        operation: write.operation,
+        data: write.data,
+        merge: Boolean(write.setOptions && 'merge' in write.setOptions && write.setOptions.merge),
+      }));
       events.forEach((event) => {
         const { eventRef, payload } = makeThinkingEventPayload(event);
         changes.push({ path: eventRef.path, operation: 'set', data: { ...payload, createdAt: new Date().toISOString() } });
@@ -949,12 +973,13 @@ function ReadexWorkspace({
     conceptName?: string
   ) => {
     const cleanupChanges: DemoChange[] = [];
-    const recordsByCollection: Record<string, Array<{ id: string }>> = {
+    const recordsByCollection: Record<string, Array<{ id?: string; unknownId?: string }>> = {
       [refs.concepts.path]: concepts, [refs.questions.path]: questions, [refs.vault.path]: vault,
-      [refs.drafts.path]: drafts, [refs.practices.path]: practices, [refs.media.path]: media,
+      [refs.drafts.path]: drafts, [refs.practices.path]: practices, [refs.media.path]: media, [refs.insights.path]: insights,
+      [refs.unknowns.path]: unknowns,
     };
     const updateArray = (collectionRef: any, id: string, field: string, value: string) => {
-      const current = recordsByCollection[collectionRef.path]?.find((item) => item.id === id) as Record<string, any> | undefined;
+      const current = recordsByCollection[collectionRef.path]?.find((item) => item.id === id || (item as any).unknownId === id) as Record<string, any> | undefined;
       cleanupChanges.push({ path: doc(collectionRef, id).path, operation: 'update', data: {
         [field]: isOfflineReviewPreview ? (current?.[field] || []).filter((item: string) => item !== value) : arrayRemove(value), dateUpdated: today(),
       } });
@@ -972,6 +997,7 @@ function ReadexWorkspace({
       vault.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.vault, item.id, 'sourceIds', entityId));
       drafts.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.drafts, item.id, 'sourceIds', entityId));
       practices.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'sourceIds', entityId));
+      unknowns.filter((item) => (item.sourceIds || []).includes(entityId)).forEach((item) => updateArray(refs.unknowns, item.unknownId, 'sourceIds', entityId));
     } else if (entityType === 'annotation') {
       questions.filter((item) => (item.evidenceIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'evidenceIds', entityId));
       questions.filter((item) => item.sourceAnnotationId === entityId).forEach((item) => {
@@ -985,14 +1011,22 @@ function ReadexWorkspace({
       drafts.filter((item) => (item.conceptTags || []).includes(conceptName)).forEach((item) => updateArray(refs.drafts, item.id, 'conceptTags', conceptName));
       practices.filter((item) => (item.conceptTags || []).includes(conceptName)).forEach((item) => updateArray(refs.practices, item.id, 'conceptTags', conceptName));
       media.filter((item) => (item.tags || []).includes(conceptName)).forEach((item) => updateArray(refs.media, item.id, 'tags', conceptName));
+      media.filter((item) => (item.conceptIds || []).includes(entityId)).forEach((item) => updateArray(refs.media, item.id, 'conceptIds', entityId));
+      vault.filter((item) => (item.conceptIds || []).includes(entityId)).forEach((item) => updateArray(refs.vault, item.id, 'conceptIds', entityId));
+      insights.filter((item) => (item.conceptIds || []).includes(entityId)).forEach((item) => updateArray(refs.insights, item.id, 'conceptIds', entityId));
+      drafts.filter((item) => (item.conceptIds || []).includes(entityId)).forEach((item) => updateArray(refs.drafts, item.id, 'conceptIds', entityId));
+      practices.filter((item) => (item.conceptIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'conceptIds', entityId));
       questions.filter((item) => (item.conceptIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'conceptIds', entityId));
     } else if (entityType === 'inquiry') {
       drafts.filter((item) => (item.questionIds || []).includes(entityId)).forEach((item) => updateArray(refs.drafts, item.id, 'questionIds', entityId));
       practices.filter((item) => (item.questionIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'questionIds', entityId));
+      unknowns.filter((item) => (item.inquiryIds || []).includes(entityId)).forEach((item) => updateArray(refs.unknowns, item.unknownId, 'inquiryIds', entityId));
     } else if (entityType === 'position') {
       questions.filter((item) => (item.beliefIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'beliefIds', entityId));
       drafts.filter((item) => (item.beliefIds || []).includes(entityId)).forEach((item) => updateArray(refs.drafts, item.id, 'beliefIds', entityId));
       practices.filter((item) => (item.positionIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'positionIds', entityId));
+      unknowns.filter((item) => (item.positionIds || []).includes(entityId)).forEach((item) => updateArray(refs.unknowns, item.unknownId, 'positionIds', entityId));
+      cleanupChanges.push({ path: doc(refs.beliefProfiles, entityId).path, operation: 'delete' });
     } else if (entityType === 'work') {
       questions.filter((item) => (item.draftIds || []).includes(entityId)).forEach((item) => updateArray(refs.questions, item.id, 'draftIds', entityId));
       practices.filter((item) => (item.draftIds || []).includes(entityId)).forEach((item) => updateArray(refs.practices, item.id, 'draftIds', entityId));
@@ -1121,12 +1155,32 @@ function ReadexWorkspace({
   };
 
   const addTimelineEvent = async (event: TimelineEvent) => {
-    await commitAndReport({
-      db,
-      ref: doc(refs.timeline, event.id) as any,
-      operation: 'set',
-      data: event,
-    }, { operation: 'create', data: event, rethrow: true });
+    const entityType = event.entityType === 'media' ? 'source'
+      : event.entityType === 'vault' ? 'position'
+      : event.entityType === 'question' ? 'inquiry'
+      : event.entityType === 'draft' ? 'work'
+      : event.entityType === 'practice' ? 'practice'
+      : event.entityType === 'concept' ? 'concept'
+      : 'evolution';
+    const input: WriteThinkingEventInput = {
+      collection: refs.thinkingEvents as any,
+      userId: effectiveUid,
+      eventType: 'synthesized',
+      entityType,
+      entityId: event.entityId || event.id,
+      after: { legacyTimelineEvent: event },
+      summary: event.reason || `${event.entityTitle}: ${String(event.eventType).replace(/_/g, ' ')}`,
+      origin: 'user',
+      importance: ['abandoned', 'replaced', 'resolved'].some((term) => String(event.eventType).includes(term)) ? 'high' : 'medium',
+      idempotencyKey: event.id,
+      metadata: { legacyTimelineEvent: event, canonicalStream: 'thinkingEvents' },
+    };
+    if (isOfflineReviewPreview) {
+      const { eventRef, payload } = makeThinkingEventPayload(input);
+      commitDemoChanges(effectiveUid, [{ path: eventRef.path, operation: 'set', data: { ...payload, createdAt: today() } }]);
+      return;
+    }
+    await writeThinkingEvent(input);
   };
 
   const updateUnknown = (item: Unknown) => {
@@ -1257,6 +1311,7 @@ function ReadexWorkspace({
 
   const ensureConcepts = (tags: string[]) => {
     const missing = ensureConceptTerms(concepts, tags);
+    const availableConcepts = [...concepts];
     missing.forEach((name) => {
       const conceptRef = doc(refs.concepts);
       const data = {
@@ -1271,6 +1326,7 @@ function ReadexWorkspace({
         philosophyStatus: name === 'Unsorted Ideas' ? 'emerging' : 'undefined',
         dateCreated: today(),
       };
+      availableConcepts.push(data as Concept);
       void commitAndReport({
         db,
         ref: conceptRef as any,
@@ -1290,6 +1346,7 @@ function ReadexWorkspace({
         } : null,
       }, { operation: 'create', data });
     });
+    return availableConcepts;
   };
 
   const addConcept = (data: Partial<Concept>) => {
@@ -1380,8 +1437,9 @@ function ReadexWorkspace({
 
   const addMedia = (data: Partial<Media>) => {
     const tags = normalizeConceptTags(data.tags);
-    ensureConcepts(tags);
+    const availableConcepts = ensureConcepts(tags);
     const mediaRef = doc(refs.media);
+    const annotations = data.annotations || [];
     const payload = {
       id: mediaRef.id,
       title: data.title || 'Untitled Source',
@@ -1403,7 +1461,8 @@ function ReadexWorkspace({
       sourceProvider: data.sourceProvider || 'manual',
       externalIds: data.externalIds || {},
       tags,
-      annotations: data.annotations || [],
+      conceptIds: conceptIdsForLabels(tags, availableConcepts),
+      annotations: boundedNestedAnnotations(annotations),
       capture: data.capture || { sessions: [] },
       dateAdded: today(),
       dateUpdated: today(),
@@ -1425,14 +1484,38 @@ function ReadexWorkspace({
         importance: 'medium',
         sourceActionId: makeActionId(),
       },
+      relatedWrites: payload.annotations.map((annotation) => ({
+        ref: doc(refs.annotations, annotation.id),
+        operation: 'set' as const,
+        data: annotationRecord(payload.id, annotation, effectiveUid),
+      })),
     }, { operation: 'create', data: payload, rethrow: true }).catch(() => undefined);
   };
 
   const updateMedia = (item: Media) => {
-    ensureConcepts(item.tags || []);
+    const availableConcepts = ensureConcepts(item.tags || []);
     const mediaRef = doc(refs.media, item.id);
     const previous = media.find((source) => source.id === item.id);
-    const nextItem = { ...item, dateUpdated: today() };
+    const nextItem = {
+      ...item,
+      conceptIds: conceptIdsForLabels(item.tags, availableConcepts),
+      annotations: boundedNestedAnnotations(item.annotations || []),
+      dateUpdated: today(),
+    };
+    const previousAnnotations = new Map((previous?.annotations || []).map((annotation) => [annotation.id, annotation]));
+    const nextAnnotationIds = new Set((item.annotations || []).map((annotation) => annotation.id));
+    const annotationWrites = [
+      ...(item.annotations || [])
+        .filter((annotation) => JSON.stringify(previousAnnotations.get(annotation.id) || null) !== JSON.stringify(annotation))
+        .map((annotation) => ({
+          ref: doc(refs.annotations, annotation.id),
+          operation: 'set' as const,
+          data: annotationRecord(item.id, annotation, effectiveUid),
+        })),
+      ...Array.from(previousAnnotations.keys())
+        .filter((annotationId) => !nextAnnotationIds.has(annotationId))
+        .map((annotationId) => ({ ref: doc(refs.annotations, annotationId), operation: 'delete' as const })),
+    ];
     const previousAnnotationCount = previous?.annotations?.length || 0;
     const nextAnnotationCount = nextItem.annotations?.length || 0;
     const previousSessionCount = previous?.capture?.sessions?.length || 0;
@@ -1466,13 +1549,14 @@ function ReadexWorkspace({
         importance: sourceEventImportance,
         sourceActionId: makeActionId(),
       },
+      relatedWrites: annotationWrites,
     }, { operation: 'update', data: nextItem });
   };
 
-  const deleteMedia = (id: string) => {
+  const deleteMedia = async (id: string) => {
     const existing = media.find((item) => item.id === id);
     const mediaRef = doc(refs.media, id);
-    void commitAndReport({
+    await commitAndReport({
       db,
       ref: mediaRef as any,
       operation: 'delete',
@@ -1488,9 +1572,26 @@ function ReadexWorkspace({
         importance: 'medium',
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'delete', data: existing || { id }, rethrow: true })
-      .then(() => cleanupDeletedEntityReferences('source', id))
-      .catch(() => undefined);
+    }, { operation: 'delete', data: existing || { id }, rethrow: true });
+    const annotationIds = uniqueIds((existing?.annotations || []).map((annotation) => annotation.id));
+    try {
+      if (isOfflineReviewPreview) {
+        commitDemoChanges(effectiveUid, annotationIds.map((annotationId) => ({ path: doc(refs.annotations, annotationId).path, operation: 'delete' })));
+      } else {
+        for (let offset = 0; offset < annotationIds.length; offset += 400) {
+          const batch = writeBatch(db);
+          annotationIds.slice(offset, offset + 400).forEach((annotationId) => batch.delete(doc(refs.annotations, annotationId)));
+          await batch.commit();
+        }
+      }
+    } catch {
+      toast({ title: 'Source deleted', description: 'Some annotation history still needs cleanup. Reload before following an old annotation link.', variant: 'destructive' });
+    }
+    try {
+      await cleanupDeletedEntityReferences('source', id);
+    } catch {
+      toast({ title: 'Source deleted', description: 'Some linked references still need cleanup. Reload before following an old source link.', variant: 'destructive' });
+    }
   };
 
   const updateAnnotation = (sourceId: string, annotation: Annotation) => {
@@ -1499,7 +1600,7 @@ function ReadexWorkspace({
     const previous = (source.annotations || []).find((item) => item.id === annotation.id) || null;
     const annotations = (source.annotations || []).map((item) => item.id === annotation.id ? annotation : item);
     const mediaRef = doc(refs.media, sourceId);
-    const nextSource = { ...source, annotations, dateUpdated: today() };
+    const nextSource = { ...source, annotations: boundedNestedAnnotations(annotations), dateUpdated: today() };
     void commitAndReport({
       db,
       ref: mediaRef as any,
@@ -1519,6 +1620,11 @@ function ReadexWorkspace({
         relatedEntityIds: { sourceIds: [sourceId], conceptIds: normalizeConceptTags(annotation.conceptTags).map((tag) => concepts.find((item) => conceptKey(item.name) === conceptKey(tag))?.id).filter(Boolean) as string[] },
         sourceActionId: makeActionId(),
       },
+      relatedWrites: [{
+        ref: doc(refs.annotations, annotation.id),
+        operation: 'set',
+        data: annotationRecord(sourceId, annotation, effectiveUid),
+      }],
     }, { operation: 'update', data: nextSource });
   };
 
@@ -1528,7 +1634,7 @@ function ReadexWorkspace({
     const existing = (source.annotations || []).find((item) => item.id === annotationId) || null;
     const annotations = (source.annotations || []).filter((item) => item.id !== annotationId);
     const mediaRef = doc(refs.media, sourceId);
-    const nextSource = { ...source, annotations, dateUpdated: today() };
+    const nextSource = { ...source, annotations: boundedNestedAnnotations(annotations), dateUpdated: today() };
     await commitAndReport({
       db,
       ref: mediaRef as any,
@@ -1547,6 +1653,7 @@ function ReadexWorkspace({
         relatedEntityIds: { sourceIds: [sourceId] },
         sourceActionId: makeActionId(),
       } : null,
+      relatedWrites: [{ ref: doc(refs.annotations, annotationId), operation: 'delete' }],
     }, { operation: 'update', data: nextSource, rethrow: true });
     try {
       await cleanupDeletedEntityReferences('annotation', annotationId);
@@ -1557,7 +1664,7 @@ function ReadexWorkspace({
 
   const addVaultEntry = (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => {
     const tags = normalizeConceptTags(data.tags);
-    ensureConcepts(tags);
+    const availableConcepts = ensureConcepts(tags);
     const vaultRef = doc(refs.vault);
     const payload = {
       id: vaultRef.id,
@@ -1574,10 +1681,11 @@ function ReadexWorkspace({
       consequences: data.consequences || [],
       applications: data.applications || [],
       tags,
+      conceptIds: conceptIdsForLabels(tags, availableConcepts),
       sourceIds: uniqueIds(data.sourceIds || []),
       evidenceFor: data.evidenceFor || [],
       evidenceAgainst: data.evidenceAgainst || [],
-      versionHistory: data.versionHistory || [],
+      versionHistory: boundedPositionVersionHistory(data.versionHistory || []),
       createdFrom: data.createdFrom || 'manual',
       sourceAnnotationId: data.sourceAnnotationId || '',
       sourceWorkId: data.sourceWorkId || '',
@@ -1602,27 +1710,42 @@ function ReadexWorkspace({
       },
       sourceActionId: makeActionId(),
     };
+    const positionVersionWrites = (payload.versionHistory || []).map((version) => ({
+      ref: doc(refs.positionVersions, historyRecordId(payload.id, `${version.date || 'undated'}__${stableHistoryToken(version.description || '')}`)),
+      operation: 'set' as const,
+      data: { ...version, id: historyRecordId(payload.id, `${version.date || 'undated'}__${stableHistoryToken(version.description || '')}`), positionId: payload.id, userId: effectiveUid },
+    }));
     const annotationRefs = data.annotationRefs || [];
     let persistence: Promise<unknown>;
     if (annotationRefs.length) {
       const batch = writeBatch(db);
       const demoChanges: DemoChange[] = [{ path: vaultRef.path, operation: 'set', data: payload }];
       batch.set(vaultRef, payload);
+      positionVersionWrites.forEach((write) => {
+        batch.set(write.ref, write.data, { merge: true });
+        demoChanges.push({ path: write.ref.path, operation: 'set', data: write.data, merge: true });
+      });
       new Set(annotationRefs.map((item) => item.sourceId)).forEach((sourceId) => {
         const source = media.find((item) => item.id === sourceId);
         if (!source) return;
         const annotationIds = new Set(annotationRefs.filter((item) => item.sourceId === sourceId).map((item) => item.annotationId));
-        const sourcePatch = {
-          annotations: (source.annotations || []).map((annotation) => annotationIds.has(annotation.id) ? {
+        const updatedAnnotations = (source.annotations || []).map((annotation) => annotationIds.has(annotation.id) ? {
             ...annotation,
-            philosophyStatus: 'used_in_position',
+            philosophyStatus: 'used_in_position' as const,
             createdPositionId: annotation.createdPositionId || payload.id,
             linkedPositionIds: uniqueIds([...(annotation.linkedPositionIds || []), payload.id]),
-          } : annotation),
+          } : annotation);
+        const sourcePatch = {
+          annotations: boundedNestedAnnotations(updatedAnnotations),
           dateUpdated: today(),
         };
         batch.update(doc(refs.media, sourceId), sourcePatch);
         demoChanges.push({ path: doc(refs.media, sourceId).path, operation: 'update', data: sourcePatch });
+        updatedAnnotations.filter((annotation) => annotationIds.has(annotation.id)).forEach((annotation) => {
+          const record = annotationRecord(sourceId, annotation, effectiveUid);
+          batch.set(doc(refs.annotations, annotation.id), record, { merge: true });
+          demoChanges.push({ path: doc(refs.annotations, annotation.id).path, operation: 'set', data: record, merge: true });
+        });
       });
       const event = queueThinkingEvent(batch, positionEvent);
       demoChanges.push({ path: event.eventRef.path, operation: 'set', data: { ...event.payload, createdAt: today() } });
@@ -1634,6 +1757,7 @@ function ReadexWorkspace({
         operation: 'set',
         data: payload,
         thinkingEvent: positionEvent,
+        relatedWrites: positionVersionWrites,
       }, { operation: 'create', data: payload, rethrow: true });
     }
     void persistence.then(() => {
@@ -1643,14 +1767,15 @@ function ReadexWorkspace({
   };
 
   const updateVaultEntry = async (entry: VaultEntry) => {
-    ensureConcepts(entry.tags || []);
+    const availableConcepts = ensureConcepts(entry.tags || []);
     const vaultRef = doc(refs.vault, entry.id);
     const previous = vault.find((item) => item.id === entry.id);
     const confidenceChanged = Boolean(previous && previous.confidence !== entry.confidence);
     const nextEntry = {
       ...entry,
+      conceptIds: conceptIdsForLabels(entry.tags, availableConcepts),
       dateUpdated: today(),
-      versionHistory: confidenceChanged ? [
+      versionHistory: boundedPositionVersionHistory(confidenceChanged ? [
         ...(entry.versionHistory || []),
         {
           date: today(),
@@ -1658,13 +1783,21 @@ function ReadexWorkspace({
           description: `Confidence changed from ${previous!.confidence}% to ${entry.confidence}%.`,
           confidence: entry.confidence,
         },
-      ] : entry.versionHistory,
+      ] : entry.versionHistory || []),
     };
     const profilePatch: Partial<BeliefProfile> = {
       confidenceScore: entry.confidenceScore ?? entry.confidence,
       evidenceQuality: entry.evidenceQuality,
       lastRevisedAt: today(),
     };
+    const previousVersions = new Set((previous?.versionHistory || []).map((version) => `${version.date}|${version.description}`));
+    const positionVersionWrites = (nextEntry.versionHistory || [])
+      .filter((version) => !previousVersions.has(`${version.date}|${version.description}`))
+      .map((version) => ({
+        ref: doc(refs.positionVersions, historyRecordId(entry.id, `${version.date || 'undated'}__${stableHistoryToken(version.description || '')}`)),
+        operation: 'set' as const,
+        data: { ...version, id: historyRecordId(entry.id, `${version.date || 'undated'}__${stableHistoryToken(version.description || '')}`), positionId: entry.id, userId: effectiveUid },
+      }));
     const changeClassification = classifyThinkingChange(previous || null, entry);
     const positionEvents: WriteThinkingEventInput[] = [];
     if (previous && (previous.evidenceFor || []).length < (entry.evidenceFor || []).length) {
@@ -1708,6 +1841,7 @@ function ReadexWorkspace({
       operation: 'update',
       data: nextEntry,
       thinkingEvents: positionEvents,
+      relatedWrites: positionVersionWrites,
     }, { operation: 'update', data: nextEntry, rethrow: true });
     refreshBeliefProfile(entry, profilePatch);
   };
@@ -1742,7 +1876,7 @@ function ReadexWorkspace({
 
   const createIdea = (data: { title: string; body: string; tags: string[]; sourceIds: string[]; position?: { title: string; statement: string; description: string; confidence: number }; sourceAnnotationId?: string; sourceWorkId?: string; sourceDocumentId?: string }) => {
     const tags = normalizeConceptTags(data.tags);
-    ensureConcepts(tags);
+    const availableConcepts = ensureConcepts(tags);
     const insightRef = doc(refs.insights);
     const payload: Insight = {
       id: insightRef.id,
@@ -1750,6 +1884,7 @@ function ReadexWorkspace({
       body: data.body,
       sourceIds: data.sourceIds || [],
       tags,
+      conceptIds: conceptIdsForLabels(tags, availableConcepts),
       categories: [],
       connections: [],
       dateCreated: today(),
@@ -1901,16 +2036,22 @@ function ReadexWorkspace({
         const source = media.find((item) => item.id === sourceId);
         if (!source) return;
         const annotationIds = new Set(annotationRefs.filter((item) => item.sourceId === sourceId).map((item) => item.annotationId));
-        const sourcePatch = {
-          annotations: (source.annotations || []).map((annotation) => annotationIds.has(annotation.id) ? {
+        const updatedAnnotations = (source.annotations || []).map((annotation) => annotationIds.has(annotation.id) ? {
             ...annotation,
-            philosophyStatus: 'questioned',
+            philosophyStatus: 'questioned' as const,
             createdInquiryId: annotation.createdInquiryId || payload.id,
-          } : annotation),
+          } : annotation);
+        const sourcePatch = {
+          annotations: boundedNestedAnnotations(updatedAnnotations),
           dateUpdated: today(),
         };
         batch.update(doc(refs.media, sourceId), sourcePatch);
         demoChanges.push({ path: doc(refs.media, sourceId).path, operation: 'update', data: sourcePatch });
+        updatedAnnotations.filter((annotation) => annotationIds.has(annotation.id)).forEach((annotation) => {
+          const record = annotationRecord(sourceId, annotation, effectiveUid);
+          batch.set(doc(refs.annotations, annotation.id), record, { merge: true });
+          demoChanges.push({ path: doc(refs.annotations, annotation.id).path, operation: 'set', data: record, merge: true });
+        });
       });
       const event = queueThinkingEvent(batch, inquiryEvent);
       demoChanges.push({ path: event.eventRef.path, operation: 'set', data: { ...event.payload, createdAt: today() } });
@@ -1987,7 +2128,7 @@ function ReadexWorkspace({
 
   const addDraft = async (data: Partial<Draft>): Promise<Draft> => {
     const conceptTags = normalizeConceptTags(data.conceptTags);
-    if (!isOfflineReviewPreview) ensureConcepts(conceptTags);
+    const availableConcepts = isOfflineReviewPreview ? concepts : ensureConcepts(conceptTags);
     const draftRef = doc(refs.drafts);
     const payload = {
       id: draftRef.id,
@@ -2026,12 +2167,19 @@ function ReadexWorkspace({
       writingStyle: data.writingStyle || preferences.writingDefaults.writingStyle,
       externalDoc: data.externalDoc || null,
       conceptTags,
+      conceptIds: conceptIdsForLabels(conceptTags, availableConcepts),
       sourceIds: uniqueIds(data.sourceIds || []),
       questionIds: uniqueIds(data.questionIds || []),
       beliefIds: uniqueIds(data.beliefIds || []),
+      versionHistory: boundedNestedWorkRevisions(data.versionHistory || []),
       dateCreated: today(),
       dateUpdated: today(),
     };
+    const workRevisionWrites = (payload.versionHistory || []).map((revision) => ({
+      ref: doc(refs.workRevisions, historyRecordId(payload.id, revision.id)),
+      operation: 'set' as const,
+      data: { ...revision, id: historyRecordId(payload.id, revision.id), revisionId: revision.id, workId: payload.id, userId: effectiveUid },
+    }));
     await commitAndReport({
       db,
       ref: draftRef as any,
@@ -2041,6 +2189,7 @@ function ReadexWorkspace({
         ref: doc(refs.questions, question.id),
         data: { draftIds: isOfflineReviewPreview ? uniqueIds([...(question.draftIds || []), payload.id]) : arrayUnion(payload.id), dateUpdated: today() },
       })),
+      relatedWrites: workRevisionWrites,
       thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
@@ -2060,16 +2209,29 @@ function ReadexWorkspace({
 
   const updateDraft = (draft: Draft) => {
     const previous = drafts.find((item) => item.id === draft.id);
+    const availableConcepts = isOfflineReviewPreview ? concepts : ensureConcepts(draft.conceptTags || []);
     const nextDraft = {
       ...draft,
+      conceptIds: conceptIdsForLabels(draft.conceptTags, availableConcepts),
+      versionHistory: boundedNestedWorkRevisions(draft.versionHistory || []),
       revision: Math.max(draft.revision || 0, previous?.revision || 0) + 1,
       dateUpdated: today(),
     };
+    const previousRevisionIds = new Set((previous?.versionHistory || []).map((revision) => revision.id));
+    const workRevisionWrites = (nextDraft.versionHistory || [])
+      .filter((revision) => !previousRevisionIds.has(revision.id))
+      .map((revision) => ({
+        ref: doc(refs.workRevisions, historyRecordId(draft.id, revision.id)),
+        operation: 'set' as const,
+        data: { ...revision, id: historyRecordId(draft.id, revision.id), revisionId: revision.id, workId: draft.id, userId: effectiveUid },
+      }));
     if (isOfflineReviewPreview) {
-      commitDemoChanges(effectiveUid, [{ path: doc(refs.drafts, draft.id).path, operation: 'update', data: nextDraft }]);
+      commitDemoChanges(effectiveUid, [
+        { path: doc(refs.drafts, draft.id).path, operation: 'update', data: nextDraft },
+        ...workRevisionWrites.map((write) => ({ path: write.ref.path, operation: 'set' as const, data: write.data })),
+      ]);
       return Promise.resolve();
     }
-    ensureConcepts(draft.conceptTags || []);
     const draftRef = doc(refs.drafts, draft.id);
     const previousContent = `${previous?.body || ''}\n${previous?.draftContent || ''}\n${previous?.finalContent || ''}\n${JSON.stringify(previous?.documentPages || [])}`;
     const nextContent = `${nextDraft.body || ''}\n${nextDraft.draftContent || ''}\n${nextDraft.finalContent || ''}\n${JSON.stringify(nextDraft.documentPages || [])}`;
@@ -2083,6 +2245,7 @@ function ReadexWorkspace({
       ref: draftRef as any,
       operation: 'update',
       data: nextDraft,
+      relatedWrites: workRevisionWrites,
       thinkingEvent: meaningfulWorkChange ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
@@ -2154,7 +2317,7 @@ function ReadexWorkspace({
 
   const addPractice = async (data: Partial<Practice>): Promise<Practice> => {
     const tags = normalizeConceptTags(data.conceptTags);
-    ensureConcepts(tags);
+    const availableConcepts = ensureConcepts(tags);
     const practiceRef = doc(refs.practices);
     const payload = {
       id: practiceRef.id,
@@ -2178,16 +2341,22 @@ function ReadexWorkspace({
       alternativeExplanation: data.alternativeExplanation || '',
       conclusion: data.conclusion || {},
       conceptTags: tags,
+      conceptIds: conceptIdsForLabels(tags, availableConcepts),
       sourceIds: uniqueIds(data.sourceIds || []),
       questionIds: uniqueIds(data.questionIds || []),
       positionIds: uniqueIds(data.positionIds || []),
       draftIds: uniqueIds(data.draftIds || []),
       notes: data.notes || '',
-      logs: data.logs || [],
+      logs: boundedNestedPracticeLogs(data.logs || []),
       logDates: data.logDates || [],
       dateCreated: today(),
       dateUpdated: today(),
     };
+    const practiceLogWrites = (payload.logs || []).map((log) => ({
+      ref: doc(refs.practiceLogs, historyRecordId(payload.id, log.id)),
+      operation: 'set' as const,
+      data: { ...log, id: historyRecordId(payload.id, log.id), logId: log.id, practiceId: payload.id, userId: effectiveUid },
+    }));
     await commitAndReport({
       db,
       ref: practiceRef as any,
@@ -2197,6 +2366,7 @@ function ReadexWorkspace({
         ref: doc(refs.questions, question.id),
         data: { practiceIds: isOfflineReviewPreview ? uniqueIds([...(question.practiceIds || []), payload.id]) : arrayUnion(payload.id), dateUpdated: today() },
       })),
+      relatedWrites: practiceLogWrites,
       thinkingEvent: {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
@@ -2215,10 +2385,24 @@ function ReadexWorkspace({
   };
 
   const updatePractice = (practice: Practice) => {
-    ensureConcepts(practice.conceptTags || []);
+    const availableConcepts = ensureConcepts(practice.conceptTags || []);
     const practiceRef = doc(refs.practices, practice.id);
     const previous = practices.find((item) => item.id === practice.id);
-    const nextPractice = { ...practice, status: normalizePracticeStatusForSave(practice), dateUpdated: today() };
+    const nextPractice = {
+      ...practice,
+      conceptIds: conceptIdsForLabels(practice.conceptTags, availableConcepts),
+      logs: boundedNestedPracticeLogs(practice.logs || []),
+      status: normalizePracticeStatusForSave(practice),
+      dateUpdated: today(),
+    };
+    const previousLogsById = new Map((previous?.logs || []).map((log) => [log.id, log]));
+    const practiceLogWrites = (nextPractice.logs || [])
+      .filter((log) => JSON.stringify(previousLogsById.get(log.id) || null) !== JSON.stringify(log))
+      .map((log) => ({
+        ref: doc(refs.practiceLogs, historyRecordId(practice.id, log.id)),
+        operation: 'set' as const,
+        data: { ...log, id: historyRecordId(practice.id, log.id), logId: log.id, practiceId: practice.id, userId: effectiveUid },
+      }));
     const previousLogs = Math.max(previous?.logDates?.length || 0, previous?.logs?.length || 0);
     const nextLogs = Math.max(practice.logDates?.length || 0, practice.logs?.length || 0);
     const concluded = ['completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'abandoned'].includes(practice.status);
@@ -2232,6 +2416,7 @@ function ReadexWorkspace({
       ref: practiceRef as any,
       operation: 'update',
       data: nextPractice,
+      relatedWrites: practiceLogWrites,
       thinkingEvent: eventType !== 'edited' ? {
         collection: refs.thinkingEvents as any,
         userId: effectiveUid,
@@ -2930,6 +3115,8 @@ function ReadexWorkspace({
         atlasMaps={atlasMaps}
         links={links}
         thinkingEvents={thinkingEvents}
+        thinkingEventsHasMore={thinkingEventsHasMore}
+        loadMoreThinkingEvents={loadMoreThinkingEvents}
         beliefProfiles={beliefProfiles}
         unknowns={unknowns}
         thinkingPatterns={thinkingPatterns}
@@ -3001,7 +3188,7 @@ function ReadexWorkspace({
         saveProfile={saveProfile}
         saveProfilePrivacy={saveProfilePrivacy}
         saveSettingsSection={saveSettingsSection}
-        exportWorkspaceData={() => Promise.resolve(exportWorkspaceData())}
+        exportWorkspaceData={exportWorkspaceData}
         seedReviewWorkspace={seedReviewWorkspace}
         restoreDeletedItem={restoreDeletedItem}
       />
@@ -3051,7 +3238,7 @@ function ReadexWorkspace({
           sourceId: item.view === 'library' ? item.targetId : null,
           positionId: item.view === 'vault' ? item.targetId : null,
           workId: item.view === 'writing' ? item.targetId : null,
-          practiceId: item.view === 'practices' ? item.targetId : null,
+          practiceId: item.view === 'labs' ? item.targetId : null,
         });
       }}
     >

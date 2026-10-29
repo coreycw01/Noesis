@@ -29,6 +29,8 @@ interface EvolutionTimelineProps {
   events: TimelineEvent[];
   media: Media[];
   thinkingEvents: ThinkingEvent[];
+  thinkingEventsHasMore: boolean;
+  loadMoreThinkingEvents: () => void;
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
   metrics: ThinkingMetrics;
@@ -390,7 +392,7 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
   return 'gained';
 }
 
-export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, unknowns, thinkingPatterns, onSaveSynthesis }: EvolutionTimelineProps) {
+export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, thinkingEventsHasMore, loadMoreThinkingEvents, unknowns, thinkingPatterns, onSaveSynthesis }: EvolutionTimelineProps) {
   const [view, setView] = useState<EvolutionView>('timeline');
   const [timelineLayout, setTimelineLayout] = useEntityViewPreference('evolution');
   const [search, setSearch] = useState('');
@@ -1200,14 +1202,17 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, u
           </div>
         )}
       </div>
-      {rangeEnd < filteredEvents.length && (
+      {(rangeEnd < filteredEvents.length || thinkingEventsHasMore) && (
         <div className="mt-8 flex justify-center">
           <Button
             variant="outline"
-            onClick={() => setVisibleCount((count) => count + 12)}
+            onClick={() => {
+              if (rangeEnd < filteredEvents.length) setVisibleCount((count) => count + 12);
+              else loadMoreThinkingEvents();
+            }}
             className="rounded-full px-5 font-code text-[10px] uppercase tracking-widest"
           >
-            Load more history
+            {rangeEnd < filteredEvents.length ? 'Load more history' : 'Load older history'}
           </Button>
         </div>
       )}

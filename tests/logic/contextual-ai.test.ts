@@ -50,7 +50,7 @@ test('exposes only the approved detail-level assistance tools', () => {
 });
 
 test('loads AI settings only on routes that expose contextual assistance', () => {
-  for (const view of ['concepts', 'questions', 'library', 'annotations', 'vault', 'practices', 'evolution', 'profile', 'context-desk'] as const) {
+  for (const view of ['concepts', 'questions', 'library', 'annotations', 'vault', 'labs', 'evolution', 'profile', 'context-desk'] as const) {
     assert.ok(NOESIS_PAGE_DATA_REQUIREMENTS[view].includes('aiSettings'), `${view} must load AI settings`);
   }
 

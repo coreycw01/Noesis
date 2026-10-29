@@ -30,6 +30,7 @@ import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { parseAiReviewItems, type AiContextEnvelope } from '@/lib/contextual-ai';
+import { MAX_AI_REVIEW_HISTORY } from '@/lib/collection-integrity';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   inquiryAiItemMemory,
@@ -849,14 +850,19 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               buttonLabel="Socratic Challenge"
               promptLabel="What part of this inquiry should Noesis pressure?"
               promptPlaceholder="For example: Test whether my current answer actually follows from the evidence."
-              onAccept={async (result, content) => { if (!await onUpdateQuestion({
-                ...question,
-                investigationNotes: [
-                  ...(question.investigationNotes || []),
+              onAccept={async (result, content) => {
+                const existingNotes = question.investigationNotes || [];
+                const userNotes = existingNotes.filter((note) => note.origin !== 'ai-assisted');
+                const aiNotes = [
                   ...parseAiReviewItems(result.action, content).map((item) => ({ id: crypto.randomUUID(), title: item.title, text: item.content, origin: 'ai-assisted' as const, date: today() })),
-                ],
-                dateUpdated: today(),
-              })) throw new Error('The reviewed note was not saved. Wait for the current save or retry.'); }}
+                  ...existingNotes.filter((note) => note.origin === 'ai-assisted'),
+                ].slice(0, MAX_AI_REVIEW_HISTORY);
+                if (!await onUpdateQuestion({
+                  ...question,
+                  investigationNotes: [...userNotes, ...aiNotes],
+                  dateUpdated: today(),
+                })) throw new Error('The reviewed note was not saved. Wait for the current save or retry.');
+              }}
             />
             {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
               <DropdownMenu>

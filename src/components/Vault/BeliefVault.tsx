@@ -36,7 +36,7 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { aiHistoryEntry, type AiContextEnvelope, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
+import { appendAiHistoryEntry, type AiContextEnvelope, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
 
 interface BeliefVaultProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -807,7 +807,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         label: practice.title,
         section: 'Practice',
         description: `${practice.type.replace(/_/g, ' ')} - ${practice.status}`,
-        view: 'practices',
+        view: 'labs',
         targetId: practice.id,
         targetType: 'practice',
         objectType: 'Experiment Object',
@@ -822,7 +822,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         lastChangedAt: practice.dateUpdated || practice.dateCreated,
         quickActionLabel: 'Open Practice',
         quickActions: [
-          { label: 'Open Practice Field', view: 'practices', targetId: practice.id, targetType: 'practice' },
+          { label: 'Open Practice Field', view: 'labs', targetId: practice.id, targetType: 'practice' },
           { label: 'Return to Position', view: 'vault', targetId: selected.id, targetType: 'position' },
         ],
         thinkingEventHint: 'Previewing a practice is orientation. Starting, concluding, or logging an outcome that changes a belief should create history.',
@@ -1031,7 +1031,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     const acceptPositionAiResult = async (result: AiReviewResult, content: string) => {
       const baseHistory = selected.versionHistory || [];
       const reviewEntry = { date: today(), eventType: 'revised' as const, description: `Reviewed AI-assisted ${result.action.replace(/_/g, ' ')}.` };
-      const aiReviewHistory = [...(selected.aiReviewHistory || []), aiHistoryEntry(result, content)];
+      const aiReviewHistory = appendAiHistoryEntry(selected.aiReviewHistory, result, content);
       if (result.action === 'find_position_assumptions') {
         await onUpdateEntry({ ...selected, assumptions: Array.from(new Set([...(selected.assumptions || []), ...splitLines(content)])), versionHistory: [...baseHistory, reviewEntry], aiReviewHistory, dateUpdated: today() });
         return;

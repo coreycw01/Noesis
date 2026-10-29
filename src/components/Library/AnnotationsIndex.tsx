@@ -30,7 +30,7 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { aiHistoryEntry } from '@/lib/contextual-ai';
+import { appendAiHistoryEntry } from '@/lib/contextual-ai';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -1244,7 +1244,7 @@ export function AnnotationsIndex({
                     })}
                     onAccept={(result, content) => {
                       const { source, ...annotation } = editing;
-                      const next = { ...annotation, aiEffectReview: content, aiReviewHistory: [...(annotation.aiReviewHistory || []), aiHistoryEntry(result, content)] };
+                      const next = { ...annotation, aiEffectReview: content, aiReviewHistory: appendAiHistoryEntry(annotation.aiReviewHistory, result, content) };
                       onUpdateAnnotation(source.id, next);
                       setEditing({ ...next, source });
                     }}

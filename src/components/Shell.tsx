@@ -270,7 +270,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'vault', icon: iconForNoesisView('vault'), count: counts.vault },
     { id: 'writing', icon: iconForNoesisView('writing'), count: counts.drafts },
     { id: 'context-desk', icon: iconForNoesisView('context-desk') },
-    { id: 'practices', icon: iconForNoesisView('practices'), count: counts.practices },
+    { id: 'labs', icon: iconForNoesisView('labs'), count: counts.practices },
     { id: 'goals', icon: iconForNoesisView('goals') },
     { id: 'evolution', icon: iconForNoesisView('evolution'), count: counts.timeline },
     { id: 'settings', icon: iconForNoesisView('settings') },
@@ -454,7 +454,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       { id: 'create-inquiry', label: 'Create Inquiry', section: 'Create', description: 'Open Inquiries to start a structured investigation.', view: 'questions', kind: 'create' as const, intellectualStage: 'Question', hierarchyLevel: 'Interpretive', objectType: 'Inquiry', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating or resolving an inquiry should create a thinking event because uncertainty changed state.', aliases: ['create question', 'ask question', 'create an inquiry about', 'investigate', 'unknown question'] },
       { id: 'create-position', label: 'Create Position', section: 'Create', description: 'Open Positions to state or draft a belief for testing.', view: 'vault', kind: 'create' as const, intellectualStage: 'Judge', hierarchyLevel: 'Judgment', objectType: 'Position', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, revising, challenging, supporting, or changing confidence on a position should create a thinking event.', aliases: ['create belief', 'state claim', 'open my position', 'draft position', 'judge idea'] },
       { id: 'create-work', label: 'Create Work', section: 'Create', description: 'Open Works to start writing, notes, drawing, or recording.', view: 'writing', kind: 'create' as const, intellectualStage: 'Express', hierarchyLevel: 'Expression', objectType: 'Work', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating a work can be ordinary drafting; completing or substantially revising it should create a thinking event.', aliases: ['write essay', 'continue essay', 'unfinished essay', 'start note', 'record idea', 'draw idea'] },
-      { id: 'start-practice', label: 'Start Practice', section: 'Create', description: 'Open Labs to turn an idea into a lived test.', view: 'practices', kind: 'create' as const, intellectualStage: 'Test', hierarchyLevel: 'Expression', objectType: 'Practice', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, concluding, or logging a practice result that changes a belief should create a thinking event.', aliases: ['open labs', 'start experiment', 'test belief', 'behavioral commitment', 'lived test', 'practice result'] },
+      { id: 'start-practice', label: 'Start Practice', section: 'Create', description: 'Open Labs to turn an idea into a lived test.', view: 'labs', kind: 'create' as const, intellectualStage: 'Test', hierarchyLevel: 'Expression', objectType: 'Practice', activityClass: 'meaningful' as const, thinkingEventHint: 'Creating, concluding, or logging a practice result that changes a belief should create a thinking event.', aliases: ['open labs', 'start experiment', 'test belief', 'behavioral commitment', 'lived test', 'practice result'] },
     ];
     const core: CommandPaletteItem[] = navItems.map((item) => ({
       id: item.id,
@@ -606,7 +606,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       label: 'Unanchored practices',
       count: movement?.practicesWithoutPosition || 0,
       description: 'Practices need a linked position so the behavior tests an idea.',
-      view: 'practices',
+      view: 'labs',
     },
   ].filter((item) => item.count > 0);
 

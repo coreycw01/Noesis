@@ -133,7 +133,7 @@ function targetFromEvent(event: ThinkingEvent | TimelineEvent): HomeTarget | nul
   if (entityType === 'question' || entityType === 'inquiry') return { view: 'questions', targetId: entityId };
   if (entityType === 'media' || entityType === 'source') return { view: 'library', targetId: entityId };
   if (entityType === 'draft' || entityType === 'work') return { view: 'writing', targetId: entityId };
-  if (entityType === 'practice') return { view: 'practices', targetId: entityId };
+  if (entityType === 'practice') return { view: 'labs', targetId: entityId };
   if (entityType === 'concept') return { view: 'concepts', targetId: entityId };
   return null;
 }
@@ -273,7 +273,7 @@ export function ThinkingDesk({
           action: 'Log practice',
           priority,
           icon: Repeat,
-          view: 'practices',
+          view: 'labs',
           targetId: item.id,
         } as DeskItem));
 
@@ -416,14 +416,14 @@ export function ThinkingDesk({
     if (untested && provocationAngle === 0) {
       return {
         question: `What would it look like to test "${untested.title || untested.statement}" in behavior this week?`,
-        target: { view: 'practices' as NoesisView },
+        target: { view: 'labs' as NoesisView },
         evidence: 'Based on a position with no linked practice or lived test.',
       };
     }
     const angles = [
       {
         question: 'Which idea in your system deserves to be tested in practice instead of only refined in thought?',
-        target: { view: 'practices' as NoesisView },
+        target: { view: 'labs' as NoesisView },
         evidence: 'Based on the gap between positions and linked practices.',
       },
       {
@@ -491,7 +491,7 @@ export function ThinkingDesk({
         observation: 'Your belief layer is ahead of your testing layer. A position may be ready to become a practice.',
         evidence: `${untestedPositions.length} positions have no linked practice`,
         tone: 'balance',
-        view: 'practices',
+        view: 'labs',
       });
     }
     if (finishedUnreflectedSources.length) {
@@ -608,7 +608,7 @@ export function ThinkingDesk({
         label: `Check in on ${practice.title}`,
         detail: 'This active practice has not recorded a recent observation.',
         kind: 'practice' as const,
-        view: 'practices' as NoesisView,
+        view: 'labs' as NoesisView,
         targetId: practice.id,
       }));
 
@@ -643,7 +643,7 @@ export function ThinkingDesk({
       { label: 'Open inquiries', value: openInquiries, view: 'questions' as NoesisView, icon: NOESIS_ICONS.inquiry },
       { label: 'Positions needing evidence', value: positionsNeedingEvidence, view: 'vault' as NoesisView, icon: NOESIS_ICONS.position },
       { label: 'Works in progress', value: activeWorks, view: 'writing' as NoesisView, icon: NOESIS_ICONS.work },
-      { label: 'Active practices', value: activePractices, view: 'practices' as NoesisView, icon: NOESIS_ICONS.practice },
+      { label: 'Active practices', value: activePractices, view: 'labs' as NoesisView, icon: NOESIS_ICONS.practice },
       { label: 'Open unknowns', value: openUnknowns, view: 'profile' as NoesisView, icon: Compass },
     ];
   }, [annotations, concepts, inquiries, media, positions, practices, unknowns, works]);
@@ -811,7 +811,7 @@ export function ThinkingDesk({
       }
     }
 
-    if (target.view === 'practices') {
+    if (target.view === 'labs') {
       const practice = practices.find((item) => item.id === target.targetId);
       if (practice) {
         openNoesisObjectPreview({
@@ -819,7 +819,7 @@ export function ThinkingDesk({
           label: practice.title,
           section: 'Practice',
           description: fallback?.description || `${practice.type.replace(/_/g, ' ')} - ${practice.status}`,
-          view: 'practices',
+          view: 'labs',
           targetId: practice.id,
           targetType: 'practice',
           objectType: 'Experiment Object',
@@ -838,7 +838,7 @@ export function ThinkingDesk({
           lastChangedAt: practice.dateUpdated || practice.dateCreated,
           quickActionLabel: fallback?.label || 'Open Practice',
           quickActions: [
-            { label: 'Open Practice Field', view: 'practices', targetId: practice.id, targetType: 'practice' },
+            { label: 'Open Practice Field', view: 'labs', targetId: practice.id, targetType: 'practice' },
             { label: 'Open Positions', view: 'vault' },
           ],
           thinkingEventHint: 'Previewing a practice is orientation. Starting, concluding, or logging an outcome that affects a belief should create history.',
@@ -884,7 +884,7 @@ export function ThinkingDesk({
                 <Button onClick={() => onNavigate({ view: 'library' })}>I found something</Button>
                 <Button variant="outline" onClick={() => onNavigate({ view: 'questions' })}>I have a question</Button>
                 <Button variant="outline" onClick={() => onNavigate({ view: 'vault' })}>I hold a position</Button>
-                <Button variant="outline" onClick={() => onNavigate({ view: 'practices' })}>I want to test something</Button>
+                <Button variant="outline" onClick={() => onNavigate({ view: 'labs' })}>I want to test something</Button>
                 <Button variant="ghost" onClick={() => setDiscoveryMode((value) => !value)} aria-expanded={discoveryMode}>Discovery mode</Button>
               </div>
               {discoveryMode && (
@@ -1177,7 +1177,7 @@ export function ThinkingDesk({
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'evolution' })}>Review changes</Button>
                   <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'questions' })}>Revisit a question</Button>
-                  <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'practices' })}>Choose a test</Button>
+                  <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'labs' })}>Choose a test</Button>
                 </div>
               </div>
             </details>

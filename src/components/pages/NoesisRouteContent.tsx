@@ -77,6 +77,8 @@ export interface NoesisRouteContentProps {
   atlasMaps: AtlasMap[];
   links: PhilosophicalLink[];
   thinkingEvents: ThinkingEvent[];
+  thinkingEventsHasMore: boolean;
+  loadMoreThinkingEvents: () => void;
   beliefProfiles: BeliefProfile[];
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
@@ -192,6 +194,8 @@ export function NoesisRouteContent({
   atlasMaps,
   links,
   thinkingEvents,
+  thinkingEventsHasMore,
+  loadMoreThinkingEvents,
   beliefProfiles,
   unknowns,
   thinkingPatterns,
@@ -476,13 +480,13 @@ export function NoesisRouteContent({
             sourceId: view === 'library' ? targetId : null,
             positionId: view === 'vault' ? targetId : null,
             workId: view === 'writing' ? targetId : null,
-            practiceId: view === 'practices' ? targetId : null,
+            practiceId: view === 'labs' ? targetId : null,
           })}
         />
       );
     case 'evolution':
-      return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} onSaveSynthesis={addTimelineEvent} />;
-    case 'practices':
+      return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} thinkingEventsHasMore={thinkingEventsHasMore} loadMoreThinkingEvents={loadMoreThinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} onSaveSynthesis={addTimelineEvent} />;
+    case 'labs':
       return <PracticesRoutePage aiSettings={aiSettings} practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
     case 'settings':
       return (

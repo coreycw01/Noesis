@@ -9,7 +9,7 @@ export type NoesisView =
   | 'vault'
   | 'writing'
   | 'context-desk'
-  | 'practices'
+  | 'labs'
   | 'evolution'
   | 'profile'
   | 'goals'
@@ -43,7 +43,7 @@ export const NOESIS_ROUTE_TARGET_LABELS: Record<NoesisRouteTargetType, {
   source: { singular: 'source', plural: 'sources', owner: 'Library' },
   position: { singular: 'position', plural: 'positions', owner: 'Positions' },
   work: { singular: 'work', plural: 'works', owner: 'Works' },
-  practice: { singular: 'practice', plural: 'practices', owner: 'Practices' },
+  practice: { singular: 'practice', plural: 'practices', owner: 'Labs' },
 };
 
 function normalizePathname(pathname: string) {
@@ -83,12 +83,9 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
     case 'context-desk':
       return { view: 'context-desk' };
     case 'labs':
-  return {
-    view: 'practices',
-    focusedPracticeId: maybeId || null,
-  };
+      return { view: 'labs', focusedPracticeId: maybeId || null };
     case 'practices':
-      return { view: 'practices', focusedPracticeId: maybeId || null };
+      return { view: 'labs', focusedPracticeId: maybeId || null };
     case 'evolution':
       return { view: 'evolution' };
     case 'profile':
@@ -133,8 +130,8 @@ export function viewToPath(view: NoesisView, options?: {
       return options?.workId ? `${prefix}/works/${options.workId}` : `${prefix}/works`;
     case 'context-desk':
       return `${prefix}/context-desk`;
-    case 'practices':
-  return options?.practiceId ? `${prefix}/labs/${options.practiceId}` : `${prefix}/labs`;
+    case 'labs':
+      return options?.practiceId ? `${prefix}/labs/${options.practiceId}` : `${prefix}/labs`;
     case 'evolution':
       return `${prefix}/evolution`;
     case 'profile':
@@ -165,7 +162,7 @@ export function getNoesisRouteTarget(routeState: NoesisRouteState): NoesisRouteT
     return { type: 'work', id: routeState.focusedWorkId, view: 'writing' };
   }
   if (routeState.focusedPracticeId) {
-    return { type: 'practice', id: routeState.focusedPracticeId, view: 'practices' };
+    return { type: 'practice', id: routeState.focusedPracticeId, view: 'labs' };
   }
   return null;
 }
@@ -182,7 +179,7 @@ export function focusedIdForNoesisView(routeState: NoesisRouteState, view: Noesi
       return routeState.focusedPositionId || null;
     case 'writing':
       return routeState.focusedWorkId || null;
-    case 'practices':
+    case 'labs':
       return routeState.focusedPracticeId || null;
     default:
       return null;

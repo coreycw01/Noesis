@@ -49,6 +49,30 @@
       ]
     },
     {
+      "collectionGroup": "practiceLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "practiceId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "workRevisions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "positionVersions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "positionId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "links",
       "queryScope": "COLLECTION",
       "fields": [
@@ -57,11 +81,11 @@
       ]
     },
     {
-      "collectionGroup": "suggestions",
+      "collectionGroup": "annotations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        { "fieldPath": "sourceId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
       ]
     },
     {

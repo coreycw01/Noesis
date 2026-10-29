@@ -41,7 +41,7 @@ const WORKSPACE_SECTIONS = new Set([
   'positions',
   'works',
   'context-desk',
-  'practices',
+  'labs',
   'evolution',
   'profile',
   'goals',

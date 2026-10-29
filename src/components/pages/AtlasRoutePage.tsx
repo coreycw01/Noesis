@@ -100,7 +100,7 @@ export function AtlasRoutePage({
       onOpenQuestion={(id) => onNavigate('questions', { questionId: id })}
       onOpenSource={(id) => onNavigate('library', { sourceId: id })}
       onOpenWriting={() => onNavigate('writing')}
-      onOpenPractices={() => onNavigate('practices')}
+      onOpenPractices={() => onNavigate('labs')}
     />
   );
 }
