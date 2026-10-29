@@ -2379,7 +2379,7 @@ export function ConceptAtlas({
       isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-full flex-1 overflow-hidden"
     )}>
       {!isFullScreen && (
-      <div className="px-4 pt-5 md:px-8 md:pt-7">
+      <div className="noesis-gutter pt-[var(--page-top)]">
         <PageHeader
           title="Atlas"
           description={atlasSectionMeta[atlasSection].description}
@@ -2412,7 +2412,7 @@ export function ConceptAtlas({
       )}
 
       {!isFullScreen && (
-      <div className="z-10 space-y-2 px-4 pb-1 md:px-8">
+      <div className="noesis-gutter z-10 space-y-2 pb-1">
         {atlasSection === 'map' && (
         <>
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -2589,7 +2589,7 @@ export function ConceptAtlas({
       )}
 
       {atlasSection !== 'map' && !isFullScreen && (
-        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-2 md:px-8">
+        <div className="flex-1 overflow-y-auto noesis-gutter pb-6 pt-2">
           {atlasSection === 'territory' && (
             <AtlasTerritoryView
               cards={atlasTerritoryCards}
@@ -2648,7 +2648,7 @@ export function ConceptAtlas({
       {atlasSection === 'map' && (
       <div className={cn(
         "relative flex min-h-0 flex-1 gap-4 max-md:min-h-[22rem]",
-        isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-hidden px-4 pb-4 md:px-8"
+        isFullScreen ? "overflow-hidden px-0 pb-0" : "noesis-gutter overflow-hidden pb-4"
       )}>
         <div
           ref={mapRef}

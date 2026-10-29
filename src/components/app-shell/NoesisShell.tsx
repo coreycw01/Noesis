@@ -649,8 +649,8 @@ export function NoesisShell({
       onCommandSelect={onOpenCommandItem}
     >
       {isReviewWorkspace && (
-        <div className="border-b border-accent/20 bg-accent/10 px-3 py-2 md:px-6">
-          <div className="mx-auto max-w-7xl">
+        <div className="noesis-gutter border-b border-accent/20 bg-accent/10 py-2">
+          <div>
             <div className="flex min-w-0 items-center gap-2">
               <Badge className="shrink-0 rounded-full bg-accent text-accent-foreground">Demo</Badge>
               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
