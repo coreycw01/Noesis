@@ -795,11 +795,13 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
 
   if (question.status === 'archived') {
     return (
-      <div className="flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body" data-noesis-scroll-region>
-        <Button variant="ghost" onClick={onBack} className="mb-5 h-9 rounded-full font-code text-[10px] uppercase tracking-widest">
-          <ArrowLeft className="mr-2 size-4" /> Back to Inquiries
-        </Button>
-        <Card className="mx-auto max-w-5xl space-y-6 rounded-2xl border border-border bg-card p-6 sm:p-8">
+      <div className="noesis-gutter flex-1 w-full overflow-y-auto pb-8 pt-[var(--page-top)] font-body" data-noesis-scroll-region>
+        <div className="noesis-detail-toolbar">
+          <button type="button" onClick={onBack} className="noesis-back-link">
+            <ArrowLeft aria-hidden="true" /> Inquiries
+          </button>
+        </div>
+        <Card className="noesis-workbench-panel space-y-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-3xl">
               <Badge variant="outline" className="mb-3 rounded-full">Archived inquiry</Badge>
@@ -828,7 +830,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   }
 
   return (
-    <div className="noesis-inquiry-detail flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body" data-noesis-scroll-region data-noesis-identity="investigation">
+    <div className="noesis-inquiry-detail noesis-gutter flex-1 w-full overflow-y-auto pb-8 pt-[var(--page-top)] font-body" data-noesis-scroll-region data-noesis-identity="investigation">
       <header className="mb-8 border-b border-[var(--hairline)] pb-6">
         <div className="noesis-detail-toolbar">
           <button type="button" onClick={onBack} className="noesis-back-link">
@@ -909,7 +911,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
         )}
       </header>
 
-      <div className="mx-auto max-w-5xl space-y-5">
+      <div className="space-y-5">
         <WorkbenchFlow
           label="Inquiry workbench workflow"
           activeId={workflowStep}

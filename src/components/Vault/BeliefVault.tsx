@@ -1073,7 +1073,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     };
 
     return (
-      <div className="noesis-position-detail flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body" data-noesis-identity="examination">
+      <div className="noesis-position-detail noesis-gutter flex-1 w-full overflow-y-auto pb-8 pt-[var(--page-top)] font-body" data-noesis-identity="examination">
         <div className="noesis-detail-toolbar">
           <button type="button" onClick={closeEntry} className="noesis-back-link"><ArrowLeft aria-hidden="true" /> Positions</button>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">

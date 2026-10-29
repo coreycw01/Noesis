@@ -405,7 +405,7 @@ export function ContextDeskRoutePage({
   const activeConcept = concepts.find((concept) => concept.id === conceptFilter);
   return (
     <main className="noesis-context-desk min-h-0 flex-1 overflow-y-auto overscroll-contain">
-      <div className="mx-auto w-full max-w-6xl px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
+      <div className="noesis-gutter w-full pb-28 pt-[var(--page-top)] lg:pb-12">
       <PageHeader
         title="Context Desk"
         description="Choose the records Noesis may consider. Nothing else in your workspace is included, and no result is saved until you review it."

@@ -475,7 +475,7 @@ export function MediaLibrary({
     const sourcePurpose = capture.before?.reasonForAdding || capture.before?.openQuestion || capture.before?.expectation || selected.sourceNotes || 'This source still needs a clear reason for being studied.';
     
     return (
-      <div className="noesis-source-detail flex-1 w-full overflow-y-auto px-3 pb-28 pt-3 font-body sm:px-6 sm:py-6 lg:px-8" data-noesis-identity="research-record">
+      <div className="noesis-source-detail noesis-gutter flex-1 w-full overflow-y-auto pb-28 pt-[var(--page-top)] font-body sm:pb-8" data-noesis-identity="research-record">
         <header className="noesis-detail-toolbar">
           <button type="button" onClick={closeSelectedSource} className="noesis-back-link">
             <ArrowLeft aria-hidden="true" /> Library

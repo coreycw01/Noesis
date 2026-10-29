@@ -693,7 +693,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     return (
       <div className="noesis-concept-entry flex-1 overflow-y-auto font-body" data-noesis-identity="encyclopedia-entry">
         {/* Sticky nav bar */}
-        <div className="noesis-detail-toolbar sticky top-0 z-10 mb-0 bg-background/95 px-4 pt-3 backdrop-blur-sm sm:px-8">
+        <div className="noesis-gutter sticky top-0 z-10 bg-background/95 pt-[var(--page-top)] backdrop-blur-sm">
+          <div className="noesis-detail-toolbar mb-0">
           <button type="button" onClick={back} className="noesis-back-link">
             <ArrowLeft aria-hidden="true" /> Concepts
           </button>
@@ -744,9 +745,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               </>
             )}
           </div>
+          </div>
         </div>
 
-        <div className="p-8 pt-10 max-w-5xl mx-auto">
+        <div className="noesis-gutter pb-10 pt-7">
           {/* Title + definition */}
           <div className="mb-8">
             <DetailLabel view="concepts" kind="Concept" status={concept?.philosophyStatus} />
