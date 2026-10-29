@@ -476,7 +476,7 @@ export function MediaLibrary({
         <header className="mb-4 space-y-3 border-b border-border/60 pb-4 sm:mb-6 sm:flex sm:items-center sm:justify-between sm:space-y-0">
           <div className="flex min-w-0 items-center gap-2">
             <button onClick={closeSelectedSource} className="flex min-h-10 items-center rounded-md font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <ArrowLeft className="size-3 mr-2" /> LIBRARY
+              <ArrowLeft className="size-3 mr-2" /> Library
             </button>
             <span className="font-code text-[11px] uppercase tracking-widest text-primary/30">/</span>
             <span className="font-code text-[11px] uppercase tracking-widest text-primary/80 font-bold">
@@ -888,7 +888,7 @@ export function MediaLibrary({
             </section>
 
             <div className="flex gap-4 border-t border-border/30 pt-6 sm:pt-10">
-              <Button onClick={() => updateSelected({ capture })} className="h-11 w-full rounded-md bg-accent px-10 font-code text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20 sm:w-auto sm:rounded-full">SAVE CAPTURE</Button>
+              <Button onClick={() => updateSelected({ capture })} className="h-11 w-full rounded-md bg-accent px-10 font-code text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20 sm:w-auto sm:rounded-full">Save Capture</Button>
             </div>
           </TabsContent>
 
@@ -1064,7 +1064,7 @@ export function MediaLibrary({
         className="mb-6"
         actions={
           <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 h-9 px-6 shadow-md shadow-accent/20 rounded-full font-bold">
-            <Plus className="size-4 mr-1.5" /> ADD SOURCE
+            <Plus className="size-4 mr-1.5" /> Add Source
           </Button>
         }
       />
@@ -1690,7 +1690,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
         </ScrollArea>
 
         <div className="grid grid-cols-2 gap-2 border-t bg-muted/10 p-4 sm:flex sm:justify-end sm:gap-4 sm:p-8 sm:pt-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 rounded-md px-4 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent sm:rounded-full sm:px-8">CANCEL</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 rounded-md px-4 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent sm:rounded-full sm:px-8">Cancel</Button>
           <Button onClick={onSave} className="h-11 rounded-md bg-accent px-4 font-code text-[11px] font-bold uppercase tracking-widest shadow-xl shadow-accent/20 sm:rounded-full sm:px-10">
             {draft.id ? 'SAVE CHANGES' : 'ADD TO LIBRARY'}
           </Button>
@@ -1884,7 +1884,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
         </div>
 
         <div className="p-8 pt-4 bg-muted/5 border-t border-border/20 flex justify-end">
-          <Button variant="outline" onClick={onClose} className="h-11 px-10 font-code text-[11px] font-bold uppercase tracking-widest bg-card border-border/60 shadow-sm rounded-full">CLOSE AUDIT</Button>
+          <Button variant="outline" onClick={onClose} className="h-11 px-10 font-code text-[11px] font-bold uppercase tracking-widest bg-card border-border/60 shadow-sm rounded-full">Close Audit</Button>
         </div>
       </DialogContent>
     </Dialog>

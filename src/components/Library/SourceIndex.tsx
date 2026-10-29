@@ -534,10 +534,10 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         actions={
           <>
           <Button variant="outline" onClick={() => setExportPreviewOpen(true)} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
-            <Copy className="size-4 mr-2" /> COPY BIBLIOGRAPHY
+            <Copy className="size-4 mr-2" /> Copy Bibliography
           </Button>
           <Button variant="outline" onClick={() => setExportPreviewOpen(true)} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
-            <Download className="size-4 mr-2" /> EXPORT BIBTEX
+            <Download className="size-4 mr-2" /> Export BibTeX
           </Button>
           </>
         }

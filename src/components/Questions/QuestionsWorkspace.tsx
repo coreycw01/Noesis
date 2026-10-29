@@ -267,7 +267,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
         actions={
           <>
             <Button onClick={() => setIsAddOpen(true)} size="sm" className="bg-accent hover:bg-accent/90 rounded-full h-9 px-6 font-bold">
-              <Plus className="size-4 mr-1.5" /> ADD INQUIRY
+              <Plus className="size-4 mr-1.5" /> Add Inquiry
             </Button>
           </>
         }
@@ -431,7 +431,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
               label="INFLUENCED BY SOURCE(S)"
             />
           </div>
-          <DialogFooter className="pt-8"><Button onClick={createQuestion} className="w-full h-12 rounded-full font-bold shadow-lg shadow-accent/20">OPEN INVESTIGATION</Button></DialogFooter>
+          <DialogFooter className="pt-8"><Button onClick={createQuestion} className="w-full h-12 rounded-full font-bold shadow-lg shadow-accent/20">Open Investigation</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

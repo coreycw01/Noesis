@@ -1646,7 +1646,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               </Button>
             )}
             <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
-              <Plus className="size-4 mr-1.5" /> NEW POSITION
+              <Plus className="size-4 mr-1.5" /> New Position
             </Button>
           </>
         }

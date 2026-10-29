@@ -408,7 +408,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         actions={
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" className="h-9 rounded-full bg-accent px-6 font-bold shadow-md shadow-accent/20 hover:bg-accent/90"><Plus className="mr-1.5 size-4" /> ADD IN LABS</Button>
+              <Button size="sm" className="h-9 rounded-full bg-accent px-6 font-bold shadow-md shadow-accent/20 hover:bg-accent/90"><Plus className="mr-1.5 size-4" /> Add in Labs</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onSelect={() => { setLabTool('practices'); openEditor(undefined, 'practice'); }}><PracticeIcon className="mr-2 size-4" /> New practice</DropdownMenuItem>
@@ -1228,7 +1228,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
           </div>
         </div>
         <div className="flex shrink-0 justify-end gap-3 border-t bg-muted/10 p-4 sm:p-8 sm:pt-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 px-8 rounded-full font-bold text-muted-foreground hover:bg-transparent">CANCEL</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 px-8 rounded-full font-bold text-muted-foreground hover:bg-transparent">Cancel</Button>
           <Button onClick={onSave} className="h-11 px-10 bg-accent shadow-xl shadow-accent/20 rounded-full font-bold uppercase tracking-widest text-[11px]">{draft.id ? 'Save Practice' : 'Create Practice'}</Button>
         </div>
       </DialogContent>

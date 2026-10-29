@@ -1358,7 +1358,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         meta={<p className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">{maturitySummary}</p>}
         actions={
           <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 rounded-full h-9">
-            <Plus className="size-4 mr-1.5" /> NEW CONCEPT
+            <Plus className="size-4 mr-1.5" /> New Concept
           </Button>
         }
       />

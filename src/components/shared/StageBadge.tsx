@@ -25,7 +25,7 @@ export function StageBadge({
   return (
     <Badge
       variant="outline"
-      className={`rounded-full border-accent/35 bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent ${className}`}
+      className={`rounded-none border-0 border-l-2 border-accent/60 bg-transparent py-0 pl-1.5 pr-0 font-code text-[8px] font-semibold uppercase tracking-widest text-accent ${className}`}
     >
       {STAGE_LABELS[resolved]}
     </Badge>

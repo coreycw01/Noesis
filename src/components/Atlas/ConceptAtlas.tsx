@@ -55,6 +55,7 @@ import type {
 } from '@/lib/types';
 import { conceptKey, conceptRelated, taggedItemsForConcept, today, uid as makeId } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { iconForNoesisView } from '@/lib/noesis-icons';
 import { deleteObject, getStorage, ref as storageRef } from 'firebase/storage';
 import { uploadPrivateAsset } from '@/lib/storage-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
@@ -67,6 +68,8 @@ import {
   deriveAtlasTerritoryView,
   reconcileAtlasRegionNotices,
 } from './atlas-diagnostics';
+
+const AtlasIcon = iconForNoesisView('atlas');
 
 interface ConceptAtlasProps {
   concepts: Concept[];
@@ -2378,12 +2381,17 @@ export function ConceptAtlas({
       isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-full flex-1 overflow-hidden"
     )}>
       {!isFullScreen && (
-      <header className="z-20 mb-1 flex flex-col gap-3 px-4 pt-4 md:px-8 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
+      <header className="noesis-atlas-header z-20 mb-1 flex flex-col gap-3 px-4 pt-4 md:px-8 md:pt-6 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="noesis-page-title text-[28px]">Atlas</h1>
-            <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{atlasSectionMeta[atlasSection].label}</Badge>
+          <div className="mb-1.5 flex items-center gap-2.5">
+            <span className="noesis-margin-marker"><AtlasIcon className="size-3.5" strokeWidth={2.2} aria-hidden="true" /></span>
+            <span className="noesis-route-label">
+              <span className="noesis-route-label__section">Map</span>
+              <span className="noesis-route-label__divider" aria-hidden="true" />
+              {atlasSectionMeta[atlasSection].label}
+            </span>
           </div>
+          <h1 className="noesis-page-title text-[28px] md:text-[32px]">Atlas</h1>
           <p className="noesis-page-description mt-1 hidden max-w-3xl text-sm leading-5 sm:block">{atlasSectionMeta[atlasSection].description}</p>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:items-center md:justify-end md:overflow-visible md:pb-0">

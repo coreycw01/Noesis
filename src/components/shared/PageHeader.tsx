@@ -4,6 +4,7 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { iconForNoesisView } from '@/lib/noesis-icons';
+import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
 
 interface PageHeaderProps {
   title: string;
@@ -42,6 +43,9 @@ export function PageHeader({ title, description, actions, meta, className, child
     'context-desk': 'Synthesis', practices: 'Experiment', evolution: 'History', profile: 'Portrait',
     goals: 'Commitment', settings: 'System',
   } as Record<string, string>)[view] || 'Workspace';
+  const pageSection = NOESIS_PAGE_BY_VIEW[view as keyof typeof NOESIS_PAGE_BY_VIEW]?.section;
+  // Name where the page sits in the thinking flow, matching the sidebar groups.
+  const stage = pageSection && pageSection !== 'More' && pageSection !== section ? pageSection : null;
 
   return (
     <header data-noesis-route={view} className={cn('noesis-page-header mb-6 md:mb-9 lg:mb-11', className)}>
@@ -50,7 +54,10 @@ export function PageHeader({ title, description, actions, meta, className, child
         <div className="min-w-0 max-w-4xl">
           <div className="mb-2 flex items-center gap-2.5">
             <span className="noesis-margin-marker"><PageIcon className="size-3.5" strokeWidth={2.2} aria-hidden="true" /></span>
-            <span className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{section}</span>
+            <span className="noesis-route-label">
+              {stage && <><span className="noesis-route-label__section">{stage}</span><span className="noesis-route-label__divider" aria-hidden="true" /></>}
+              {section}
+            </span>
           </div>
           <div>
             <h1 className="noesis-page-title min-w-0 text-[30px] md:text-[38px] lg:text-[42px]">{title}</h1>

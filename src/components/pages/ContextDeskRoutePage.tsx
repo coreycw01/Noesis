@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { iconForNoesisView } from '@/lib/noesis-icons';
+import { PageHeader } from '@/components/shared/PageHeader';
 import type { AiSettings, Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -402,21 +403,14 @@ export function ContextDeskRoutePage({
   const selectedIds = (type: ContextRecordType) => selected.filter((record) => record.type === type).map((record) => record.id);
   const activeSource = media.find((source) => source.id === sourceFilter);
   const activeConcept = concepts.find((concept) => concept.id === conceptFilter);
-  const ContextDeskIcon = iconForNoesisView('context-desk');
-
   return (
-    <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <main className="noesis-context-desk min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <div className="mx-auto w-full max-w-6xl px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
-      <header className="border-b border-border pb-5">
-        <div className="flex items-start gap-3">
-          <ContextDeskIcon className="mt-1 size-6 shrink-0 text-accent" aria-hidden="true" />
-          <div>
-            <p className="font-code text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Selected-context reasoning</p>
-            <h1 className="mt-1 text-3xl font-semibold text-foreground">Context Desk</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Choose the records Noesis may consider. Nothing else in your workspace is included, and no result is saved until you review it.</p>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        title="Context Desk"
+        description="Choose the records Noesis may consider. Nothing else in your workspace is included, and no result is saved until you review it."
+        className="mb-0 md:mb-0 lg:mb-0"
+      />
 
       <div className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.72fr)]">
         <section aria-labelledby="context-library-heading" className="min-w-0">
