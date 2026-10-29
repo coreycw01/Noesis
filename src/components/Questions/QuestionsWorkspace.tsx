@@ -18,14 +18,15 @@ import { cn } from '@/lib/utils';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { DetailLabel, PageHeader } from '@/components/shared/PageHeader';
+import { ToolOption, ToolOptions, WorkbenchPanel } from '@/components/shared/WorkbenchPanel';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
-import { ContextRail, EditorialSection, EntityMeta, IntellectualRoleLabel } from '@/components/shared/IntellectualStructures';
+import { ContextRail, EntityMeta, IntellectualRoleLabel } from '@/components/shared/IntellectualStructures';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
@@ -828,16 +829,11 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
 
   return (
     <div className="noesis-inquiry-detail flex-1 w-full overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 font-body" data-noesis-scroll-region data-noesis-identity="investigation">
-      <header className="mb-6 border-b border-border/70 pb-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="ghost" onClick={onBack} className="h-9 rounded-full px-3 font-code text-[10px] uppercase tracking-widest hover:bg-muted/50">
-              <ArrowLeft className="mr-2 size-4" /> Back
-            </Button>
-            <IntellectualRoleLabel role="question">Inquiry</IntellectualRoleLabel>
-            <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{question.status.replace(/_/g, ' ')}</span>
-            {!!sources.length && <span className="max-w-[260px] truncate text-xs text-muted-foreground">From {sources[0].title}</span>}
-          </div>
+      <header className="mb-8 border-b border-[var(--hairline)] pb-6">
+        <div className="noesis-detail-toolbar">
+          <button type="button" onClick={onBack} className="noesis-back-link">
+            <ArrowLeft aria-hidden="true" /> Inquiries
+          </button>
           <div className="flex items-center gap-2">
             <ContextualAiPanel
               enabled={aiSettings.aiAssistanceEnabled}
@@ -906,7 +902,10 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             </div>
           </div>
         ) : (
-          <h1 className="noesis-page-title mt-5 max-w-5xl text-3xl leading-tight sm:text-4xl">{question.text}</h1>
+          <>
+            <DetailLabel view="questions" kind="Inquiry" status={question.status.replace(/_/g, ' ')} extra={sources.length ? `From ${sources[0].title}` : undefined} />
+            <h1 className="noesis-page-title noesis-detail-title max-w-5xl">{question.text}</h1>
+          </>
         )}
       </header>
 
@@ -922,7 +921,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             { id: 'decide', label: 'Decide', description: 'Resolve, suspend, transform, archive, or keep the inquiry open.' },
           ]}
         />
-        {workflowStep === 'frame' && <EditorialSection
+        {workflowStep === 'frame' && <WorkbenchPanel
           eyebrow="Frame"
           title="Your thinking"
           description="Socratic Challenge can start from the question alone. Add only the context that makes the investigation more precise."
@@ -954,9 +953,9 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               ]} />
             </ContextRail>
           </div>
-        </EditorialSection>}
+        </WorkbenchPanel>}
 
-        {workflowStep === 'answer' && <EditorialSection eyebrow="Provisional conclusion" title="Current answer" description="Write the answer that leads right now. Saving it marks the inquiry provisionally answered, not permanently settled.">
+        {workflowStep === 'answer' && <WorkbenchPanel eyebrow="Provisional conclusion" title="Current answer" description="Write the answer that leads right now. Saving it marks the inquiry provisionally answered, not permanently settled.">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             {question.answer?.trim() && <span className="font-code text-[10px] uppercase tracking-widest text-accent">Saved answer</span>}
           </div>
@@ -965,7 +964,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground"><span className="font-medium text-foreground">Next:</span> {recommendedMove}</p>
             <Button onClick={() => saveProvisionalAnswer('provisionally_answered')} disabled={saving || !initialAnswer.trim()}>{saving ? 'Saving...' : 'Save Answer'}</Button>
           </div>
-        </EditorialSection>}
+        </WorkbenchPanel>}
 
         {workflowStep === 'investigate' && !!question.investigationNotes?.some((note) => note.origin === 'ai-assisted') && (
           <AiAssistedHistory
@@ -991,44 +990,40 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           />
         )}
 
-        {(workflowStep === 'investigate' || workflowStep === 'decide') && <section className="border-y border-border bg-background/20" aria-label="Inquiry investigation tools">
-          <header className="px-5 py-4 sm:px-6">
-            <div>
-              <div className="text-sm font-semibold text-foreground">{workflowStep === 'decide' ? 'Decide the inquiry' : 'Investigation tools'}</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{workflowStep === 'decide' ? 'Choose the outcome that best reflects where the inquiry stands now.' : 'Choose one focused action and work on it without leaving this section.'}</p>
+        {(workflowStep === 'investigate' || workflowStep === 'decide') && <section className="noesis-workbench-panel" aria-label="Inquiry investigation tools">
+          <header className="noesis-workbench-panel__header">
+            <div className="min-w-0 flex-1">
+              <div className="noesis-workbench-panel__eyebrow">{workflowStep === 'decide' ? 'Decide' : 'Investigate'}</div>
+              <h3 className="noesis-workbench-panel__title">{workflowStep === 'decide' ? 'Decide the inquiry' : 'Investigation tools'}</h3>
+              <p className="noesis-workbench-panel__description">{workflowStep === 'decide' ? 'Choose the outcome that best reflects where the inquiry stands now.' : 'Choose one focused action and work on it without leaving this section.'}</p>
             </div>
           </header>
-          <div className="border-t border-border p-4 sm:p-5">
-            {workflowStep === 'investigate' && <section className="border-l-2 border-accent bg-accent/5 p-4">
-              <div className="readex-kicker text-accent">Recommended next step</div>
+          <div className="noesis-workbench-panel__body">
+            {workflowStep === 'investigate' && <section className="noesis-recommendation">
+              <div className="noesis-workbench-panel__eyebrow">Recommended next step</div>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
                 <p className="max-w-2xl text-sm leading-6 text-foreground">{INQUIRY_TOOL_COPY[recommended].description}</p>
                 <Button onClick={() => { setWorkflowStep(recommended === 'Decide outcome' ? 'decide' : 'investigate'); setSelectedTool(recommended); }}>Open {recommended}</Button>
               </div>
             </section>}
 
-            {workflowStep === 'investigate' && <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {workflowStep === 'investigate' && <ToolOptions label="Investigation tools" className="mt-4">
               {tools.filter((tool) => tool !== 'Decide outcome').map((tool) => (
-                <button
+                <ToolOption
                   key={tool}
-                  type="button"
+                  label={tool}
+                  description={INQUIRY_TOOL_COPY[tool].description}
+                  active={selectedTool === tool}
                   onClick={() => { setWorkflowStep('investigate'); setSelectedTool(tool); }}
-                  className={cn(
-                    'min-h-20 border-l-2 border-y-0 border-r-0 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    selectedTool === tool ? 'border-accent bg-accent/10' : 'border-border bg-transparent hover:border-accent/50 hover:bg-accent/5'
-                  )}
-                >
-                  <span className="block text-sm font-semibold text-foreground">{tool}</span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{INQUIRY_TOOL_COPY[tool].description}</span>
-                </button>
+                />
               ))}
-            </div>}
+            </ToolOptions>}
 
             {selectedTool && (
-              <section className="mt-6 border-t border-border pt-5">
+              <section className="mt-5 border-t border-[var(--hairline)] pt-5">
                 <div className="mb-4">
-                  <div className="readex-kicker">{selectedTool}</div>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{INQUIRY_TOOL_COPY[selectedTool].instruction}</p>
+                  <div className="noesis-workbench-panel__eyebrow">{selectedTool}</div>
+                  <p className="noesis-workbench-panel__description">{INQUIRY_TOOL_COPY[selectedTool].instruction}</p>
                 </div>
 
                 {selectedTool === 'Clarify question' && (

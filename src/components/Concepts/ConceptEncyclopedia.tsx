@@ -28,6 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
+import { DetailLabel } from '@/components/shared/PageHeader';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
@@ -692,10 +693,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     return (
       <div className="noesis-concept-entry flex-1 overflow-y-auto font-body" data-noesis-identity="encyclopedia-entry">
         {/* Sticky nav bar */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/20 px-8 py-3 flex items-center justify-between">
-          <Button variant="ghost" onClick={back} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full">
-            <ArrowLeft className="size-4 mr-2" /> Concepts
-          </Button>
+        <div className="noesis-detail-toolbar sticky top-0 z-10 mb-0 bg-background/95 px-4 pt-3 backdrop-blur-sm sm:px-8">
+          <button type="button" onClick={back} className="noesis-back-link">
+            <ArrowLeft aria-hidden="true" /> Concepts
+          </button>
           <div className="flex gap-2">
             {concept && (
               <>
@@ -748,7 +749,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         <div className="p-8 pt-10 max-w-5xl mx-auto">
           {/* Title + definition */}
           <div className="mb-8">
-            <h1 className="noesis-page-title mb-4 text-[42px]">{selectedName}</h1>
+            <DetailLabel view="concepts" kind="Concept" status={concept?.philosophyStatus} />
+            <h1 className="noesis-page-title noesis-detail-title mb-4">{selectedName}</h1>
             {isDefinitionEditing ? (
               <div className="max-w-3xl space-y-3 rounded-xl border border-accent/20 bg-card p-4 shadow-sm">
                 <Textarea
@@ -814,12 +816,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             ]}
           />
 
-          <details id="concept-define" open className={cn('group mb-6 scroll-mt-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'define' && 'hidden')}>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
-              <span>Meaning and language</span>
-              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          <details id="concept-define" open className={cn('noesis-workbench-panel group mb-5 scroll-mt-6', conceptWorkflowStep !== 'define' && 'hidden')}>
+            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
+              <div className="min-w-0 flex-1">
+                <div className="noesis-workbench-panel__eyebrow">Define</div>
+                <h3 className="noesis-workbench-panel__title">Meaning and language</h3>
+              </div>
+              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
             </summary>
-            <div className="border-t border-border/50 p-4">
+            <div className="noesis-workbench-panel__body">
           <div className="p-2 sm:p-3">
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
@@ -904,7 +909,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
 
             {concept?.boundaryReview && (
-              <div className="mt-4 rounded-xl border border-accent/25 bg-accent/5 p-4">
+              <div className="mt-4 noesis-recommendation">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">Saved Boundary Review</div>
@@ -930,17 +935,18 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </details>
 
-          <details id="concept-boundaries" open className={cn('group mb-6 scroll-mt-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'boundaries' && 'hidden')}>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6">
-              <div>
-                <div className="text-sm font-semibold text-foreground">Boundary test</div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">Try edge cases, then save a clearer boundary in your own words.</p>
+          <details id="concept-boundaries" open className={cn('noesis-workbench-panel group mb-5 scroll-mt-6', conceptWorkflowStep !== 'boundaries' && 'hidden')}>
+            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
+              <div className="min-w-0 flex-1">
+                <div className="noesis-workbench-panel__eyebrow">Boundaries</div>
+                <h3 className="noesis-workbench-panel__title">Boundary test</h3>
+                <p className="noesis-workbench-panel__description">Try edge cases, then save a clearer boundary in your own words.</p>
               </div>
-              <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
             </summary>
-            <div className="border-t border-border p-4 sm:p-6">
+            <div className="noesis-workbench-panel__body">
           {/* Boundary Test */}
-          <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
+          <div className="mb-8">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Boundary Test</h2>
@@ -993,7 +999,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               })}
             </div>
 
-            <div className="mt-5 rounded-xl border border-accent/20 bg-accent/5 p-4">
+            <div className="mt-5 noesis-recommendation">
               <div className="font-code text-[9px] uppercase tracking-widest text-accent font-bold">Refinement Prompt</div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{boundarySuggestion}</p>
               <div className="mt-4 grid gap-3">
@@ -1018,14 +1024,17 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </details>
 
-          <details id="concept-diagnose" open className={cn('group mb-6 scroll-mt-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'diagnose' && 'hidden')}>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
-              <span>Definition health</span>
-              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          <details id="concept-diagnose" open className={cn('noesis-workbench-panel group mb-5 scroll-mt-6', conceptWorkflowStep !== 'diagnose' && 'hidden')}>
+            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
+              <div className="min-w-0 flex-1">
+                <div className="noesis-workbench-panel__eyebrow">Diagnose</div>
+                <h3 className="noesis-workbench-panel__title">Definition health</h3>
+              </div>
+              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
             </summary>
-            <div className="border-t border-border/50 p-4">
+            <div className="noesis-workbench-panel__body">
           {/* Growth Diagnosis */}
-          <div className="rounded-xl border border-border/30 bg-card shadow-sm p-6 mb-10">
+          <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
                 <ConceptIcon className="size-4 text-muted-foreground/40" />
@@ -1092,12 +1101,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </details>
 
-          <details id="concept-connect" open className={cn('group mb-6 scroll-mt-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'connect' && 'hidden')}>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
-              <span>Where this concept appears</span>
-              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          <details id="concept-connect" open className={cn('noesis-workbench-panel group mb-5 scroll-mt-6', conceptWorkflowStep !== 'connect' && 'hidden')}>
+            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
+              <div className="min-w-0 flex-1">
+                <div className="noesis-workbench-panel__eyebrow">Connect</div>
+                <h3 className="noesis-workbench-panel__title">Where this concept appears</h3>
+              </div>
+              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
             </summary>
-            <div className="border-t border-border/50 p-4">
+            <div className="noesis-workbench-panel__body">
           {/* Sources + Annotations */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
             <ConceptPageSection title="Related Sources" count={r.sources.length} empty="No sources tagged with this concept yet.">
@@ -1207,12 +1219,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </details>
 
-          <details open className={cn('group mb-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'connect' && 'hidden')}>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
-              <span>Compare positions using this concept</span>
-              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          <details open className={cn('noesis-workbench-panel group mb-5', conceptWorkflowStep !== 'connect' && 'hidden')}>
+            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
+              <div className="min-w-0 flex-1">
+                <div className="noesis-workbench-panel__eyebrow">Connect</div>
+                <h3 className="noesis-workbench-panel__title">Compare positions using this concept</h3>
+              </div>
+              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
             </summary>
-            <div className="border-t border-border/50 p-4">
+            <div className="noesis-workbench-panel__body">
           {/* Tensions & Conflicts */}
           {r.beliefs.length >= 2 && (
             <section className="mb-10">
@@ -1287,12 +1302,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           </details>
 
-          <details id="concept-history" open className={cn('group mb-6 scroll-mt-6 rounded-xl border border-border/60 bg-card/70', conceptWorkflowStep !== 'history' && 'hidden')}>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium text-foreground">
-              <span>Definition history</span>
-              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          <details id="concept-history" open className={cn('noesis-workbench-panel group mb-5 scroll-mt-6', conceptWorkflowStep !== 'history' && 'hidden')}>
+            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
+              <div className="min-w-0 flex-1">
+                <div className="noesis-workbench-panel__eyebrow">History</div>
+                <h3 className="noesis-workbench-panel__title">Definition history</h3>
+              </div>
+              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
             </summary>
-            <div className="border-t border-border/50 p-4">
+            <div className="noesis-workbench-panel__body">
           {/* Evolution over time */}
           {sortedEvents.length > 0 && (
             <section className="mb-10">

@@ -404,7 +404,17 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             {practiceStats.total} lab records · {practiceStats.active} active · {practiceStats.needsSetup} need setup · {practiceStats.readyForReview} ready for review
           </span>
         }
-        className="mb-5"
+        tabs={(
+          <WorkspaceTabs
+            value={labTool}
+            onChange={(value) => { setLabTool(value); setTypeFilter('all'); }}
+            label="Labs tools"
+            items={[
+              { id: 'practices', label: 'Practices', icon: PracticeIcon },
+              { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
+            ]}
+          />
+        )}
         actions={
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
@@ -416,17 +426,6 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             </DropdownMenuContent>
           </DropdownMenu>
         }
-      />
-
-      <WorkspaceTabs
-        value={labTool}
-        onChange={(value) => { setLabTool(value); setTypeFilter('all'); }}
-        label="Labs tools"
-        className="mb-4"
-        items={[
-          { id: 'practices', label: 'Practices', icon: PracticeIcon },
-          { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
-        ]}
       />
 
       <section className="relative mb-5 overflow-hidden border-y border-border/70 bg-card/45" aria-label={`${labTool === 'experiments' ? 'Experiment' : 'Practice'} cycle`}>
@@ -995,7 +994,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       )}
 
       {reviewOpen && (
-        <div className="mt-5 rounded-xl border border-accent/20 bg-accent/5 p-4">
+        <div className="mt-5 noesis-recommendation">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Conclusion Review</div>

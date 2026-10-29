@@ -409,7 +409,6 @@ export function ContextDeskRoutePage({
       <PageHeader
         title="Context Desk"
         description="Choose the records Noesis may consider. Nothing else in your workspace is included, and no result is saved until you review it."
-        className="mb-0 md:mb-0 lg:mb-0"
       />
 
       <div className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.72fr)]">
