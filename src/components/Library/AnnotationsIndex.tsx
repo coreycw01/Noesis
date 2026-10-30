@@ -1,8 +1,8 @@
 
 "use client";
 
-import React, { useMemo, useRef, useState } from 'react';
-import { Archive, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Quote, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Archive, ArrowLeft, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -48,6 +48,10 @@ interface AnnotationsIndexProps {
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onNavigate?: (view: string, targetId?: string) => void;
   aiSettings?: AiSettings;
+  focusedAnnotationSourceId?: string | null;
+  focusedAnnotationId?: string | null;
+  onOpenAnnotation?: (sourceId: string, annotationId: string) => void;
+  onCloseAnnotation?: () => void;
 }
 
 type FlatAnnotation = Annotation & { source: Media };
@@ -122,6 +126,10 @@ export function AnnotationsIndex({
   onCreateLink,
   onNavigate,
   aiSettings,
+  focusedAnnotationSourceId,
+  focusedAnnotationId,
+  onOpenAnnotation,
+  onCloseAnnotation,
 }: AnnotationsIndexProps) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = usePersistentView<AnnotationFilter>('noesis:annotations-filter', 'all', [
@@ -182,6 +190,11 @@ export function AnnotationsIndex({
   };
 
   const annotations = useMemo(() => allAnnotations(media) as FlatAnnotation[], [media]);
+  const isFullPageDetail = Boolean(focusedAnnotationSourceId && focusedAnnotationId);
+  const focusedAnnotation = useMemo(
+    () => annotations.find((annotation) => annotation.source.id === focusedAnnotationSourceId && annotation.id === focusedAnnotationId) || null,
+    [annotations, focusedAnnotationId, focusedAnnotationSourceId]
+  );
   const annotationKey = (annotation: FlatAnnotation) => `${annotation.source.id}:${annotation.id}`;
   const annotationStatus = (annotation: Annotation): AnnotationPhilosophyStatus => normalizedProcessingStatus(annotation.philosophyStatus);
   const annotationType = (annotation: Annotation): AnnotationType => normalizedAnnotationType(annotation.type);
@@ -341,14 +354,20 @@ export function AnnotationsIndex({
   const saveEditing = () => {
     if (!editing || !editing.text.trim()) return;
     const { source, ...annotation } = editing;
-    onUpdateAnnotation(source.id, {
+    const next = {
       ...annotation,
       text: annotation.text.trim(),
       conceptTags: normalizeConceptTags(annotation.conceptTags || source.tags),
       philosophyStatus: annotation.philosophyStatus || 'reviewed',
       date: annotation.date || today(),
-    });
-    setEditing(null);
+    };
+    onUpdateAnnotation(source.id, next);
+    if (isFullPageDetail) {
+      setEditing({ ...next, source });
+      toast({ title: 'Annotation saved.' });
+    } else {
+      setEditing(null);
+    }
   };
 
   const openPreflight = (annotation: FlatAnnotation, mode: PreflightMode) => {
@@ -535,10 +554,31 @@ export function AnnotationsIndex({
   };
 
   const openAnnotationDetail = (annotation: FlatAnnotation) => {
+    if (onOpenAnnotation) {
+      onOpenAnnotation(annotation.source.id, annotation.id);
+      return;
+    }
     setAnnotationWorkflowStep('understand');
     setDetailEffect(selectedEffectForAnnotation(annotation));
     setEditingMetadata(false);
     setEditing(annotation);
+  };
+
+  useEffect(() => {
+    if (!isFullPageDetail) return;
+    if (!focusedAnnotation) {
+      setEditing(null);
+      return;
+    }
+    setAnnotationWorkflowStep('understand');
+    setDetailEffect(selectedEffectForAnnotation(focusedAnnotation));
+    setEditingMetadata(false);
+    setEditing(focusedAnnotation);
+  }, [focusedAnnotation, isFullPageDetail]);
+
+  const closeAnnotationDetail = () => {
+    if (isFullPageDetail) onCloseAnnotation?.();
+    else setEditing(null);
   };
 
   const nextActionLabelForEffect = (annotation: FlatAnnotation, action: ConsequenceAction) => {
@@ -575,7 +615,7 @@ export function AnnotationsIndex({
   };
 
   const runDetailAction = (annotation: FlatAnnotation, action: ConsequenceAction) => {
-    setEditing(null);
+    if (!isFullPageDetail) setEditing(null);
     runConsequenceAction(annotation, action);
   };
 
@@ -657,6 +697,7 @@ export function AnnotationsIndex({
 
   return (
     <div className="noesis-page noesis-annotations-index" data-noesis-identity="marginalia">
+      <div className={cn(isFullPageDetail && 'hidden')}>
       <PageHeader
         title="Annotations"
         description="Review and refine captured highlights, thoughts, questions, and connections across all sources."
@@ -978,6 +1019,16 @@ export function AnnotationsIndex({
           </div>
         )}
       </div>
+      </div>
+
+      {isFullPageDetail && !editing && !focusedAnnotation && (
+        <PageEmptyState
+          icon={Highlighter}
+          title="Annotation not found"
+          description="This annotation may have been removed, or its source is no longer available."
+          action={<Button variant="outline" onClick={closeAnnotationDetail}><ArrowLeft className="mr-2 size-4" />Back to annotations</Button>}
+        />
+      )}
 
       <ConfirmActionDialog
         open={!!deleteTarget}
@@ -989,11 +1040,15 @@ export function AnnotationsIndex({
         onConfirm={async () => {
           if (!deleteTarget) return;
           const target = deleteTarget;
+          const deletingFocusedAnnotation = isFullPageDetail
+            && target.source.id === focusedAnnotationSourceId
+            && target.id === focusedAnnotationId;
           setDeleteTarget(null);
           setSelectedKeys((current) => current.filter((key) => key !== annotationKey(target)));
           try {
             await onDeleteAnnotation(target.source.id, target.id);
             toast({ title: 'Annotation deleted.' });
+            if (deletingFocusedAnnotation) onCloseAnnotation?.();
           } catch (error) {
             toast({
               variant: 'destructive',
@@ -1057,9 +1112,14 @@ export function AnnotationsIndex({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+      <Dialog open={!!editing} onOpenChange={(open) => !open && closeAnnotationDetail()}>
         <DialogContent
-          className="max-w-2xl border-none shadow-2xl rounded-2xl max-sm:h-[calc(100dvh-1rem)] max-sm:w-[calc(100vw-1rem)] max-sm:max-w-none max-sm:grid-rows-[auto_minmax(0,1fr)_auto] max-sm:gap-0 max-sm:overflow-hidden max-sm:p-4"
+          inline={isFullPageDetail}
+          className={cn(
+            isFullPageDetail
+              ? 'mx-auto max-w-5xl pb-24'
+              : 'max-w-2xl border-none shadow-2xl rounded-2xl max-sm:h-[calc(100dvh-1rem)] max-sm:w-[calc(100vw-1rem)] max-sm:max-w-none max-sm:grid-rows-[auto_minmax(0,1fr)_auto] max-sm:gap-0 max-sm:overflow-hidden max-sm:p-4'
+          )}
           onCloseAutoFocus={(event) => {
             const target = pendingDetailDeleteRef.current;
             if (!target) return;
@@ -1068,9 +1128,21 @@ export function AnnotationsIndex({
             requestAnimationFrame(() => setDeleteTarget(target));
           }}
         >
-          <DialogHeader>
-            <DialogTitle className="font-headline text-2xl italic">Annotation Detail</DialogTitle>
-          </DialogHeader>
+          {isFullPageDetail && editing ? (
+            <PageHeader
+              title="Annotation Detail"
+              description={`Review what this note means, where it came from, and what it changes in your thinking. Source: ${editing.source.title}.`}
+              actions={(
+                <Button variant="outline" onClick={closeAnnotationDetail}>
+                  <ArrowLeft className="mr-2 size-4" />Back to annotations
+                </Button>
+              )}
+            />
+          ) : (
+            <DialogHeader>
+              <DialogTitle className="font-headline text-2xl italic">Annotation Detail</DialogTitle>
+            </DialogHeader>
+          )}
           {editing && (
             <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pt-2 max-sm:pr-1">
               <WorkbenchFlow
@@ -1112,8 +1184,11 @@ export function AnnotationsIndex({
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           onSelect={() => {
-                            pendingDetailDeleteRef.current = editing;
-                            setEditing(null);
+                            if (isFullPageDetail) setDeleteTarget(editing);
+                            else {
+                              pendingDetailDeleteRef.current = editing;
+                              setEditing(null);
+                            }
                           }}
                         >
                           <Trash2 className="mr-2 size-4" /> Delete annotation
@@ -1336,7 +1411,7 @@ export function AnnotationsIndex({
             </div>
           )}
           <DialogFooter className="pt-4 max-sm:border-t max-sm:border-border/50">
-            <Button variant="ghost" onClick={() => setEditing(null)} className="rounded-full">Cancel</Button>
+            <Button variant="ghost" onClick={closeAnnotationDetail} className="rounded-full">{isFullPageDetail ? 'Back' : 'Cancel'}</Button>
             <Button onClick={saveEditing} className="rounded-full px-8">Save Annotation</Button>
           </DialogFooter>
         </DialogContent>

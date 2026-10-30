@@ -23,6 +23,8 @@ export interface NoesisRouteState {
   focusedPositionId?: string | null;
   focusedWorkId?: string | null;
   focusedPracticeId?: string | null;
+  focusedAnnotationSourceId?: string | null;
+  focusedAnnotationId?: string | null;
 }
 
 export type NoesisRouteTargetType = 'concept' | 'inquiry' | 'source' | 'position' | 'work' | 'practice';
@@ -55,9 +57,10 @@ function normalizePathname(pathname: string) {
 export function parseNoesisRoute(pathname: string): NoesisRouteState {
   const clean = normalizePathname(pathname);
   const parts = clean.split('/').filter(Boolean);
-  const [, maybeSection, maybeId] = parts.length && (parts[0] === 'demo' || parts[0] === 'review')
-    ? ['', parts[1], parts[2]]
-    : ['', parts[0], parts[1]];
+  const isReviewRoute = parts.length > 0 && (parts[0] === 'demo' || parts[0] === 'review');
+  const maybeSection = isReviewRoute ? parts[1] : parts[0];
+  const maybeId = isReviewRoute ? parts[2] : parts[1];
+  const maybeChildId = isReviewRoute ? parts[3] : parts[2];
 
   switch (maybeSection) {
     case undefined:
@@ -75,7 +78,11 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
     case 'sources':
       return { view: 'source-index' };
     case 'annotations':
-      return { view: 'annotations' };
+      return {
+        view: 'annotations',
+        focusedAnnotationSourceId: maybeId || null,
+        focusedAnnotationId: maybeChildId || null,
+      };
     case 'positions':
       return { view: 'vault', focusedPositionId: maybeId || null };
     case 'works':
@@ -107,6 +114,8 @@ export function viewToPath(view: NoesisView, options?: {
   positionId?: string | null;
   workId?: string | null;
   practiceId?: string | null;
+  annotationSourceId?: string | null;
+  annotationId?: string | null;
 }) {
   const prefix = options?.reviewMode ? '/demo' : '';
   switch (view) {
@@ -123,7 +132,9 @@ export function viewToPath(view: NoesisView, options?: {
     case 'source-index':
       return `${prefix}/sources`;
     case 'annotations':
-      return `${prefix}/annotations`;
+      return options?.annotationSourceId && options?.annotationId
+        ? `${prefix}/annotations/${encodeURIComponent(options.annotationSourceId)}/${encodeURIComponent(options.annotationId)}`
+        : `${prefix}/annotations`;
     case 'vault':
       return options?.positionId ? `${prefix}/positions/${options.positionId}` : `${prefix}/positions`;
     case 'writing':

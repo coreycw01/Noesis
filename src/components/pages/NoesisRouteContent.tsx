@@ -109,6 +109,8 @@ export interface NoesisRouteContentProps {
   focusedQuestionId: string | null;
   focusedWorkId: string | null;
   focusedPracticeId: string | null;
+  focusedAnnotationSourceId: string | null;
+  focusedAnnotationId: string | null;
   refreshingDemoWorkspace: boolean;
   navigateToView: (view: NoesisView, options?: {
     conceptId?: string | null;
@@ -117,6 +119,8 @@ export interface NoesisRouteContentProps {
     positionId?: string | null;
     workId?: string | null;
     practiceId?: string | null;
+    annotationSourceId?: string | null;
+    annotationId?: string | null;
   }) => void;
   addQuestion: (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Question | void;
   updateQuestion: (question: Question) => void | Promise<void>;
@@ -226,6 +230,8 @@ export function NoesisRouteContent({
   focusedQuestionId,
   focusedWorkId,
   focusedPracticeId,
+  focusedAnnotationSourceId,
+  focusedAnnotationId,
   refreshingDemoWorkspace,
   navigateToView,
   addQuestion,
@@ -400,6 +406,8 @@ export function NoesisRouteContent({
           onCreateInquiry={(data) => addQuestion(data) as Question}
           onAddConcept={addConcept}
           onCreateLink={addPhilosophicalLink}
+          focusedAnnotationSourceId={focusedAnnotationSourceId}
+          focusedAnnotationId={focusedAnnotationId}
           onNavigate={navigateToView}
         />
       );

@@ -351,7 +351,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div className="flex items-center gap-3">
             <span className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Continue</span>
-            <div className="inline-flex border border-border/60 bg-card p-0.5" aria-label="Work recency view">
+            <div className="inline-flex rounded-[var(--button-radius)] border border-border/60 bg-card p-0.5" aria-label="Work recency view">
               {([
                 { id: 'edited', label: 'Recently Edited' },
                 { id: 'opened', label: 'Recently Opened' },
@@ -526,7 +526,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                   )}
                   <div className={cn('min-w-0 flex-1', view === 'cards' ? 'p-4' : 'py-1')}>
                     <div className="flex min-w-0 items-start gap-3">
-                      {!hasVisualPreview && <div className="flex size-9 shrink-0 items-center justify-center border border-border/60 text-accent"><Icon className="size-4" aria-hidden="true" /></div>}
+                      {!hasVisualPreview && <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--card-radius)] border border-border/60 text-accent"><Icon className="size-4" aria-hidden="true" /></div>}
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{categoryLabel}</span>
@@ -604,5 +604,5 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
 }
 
 function LauncherButton({ icon: Icon, title, description, onClick }: { icon: React.ComponentType<{ className?: string }>; title: string; description: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="group border border-border/60 bg-background p-4 text-left transition-colors hover:border-accent/50 hover:bg-muted/20"><div className="flex items-start gap-3"><Icon className="mt-0.5 size-5 shrink-0 text-accent" /><span><span className="block font-headline text-xl font-bold italic text-foreground group-hover:text-accent">{title}</span><span className="mt-1 block text-sm leading-5 text-muted-foreground">{description}</span></span></div></button>;
+  return <button type="button" onClick={onClick} className="group rounded-[var(--card-radius)] border border-border/60 bg-background p-4 text-left transition-colors hover:border-accent/50 hover:bg-muted/20"><div className="flex items-start gap-3"><Icon className="mt-0.5 size-5 shrink-0 text-accent" /><span><span className="block font-headline text-xl font-bold italic text-foreground group-hover:text-accent">{title}</span><span className="mt-1 block text-sm leading-5 text-muted-foreground">{description}</span></span></div></button>;
 }
