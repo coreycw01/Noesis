@@ -25,6 +25,16 @@ try {
   process.exit(1);
 }
 
+if (result.error || report.error || report.auditReportVersion !== 2) {
+  console.error(
+    result.error?.message ||
+      report.error?.summary ||
+      report.message ||
+      'npm audit did not return a complete vulnerability report.'
+  );
+  process.exit(1);
+}
+
 const severe = Object.entries(report.vulnerabilities ?? {})
   .filter(([, vulnerability]) =>
     vulnerability.severity === 'critical' || vulnerability.severity === 'high')
