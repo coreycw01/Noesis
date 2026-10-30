@@ -1207,7 +1207,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               />
               <div className="flex shrink-0 items-center justify-end gap-1 border-l border-border/30 pl-2 sm:gap-2">
                 {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Open' : 'Connect'}</Button>}
-                <div className="hidden items-center gap-2 border border-border/30 bg-muted/10 px-3 py-1.5 sm:flex">
+                <div className="hidden items-center gap-2 rounded-[var(--button-radius)] border border-border/30 bg-muted/10 px-3 py-1.5 sm:flex">
                   <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
                   <span className="font-code text-[8px] uppercase tracking-widest font-bold text-muted-foreground">
                     {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}

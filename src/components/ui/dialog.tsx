@@ -35,11 +35,22 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+  inline?: boolean
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => {
+  DialogContentProps
+>(({ className, children, inline = false, onCloseAutoFocus, ...props }, ref) => {
   React.useEffect(() => () => releaseStaleModalInteractionLock(), [])
+  if (inline) {
+    return (
+      <div ref={ref} className={cn("w-full", className)}>
+        {children}
+      </div>
+    )
+  }
   return <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -48,6 +59,7 @@ const DialogContent = React.forwardRef<
         "fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[var(--card-radius)] border-[length:var(--border-strength)] border-border bg-surface-elevated p-5 shadow-elevated duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:p-6",
         className
       )}
+      onCloseAutoFocus={onCloseAutoFocus}
       {...props}
     >
       {children}

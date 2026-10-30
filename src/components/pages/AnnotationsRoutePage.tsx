@@ -27,8 +27,12 @@ export interface AnnotationsRoutePageProps {
     questionId?: string | null;
     sourceId?: string | null;
     positionId?: string | null;
+    annotationSourceId?: string | null;
+    annotationId?: string | null;
   }) => void;
   aiSettings?: AiSettings;
+  focusedAnnotationSourceId?: string | null;
+  focusedAnnotationId?: string | null;
 }
 
 export function AnnotationsRoutePage({
@@ -44,6 +48,8 @@ export function AnnotationsRoutePage({
   onCreateLink,
   onNavigate,
   aiSettings,
+  focusedAnnotationSourceId,
+  focusedAnnotationId,
 }: AnnotationsRoutePageProps) {
   return (
     <AnnotationsIndex
@@ -58,6 +64,10 @@ export function AnnotationsRoutePage({
       onCreateInquiry={onCreateInquiry}
       onAddConcept={onAddConcept}
       onCreateLink={onCreateLink}
+      focusedAnnotationSourceId={focusedAnnotationSourceId}
+      focusedAnnotationId={focusedAnnotationId}
+      onOpenAnnotation={(sourceId, annotationId) => onNavigate('annotations', { annotationSourceId: sourceId, annotationId })}
+      onCloseAnnotation={() => onNavigate('annotations')}
       onNavigate={(nextView, targetId) => {
         onNavigate(nextView as NoesisView, {
           positionId: nextView === 'vault' ? targetId : null,

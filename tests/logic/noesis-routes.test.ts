@@ -60,3 +60,21 @@ test('Source Index owns the sources route', () => {
   assert.equal(viewToPath('source-index'), '/sources');
   assert.equal(viewToPath('source-index', { reviewMode: true }), '/demo/sources');
 });
+
+test('annotations use URL-backed detail pages with source context', () => {
+  assert.deepEqual(parseNoesisRoute('/annotations/source-1/note-2'), {
+    view: 'annotations',
+    focusedAnnotationSourceId: 'source-1',
+    focusedAnnotationId: 'note-2',
+  });
+  assert.deepEqual(parseNoesisRoute('/demo/annotations/source-1/note-2'), {
+    view: 'annotations',
+    focusedAnnotationSourceId: 'source-1',
+    focusedAnnotationId: 'note-2',
+  });
+  assert.equal(
+    viewToPath('annotations', { annotationSourceId: 'source 1', annotationId: 'note/2' }),
+    '/annotations/source%201/note%2F2'
+  );
+  assert.equal(viewToPath('annotations'), '/annotations');
+});

@@ -156,6 +156,8 @@ function ReadexWorkspace({
   const focusedQuestionId = focusedIdForNoesisView(routeState, 'questions');
   const focusedWorkId = focusedIdForNoesisView(routeState, 'writing');
   const focusedPracticeId = focusedIdForNoesisView(routeState, 'labs');
+  const focusedAnnotationSourceId = routeState.focusedAnnotationSourceId || null;
+  const focusedAnnotationId = routeState.focusedAnnotationId || null;
   const pendingNavigationRef = useRef<string | null>(null);
   const pendingNavigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
@@ -183,6 +185,8 @@ function ReadexWorkspace({
     positionId?: string | null;
     workId?: string | null;
     practiceId?: string | null;
+    annotationSourceId?: string | null;
+    annotationId?: string | null;
   }) => {
     const destination = viewToPath(view, {
       reviewMode,
@@ -192,6 +196,8 @@ function ReadexWorkspace({
       positionId: options?.positionId,
       workId: options?.workId,
       practiceId: options?.practiceId,
+      annotationSourceId: options?.annotationSourceId,
+      annotationId: options?.annotationId,
     });
     if (destination === pathname || pendingNavigationRef.current === destination) return;
     pendingNavigationRef.current = destination;
@@ -3147,6 +3153,8 @@ function ReadexWorkspace({
         focusedQuestionId={focusedQuestionId}
         focusedWorkId={focusedWorkId}
         focusedPracticeId={focusedPracticeId}
+        focusedAnnotationSourceId={focusedAnnotationSourceId}
+        focusedAnnotationId={focusedAnnotationId}
         refreshingDemoWorkspace={isSeedingReview}
         navigateToView={navigateToView}
         addQuestion={addQuestion}

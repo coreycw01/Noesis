@@ -499,7 +499,7 @@ export function ContextDeskRoutePage({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <div className="mt-3 border-y border-border/60 py-3">
+          <div className="mt-3 rounded-[var(--card-radius)] border border-border/60 bg-card/35 p-3">
             <EntityPicker
               items={sourceExclusionItems}
               selectedIds={excludedSourceIds}
@@ -512,7 +512,7 @@ export function ContextDeskRoutePage({
             />
             <p className="mt-2 text-xs leading-5 text-muted-foreground">Excluding a source also excludes its annotations and any selected record directly tied to it.</p>
           </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-y border-border/60 py-2">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[var(--card-radius)] border border-border/60 bg-card/35 px-3 py-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Filter className="size-4 shrink-0" aria-hidden="true" />
               <span>Showing {filtered.length} matching record{filtered.length === 1 ? '' : 's'}</span>
@@ -525,7 +525,7 @@ export function ContextDeskRoutePage({
               <Button type="button" variant="outline" size="sm" onClick={addVisibleRecords} disabled={!filtered.length || selected.length >= MAX_CONTEXT_ITEMS}>Add visible</Button>
             </div>
           </div>
-          <ScrollArea className="mt-3 h-[min(52vh,34rem)] border-y border-border">
+          <ScrollArea className="mt-3 h-[min(52vh,34rem)] overflow-hidden rounded-[var(--card-radius)] border border-border bg-card/25">
             <div className="divide-y divide-border">
               {filtered.map((record) => {
                 const active = selectedKeys.includes(record.key);
@@ -549,7 +549,7 @@ export function ContextDeskRoutePage({
                           </span>
                         )}
                       </span>
-                      <span className={cn('mt-1 flex size-8 items-center justify-center border', active ? 'border-accent bg-accent text-accent-foreground' : 'border-border text-muted-foreground')} aria-hidden="true">{active ? <Check className="size-4" /> : <Plus className="size-4" />}</span>
+                      <span className={cn('mt-1 flex size-8 items-center justify-center rounded-[var(--button-radius)] border', active ? 'border-accent bg-accent text-accent-foreground' : 'border-border text-muted-foreground')} aria-hidden="true">{active ? <Check className="size-4" /> : <Plus className="size-4" />}</span>
                     </button>
                     <Button type="button" variant="ghost" size="icon" className="my-2 size-9 self-start text-muted-foreground hover:text-destructive" onClick={() => excludeRecord(record)} aria-label={`Exclude ${record.label} from Context Desk`} title="Exclude from Context Desk"><X className="size-4" /></Button>
                   </div>
@@ -569,7 +569,7 @@ export function ContextDeskRoutePage({
             {selected.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedKeys([])}>Clear</Button>}
           </div>
 
-          <div className="mt-4 min-h-36 divide-y divide-border border-y border-border">
+          <div className="mt-4 min-h-36 divide-y divide-border overflow-hidden rounded-[var(--card-radius)] border border-border bg-card/25 px-3">
             {selected.map((record) => {
               const Icon = iconForNoesisView(viewForType[record.type]);
               return (
@@ -598,7 +598,7 @@ export function ContextDeskRoutePage({
           )}
 
           <Separator className="my-5" />
-          <div className="sticky bottom-3 z-10 space-y-3 border border-border bg-background/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/88">
+          <div className="sticky bottom-3 z-10 space-y-3 rounded-[var(--card-radius)] border border-border bg-background/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/88">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold">{selected.length} selected · {exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</p>
@@ -653,7 +653,7 @@ export function ContextDeskRoutePage({
           <div className="grid gap-5 sm:grid-cols-2">
             <section aria-labelledby="included-context-summary">
               <h3 id="included-context-summary" className="text-sm font-semibold">Included · {selected.length}</h3>
-              <div className="mt-2 divide-y divide-border border-y border-border">
+              <div className="mt-2 divide-y divide-border overflow-hidden rounded-[var(--card-radius)] border border-border px-3">
                 {selectedCounts.map(({ type, count }) => (
                   <div key={type} className="flex items-center justify-between gap-3 py-2 text-sm">
                     <span>{contextTypeLabels[type]}</span><span className="font-code text-xs text-muted-foreground">{count}</span>
