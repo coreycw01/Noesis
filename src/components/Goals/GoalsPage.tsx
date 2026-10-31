@@ -617,6 +617,18 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               <GoalStat label="Completed" value={goalStats.completed} />
             </>
           )}
+          tabs={(
+            <WorkspaceTabs
+              value={activeView}
+              onChange={setActiveView}
+              label="Commitment views"
+              items={[
+                { id: 'today', label: 'Today', icon: NOESIS_ICONS.commitment },
+                { id: 'active', label: 'Active', icon: Settings2 },
+                { id: 'review', label: 'Review', icon: Clock3 },
+              ]}
+            />
+          )}
           actions={(
             <>
             <Button variant="outline" onClick={addGoal} className="rounded-full bg-card">
@@ -627,18 +639,6 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             </Button>
             </>
           )}
-        />
-
-        <WorkspaceTabs
-          value={activeView}
-          onChange={setActiveView}
-          label="Commitment views"
-          className="mb-6"
-          items={[
-            { id: 'today', label: 'Today', icon: NOESIS_ICONS.commitment },
-            { id: 'active', label: 'Active', icon: Settings2 },
-            { id: 'review', label: 'Review', icon: Clock3 },
-          ]}
         />
 
         {activeView === 'today' && (

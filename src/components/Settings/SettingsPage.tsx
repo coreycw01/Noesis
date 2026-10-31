@@ -1265,7 +1265,7 @@ function TerminologyCard({ term, alt, body }: { term: string; alt: string; body:
 
 function ClassificationCard({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
+    <div className="noesis-recommendation">
       <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">Classification system</div>
       <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{title}</div>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{body}</p>

@@ -22,7 +22,7 @@ import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { buildCatalogSummary, sourceResultToMediaPatch, type NormalizedSourceResult } from '@/lib/source-intake';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { DetailLabel, PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -39,6 +39,8 @@ import { inquirySourceIds } from '@/lib/inquiry-state';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface MediaLibraryProps {
+  /** Sub-view tabs rendered in the shared page header. */
+  headerTabs?: React.ReactNode;
   media: Media[];
   concepts: Concept[];
   vault: VaultEntry[];
@@ -184,6 +186,7 @@ export function MediaLibrary({
   onFocusedSourceHandled,
   onOpenSourceRoute,
   aiSettings,
+  headerTabs,
 }: MediaLibraryProps) {
   const [filter, setFilter] = usePersistentView<MediaType | 'all'>('noesis:library-type', 'all', ['all', ...MEDIA_TYPES]);
   const [statusFilter, setStatusFilter] = usePersistentView<MediaStatus | 'active' | 'all'>('noesis:library-status', 'all', ['all', 'active', ...statuses]);
@@ -472,17 +475,11 @@ export function MediaLibrary({
     const sourcePurpose = capture.before?.reasonForAdding || capture.before?.openQuestion || capture.before?.expectation || selected.sourceNotes || 'This source still needs a clear reason for being studied.';
     
     return (
-      <div className="noesis-source-detail flex-1 w-full overflow-y-auto px-3 pb-28 pt-3 font-body sm:px-6 sm:py-6 lg:px-8" data-noesis-identity="research-record">
-        <header className="mb-4 space-y-3 border-b border-border/60 pb-4 sm:mb-6 sm:flex sm:items-center sm:justify-between sm:space-y-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <button onClick={closeSelectedSource} className="flex min-h-10 items-center rounded-md font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <ArrowLeft className="size-3 mr-2" /> LIBRARY
-            </button>
-            <span className="font-code text-[11px] uppercase tracking-widest text-primary/30">/</span>
-            <span className="font-code text-[11px] uppercase tracking-widest text-primary/80 font-bold">
-              {MEDIA_LABELS[selected.type]}
-            </span>
-          </div>
+      <div className="noesis-source-detail noesis-gutter flex-1 w-full overflow-y-auto pb-28 pt-[var(--page-top)] font-body sm:pb-8" data-noesis-identity="research-record">
+        <header className="noesis-detail-toolbar">
+          <button type="button" onClick={closeSelectedSource} className="noesis-back-link">
+            <ArrowLeft aria-hidden="true" /> Library
+          </button>
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(8.5rem,1fr)_2.5rem] items-center gap-2 sm:flex sm:flex-wrap">
             <div className="min-w-0 [&>span]:flex [&>span]:w-full [&>span>button:first-child]:min-w-0 [&>span>button:first-child]:flex-1 [&>span>button:first-child]:justify-center [&>span>button:first-child]:truncate">
               <ContextualAiPanel
@@ -566,7 +563,8 @@ export function MediaLibrary({
             )}
           </div>
           <div className="min-w-0 flex-1 self-center sm:self-auto">
-            <h1 className="noesis-page-title mb-2 break-words text-2xl leading-tight sm:mb-3 sm:text-4xl">{selected.title}</h1>
+            <DetailLabel view="library" kind="Source" status={MEDIA_LABELS[selected.type]} />
+            <h1 className="noesis-page-title noesis-detail-title mb-2 break-words sm:mb-3">{selected.title}</h1>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 sm:mb-5">
               <span className="font-body text-base italic text-muted-foreground sm:text-xl">{selected.creator || 'Unknown creator'}</span>
               {selected.year && <span className="font-code text-[10px] font-bold tracking-widest text-muted-foreground/60 sm:text-xs">{selected.year}</span>}
@@ -624,29 +622,29 @@ export function MediaLibrary({
               onChange={(aiReviewHistory) => updateSelected({ aiReviewHistory })}
             />
             {capture.after?.aiSummary && (
-              <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
+              <Card className="noesis-workbench-panel">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="readex-kicker opacity-50 font-bold">SAVED SOURCE SUMMARY</div>
+                  <div className="noesis-workbench-panel__eyebrow">SAVED SOURCE SUMMARY</div>
                   <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
                 </div>
                 <ContextualAiDocument content={capture.after.aiSummary} />
               </Card>
             )}
             {(selected.description || selected.sourceNotes) && (
-              <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
+              <Card className="noesis-workbench-panel">
                 {selected.description && <div>
-                  <div className="readex-kicker mb-2 opacity-50 font-bold">SOURCE DESCRIPTION</div>
+                  <div className="noesis-workbench-panel__eyebrow mb-2">SOURCE DESCRIPTION</div>
                   <p className="text-sm leading-7 text-foreground/85">{selected.description}</p>
                 </div>}
                 {selected.sourceNotes && <div className={cn(selected.description && 'mt-5 border-t border-border/40 pt-5')}>
-                  <div className="readex-kicker mb-2 opacity-50 font-bold">YOUR NOTES</div>
+                  <div className="noesis-workbench-panel__eyebrow mb-2">YOUR NOTES</div>
                   <p className="text-sm italic leading-7 text-foreground/85">{selected.sourceNotes}</p>
                 </div>}
               </Card>
             )}
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-                <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
-                <div className="readex-kicker mb-3 opacity-50 font-bold">MEDIA SUMMARY</div>
+                <Card className="noesis-workbench-panel">
+                <div className="noesis-workbench-panel__eyebrow mb-3">MEDIA SUMMARY</div>
                 <div className="grid gap-3 text-sm">
                   {[
                     { label: 'Type', value: MEDIA_LABELS[selected.type] },
@@ -664,8 +662,8 @@ export function MediaLibrary({
                 </div>
               </Card>
 
-              <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
-                <div className="readex-kicker mb-3 opacity-50 font-bold">SOURCE PURPOSE</div>
+              <Card className="noesis-workbench-panel">
+                <div className="noesis-workbench-panel__eyebrow mb-3">SOURCE PURPOSE</div>
                 <p className="font-headline text-xl italic leading-snug text-primary/90 sm:text-2xl">{sourcePurpose}</p>
                 <p className="mt-4 text-sm leading-6 text-muted-foreground sm:mt-6">
                   Open <span className="font-medium text-foreground">Engage &amp; Reflect</span> to track progress and save what this source changed for you.
@@ -674,9 +672,9 @@ export function MediaLibrary({
             </div>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-              <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
+              <Card className="noesis-workbench-panel">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="readex-kicker opacity-50 font-bold">KEY CONCEPTS</div>
+                  <div className="noesis-workbench-panel__eyebrow">KEY CONCEPTS</div>
                   <span className="text-xs text-muted-foreground">Latest {linkedConcepts.length}</span>
                 </div>
                 <p className="mb-4 text-sm leading-6 text-muted-foreground">The three most recently updated concepts linked to this source.</p>
@@ -693,8 +691,8 @@ export function MediaLibrary({
                 {showSourceConceptPicker && <div className="mt-4 max-w-md"><ConceptTagPicker concepts={concepts} value={selected.tags || []} onChange={(tags) => updateSelected({ tags })} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></div>}
               </Card>
 
-              <Card className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-6">
-                <div className="readex-kicker mb-2 opacity-50 font-bold">CURRENT TAKEAWAY</div>
+              <Card className="noesis-workbench-panel">
+                <div className="noesis-workbench-panel__eyebrow mb-2">CURRENT TAKEAWAY</div>
                 <p className="font-body text-lg italic leading-7 text-foreground/85">
                   {capture.after?.lasting || capture.after?.coreArgument || 'No takeaway saved yet.'}
                 </p>
@@ -729,7 +727,7 @@ export function MediaLibrary({
                 </details>
               </div>
               {capture.after?.aiReflection && (
-                <div className="mt-4 rounded-xl border border-accent/25 bg-accent/5 p-4">
+                <div className="mt-4 noesis-recommendation">
                   <div className="mb-2 flex items-center gap-2"><Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted reflection</Badge><span className="text-xs text-muted-foreground">Based on your saved notes</span></div>
                   <ContextualAiDocument content={capture.after.aiReflection} />
                 </div>
@@ -834,7 +832,7 @@ export function MediaLibrary({
                   </div>
                 </details>
               </div>
-              <div className="mt-4 rounded-lg border border-accent/20 bg-accent/5 p-4">
+              <div className="mt-4 noesis-recommendation">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-sm font-medium text-foreground">Source reflection</div>
@@ -888,7 +886,7 @@ export function MediaLibrary({
             </section>
 
             <div className="flex gap-4 border-t border-border/30 pt-6 sm:pt-10">
-              <Button onClick={() => updateSelected({ capture })} className="h-11 w-full rounded-md bg-accent px-10 font-code text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20 sm:w-auto sm:rounded-full">SAVE CAPTURE</Button>
+              <Button onClick={() => updateSelected({ capture })} className="h-11 w-full rounded-md bg-accent px-10 font-code text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20 sm:w-auto sm:rounded-full">Save Capture</Button>
             </div>
           </TabsContent>
 
@@ -944,7 +942,7 @@ export function MediaLibrary({
                 { label: 'Works', items: relatedDrafts.map((item) => item.title), empty: 'No works use this source.' },
                 { label: 'Practices', items: relatedPractices.map((item) => item.title), empty: 'No practices test ideas from this source.' },
               ].map((group) => (
-                <Card key={group.label} className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
+                <Card key={group.label} className="noesis-workbench-panel">
                   <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{group.label}</div>
                   {group.items.length ? (
                     <ul className="mt-3 space-y-2 text-sm leading-6 text-foreground/85">{group.items.slice(0, 4).map((item) => <li key={item}>- {item}</li>)}</ul>
@@ -1056,15 +1054,15 @@ export function MediaLibrary({
       <PageHeader
         title="Library"
         description="Engage actively, capture what matters, and trace what each source changes."
+        tabs={headerTabs}
         meta={
           <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
             {media.length} sources · {libraryStats.consuming} in progress · {libraryStats.annotations} annotations
           </span>
         }
-        className="mb-6"
         actions={
           <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 h-9 px-6 shadow-md shadow-accent/20 rounded-full font-bold">
-            <Plus className="size-4 mr-1.5" /> ADD SOURCE
+            <Plus className="size-4 mr-1.5" /> Add Source
           </Button>
         }
       />
@@ -1690,7 +1688,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
         </ScrollArea>
 
         <div className="grid grid-cols-2 gap-2 border-t bg-muted/10 p-4 sm:flex sm:justify-end sm:gap-4 sm:p-8 sm:pt-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 rounded-md px-4 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent sm:rounded-full sm:px-8">CANCEL</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 rounded-md px-4 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent sm:rounded-full sm:px-8">Cancel</Button>
           <Button onClick={onSave} className="h-11 rounded-md bg-accent px-4 font-code text-[11px] font-bold uppercase tracking-widest shadow-xl shadow-accent/20 sm:rounded-full sm:px-10">
             {draft.id ? 'SAVE CHANGES' : 'ADD TO LIBRARY'}
           </Button>
@@ -1884,7 +1882,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
         </div>
 
         <div className="p-8 pt-4 bg-muted/5 border-t border-border/20 flex justify-end">
-          <Button variant="outline" onClick={onClose} className="h-11 px-10 font-code text-[11px] font-bold uppercase tracking-widest bg-card border-border/60 shadow-sm rounded-full">CLOSE AUDIT</Button>
+          <Button variant="outline" onClick={onClose} className="h-11 px-10 font-code text-[11px] font-bold uppercase tracking-widest bg-card border-border/60 shadow-sm rounded-full">Close Audit</Button>
         </div>
       </DialogContent>
     </Dialog>

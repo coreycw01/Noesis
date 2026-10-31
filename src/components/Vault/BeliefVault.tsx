@@ -24,11 +24,12 @@ import { derivePositionLifecycleStage } from '@/lib/workflow-integrity';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
 import { useToast } from '@/hooks/use-toast';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { DetailLabel, PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
+import { ToolOption, ToolOptions, WorkbenchPanel } from '@/components/shared/WorkbenchPanel';
 import { ContextRail, EditorialSection, EntityMeta, IntellectualRoleLabel, RevisionEvent } from '@/components/shared/IntellectualStructures';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -1072,9 +1073,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     };
 
     return (
-      <div className="noesis-position-detail flex-1 w-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 font-body" data-noesis-identity="examination">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Button variant="ghost" onClick={closeEntry} className="h-8 font-code text-[10px] uppercase tracking-widest rounded-full"><ArrowLeft className="size-4 mr-2" /> Positions</Button>
+      <div className="noesis-position-detail noesis-gutter flex-1 w-full overflow-y-auto pb-8 pt-[var(--page-top)] font-body" data-noesis-identity="examination">
+        <div className="noesis-detail-toolbar">
+          <button type="button" onClick={closeEntry} className="noesis-back-link"><ArrowLeft aria-hidden="true" /> Positions</button>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
             {aiSettings.aiAssistanceEnabled && (
               <div className="basis-full sm:basis-auto">
@@ -1106,14 +1107,11 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </div>
         </div>
 
-        <section className="mb-8 border-y border-border py-6">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <IntellectualRoleLabel role="claim">Position</IntellectualRoleLabel>
-            <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{diagnostic.readinessLabel}</span>
-          </div>
+        <section className="mb-8 border-b border-[var(--hairline)] pb-6">
+          <DetailLabel view="vault" kind="Position" status={diagnostic.readinessLabel} />
           <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_17rem]">
             <div className="w-full min-w-0 flex-1">
-              <h1 className="noesis-page-title text-3xl">{selected.title}</h1>
+              <h1 className="noesis-page-title noesis-detail-title">{selected.title}</h1>
               <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>
               {!!(selected.tags || []).length && <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2">
                 {(selected.tags || []).map((tag) => (
@@ -1231,27 +1229,14 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
         {detailTab === 'state' && (
           <>
-            <details className="group mb-6 rounded-xl border border-border/60 bg-background/40">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
-                <span>
-                  <span className="block text-sm font-semibold text-foreground">Development details</span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">Review confidence, missing requirements, testing posture, and the condition for revision.</span>
-                </span>
-                <Triangle className="size-4 shrink-0 rotate-180 text-muted-foreground transition-transform group-open:rotate-0" />
-              </summary>
-              <div className="border-t border-border/60 p-4 sm:p-5">
-            <div className="mb-6">
-              <Card className="rounded-xl border-border/50 bg-card p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Development Snapshot</div>
-                    <h3 className="mt-1 font-headline text-2xl font-bold italic">What needs attention now</h3>
-                  </div>
-                  <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                    {selected.status}
-                  </Badge>
-                </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <WorkbenchPanel
+              collapsible
+              eyebrow="State · Development snapshot"
+              title="What needs attention now"
+              description="Review confidence, missing requirements, testing posture, and the condition for revision."
+              actions={<Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{selected.status}</Badge>}
+            >
+                <div className="grid gap-4 md:grid-cols-2">
                   <InfoPanel title="Confidence Reasoning" items={selected.confidenceReasoning ? [selected.confidenceReasoning] : []} empty="Explain why the current confidence level fits the available support and challenges." />
                   <InfoPanel title="Missing Requirements" items={formation.missing} empty="This position has the core elements needed for review." />
                   <InfoPanel title="Testing Posture" items={[
@@ -1260,20 +1245,17 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   ]} empty="No testing activity yet." />
                   <InfoPanel title="Revision Condition" items={selected.falsification ? [selected.falsification] : []} empty="Record what evidence or experience would change your mind." />
                 </div>
-              </Card>
-            </div>
-              </div>
-            </details>
+            </WorkbenchPanel>
           </>
         )}
 
         {detailTab === 'pressure' && (
-            <Card className="mb-6 rounded-xl border-border/50 bg-card p-5 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Stress-Test Mode</div>
-                  <h3 className="mt-1 font-headline text-2xl font-bold italic">Pressure-test the claim before revising it</h3>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            <Card className="noesis-workbench-panel mb-6">
+              <div className="noesis-workbench-panel__header">
+                <div className="min-w-0 flex-1">
+                  <div className="noesis-workbench-panel__eyebrow">Pressure · Stress test</div>
+                  <h3 className="noesis-workbench-panel__title">Pressure-test the claim before revising it</h3>
+                  <p className="noesis-workbench-panel__description">
                     Move through the stages in order and decide whether this position survives, weakens, changes, or should be abandoned.
                   </p>
                 </div>
@@ -1282,24 +1264,17 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 </Badge>
               </div>
 
-              <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+              <ToolOptions label="Stress-test stages" compact className="mt-4 border-t border-[var(--hairline)] pt-4">
                 {stressStages.map((stage, index) => (
-                  <button
+                  <ToolOption
                     key={stage.title}
-                    type="button"
+                    kicker={`Step ${index + 1}`}
+                    label={stage.title}
+                    active={stressStageIndex === index}
                     onClick={() => setStressStageIndex(index)}
-                    className={cn(
-                      'rounded-xl border p-3 text-left transition-colors',
-                      stressStageIndex === index
-                        ? 'border-accent bg-accent/10 text-foreground shadow-sm'
-                        : 'border-border/60 bg-muted/10 text-muted-foreground hover:border-accent/50 hover:bg-accent/5'
-                    )}
-                  >
-                    <div className="font-code text-[8px] uppercase tracking-[0.18em]">Step {index + 1}</div>
-                    <div className="mt-1 text-sm font-semibold">{stage.title}</div>
-                  </button>
+                  />
                 ))}
-              </div>
+              </ToolOptions>
 
               <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
                 <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
@@ -1491,10 +1466,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
         {detailTab === 'test' && (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.72fr)]">
-            <Card className="rounded-xl border-border/60 bg-card p-5 shadow-sm">
-              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">A test that could matter</div>
-              <h3 className="mt-2 text-lg font-semibold text-foreground">What observation would change your confidence?</h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">Create a bounded experiment in Labs. Finish its hypothesis, action, and success signal there before it can begin.</p>
+            <Card className="noesis-workbench-panel">
+              <div className="noesis-workbench-panel__eyebrow">Test · A test that could matter</div>
+              <h3 className="noesis-workbench-panel__title">What observation would change your confidence?</h3>
+              <p className="noesis-workbench-panel__description">Create a bounded experiment in Labs. Finish its hypothesis, action, and success signal there before it can begin.</p>
               <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 p-4">
                 <p className="text-sm font-medium text-foreground">Current revision condition</p>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">{selected.falsification || 'No revision condition is recorded. Add one in Edit position so the test has a clear standard.'}</p>
@@ -1532,10 +1507,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         )}
 
         {detailTab === 'revise' && (
-          <Card className="rounded-xl border-border/60 bg-card p-5 shadow-sm">
-            <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Decision after review</div>
-            <h3 className="mt-2 text-lg font-semibold text-foreground">What should happen to this position now?</h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Record the reason first. The choice updates status and adds a dated entry to the belief biography; it does not erase earlier versions.</p>
+          <Card className="noesis-workbench-panel">
+            <div className="noesis-workbench-panel__eyebrow">Revise · Decision after review</div>
+            <h3 className="noesis-workbench-panel__title">What should happen to this position now?</h3>
+            <p className="noesis-workbench-panel__description">Record the reason first. The choice updates status and adds a dated entry to the belief biography; it does not erase earlier versions.</p>
             <Label htmlFor="position-revision-reason" className="mt-5 block text-sm font-medium">Reason for this decision</Label>
             <Textarea
               id="position-revision-reason"
@@ -1587,7 +1562,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
         {detailTab === 'history' && (
           <div>
-            <EditorialSection eyebrow="Belief biography" title="How this position has changed" description="Confidence, challenges, and revisions recorded across the life of this position.">
+            <WorkbenchPanel eyebrow="Belief biography" title="How this position has changed" description="Confidence, challenges, and revisions recorded across the life of this position.">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{beliefProfile?.reviewStatus || 'current'}</span>
               </div>
@@ -1603,7 +1578,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   )) : <p className="noesis-inline-empty">No revisions recorded yet.</p>}
                 </div>
               </div>
-            </EditorialSection>
+            </WorkbenchPanel>
           </div>
         )}
         
@@ -1637,16 +1612,15 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             {positionStats.total} positions · {positionStats.underReview} need review · {positionStats.needsPractice} untested · {positionStats.tensions} tensions
           </span>
         }
-        className="mb-5"
         actions={
           <>
             {positionStats.tensions > 0 && (
-              <Button variant="outline" onClick={() => setTensionDrawerOpen(true)} size="sm" className="bg-amber-50 border-amber-200 text-amber-900 shadow-sm rounded-full h-9 font-bold">
-                <AlertTriangle className="size-4 mr-1.5" /> {positionStats.tensions} TENSIONS
+              <Button variant="outline" onClick={() => setTensionDrawerOpen(true)} size="sm" >
+                <AlertTriangle className="size-4 mr-1.5 text-amber-600" /> {positionStats.tensions} {positionStats.tensions === 1 ? 'tension' : 'tensions'}
               </Button>
             )}
             <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
-              <Plus className="size-4 mr-1.5" /> NEW POSITION
+              <Plus className="size-4 mr-1.5" /> New Position
             </Button>
           </>
         }
@@ -2279,8 +2253,8 @@ function PositionsTable({
 function EvidencePanel({ title, items, onAdd }: { title: string; items: string[]; onAdd: (text: string) => void }) {
   const [text, setText] = useState('');
   return (
-    <Card className="p-5 bg-card border-border/40 shadow-sm rounded-xl">
-      <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-bold">{title}</h3>
+    <Card className="noesis-workbench-panel noesis-workbench-panel--sub">
+      <h3 className="noesis-workbench-panel__eyebrow mb-3">{title}</h3>
       <div className="space-y-2 mb-3">{items.map((item, index) => <div key={`${item}-${index}`} className="rounded-lg bg-muted/30 p-3 text-sm italic shadow-sm border border-border/10 leading-relaxed text-primary/80">{item}</div>)}</div>
       <div className="flex gap-2"><Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Add evidence..." className="h-9 rounded-full" /><Button onClick={() => { if (text.trim()) { onAdd(text.trim()); setText(''); } }} size="sm" className="h-9 px-4 rounded-full">Add</Button></div>
     </Card>
@@ -2289,8 +2263,8 @@ function EvidencePanel({ title, items, onAdd }: { title: string; items: string[]
 
 function InfoPanel({ title, items, empty }: { title: string; items: string[]; empty: string }) {
   return (
-    <Card className="p-5 bg-card border-border/40 shadow-sm rounded-xl">
-      <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-bold">{title}</h3>
+    <Card className="noesis-workbench-panel noesis-workbench-panel--sub">
+      <h3 className="noesis-workbench-panel__eyebrow mb-3">{title}</h3>
       {items.length ? items.map((item) => (
         <div key={item} className="rounded-lg bg-muted/30 p-3 text-sm mb-2 italic shadow-sm border border-border/10 leading-relaxed text-primary/80">{item}</div>
       )) : (
@@ -2347,11 +2321,11 @@ function NextMoveCard({ recommended, actions, className }: { recommended: string
   const primary = actions.slice(0, 4);
   const secondary = actions.slice(4);
   return (
-    <Card className={cn("rounded-xl border-border/50 bg-card p-4 shadow-sm", className)}>
+    <Card className={cn("noesis-recommendation", className)}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Recommended next move</div>
-          <p className="mt-1 text-sm italic leading-6 text-foreground">{recommended}</p>
+          <div className="noesis-workbench-panel__eyebrow">Recommended next move</div>
+          <p className="mt-1 text-sm leading-6 text-foreground">{recommended}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {primary.map((action) => (
@@ -2387,8 +2361,8 @@ function EntityListPanel({
   empty: string;
 }) {
   return (
-    <Card className="p-5 bg-card border-border/40 shadow-sm rounded-xl">
-      <h3 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-bold">{title}</h3>
+    <Card className="noesis-workbench-panel noesis-workbench-panel--sub">
+      <h3 className="noesis-workbench-panel__eyebrow mb-3">{title}</h3>
       {items.length ? (
         <div className="space-y-2">
           {items.map((item) => {

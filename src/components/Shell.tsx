@@ -619,9 +619,10 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         className={cn(
           'w-full flex items-center transition-all group',
           collapsed && !isMobile ? 'justify-center px-3 py-2.5' : 'gap-2.5 px-5 py-2.5',
+          'border-l-2 duration-150',
           activeView === item.id
-            ? 'border-accent bg-accent/15 text-sidebar-foreground border-l-[3px]'
-            : 'border-transparent text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5 border-l-2'
+            ? 'border-accent bg-sidebar-foreground/[0.07] text-sidebar-foreground'
+            : 'border-transparent text-sidebar-foreground/62 hover:border-sidebar-foreground/20 hover:bg-sidebar-foreground/[0.04] hover:text-sidebar-foreground'
         )}
       >
         <item.icon className={cn('size-4 shrink-0', activeView === item.id ? 'text-accent' : 'group-hover:text-accent')} />
@@ -746,7 +747,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           <div key={section} className="mb-5">
             {(!collapsed || isMobile) && (
               <div className="px-5 mb-1">
-                <h4 className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/22 font-bold">{section}</h4>
+                <h4 className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/40 font-bold">{section}</h4>
                 {section === 'Praxis' && <p className="mt-1 text-[10px] leading-4 text-sidebar-foreground/35">Put thinking into practice.</p>}
               </div>
             )}
@@ -791,7 +792,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       <div className="noesis-app flex h-[100dvh] w-full overflow-hidden bg-background">
         {!isMobile && (
           <aside className={cn(
-            "hidden md:flex bg-sidebar text-sidebar-foreground flex-col border-r border-sidebar-border shadow-2xl z-20 transition-[width] duration-300 ease-out",
+            "noesis-sidebar hidden md:flex bg-sidebar text-sidebar-foreground flex-col border-r border-sidebar-border z-20 transition-[width] duration-300 ease-out",
             collapsed ? "w-[84px]" : "w-[252px]"
           )}>
             {sidebarContent}
@@ -826,7 +827,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
               </Button>
             </div>
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-              <SheetContent side="left" className="w-[280px] border-r border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
+              <SheetContent side="left" className="noesis-sidebar w-[280px] border-r border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
                 <SheetTitle className="sr-only">Navigation</SheetTitle>
                 <div className="flex h-full flex-col">{sidebarContent}</div>
               </SheetContent>

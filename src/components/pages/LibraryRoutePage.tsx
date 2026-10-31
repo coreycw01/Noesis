@@ -60,12 +60,8 @@ export function LibraryRoutePage({
   if (!focusedSourceId && surface === 'index') {
     return (
       <>
-        <div className="px-4 pt-3 sm:px-6 lg:px-8">
-          <div className="noesis-page-inner pb-0">
-            <LibrarySurfaceTabs surface={surface} onChange={chooseSurface} />
-          </div>
-        </div>
         <SourceIndex
+          headerTabs={<LibrarySurfaceTabs surface={surface} onChange={chooseSurface} />}
           media={media}
           vault={vault}
           drafts={drafts}
@@ -79,14 +75,8 @@ export function LibraryRoutePage({
 
   return (
     <>
-      {!focusedSourceId && (
-        <div className="px-4 pt-3 sm:px-6 lg:px-8">
-          <div className="noesis-page-inner pb-0">
-            <LibrarySurfaceTabs surface={surface} onChange={chooseSurface} />
-          </div>
-        </div>
-      )}
       <MediaLibrary
+        headerTabs={focusedSourceId ? undefined : <LibrarySurfaceTabs surface={surface} onChange={chooseSurface} />}
         media={media}
         concepts={concepts}
         vault={vault}
@@ -114,7 +104,6 @@ function LibrarySurfaceTabs({ surface, onChange }: { surface: 'library' | 'index
       value={surface}
       onChange={onChange}
       label="Library views"
-      className="mb-4"
       items={[
         { id: 'library', label: 'Library', icon: BookOpen },
         { id: 'index', label: 'Source Index', icon: TableProperties },
