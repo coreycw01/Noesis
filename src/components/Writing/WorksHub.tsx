@@ -351,7 +351,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div className="flex items-center gap-3">
             <span className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Continue</span>
-            <div className="inline-flex rounded-[var(--button-radius)] border border-border/60 bg-card p-0.5" aria-label="Work recency view">
+            <div className="inline-flex overflow-hidden rounded-[var(--button-radius)] border border-border/60 bg-card p-0.5" aria-label="Work recency view">
               {([
                 { id: 'edited', label: 'Recently Edited' },
                 { id: 'opened', label: 'Recently Opened' },
@@ -364,7 +364,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                     setSort('activity');
                   }}
                   className={cn(
-                    'px-3 py-1.5 font-code text-[9px] font-bold uppercase tracking-[0.12em] transition-colors',
+                    'rounded-[var(--button-radius)] px-3 py-1.5 font-code text-[9px] font-bold uppercase tracking-[0.12em] transition-colors',
                     activityMode === item.id && sort === 'activity'
                       ? 'bg-accent text-accent-foreground'
                       : 'text-muted-foreground hover:text-foreground'

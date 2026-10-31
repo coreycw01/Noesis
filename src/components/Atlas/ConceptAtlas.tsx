@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Scan, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { Card } from '@/components/ui/card';
@@ -67,6 +67,7 @@ import {
   deriveAtlasTerritoryView,
   reconcileAtlasRegionNotices,
 } from './atlas-diagnostics';
+import { ATLAS_NODE_BOUNDS, atlasAutoNodePosition, atlasViewportOffset } from './atlas-layout';
 
 interface ConceptAtlasProps {
   concepts: Concept[];
@@ -174,60 +175,7 @@ const ATLAS_BASE_ZOOM = 0.8;
 const ATLAS_MIN_ZOOM = 0.45;
 const ATLAS_MAX_ZOOM = 1.7;
 const ATLAS_ZOOM_STEP = 0.08;
-const ATLAS_ZOOM_STORAGE_KEY = 'noesis.atlas.zoom';
-const ATLAS_NODE_BOUNDS = { minX: 6, maxX: 94, minY: 8, maxY: 92 } as const;
-
-function atlasAutoNodePosition(index: number, total: number, compact = false) {
-  if (compact) {
-    if (total <= 1) return { x: 50, y: 50 };
-    const columns = 2;
-    const rows = Math.ceil(total / columns);
-    const row = Math.floor(index / columns);
-    const isUnpairedLastNode = total % columns === 1 && index === total - 1;
-    return {
-      x: isUnpairedLastNode ? 50 : index % columns === 0 ? 24 : 76,
-      y: rows === 1 ? 50 : 22 + (row / (rows - 1)) * 66,
-    };
-  }
-  if (total <= 1) return { x: 50, y: 50 };
-  if (total === 2) {
-    return { x: index === 0 ? 18 : 82, y: 50 };
-  }
-  if (total === 3) {
-    return [
-      { x: 14, y: 18 },
-      { x: 86, y: 18 },
-      { x: 50, y: 84 },
-    ][index];
-  }
-  if (total === 4) {
-    return [
-      { x: 14, y: 18 },
-      { x: 86, y: 18 },
-      { x: 14, y: 84 },
-      { x: 86, y: 84 },
-    ][index];
-  }
-
-  const columns = Math.max(2, Math.round(Math.sqrt(total * 1.35)));
-  const rows = Math.ceil(total / columns);
-  const row = Math.floor(index / columns);
-  const column = index % columns;
-  const itemsInRow = Math.min(columns, total - row * columns);
-  const rowOffset = (columns - itemsInRow) / 2;
-  const xRange = ATLAS_NODE_BOUNDS.maxX - ATLAS_NODE_BOUNDS.minX;
-  const yRange = ATLAS_NODE_BOUNDS.maxY - ATLAS_NODE_BOUNDS.minY;
-
-  return {
-    x: columns === 1
-      ? 50
-      : ATLAS_NODE_BOUNDS.minX + ((column + rowOffset) / (columns - 1)) * xRange,
-    y: rows === 1
-      ? 50
-      : ATLAS_NODE_BOUNDS.minY + (row / (rows - 1)) * yRange,
-  };
-}
-
+const ATLAS_ZOOM_STORAGE_KEY = 'noesis.atlas.zoom.v2';
 function atlasConfidencePercent(confidence?: number) {
   return normalizePositionConfidence(confidence);
 }
@@ -408,6 +356,10 @@ export function ConceptAtlas({
   const [isPanning, setIsPanning] = useState(false);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
+  const mapViewportOffset = useMemo(
+    () => atlasViewportOffset(mapSize.width, mapSize.height, zoom, ATLAS_BASE_ZOOM),
+    [mapSize.height, mapSize.width, zoom]
+  );
   const [panelSection, setPanelSection] = useState<'links' | 'evidence' | 'events' | 'actions'>('links');
   const mapRef = useRef<HTMLDivElement | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
@@ -428,6 +380,11 @@ export function ConceptAtlas({
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(ATLAS_ZOOM_STORAGE_KEY, String(zoom));
   }, [zoom]);
+
+  useEffect(() => {
+    setPan({ x: 0, y: 0 });
+    setZoom(ATLAS_BASE_ZOOM);
+  }, [mode, selectedRegionId]);
 
   const terms = useMemo(
     () => Array.from(new Set(concepts.map((concept) => conceptKey(concept.name)).filter(Boolean))),
@@ -656,12 +613,10 @@ export function ConceptAtlas({
         name,
         concept,
         count,
-        x: isMobile && mode === 'auto'
-          ? autoPosition.x
-          : draftPositions[conceptKey(name)]?.x ?? customPosition?.x ?? concept?.x ?? autoPosition.x,
-        y: isMobile && mode === 'auto'
-          ? autoPosition.y
-          : draftPositions[conceptKey(name)]?.y ?? customPosition?.y ?? concept?.y ?? autoPosition.y,
+        x: draftPositions[conceptKey(name)]?.x
+          ?? (mode === 'auto' ? autoPosition.x : customPosition?.x ?? concept?.x ?? autoPosition.x),
+        y: draftPositions[conceptKey(name)]?.y
+          ?? (mode === 'auto' ? autoPosition.y : customPosition?.y ?? concept?.y ?? autoPosition.y),
       };
     });
   }, [activeMap, concepts, drafts, draftPositions, insights, isMobile, media, mode, practices, search, vault, visibleTerms]);
@@ -2086,8 +2041,8 @@ export function ConceptAtlas({
     const rect = mapRef.current?.getBoundingClientRect();
     if (!rect) return;
     const effectiveZoom = zoom / ATLAS_BASE_ZOOM;
-    const x = Math.min(ATLAS_NODE_BOUNDS.maxX, Math.max(ATLAS_NODE_BOUNDS.minX, ((clientX - rect.left - pan.x) / (rect.width * effectiveZoom)) * 100));
-    const y = Math.min(ATLAS_NODE_BOUNDS.maxY, Math.max(ATLAS_NODE_BOUNDS.minY, ((clientY - rect.top - pan.y) / (rect.height * effectiveZoom)) * 100));
+    const x = Math.min(ATLAS_NODE_BOUNDS.maxX, Math.max(ATLAS_NODE_BOUNDS.minX, ((clientX - rect.left - mapViewportOffset.x - pan.x) / (rect.width * effectiveZoom)) * 100));
+    const y = Math.min(ATLAS_NODE_BOUNDS.maxY, Math.max(ATLAS_NODE_BOUNDS.minY, ((clientY - rect.top - mapViewportOffset.y - pan.y) / (rect.height * effectiveZoom)) * 100));
     setDraftPositions((prev) => ({ ...prev, [conceptKey(name)]: { x, y } }));
   };
 
@@ -2663,13 +2618,13 @@ export function ConceptAtlas({
 
       {atlasSection === 'map' && (
       <div className={cn(
-        "relative flex min-h-0 flex-1 gap-4 max-md:min-h-[22rem]",
+        "relative flex min-h-0 flex-1 gap-4 max-md:h-[calc(100dvh-13rem)] max-md:min-h-[24rem]",
         isFullScreen ? "overflow-hidden px-0 pb-0" : "overflow-hidden px-4 pb-4 md:px-8"
       )}>
         <div
           ref={mapRef}
           className={cn(
-            "relative h-full min-h-0 min-w-0 flex-1 touch-none overflow-hidden border-y border-border bg-background",
+            "relative h-full min-h-0 min-w-0 flex-1 touch-none overflow-hidden rounded-[var(--card-radius)] border border-border bg-background",
             quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
             isFullScreen && "rounded-none"
           )}
@@ -2696,6 +2651,9 @@ export function ConceptAtlas({
             <div className="flex w-10 items-center justify-center font-code text-[10px] font-bold text-primary/60">{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</div>
             <Button variant="ghost" size="icon" aria-label="Zoom in" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.min(ATLAS_MAX_ZOOM, z + ATLAS_ZOOM_STEP)); }} className="size-10 rounded-full font-bold md:size-8">+</Button>
             <div className="mx-1 my-1 w-px bg-border" />
+            <Button variant="ghost" size="icon" aria-label="Fit map to canvas" title="Fit map to canvas" onClick={(event) => { event.stopPropagation(); setPan({ x: 0, y: 0 }); setZoom(ATLAS_BASE_ZOOM); }} className="size-10 rounded-full md:size-8">
+              <Scan className="size-3.5" />
+            </Button>
             <Button variant={isPanelOpen ? 'secondary' : 'ghost'} size="icon" aria-label={isPanelOpen ? 'Hide map controls' : 'Show map controls'} onClick={(event) => { event.stopPropagation(); setIsPanelOpen((open) => !open); }} className="size-10 rounded-full md:size-8">
               <SlidersHorizontal className="size-3.5" />
             </Button>
@@ -2719,7 +2677,7 @@ export function ConceptAtlas({
             style={{
               width: `${100 / ATLAS_BASE_ZOOM}%`,
               height: `${100 / ATLAS_BASE_ZOOM}%`,
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+              transform: `translate(${mapViewportOffset.x + pan.x}px, ${mapViewportOffset.y + pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
             }}
           >
@@ -2825,8 +2783,8 @@ export function ConceptAtlas({
               const rect = mapRef.current?.getBoundingClientRect();
               if (!sourceNode || !rect) return null;
               const effectiveZoom = zoom / ATLAS_BASE_ZOOM;
-              const cursorX = ((quickLinkCursor.x - rect.left - pan.x) / (rect.width * effectiveZoom)) * 100;
-              const cursorY = ((quickLinkCursor.y - rect.top - pan.y) / (rect.height * effectiveZoom)) * 100;
+              const cursorX = ((quickLinkCursor.x - rect.left - mapViewportOffset.x - pan.x) / (rect.width * effectiveZoom)) * 100;
+              const cursorY = ((quickLinkCursor.y - rect.top - mapViewportOffset.y - pan.y) / (rect.height * effectiveZoom)) * 100;
               const ghost = edgePoints(sourceNode, { name: '', count: 0, x: cursorX, y: cursorY });
               return (
                 <g>
