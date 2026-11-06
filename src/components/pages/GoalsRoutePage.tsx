@@ -14,8 +14,9 @@ export interface GoalsRoutePageProps {
   practices: Practice[];
   profile: UserProfile;
   onSaveGoal: (goal: GoalSettings) => Promise<void>;
+  onOpenPraxis: (method: 'exercises' | 'practices' | 'experiments') => void;
 }
 
-export function GoalsRoutePage({ goal, goalProgress, concepts, inquiries, sources, positions, works, practices, profile, onSaveGoal }: GoalsRoutePageProps) {
-  return <GoalsPage goal={goal} goalProgress={goalProgress} concepts={concepts} inquiries={inquiries} sources={sources} positions={positions} works={works} practices={practices} profile={profile} onSaveGoal={onSaveGoal} />;
+export function GoalsRoutePage({ goal, goalProgress, concepts, inquiries, sources, positions, works, practices, profile, onSaveGoal, onOpenPraxis }: GoalsRoutePageProps) {
+  return <GoalsPage goal={goal} goalProgress={goalProgress} concepts={concepts} inquiries={inquiries} sources={sources} positions={positions} works={works} practices={practices} profile={profile} onSaveGoal={onSaveGoal} onOpenPraxis={onOpenPraxis} />;
 }

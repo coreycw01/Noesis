@@ -347,7 +347,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         </Select>
       </FilterToolbar>
 
-      <section className="mb-6 border-y border-border/60" aria-label="Continue working">
+      <section className="mb-7 border-y border-border/60" aria-label="Continue working">
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div className="flex items-center gap-3">
             <span className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Continue</span>
@@ -408,6 +408,16 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
           {externalDocs > 0 && <button type="button" onClick={() => setStatus('external_docs')} className={cn('border px-3 py-1.5 font-code text-[9px] font-bold uppercase tracking-[0.12em] transition-colors', status === 'external_docs' ? 'border-accent bg-accent text-accent-foreground' : 'border-border/60 bg-card text-muted-foreground hover:border-accent/50 hover:text-foreground')}>External documents {externalDocs}</button>}
         </div>
       )}
+
+      <div className="mb-4 flex items-end justify-between gap-4 border-b border-border/60 pb-3">
+        <div>
+          <p className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Works library</p>
+          <h2 className="mt-1 font-headline text-2xl font-bold italic text-foreground">All works</h2>
+        </div>
+        <span className="shrink-0 font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+          {visibleDrafts.length} shown
+        </span>
+      </div>
 
       {visibleDrafts.length === 0 ? (
         <PageEmptyState
@@ -575,7 +585,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-2xl rounded-lg border-border/60 bg-card">
           <DialogHeader><DialogTitle className="font-headline text-3xl italic">Start a work</DialogTitle><p className="text-sm italic text-muted-foreground">Choose a creative surface. Structure and links can come later.</p></DialogHeader>
-          <div className="grid gap-3 pt-3 sm:grid-cols-2">
+          <div className="grid gap-3 pt-3 sm:grid-cols-3">
             <LauncherButton icon={PencilLine} title="Document" description="A normal page for typing and drawing. Add thinking tools only when they help." onClick={() => openNewDraft('essay', 'blank_paper')} />
             <LauncherButton icon={NotebookPen} title="Note" description="A lightweight text, voice, or talk-to-text capture." onClick={() => { setAddOpen(false); setNoteOpen(true); }} />
             <LauncherButton icon={Camera} title="Recording" description="A recording workspace with permissions, preview, retake, and save." onClick={() => openNewDraft('recording')} />

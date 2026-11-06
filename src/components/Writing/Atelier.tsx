@@ -983,6 +983,26 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     } : item));
   }, [updateToolSections, writingDefaults.writingStyle]);
 
+  const updateToolSectionPlacement = useCallback((sectionId: string, placement: NonNullable<NonNullable<WorkToolSection['window']>['placement']>) => {
+    const current = latestDraftRef.current;
+    if (!current) return;
+    const currentStyle = current.writingStyle
+      || (current.type === 'drawing' || current.type === 'drawing_note' ? 'blank_paper' : writingDefaults.writingStyle);
+    const sections = toolSectionsForDraft(current, currentStyle);
+    updateToolSections(sections.map((item) => item.id === sectionId ? {
+      ...item,
+      window: {
+        x: item.window?.x ?? 72,
+        y: item.window?.y ?? 220,
+        width: item.window?.width ?? Math.round(760 * ((item.widthPercent || 80) / 100)),
+        height: item.window?.height ?? 430,
+        minimized: item.window?.minimized ?? false,
+        zIndex: item.window?.zIndex ?? 1,
+        placement,
+      },
+    } : item));
+  }, [updateToolSections, writingDefaults.writingStyle]);
+
   const activeDocumentPages = useMemo(() => active?.documentPages || [], [active?.documentPages]);
 
   const addDocumentTool = useCallback((tool: StructuredWorkStyle) => {
@@ -1000,6 +1020,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         height: 440,
         minimized: false,
         zIndex: topZ + 1,
+        placement: 'overlay',
       },
       data: { fields: {}, branches: [], mindMapNodes: [], timeline: [] },
     };
@@ -1160,9 +1181,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     active?.pageSettings,
     resolvedCurrentPageId,
   );
-  const inlineToolsForPage = (pageId: string, appearance = currentPageAppearance) => activeToolSections
-    .filter((section) => (section.pageId || 'main') === pageId)
-    .map((section) => (
+  const inlineToolsForPage = (pageId: string, appearance = currentPageAppearance) => {
+    const renderSection = (section: WorkToolSection) => (
       <FloatingWorkToolWindow
         key={section.id}
         section={section}
@@ -1175,6 +1195,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         }}
         onRemove={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))}
         onPatch={(patch) => updateToolSectionWindow(section.id, patch)}
+        onPlacementChange={(placement) => updateToolSectionPlacement(section.id, placement)}
       >
         <BufferedStructuredWorkSurface
           embedded
@@ -1186,7 +1207,13 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
           paperPattern={appearance.paperPattern}
         />
       </FloatingWorkToolWindow>
-    ));
+    );
+    const pageSections = activeToolSections.filter((section) => (section.pageId || 'main') === pageId);
+    return {
+      overlay: pageSections.filter((section) => (section.window?.placement || 'overlay') === 'overlay').map(renderSection),
+      flow: pageSections.filter((section) => (section.window?.placement || 'overlay') !== 'overlay').map(renderSection),
+    };
+  };
 
   if (active) {
     return (
@@ -1315,9 +1342,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               )}
 
               {showPaperControls && (
-                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap sm:justify-between sm:gap-3">
+                <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-0.5 sm:flex-wrap sm:justify-between sm:overflow-visible sm:pb-0">
                   <PageViewControls
-                    className="col-span-2 min-w-0 sm:col-span-1"
+                    className="shrink-0"
                     viewMode={viewMode}
                     onViewModeChange={(next) => { setViewMode(next); updateDocumentSettings({ viewMode: next }); }}
                     pageSize={pageSize}
@@ -1327,10 +1354,10 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     paperPattern={paperPattern}
                     onPaperPatternChange={(next) => { setPaperPattern(next); updateDocumentSettings({ paperPattern: next }); }}
                   />
-                  <div className="contents sm:flex sm:min-w-0 sm:items-center sm:gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-9 w-full min-w-0 justify-start rounded-md border-border/60 bg-card px-3 shadow-sm sm:max-w-[260px]" aria-label={`Document pages. Current page: ${currentPageLabel}`}>
+                        <Button variant="outline" size="sm" className="h-9 min-w-0 flex-1 justify-start rounded-md border-border/60 bg-card px-3 shadow-sm sm:w-auto sm:max-w-[260px]" aria-label={`Document pages. Current page: ${currentPageLabel}`}>
                           <ListTree className="size-4 shrink-0 text-accent" />
                           <span className="truncate">{currentPageLabel}</span>
                         </Button>

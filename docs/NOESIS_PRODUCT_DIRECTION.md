@@ -1,6 +1,6 @@
 # Noesis Product Direction
 
-Last reviewed: 29 October 2026
+Last reviewed: 6 November 2026
 
 This document is the broader product source of truth for Noesis. The concise mission and architectural principles remain in [blueprint.md](./blueprint.md). Technical requirements for accepted AI provenance remain in `Noesis AI Provenance Implementation Handoff.docx` and take precedence when implementation details differ from this overview.
 
@@ -31,14 +31,14 @@ The governing principle is:
 - **Encounter:** Sources and Annotations preserve what the user encountered and how it was interpreted.
 - **Question:** Concepts clarify recurring vocabulary; Inquiries organize uncertainty and investigation.
 - **Claim:** Positions state claims the user is prepared to examine, challenge, and revise.
-- **Praxis:** Labs, Practices, and Commitments bring thought into deliberate action.
+- **Praxis:** Experiments, Practices, and Commitments bring thought into deliberate action.
 - **Revise:** Evolution records consequential intellectual change.
 
 Works, Atlas, and Noesis AI are cross-cutting capabilities rather than additional stages. Works express and synthesize thought. Atlas reveals relationships in the system. Noesis AI assists with bounded understanding, examination, and exploration.
 
 ## Navigation
 
-**Approved current structure:**
+**Current structure:**
 
 ```text
 NEED ATTENTION
@@ -58,9 +58,7 @@ CLAIM
   Positions
 
 PRAXIS
-  Labs
-  Practices
-  Commitments
+  Praxis
 
 REVISE
   Evolution
@@ -76,19 +74,58 @@ Need Attention remains above Home and acts as triage for records requiring judgm
 
 Atlas, Works, Noesis AI, and Settings remain under More until usage testing supports a better grouping. Annotations remain top-level. Moving Annotations into Library is an unapproved direction, not current implementation scope. Source Index is already part of the Library experience even where a direct route remains available.
 
+Praxis is the single navigation destination for lived action. Exercises, Experiments, Practices, and Commitments appear inside Praxis as methods, not as competing navigation pages. Existing direct routes remain available for compatibility.
+
 ## Praxis
 
-**Approved:** Praxis replaces Test as the user-facing stage name.
+**Approved:** Praxis replaces Test as the user-facing stage name and becomes the single destination for lived action.
 
 > Put your thinking into practice through experiments, practices, and commitments.
 
-The three object roles remain distinct:
+The three methods remain distinct:
 
-- **Lab:** something the user is trying to find out through a bounded experiment.
-- **Practice:** something the user repeatedly does to cultivate, explore, embody, or test an idea.
-- **Commitment:** a principle, promise, standard, constraint, or decision the user has chosen to uphold.
+- **Experiment — Try something:** discover what happens through a bounded hypothesis, method, observation period, and conclusion.
+- **Practice — Build consistency:** cultivate or embody an idea through repeated action, logging, and pattern review.
+- **Commitment — Uphold a principle:** check whether behavior remains aligned with a chosen principle, promise, standard, constraint, or decision.
 
 These objects may relate to the same Position without becoming interchangeable records.
+
+“Lab” is the workspace used to run an individual Experiment. It is not a fourth object type and should not compete with Experiment or Praxis in navigation.
+
+### Praxis information architecture
+
+**Approved:** the Praxis destination uses four stable views:
+
+1. **Today:** actions due now, including observations, practice logs, commitment check-ins, and reviews.
+2. **Active:** all current Praxis records, filterable by Experiment, Practice, and Commitment.
+3. **Insights:** concluded experiments, behavioral patterns, practice outcomes, and Say/Do gaps that are ready for judgment.
+4. **Archive:** completed, integrated, retired, or abandoned records.
+
+Cards and rows share a predictable hierarchy: name, method, operational state, next action, and progress. Their dominant actions remain method-specific: **Record observation** for an Experiment, **Log practice** for a Practice, and **Check in** for a Commitment.
+
+### Praxis creation
+
+**Approved:** creation begins with the user's intent rather than an object-type definition. The primary action is **New Praxis**, followed by one short choice:
+
+- **Test an idea** creates an Experiment.
+- **Build consistency** creates a Practice.
+- **Uphold a principle** creates a Commitment.
+
+Each choice explains the outcome in one sentence before opening its focused setup. Users should not need to understand the internal collection model before choosing what they want to accomplish.
+
+### Praxis development
+
+**Approved:** Praxis records may deliberately evolve without being silently converted:
+
+- A concluded Experiment may become a Practice, become a Commitment, revise a linked Position, or remain a recorded result.
+- A Practice may suggest a new Experiment, support a Commitment, or produce evidence that challenges linked thinking.
+- A Commitment may create a supporting Practice, create an Experiment that tests its realism, or enter review when behavior repeatedly conflicts with it.
+
+Every conversion requires user confirmation, preserves the original record, creates an explicit relationship, and produces the appropriate thinking event. The intended loop is:
+
+> Position -> Experiment -> Practice -> Commitment -> Evidence -> Revision
+
+The implementation should initially preserve existing Practice and Commitment storage paths. Unification is a product and interaction layer first; collection migration requires a separate data-integrity specification.
 
 ## Noesis AI
 
@@ -268,6 +305,14 @@ Capture, organization, personal records, and export should not become hostile re
 - Noesis never equates saving a source with agreeing with its author.
 
 ## Change log
+
+### 6 November 2026
+
+- Approved Praxis as the single destination for Experiments, Practices, and Commitments.
+- Defined the intent-led creation choices Test an idea, Build consistency, and Uphold a principle.
+- Defined Today, Active, Insights, and Archive as the stable Praxis views.
+- Reclassified Lab as the focused workspace for an Experiment rather than a competing object type.
+- Preserved the three distinct record behaviors and required confirmed, provenance-preserving transitions between them.
 
 ### 29 October 2026
 

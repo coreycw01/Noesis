@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Target,
   UserCircle2,
+  Waypoints,
 } from 'lucide-react';
 
 const ThoughtBubble = forwardRef<SVGSVGElement, LucideProps>(({ children, ...props }, ref) => createElement(
@@ -44,6 +45,7 @@ export type NoesisIconKey =
   | 'work'
   | 'context'
   | 'lab'
+  | 'praxis'
   | 'practice'
   | 'commitment'
   | 'evolution'
@@ -64,6 +66,7 @@ export const NOESIS_ICONS: Record<NoesisIconKey, LucideIcon> = {
   work: PenTool,
   context: ScanSearch,
   lab: FlaskConical,
+  praxis: Waypoints,
   practice: Repeat2,
   commitment: Target,
   evolution: History,
@@ -82,7 +85,7 @@ export const NOESIS_VIEW_ICON_KEYS = {
   vault: 'position',
   writing: 'work',
   'context-desk': 'context',
-  labs: 'lab',
+  labs: 'praxis',
   goals: 'commitment',
   evolution: 'evolution',
   profile: 'profile',

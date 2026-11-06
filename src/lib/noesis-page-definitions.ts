@@ -137,10 +137,10 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
   {
     view: 'labs',
     route: '/labs',
-    title: 'Labs',
-    purpose: 'Practice intellectual skills, run bounded experiments, and test ideas through lived experience.',
+    title: 'Praxis',
+    purpose: 'Test ideas, build consistency, and uphold chosen principles through lived action.',
     section: 'Praxis',
-    signatureExperience: 'A shared Praxis workspace for exercises, practices, experiments, observations, and outcomes.',
+    signatureExperience: 'One lived-action workspace for exercises, experiments, practices, commitments, observations, and outcomes.',
     loadingLayout: 'detail',
   },
   {

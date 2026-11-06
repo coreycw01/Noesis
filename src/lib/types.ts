@@ -107,6 +107,8 @@ export interface WorkToolSection {
     height: number;
     minimized?: boolean;
     zIndex?: number;
+    /** How the tool participates in the writing page. */
+    placement?: 'overlay' | 'wrap' | 'break';
   };
   data: WorkToolData;
 }
