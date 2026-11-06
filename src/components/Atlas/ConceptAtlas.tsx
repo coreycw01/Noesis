@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Scan, Search, SlidersHorizontal, X } from 'lucide-react';
+import { FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { Card } from '@/components/ui/card';
@@ -68,7 +68,7 @@ import {
   deriveAtlasTerritoryView,
   reconcileAtlasRegionNotices,
 } from './atlas-diagnostics';
-import { ATLAS_NODE_BOUNDS, atlasAutoNodePosition, atlasViewportOffset } from './atlas-layout';
+import { ATLAS_NODE_BOUNDS, atlasAutoNodePosition, atlasZoomPlane } from './atlas-layout';
 
 interface ConceptAtlasProps {
   concepts: Concept[];
@@ -357,10 +357,7 @@ export function ConceptAtlas({
   const [isPanning, setIsPanning] = useState(false);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
-  const mapViewportOffset = useMemo(
-    () => atlasViewportOffset(mapSize.width, mapSize.height, zoom, ATLAS_BASE_ZOOM),
-    [mapSize.height, mapSize.width, zoom]
-  );
+  const mapZoomPlane = useMemo(() => atlasZoomPlane(zoom, ATLAS_BASE_ZOOM), [zoom]);
   const [panelSection, setPanelSection] = useState<'links' | 'evidence' | 'events' | 'actions'>('links');
   const mapRef = useRef<HTMLDivElement | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
@@ -1602,7 +1599,18 @@ export function ConceptAtlas({
               <h2 className="font-headline text-2xl font-bold italic">{selectedName}</h2>
               {selectedConcept?.description && <p className="mt-2 text-sm text-muted-foreground font-body">{selectedConcept.description}</p>}
             </div>
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedName(null)}><X className="size-4" /></Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              aria-label="Close Atlas inspector"
+              onClick={() => {
+                setSelectedName(null);
+                setIsPanelOpen(false);
+              }}
+            >
+              <X className="size-4" />
+            </Button>
           </div>
           <div className="flex-1 overflow-y-auto p-5">
             <div className="mb-4 space-y-2">
@@ -2041,9 +2049,8 @@ export function ConceptAtlas({
   const moveNode = (name: string, clientX: number, clientY: number) => {
     const rect = mapRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const effectiveZoom = zoom / ATLAS_BASE_ZOOM;
-    const x = Math.min(ATLAS_NODE_BOUNDS.maxX, Math.max(ATLAS_NODE_BOUNDS.minX, ((clientX - rect.left - mapViewportOffset.x - pan.x) / (rect.width * effectiveZoom)) * 100));
-    const y = Math.min(ATLAS_NODE_BOUNDS.maxY, Math.max(ATLAS_NODE_BOUNDS.minY, ((clientY - rect.top - mapViewportOffset.y - pan.y) / (rect.height * effectiveZoom)) * 100));
+    const x = Math.min(ATLAS_NODE_BOUNDS.maxX, Math.max(ATLAS_NODE_BOUNDS.minX, ((clientX - rect.left - pan.x) / rect.width) * 100));
+    const y = Math.min(ATLAS_NODE_BOUNDS.maxY, Math.max(ATLAS_NODE_BOUNDS.minY, ((clientY - rect.top - pan.y) / rect.height) * 100));
     setDraftPositions((prev) => ({ ...prev, [conceptKey(name)]: { x, y } }));
   };
 
@@ -2630,14 +2637,14 @@ export function ConceptAtlas({
               style={{ ...customMapBackgroundStyle, ...customMapBackgroundOverlayStyle }}
             />
           )}
-          <div className="absolute right-4 top-4 z-30 flex h-9 rounded-full border border-border/50 bg-card/90 p-1 shadow-md backdrop-blur">
+          <div className={cn(
+            "absolute right-4 top-4 z-50 flex h-9 rounded-full border border-border/50 bg-card/90 p-1 shadow-md backdrop-blur transition-[right]",
+            isPanelOpen && "md:right-[23rem]"
+          )}>
             <Button variant="ghost" size="icon" aria-label="Zoom out" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.max(ATLAS_MIN_ZOOM, z - ATLAS_ZOOM_STEP)); }} className="size-10 rounded-full font-bold md:size-8">-</Button>
             <div className="flex w-10 items-center justify-center font-code text-[10px] font-bold text-primary/60">{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</div>
             <Button variant="ghost" size="icon" aria-label="Zoom in" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.min(ATLAS_MAX_ZOOM, z + ATLAS_ZOOM_STEP)); }} className="size-10 rounded-full font-bold md:size-8">+</Button>
             <div className="mx-1 my-1 w-px bg-border" />
-            <Button variant="ghost" size="icon" aria-label="Fit map to canvas" title="Fit map to canvas" onClick={(event) => { event.stopPropagation(); setPan({ x: 0, y: 0 }); setZoom(ATLAS_BASE_ZOOM); }} className="size-10 rounded-full md:size-8">
-              <Scan className="size-3.5" />
-            </Button>
             <Button variant={isPanelOpen ? 'secondary' : 'ghost'} size="icon" aria-label={isPanelOpen ? 'Hide map controls' : 'Show map controls'} onClick={(event) => { event.stopPropagation(); setIsPanelOpen((open) => !open); }} className="size-10 rounded-full md:size-8">
               <SlidersHorizontal className="size-3.5" />
             </Button>
@@ -2659,9 +2666,9 @@ export function ConceptAtlas({
           <div
             className="absolute inset-0 h-full w-full"
             style={{
-              width: `${100 / ATLAS_BASE_ZOOM}%`,
-              height: `${100 / ATLAS_BASE_ZOOM}%`,
-              transform: `translate(${mapViewportOffset.x + pan.x}px, ${mapViewportOffset.y + pan.y}px) scale(${zoom})`,
+              width: `${mapZoomPlane.extentPercent}%`,
+              height: `${mapZoomPlane.extentPercent}%`,
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${mapZoomPlane.scale})`,
               transformOrigin: '0 0',
             }}
           >
@@ -2766,9 +2773,8 @@ export function ConceptAtlas({
               const sourceNode = nodes.find((node) => conceptKey(node.name) === conceptKey(quickLinkSource));
               const rect = mapRef.current?.getBoundingClientRect();
               if (!sourceNode || !rect) return null;
-              const effectiveZoom = zoom / ATLAS_BASE_ZOOM;
-              const cursorX = ((quickLinkCursor.x - rect.left - mapViewportOffset.x - pan.x) / (rect.width * effectiveZoom)) * 100;
-              const cursorY = ((quickLinkCursor.y - rect.top - mapViewportOffset.y - pan.y) / (rect.height * effectiveZoom)) * 100;
+              const cursorX = ((quickLinkCursor.x - rect.left - pan.x) / rect.width) * 100;
+              const cursorY = ((quickLinkCursor.y - rect.top - pan.y) / rect.height) * 100;
               const ghost = edgePoints(sourceNode, { name: '', count: 0, x: cursorX, y: cursorY });
               return (
                 <g>
@@ -2788,9 +2794,10 @@ export function ConceptAtlas({
             })()}
 
             {renderedNodes.map((node) => (
-              <button
+              <div
                 key={node.name}
-                type="button"
+                role="button"
+                tabIndex={0}
                 aria-label={`Open concept ${node.name}`}
                 className={cn(
                   "absolute -translate-x-1/2 -translate-y-1/2 text-center transition-none",
@@ -2832,6 +2839,12 @@ export function ConceptAtlas({
                 onDoubleClick={(event) => {
                   if (quickLinkSource) return;
                   event.stopPropagation();
+                  setSelectedName(node.name);
+                  setIsPanelOpen(true);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
                   setSelectedName(node.name);
                   setIsPanelOpen(true);
                 }}
@@ -2902,7 +2915,7 @@ export function ConceptAtlas({
                     </div>
                   )}
                 </Card>
-              </button>
+              </div>
             ))}
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-px bg-border" />

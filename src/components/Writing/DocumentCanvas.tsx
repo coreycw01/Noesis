@@ -23,6 +23,7 @@ interface DocumentCanvasProps {
   onOverlayStrokesChange?: (strokes: DrawingStroke[]) => void;
   overlayTool: DrawingTool;
   overlayColor: string;
+  overlayGradientColor?: string | null;
   overlayBrushSize: number;
   overlayOpacity: number;
   overlayEnabled: boolean;
@@ -32,7 +33,7 @@ interface DocumentCanvasProps {
   onCurrentPageChange?: (pageId: string) => void;
 }
 
-export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title, overlayData, overlayStrokes, backgroundArtwork, onOverlayChange, onOverlayStrokesChange, overlayTool, overlayColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools, subpages, toolSections, onCurrentPageChange }: DocumentCanvasProps) {
+export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title, overlayData, overlayStrokes, backgroundArtwork, onOverlayChange, onOverlayStrokesChange, overlayTool, overlayColor, overlayGradientColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools, subpages, toolSections, onCurrentPageChange }: DocumentCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
 
@@ -138,6 +139,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
                 onOverlayStrokesChange={onOverlayStrokesChange}
                 overlayTool={overlayTool}
                 overlayColor={overlayColor}
+                overlayGradientColor={overlayGradientColor}
                 overlayBrushSize={overlayBrushSize}
                 overlayOpacity={overlayOpacity}
                 overlayEnabled={overlayEnabled}
@@ -172,6 +174,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
                   onOverlayStrokesChange={onOverlayStrokesChange}
                   overlayTool={overlayTool}
                   overlayColor={overlayColor}
+                  overlayGradientColor={overlayGradientColor}
                   overlayBrushSize={overlayBrushSize}
                   overlayOpacity={overlayOpacity}
                   overlayEnabled={overlayEnabled}

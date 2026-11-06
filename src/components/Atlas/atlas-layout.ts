@@ -48,10 +48,10 @@ export function atlasAutoNodePosition(index: number, total: number, compact = fa
   };
 }
 
-export function atlasViewportOffset(width: number, height: number, zoom: number, baseZoom: number) {
-  const scale = baseZoom > 0 ? zoom / baseZoom : 1;
+export function atlasZoomPlane(zoom: number, baseZoom: number) {
+  const scale = baseZoom > 0 ? Math.max(0.01, zoom / baseZoom) : 1;
   return {
-    x: (width - width * scale) / 2,
-    y: (height - height * scale) / 2,
+    scale,
+    extentPercent: 100 / scale,
   };
 }

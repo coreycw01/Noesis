@@ -32,13 +32,14 @@ export interface DrawingStroke {
   id: string;
   tool: DrawingTool;
   color: string;
+  gradientColor?: string;
   opacity: number;
   width: number;
   nibAngle?: number;
   edgeSoftness?: number;
   pressureResponse?: boolean;
   coordinateSpace?: 'pixels' | 'normalized';
-  points: Array<{ x: number; y: number }>;
+  points: Array<{ x: number; y: number; pressure?: number }>;
   text?: string;
 }
 export interface DrawingLayer {

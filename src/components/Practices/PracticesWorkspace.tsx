@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { Activity, CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Plus, Trash2 } from 'lucide-react';
+import { Activity, CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Plus, Puzzle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +34,8 @@ import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
+import { ThoughtGamesPanel } from '@/components/Home/ThoughtGamesPanel';
+import type { NoesisView } from '@/lib/noesis-routes';
 
 interface PracticesWorkspaceProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -43,6 +45,7 @@ interface PracticesWorkspaceProps {
   questions: Question[];
   positions: VaultEntry[];
   drafts: Draft[];
+  links: PhilosophicalLink[];
   onAddPractice: (data: Partial<Practice>) => void;
   onUpdatePractice: (practice: Practice) => void;
   onDeletePractice: (id: string) => void;
@@ -50,6 +53,7 @@ interface PracticesWorkspaceProps {
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   focusedPracticeId?: string | null;
   onOpenPracticeRoute?: (id: string | null) => void;
+  onNavigateTarget: (target: { view: NoesisView; targetId?: string | null }) => void;
 }
 
 const practiceTypes: PracticeType[] = ['habit', 'experiment', 'observation', 'reflection'];
@@ -181,7 +185,7 @@ function practiceExperimentShape(practice: Practice, linkedQuestions: Question[]
   return { hypothesis, observation, nextStep, needsOutcome, needsConsequence, designGaps, readinessScore, hasBasis, logCount };
 }
 
-export function PracticesWorkspace({ aiSettings, practices, concepts, media, questions, positions, drafts, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute }: PracticesWorkspaceProps) {
+export function PracticesWorkspace({ aiSettings, practices, concepts, media, questions, positions, drafts, links, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute, onNavigateTarget }: PracticesWorkspaceProps) {
   const { toast } = useToast();
   const savingRef = React.useRef(false);
   const [statusFilter, setStatusFilter] = usePersistentView<PracticeStatus | 'all'>('noesis:practices-status', 'all', ['all', ...statuses]);
@@ -190,7 +194,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   const [viewFilter, setViewFilter] = usePersistentView<PracticeViewFilter>('noesis:practices-filter', 'all', practiceViewFilters.map((item) => item.value));
   const [otherStatus, setOtherStatus] = usePersistentView<PracticeStatus>('noesis:practices-other-status', 'planned', statuses);
   const [practiceSection, setPracticeSection] = usePersistentView<'active' | 'other'>('noesis:practices-section', 'active', ['active', 'other']);
-  const [labTool, setLabTool] = usePersistentView<'practices' | 'experiments'>('noesis:labs-tool', 'practices', ['practices', 'experiments']);
+  const [labTool, setLabTool] = usePersistentView<'exercises' | 'practices' | 'experiments'>('noesis:labs-tool', 'practices', ['exercises', 'practices', 'experiments']);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useEntityViewPreference('practices');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -206,7 +210,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   );
   const matchesLabTool = (practice: Practice) => labTool === 'experiments'
     ? normalizePracticeType(practice.type) === 'experiment'
-    : normalizePracticeType(practice.type) !== 'experiment';
+    : labTool === 'practices' && normalizePracticeType(practice.type) !== 'experiment';
   const labRecords = practices.filter(matchesLabTool);
   const activeLoops = labRecords.filter((practice) => normalizePracticeStatus(practice.status) === 'active');
   const practiceState = useMemo(() => {
@@ -398,7 +402,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
     <div className="noesis-page noesis-labs-page" data-noesis-identity="experiment-log">
       <PageHeader
         title="Labs"
-        description="Design practices as lived tests, record what happens, and carry the result back into your thinking."
+        description="Sharpen intellectual skills, test ideas through action, and carry what happens back into your thinking."
         meta={
           <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
             {practiceStats.total} lab records · {practiceStats.active} active · {practiceStats.needsSetup} need setup · {practiceStats.readyForReview} ready for review
@@ -409,13 +413,15 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             value={labTool}
             onChange={(value) => { setLabTool(value); setTypeFilter('all'); }}
             label="Labs tools"
+            className="max-sm:grid max-sm:w-full max-sm:grid-cols-3 max-sm:overflow-hidden max-sm:[&>button]:min-w-0 max-sm:[&>button]:gap-1 max-sm:[&>button]:px-1.5 max-sm:[&>button]:text-xs"
             items={[
+              { id: 'exercises', label: 'Exercises', icon: Puzzle },
               { id: 'practices', label: 'Practices', icon: PracticeIcon },
               { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
             ]}
           />
         )}
-        actions={
+        actions={labTool === 'exercises' ? undefined : (
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button size="sm" className="h-9 rounded-full bg-accent px-6 font-bold shadow-md shadow-accent/20 hover:bg-accent/90"><Plus className="mr-1.5 size-4" /> Add in Labs</Button>
@@ -425,9 +431,34 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
               <DropdownMenuItem onSelect={() => { setLabTool('experiments'); openEditor(undefined, 'experiment'); }}><NOESIS_ICONS.lab className="mr-2 size-4" /> New experiment</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        }
+        )}
       />
 
+      {labTool === 'exercises' ? (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <ThoughtGamesPanel
+            concepts={concepts}
+            inquiries={questions}
+            positions={positions}
+            media={media}
+            links={links}
+            onNavigate={onNavigateTarget}
+          />
+          <aside className="h-fit rounded-lg border border-border bg-card p-5">
+            <div className="flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+              <Puzzle className="size-4" aria-hidden="true" />
+              How exercises work
+            </div>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">Short activities draw only from records already in your workspace. They help you recall, distinguish, challenge, and connect your thinking.</p>
+            <ul className="mt-4 space-y-3 text-sm leading-5 text-foreground/85">
+              <li className="border-l-2 border-accent/60 pl-3">Answers stay temporary unless you deliberately update the related item.</li>
+              <li className="border-l-2 border-border pl-3">Every exercise identifies the source record it uses.</li>
+              <li className="border-l-2 border-border pl-3">Completion is private practice, not a score or canonical thinking event.</li>
+            </ul>
+          </aside>
+        </div>
+      ) : (
+        <>
       <section className="relative mb-5 overflow-hidden border-y border-border/70 bg-card/45" aria-label={`${labTool === 'experiments' ? 'Experiment' : 'Practice'} cycle`}>
         <div className="flex flex-col gap-1 border-b border-border/60 px-4 py-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
           <div>
@@ -673,6 +704,8 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           )}
         </div>
       </section>}
+        </>
+      )}
 
       <PracticeEditor
         aiSettings={aiSettings}

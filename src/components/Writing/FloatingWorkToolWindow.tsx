@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { GripHorizontal, Maximize2, Minus, X } from 'lucide-react';
+import { GripHorizontal, Maximize2, Minus, Pencil, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { WorkToolSection } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -121,6 +121,11 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
     if (!minimized) onFocus();
   };
 
+  const focusEditor = () => {
+    onFocus();
+    windowRef.current?.querySelector<HTMLElement>('input, textarea, select, [contenteditable="true"]')?.focus();
+  };
+
   if (frame.minimized) {
     return (
       <Button
@@ -147,8 +152,8 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         onFocus();
       }}
       className={cn(
-        'group/tool flex min-h-0 flex-col overflow-hidden bg-background/95 shadow-xl backdrop-blur-sm',
-        'fixed inset-x-2 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] top-[calc(4.5rem+env(safe-area-inset-top))] z-40 border border-border md:absolute md:bottom-auto md:left-[var(--work-tool-x)] md:right-auto md:top-[var(--work-tool-y)] md:h-[var(--work-tool-height)] md:w-[var(--work-tool-width)] md:rounded-md md:border-border/35 md:focus-within:border-accent/55 md:hover:border-border/70',
+        'group/tool flex min-h-0 flex-col overflow-hidden bg-background/55 shadow-sm backdrop-blur-sm transition-[background-color,border-color,box-shadow]',
+        'fixed inset-x-2 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] top-[calc(4.5rem+env(safe-area-inset-top))] z-40 border border-border/25 md:absolute md:bottom-auto md:left-[var(--work-tool-x)] md:right-auto md:top-[var(--work-tool-y)] md:h-[var(--work-tool-height)] md:w-[var(--work-tool-width)] md:rounded-md md:focus-within:border-accent/45 md:focus-within:bg-background/80 md:focus-within:shadow-md md:hover:border-border/55 md:hover:bg-background/70',
         !mobileActive && 'max-md:hidden',
       )}
       style={{
@@ -160,11 +165,17 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
       } as CSSProperties}
     >
       <header
-        className="flex h-12 shrink-0 items-center gap-2 border-b border-border/40 px-3 md:h-9 md:cursor-move md:px-2"
-        onPointerDown={(event) => begin(event, 'move')}
+        className="flex h-12 shrink-0 items-center gap-2 border-b border-border/20 bg-background/35 px-3 md:h-9 md:cursor-move md:px-2"
+        onPointerDown={(event) => {
+          if ((event.target as HTMLElement).closest('button')) return;
+          begin(event, 'move');
+        }}
       >
         <GripHorizontal className="hidden size-4 shrink-0 text-muted-foreground/60 md:block" />
         <span className="min-w-0 flex-1 truncate font-code text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/75">{label}</span>
+        <Button type="button" variant="ghost" size="icon" onClick={focusEditor} className="size-10 shrink-0 rounded-md md:size-7" aria-label={`Edit ${label}`} title={`Edit ${label}`}>
+          <Pencil className="size-3.5" />
+        </Button>
         <Button type="button" variant="ghost" size="icon" onClick={() => setMinimized(true)} className="size-10 shrink-0 rounded-md md:size-7" aria-label={`Minimize ${label}`}>
           <Minus className="size-4" />
         </Button>
@@ -172,7 +183,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
           <X className="size-4" />
         </Button>
       </header>
-      <div className="min-h-0 flex-1 overflow-auto overscroll-contain">{children}</div>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-x-hidden overflow-y-auto overscroll-contain p-2 md:p-3">{children}</div>
       <div className="flex h-12 shrink-0 items-center justify-end gap-2 border-t border-border/40 px-3 md:hidden">
         <Button type="button" variant="outline" onClick={() => setMinimized(true)} className="min-h-11">Minimize</Button>
         <Button type="button" onClick={() => setMinimized(true)} className="min-h-11">Done</Button>
