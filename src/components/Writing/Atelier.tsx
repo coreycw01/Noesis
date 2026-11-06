@@ -386,6 +386,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [writingTool, setWritingTool] = useState<DrawingTool>('pen');
   const [writingStrokeColor, setWritingStrokeColor] = useState('#4c1d95');
+  const [writingGradientColor, setWritingGradientColor] = useState<string | null>(null);
   const [writingStrokeSize, setWritingStrokeSize] = useState(3);
   const [writingStrokeOpacity, setWritingStrokeOpacity] = useState(1);
   const [editorRibbon, setEditorRibbon] = useState<'writing' | 'drawing'>('writing');
@@ -1393,10 +1394,12 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   <DrawingOverlayToolbar
                     tool={writingTool}
                     color={writingStrokeColor}
+                    gradientColor={writingGradientColor}
                     size={writingStrokeSize}
                     opacity={writingStrokeOpacity}
                     onToolChange={setWritingTool}
                     onColorChange={setWritingStrokeColor}
+                    onGradientColorChange={setWritingGradientColor}
                     onSizeChange={setWritingStrokeSize}
                     onOpacityChange={setWritingStrokeOpacity}
                     onClear={clearCurrentPageDrawing}
@@ -1429,6 +1432,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   onOverlayStrokesChange={(writingOverlayStrokes) => setPageStrokes('main', writingOverlayStrokes)}
                   overlayTool={writingTool}
                   overlayColor={writingStrokeColor}
+                  overlayGradientColor={writingGradientColor}
                   overlayBrushSize={writingStrokeSize}
                   overlayOpacity={writingStrokeOpacity}
                   overlayEnabled={editorRibbon === 'drawing'}
@@ -1470,6 +1474,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                           onOverlayStrokesChange={(overlayStrokes) => setPageStrokes(page.id, overlayStrokes)}
                           overlayTool={writingTool}
                           overlayColor={writingStrokeColor}
+                          overlayGradientColor={writingGradientColor}
                           overlayBrushSize={writingStrokeSize}
                           overlayOpacity={writingStrokeOpacity}
                           overlayEnabled={editorRibbon === 'drawing'}

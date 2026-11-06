@@ -9,10 +9,12 @@ import { cn } from '@/lib/utils';
 interface DrawingOverlayToolbarProps {
   tool: DrawingTool;
   color: string;
+  gradientColor: string | null;
   size: number;
   opacity: number;
   onToolChange: (tool: DrawingTool) => void;
   onColorChange: (color: string) => void;
+  onGradientColorChange: (color: string | null) => void;
   onSizeChange: (size: number) => void;
   onOpacityChange: (opacity: number) => void;
   onClear: () => void;
@@ -40,7 +42,7 @@ const secondaryTools: Array<{ value: DrawingTool; label: string; Icon: typeof Pe
   { value: 'eraser', label: 'Eraser', Icon: Eraser },
 ];
 
-export function DrawingOverlayToolbar({ tool, color, size, opacity, onToolChange, onColorChange, onSizeChange, onOpacityChange, onClear, onUndo, onRedo, canUndo, canRedo, onReturnToWriting }: DrawingOverlayToolbarProps) {
+export function DrawingOverlayToolbar({ tool, color, gradientColor, size, opacity, onToolChange, onColorChange, onGradientColorChange, onSizeChange, onOpacityChange, onClear, onUndo, onRedo, canUndo, canRedo, onReturnToWriting }: DrawingOverlayToolbarProps) {
   const activeTool = [...utensils, ...secondaryTools].find((item) => item.value === tool);
   const ActiveIcon = activeTool?.Icon || Menu;
   const previewOpacity = tool === 'highlighter' ? Math.min(opacity, 0.35) : tool === 'marker' ? Math.min(opacity, 0.85) : opacity;
@@ -79,7 +81,7 @@ export function DrawingOverlayToolbar({ tool, color, size, opacity, onToolChange
         </DropdownMenu>
 
         <div className="flex h-8 min-w-16 flex-1 items-center justify-center px-2 sm:max-w-28 sm:flex-none" aria-label={`${activeTool?.label || 'Drawing'} stroke preview`}>
-          <span className="block w-full rounded-full" style={{ height: Math.max(2, Math.min(12, previewWidth)), backgroundColor: color, opacity: previewOpacity, transform: tool === 'calligraphy' ? 'skewX(-24deg)' : undefined }} />
+          <span className="block w-full rounded-full" style={{ height: Math.max(2, Math.min(12, previewWidth)), background: gradientColor ? `linear-gradient(90deg, ${color}, ${gradientColor})` : color, opacity: previewOpacity, transform: tool === 'calligraphy' ? 'skewX(-24deg)' : undefined }} />
         </div>
 
         <label className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-muted" title="Ink color">
@@ -100,7 +102,11 @@ export function DrawingOverlayToolbar({ tool, color, size, opacity, onToolChange
             <div className="space-y-4">
               <label className="block text-xs font-medium text-foreground">Stroke size <span className="float-right tabular-nums text-muted-foreground">{size}px</span><input aria-label="Drawing size" type="range" min={1} max={24} value={size} onChange={(event) => onSizeChange(Number(event.target.value))} className="mt-2 w-full accent-[hsl(var(--accent))]" /></label>
               <label className="block text-xs font-medium text-foreground">Opacity <span className="float-right tabular-nums text-muted-foreground">{Math.round(opacity * 100)}%</span><input aria-label="Drawing opacity" type="range" min={0.1} max={1} step={0.05} value={opacity} onChange={(event) => onOpacityChange(Number(event.target.value))} className="mt-2 w-full accent-[hsl(var(--accent))]" /></label>
-              <p className="text-xs leading-5 text-muted-foreground">Pen responds to pointer pressure. Calligraphy uses an angled nib. Marker stays opaque; highlighter remains translucent.</p>
+              <div className="flex items-center justify-between gap-3">
+                <Button type="button" variant={gradientColor ? 'default' : 'outline'} size="sm" onClick={() => onGradientColorChange(gradientColor ? null : '#f59e0b')} className="h-8">Gradient ink</Button>
+                {gradientColor && <label className="flex items-center gap-2 text-xs text-muted-foreground">End color <input aria-label="Drawing gradient end color" type="color" value={gradientColor} onChange={(event) => onGradientColorChange(event.target.value)} className="size-8 cursor-pointer rounded border border-border bg-transparent p-0.5" /></label>}
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">Pen varies with pressure. Calligraphy uses a broad angled nib. Pencil is dry and light, marker is dense, and highlighter blends translucently over the page.</p>
             </div>
             <DropdownMenuSeparator className="my-3" />
             <Button type="button" variant="ghost" size="sm" onClick={onClear} className="min-h-10 w-full justify-start text-destructive hover:text-destructive"><Eraser className="mr-2 size-4" /> Clear page drawing</Button>

@@ -24,13 +24,14 @@ interface DocsPageProps {
   onOverlayStrokesChange?: (strokes: DrawingStroke[]) => void;
   overlayTool: DrawingTool;
   overlayColor: string;
+  overlayGradientColor?: string | null;
   overlayBrushSize: number;
   overlayOpacity: number;
   overlayEnabled: boolean;
   inlineTools?: ReactNode;
 }
 
-export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary, overlayData, overlayStrokes = [], backgroundArtwork, onOverlayChange, onOverlayStrokesChange, overlayTool, overlayColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools }: DocsPageProps) {
+export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary, overlayData, overlayStrokes = [], backgroundArtwork, onOverlayChange, onOverlayStrokesChange, overlayTool, overlayColor, overlayGradientColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools }: DocsPageProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const overlayDrawingRef = useRef(false);
@@ -51,19 +52,27 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     onOverlayStrokesChange?.(next);
   }, [onOverlayStrokesChange]);
 
-  const pointForCanvas = useCallback((point: { x: number; y: number }, stroke: DrawingStroke, width: number, height: number) => stroke.coordinateSpace === 'normalized'
-    ? { x: point.x * width, y: point.y * height }
+  const pointForCanvas = useCallback((point: { x: number; y: number; pressure?: number }, stroke: DrawingStroke, width: number, height: number) => stroke.coordinateSpace === 'normalized'
+    ? { x: point.x * width, y: point.y * height, pressure: point.pressure }
     : point, []);
 
   const renderStroke = useCallback((ctx: CanvasRenderingContext2D, stroke: DrawingStroke, width: number, height: number) => {
     if (!stroke.points.length) return;
     const points = stroke.points.map((point) => pointForCanvas(point, stroke, width, height));
     ctx.save();
-    ctx.strokeStyle = stroke.color;
-    ctx.fillStyle = stroke.color;
+    const paint = stroke.gradientColor
+      ? (() => {
+          const gradient = ctx.createLinearGradient(0, 0, width, height);
+          gradient.addColorStop(0, stroke.color);
+          gradient.addColorStop(1, stroke.gradientColor!);
+          return gradient;
+        })()
+      : stroke.color;
+    ctx.strokeStyle = paint;
+    ctx.fillStyle = paint;
     ctx.globalAlpha = stroke.opacity;
-    ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
-    ctx.lineCap = stroke.tool === 'marker' || stroke.tool === 'highlighter' ? 'square' : 'round';
+    ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : stroke.tool === 'highlighter' ? 'multiply' : 'source-over';
+    ctx.lineCap = stroke.tool === 'highlighter' ? 'square' : 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = stroke.width;
     if (stroke.tool === 'text' && stroke.text) {
@@ -103,10 +112,24 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     }
     if (stroke.tool === 'calligraphy') {
       for (const point of points) {
+        const pressure = point.pressure ?? 0.5;
         ctx.beginPath();
-        ctx.ellipse(point.x, point.y, Math.max(2, stroke.width * 0.95), Math.max(1, stroke.width * 0.28), stroke.nibAngle ?? -Math.PI / 5, 0, Math.PI * 2);
+        ctx.ellipse(point.x, point.y, Math.max(2, stroke.width * (0.72 + pressure * 0.4)), Math.max(0.8, stroke.width * 0.2), stroke.nibAngle ?? -Math.PI / 5, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.restore();
+      return;
+    }
+    if (stroke.tool === 'pen' && points.length > 1) {
+      points.slice(1).forEach((point, index) => {
+        const previous = points[index];
+        const pressure = point.pressure ?? 0.5;
+        ctx.beginPath();
+        ctx.lineWidth = stroke.width * (0.45 + pressure * 0.9);
+        ctx.moveTo(previous.x, previous.y);
+        ctx.quadraticCurveTo(previous.x, previous.y, (previous.x + point.x) / 2, (previous.y + point.y) / 2);
+        ctx.stroke();
+      });
       ctx.restore();
       return;
     }
@@ -165,9 +188,10 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
 
-  const normalizeOverlayPoint = (point: { x: number; y: number }, canvas: HTMLCanvasElement) => ({
+  const normalizeOverlayPoint = (point: { x: number; y: number }, canvas: HTMLCanvasElement, pressure = 0.5) => ({
     x: point.x / Math.max(1, canvas.clientWidth),
     y: point.y / Math.max(1, canvas.clientHeight),
+    pressure,
   });
 
   const commitOverlay = useCallback((canvas: HTMLCanvasElement) => {
@@ -240,38 +264,48 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     overlayStartRef.current = point;
     overlayLastPointRef.current = point;
     event.currentTarget.setPointerCapture(event.pointerId);
-    ctx.lineCap = overlayTool === 'marker' ? 'square' : 'round';
+    const pointerPressure = event.pointerType === 'mouse' ? 0.5 : event.pressure || 0.5;
+    const paint = overlayGradientColor
+      ? (() => {
+          const gradient = ctx.createLinearGradient(0, 0, event.currentTarget.clientWidth, event.currentTarget.clientHeight);
+          gradient.addColorStop(0, overlayColor);
+          gradient.addColorStop(1, overlayGradientColor);
+          return gradient;
+        })()
+      : overlayColor;
+    ctx.lineCap = overlayTool === 'highlighter' ? 'square' : 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = overlayTool === 'highlighter'
-      ? overlayBrushSize * 3.5
+      ? overlayBrushSize * 4.5
       : overlayTool === 'marker'
-        ? overlayBrushSize * 2.5
+        ? overlayBrushSize * 3
         : overlayTool === 'calligraphy'
-          ? overlayBrushSize * 1.6
+          ? overlayBrushSize * 2
           : overlayTool === 'pencil'
             ? Math.max(1, overlayBrushSize * 0.65)
             : overlayBrushSize;
-    ctx.strokeStyle = overlayColor;
-    ctx.fillStyle = overlayColor;
+    ctx.strokeStyle = paint;
+    ctx.fillStyle = paint;
     ctx.globalAlpha = overlayTool === 'highlighter'
-      ? Math.min(overlayOpacity, 0.3)
+      ? Math.min(overlayOpacity, 0.24)
       : overlayTool === 'pencil'
         ? Math.min(overlayOpacity, 0.65)
         : overlayTool === 'marker'
-          ? Math.min(overlayOpacity, 0.9)
+          ? Math.min(overlayOpacity, 0.96)
           : overlayOpacity;
-    ctx.globalCompositeOperation = overlayTool === 'eraser' ? 'destination-out' : 'source-over';
+    ctx.globalCompositeOperation = overlayTool === 'eraser' ? 'destination-out' : overlayTool === 'highlighter' ? 'multiply' : 'source-over';
     activeStrokeRef.current = {
       id: crypto.randomUUID(),
       tool: overlayTool,
       color: overlayColor,
+      gradientColor: overlayGradientColor || undefined,
       opacity: ctx.globalAlpha,
       width: ctx.lineWidth,
       nibAngle: overlayTool === 'calligraphy' ? -Math.PI / 5 : undefined,
       edgeSoftness: overlayTool === 'highlighter' ? 0.35 : overlayTool === 'marker' ? 0.05 : undefined,
       pressureResponse: overlayTool === 'pen' || overlayTool === 'calligraphy',
       coordinateSpace: 'normalized',
-      points: [normalizeOverlayPoint(point, event.currentTarget)],
+      points: [normalizeOverlayPoint(point, event.currentTarget, pointerPressure)],
     };
     if (['line', 'rectangle', 'ellipse', 'arrow'].includes(overlayTool)) {
       const snapshot = document.createElement('canvas');
@@ -299,34 +333,35 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
         ctx.restore();
       }
       drawShape(ctx, overlayTool, overlayStartRef.current, point);
-      if (activeStrokeRef.current) activeStrokeRef.current.points = [activeStrokeRef.current.points[0], normalizeOverlayPoint(point, event.currentTarget)];
+      if (activeStrokeRef.current) activeStrokeRef.current.points = [activeStrokeRef.current.points[0], normalizeOverlayPoint(point, event.currentTarget, event.pointerType === 'mouse' ? 0.5 : event.pressure || 0.5)];
       return;
     }
     if (overlayTool === 'calligraphy') {
       const last = overlayLastPointRef.current || point;
       const distance = Math.max(1, Math.hypot(point.x - last.x, point.y - last.y));
       const steps = Math.max(1, Math.ceil(distance / 2));
+      const pressure = event.pointerType === 'mouse' ? 0.5 : event.pressure || 0.5;
       ctx.save();
       for (let index = 0; index <= steps; index += 1) {
         const progress = index / steps;
         const x = last.x + (point.x - last.x) * progress;
         const y = last.y + (point.y - last.y) * progress;
         ctx.beginPath();
-        ctx.ellipse(x, y, Math.max(2, overlayBrushSize * 0.95), Math.max(1, overlayBrushSize * 0.28), -Math.PI / 5, 0, Math.PI * 2);
+        ctx.ellipse(x, y, Math.max(2, overlayBrushSize * (1.05 + pressure * 0.65)), Math.max(0.8, overlayBrushSize * 0.24), -Math.PI / 5, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
       overlayLastPointRef.current = point;
-      activeStrokeRef.current?.points.push(normalizeOverlayPoint(point, event.currentTarget));
+      activeStrokeRef.current?.points.push(normalizeOverlayPoint(point, event.currentTarget, pressure));
       return;
     }
     if (overlayTool === 'pen' && event.pressure > 0) {
-      ctx.lineWidth = overlayBrushSize * (0.65 + event.pressure * 0.75);
+      ctx.lineWidth = overlayBrushSize * (0.45 + event.pressure * 1.1);
     }
     ctx.lineTo(point.x, point.y);
     ctx.stroke();
     overlayLastPointRef.current = point;
-    activeStrokeRef.current?.points.push(normalizeOverlayPoint(point, event.currentTarget));
+    activeStrokeRef.current?.points.push(normalizeOverlayPoint(point, event.currentTarget, event.pointerType === 'mouse' ? 0.5 : event.pressure || 0.5));
   };
 
   const endOverlayDraw = (event: React.PointerEvent<HTMLCanvasElement>) => {

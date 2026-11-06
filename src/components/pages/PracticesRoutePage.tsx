@@ -12,6 +12,7 @@ export interface PracticesRoutePageProps {
   questions: Question[];
   positions: VaultEntry[];
   drafts: Draft[];
+  links: PhilosophicalLink[];
   focusedPracticeId?: string | null;
   onAddPractice: (data: Partial<Practice>) => void;
   onUpdatePractice: (practice: Practice) => void;
@@ -29,6 +30,7 @@ export function PracticesRoutePage({
   questions,
   positions,
   drafts,
+  links,
   focusedPracticeId,
   onAddPractice,
   onUpdatePractice,
@@ -46,6 +48,7 @@ export function PracticesRoutePage({
       questions={questions}
       positions={positions}
       drafts={drafts}
+      links={links}
       onAddPractice={onAddPractice}
       onUpdatePractice={onUpdatePractice}
       onDeletePractice={onDeletePractice}
@@ -53,6 +56,9 @@ export function PracticesRoutePage({
       onCreateLink={onCreateLink}
       focusedPracticeId={focusedPracticeId}
       onOpenPracticeRoute={(practiceId) => onNavigate('labs', { practiceId })}
+      onNavigateTarget={(target) => onNavigate(target.view, {
+        practiceId: target.view === 'labs' ? target.targetId : null,
+      })}
     />
   );
 }

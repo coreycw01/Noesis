@@ -1011,6 +1011,7 @@ export function ThinkingDesk({
               media={media}
               links={links}
               onNavigate={onNavigate}
+              variant="compact"
             />
 
             <section className="rounded-lg border border-border bg-card p-5">

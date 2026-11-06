@@ -223,25 +223,25 @@ export function StructuredWorkSurface({
   if (style === 'venn_diagram') {
     return (
       <TemplateFrame title={FORMAT_COPY[style].title} purpose={FORMAT_COPY[style].purpose} tone={paperTone[paperColor]} patternStyle={paperPatternStyle(paperColor, paperPattern)} widthClass={widthClass} embedded={embedded}>
-        <div className="overflow-x-auto p-5 sm:p-8">
+        <div className="flex h-full min-h-0 w-full flex-col p-3 sm:p-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <Input aria-label="First idea" value={current.fields.left_label || ''} onChange={(event) => updateFields('left_label', event.target.value)} placeholder="First idea" className="bg-background/55" />
             <Input aria-label="Second idea" value={current.fields.right_label || ''} onChange={(event) => updateFields('right_label', event.target.value)} placeholder="Second idea" className="bg-background/55" />
           </div>
-          <div className="relative mx-auto mt-6 h-[420px] min-w-[620px] max-w-[650px]">
-            <div className="absolute left-2 top-4 size-[360px] rounded-full border-2 border-accent/55 bg-accent/8" aria-hidden="true" />
-            <div className="absolute right-2 top-4 size-[360px] rounded-full border-2 border-foreground/30 bg-background/45" aria-hidden="true" />
-            <div className="absolute left-12 top-28 z-10 w-44">
+          <div className="relative mx-auto mt-3 aspect-[16/10] min-h-[250px] w-full max-w-[700px] flex-1 overflow-hidden">
+            <div className="absolute left-[3%] top-[5%] aspect-square w-[58%] rounded-full border-2 border-accent/55 bg-accent/8" aria-hidden="true" />
+            <div className="absolute right-[3%] top-[5%] aspect-square w-[58%] rounded-full border-2 border-foreground/30 bg-background/30" aria-hidden="true" />
+            <div className="absolute left-[8%] top-[28%] z-10 w-[28%]">
               <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">Only {current.fields.left_label || 'the first'}</label>
-              <Textarea value={current.fields.left_only || ''} onChange={(event) => updateFields('left_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-3 min-h-40 resize-none border-0 bg-background/45 text-sm shadow-none focus-visible:ring-1" />
+              <Textarea value={current.fields.left_only || ''} onChange={(event) => updateFields('left_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-2 min-h-24 resize-none border-0 bg-background/35 text-xs shadow-none focus-visible:ring-1 sm:min-h-32 sm:text-sm" />
             </div>
-            <div className="absolute left-1/2 top-24 z-20 w-44 -translate-x-1/2 text-center">
+            <div className="absolute left-1/2 top-[24%] z-20 w-[28%] -translate-x-1/2 text-center">
               <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-accent">Shared ground</label>
-              <Textarea value={current.fields.shared || ''} onChange={(event) => updateFields('shared', event.target.value)} placeholder="What genuinely overlaps?" className="mt-3 min-h-40 resize-none border border-accent/30 bg-background/90 text-center text-sm shadow-sm" />
+              <Textarea value={current.fields.shared || ''} onChange={(event) => updateFields('shared', event.target.value)} placeholder="What genuinely overlaps?" className="mt-2 min-h-24 resize-none border border-accent/30 bg-background/80 text-center text-xs shadow-sm sm:min-h-32 sm:text-sm" />
             </div>
-            <div className="absolute right-12 top-28 z-10 w-44 text-right">
+            <div className="absolute right-[8%] top-[28%] z-10 w-[28%] text-right">
               <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">Only {current.fields.right_label || 'the second'}</label>
-              <Textarea value={current.fields.right_only || ''} onChange={(event) => updateFields('right_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-3 min-h-40 resize-none border-0 bg-background/45 text-right text-sm shadow-none focus-visible:ring-1" />
+              <Textarea value={current.fields.right_only || ''} onChange={(event) => updateFields('right_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-2 min-h-24 resize-none border-0 bg-background/35 text-right text-xs shadow-none focus-visible:ring-1 sm:min-h-32 sm:text-sm" />
             </div>
           </div>
         </div>
@@ -296,35 +296,37 @@ export function StructuredWorkSurface({
       const parentId = newBranchParentId === 'central' ? null : newBranchParentId;
       saveNodes([...nodes, { id: crypto.randomUUID(), label: '', parentId }]);
     };
-    const center = { x: 360, y: 260 };
+    const center = { x: 360, y: 270 };
     const nodePositions = nodes.map((node) => {
       const depth = depthFor(node);
       const peers = nodes.filter((candidate) => depthFor(candidate) === depth);
       const peerIndex = peers.findIndex((candidate) => candidate.id === node.id);
-      const radius = Math.min(230, 170 + depth * 48);
+      const radiusX = Math.min(250, 205 + depth * 22);
+      const radiusY = Math.min(185, 145 + depth * 18);
       const angle = -Math.PI / 2 + ((Math.PI * 2) / Math.max(peers.length, 1)) * peerIndex + depth * 0.28;
-      return { id: node.id, x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius };
+      return { id: node.id, x: center.x + Math.cos(angle) * radiusX, y: center.y + Math.sin(angle) * radiusY };
     });
     const nodePosition = (id: string | null) => id ? nodePositions.find((position) => position.id === id) || center : center;
     return (
       <TemplateFrame title={FORMAT_COPY[style].title} purpose={FORMAT_COPY[style].purpose} tone={paperTone[paperColor]} patternStyle={paperPatternStyle(paperColor, paperPattern)} widthClass={widthClass} embedded={embedded}>
-        <div className="space-y-5 overflow-x-auto p-5 sm:p-8">
-          <div className="relative mx-auto h-[540px] min-w-[720px] max-w-[720px] overflow-hidden rounded-[50%] border border-dashed border-current/15 bg-background/20" aria-label="Mind map branches">
+        <div className="flex h-full min-h-0 w-full flex-col gap-3 p-3 sm:p-5">
+          <div className="relative mx-auto aspect-[4/3] min-h-[240px] w-full max-w-[760px] flex-1 overflow-hidden rounded-[var(--card-radius)] border border-dashed border-current/15 bg-transparent" aria-label="Mind map branches">
             <svg className="pointer-events-none absolute inset-0 size-full" viewBox="0 0 720 540" aria-hidden="true">
               {nodes.map((node) => {
                 const from = nodePosition(node.parentId);
                 const to = nodePosition(node.id);
-                return <line key={node.id} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="currentColor" strokeOpacity="0.3" strokeWidth="2" />;
+                const bendX = (from.x + to.x) / 2;
+                return <path key={node.id} d={`M ${from.x} ${from.y} Q ${bendX} ${from.y} ${to.x} ${to.y}`} fill="none" stroke="currentColor" strokeOpacity="0.48" strokeWidth="2.5" strokeLinecap="round" />;
               })}
             </svg>
-            <div className="absolute left-[280px] top-[205px] z-10 flex h-[110px] w-40 items-center justify-center rounded-full border-2 border-accent bg-background p-3 shadow-md">
+            <div className="absolute left-1/2 top-1/2 z-10 flex h-[20%] min-h-16 w-[24%] min-w-28 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-accent bg-background/90 p-2 shadow-sm">
               <Input value={current.fields.central || ''} onChange={(event) => updateFields('central', event.target.value)} placeholder="Central idea" aria-label="Central idea" className="h-auto border-0 bg-transparent px-0 text-center font-headline text-lg font-bold italic shadow-none focus-visible:ring-0" />
             </div>
             {nodes.length === 0 && <p className="absolute bottom-10 left-1/2 w-80 -translate-x-1/2 text-center text-sm opacity-60">Add a branch and choose exactly which idea it grows from.</p>}
             {nodes.map((node) => {
               const position = nodePosition(node.id);
               return (
-                <div key={node.id} className="absolute z-10 w-40 -translate-x-1/2 -translate-y-1/2 border border-current/25 bg-background/95 p-2 shadow-sm" style={{ left: position.x, top: position.y }}>
+                <div key={node.id} className="absolute z-10 w-[clamp(6rem,22%,10rem)] -translate-x-1/2 -translate-y-1/2 rounded-[var(--button-radius)] border border-current/25 bg-background/90 p-1.5 shadow-sm" style={{ left: `${(position.x / 720) * 100}%`, top: `${(position.y / 540) * 100}%` }}>
                   <div className="flex items-start gap-1">
                     <Input value={node.label} onChange={(event) => updateNode(node.id, { label: event.target.value })} placeholder="Related idea" className="h-8 min-w-0 border-0 bg-transparent px-1 text-center text-sm font-medium shadow-none focus-visible:ring-1" aria-label="Branch idea" />
                     <Button type="button" variant="ghost" size="icon" onClick={() => removeNode(node.id)} className="size-7 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Remove ${node.label || 'branch'}`}><Trash2 className="size-3" /></Button>
@@ -338,7 +340,7 @@ export function StructuredWorkSurface({
             })}
           </div>
 
-          <div className="flex min-w-[620px] flex-wrap items-end gap-2 border-t border-current/15 pt-4">
+          <div className="flex shrink-0 flex-wrap items-end gap-2 border-t border-current/15 pt-3">
             <label className="min-w-48 flex-1 text-xs font-medium">New branch grows from
               <select value={newBranchParentId} onChange={(event) => setNewBranchParentId(event.target.value)} className="mt-1 h-9 w-full border border-border/50 bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <option value="central">Central idea</option>
@@ -503,7 +505,7 @@ export function StructuredWorkSurface({
 }
 
 function TemplateFrame({ title, purpose, tone, patternStyle, widthClass, children, embedded }: { title: string; purpose: string; tone: string; patternStyle: CSSProperties; widthClass: string; children: ReactNode; embedded: boolean }) {
-  return <div className={cn(!embedded && 'h-full min-h-0 overflow-y-auto bg-muted/10 p-4 sm:p-8')}><section className={cn('mx-auto w-full border border-current/20', !embedded && 'min-h-full shadow-sm', widthClass, tone)} style={patternStyle}><header className="border-b border-current/15 px-5 py-4 sm:px-8"><h2 className="font-headline text-2xl font-bold italic">{title}</h2><p className="mt-1 max-w-2xl text-sm leading-6 opacity-70">{purpose}</p></header>{children}</section></div>;
+  return <div className={cn(embedded ? 'flex h-full min-h-0 w-full items-center justify-center' : 'h-full min-h-0 overflow-y-auto bg-muted/10 p-4 sm:p-8')}><section className={cn('mx-auto w-full', embedded ? 'flex h-full min-h-0 max-w-none flex-col border-0 bg-transparent' : cn('min-h-full border border-current/20 shadow-sm', widthClass, tone))} style={embedded ? undefined : patternStyle}>{!embedded && <header className="border-b border-current/15 px-5 py-4 sm:px-8"><h2 className="font-headline text-2xl font-bold italic">{title}</h2><p className="mt-1 max-w-2xl text-sm leading-6 opacity-70">{purpose}</p></header>}{children}</section></div>;
 }
 
 function WorkField({ field, value, onChange }: { field: FieldDefinition; value: string; onChange: (value: string) => void }) {
