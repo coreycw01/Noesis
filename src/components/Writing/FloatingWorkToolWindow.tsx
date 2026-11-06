@@ -154,8 +154,8 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         onFocus();
       }}
       className={cn(
-        'group/tool flex min-h-0 flex-col overflow-hidden bg-background/55 shadow-sm backdrop-blur-sm transition-[background-color,border-color,box-shadow]',
-        'fixed inset-x-2 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] top-[calc(4.5rem+env(safe-area-inset-top))] z-40 border border-border/25 md:bottom-auto md:right-auto md:h-[var(--work-tool-height)] md:w-[var(--work-tool-width)] md:rounded-md md:focus-within:border-accent/45 md:focus-within:bg-background/80 md:focus-within:shadow-md md:hover:border-border/55 md:hover:bg-background/70',
+        'group/tool flex min-h-0 flex-col overflow-hidden bg-background text-foreground max-md:shadow-sm transition-[background-color,border-color,box-shadow] md:bg-transparent md:text-inherit md:shadow-none',
+        'fixed inset-x-2 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] top-[calc(4.5rem+env(safe-area-inset-top))] z-40 border border-border/25 md:bottom-auto md:right-auto md:h-[var(--work-tool-height)] md:w-[var(--work-tool-width)] md:rounded-md md:border-transparent md:focus-within:border-accent/45 md:hover:border-current/20',
         frame.placement === 'overlay' && 'md:absolute md:left-[var(--work-tool-x)] md:top-[var(--work-tool-y)]',
         frame.placement === 'wrap' && 'md:relative md:float-right md:inset-auto md:mb-5 md:ml-6 md:mr-[var(--document-page-padding)] md:mt-2 md:max-w-[62%]',
         frame.placement === 'break' && 'md:relative md:inset-auto md:mx-auto md:my-6 md:clear-both md:max-w-[85%]',
@@ -170,7 +170,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
       } as CSSProperties}
     >
       <header
-        className="flex h-12 shrink-0 items-center gap-2 border-b border-border/20 bg-background/35 px-3 md:h-9 md:cursor-move md:px-2"
+        className="flex h-12 shrink-0 items-center gap-2 border-b border-border/20 bg-background px-3 md:h-9 md:cursor-move md:border-current/10 md:bg-transparent md:px-2"
         onPointerDown={(event) => {
           if ((event.target as HTMLElement).closest('button,select')) return;
           if (frame.placement !== 'overlay') return;
@@ -178,7 +178,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         }}
       >
         <GripHorizontal className="hidden size-4 shrink-0 text-muted-foreground/60 md:block" />
-        <span className="min-w-0 flex-1 truncate font-code text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/75">{label}</span>
+        <span className="min-w-0 flex-1 truncate font-code text-[10px] font-semibold uppercase tracking-[0.14em] opacity-75">{label}</span>
         <select
           value={frame.placement || 'overlay'}
           onChange={(event) => {

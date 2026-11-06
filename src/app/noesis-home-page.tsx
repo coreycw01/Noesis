@@ -10,6 +10,7 @@ import {
 import type { MovementMetrics } from '@/components/Shell';
 import { NoesisProviders } from '@/components/app-shell/NoesisProviders';
 import { navigateWorkspace } from '@/lib/workspace-navigation';
+import { positionRevisionHistory } from '@/lib/position-revisions';
 import { NoesisShell } from '@/components/app-shell/NoesisShell';
 import { NoesisWorkspaceGate } from '@/components/app-shell/NoesisWorkspaceGate';
 import { NoesisRouteContent } from '@/components/pages/NoesisRouteContent';
@@ -1355,7 +1356,8 @@ function ReadexWorkspace({
     return availableConcepts;
   };
 
-  const addConcept = (data: Partial<Concept>) => {
+  const addConcept = async (data: Partial<Concept>) => {
+    if (!data.name?.trim()) return false;
     const conceptRef = doc(refs.concepts);
     const payload = {
       id: conceptRef.id,
@@ -1365,11 +1367,13 @@ function ReadexWorkspace({
       sourceIds: data.sourceIds || [],
       x: data.x ?? Math.random() * 80 + 10,
       y: data.y ?? Math.random() * 80 + 10,
-      createdFrom: data.createdFrom || 'manual',
+      // A picker Create action is explicit; ensureConcepts owns automatic tag placeholders.
+      createdFrom: data.createdFrom === 'tag' ? 'manual' : data.createdFrom || 'manual',
       philosophyStatus: data.philosophyStatus || (data.description ? 'emerging' : 'undefined'),
       dateCreated: today(),
     };
-    void commitAndReport({
+    try {
+    await commitAndReport({
       db,
       ref: conceptRef as any,
       operation: 'set',
@@ -1386,17 +1390,19 @@ function ReadexWorkspace({
         importance: 'medium',
         sourceActionId: makeActionId(),
       },
-    }, { operation: 'create', data: payload });
+    }, { operation: 'create', data: payload, rethrow: true });
+    return true;
+    } catch { return false; }
   };
 
   const updateConcept = (concept: Concept) => {
     const conceptRef = doc(refs.concepts, concept.id);
     const previous = concepts.find((item) => item.id === concept.id);
-    const nextConcept = { ...concept, dateUpdated: today() };
+    const nextConcept = { ...concept, createdFrom: concept.createdFrom === 'tag' && concept.description?.trim() ? 'manual' as const : concept.createdFrom, dateUpdated: today() };
     const definitionChanged = (previous?.description || '') !== (nextConcept.description || '');
     const conceptStatusChanged = previous?.philosophyStatus !== nextConcept.philosophyStatus;
     const conceptSourcesChanged = JSON.stringify(previous?.sourceIds || []) !== JSON.stringify(nextConcept.sourceIds || []);
-    void commitAndReport({
+    return commitAndReport({
       db,
       ref: conceptRef as any,
       operation: 'update',
@@ -1414,7 +1420,7 @@ function ReadexWorkspace({
         importance: definitionChanged ? 'medium' : 'low',
         sourceActionId: makeActionId(),
       } : null,
-    }, { operation: 'update', data: nextConcept });
+    }, { operation: 'update', data: nextConcept, rethrow: true });
   };
 
   const deleteConcept = (id: string) => {
@@ -1473,7 +1479,7 @@ function ReadexWorkspace({
       dateAdded: today(),
       dateUpdated: today(),
     };
-    void commitAndReport({
+    return commitAndReport({
       db,
       ref: mediaRef as any,
       operation: 'set',
@@ -1495,7 +1501,7 @@ function ReadexWorkspace({
         operation: 'set' as const,
         data: annotationRecord(payload.id, annotation, effectiveUid),
       })),
-    }, { operation: 'create', data: payload, rethrow: true }).catch(() => undefined);
+    }, { operation: 'create', data: payload, rethrow: true });
   };
 
   const updateMedia = (item: Media) => {
@@ -1533,7 +1539,7 @@ function ReadexWorkspace({
           : captureChanged ? 'source_distilled'
             : 'edited';
     const sourceEventImportance = sourceEventType === 'edited' ? 'low' : 'medium';
-    void commitAndReport({
+    return commitAndReport({
       db,
       ref: mediaRef as any,
       operation: 'update',
@@ -1556,7 +1562,7 @@ function ReadexWorkspace({
         sourceActionId: makeActionId(),
       },
       relatedWrites: annotationWrites,
-    }, { operation: 'update', data: nextItem });
+    }, { operation: 'update', data: nextItem, rethrow: true });
   };
 
   const deleteMedia = async (id: string) => {
@@ -1607,7 +1613,7 @@ function ReadexWorkspace({
     const annotations = (source.annotations || []).map((item) => item.id === annotation.id ? annotation : item);
     const mediaRef = doc(refs.media, sourceId);
     const nextSource = { ...source, annotations: boundedNestedAnnotations(annotations), dateUpdated: today() };
-    void commitAndReport({
+    return commitAndReport({
       db,
       ref: mediaRef as any,
       operation: 'update',
@@ -1631,7 +1637,7 @@ function ReadexWorkspace({
         operation: 'set',
         data: annotationRecord(sourceId, annotation, effectiveUid),
       }],
-    }, { operation: 'update', data: nextSource });
+    }, { operation: 'update', data: nextSource, rethrow: true });
   };
 
   const deleteAnnotation = async (sourceId: string, annotationId: string) => {
@@ -1668,7 +1674,7 @@ function ReadexWorkspace({
     }
   };
 
-  const addVaultEntry = (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => {
+  const addVaultEntry = async (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => {
     const tags = normalizeConceptTags(data.tags);
     const availableConcepts = ensureConcepts(tags);
     const vaultRef = doc(refs.vault);
@@ -1766,9 +1772,8 @@ function ReadexWorkspace({
         relatedWrites: positionVersionWrites,
       }, { operation: 'create', data: payload, rethrow: true });
     }
-    void persistence.then(() => {
-      refreshBeliefProfile(payload as VaultEntry, { originSummary: payload.statement || payload.description });
-    }).catch(() => emitError(annotationRefs.length ? 'annotation-position-promotion' : vaultRef.path, 'write', payload));
+    await persistence;
+    refreshBeliefProfile(payload as VaultEntry, { originSummary: payload.statement || payload.description });
     return payload as VaultEntry;
   };
 
@@ -1781,15 +1786,7 @@ function ReadexWorkspace({
       ...entry,
       conceptIds: conceptIdsForLabels(entry.tags, availableConcepts),
       dateUpdated: today(),
-      versionHistory: boundedPositionVersionHistory(confidenceChanged ? [
-        ...(entry.versionHistory || []),
-        {
-          date: today(),
-          eventType: 'revised' as const,
-          description: `Confidence changed from ${previous!.confidence}% to ${entry.confidence}%.`,
-          confidence: entry.confidence,
-        },
-      ] : entry.versionHistory || []),
+      versionHistory: boundedPositionVersionHistory(positionRevisionHistory(previous, entry, today())),
     };
     const profilePatch: Partial<BeliefProfile> = {
       confidenceScore: entry.confidenceScore ?? entry.confidence,
@@ -1991,7 +1988,7 @@ function ReadexWorkspace({
     batch.commit().catch(() => emitError('batch', 'write', position));
   };
 
-  const addQuestion = (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => {
+  const addQuestion = async (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => {
     const questionRef = doc(refs.questions);
     const payload = {
       id: questionRef.id,
@@ -2009,6 +2006,7 @@ function ReadexWorkspace({
       sourceIds: uniqueIds(data.sourceIds || []),
       beliefIds: uniqueIds(data.beliefIds || []),
       draftIds: uniqueIds(data.draftIds || []),
+      practiceIds: uniqueIds(data.practiceIds || []),
       type: data.type || 'manual',
       sourceAnnotationId: data.sourceAnnotationId || '',
       sourceWorkId: data.sourceWorkId || '',
@@ -2062,15 +2060,15 @@ function ReadexWorkspace({
       const event = queueThinkingEvent(batch, inquiryEvent);
       demoChanges.push({ path: event.eventRef.path, operation: 'set', data: { ...event.payload, createdAt: today() } });
       const persistence = isOfflineReviewPreview ? Promise.resolve().then(() => commitDemoChanges(effectiveUid, demoChanges)) : batch.commit();
-      void persistence.catch(() => emitError('annotation-inquiry-promotion', 'write', payload));
+      await persistence;
     } else {
-      void commitAndReport({
+      await commitAndReport({
         db,
         ref: questionRef as any,
         operation: 'set',
         data: payload,
         thinkingEvent: inquiryEvent,
-      }, { operation: 'create', data: payload });
+      }, { operation: 'create', data: payload, rethrow: true });
     }
     return payload as Question;
   };
@@ -2877,8 +2875,8 @@ function ReadexWorkspace({
   };
 
   const saveGoal = async (nextGoal: GoalSettings) => {
-    setGoalState(nextGoal);
     await saveWorkspaceDoc(refs.settingsGoal as any, nextGoal);
+    setGoalState(nextGoal);
   };
 
   const saveProfile = async (nextProfile: UserProfile) => {

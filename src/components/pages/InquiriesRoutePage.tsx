@@ -13,7 +13,7 @@ export interface InquiriesRoutePageProps {
   practices: Practice[];
   concepts: Concept[];
   focusedQuestionId?: string | null;
-  onAddQuestion: (data: Partial<Question>) => Question;
+  onAddQuestion: (data: Partial<Question>) => Promise<Question>;
   onUpdateQuestion: (question: Question) => void | Promise<void>;
   onDeleteQuestion: (id: string) => void | Promise<void>;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;

@@ -8,13 +8,14 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import type { Concept, Draft, Media, PhilosophicalLink, Practice, PracticeLog, PracticeStatus, PracticeType, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, normalizeConceptTags, PRACTICE_LABELS, today, uid } from '@/lib/readex';
+import { appendPracticeObservation } from '@/lib/practice-observations';
+import { LabeledField } from '@/components/shared/LabeledField';
 import { cn } from '@/lib/utils';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
@@ -744,6 +745,12 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         positions={positions}
         drafts={drafts}
         onAddConcept={onAddConcept}
+        onRecordLog={async (log) => {
+          if (!draft.id) throw new Error('Save the practice before recording an observation.');
+          const next = appendPracticeObservation(draft as Practice, log, today());
+          await onUpdatePractice(next);
+          setDraft(next);
+        }}
         onSaveAiOutcome={async (result, content) => {
           if (!draft.id) return;
           const next = { ...draft, aiOutcomeReview: content, aiReviewHistory: appendAiHistoryEntry(draft.aiReviewHistory, result, content), dateUpdated: new Date().toISOString() } as Practice;
@@ -1097,7 +1104,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   );
 }
 
-function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onSaveAiOutcome, onSaveAiHistory, onSave, routeOwned = false }: {
+function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onRecordLog, onSaveAiOutcome, onSaveAiHistory, onSave, routeOwned = false }: {
   aiSettings: import('@/lib/types').AiSettings;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1109,15 +1116,42 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
   positions: VaultEntry[];
   drafts: Draft[];
   onAddConcept: (data: Partial<Concept>) => void;
+  onRecordLog: (log: PracticeLog) => Promise<void>;
   onSaveAiOutcome: (result: AiReviewResult, content: string) => void | Promise<void>;
   onSaveAiHistory: (entries: NonNullable<Practice['aiReviewHistory']>) => void | Promise<void>;
   onSave: () => void;
   routeOwned?: boolean;
 }) {
   const [practiceWorkflowStep, setPracticeWorkflowStep] = useState<'design' | 'run' | 'review' | 'integrate'>('design');
+  const [observation, setObservation] = useState('');
+  const [completed, setCompleted] = useState(true);
+  const [logging, setLogging] = useState(false);
+  const logLock = React.useRef(false);
+  const { toast } = useToast();
+  React.useEffect(() => {
+    setObservation('');
+    setCompleted(true);
+    setPracticeWorkflowStep('design');
+  }, [draft.id]);
+  const readyToLog = Boolean(draft.id && practiceDesignGaps(draft).length === 0 && hasPracticeBasis(draft as Practice));
+  const recordObservation = async () => {
+    if (logLock.current || !readyToLog || !observation.trim()) return;
+    logLock.current = true;
+    setLogging(true);
+    try {
+      await onRecordLog({ id: uid(), date: dateKey(), actionCompleted: completed, outcome: observation.trim() });
+      setObservation('');
+      toast({ title: 'Observation saved' });
+    } catch {
+      toast({ title: 'Observation not saved', description: 'Your note is still here. Please retry.', variant: 'destructive' });
+    } finally {
+      logLock.current = false;
+      setLogging(false);
+    }
+  };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto bg-card border-none shadow-2xl rounded-2xl p-0 max-sm:grid max-sm:h-[calc(100dvh-1rem)] max-sm:w-[calc(100vw-1rem)] max-sm:max-w-none max-sm:grid-rows-[minmax(0,1fr)_auto] max-sm:overflow-hidden">
+      <DialogContent className="grid h-[min(88dvh,56rem)] max-w-2xl grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-card border-none shadow-2xl rounded-2xl p-0 max-sm:h-[calc(100dvh-1rem)] max-sm:w-[calc(100vw-1rem)] max-sm:max-w-none">
         <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-8">
           <DialogHeader className="mb-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1239,7 +1273,12 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   <div className="rounded-lg border border-border/50 bg-card p-3"><div className="text-xs text-muted-foreground">Logs</div><div className="mt-1 text-sm font-semibold">{draft.logs?.length || 0}</div></div>
                   <div className="rounded-lg border border-border/50 bg-card p-3"><div className="text-xs text-muted-foreground">Schedule</div><div className="mt-1 text-sm font-semibold">{draft.durationMode === 'one_time' ? 'One time' : draft.durationMode === 'open_ended' ? 'Open ended' : `${draft.durationDays || 0} days`}</div></div>
                 </div>
-                <p className="mt-4 text-xs leading-5 text-muted-foreground">Use the Log action on the practice card to record each attempt. Return here when there is enough evidence to review the outcome.</p>
+                {readyToLog ? <div className="mt-5 space-y-4 border-t border-border/50 pt-4">
+                  <Field label="WHAT HAPPENED?"><Textarea value={observation} onChange={(event) => setObservation(event.target.value)} placeholder="What did you do or notice? An unexpected result is useful too." className="min-h-28 text-base leading-7" /></Field>
+                  <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={completed} onChange={(event) => setCompleted(event.target.checked)} className="size-5 accent-accent" />I completed the action</label>
+                  <Button type="button" onClick={recordObservation} disabled={logging || !observation.trim()} className="min-h-11">{logging ? 'Saving…' : 'Save observation'}</Button>
+                  {(draft.logs || []).slice(-3).reverse().map((log) => <div key={log.id} className="border-t border-border/40 pt-3"><div className="text-xs text-muted-foreground">{new Date(`${log.date.slice(0, 10)}T12:00:00`).toLocaleDateString()} · {log.actionCompleted ? 'Completed' : 'Not completed'}</div><p className="mt-1 text-sm leading-6">{log.outcome || log.observations}</p></div>)}
+                </div> : <div className="mt-4"><p className="text-sm text-muted-foreground">Finish the action, hypothesis, success signal, and linked idea before logging.</p><Button type="button" variant="outline" className="mt-3" onClick={() => setPracticeWorkflowStep('design')}>Finish setup</Button></div>}
               </section>
             )}
             {practiceWorkflowStep === 'review' && <details open className="rounded-xl border border-border/50 bg-muted/10 p-4">
@@ -1291,7 +1330,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="space-y-2"><Label className="font-code text-[9px] uppercase tracking-[0.25em] text-muted-foreground/60 font-bold">{label}</Label>{children}</div>;
+  return <LabeledField label={label.charAt(0) + label.slice(1).toLocaleLowerCase()}>{children}</LabeledField>;
 }
 
 function LinkGrid({ title, items, selected, onChange }: { title: string; items: { id: string; label: string }[]; selected: string[]; onChange: (ids: string[]) => void }) {

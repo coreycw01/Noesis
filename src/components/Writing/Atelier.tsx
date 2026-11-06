@@ -14,6 +14,7 @@ import {
   FilePlus2,
   FileText,
   ImageIcon,
+  Focus,
   Grid3X3,
   History,
   Link2,
@@ -393,8 +394,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [focusedToolId, setFocusedToolId] = useState<string | null>(null);
   const [drawingRedoByPage, setDrawingRedoByPage] = useState<Record<string, DrawingStroke[]>>({});
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
-  const [railCollapsed, setRailCollapsed] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  const [writingFocus, setWritingFocus] = useState(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const latestDraftRef = useRef<Draft | null>(null);
   const autosaveErrorShownRef = useRef(false);
@@ -414,6 +416,10 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   );
   const activeCategory = active ? active.workCategory || workCategoryForDraft(active.type) : null;
   const isDocumentSurface = activeCategory === 'writing' || active?.type === 'drawing' || active?.type === 'drawing_note';
+
+  useEffect(() => {
+    setWritingFocus(isDocumentSurface);
+  }, [active?.id, isDocumentSurface]);
   // Older drawing records predate document formats. They must remain freeform
   // visual documents instead of inheriting whatever structured format is now
   // selected as the account-wide default.
@@ -447,9 +453,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
   useEffect(() => {
     try {
-      setRailCollapsed(window.localStorage.getItem('noesis-works-rail-collapsed') === 'true');
+      setRailCollapsed(window.localStorage.getItem('noesis-works-rail-collapsed') !== 'false');
     } catch {
-      setRailCollapsed(false);
+      setRailCollapsed(true);
     }
   }, []);
 
@@ -1228,12 +1234,14 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 <ChevronLeft className="size-4" /> <span className="hidden sm:inline">Works</span>
               </button>
               <Input
-                className="min-w-0 flex-1 border-none bg-transparent p-0 font-headline text-lg font-bold italic text-foreground shadow-none outline-none placeholder:text-muted-foreground/30 focus-visible:ring-0 sm:min-w-[180px] sm:text-2xl"
+                aria-label="Work title"
+                className="min-w-0 flex-1 border-none bg-transparent p-0 font-body text-base font-medium text-foreground shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-1 sm:min-w-[180px] sm:text-lg"
                 value={active.title}
                 onChange={(event) => updateActive({ title: event.target.value })}
                 placeholder={`Untitled ${activeTypeLabel}`}
               />
               <div className="flex shrink-0 items-center justify-end gap-1 border-l border-border/30 pl-2 sm:gap-2">
+                {isDocumentSurface && <Button type="button" variant="ghost" size="icon" className="size-9" aria-label={writingFocus ? 'Leave writing focus' : 'Enter writing focus'} aria-pressed={writingFocus} title={writingFocus ? 'Leave writing focus' : 'Writing focus'} onClick={() => setWritingFocus((value) => !value)}><Focus className="size-4" /></Button>}
                 {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Open' : 'Connect'}</Button>}
                 <div className="hidden items-center gap-2 rounded-[var(--button-radius)] border border-border/30 bg-muted/10 px-3 py-1.5 sm:flex">
                   <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
@@ -1272,7 +1280,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
             </div>
 
-            <div className="flex min-w-0 flex-wrap items-center gap-2 border-t border-border/20 pt-2">
+            <div className={cn('flex min-w-0 flex-wrap items-center gap-2 border-t border-border/20 pt-2', writingFocus && 'hidden')}>
               <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
                 <SelectTrigger className="h-8 w-28 shrink-0 rounded-md border-border/40 bg-background px-2 font-code text-[9px] font-bold uppercase tracking-wider shadow-sm">
                   <SelectValue />
@@ -1294,13 +1302,13 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
               <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="size-8 shrink-0 rounded-md bg-card px-0 sm:h-9 sm:w-auto sm:rounded-full sm:px-3" aria-label="Open studio reel" title="Studio reel">
-                    <NotebookPen className="size-4 sm:mr-2" /> <span className="hidden sm:inline">Studio reel</span>
+                  <Button variant="ghost" size="sm" className="h-9 shrink-0 px-2" aria-label="Open linked context" title="Linked context">
+                    <NotebookPen className="mr-2 size-4" /> <span>Context</span>
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto rounded-t-2xl border-border bg-background p-4">
                   <SheetHeader className="pb-3 text-left">
-                    <SheetTitle className="font-headline text-2xl font-bold italic">Studio reel</SheetTitle>
+                    <SheetTitle className="font-headline text-2xl font-bold italic">Linked context</SheetTitle>
                   </SheetHeader>
                   <WorkRailContent
                     sources={activeSources}
@@ -1314,7 +1322,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </Sheet>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className={cn('flex flex-col gap-2', writingFocus && 'hidden')}>
               {showExternalDocControls && active.externalDoc && (
                 <div className="noesis-recommendation flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -1412,9 +1420,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
         <div className={cn(
           "grid min-h-0 flex-1 grid-cols-1 overflow-hidden",
-          railCollapsed ? "xl:grid-cols-[minmax(0,1fr)_64px]" : "xl:grid-cols-[minmax(0,1fr)_340px]"
+          !writingFocus && !railCollapsed && "xl:grid-cols-[minmax(0,1fr)_340px]"
         )}>
-          <div className="relative min-h-0 overflow-hidden">
+          <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden">
             {isDocumentSurface ? (
               <>
                 {editorRibbon === 'drawing' ? (
@@ -1520,7 +1528,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               <QuickNoteStudio draft={active} updateActive={updateActive} />
             )}
           </div>
-          <WorkIntellectualRail
+          {!writingFocus && !railCollapsed && <WorkIntellectualRail
             active={active}
             sources={activeSources}
             positions={activePositions}
@@ -1530,7 +1538,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             coherenceSignals={coherenceSignals}
             collapsed={railCollapsed}
             onCollapsedChange={setRailPreference}
-          />
+          />}
         </div>
 
         {showExternalDocControls && (

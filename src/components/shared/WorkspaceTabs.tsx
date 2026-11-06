@@ -32,6 +32,16 @@ export function WorkspaceTabs<T extends string>({
     <div
       role="tablist"
       aria-label={label}
+      onKeyDown={(event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="tab"]:not(:disabled)'));
+        if (!tabs.length) return;
+        event.preventDefault();
+        const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (Math.max(current, 0) + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+        tabs[next].focus();
+        tabs[next].click();
+      }}
       className={cn(
         'flex max-w-full items-center gap-1 overflow-x-auto scrollbar-hide',
         variant === 'underline'
@@ -48,6 +58,7 @@ export function WorkspaceTabs<T extends string>({
             type="button"
             role="tab"
             aria-selected={active}
+            tabIndex={active ? 0 : -1}
             disabled={disabled}
             onClick={() => onChange(id)}
             className={cn(

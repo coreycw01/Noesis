@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -51,14 +51,14 @@ interface BeliefVaultProps {
   links: PhilosophicalLink[];
   beliefProfiles: BeliefProfile[];
   unknowns: Unknown[];
-  onAddEntry: (data: Partial<VaultEntry>) => void;
+  onAddEntry: (data: Partial<VaultEntry>) => void | Promise<unknown>;
   onUpdateEntry: (entry: VaultEntry) => void | Promise<void>;
   onDeleteEntry: (id: string) => Promise<void>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
   onAddPractice: (data: Partial<Practice>) => void;
-  onAddQuestion: (data: Partial<Question>) => void;
+  onAddQuestion: (data: Partial<Question>) => void | Promise<unknown>;
   onUpdateLink?: (link: PhilosophicalLink) => void;
   onOpenSource?: (id: string) => void;
   onOpenQuestion?: (id: string) => void;
@@ -446,6 +446,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [comparePositionId, setComparePositionId] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
+  const [savingEntry, setSavingEntry] = useState(false);
+  const entrySaveRef = useRef(false);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = usePersistentView<'all' | VaultType>('noesis:positions-type', 'all', ['all', ...vaultTypes]);
   const [conceptFilter, setConceptFilter] = useState('all');
@@ -456,6 +458,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VaultEntry | null>(null);
   const { toast } = useToast();
+  const inquiryCreationLock = useRef(false);
 
   const [stressAnswer, setStressAnswer] = useState('');
   const [revisionReason, setRevisionReason] = useState('');
@@ -587,30 +590,30 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     }
   }, [safeEntries, focusedEntryId, onFocusedEntryHandled]);
 
-  const saveEntry = () => {
+  const saveEntry = async () => {
     if (!draftEntry.title?.trim()) return;
+    if (entrySaveRef.current) return;
+    entrySaveRef.current = true;
+    setSavingEntry(true);
+    try {
     if (draftEntry.id) {
-      const previous = safeEntries.find((entry) => entry.id === draftEntry.id);
       const nextConfidence = confidencePercent(draftEntry.confidence);
-      const confidenceChanged = previous && confidencePercent(previous.confidence) !== nextConfidence;
-      onUpdateEntry({
+      await onUpdateEntry({
         ...(draftEntry as VaultEntry),
+        title: draftEntry.title.trim(),
         tags: normalizeConceptTags(draftEntry.tags),
         confidence: nextConfidence,
-        versionHistory: confidenceChanged ? [
-          ...(draftEntry.versionHistory || []),
-          {
-            date: today(),
-            eventType: 'revised',
-            description: `Confidence changed from ${confidencePercent(previous.confidence)}% to ${nextConfidence}%.`,
-            confidence: nextConfidence,
-          },
-        ] : draftEntry.versionHistory,
         dateUpdated: today(),
       });
     }
-    else onAddEntry({ ...draftEntry, tags: normalizeConceptTags(draftEntry.tags) });
+    else await onAddEntry({ ...draftEntry, title: draftEntry.title.trim(), tags: normalizeConceptTags(draftEntry.tags) });
     setEditorOpen(false);
+    } catch (error) {
+      toast({ title: 'Position not saved', description: noesisUserError(error, 'save this position'), variant: 'destructive' });
+    } finally {
+      entrySaveRef.current = false;
+      setSavingEntry(false);
+    }
   };
 
   const openEntry = (id: string) => {
@@ -1112,7 +1115,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_17rem]">
             <div className="w-full min-w-0 flex-1">
               <h1 className="noesis-page-title noesis-detail-title">{selected.title}</h1>
-              <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>
+              {(selected.statement || selected.description || '').trim() !== selected.title.trim() && <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>}
               {!!(selected.tags || []).length && <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2">
                 {(selected.tags || []).map((tag) => (
                   <button key={tag} onClick={() => setConceptPopupName(tag)} className="border-b border-border font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:border-accent hover:text-accent">{tag}</button>
@@ -1135,7 +1138,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 { label: 'Type', value: (selected.type || 'belief').replace('_', ' ') },
                 { label: 'Mode', value: (selected.positionKind || 'interpretive').replace(/_/g, ' ') },
                 { label: 'Status', value: selected.status },
-                { label: 'Updated', value: selected.dateUpdated },
+                { label: 'Updated', value: safePositionDate(selected.dateUpdated || selected.dateCreated) },
               ]} />
             </ContextRail>
           </div>
@@ -1195,14 +1198,23 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             },
             {
               label: 'Connect inquiry',
-              onClick: () => onAddQuestion({
+              onClick: async () => {
+                if (inquiryCreationLock.current) return;
+                inquiryCreationLock.current = true;
+                try {
+                await onAddQuestion({
                 text: `What would revise: ${selected.title}?`,
                 status: 'open',
                 beliefIds: [selected.id],
                 conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
                 sourceIds: selected.sourceIds || [],
                 evidenceIds: [],
-              }),
+                });
+                toast({ title: 'Inquiry created', description: 'The new question is linked to this position.' });
+                } catch {
+                  toast({ title: 'Inquiry not saved', description: 'Your position is unchanged. Please retry.', variant: 'destructive' });
+                } finally { inquiryCreationLock.current = false; }
+              },
             },
             {
               label: 'Revise position',
@@ -1597,7 +1609,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           timeline={timeline}
         />
 
-        <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} />
+        <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} saving={savingEntry} />
       </div>
     );
   }
@@ -1861,7 +1873,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         </DialogContent>
       </Dialog>
 
-      <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} />
+      <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} saving={savingEntry} />
 
       {/* Draft position pipeline removed in the AI-free release.
       <Dialog open={ideaOpen} onOpenChange={(open) => { if (!open) setIdeaOpen(false); }}>
@@ -2399,7 +2411,7 @@ function EntityListPanel({
   );
 }
 
-function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, onAddConcept, onSave }: {
+function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, onAddConcept, onSave, saving = false }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   draft: Partial<VaultEntry>;
@@ -2408,6 +2420,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
   media: Media[];
   onAddConcept: (data: Partial<Concept>) => void;
   onSave: () => void;
+  saving?: boolean;
 }) {
   const toggleSource = (id: string) => {
     setDraft(prev => {
@@ -2523,7 +2536,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             </div>
           </details>
         </div>
-        <DialogFooter className="pt-4"><Button onClick={onSave} className="bg-accent shadow-md shadow-accent/20 h-11 px-10 rounded-full font-bold">Save Position</Button></DialogFooter>
+        <DialogFooter className="pt-4"><Button onClick={onSave} disabled={saving || !draft.title?.trim()} className="bg-accent h-11 px-10 rounded-full font-bold">{saving ? 'Saving…' : 'Save position'}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

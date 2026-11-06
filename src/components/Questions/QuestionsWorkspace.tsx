@@ -56,7 +56,7 @@ interface QuestionsWorkspaceProps {
   drafts: Draft[];
   practices: Practice[];
   concepts: Concept[];
-  onAddQuestion: (data: Partial<Question>) => Question;
+  onAddQuestion: (data: Partial<Question>) => Promise<Question>;
   onUpdateQuestion: (question: Question) => void | Promise<void>;
   onDeleteQuestion: (id: string) => void | Promise<void>;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
@@ -130,6 +130,8 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
   const [detailSection, setDetailSection] = useState<'investigation' | 'answer'>('investigation');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newQuestion, setNewQuestion] = useState({ text: '', sourceIds: [] as string[] });
+  const [creatingQuestion, setCreatingQuestion] = useState(false);
+  const questionCreationLock = useRef(false);
   const { toast } = useToast();
 
   const all = useMemo(() => allQuestions(media, questions), [media, questions]);
@@ -188,12 +190,18 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
     onOpenQuestionRoute?.(null);
   };
 
-  const createQuestion = () => {
-    if (!newQuestion.text.trim()) return;
-    const created = onAddQuestion({ text: newQuestion.text.trim(), status: 'captured', sourceIds: newQuestion.sourceIds, evidenceIds: newQuestion.sourceIds });
-    setNewQuestion({ text: '', sourceIds: [] });
-    setIsAddOpen(false);
-    openQuestion(created.id);
+  const createQuestion = async () => {
+    if (!newQuestion.text.trim() || questionCreationLock.current) return;
+    questionCreationLock.current = true;
+    setCreatingQuestion(true);
+    try {
+      const created = await onAddQuestion({ text: newQuestion.text.trim(), status: 'captured', sourceIds: newQuestion.sourceIds });
+      setNewQuestion({ text: '', sourceIds: [] });
+      setIsAddOpen(false);
+      openQuestion(created.id);
+    } catch {
+      toast({ title: 'Inquiry not saved', description: 'Your question is still here. Please retry.', variant: 'destructive' });
+    } finally { questionCreationLock.current = false; setCreatingQuestion(false); }
   };
 
   const toggleNewQuestionSource = (id: string) => {
@@ -433,7 +441,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
               label="INFLUENCED BY SOURCE(S)"
             />
           </div>
-          <DialogFooter className="pt-8"><Button onClick={createQuestion} className="w-full h-12 rounded-full font-bold shadow-lg shadow-accent/20">Open Investigation</Button></DialogFooter>
+          <DialogFooter className="pt-8"><Button onClick={createQuestion} disabled={creatingQuestion || !newQuestion.text.trim()} className="w-full h-12 rounded-full font-bold">{creatingQuestion ? 'Saving…' : 'Open Investigation'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

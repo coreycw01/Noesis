@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Check, Plus, Search, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,7 @@ interface EntityPickerProps {
   triggerLabel?: string;
   searchPlaceholder?: string;
   emptySelectedLabel?: string;
-  onCreate?: (query: string) => void;
+  onCreate?: (query: string) => void | boolean | Promise<void | boolean>;
   createLabel?: (query: string) => string;
   compact?: boolean;
   inline?: boolean;
@@ -49,6 +49,9 @@ export function EntityPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [creationError, setCreationError] = useState('');
+  const creationLock = useRef(false);
   const inputId = useId();
   const listId = useId();
   const selected = items.filter((item) => selectedIds.includes(item.id));
@@ -62,6 +65,7 @@ export function EntityPicker({
 
   useEffect(() => {
     setActiveIndex(0);
+    setCreationError('');
   }, [query]);
 
   useEffect(() => {
@@ -71,16 +75,32 @@ export function EntityPicker({
     }
   }, [open]);
 
+  const createItem = async () => {
+    if (!onCreate || !canCreate || creationLock.current) return;
+    creationLock.current = true;
+    setCreating(true);
+    setCreationError('');
+    try {
+      if (await onCreate(normalizedQuery) === false) {
+        setCreationError('Not saved. Please retry.');
+        return;
+      }
+      setQuery('');
+      setOpen(false);
+    } catch {
+      setCreationError('Not saved. Your search is still here. Please retry.');
+    } finally { creationLock.current = false; setCreating(false); }
+  };
+
   const selectActiveItem = () => {
+    if (creating) return;
     const item = filtered[activeIndex];
     if (item) {
       onToggle(item.id);
       return;
     }
     if (canCreate) {
-      onCreate?.(normalizedQuery);
-      setQuery('');
-      setOpen(false);
+      void createItem();
     }
   };
 
@@ -178,19 +198,19 @@ export function EntityPicker({
                 {canCreate && (
                   <button
                     type="button"
+                    disabled={creating}
                     onClick={(event) => {
                       event.preventDefault();
-                      onCreate?.(normalizedQuery);
-                      setQuery('');
-                      setOpen(false);
+                      void createItem();
                     }}
                     onPointerDown={(event) => event.stopPropagation()}
                     className="flex w-full items-center gap-2 rounded-lg border-t border-border/50 p-2 text-left text-accent hover:bg-accent/10"
                   >
                     <Plus className="size-3" />
-                    <span className="font-code text-[10px] uppercase tracking-wider">{createLabel(normalizedQuery)}</span>
+                    <span className="font-code text-[10px] uppercase tracking-wider">{creating ? 'Saving…' : createLabel(normalizedQuery)}</span>
                   </button>
                 )}
+                {creationError && <p role="alert" className="p-3 text-sm text-destructive">{creationError}</p>}
               </div>
             </ScrollArea>
           </PopoverContent>

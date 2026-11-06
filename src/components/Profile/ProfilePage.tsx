@@ -7,7 +7,6 @@ import { Brain, ChevronDown, ExternalLink, Globe, LogOut, Save, UserCircle2 } fr
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
@@ -16,6 +15,8 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { LabeledField as Field } from '@/components/shared/LabeledField';
+import { persistedConceptRecords } from '@/lib/workspace-counts';
 import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -50,7 +51,8 @@ type ProfileTab = 'profile' | 'philosophy' | 'reflection' | 'public';
 type PhilosophyView = 'foundation' | 'influences' | 'development';
 type ReflectionView = 'patterns' | 'open-edges';
 
-export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inquiries, positions, sources, works, practices, thinkingEvents, beliefProfiles, unknowns, thinkingPatterns, thinkingMetrics: _thinkingMetrics, onSaveProfile, onSavePrivacy, onUpdateUnknown, onUpdateThinkingPattern, onNavigate }: ProfilePageProps) {
+export function ProfilePage({ user, profile, aiSettings, privacy, concepts: workspaceConcepts, inquiries, positions, sources, works, practices, thinkingEvents, beliefProfiles, unknowns, thinkingPatterns, thinkingMetrics: _thinkingMetrics, onSaveProfile, onSavePrivacy, onUpdateUnknown, onUpdateThinkingPattern, onNavigate }: ProfilePageProps) {
+  const concepts = useMemo(() => persistedConceptRecords(workspaceConcepts), [workspaceConcepts]);
   const auth = useAuth();
   const { toast } = useToast();
   const [profileDraft, setProfileDraft] = useState<UserProfile>(profile);
@@ -307,7 +309,6 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts, inqu
 }
 
 function SectionCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) { return <Card className="rounded-2xl border-border bg-card p-5 shadow-sm sm:p-6"><div className="mb-5"><h2 className="font-headline text-2xl font-semibold italic">{title}</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p></div>{children}</Card>; }
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-2"><Label className="font-code text-[9px] font-bold uppercase tracking-[0.18em]">{label}</Label>{children}</div>; }
 function DerivedField({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) { return <div className={cn('rounded-xl border border-border bg-background/50 p-4', wide && 'sm:col-span-2')}><div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div><p className="mt-2 text-sm leading-6">{value}</p></div>; }
 function SegmentedNav({ value, onChange, items, label, className }: { value: string; onChange: (value: string) => void; items: Array<[string, string]>; label: string; className?: string }) { return <WorkspaceTabs value={value} onChange={onChange} items={items.map(([id, text]) => ({ id, label: text }))} label={label} variant="segmented" className={className} />; }
 function LinkGroup({ title, empty, onOpenAll, children }: { title: string; empty: string; onOpenAll: () => void; children: React.ReactNode }) { const hasChildren = React.Children.count(children) > 0; return <div className="rounded-xl border border-border bg-background/50 p-4"><div className="mb-3 flex items-center justify-between gap-3"><div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{title}</div><Button variant="ghost" size="sm" onClick={onOpenAll} className="rounded-full">Open all</Button></div><div className="space-y-2">{hasChildren ? children : <EmptyCopy text={empty} />}</div></div>; }

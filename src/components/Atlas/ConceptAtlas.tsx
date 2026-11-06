@@ -83,7 +83,7 @@ interface ConceptAtlasProps {
   links: PhilosophicalLink[];
   thinkingEvents: ThinkingEvent[];
   unknowns: Unknown[];
-  onAddConcept: (data: Partial<Concept>) => void;
+  onAddConcept: (data: Partial<Concept>) => void | boolean | Promise<void | boolean>;
   onUpdateConcept: (concept: Concept) => void;
   onCreateLink?: (data: Partial<PhilosophicalLink>) => void;
   onUpdateLink?: (link: PhilosophicalLink) => void;
@@ -347,6 +347,8 @@ export function ConceptAtlas({
   const [pendingNodeColors, setPendingNodeColors] = useState<Record<string, Record<string, string>>>({});
   const [pendingLinkColors, setPendingLinkColors] = useState<Record<string, Record<string, string>>>({});
   const [newConcept, setNewConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
+  const [creatingConcept, setCreatingConcept] = useState(false);
+  const conceptCreationLock = useRef(false);
   const [newMap, setNewMap] = useState({ title: '', description: '' });
   const [styleDraft, setStyleDraft] = useState<AtlasMapStyle>(defaultAtlasMapStyle);
   const [isUploadingBackground, setIsUploadingBackground] = useState(false);
@@ -360,6 +362,7 @@ export function ConceptAtlas({
   const mapZoomPlane = useMemo(() => atlasZoomPlane(zoom, ATLAS_BASE_ZOOM), [zoom]);
   const [panelSection, setPanelSection] = useState<'links' | 'evidence' | 'events' | 'actions'>('links');
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const nodeGestureRef = useRef<{ name: string; x: number; y: number; moved: boolean } | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
   const edgeHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressNextEdgeClickRef = useRef(false);
@@ -1785,11 +1788,17 @@ export function ConceptAtlas({
     return visibleTerms.filter(t => conceptKey(t) !== key);
   }, [selectedName, visibleTerms]);
 
-  const addConcept = () => {
-    if (!newConcept.name?.trim()) return;
-    onAddConcept({ ...newConcept, name: conceptKey(newConcept.name), createdFrom: 'manual' });
-    setNewConcept({ name: '', description: '', sourceIds: [] });
-    setIsAddOpen(false);
+  const addConcept = async () => {
+    if (!newConcept.name?.trim() || conceptCreationLock.current) return;
+    conceptCreationLock.current = true;
+    setCreatingConcept(true);
+    try {
+      if (await onAddConcept({ ...newConcept, name: conceptKey(newConcept.name), createdFrom: 'manual' }) === false) throw new Error('Concept was not persisted.');
+      setNewConcept({ name: '', description: '', sourceIds: [] });
+      setIsAddOpen(false);
+    } catch {
+      toast({ title: 'Concept not saved', description: 'Your draft is still here. Please retry.', variant: 'destructive' });
+    } finally { conceptCreationLock.current = false; setCreatingConcept(false); }
   };
 
   const toggleNewConceptSource = (id: string) => {
@@ -2833,6 +2842,7 @@ export function ConceptAtlas({
                     return;
                   }
                   event.stopPropagation();
+                  nodeGestureRef.current = { name: node.name, x: event.clientX, y: event.clientY, moved: false };
                   setDraggingName(node.name);
                   event.currentTarget.setPointerCapture(event.pointerId);
                 }}
@@ -2849,10 +2859,23 @@ export function ConceptAtlas({
                   setIsPanelOpen(true);
                 }}
                 onPointerMove={(event) => {
-                  if (draggingName === node.name) moveNode(node.name, event.clientX, event.clientY);
+                  const gesture = nodeGestureRef.current;
+                  if (draggingName !== node.name || gesture?.name !== node.name) return;
+                  if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 6) gesture.moved = true;
+                  if (gesture.moved) moveNode(node.name, event.clientX, event.clientY);
                 }}
-                onPointerUp={() => persistNode(node.name)}
-                onPointerCancel={() => setDraggingName(null)}
+                onPointerUp={() => {
+                  const gesture = nodeGestureRef.current;
+                  nodeGestureRef.current = null;
+                  if (gesture?.name !== node.name) return;
+                  if (gesture.moved) persistNode(node.name);
+                  else {
+                    setDraggingName(null);
+                    setSelectedName(node.name);
+                    setIsPanelOpen(true);
+                  }
+                }}
+                onPointerCancel={() => { nodeGestureRef.current = null; setDraggingName(null); }}
               >
                 <Card
                   className={cn(
@@ -3209,7 +3232,7 @@ export function ConceptAtlas({
             </div>
             <SourceLinker media={media} selectedIds={newConcept.sourceIds || []} onToggle={toggleNewConceptSource} label="Root Evidence (Sources)" />
           </div>
-          <DialogFooter className="pt-4"><Button onClick={addConcept} className="rounded-full px-8">Anchor Node</Button></DialogFooter>
+          <DialogFooter className="pt-4"><Button onClick={addConcept} disabled={creatingConcept || !newConcept.name?.trim()} className="rounded-full px-8">{creatingConcept ? 'Saving…' : 'Save concept'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

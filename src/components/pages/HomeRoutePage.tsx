@@ -37,7 +37,7 @@ export interface HomeRoutePageProps {
   links: PhilosophicalLink[];
   goal: GoalSettings;
   goalProgress: Partial<Record<MediaType, number>>;
-  onCreateInquiry: (data: Partial<Question>) => Question;
+  onCreateInquiry: (data: Partial<Question>) => Promise<Question>;
   onNavigate: (view: NoesisView, options?: {
     conceptId?: string | null;
     questionId?: string | null;

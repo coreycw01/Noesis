@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { countPersistedConcepts, countPersistedRecords } from '../../src/lib/workspace-counts';
+import { countPersistedConcepts, countPersistedRecords, persistedConceptRecords } from '../../src/lib/workspace-counts';
 
 test('canonical record totals ignore duplicate client entries', () => {
   assert.equal(countPersistedRecords([
@@ -18,4 +18,14 @@ test('concept totals include only persisted named concept documents', () => {
     { id: 'concept-tag-only', name: 'Justice', createdFrom: 'tag' },
     { id: 'concept-unsorted', name: 'Unsorted Ideas' },
   ]), 2);
+});
+
+test('profile concept records use the same exclusions and stable ids as navigation totals', () => {
+  const records = [
+    { id: 'one', name: 'Identity' }, { id: 'one', name: 'Identity' },
+    { id: 'two', name: 'Unsorted Ideas' }, { id: 'three', name: 'Justice', createdFrom: 'tag' as const },
+    { id: 'four', name: '   ' },
+  ];
+  assert.equal(persistedConceptRecords(records).length, countPersistedConcepts(records));
+  assert.deepEqual(persistedConceptRecords(records).map((item) => item.id), ['one']);
 });

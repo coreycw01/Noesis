@@ -451,7 +451,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
 
   return (
     <div className={cn(
-      "relative shadow-2xl transition-all duration-300 origin-center flex flex-col group [--document-line-height:1.5] [--document-line-step:24px] [--document-page-padding:2rem] sm:[--document-page-padding:4rem] lg:[--document-page-padding:6rem]",
+      "relative shadow-sm origin-center flex flex-col group [--document-line-height:1.5] [--document-line-step:24px] [--document-page-padding:1.5rem] sm:[--document-page-padding:4rem] lg:[--document-page-padding:6rem]",
       sizeClasses[pageSize],
       colorClasses[paperColor],
       structureClasses[writingStyle],
@@ -483,9 +483,9 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
           data-placeholder="Start writing…"
           onInput={(e) => onContentChange(sanitizeHtml(e.currentTarget.innerHTML))}
           className={cn(
-            "relative z-[1] min-h-full p-[var(--document-page-padding)] font-body text-[16px] leading-[var(--document-line-height)] focus:outline-none empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)]",
+            "relative z-[1] min-h-full p-[var(--document-page-padding)] font-[Georgia,serif] text-[16px] not-italic leading-[var(--document-line-height)] focus:outline-none empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)] [&_p]:my-0 [&_p+p]:mt-3 [&_h1]:mb-4 [&_h2]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6",
             !isEditable && "pointer-events-none opacity-20",
-            paperPattern === 'notebook' && "pl-12 sm:pl-16 lg:pl-28",
+            paperPattern === 'notebook' && "pl-12 sm:pl-16 lg:pl-28 [&_p+p]:mt-0",
             writingStyle === 'cornell_notes' && "pb-36 sm:pl-[240px]",
             writingStyle === 'two_column_debate' && "columns-2 gap-20",
             writingStyle === 'manuscript' && "leading-[2.8]",

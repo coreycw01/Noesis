@@ -233,15 +233,15 @@ export function StructuredWorkSurface({
             <div className="absolute right-[3%] top-[5%] aspect-square w-[58%] rounded-full border-2 border-foreground/30 bg-background/30" aria-hidden="true" />
             <div className="absolute left-[8%] top-[28%] z-10 w-[28%]">
               <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">Only {current.fields.left_label || 'the first'}</label>
-              <Textarea value={current.fields.left_only || ''} onChange={(event) => updateFields('left_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-2 min-h-24 resize-none border-0 bg-background/35 text-xs shadow-none focus-visible:ring-1 sm:min-h-32 sm:text-sm" />
+              <Textarea aria-label="Only the first idea" value={current.fields.left_only || ''} onChange={(event) => updateFields('left_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-2 min-h-24 resize-none border-0 bg-background/35 text-xs shadow-none focus-visible:ring-1 sm:min-h-32 sm:text-sm" />
             </div>
             <div className="absolute left-1/2 top-[24%] z-20 w-[28%] -translate-x-1/2 text-center">
               <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-accent">Shared ground</label>
-              <Textarea value={current.fields.shared || ''} onChange={(event) => updateFields('shared', event.target.value)} placeholder="What genuinely overlaps?" className="mt-2 min-h-24 resize-none border border-accent/30 bg-background/80 text-center text-xs shadow-sm sm:min-h-32 sm:text-sm" />
+              <Textarea aria-label="Shared qualities" value={current.fields.shared || ''} onChange={(event) => updateFields('shared', event.target.value)} placeholder="What genuinely overlaps?" className="mt-2 min-h-24 resize-none border border-accent/30 bg-background/80 text-center text-xs shadow-sm sm:min-h-32 sm:text-sm" />
             </div>
             <div className="absolute right-[8%] top-[28%] z-10 w-[28%] text-right">
               <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">Only {current.fields.right_label || 'the second'}</label>
-              <Textarea value={current.fields.right_only || ''} onChange={(event) => updateFields('right_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-2 min-h-24 resize-none border-0 bg-background/35 text-right text-xs shadow-none focus-visible:ring-1 sm:min-h-32 sm:text-sm" />
+              <Textarea aria-label="Only the second idea" value={current.fields.right_only || ''} onChange={(event) => updateFields('right_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-2 min-h-24 resize-none border-0 bg-background/35 text-right text-xs shadow-none focus-visible:ring-1 sm:min-h-32 sm:text-sm" />
             </div>
           </div>
         </div>
@@ -460,7 +460,7 @@ export function StructuredWorkSurface({
           style={embedded ? { gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 9rem), 1fr))' } : undefined}
         >
           {stages.map((stage, index) => <Fragment key={stage.key}>
-            <section className={cn('min-w-0 border p-4', embedded ? 'min-h-44' : 'min-h-56', index === 1 ? 'border-destructive/35 bg-destructive/5' : index === 2 ? 'border-accent/40 bg-accent/8' : 'border-current/20 bg-background/45')}>
+            <section className={cn('min-w-0 border p-4', embedded ? 'min-h-44' : 'min-h-56', index === 1 ? 'border-destructive/35 bg-destructive/5' : index === 2 ? 'border-accent/40 bg-accent/8' : 'border-current/20 bg-current/[0.025]')}>
               <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">{stage.label}</span>
               <Textarea value={current.fields[stage.key] || ''} onChange={(event) => updateFields(stage.key, event.target.value)} placeholder={stage.prompt} aria-label={stage.label} className={cn('mt-3 min-h-32 min-w-0 resize-none border-0 bg-transparent px-0 text-sm leading-6 shadow-none focus-visible:ring-1', !embedded && 'min-h-40')} />
             </section>

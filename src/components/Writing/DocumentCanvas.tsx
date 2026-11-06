@@ -6,6 +6,7 @@ import { DocsPage } from './DocsPage';
 import type { PageViewMode, PageSize, PaperColor, PaperPattern } from './Atelier';
 import type { DrawingStroke, DrawingTool, WritingStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { pageAtReadingLine } from '@/lib/work-page-location';
 
 interface DocumentCanvasProps {
   content: string;
@@ -69,11 +70,11 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
         if (!pages.length) return;
         const containerTop = container.getBoundingClientRect().top;
         const focusLine = containerTop + Math.min(160, container.clientHeight * 0.25);
-        const current = pages.reduce((closest, page) => {
-          const distance = Math.abs(page.getBoundingClientRect().top - focusLine);
-          return distance < closest.distance ? { page, distance } : closest;
-        }, { page: pages[0], distance: Number.POSITIVE_INFINITY });
-        onCurrentPageChange(current.page.dataset.workPageId || 'main');
+        const current = pageAtReadingLine(pages.map((page) => {
+          const { top, bottom } = page.getBoundingClientRect();
+          return { page, top, bottom };
+        }), focusLine);
+        onCurrentPageChange(current?.page.dataset.workPageId || 'main');
       });
     };
 
@@ -110,7 +111,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
   const wordCount = plainText ? plainText.split(' ').length : 0;
 
   return (
-    <div className="flex min-h-0 h-full w-full flex-col">
+    <div className="flex min-h-0 w-full flex-1 flex-col">
       <div className={containerClasses} ref={canvasRef} aria-label={`${title || 'Untitled work'} document canvas`}>
         <div className={canvasClasses}>
           {useContinuousCanvas ? (
@@ -155,7 +156,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
             >
               <div
                 className="absolute left-0 top-0 origin-top-left transition-transform duration-300"
-                style={{ transform: `scale(${fitScale})` }}
+                style={{ width: pageWidth, minHeight: pageHeight, transform: `scale(${fitScale})` }}
               >
                 <DocsPage
                   pageNumber={1}

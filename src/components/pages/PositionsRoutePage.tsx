@@ -29,14 +29,14 @@ export interface PositionsRoutePageProps {
   beliefProfiles: BeliefProfile[];
   unknowns: Unknown[];
   focusedEntryId?: string | null;
-  onAddEntry: (data: Partial<VaultEntry>) => void;
+  onAddEntry: (data: Partial<VaultEntry>) => void | Promise<unknown>;
   onUpdateEntry: (entry: VaultEntry) => void | Promise<void>;
   onDeleteEntry: (id: string) => Promise<void>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
   onAddPractice: (data: Partial<Practice>) => void;
-  onAddQuestion: (data: Partial<Question>) => void;
+  onAddQuestion: (data: Partial<Question>) => void | Promise<unknown>;
   onUpdateLink: (link: PhilosophicalLink) => void;
   onNavigate: (view: NoesisView, options?: {
     questionId?: string | null;

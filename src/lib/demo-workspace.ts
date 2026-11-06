@@ -131,7 +131,7 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
       genre: 'Stoicism',
       description: 'Personal reflections on inner rule, duty, impermanence, and the discipline of attention.',
       url: 'https://books.google.com/books?id=meditations-demo',
-      thumbnailUrl: 'https://covers.openlibrary.org/b/id/14823833-L.jpg',
+      thumbnailUrl: '',
       publisher: 'Public Domain',
       isbn: '',
       doi: '',

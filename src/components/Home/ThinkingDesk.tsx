@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import {
   ArrowRight,
   AlertTriangle,
@@ -94,7 +95,7 @@ interface ThinkingDeskProps {
   goal: GoalSettings;
   goalProgress: Partial<Record<MediaType, number>>;
   onNavigate: (target: HomeTarget) => void;
-  onCreateInquiry?: (data: Partial<Question>) => Question;
+  onCreateInquiry?: (data: Partial<Question>) => Promise<Question>;
 }
 
 function recentDate(value?: string) {
@@ -159,6 +160,9 @@ export function ThinkingDesk({
   const mode = useMemo<HomeMode>(() => 'continue', []);
   const [provocationAngle, setProvocationAngle] = useState(0);
   const [briefAnswer, setBriefAnswer] = useState('');
+  const [creatingInquiry, setCreatingInquiry] = useState(false);
+  const inquiryCreationLock = useRef(false);
+  const { toast } = useToast();
   const [irrelevantReason, setIrrelevantReason] = useState('');
   const [provocationDismissed, setProvocationDismissed] = useState(false);
   const [discoveryMode, setDiscoveryMode] = useState(false);
@@ -851,21 +855,32 @@ export function ThinkingDesk({
     onNavigate(target);
   };
 
-  const turnProvocationIntoInquiry = () => {
-    const created = onCreateInquiry?.({
-      text: provocation.question,
-      whyItMatters: provocation.evidence,
-      currentIntuition: [
-        briefAnswer.trim(),
-        irrelevantReason.trim() ? `This prompt may miss because: ${irrelevantReason.trim()}` : '',
-      ].filter(Boolean).join('\n\n'),
-      status: 'open',
-      type: 'manual',
-      sourceDocumentId: provocation.target.targetId || '',
-    });
-    setBriefAnswer('');
-    setIrrelevantReason('');
-    onNavigate({ view: 'questions', targetId: created?.id });
+  const turnProvocationIntoInquiry = async () => {
+    if (!onCreateInquiry || inquiryCreationLock.current) return;
+    inquiryCreationLock.current = true;
+    setCreatingInquiry(true);
+    try {
+      const created = await onCreateInquiry({
+        text: provocation.question,
+        whyItMatters: provocation.evidence,
+        currentIntuition: [
+          briefAnswer.trim(),
+          irrelevantReason.trim() ? `This prompt may miss because: ${irrelevantReason.trim()}` : '',
+        ].filter(Boolean).join('\n\n'),
+        status: 'open',
+        type: 'manual',
+        beliefIds: provocation.target.view === 'vault' && provocation.target.targetId ? [provocation.target.targetId] : [],
+        conceptIds: provocation.target.view === 'concepts' && provocation.target.targetId ? [provocation.target.targetId] : [],
+        sourceIds: ['library', 'source-index'].includes(provocation.target.view) && provocation.target.targetId ? [provocation.target.targetId] : [],
+        draftIds: provocation.target.view === 'writing' && provocation.target.targetId ? [provocation.target.targetId] : [],
+        practiceIds: provocation.target.view === 'labs' && provocation.target.targetId ? [provocation.target.targetId] : [],
+      });
+      setBriefAnswer('');
+      setIrrelevantReason('');
+      onNavigate({ view: 'questions', targetId: created.id });
+    } catch {
+      toast({ title: 'Inquiry not saved', description: 'Your response is still here. Please retry.', variant: 'destructive' });
+    } finally { inquiryCreationLock.current = false; setCreatingInquiry(false); }
   };
 
   if (!hasWorkspace) {
@@ -1036,7 +1051,7 @@ export function ThinkingDesk({
                           className="mt-3 min-h-[76px] rounded-md"
                         />
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" onClick={turnProvocationIntoInquiry} className="rounded-md">Open as inquiry</Button>
+                          <Button size="sm" onClick={turnProvocationIntoInquiry} disabled={creatingInquiry || !onCreateInquiry} className="rounded-md">{creatingInquiry ? 'Saving…' : 'Open as inquiry'}</Button>
                           <Button size="sm" variant="outline" onClick={() => previewOrNavigate(provocation.target, { label: 'Explore further', description: 'Reflection prompt', reason: provocation.evidence })} className="rounded-md">Explore</Button>
                           <Button
                             size="sm"

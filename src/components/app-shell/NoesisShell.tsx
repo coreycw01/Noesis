@@ -654,7 +654,7 @@ export function NoesisShell({
             <div className="flex min-w-0 items-center gap-2">
               <Badge className="shrink-0 rounded-full bg-accent text-accent-foreground">Demo</Badge>
               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                Local review workspace · {media.length} sources · {concepts.length} concepts · {vault.length} positions
+                Local review workspace · {counts.media} sources · {counts.concepts} concepts · {counts.vault} positions
               </span>
               <Button
                 type="button"

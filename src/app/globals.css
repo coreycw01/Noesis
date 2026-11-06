@@ -1120,15 +1120,7 @@
   }
 
   .noesis-thought-spine ol::before {
-    content: "";
-    position: absolute;
-    left: .3rem;
-    right: 1.25rem;
-    top: 1.18rem;
-    height: 1px;
-    background: hsl(var(--border));
-    z-index: 0;
-    pointer-events: none;
+    content: none;
   }
 
   .noesis-thought-spine ol > li > button,
@@ -1141,7 +1133,7 @@
   .noesis-thought-spine ol > li > div > span {
     width: fit-content;
     max-width: 100%;
-    background: hsl(var(--background) / .97);
+    background: transparent;
   }
 
   .noesis-editorial-section {

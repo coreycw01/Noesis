@@ -21,7 +21,7 @@ export interface LibraryRoutePageProps {
   onUpdateMedia: (media: Media) => void;
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
-  onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
+  onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void | Promise<unknown>;
   onDeleteVaultEntry: (id: string) => Promise<void>;
   onNavigate: (view: NoesisView, options?: { sourceId?: string | null }) => void;
   aiSettings?: AiSettings;
@@ -48,13 +48,15 @@ export function LibraryRoutePage({
   const [surface, setSurface] = useState<'library' | 'index'>('library');
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('noesis:library-surface');
-    if (saved === 'index' || saved === 'library') setSurface(saved);
+    try {
+      const saved = window.localStorage.getItem('noesis:library-surface');
+      if (saved === 'index' || saved === 'library') setSurface(saved);
+    } catch { /* The Library remains usable when browser storage is unavailable. */ }
   }, []);
 
   const chooseSurface = (next: 'library' | 'index') => {
     setSurface(next);
-    window.localStorage.setItem('noesis:library-surface', next);
+    try { window.localStorage.setItem('noesis:library-surface', next); } catch { /* Saving a view preference is optional. */ }
   };
 
   if (!focusedSourceId && surface === 'index') {

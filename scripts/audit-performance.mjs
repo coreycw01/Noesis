@@ -2,7 +2,8 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const nextDir = process.env.NOESIS_BUILD_DIST_DIR || '.next';
-const manifestPath = path.join(nextDir, 'app-build-manifest.json');
+const legacyManifestPath = path.join(nextDir, 'app-build-manifest.json');
+const manifestPath = existsSync(legacyManifestPath) ? legacyManifestPath : path.join(nextDir, 'build-manifest.json');
 
 if (!existsSync(manifestPath)) {
   console.error(`Missing ${manifestPath}. Run npm run build before npm run audit:performance.`);
@@ -41,10 +42,10 @@ function routeFiles(route) {
   if (markerIndex < 0) return null;
 
   try {
-    const routeManifest = JSON.parse(source.slice(markerIndex + marker.length));
+    const routeManifest = JSON.parse(source.slice(markerIndex + marker.length).trim().replace(/;$/, ''));
     const chunks = Object.values(routeManifest.clientModules || {}).flatMap((module) => module.chunks || []);
     const css = Object.values(routeManifest.entryCSSFiles || {}).flatMap((entries) => entries.map((entry) => entry.path));
-    return [...new Set([...chunks, ...css])];
+    return [...new Set([...(manifest.rootMainFiles || []), ...chunks, ...css])];
   } catch {
     return null;
   }

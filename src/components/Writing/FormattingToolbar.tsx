@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlignCenter,
   AlignJustify,
@@ -82,7 +82,28 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
   const [replacementText, setReplacementText] = useState('');
   const recognitionRef = useRef<any>(null);
   const selectionRef = useRef<Range | null>(null);
+  const editorRef = useRef<HTMLElement | null>(null);
   const findCursorRef = useRef(0);
+
+  useEffect(() => {
+    const rememberEditor = () => {
+      const selection = window.getSelection();
+      if (!selection?.rangeCount) return;
+      const range = selection.getRangeAt(0);
+      const node = range.commonAncestorContainer;
+      const element = node instanceof Element ? node : node.parentElement;
+      const editor = element?.closest<HTMLElement>('[contenteditable="true"][aria-label="Document body"]');
+      if (!editor) return;
+      editorRef.current = editor;
+      selectionRef.current = range.cloneRange();
+    };
+    document.addEventListener('selectionchange', rememberEditor);
+    return () => document.removeEventListener('selectionchange', rememberEditor);
+  }, []);
+
+  const currentEditor = () => editorRef.current?.isConnected
+    ? editorRef.current
+    : document.querySelector<HTMLElement>('[contenteditable="true"][aria-label="Document body"]');
 
   const rememberSelection = () => {
     const selection = window.getSelection();
@@ -96,7 +117,8 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
 
   const restoreSelection = () => {
     const range = selectionRef.current;
-    if (!range) return;
+    if (!range || !range.commonAncestorContainer.isConnected) return;
+    currentEditor()?.focus({ preventScroll: true });
     const selection = window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
@@ -106,11 +128,12 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
     restoreSelection();
     document.execCommand('styleWithCSS', false, 'true');
     document.execCommand(command, false, value);
+    currentEditor()?.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'formatBold' }));
     rememberSelection();
   };
 
   const insertHtml = (html: string) => {
-    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    const editor = currentEditor();
     if (!editor) return;
     restoreSelection();
     const before = editor.innerHTML;
@@ -134,7 +157,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
     const selection = window.getSelection();
     const anchor = selection?.anchorNode instanceof Element ? selection.anchorNode : selection?.anchorNode?.parentElement;
     const block = anchor?.closest('p, div, blockquote, li, h1, h2, h3') as HTMLElement | null;
-    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    const editor = currentEditor();
     const target = block?.closest('[contenteditable="true"]') ? block : editor;
     if (!target || !editor) return;
     target.style.lineHeight = value;
@@ -146,7 +169,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
 
   const replaceInDocument = (query: string, replacement: string) => {
     if (!query.trim()) return;
-    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    const editor = currentEditor();
     if (!editor) return;
     const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
     const matches: Text[] = [];
@@ -167,7 +190,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
 
   const findInDocument = (query: string) => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    const editor = currentEditor();
     if (!normalizedQuery || !editor) return false;
     const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
     const matches: Array<{ node: Text; index: number }> = [];
@@ -279,12 +302,14 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
 
   return (
     <>
-    <div className="sticky top-0 z-40 h-[60px] shrink-0 overflow-hidden border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur sm:h-[101px] sm:px-6">
+    <div className="sticky top-0 z-40 shrink-0 border-b border-border/30 bg-background/95 px-2 py-1.5 backdrop-blur sm:px-4">
       <div className="flex flex-nowrap items-center justify-start gap-1 rounded-[var(--card-radius)] border border-border/60 bg-card p-1.5 shadow-sm sm:flex-wrap sm:justify-center sm:gap-1.5">
         <div className="flex items-center gap-1 border-r border-border/40 pr-2">
           {onOpenDrawing && <ToolbarButton icon={PencilLine} onClick={onOpenDrawing} title="Open drawing tools" />}
-          <ToolbarButton icon={RotateCcw} onClick={() => applyFormat('undo')} title="Undo" />
-          <ToolbarButton icon={RotateCw} onClick={() => applyFormat('redo')} title="Redo" />
+          <div className="hidden sm:contents">
+            <ToolbarButton icon={RotateCcw} onClick={() => applyFormat('undo')} title="Undo" />
+            <ToolbarButton icon={RotateCw} onClick={() => applyFormat('redo')} title="Redo" />
+          </div>
         </div>
 
         <div className="hidden items-center gap-2 border-r border-border/40 pr-2 sm:flex">
@@ -409,6 +434,8 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
               <Button type="button" variant="ghost" size="sm" className="size-8 rounded-md p-0 font-code text-[9px] font-bold uppercase tracking-wider sm:h-8 sm:w-auto sm:px-2" aria-label="More editing actions"><MoreHorizontal className="size-4 sm:hidden" /><span className="hidden sm:inline">Edit</span></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 border-border bg-popover text-popover-foreground">
+              <DropdownMenuItem className="sm:hidden" onSelect={() => applyFormat('undo')}><RotateCcw className="mr-2 size-4" /> Undo</DropdownMenuItem>
+              <DropdownMenuItem className="sm:hidden" onSelect={() => applyFormat('redo')}><RotateCw className="mr-2 size-4" /> Redo</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => applyFormat('unlink')}><Unlink className="mr-2 size-4" /> Remove link</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => applyFormat('justifyFull')}><AlignJustify className="mr-2 size-4" /> Justify text</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => applyFormat('insertUnorderedList')}><List className="mr-2 size-4" /> Bulleted list</DropdownMenuItem>
@@ -465,10 +492,8 @@ function ToolbarButton({ icon: Icon, onClick, active, title }: { icon: any, onCl
   return (
     <button
       type="button"
-      onMouseDown={(event) => {
-        event.preventDefault();
-        onClick?.();
-      }}
+      onPointerDown={(event) => event.preventDefault()}
+      onClick={onClick}
       title={title}
       aria-label={title || 'Formatting action'}
       className={cn(

@@ -257,6 +257,8 @@ export function ContextDeskRoutePage({
   const [excludedTypes, setExcludedTypes] = useState<ContextRecordType[]>([]);
   const [excludedSourceIds, setExcludedSourceIds] = useState<string[]>([]);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [visibleLimit, setVisibleLimit] = useState(100);
+  useEffect(() => { setVisibleLimit(100); }, [query, typeFilter, sourceFilter, conceptFilter, dateFilter, sortBy]);
 
   useEffect(() => {
     try {
@@ -313,9 +315,9 @@ export function ContextDeskRoutePage({
         if (sortBy === 'title') return left.label.localeCompare(right.label);
         if (sortBy === 'created') return dateValue(right.createdAt) - dateValue(left.createdAt);
         return dateValue(right.updatedAt) - dateValue(left.updatedAt);
-      })
-      .slice(0, 100);
+      });
   }, [conceptFilter, conceptNameById, dateFilter, excludedKeys, excludedSourceIds, excludedTypes, query, records, sortBy, sourceFilter, typeFilter]);
+  const visibleRecords = filtered.slice(0, visibleLimit);
 
   const activeFilterCount = [typeFilter !== 'all', sourceFilter !== 'all', conceptFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
   const exclusionCount = excludedKeys.length + excludedTypes.length + excludedSourceIds.length;
@@ -377,7 +379,7 @@ export function ContextDeskRoutePage({
           && !excludedTypes.includes(record!.type)
           && !record!.sourceIds.some((id) => excludedSourceIds.includes(id));
       });
-      for (const record of filtered) {
+      for (const record of visibleRecords) {
         if (next.length >= MAX_CONTEXT_ITEMS) break;
         if (!next.includes(record.key)) next.push(record.key);
       }
@@ -404,7 +406,7 @@ export function ContextDeskRoutePage({
   const activeSource = media.find((source) => source.id === sourceFilter);
   const activeConcept = concepts.find((concept) => concept.id === conceptFilter);
   return (
-    <main className="noesis-context-desk min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <div className="noesis-context-desk min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <div className="noesis-gutter w-full pb-28 pt-[var(--page-top)] lg:pb-12">
       <PageHeader
         title="Context Desk"
@@ -515,7 +517,7 @@ export function ContextDeskRoutePage({
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[var(--card-radius)] border border-border/60 bg-card/35 px-3 py-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Filter className="size-4 shrink-0" aria-hidden="true" />
-              <span>Showing {filtered.length} matching record{filtered.length === 1 ? '' : 's'}</span>
+              <span>Showing {visibleRecords.length} of {filtered.length} matching record{filtered.length === 1 ? '' : 's'}</span>
               {activeSource && <Badge variant="outline" className="max-w-56 truncate">Source: {activeSource.title}</Badge>}
               {activeConcept && <Badge variant="outline">Concept: {activeConcept.name}</Badge>}
               {exclusionCount > 0 && <Badge variant="outline">{exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</Badge>}
@@ -527,7 +529,7 @@ export function ContextDeskRoutePage({
           </div>
           <ScrollArea className="mt-3 h-[min(52vh,34rem)] overflow-hidden rounded-[var(--card-radius)] border border-border bg-card/25">
             <div className="divide-y divide-border">
-              {filtered.map((record) => {
+              {visibleRecords.map((record) => {
                 const active = selectedKeys.includes(record.key);
                 const Icon = iconForNoesisView(viewForType[record.type]);
                 return (
@@ -556,6 +558,7 @@ export function ContextDeskRoutePage({
                 );
               })}
               {!filtered.length && <p className="px-3 py-10 text-center text-sm text-muted-foreground">No records match that search.</p>}
+              {visibleRecords.length < filtered.length && <div className="p-3"><Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => setVisibleLimit((limit) => limit + 100)}>Show more records</Button></div>}
             </div>
           </ScrollArea>
         </section>
@@ -677,6 +680,6 @@ export function ContextDeskRoutePage({
           </div>
         </DialogContent>
       </Dialog>
-    </main>
+    </div>
   );
 }

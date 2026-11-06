@@ -1,7 +1,9 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef, useId } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { ArrowLeft, ChevronDown, Edit, Plus, Search, Trash2, MessageSquare, X, Loader2, Triangle, BookOpen, FileText, Check, Globe, Link2, Clock, Pause, Play, Square, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -29,6 +31,7 @@ import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
+import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
@@ -36,6 +39,7 @@ import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/Context
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { appendAiHistoryEntry, type ContextualAiAction } from '@/lib/contextual-ai';
 import { inquirySourceIds } from '@/lib/inquiry-state';
+import { viewToPath } from '@/lib/noesis-routes';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface MediaLibraryProps {
@@ -48,11 +52,11 @@ interface MediaLibraryProps {
   practices: Practice[];
   questions: Question[];
   timeline: TimelineEvent[];
-  onAddMedia: (data: Partial<Media>) => void;
-  onUpdateMedia: (media: Media) => void;
+  onAddMedia: (data: Partial<Media>) => void | Promise<unknown>;
+  onUpdateMedia: (media: Media) => void | Promise<unknown>;
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
-  onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
+  onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void | Promise<unknown>;
   onDeleteVaultEntry: (id: string) => Promise<void>;
   focusedSourceId?: string | null;
   onFocusedSourceHandled?: () => void;
@@ -188,6 +192,7 @@ export function MediaLibrary({
   aiSettings,
   headerTabs,
 }: MediaLibraryProps) {
+  const pathname = usePathname();
   const [filter, setFilter] = usePersistentView<MediaType | 'all'>('noesis:library-type', 'all', ['all', ...MEDIA_TYPES]);
   const [statusFilter, setStatusFilter] = usePersistentView<MediaStatus | 'active' | 'all'>('noesis:library-status', 'all', ['all', 'active', ...statuses]);
   const [viewFilter, setViewFilter] = usePersistentView<LibraryViewFilter>('noesis:library-view-filter', 'all', Object.keys(LIBRARY_VIEW_LABELS) as LibraryViewFilter[]);
@@ -196,10 +201,15 @@ export function MediaLibrary({
   const [readingRoomOpen, setReadingRoomOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sourceWorkbenchStep, setSourceWorkbenchStep] = useState<SourceWorkbenchStep>('overview');
+  const [engagementPhase, setEngagementPhase] = useState<'before' | 'sessions' | 'after'>('before');
   const [editorOpen, setEditorOpen] = useState(false);
+  const [savingSource, setSavingSource] = useState(false);
+  const sourceSaveRef = useRef(false);
   const [draft, setDraft] = useState<Partial<Media>>({ type: 'book', title: '', creator: '', status: 'Want to Read', tags: [] });
   const [annotationDraft, setAnnotationDraft] = useState({ type: 'thought' as Annotation['type'], text: '' });
   const [insightOpen, setInsightOpen] = useState(false);
+  const [claimSaving, setClaimSaving] = useState(false);
+  const claimSaveLock = useRef(false);
   const [insightDraft, setInsightDraft] = useState({ title: '', body: '', tags: [] as string[] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
   const [showSourceConceptPicker, setShowSourceConceptPicker] = useState(false);
@@ -207,6 +217,8 @@ export function MediaLibrary({
   const { toast } = useToast();
 
   const selected = media.find((item) => item.id === selectedId) || null;
+  const selectedRef = useRef<Media | null>(selected);
+  selectedRef.current = selected;
   const [captureDraft, setCaptureDraft] = useState<Media['capture'] | null>(null);
   const [activeSession, setActiveSession] = useState<ReadingSession | null>(null);
   const [sessionTick, setSessionTick] = useState(0);
@@ -304,23 +316,43 @@ export function MediaLibrary({
     setEditorOpen(true);
   };
 
-  const saveMedia = () => {
+  const saveMedia = async () => {
     if (!draft.title?.trim()) return;
-    if (draft.id) {
-      onUpdateMedia({ ...(draft as Media), tags: normalizeConceptTags(draft.tags), dateUpdated: today() });
-    } else {
-      onAddMedia({ ...draft, tags: normalizeConceptTags(draft.tags), annotations: [], capture: { sessions: [] } });
+    if (sourceSaveRef.current) return;
+    sourceSaveRef.current = true;
+    setSavingSource(true);
+    try {
+      if (draft.id) {
+        await onUpdateMedia({ ...(draft as Media), title: draft.title.trim(), tags: normalizeConceptTags(draft.tags), dateUpdated: today() });
+      } else {
+        await onAddMedia({ ...draft, title: draft.title.trim(), tags: normalizeConceptTags(draft.tags), annotations: [], capture: { sessions: [] } });
+      }
+      setEditorOpen(false);
+      toast({ title: draft.id ? 'Source updated' : 'Source added' });
+    } catch (error) {
+      toast({ title: 'Source not saved', description: noesisUserError(error, 'save this source'), variant: 'destructive' });
+    } finally {
+      sourceSaveRef.current = false;
+      setSavingSource(false);
     }
-    setEditorOpen(false);
   };
 
-  const updateSelected = (patch: Partial<Media>) => {
-    if (!selected) return;
-    onUpdateMedia({ ...selected, ...patch, dateUpdated: today() });
+  const updateSelected = (patch: Partial<Media>, rejectOnError = false) => {
+    const current = selectedRef.current;
+    if (!current) return;
+    return Promise.resolve(onUpdateMedia({ ...current, ...patch, dateUpdated: today() }))
+      .then(() => true)
+      .catch((error) => {
+        toast({ title: 'Source not saved', description: noesisUserError(error, 'save this source'), variant: 'destructive' });
+        if (rejectOnError) throw error;
+        return false;
+      });
   };
 
   useEffect(() => {
     setCaptureDraft(selected?.capture || { sessions: [] });
+    setInsightDraft({ title: '', body: '', tags: selected?.tags || [] });
+    setEngagementPhase(selected?.status === 'Finished' ? 'after' : 'before');
     setActiveSession(null);
     setSessionTargetMinutes('');
     setEndSessionOpen(false);
@@ -390,7 +422,7 @@ export function MediaLibrary({
     setEndSessionOpen(true);
   };
 
-  const saveSession = (notes?: string) => {
+  const saveSession = async (notes?: string) => {
     if (!selected || !activeSession) return;
     const completed: ReadingSession = {
       ...activeSession,
@@ -404,8 +436,8 @@ export function MediaLibrary({
     };
     const capture = captureDraft || selected.capture || { sessions: [] };
     const nextCapture = { ...capture, sessions: [completed, ...(capture.sessions || [])] };
+    if (!await updateSelected({ capture: nextCapture })) return;
     setCaptureDraft(nextCapture);
-    updateSelected({ capture: nextCapture });
     setActiveSession(null);
     setEndSessionOpen(false);
     setSessionTargetMinutes('');
@@ -437,7 +469,7 @@ export function MediaLibrary({
     onOpenSourceRoute?.(null);
   };
 
-  const addAnnotation = () => {
+  const addAnnotation = async () => {
     if (!selected || !annotationDraft.text.trim()) return;
     const annotation: Annotation = {
       id: uid(),
@@ -447,19 +479,25 @@ export function MediaLibrary({
       conceptTags: selected.tags,
       philosophyStatus: annotationDraft.type === 'question' ? 'questioned' : 'raw',
     };
-    updateSelected({ annotations: [annotation, ...(selected.annotations || [])] });
+    if (!await updateSelected({ annotations: [annotation, ...(selected.annotations || [])] })) return;
     setAnnotationDraft({ type: 'thought', text: '' });
   };
 
-  const saveClaim = () => {
-    if (!selected || !insightDraft.title.trim()) return;
-    onCreateClaim({
-      ...insightDraft,
-      sourceIds: [selected.id]
-    });
-    setInsightDraft({ title: '', body: '', tags: [] });
-    setInsightOpen(false);
-    toast({ title: 'Claim saved', description: 'A developing position was anchored to this source for later review.' });
+  const saveClaim = async () => {
+    if (!selected || !insightDraft.title.trim() || claimSaveLock.current) return;
+    claimSaveLock.current = true;
+    setClaimSaving(true);
+    try {
+      await onCreateClaim({
+        ...insightDraft,
+        sourceIds: [selected.id]
+      });
+      setInsightDraft({ title: '', body: '', tags: selected.tags || [] });
+      setInsightOpen(false);
+      toast({ title: 'Position saved', description: 'A developing position was linked to this source for later review.' });
+    } catch {
+      toast({ title: 'Position not saved', description: 'Your draft is still here. Please retry.', variant: 'destructive' });
+    } finally { claimSaveLock.current = false; setClaimSaving(false); }
   };
 
   if (selected) {
@@ -513,33 +551,33 @@ export function MediaLibrary({
                   ...questions.filter((question) => inquirySourceIds(question).includes(selected.id)).slice(0, 6).map((question) => `Inquiry: ${question.text}`),
                 ],
               })}
-              onAccept={(result, content) => {
+              onAccept={async (result, content) => {
                 const aiReviewHistory = appendAiHistoryEntry(selected.aiReviewHistory, result, content);
                 if (result.action === 'summarize_source') {
                   const currentCapture = captureDraft || selected.capture || { sessions: [] };
                   const nextCapture = { ...currentCapture, after: { ...currentCapture.after, aiSummary: content }, sessions: currentCapture.sessions || [] };
                   setCaptureDraft(nextCapture);
-                  updateSelected({ capture: nextCapture, aiReviewHistory });
+                  await updateSelected({ capture: nextCapture, aiReviewHistory }, true);
                 }
                 else if (result.action === 'reflect_on_source') {
                   const currentCapture = captureDraft || selected.capture || { sessions: [] };
                   const nextCapture = { ...currentCapture, after: { ...currentCapture.after, aiReflection: content }, sessions: currentCapture.sessions || [] };
                   setCaptureDraft(nextCapture);
-                  updateSelected({ capture: nextCapture, aiReviewHistory });
+                  await updateSelected({ capture: nextCapture, aiReviewHistory }, true);
                 }
-                else if (result.action === 'extract_source_claims') updateSelected({
+                else if (result.action === 'extract_source_claims') await updateSelected({
                   annotations: mergeGeneratedAnnotations(selected.annotations || [], generatedListItems(content).map((text) => ({ id: uid(), type: 'claim' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'raw' as const }))),
                   aiReviewHistory,
-                });
-                else updateSelected({
+                }, true);
+                else await updateSelected({
                   annotations: mergeGeneratedAnnotations(selected.annotations || [], generatedListItems(content, 6).map((text) => ({ id: uid(), type: 'question' as const, text, date: today(), conceptTags: selected.tags || [], philosophyStatus: 'questioned' as const }))),
                   aiReviewHistory,
-                });
+                }, true);
               }}
               />
             </div>
             <Select value={selected.status} onValueChange={(value) => updateSelected({ status: value as MediaStatus })}>
-              <SelectTrigger className="h-10 w-full min-w-0 rounded-md border-border/60 bg-card font-code text-[9px] uppercase shadow-sm sm:w-44"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label="Source status" className="h-10 w-full min-w-0 rounded-md border-border/60 bg-card font-code text-[9px] uppercase shadow-sm sm:w-44"><SelectValue /></SelectTrigger>
               <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{MEDIA_STATUS_LABELS[status]}</SelectItem>)}</SelectContent>
             </Select>
             <DropdownMenu>
@@ -554,13 +592,7 @@ export function MediaLibrary({
 
         <section className="mb-5 grid grid-cols-[5.25rem_minmax(0,1fr)] gap-x-4 gap-y-3 border-b border-border/60 pb-5 sm:flex sm:gap-5 sm:rounded-lg sm:border sm:border-border/50 sm:bg-card sm:p-6 sm:shadow-sm">
           <div className="h-28 w-[5.25rem] shrink-0 overflow-hidden rounded-md border border-border/40 bg-accent/5 sm:size-44 sm:rounded-lg">
-            {selected.thumbnailUrl ? (
-              <img src={selected.thumbnailUrl} alt={selected.title} className="w-full h-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-accent/10">
-                {React.createElement(MEDIA_ICONS_COMP[selected.type], { className: "size-10 text-accent/40" })}
-              </div>
-            )}
+            <SourceCover key={`${selected.id}:${selected.thumbnailUrl}`} item={selected} />
           </div>
           <div className="min-w-0 flex-1 self-center sm:self-auto">
             <DetailLabel view="library" kind="Source" status={MEDIA_LABELS[selected.type]} />
@@ -619,7 +651,7 @@ export function MediaLibrary({
           <TabsContent value="overview" className="space-y-5 sm:space-y-8">
             <AiAssistedHistory
               entries={selected.aiReviewHistory || []}
-              onChange={(aiReviewHistory) => updateSelected({ aiReviewHistory })}
+              onChange={async (aiReviewHistory) => { if (!await updateSelected({ aiReviewHistory })) throw new Error('Review history was not saved.'); }}
             />
             {capture.after?.aiSummary && (
               <Card className="noesis-workbench-panel">
@@ -666,7 +698,7 @@ export function MediaLibrary({
                 <div className="noesis-workbench-panel__eyebrow mb-3">SOURCE PURPOSE</div>
                 <p className="font-headline text-xl italic leading-snug text-primary/90 sm:text-2xl">{sourcePurpose}</p>
                 <p className="mt-4 text-sm leading-6 text-muted-foreground sm:mt-6">
-                  Open <span className="font-medium text-foreground">Engage &amp; Reflect</span> to track progress and save what this source changed for you.
+                  Open <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Engage</button> to record your purpose, sessions, and reflection.
                 </p>
               </Card>
             </div>
@@ -705,11 +737,13 @@ export function MediaLibrary({
           </TabsContent>
 
           <TabsContent value="capture" className="space-y-8 sm:space-y-12">
-            <p className="max-w-2xl font-body text-sm leading-6 text-muted-foreground">
-              Prepare for the source, record useful moments while engaging with it, then reflect on what deserves to change or continue.
-            </p>
+            <WorkspaceTabs value={engagementPhase} onChange={setEngagementPhase} label="Engagement phase" variant="segmented" items={[
+              { id: 'before', label: 'Prepare' },
+              { id: 'sessions', label: 'Sessions' },
+              { id: 'after', label: 'Reflect' },
+            ]} />
 
-            <section>
+            <section hidden={engagementPhase !== 'before'}>
               <h3 className="readex-kicker flex items-center gap-3 mb-6 opacity-40 font-bold">
                 <Plus className="size-2.5" /> BEFORE ENGAGING
               </h3>
@@ -726,15 +760,9 @@ export function MediaLibrary({
                   </div>
                 </details>
               </div>
-              {capture.after?.aiReflection && (
-                <div className="mt-4 noesis-recommendation">
-                  <div className="mb-2 flex items-center gap-2"><Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted reflection</Badge><span className="text-xs text-muted-foreground">Based on your saved notes</span></div>
-                  <ContextualAiDocument content={capture.after.aiReflection} />
-                </div>
-              )}
             </section>
 
-            <section>
+            <section hidden={engagementPhase !== 'sessions'}>
               <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="readex-kicker flex items-center gap-3 opacity-40 font-bold">
                   <Plus className="size-2.5" /> SESSIONS
@@ -814,7 +842,7 @@ export function MediaLibrary({
               </div>
             </section>
 
-            <section>
+            <section hidden={engagementPhase !== 'after'}>
               <h3 className="readex-kicker flex items-center gap-3 mb-6 opacity-40 font-bold">
                 <Plus className="size-2.5" /> AFTER ENGAGING
               </h3>
@@ -872,10 +900,10 @@ export function MediaLibrary({
                       ],
                       userPrompt,
                     })}
-                    onAccept={(result, content) => {
+                    onAccept={async (result, content) => {
                       const nextCapture = { ...capture, after: { ...capture.after, aiReflection: content }, sessions: capture.sessions || [] };
                       setCaptureDraft(nextCapture);
-                      updateSelected({ capture: nextCapture, aiReviewHistory: appendAiHistoryEntry(selected.aiReviewHistory, result, content) });
+                      await updateSelected({ capture: nextCapture, aiReviewHistory: appendAiHistoryEntry(selected.aiReviewHistory, result, content) }, true);
                     }}
                   />
                 </div>
@@ -886,7 +914,7 @@ export function MediaLibrary({
             </section>
 
             <div className="flex gap-4 border-t border-border/30 pt-6 sm:pt-10">
-              <Button onClick={() => updateSelected({ capture })} className="h-11 w-full rounded-md bg-accent px-10 font-code text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-accent/20 sm:w-auto sm:rounded-full">Save Capture</Button>
+              <Button onClick={async () => { if (await updateSelected({ capture })) toast({ title: 'Engagement notes saved' }); }} className="h-11 w-full rounded-md bg-accent px-10 font-code text-[11px] font-bold uppercase tracking-widest sm:w-auto sm:rounded-full">Save notes</Button>
             </div>
           </TabsContent>
 
@@ -907,20 +935,21 @@ export function MediaLibrary({
                       <SelectItem value="connection" className="font-code text-[10px] uppercase">Connection</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input value={annotationDraft.text} onChange={(event) => setAnnotationDraft((prev) => ({ ...prev, text: event.target.value }))} placeholder="Extract highlight, thought, or connection..." className="font-body italic text-base h-11" />
-                  <Button onClick={addAnnotation} size="sm" className="h-11 w-full rounded-md px-8 font-bold sm:w-auto sm:rounded-full">ADD</Button>
+                  <Textarea aria-label="Annotation text" value={annotationDraft.text} onChange={(event) => setAnnotationDraft((prev) => ({ ...prev, text: event.target.value }))} placeholder="One passage, observation, or question worth keeping…" className="min-h-28 font-body text-base leading-7" />
+                  <Button onClick={addAnnotation} disabled={!annotationDraft.text.trim()} size="sm" className="h-11 w-full rounded-md px-6 font-bold sm:w-auto sm:rounded-full">Save note</Button>
                 </div>
                 <div className="space-y-5">
                   {(selected.annotations || []).map((annotation) => (
-                    <div key={annotation.id} className="rounded-lg border border-border/30 bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:p-8">
+                    <Link key={annotation.id} href={viewToPath('annotations', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), annotationSourceId: selected.id, annotationId: annotation.id })} className="group block rounded-[var(--card-radius)] border border-border/50 bg-card p-4 transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-6">
                       <div className="flex justify-between items-start mb-4">
                         <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold">
                           {annotation.type}
                         </Badge>
                         <time className="font-code text-[9px] text-muted-foreground/50 font-bold uppercase">{new Date(annotation.date).toLocaleDateString()}</time>
                       </div>
-                      <p className="font-body italic leading-relaxed text-[17px] text-primary/90">&quot;{annotation.text}&quot;</p>
-                    </div>
+                      <p className={cn('font-body text-base leading-7 text-foreground', ['highlight', 'excerpt'].includes(annotation.type) && 'border-l-2 border-accent/50 pl-4 italic')}>{annotation.text}</p>
+                      <span className="mt-4 inline-flex text-sm font-medium text-accent group-hover:underline">Develop this note</span>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -937,15 +966,15 @@ export function MediaLibrary({
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {[
-                { label: 'Positions', items: linkedInsights.map((item) => item.title), empty: 'No positions have been created from this source.' },
-                { label: 'Inquiries', items: relatedQuestions.map((item) => item.text), empty: 'No inquiries are linked to this source.' },
-                { label: 'Works', items: relatedDrafts.map((item) => item.title), empty: 'No works use this source.' },
-                { label: 'Practices', items: relatedPractices.map((item) => item.title), empty: 'No practices test ideas from this source.' },
+                { label: 'Positions', items: linkedInsights.map((item) => ({ id: item.id, label: item.statement || item.title, href: viewToPath('vault', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), positionId: item.id }) })), empty: 'No positions have been created from this source.' },
+                { label: 'Inquiries', items: relatedQuestions.map((item) => ({ id: item.id, label: item.text, href: viewToPath('questions', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), questionId: item.id }) })), empty: 'No inquiries are linked to this source.' },
+                { label: 'Works', items: relatedDrafts.map((item) => ({ id: item.id, label: item.title, href: viewToPath('writing', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), workId: item.id }) })), empty: 'No works use this source.' },
+                { label: 'Practices', items: relatedPractices.map((item) => ({ id: item.id, label: item.title, href: viewToPath('labs', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), practiceId: item.id }) })), empty: 'No practices test ideas from this source.' },
               ].map((group) => (
                 <Card key={group.label} className="noesis-workbench-panel">
-                  <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{group.label}</div>
+                  <div className="flex items-center justify-between gap-3 text-sm font-medium"><span>{group.label}</span><span className="tabular-nums text-muted-foreground">{group.items.length}</span></div>
                   {group.items.length ? (
-                    <ul className="mt-3 space-y-2 text-sm leading-6 text-foreground/85">{group.items.slice(0, 4).map((item) => <li key={item}>- {item}</li>)}</ul>
+                    <ul className="mt-3 max-h-64 divide-y divide-border/40 overflow-y-auto overscroll-contain text-sm leading-6 text-foreground/85">{group.items.map((item) => <li key={item.id}><Link href={item.href} className="block min-h-11 break-words py-3 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">{item.label}</Link></li>)}</ul>
                   ) : <p className="mt-3 text-sm leading-6 text-muted-foreground">{group.empty}</p>}
                 </Card>
               ))}
@@ -994,19 +1023,19 @@ export function MediaLibrary({
             <DialogHeader><DialogTitle className="font-headline text-3xl italic">New Position</DialogTitle></DialogHeader>
             <div className="space-y-6 pt-4">
               <div className="space-y-2">
-                <Label className="readex-kicker">Claim title</Label>
-                <Input value={insightDraft.title} onChange={(e) => setInsightDraft(prev => ({ ...prev, title: e.target.value }))} placeholder="Brief synthesis of the breakthrough..." />
+                <Label className="readex-kicker">Position statement</Label>
+                <Input aria-label="Position statement" value={insightDraft.title} onChange={(e) => setInsightDraft(prev => ({ ...prev, title: e.target.value }))} placeholder="What do you now think is true?" />
               </div>
               <div className="space-y-2">
-                <Label className="readex-kicker">Reasoning / Statement</Label>
-                <Textarea value={insightDraft.body} onChange={(e) => setInsightDraft(prev => ({ ...prev, body: e.target.value }))} className="min-h-[140px]" placeholder="Elaborate on the discovery..." />
+                <Label className="readex-kicker">Reasoning (optional)</Label>
+                <Textarea aria-label="Position reasoning" value={insightDraft.body} onChange={(e) => setInsightDraft(prev => ({ ...prev, body: e.target.value }))} className="min-h-[140px]" placeholder="Which part of this source supports your view, and why?" />
               </div>
               <div className="space-y-2">
                 <Label className="readex-kicker">Concepts</Label>
                 <ConceptTagPicker concepts={concepts} value={insightDraft.tags} onChange={(tags) => setInsightDraft(prev => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
               </div>
             </div>
-            <DialogFooter className="pt-6"><Button onClick={saveClaim} className="rounded-full px-10 h-11 font-bold">Save developing claim</Button></DialogFooter>
+            <DialogFooter className="pt-6"><Button onClick={saveClaim} disabled={claimSaving || !insightDraft.title.trim()} className="rounded-full px-10 h-11 font-bold">{claimSaving ? 'Saving…' : 'Save developing claim'}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -1044,7 +1073,7 @@ export function MediaLibrary({
             }
           }}
         />
-        <MediaEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draft} setDraft={setDraft} onSave={saveMedia} />
+        <MediaEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draft} setDraft={setDraft} onSave={saveMedia} saving={savingSource} />
       </div>
     );
   }
@@ -1259,7 +1288,7 @@ export function MediaLibrary({
         )}
       </div>
 
-      <MediaEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draft} setDraft={setDraft} onSave={saveMedia} />
+      <MediaEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draft} setDraft={setDraft} onSave={saveMedia} saving={savingSource} />
     </div>
   );
 }
@@ -1312,13 +1341,15 @@ function SourceLane({ label, value, description, active, onClick }: { label: str
 }
 
 function CaptureRow({ label, value, placeholder, onChange }: { label: string; value?: string; placeholder: string; onChange: (val: string) => void }) {
+  const inputId = useId();
   return (
     <div className="flex min-w-0 flex-col border-b border-border/30 bg-card last:border-b-0 sm:grid sm:min-h-[92px] sm:grid-cols-[minmax(11rem,15rem)_minmax(0,1fr)] sm:items-stretch">
       <div className="px-4 pb-0 pt-4 sm:flex sm:items-start sm:px-6 sm:py-5">
-        <span className="font-code text-[10px] font-bold uppercase leading-5 tracking-[0.16em] text-muted-foreground">{label}</span>
+        <Label htmlFor={inputId} className="text-sm font-medium leading-6 text-foreground">{label.charAt(0) + label.slice(1).toLocaleLowerCase()}</Label>
       </div>
       <div className="flex min-w-0 flex-1 items-stretch">
         <Textarea 
+          id={inputId}
           value={value || ''} 
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
@@ -1329,12 +1360,13 @@ function CaptureRow({ label, value, placeholder, onChange }: { label: string; va
   );
 }
 
-function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
+function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, saving = false }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   draft: Partial<Media>;
   setDraft: React.Dispatch<React.SetStateAction<Partial<Media>>>;
   onSave: () => void;
+  saving?: boolean;
 }) {
   const { toast } = useToast();
   const [tagInput, setTagInput] = useState('');
@@ -1567,6 +1599,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                 <div className="space-y-2">
                   <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">SOURCE TITLE</Label>
                   <Input 
+                    aria-label="Source title"
                     value={draft.title || ''} 
                     onChange={(e) => setDraft(prev => ({ ...prev, title: e.target.value }))}
                     className="h-11 text-base italic"
@@ -1576,6 +1609,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                 <div className="space-y-2">
                   <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">{terms.creator.toUpperCase()}</Label>
                   <Input 
+                    aria-label={terms.creator}
                     value={draft.creator || ''} 
                     onChange={(e) => setDraft(prev => ({ ...prev, creator: e.target.value }))}
                     className="h-11 text-base italic"
@@ -1586,6 +1620,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   <div className="space-y-2">
                     <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">YEAR</Label>
                     <Input 
+                      aria-label="Year"
                       value={draft.year || ''} 
                       onChange={(e) => setDraft(prev => ({ ...prev, year: e.target.value }))}
                       className="h-11 text-base"
@@ -1594,6 +1629,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   <div className="space-y-2">
                     <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">{terms.genre.toUpperCase()}</Label>
                     <Input 
+                      aria-label={terms.genre}
                       value={draft.genre || ''} 
                       onChange={(e) => setDraft(prev => ({ ...prev, genre: e.target.value }))}
                       className="h-11 text-base"
@@ -1604,6 +1640,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                 <div className="space-y-2">
                   <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">{terms.publisher.toUpperCase()}</Label>
                   <Input 
+                    aria-label={terms.publisher}
                     value={draft.publisher || ''} 
                     onChange={(e) => setDraft(prev => ({ ...prev, publisher: e.target.value }))}
                     className="h-11 text-base"
@@ -1614,6 +1651,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   <div className="space-y-2">
                     <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">{terms.identifier.toUpperCase()}</Label>
                     <Input 
+                      aria-label={terms.identifier}
                       value={draft.isbn || draft.doi || ''} 
                       onChange={(e) => setDraft(prev => ({ ...prev, isbn: e.target.value, doi: e.target.value }))}
                       className="h-11 text-base"
@@ -1622,6 +1660,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                   <div className="space-y-2">
                     <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">URL</Label>
                     <Input
+                      aria-label="Source URL"
                       value={draft.url || ''}
                       onChange={(e) => setDraft(prev => ({ ...prev, url: e.target.value }))}
                       className="h-11 text-base"
@@ -1635,7 +1674,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                     {(draft.tags || []).map(tag => (
                       <Badge key={tag} variant="secondary" className="px-4 py-1.5 font-code text-[9px] uppercase tracking-widest rounded-full border-border/60 bg-card shadow-sm font-bold">
                         {tag}
-                        <button onClick={() => removeTag(tag)} className="ml-2 hover:text-destructive transition-colors"><X className="size-3" /></button>
+                        <button type="button" aria-label={`Remove concept ${tag}`} title={`Remove ${tag}`} onClick={() => removeTag(tag)} className="ml-2 inline-flex size-8 items-center justify-center hover:text-destructive transition-colors"><X className="size-3" /></button>
                       </Badge>
                     ))}
                   </div>
@@ -1654,6 +1693,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                 <div className="space-y-2">
                   <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">SOURCE DESCRIPTION</Label>
                   <Textarea 
+                    aria-label="Source description"
                     placeholder="A factual description of the source. Provider metadata appears here when available."
                     value={draft.description || ''}
                     onChange={(e) => setDraft(prev => ({ ...prev, description: e.target.value, catalogSummary: buildCatalogSummary(e.target.value) }))}
@@ -1665,6 +1705,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                 <div className="space-y-2">
                   <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">YOUR NOTES</Label>
                   <Textarea
+                    aria-label="Your source notes"
                     placeholder="Why you added this source, what you expect from it, or anything private you want to remember."
                     value={draft.sourceNotes || ''}
                     onChange={(e) => setDraft(prev => ({ ...prev, sourceNotes: e.target.value }))}
@@ -1675,6 +1716,7 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
                 <div className="space-y-2">
                   <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONSUMPTION STATUS</Label>
                   <select 
+                    aria-label="Consumption status"
                     value={draft.status || 'Want to Read'}
                     onChange={(e) => setDraft(prev => ({ ...prev, status: e.target.value as MediaStatus }))}
                     className="h-11 w-full appearance-none rounded-md border border-border/60 bg-card px-4 font-body text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-accent sm:rounded-full sm:px-5"
@@ -1689,8 +1731,8 @@ function MediaEditor({ open, onOpenChange, draft, setDraft, onSave }: {
 
         <div className="grid grid-cols-2 gap-2 border-t bg-muted/10 p-4 sm:flex sm:justify-end sm:gap-4 sm:p-8 sm:pt-4">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 rounded-md px-4 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent sm:rounded-full sm:px-8">Cancel</Button>
-          <Button onClick={onSave} className="h-11 rounded-md bg-accent px-4 font-code text-[11px] font-bold uppercase tracking-widest shadow-xl shadow-accent/20 sm:rounded-full sm:px-10">
-            {draft.id ? 'SAVE CHANGES' : 'ADD TO LIBRARY'}
+          <Button onClick={onSave} disabled={saving || !draft.title?.trim()} className="h-11 rounded-md bg-accent px-4 font-code text-[11px] font-bold uppercase tracking-widest sm:rounded-full sm:px-10">
+            {saving ? 'Saving…' : draft.id ? 'Save changes' : 'Add to Library'}
           </Button>
         </div>
       </DialogContent>

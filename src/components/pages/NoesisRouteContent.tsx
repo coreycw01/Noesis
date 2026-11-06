@@ -122,14 +122,14 @@ export interface NoesisRouteContentProps {
     annotationSourceId?: string | null;
     annotationId?: string | null;
   }) => void;
-  addQuestion: (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Question | void;
+  addQuestion: (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<Question>;
   updateQuestion: (question: Question) => void | Promise<void>;
   deleteQuestion: (id: string) => void | Promise<void>;
   formPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
-  addConcept: (data: Partial<Concept>) => Concept | void;
+  addConcept: (data: Partial<Concept>) => Promise<boolean>;
   updateConcept: (concept: Concept) => void;
   deleteConcept: (id: string) => void;
-  addMedia: (data: Partial<Media>) => Media | void;
+  addMedia: (data: Partial<Media>) => Media | void | Promise<void>;
   updateMedia: (media: Media) => void;
   deleteMedia: (id: string) => void;
   updateAnnotation: (sourceId: string, annotation: Annotation) => void;
@@ -155,7 +155,7 @@ export interface NoesisRouteContentProps {
   addAtlasMap: (data: Partial<AtlasMap>) => AtlasMap | void;
   updateAtlasMap: (map: AtlasMap) => void;
   deleteAtlasMap: (id: string) => void;
-  addVaultEntry: (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => VaultEntry | void;
+  addVaultEntry: (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<VaultEntry>;
   updateVaultEntry: (entry: VaultEntry) => void;
   deleteVaultEntry: (id: string) => Promise<void>;
   addDraft: (data: Partial<Draft>) => Promise<Draft>;
@@ -295,7 +295,7 @@ export function NoesisRouteContent({
           links={links}
           goal={goalState}
           goalProgress={goalProgress}
-          onCreateInquiry={(data) => addQuestion(data) as Question}
+          onCreateInquiry={addQuestion}
           onNavigate={navigateToView}
         />
       );
@@ -367,6 +367,7 @@ export function NoesisRouteContent({
             title: data.title,
             statement: data.title,
             description: data.body,
+            confidenceReasoning: data.body,
             confidence: 60,
             status: 'developing',
             tags: data.tags,
@@ -388,8 +389,8 @@ export function NoesisRouteContent({
           inquiries={questions}
           onUpdateAnnotation={updateAnnotation}
           onDeleteAnnotation={deleteAnnotation}
-          onCreatePosition={(data) => {
-            const created = addVaultEntry({
+          onCreatePosition={async (data) => {
+            const created = await addVaultEntry({
               title: data.position?.title || data.title,
               statement: data.position?.statement || data.title,
               description: data.position?.description || data.body,
@@ -400,10 +401,10 @@ export function NoesisRouteContent({
               sourceAnnotationId: data.sourceAnnotationId,
               annotationRefs: data.annotationRefs,
               createdFrom: 'annotation',
-            }) as VaultEntry;
+            });
             return { positionId: created.id, insightId: '', title: created.title };
           }}
-          onCreateInquiry={(data) => addQuestion(data) as Question}
+          onCreateInquiry={addQuestion}
           onAddConcept={addConcept}
           onCreateLink={addPhilosophicalLink}
           focusedAnnotationSourceId={focusedAnnotationSourceId}
@@ -464,14 +465,14 @@ export function NoesisRouteContent({
           onCreateLink={addPhilosophicalLink}
           onAddDraft={addDraft}
           onAddPractice={addPractice}
-          onAddQuestion={(data) => addQuestion(data) as Question}
+          onAddQuestion={addQuestion}
           onUpdateLink={updatePhilosophicalLink}
           focusedEntryId={focusedPositionId}
           onNavigate={navigateToView}
         />
       );
     case 'questions':
-      return <InquiriesRoutePage aiSettings={aiSettings} questions={questions} media={media} vault={vault} drafts={drafts} practices={practices} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onUpdateDraft={updateDraft} onAddPractice={addPractice} onUpdatePractice={updatePractice} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
+      return <InquiriesRoutePage aiSettings={aiSettings} questions={questions} media={media} vault={vault} drafts={drafts} practices={practices} concepts={concepts} onAddQuestion={addQuestion} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onUpdateDraft={updateDraft} onAddPractice={addPractice} onUpdatePractice={updatePractice} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
     case 'writing':
       return <WorksRoutePage uid={effectiveUid} isReviewWorkspace={isOfflineReviewPreview} drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onMarkDraftOpened={markDraftOpened} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
     case 'context-desk':

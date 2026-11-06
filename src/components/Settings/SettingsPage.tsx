@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { noesisGuide } from '@/lib/noesis-guide';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { LabeledField as Field } from '@/components/shared/LabeledField';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
@@ -1207,15 +1208,6 @@ function SettingsCard({ title, description, children }: { title: string; descrip
       </div>
       {children}
     </Card>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <Label className="readex-kicker text-[9px] font-bold uppercase">{label}</Label>
-      {children}
-    </div>
   );
 }
 
