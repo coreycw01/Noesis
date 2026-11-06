@@ -28,7 +28,7 @@ interface DocsPageProps {
   overlayBrushSize: number;
   overlayOpacity: number;
   overlayEnabled: boolean;
-  inlineTools?: ReactNode;
+  inlineTools?: { overlay?: ReactNode; flow?: ReactNode };
 }
 
 export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writingStyle, content, onContentChange, isEditable, showBoundary, overlayData, overlayStrokes = [], backgroundArtwork, onOverlayChange, onOverlayStrokesChange, overlayTool, overlayColor, overlayGradientColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools }: DocsPageProps) {
@@ -401,7 +401,8 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
     if (paperPattern === 'notebook') {
       return {
         backgroundImage: `linear-gradient(${guide} 1px, transparent 1px)`,
-        backgroundSize: '100% 2.4em'
+        backgroundSize: '100% var(--document-line-step)',
+        backgroundPosition: '0 calc(var(--document-page-padding) + 1.2em)'
       };
     }
     if (paperPattern === 'grid') {
@@ -450,7 +451,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
 
   return (
     <div className={cn(
-      "relative shadow-2xl transition-all duration-300 origin-center flex flex-col group",
+      "relative shadow-2xl transition-all duration-300 origin-center flex flex-col group [--document-line-height:1.5] [--document-line-step:24px] [--document-page-padding:2rem] sm:[--document-page-padding:4rem] lg:[--document-page-padding:6rem]",
       sizeClasses[pageSize],
       colorClasses[paperColor],
       structureClasses[writingStyle],
@@ -469,33 +470,35 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
         </span>
       </div>
 
-      <div 
-        ref={editorRef}
-        contentEditable={isEditable}
-        suppressContentEditableWarning
-        role="textbox"
-        aria-label="Document body"
-        aria-multiline="true"
-        spellCheck
-        data-placeholder="Start writing…"
-        onInput={(e) => onContentChange(sanitizeHtml(e.currentTarget.innerHTML))}
-        className={cn(
-          "relative z-[1] p-6 font-body text-base italic leading-8 focus:outline-none empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)] sm:p-12 sm:text-[17px] sm:leading-9 lg:p-24 lg:text-[18px] lg:leading-[2.4]",
-          "flex-1",
-          !isEditable && "pointer-events-none opacity-20",
-          paperPattern === 'notebook' && "pl-12 sm:pl-16 lg:pl-28",
-          writingStyle === 'cornell_notes' && "pb-36 sm:pl-[240px]",
-          writingStyle === 'two_column_debate' && "columns-2 gap-20",
-          writingStyle === 'manuscript' && "leading-[2.8]",
-          writingStyle === 'mind_map' && "pt-[420px] text-center",
-          writingStyle === 'timeline' && "pt-[620px]"
-        )}
-        style={{
-          wordBreak: 'break-word',
-          whiteSpace: 'pre-wrap'
-        }}
-      />
-      {inlineTools && <div className="pointer-events-none absolute inset-0 z-30 [&>*]:pointer-events-auto" aria-label="Document tool windows">{inlineTools}</div>}
+      <div className="relative flex-1">
+        {inlineTools?.flow && <div className="contents" aria-label="Flowing document tools">{inlineTools.flow}</div>}
+        <div
+          ref={editorRef}
+          contentEditable={isEditable}
+          suppressContentEditableWarning
+          role="textbox"
+          aria-label="Document body"
+          aria-multiline="true"
+          spellCheck
+          data-placeholder="Start writing…"
+          onInput={(e) => onContentChange(sanitizeHtml(e.currentTarget.innerHTML))}
+          className={cn(
+            "relative z-[1] min-h-full p-[var(--document-page-padding)] font-body text-[16px] leading-[var(--document-line-height)] focus:outline-none empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)]",
+            !isEditable && "pointer-events-none opacity-20",
+            paperPattern === 'notebook' && "pl-12 sm:pl-16 lg:pl-28",
+            writingStyle === 'cornell_notes' && "pb-36 sm:pl-[240px]",
+            writingStyle === 'two_column_debate' && "columns-2 gap-20",
+            writingStyle === 'manuscript' && "leading-[2.8]",
+            writingStyle === 'mind_map' && "pt-[420px] text-center",
+            writingStyle === 'timeline' && "pt-[620px]"
+          )}
+          style={{
+            wordBreak: 'break-word',
+            whiteSpace: 'pre-wrap'
+          }}
+        />
+      </div>
+      {inlineTools?.overlay && <div className="pointer-events-none absolute inset-0 z-30 [&>*]:pointer-events-auto" aria-label="Document tool windows">{inlineTools.overlay}</div>}
       <canvas
         ref={overlayRef}
         onPointerDown={startOverlayDraw}

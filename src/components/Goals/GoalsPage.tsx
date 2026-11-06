@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Archive, Check, ChevronDown, ChevronRight, Clock3, Compass, GripVertical, Minus, Plus, Save, Settings2, SkipForward, Target, Trash2 } from 'lucide-react';
+import { Archive, Check, ChevronDown, ChevronRight, Clock3, Compass, GripVertical, Minus, Plus, Puzzle, Save, Settings2, SkipForward, Target, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -49,6 +49,7 @@ interface GoalsPageProps {
   practices: Practice[];
   profile: UserProfile;
   onSaveGoal: (goal: GoalSettings) => Promise<void>;
+  onOpenPraxis: (method: 'exercises' | 'practices' | 'experiments') => void;
 }
 
 function defaultTypesFromLegacy(goal: GoalSettings): GoalType[] {
@@ -249,7 +250,7 @@ function defaultQuestMilestones(item: GoalItem, type?: GoalType) {
   ];
 }
 
-export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, positions, works, practices, profile, onSaveGoal }: GoalsPageProps) {
+export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, positions, works, practices, profile, onSaveGoal, onOpenPraxis }: GoalsPageProps) {
   const [draft, setDraft] = useState<GoalSettings>(goal);
   const [saving, setSaving] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -609,8 +610,8 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
     <div className="noesis-page noesis-commitments-page" data-noesis-identity="commitment-ledger">
       <div className="noesis-page-inner">
         <PageHeader
-          title="Commitments"
-          description="Connect what you say matters to what you repeatedly practice."
+          title="Praxis"
+          description="Commitments help you uphold a chosen principle and compare what you say matters with what you repeatedly do."
           meta={(
             <>
               <GoalStat label="Active" value={activeGoals.length} />
@@ -618,16 +619,32 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             </>
           )}
           tabs={(
-            <WorkspaceTabs
-              value={activeView}
-              onChange={setActiveView}
-              label="Commitment views"
-              items={[
-                { id: 'today', label: 'Today', icon: NOESIS_ICONS.commitment },
-                { id: 'active', label: 'Active', icon: Settings2 },
-                { id: 'review', label: 'Review', icon: Clock3 },
-              ]}
-            />
+            <div className="space-y-2">
+              <WorkspaceTabs<'exercises' | 'practices' | 'experiments' | 'commitments'>
+                value="commitments"
+                onChange={(method) => {
+                  if (method !== 'commitments') onOpenPraxis(method);
+                }}
+                label="Praxis methods"
+                className="max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:overflow-hidden max-sm:[&>button]:min-w-0 max-sm:[&>button]:gap-1 max-sm:[&>button]:px-1.5 max-sm:[&>button]:text-xs"
+                items={[
+                  { id: 'exercises', label: 'Exercises', icon: Puzzle },
+                  { id: 'practices', label: 'Practices', icon: NOESIS_ICONS.practice },
+                  { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
+                  { id: 'commitments', label: 'Commitments', icon: NOESIS_ICONS.commitment },
+                ]}
+              />
+              <WorkspaceTabs
+                value={activeView}
+                onChange={setActiveView}
+                label="Commitment views"
+                items={[
+                  { id: 'today', label: 'Today', icon: NOESIS_ICONS.commitment },
+                  { id: 'active', label: 'Active', icon: Settings2 },
+                  { id: 'review', label: 'Insights', icon: Clock3 },
+                ]}
+              />
+            </div>
           )}
           actions={(
             <>

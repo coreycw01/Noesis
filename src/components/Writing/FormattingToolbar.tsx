@@ -134,7 +134,12 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
     const selection = window.getSelection();
     const anchor = selection?.anchorNode instanceof Element ? selection.anchorNode : selection?.anchorNode?.parentElement;
     const block = anchor?.closest('p, div, blockquote, li, h1, h2, h3') as HTMLElement | null;
-    if (block?.closest('[contenteditable="true"]')) block.style.lineHeight = value;
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    const target = block?.closest('[contenteditable="true"]') ? block : editor;
+    if (!target || !editor) return;
+    target.style.lineHeight = value;
+    editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'formatJustifyFull' }));
+    rememberSelection();
   };
 
   const insertDivider = () => insertHtml('<hr style="border:0;border-top:1px solid currentColor;opacity:.25;margin:24px 0;"><p><br></p>');
@@ -361,11 +366,11 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Line spacing</DropdownMenuLabel>
               <div className="px-2 pb-2">
-                <select aria-label="Line spacing" defaultValue="1.6" onChange={(event) => applyLineSpacing(event.target.value)} className="h-8 w-full rounded-md border border-border/60 bg-card px-2 text-xs text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground">
-                  <option value="1.2">Single</option>
-                  <option value="1.6">1.5</option>
+                <select aria-label="Line spacing" defaultValue="1.5" onPointerDown={rememberSelection} onChange={(event) => applyLineSpacing(event.target.value)} className="h-8 w-full rounded-md border border-border/60 bg-card px-2 text-xs text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground">
+                  <option value="1">Single</option>
+                  <option value="1.15">1.15</option>
+                  <option value="1.5">1.5</option>
                   <option value="2">Double</option>
-                  <option value="2.4">Custom</option>
                 </select>
               </div>
             </DropdownMenuContent>

@@ -4,7 +4,7 @@ import { NOESIS_ICONS, NOESIS_VIEW_ICON_KEYS } from '../../src/lib/noesis-icons'
 import { NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
 import { parseNoesisRoute, viewToPath } from '../../src/lib/noesis-routes';
 
-test('Labs is the workspace route for practices', () => {
+test('Praxis keeps the Labs route compatible for existing practice links', () => {
   assert.deepEqual(parseNoesisRoute('/labs'), { view: 'labs', focusedPracticeId: null });
   assert.deepEqual(parseNoesisRoute('/demo/labs'), { view: 'labs', focusedPracticeId: null });
   assert.equal(viewToPath('labs'), '/labs');
@@ -36,8 +36,10 @@ test('existing practice detail links remain compatible', () => {
   });
 });
 
-test('Labs and individual practices use distinct visual semantics', () => {
-  assert.equal(NOESIS_VIEW_ICON_KEYS.labs, 'lab');
+test('Praxis, experiments, and individual practices use distinct visual semantics', () => {
+  assert.equal(NOESIS_VIEW_ICON_KEYS.labs, 'praxis');
+  assert.notEqual(NOESIS_ICONS.praxis, NOESIS_ICONS.lab);
+  assert.notEqual(NOESIS_ICONS.praxis, NOESIS_ICONS.practice);
   assert.notEqual(NOESIS_ICONS.lab, NOESIS_ICONS.practice);
 });
 

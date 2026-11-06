@@ -271,7 +271,6 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'writing', icon: iconForNoesisView('writing'), count: counts.drafts },
     { id: 'context-desk', icon: iconForNoesisView('context-desk') },
     { id: 'labs', icon: iconForNoesisView('labs'), count: counts.practices },
-    { id: 'goals', icon: iconForNoesisView('goals') },
     { id: 'evolution', icon: iconForNoesisView('evolution'), count: counts.timeline },
     { id: 'settings', icon: iconForNoesisView('settings') },
   ], [counts.annotations, counts.concepts, counts.drafts, counts.media, counts.practices, counts.questions, counts.timeline, counts.vault]);
@@ -547,13 +546,14 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const previewThoughtPath = thoughtPathFor(previewItem);
   const previewActivityClass = normalizeActivityClass(previewItem);
   const previewThinkingEventHint = normalizeThinkingEventHint(previewItem);
-  const activePage = NOESIS_PAGE_BY_VIEW[activeView as keyof typeof NOESIS_PAGE_BY_VIEW] || NOESIS_PAGE_BY_VIEW.home;
+  const activePageView = activeView === 'goals' ? 'labs' : activeView;
+  const activePage = NOESIS_PAGE_BY_VIEW[activePageView as keyof typeof NOESIS_PAGE_BY_VIEW] || NOESIS_PAGE_BY_VIEW.home;
   const mobilePrimaryViews = new Set(['home', 'library', 'questions', 'vault']);
   const mobileMoreItems = [
     ...navItems.filter((item) => !mobilePrimaryViews.has(item.id)),
     { id: 'profile', icon: iconForNoesisView('profile') },
   ];
-  const activeMobileMoreItem = mobileMoreItems.find((item) => item.id === activeView);
+  const activeMobileMoreItem = mobileMoreItems.find((item) => item.id === activeView || (item.id === 'labs' && activeView === 'goals'));
   const activeMobileMorePage = activeMobileMoreItem
     ? NOESIS_PAGE_BY_VIEW[activeMobileMoreItem.id as keyof typeof NOESIS_PAGE_BY_VIEW]
     : null;
@@ -612,23 +612,29 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
   const renderNavButton = (item: typeof navItems[number]) => {
     const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
+    const isActive = activeView === item.id || (item.id === 'labs' && activeView === 'goals');
     const button = (
       <button
-        onClick={() => handleNavChange(item.id)}
-        aria-current={activeView === item.id ? 'page' : undefined}
+        onClick={() => {
+          if (item.id === 'labs' && activeView === 'goals') {
+            try { window.localStorage.setItem('noesis:labs-tool', 'practices'); } catch { /* Optional view preference. */ }
+          }
+          handleNavChange(item.id);
+        }}
+        aria-current={isActive ? 'page' : undefined}
         className={cn(
           'w-full flex items-center transition-all group',
           collapsed && !isMobile ? 'justify-center px-3 py-2.5' : 'gap-2.5 px-5 py-2.5',
           'border-l-2 duration-150',
-          activeView === item.id
+          isActive
             ? 'border-accent bg-sidebar-foreground/[0.07] text-sidebar-foreground'
             : 'border-transparent text-sidebar-foreground/62 hover:border-sidebar-foreground/20 hover:bg-sidebar-foreground/[0.04] hover:text-sidebar-foreground'
         )}
       >
-        <item.icon className={cn('size-4 shrink-0', activeView === item.id ? 'text-accent' : 'group-hover:text-accent')} />
+        <item.icon className={cn('size-4 shrink-0', isActive ? 'text-accent' : 'group-hover:text-accent')} />
         {(!collapsed || isMobile) && (
           <>
-            <span className={cn('text-[13px] font-body tracking-wide flex-1 text-left', activeView === item.id ? 'font-semibold' : 'font-medium')}>{page.title}</span>
+            <span className={cn('text-[13px] font-body tracking-wide flex-1 text-left', isActive ? 'font-semibold' : 'font-medium')}>{page.title}</span>
             {typeof item.count === 'number' && (
               <span className="rounded-full bg-sidebar-foreground/10 px-2 py-0.5 font-code text-[9px] text-sidebar-foreground/65">{item.count}</span>
             )}
@@ -748,7 +754,6 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             {(!collapsed || isMobile) && (
               <div className="px-5 mb-1">
                 <h4 className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/40 font-bold">{section}</h4>
-                {section === 'Praxis' && <p className="mt-1 text-[10px] leading-4 text-sidebar-foreground/35">Put thinking into practice.</p>}
               </div>
             )}
             <ul className="space-y-1">
@@ -841,7 +846,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 <div className="grid max-h-[58dvh] grid-cols-2 gap-2 overflow-y-auto py-4">
                   {mobileMoreItems.map((item) => {
                     const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
-                    const isActive = activeView === item.id;
+                    const isActive = activeView === item.id || (item.id === 'labs' && activeView === 'goals');
                     const count = 'count' in item ? item.count : undefined;
                     return (
                       <button
@@ -852,6 +857,9 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                             setMobileMoreOpen(false);
                             onOpenProfile();
                             return;
+                          }
+                          if (item.id === 'labs' && activeView === 'goals') {
+                            try { window.localStorage.setItem('noesis:labs-tool', 'practices'); } catch { /* Optional view preference. */ }
                           }
                           handleNavChange(item.id);
                         }}

@@ -15,6 +15,7 @@ const DEFAULT_WINDOW: ToolWindow = {
   height: 430,
   minimized: false,
   zIndex: 1,
+  placement: 'overlay',
 };
 
 interface FloatingWorkToolWindowProps {
@@ -23,6 +24,7 @@ interface FloatingWorkToolWindowProps {
   mobileActive: boolean;
   onFocus: () => void;
   onPatch: (patch: Partial<ToolWindow>) => void;
+  onPlacementChange: (placement: NonNullable<ToolWindow['placement']>) => void;
   onRemove: () => void;
   children: ReactNode;
 }
@@ -44,7 +46,7 @@ function normalizedWindow(section: WorkToolSection): ToolWindow {
   };
 }
 
-export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, onPatch, onRemove, children }: FloatingWorkToolWindowProps) {
+export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, onPatch, onPlacementChange, onRemove, children }: FloatingWorkToolWindowProps) {
   const [frame, setFrame] = useState(() => normalizedWindow(section));
   const interactionRef = useRef<Interaction | null>(null);
   const windowRef = useRef<HTMLElement | null>(null);
@@ -133,7 +135,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         variant="outline"
         size="sm"
         onClick={() => setMinimized(false)}
-        className="absolute z-30 hidden h-9 max-w-56 rounded-md border-border/60 bg-background/95 shadow-md md:inline-flex"
+        className={cn('z-30 hidden h-9 max-w-56 rounded-md border-border/60 bg-background/95 shadow-md md:inline-flex', frame.placement === 'overlay' ? 'absolute' : 'relative my-2')}
         style={{ left: frame.x, top: frame.y, zIndex: frame.zIndex }}
         aria-label={`Restore ${label}`}
       >
@@ -153,7 +155,10 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
       }}
       className={cn(
         'group/tool flex min-h-0 flex-col overflow-hidden bg-background/55 shadow-sm backdrop-blur-sm transition-[background-color,border-color,box-shadow]',
-        'fixed inset-x-2 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] top-[calc(4.5rem+env(safe-area-inset-top))] z-40 border border-border/25 md:absolute md:bottom-auto md:left-[var(--work-tool-x)] md:right-auto md:top-[var(--work-tool-y)] md:h-[var(--work-tool-height)] md:w-[var(--work-tool-width)] md:rounded-md md:focus-within:border-accent/45 md:focus-within:bg-background/80 md:focus-within:shadow-md md:hover:border-border/55 md:hover:bg-background/70',
+        'fixed inset-x-2 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] top-[calc(4.5rem+env(safe-area-inset-top))] z-40 border border-border/25 md:bottom-auto md:right-auto md:h-[var(--work-tool-height)] md:w-[var(--work-tool-width)] md:rounded-md md:focus-within:border-accent/45 md:focus-within:bg-background/80 md:focus-within:shadow-md md:hover:border-border/55 md:hover:bg-background/70',
+        frame.placement === 'overlay' && 'md:absolute md:left-[var(--work-tool-x)] md:top-[var(--work-tool-y)]',
+        frame.placement === 'wrap' && 'md:relative md:float-right md:inset-auto md:mb-5 md:ml-6 md:mr-[var(--document-page-padding)] md:mt-2 md:max-w-[62%]',
+        frame.placement === 'break' && 'md:relative md:inset-auto md:mx-auto md:my-6 md:clear-both md:max-w-[85%]',
         !mobileActive && 'max-md:hidden',
       )}
       style={{
@@ -167,12 +172,29 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
       <header
         className="flex h-12 shrink-0 items-center gap-2 border-b border-border/20 bg-background/35 px-3 md:h-9 md:cursor-move md:px-2"
         onPointerDown={(event) => {
-          if ((event.target as HTMLElement).closest('button')) return;
+          if ((event.target as HTMLElement).closest('button,select')) return;
+          if (frame.placement !== 'overlay') return;
           begin(event, 'move');
         }}
       >
         <GripHorizontal className="hidden size-4 shrink-0 text-muted-foreground/60 md:block" />
         <span className="min-w-0 flex-1 truncate font-code text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/75">{label}</span>
+        <select
+          value={frame.placement || 'overlay'}
+          onChange={(event) => {
+            const placement = event.target.value as NonNullable<ToolWindow['placement']>;
+            setFrame((current) => ({ ...current, placement }));
+            onPlacementChange(placement);
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          className="h-7 max-w-24 rounded-md border border-border/40 bg-background/70 px-1.5 font-code text-[9px] uppercase tracking-wide text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`${label} placement`}
+          title="Choose how text flows around this tool"
+        >
+          <option value="overlay">Overlay</option>
+          <option value="wrap">Wrap text</option>
+          <option value="break">Break text</option>
+        </select>
         <Button type="button" variant="ghost" size="icon" onClick={focusEditor} className="size-10 shrink-0 rounded-md md:size-7" aria-label={`Edit ${label}`} title={`Edit ${label}`}>
           <Pencil className="size-3.5" />
         </Button>

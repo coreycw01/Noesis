@@ -455,13 +455,16 @@ export function StructuredWorkSurface({
     ];
     return (
       <TemplateFrame title={FORMAT_COPY[style].title} purpose={FORMAT_COPY[style].purpose} tone={paperTone[paperColor]} patternStyle={paperPatternStyle(paperColor, paperPattern)} widthClass={widthClass} embedded={embedded}>
-        <div className="grid gap-3 p-5 sm:p-8 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-stretch">
+        <div
+          className={cn('grid gap-3 p-5 sm:p-8', !embedded && 'md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-stretch')}
+          style={embedded ? { gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 9rem), 1fr))' } : undefined}
+        >
           {stages.map((stage, index) => <Fragment key={stage.key}>
-            <section className={cn('min-h-56 border p-4', index === 1 ? 'border-destructive/35 bg-destructive/5' : index === 2 ? 'border-accent/40 bg-accent/8' : 'border-current/20 bg-background/45')}>
+            <section className={cn('min-w-0 border p-4', embedded ? 'min-h-44' : 'min-h-56', index === 1 ? 'border-destructive/35 bg-destructive/5' : index === 2 ? 'border-accent/40 bg-accent/8' : 'border-current/20 bg-background/45')}>
               <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">{stage.label}</span>
-              <Textarea value={current.fields[stage.key] || ''} onChange={(event) => updateFields(stage.key, event.target.value)} placeholder={stage.prompt} aria-label={stage.label} className="mt-3 min-h-40 resize-none border-0 bg-transparent px-0 text-sm leading-6 shadow-none focus-visible:ring-1" />
+              <Textarea value={current.fields[stage.key] || ''} onChange={(event) => updateFields(stage.key, event.target.value)} placeholder={stage.prompt} aria-label={stage.label} className={cn('mt-3 min-h-32 min-w-0 resize-none border-0 bg-transparent px-0 text-sm leading-6 shadow-none focus-visible:ring-1', !embedded && 'min-h-40')} />
             </section>
-            {index < stages.length - 1 && <ArrowRight className="hidden size-5 self-center text-accent md:block" aria-hidden="true" />}
+            {index < stages.length - 1 && !embedded && <ArrowRight className="hidden size-5 self-center text-accent md:block" aria-hidden="true" />}
           </Fragment>)}
         </div>
       </TemplateFrame>

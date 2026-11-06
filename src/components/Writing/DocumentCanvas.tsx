@@ -27,7 +27,7 @@ interface DocumentCanvasProps {
   overlayBrushSize: number;
   overlayOpacity: number;
   overlayEnabled: boolean;
-  inlineTools?: ReactNode;
+  inlineTools?: { overlay?: ReactNode; flow?: ReactNode };
   subpages?: ReactNode;
   toolSections?: ReactNode;
   onCurrentPageChange?: (pageId: string) => void;
@@ -188,10 +188,10 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
         </div>
       </div>
       
-      <div className="flex h-7 shrink-0 items-center justify-end gap-4 border-t border-border/30 bg-background/90 px-4 font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">
-        <span>Document</span>
+      <div className="flex h-7 shrink-0 items-center justify-end gap-3 overflow-hidden border-t border-border/30 bg-background/90 px-3 font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground sm:gap-4 sm:px-4">
+        <span className="hidden sm:inline">Document</span>
         <span>{wordCount} words</span>
-        <span>{plainText.length} characters</span>
+        <span className="hidden sm:inline">{plainText.length} characters</span>
         <span>{Math.max(1, Math.ceil(wordCount / 225))} min read</span>
         {viewMode !== 'vertical-continuous' && <span>{Math.round(fitScale * 100)}% fit</span>}
       </div>

@@ -59,6 +59,7 @@ interface PracticesWorkspaceProps {
 const practiceTypes: PracticeType[] = ['habit', 'experiment', 'observation', 'reflection'];
 const statuses: PracticeStatus[] = ['planned', 'active', 'paused', 'completed', 'abandoned'];
 type PracticeViewFilter = 'all' | 'awaiting_log' | 'needs_setup' | 'ready_review' | 'testing_positions';
+type PraxisMethod = 'exercises' | 'practices' | 'experiments' | 'commitments';
 
 const practiceViewFilters: Array<{ value: PracticeViewFilter; label: string }> = [
   { value: 'all', label: 'All' },
@@ -194,12 +195,15 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   const [viewFilter, setViewFilter] = usePersistentView<PracticeViewFilter>('noesis:practices-filter', 'all', practiceViewFilters.map((item) => item.value));
   const [otherStatus, setOtherStatus] = usePersistentView<PracticeStatus>('noesis:practices-other-status', 'planned', statuses);
   const [practiceSection, setPracticeSection] = usePersistentView<'active' | 'other'>('noesis:practices-section', 'active', ['active', 'other']);
-  const [labTool, setLabTool] = usePersistentView<'exercises' | 'practices' | 'experiments'>('noesis:labs-tool', 'practices', ['exercises', 'practices', 'experiments']);
+  const [labTool, setLabTool] = usePersistentView<PraxisMethod>('noesis:labs-tool', 'practices', ['exercises', 'practices', 'experiments', 'commitments']);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useEntityViewPreference('practices');
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Practice | null>(null);
   const [draft, setDraft] = useState<Partial<Practice>>({ title: '', description: '', type: 'experiment', status: 'planned', durationDays: 7, durationMode: 'repeated', conceptTags: [] });
+  React.useEffect(() => {
+    if (labTool === 'commitments') onNavigateTarget({ view: 'goals' });
+  }, [labTool, onNavigateTarget]);
   const questionList = useMemo(() => allQuestions(media, questions), [media, questions]);
   const conceptFilterOptions = useMemo(
     () => concepts
@@ -401,34 +405,52 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   return (
     <div className="noesis-page noesis-labs-page" data-noesis-identity="experiment-log">
       <PageHeader
-        title="Labs"
-        description="Sharpen intellectual skills, test ideas through action, and carry what happens back into your thinking."
+        title="Praxis"
+        description="Test an idea, build consistency, or uphold a principle—then carry what happens back into your thinking."
         meta={
           <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
-            {practiceStats.total} lab records · {practiceStats.active} active · {practiceStats.needsSetup} need setup · {practiceStats.readyForReview} ready for review
+            {practiceStats.total} Praxis records · {practiceStats.active} active · {practiceStats.needsSetup} need setup · {practiceStats.readyForReview} ready for review
           </span>
         }
         tabs={(
           <WorkspaceTabs
             value={labTool}
-            onChange={(value) => { setLabTool(value); setTypeFilter('all'); }}
-            label="Labs tools"
-            className="max-sm:grid max-sm:w-full max-sm:grid-cols-3 max-sm:overflow-hidden max-sm:[&>button]:min-w-0 max-sm:[&>button]:gap-1 max-sm:[&>button]:px-1.5 max-sm:[&>button]:text-xs"
+            onChange={(value) => {
+              if (value === 'commitments') {
+                onNavigateTarget({ view: 'goals' });
+                return;
+              }
+              setLabTool(value);
+              setTypeFilter('all');
+            }}
+            label="Praxis methods"
+            className="max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:overflow-hidden max-sm:[&>button]:min-w-0 max-sm:[&>button]:gap-1 max-sm:[&>button]:px-1.5 max-sm:[&>button]:text-xs"
             items={[
               { id: 'exercises', label: 'Exercises', icon: Puzzle },
               { id: 'practices', label: 'Practices', icon: PracticeIcon },
               { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
+              { id: 'commitments', label: 'Commitments', icon: NOESIS_ICONS.commitment },
             ]}
           />
         )}
         actions={labTool === 'exercises' ? undefined : (
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" className="h-9 rounded-full bg-accent px-6 font-bold shadow-md shadow-accent/20 hover:bg-accent/90"><Plus className="mr-1.5 size-4" /> Add in Labs</Button>
+              <Button size="sm" className="h-9 rounded-full bg-accent px-6 font-bold shadow-md shadow-accent/20 hover:bg-accent/90"><Plus className="mr-1.5 size-4" /> New Praxis</Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => { setLabTool('practices'); openEditor(undefined, 'practice'); }}><PracticeIcon className="mr-2 size-4" /> New practice</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => { setLabTool('experiments'); openEditor(undefined, 'experiment'); }}><NOESIS_ICONS.lab className="mr-2 size-4" /> New experiment</DropdownMenuItem>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuItem onSelect={() => { setLabTool('experiments'); openEditor(undefined, 'experiment'); }} className="items-start gap-3 py-3">
+                <NOESIS_ICONS.lab className="mt-0.5 size-4 shrink-0" />
+                <span><strong className="block text-sm">Test an idea</strong><span className="mt-0.5 block text-xs font-normal text-muted-foreground">Run a bounded experiment and observe what happens.</span></span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => { setLabTool('practices'); openEditor(undefined, 'practice'); }} className="items-start gap-3 py-3">
+                <PracticeIcon className="mt-0.5 size-4 shrink-0" />
+                <span><strong className="block text-sm">Build consistency</strong><span className="mt-0.5 block text-xs font-normal text-muted-foreground">Repeat an action and learn from the pattern.</span></span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onNavigateTarget({ view: 'goals' })} className="items-start gap-3 py-3">
+                <NOESIS_ICONS.commitment className="mt-0.5 size-4 shrink-0" />
+                <span><strong className="block text-sm">Uphold a principle</strong><span className="mt-0.5 block text-xs font-normal text-muted-foreground">Create a commitment and check whether conduct aligns.</span></span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -539,7 +561,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         activeFilterLabels={activePracticeFilterLabels}
         onClear={clearPracticeFilters}
         clearDisabled={!practiceFiltersActive}
-        viewControl={<ViewModeToggle value={viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')} label="Labs view" />}
+        viewControl={<ViewModeToggle value={viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')} label="Praxis view" />}
         className="mb-3"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PracticeViewFilter)}>

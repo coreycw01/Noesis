@@ -414,7 +414,10 @@ export function NoesisRouteContent({
     case 'source-index':
       return <SourceIndexRoutePage media={media} vault={vault} drafts={drafts} practices={practices} questions={questions} onNavigate={navigateToView} />;
     case 'goals':
-      return <GoalsRoutePage goal={goalState} goalProgress={goalProgress} concepts={concepts} inquiries={questions} sources={media} positions={vault} works={drafts} practices={practices} profile={profile} onSaveGoal={saveGoal} />;
+      return <GoalsRoutePage goal={goalState} goalProgress={goalProgress} concepts={concepts} inquiries={questions} sources={media} positions={vault} works={drafts} practices={practices} profile={profile} onSaveGoal={saveGoal} onOpenPraxis={(method) => {
+        try { window.localStorage.setItem('noesis:labs-tool', method); } catch { /* Optional view preference. */ }
+        navigateToView('labs');
+      }} />;
     case 'profile':
       return (
         <ProfileRoutePage
