@@ -1,4 +1,5 @@
 import type { NoesisCondition, NoesisStage, PhilosophicalObjectType, Practice, PracticeStatus } from '@/lib/types';
+import { UNSORTED_CONCEPT } from './readex';
 
 const ACTIVE_PRACTICE_STATUSES = new Set<PracticeStatus>(['active']);
 
@@ -23,7 +24,7 @@ export function hasPracticeIntellectualBasis(practice: Partial<Practice>) {
     practice.intellectualBasis?.trim()
       || practice.positionIds?.length
       || practice.questionIds?.length
-      || practice.conceptTags?.length
+      || practice.conceptTags?.some((tag) => tag.trim() && tag.trim().toLowerCase() !== UNSORTED_CONCEPT.toLowerCase())
       || practice.sourceIds?.length
   );
 }

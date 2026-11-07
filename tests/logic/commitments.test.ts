@@ -61,3 +61,19 @@ test('expected duration respects an explicit review date and otherwise follows c
   assert.equal(commitmentExpectedDuration(commitment({ targetProgress: 8, commitmentFrequency: 'weekly' })), 56);
   assert.equal(commitmentFrequencyDays('monthly'), 30);
 });
+
+test('date-only check-ins preserve their chosen day and ignore malformed dates', () => {
+  const item = commitment({ commitmentFrequency: 'daily', commitmentCheckIns: [
+    { id: 'date-only', date: '2026-11-06', status: 'completed' },
+    { id: 'bad', date: 'invalid', status: 'completed' },
+    { id: 'bad-calendar-day', date: '2026-02-30', status: 'completed' },
+  ] });
+  assert.deepEqual(completedCommitmentDates(item), ['2026-11-06']);
+  assert.equal(commitmentDueToday(item, new Date(2026, 10, 6, 0, 15)), false);
+});
+
+test('weekly reminders become due at the local calendar boundary across daylight saving', () => {
+  const item = commitment({ commitmentFrequency: 'weekly', commitmentCheckIns: [{ id: 'before-dst', date: '2026-03-08', status: 'completed' }] });
+  assert.equal(commitmentDueToday(item, new Date(2026, 2, 14, 23, 59)), false);
+  assert.equal(commitmentDueToday(item, new Date(2026, 2, 15, 0, 15)), true);
+});

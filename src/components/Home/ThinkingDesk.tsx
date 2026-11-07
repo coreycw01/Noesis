@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { practiceLogDates, practiceNeedsLog } from '@/lib/practice-state';
 import {
   ArrowRight,
   AlertTriangle,
@@ -101,15 +102,6 @@ interface ThinkingDeskProps {
 function recentDate(value?: string) {
   const time = Date.parse(value || '');
   return Number.isFinite(time) ? time : 0;
-}
-
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function practiceLogDates(practice: Practice) {
-  const structured = (practice.logs || []).filter((log) => log.actionCompleted).map((log) => log.date.slice(0, 10));
-  return Array.from(new Set([...(practice.logDates || []), ...structured])).sort();
 }
 
 function firstName(profile: UserProfile) {
@@ -260,7 +252,7 @@ export function ThinkingDesk({
           id: `source-${item.id}`,
           label: item.title,
           eyebrow: 'Source awaiting reflection',
-          reason: 'This source is finished, but its after-reading reflection is still thin.',
+          reason: 'This source is finished, but its reflection on what changed is still incomplete.',
           action: 'Reflect on source',
           priority,
           icon: BookOpen,
@@ -269,7 +261,7 @@ export function ThinkingDesk({
         } as DeskItem));
 
     const addPracticeLogs = (priority = 76) => practices
-      .filter((item) => item.status === 'active' && !practiceLogDates(item).includes(todayKey()))
+      .filter((item) => practiceNeedsLog(item))
       .forEach((item) => items.push({
           id: `practice-${item.id}`,
           label: item.title,
@@ -602,7 +594,7 @@ export function ThinkingDesk({
       }));
 
     const practicesDue = practices
-      .filter((practice) => practice.status === 'active')
+      .filter((practice) => practiceNeedsLog(practice))
       .filter((practice) => {
         const dates = practiceLogDates(practice);
         return !dates.length || recentDate(dates[dates.length - 1]) < Date.now() - 6 * 24 * 60 * 60 * 1000;

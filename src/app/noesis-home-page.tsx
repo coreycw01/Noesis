@@ -11,6 +11,7 @@ import type { MovementMetrics } from '@/components/Shell';
 import { NoesisProviders } from '@/components/app-shell/NoesisProviders';
 import { navigateWorkspace } from '@/lib/workspace-navigation';
 import { positionRevisionHistory } from '@/lib/position-revisions';
+import { practiceStartDateForSave } from '@/lib/practice-state';
 import { NoesisShell } from '@/components/app-shell/NoesisShell';
 import { NoesisWorkspaceGate } from '@/components/app-shell/NoesisWorkspaceGate';
 import { NoesisRouteContent } from '@/components/pages/NoesisRouteContent';
@@ -2329,8 +2330,8 @@ function ReadexWorkspace({
       description: data.description || '',
       type: data.type || 'experiment',
       status: normalizePracticeStatusForSave(data),
-      durationDays: data.durationDays || 7,
-      startDate: data.startDate || today().slice(0, 10),
+      durationDays: Number.isFinite(data.durationDays) ? Math.max(0, Math.floor(data.durationDays!)) : 7,
+      startDate: practiceStartDateForSave(data),
       endDate: data.endDate || '',
       intellectualBasis: data.intellectualBasis || '',
       hypothesis: data.hypothesis || '',
@@ -2397,6 +2398,7 @@ function ReadexWorkspace({
       conceptIds: conceptIdsForLabels(practice.conceptTags, availableConcepts),
       logs: boundedNestedPracticeLogs(practice.logs || []),
       status: normalizePracticeStatusForSave(practice),
+      startDate: practiceStartDateForSave(practice),
       dateUpdated: today(),
     };
     const previousLogsById = new Map((previous?.logs || []).map((log) => [log.id, log]));

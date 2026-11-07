@@ -14,7 +14,7 @@ export interface PracticesRoutePageProps {
   drafts: Draft[];
   links: PhilosophicalLink[];
   focusedPracticeId?: string | null;
-  onAddPractice: (data: Partial<Practice>) => void;
+  onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
   onUpdatePractice: (practice: Practice) => void;
   onDeletePractice: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;

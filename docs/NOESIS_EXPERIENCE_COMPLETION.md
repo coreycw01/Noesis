@@ -4,7 +4,8 @@ Started: 2026-11-06. Status: implementation in progress, not release complete.
 
 Checkpoint: approximately 45% of the full implementation and verification pass.
 Commit the current repairs without treating this checkpoint as release signoff.
-Resume with deeper Praxis, Atlas, AI, Home, Goals, Profile and Settings workflows,
+The Praxis reliability batch below is now implemented and browser checked.
+Resume with deeper Atlas, AI, Home, Goals, Profile and Settings workflows,
 then full appearance/device checks and the measured performance-budget failure.
 
 ## Direction
@@ -134,7 +135,28 @@ layout choice. Validate decisions through complete working journeys instead.
 
 ## Verification Record
 
-- Logic: 106 tests pass. Security: 15 tests pass.
+- Praxis follow-up: planned practices no longer acquire a start date before
+  activation. A written intellectual basis satisfies setup; the automatic
+  Unsorted Ideas tag does not. Future schedules wait, ended schedules request
+  review, and abandoned/integrated records do not demand reviews indefinitely.
+- Practice cards separate Today, Needs attention and Ongoing. Progress describes
+  completed days rather than a fictitious current day. Multiple observations on
+  one day do not inflate completion. Streaks allow today to remain unlogged until
+  the day ends. Practice and commitment reminders use local calendar days,
+  including daylight-saving boundaries and date-only check-ins.
+- Practice saves and AI acceptance await persistence; accepted AI material merges
+  only its own patch into an unsaved editor draft. Real provider generation and
+  failure recovery still require authenticated verification.
+- Practice editor keeps its header, workflow and footer stationary while each
+  step scrolls independently. All four steps were checked at 320x740, 390x844,
+  and 1280x900 without dialog movement or internal horizontal overflow. Landscape
+  at 844x390 now leaves 187px for the form, up from an unusable 40px before the
+  layout corrections; all four landscape steps retain identical bounds.
+- Browser verified a newly saved plan has no start date; completed setup then
+  activates and appears under Today. A saved observation survives reload as one
+  completed day and a one-day streak. Closing the editor leaves zero dialogs and
+  normal pointer interaction. No console errors in this tested journey.
+- Logic: 115 tests pass. Security: 15 tests pass.
 - Typecheck: passes. Lint: no errors, 29 existing warnings (hooks, images, fonts).
 - Production build: passes using .next-build-readiness, isolated from preview.
   A restricted Windows run first failed to create a generated folder; rerunning

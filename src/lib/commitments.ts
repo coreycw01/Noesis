@@ -1,8 +1,8 @@
 import type { CommitmentFrequency, GoalItem } from '@/lib/types';
+import { localDateKey, recordDateKey } from './calendar';
 
 export function localCommitmentDateKey(value = new Date()) {
-  const offset = value.getTimezoneOffset() * 60_000;
-  return new Date(value.getTime() - offset).toISOString().slice(0, 10);
+  return localDateKey(value);
 }
 
 export function commitmentFrequencyDays(frequency?: CommitmentFrequency) {
@@ -15,19 +15,21 @@ export function commitmentFrequencyDays(frequency?: CommitmentFrequency) {
 export function completedCommitmentDates(item: GoalItem) {
   return [...new Set((item.commitmentCheckIns || [])
     .filter((entry) => entry.status === 'completed')
-    .map((entry) => localCommitmentDateKey(new Date(entry.date)))
+    .map((entry) => recordDateKey(entry.date))
     .filter(Boolean))];
 }
 
 export function commitmentDueToday(item: GoalItem, now = new Date()) {
   if (!['active', 'under_review', 'stalled'].includes(item.status)) return false;
   const todayKey = localCommitmentDateKey(now);
-  if ((item.commitmentCheckIns || []).some((entry) => localCommitmentDateKey(new Date(entry.date)) === todayKey)) return false;
+  if ((item.commitmentCheckIns || []).some((entry) => recordDateKey(entry.date) === todayKey)) return false;
   if (item.commitmentReviewDate && item.commitmentReviewDate <= todayKey) return true;
   const completedDates = completedCommitmentDates(item).sort();
   if (!completedDates.length) return true;
-  const last = Date.parse(`${completedDates[completedDates.length - 1]}T00:00:00`);
-  const age = Number.isFinite(last) ? Math.floor((now.getTime() - last) / 86_400_000) : Number.POSITIVE_INFINITY;
+  // Compare calendar dates rather than local days that may be 23 or 25 hours.
+  const last = Date.parse(`${completedDates[completedDates.length - 1]}T00:00:00Z`);
+  const current = Date.parse(`${todayKey}T00:00:00Z`);
+  const age = Number.isFinite(last) ? Math.floor((current - last) / 86_400_000) : Number.POSITIVE_INFINITY;
   return age >= commitmentFrequencyDays(item.commitmentFrequency);
 }
 
