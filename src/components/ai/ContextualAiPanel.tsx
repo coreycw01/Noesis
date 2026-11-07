@@ -476,11 +476,11 @@ export function ContextualAiPanel({
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
                                       <div className="font-code text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{reviewItemLabel} {index + 1}</div>
-                                      <h3 className="mt-1 text-base font-semibold leading-snug text-foreground">{item.title}</h3>
+                                      <h3 className="mt-1 text-base font-semibold leading-snug text-foreground">{formattedInline(item.title)}</h3>
                                     </div>
                                     <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-medium capitalize ${item.status === 'kept' ? 'border-accent/50 text-accent' : 'border-border text-muted-foreground'}`}>{item.status}</span>
                                   </div>
-                                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">{item.content}</p>
+                                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">{formattedInline(item.content)}</p>
                                 </button>
                                 <div className="mt-3 flex flex-wrap items-center gap-2">
                                   <Button type="button" variant="outline" size="sm" disabled={accepting} onClick={() => updateReviewItem(item.id, { status: 'kept' })} className="min-h-10"><Check className="mr-2 size-4" />Keep</Button>

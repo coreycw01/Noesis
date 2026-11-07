@@ -20,7 +20,7 @@ import { persistedConceptRecords } from '@/lib/workspace-counts';
 import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { appendAiHistoryEntry, profileStatementFromSynthesis, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
+import { profileSynthesisPatch, resolvedAiHistory, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
 import { cn } from '@/lib/utils';
 import type { AiSettings, BeliefProfile, Concept, Draft, Media, Practice, ProfilePrivacySettings, PublicProfileSnapshot, Question, ThinkingEvent, ThinkingMetrics, ThinkingPattern, ThinkingPatternUserResponse, Unknown, UserProfile, VaultEntry } from '@/lib/types';
 
@@ -56,6 +56,10 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
   const auth = useAuth();
   const { toast } = useToast();
   const [profileDraft, setProfileDraft] = useState<UserProfile>(profile);
+  const savedReviews = resolvedAiHistory(profileDraft.aiReviewHistory, {
+    id: 'legacy-philosophy-review', action: 'synthesize_profile_philosophy', title: 'Philosophy review',
+    content: profileDraft.philosophySynthesisReview || '', date: profileDraft.philosophySynthesisReviewedAt || profileDraft.dateUpdated || '',
+  });
   const [privacyDraft, setPrivacyDraft] = useState<ProfilePrivacySettings>(privacy);
   const [patternResponseDrafts, setPatternResponseDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<'profile' | 'privacy' | null>(null);
@@ -194,18 +198,9 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
   }, [activePositions, concepts.length, derivedIdentity.season, inquiries, openEdges.tensions.length, openEdges.unsupported.length, openUnknowns.length, practices, profile.id, profileDraft.philosophyName, profileDraft.philosophyNameStatus, profileDraft.philosophyStatement, rankedConcepts, recentBeliefEvents, sourceLeaders, sources.length, user?.uid, works]);
 
   const acceptPhilosophySynthesis = async (result: AiReviewResult, editedContent: string) => {
-    const statement = profileStatementFromSynthesis(editedContent);
-    const reviewedAt = new Date().toISOString();
-    const nextProfile = {
-      ...profileDraft,
-      ...(statement ? { philosophyStatement: statement } : {}),
-      philosophySynthesisReview: editedContent,
-      philosophySynthesisReviewedAt: reviewedAt,
-      aiReviewHistory: appendAiHistoryEntry(profileDraft.aiReviewHistory, result, editedContent, reviewedAt),
-      dateUpdated: reviewedAt,
-    };
-    await onSaveProfile(nextProfile);
-    setProfileDraft(nextProfile);
+    const patch = profileSynthesisPatch(profile, result, editedContent);
+    await onSaveProfile({ ...profile, ...patch });
+    setProfileDraft((current) => ({ ...current, ...patch }));
   };
 
   return (
@@ -264,21 +259,15 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
                 />
               ) : <Button variant="outline" size="sm" className="shrink-0 rounded-full" onClick={() => onNavigate('settings')}>Enable in Settings</Button>}
             </div>
-            {(profileDraft.aiReviewHistory?.length || profileDraft.philosophySynthesisReview?.trim()) && (
+            {savedReviews.length > 0 && (
               <div className="mt-4">
                 <AiAssistedHistory
                   title="Saved philosophy reviews"
-                  entries={profileDraft.aiReviewHistory?.length ? profileDraft.aiReviewHistory : [{
-                    id: 'legacy-philosophy-review',
-                    action: 'synthesize_profile_philosophy',
-                    title: 'Philosophy review',
-                    content: profileDraft.philosophySynthesisReview || '',
-                    date: profileDraft.philosophySynthesisReviewedAt || profileDraft.dateUpdated || '',
-                  }]}
+                  entries={savedReviews}
                   onChange={async (aiReviewHistory) => {
-                    const nextProfile = { ...profileDraft, aiReviewHistory, dateUpdated: new Date().toISOString() };
-                    await onSaveProfile(nextProfile);
-                    setProfileDraft(nextProfile);
+                    const patch = { aiReviewHistory, dateUpdated: new Date().toISOString() };
+                    await onSaveProfile({ ...profile, ...patch });
+                    setProfileDraft((current) => ({ ...current, ...patch }));
                   }}
                 />
               </div>

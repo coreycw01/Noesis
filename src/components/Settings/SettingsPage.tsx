@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { sendPasswordResetEmail, signOut } from 'firebase/auth';
 import { Check, Download, LogOut, RefreshCw, Save, Shield, Trash2, Wrench } from 'lucide-react';
@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { LabeledField as Field } from '@/components/shared/LabeledField';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
+import { reconcileSettingsDrafts } from '@/lib/settings-drafts';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import {
   MEDIA_LABELS,
@@ -212,9 +213,12 @@ export function SettingsPage({
   const auth = useAuth();
   const { toast } = useToast();
   const [drafts, setDrafts] = useState<SettingsState>(settings);
+  const settingsBaseline = useRef(settings);
+  const saveLock = useRef(false);
   const [saving, setSaving] = useState<SettingsSectionKey | 'reset' | 'refresh-demo' | null>(null);
   const [lastSaved, setLastSaved] = useState<SettingsSectionKey | null>(null);
   const [activePanel, setActivePanel] = useState<SettingsPanelId>('account');
+  const [panelPreferenceLoaded, setPanelPreferenceLoaded] = useState(false);
   const [aiConnection, setAiConnection] = useState<'idle' | 'checking' | 'configured' | 'not_configured' | 'unavailable'>('idle');
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -230,19 +234,28 @@ export function SettingsPage({
     }
   };
 
-  const settingsSignature = JSON.stringify(settings);
-  useEffect(() => setDrafts(settings), [settingsSignature]); // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
-    const saved = window.localStorage.getItem(SETTINGS_SECTION_STORAGE_KEY) as SettingsPanelId | null;
-    if (saved && SETTINGS_PANELS.some((panel) => panel.id === saved)) {
-      setActivePanel(saved);
-    }
+    const previous = settingsBaseline.current;
+    setDrafts((current) => reconcileSettingsDrafts(current, previous, settings));
+    settingsBaseline.current = settings;
+  }, [settings]);
+
+  useEffect(() => () => {
+    applyAppearanceSettings(settingsBaseline.current.appearance);
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(SETTINGS_SECTION_STORAGE_KEY, activePanel);
-  }, [activePanel]);
+    try {
+      const saved = window.localStorage.getItem(SETTINGS_SECTION_STORAGE_KEY) as SettingsPanelId | null;
+      if (saved && SETTINGS_PANELS.some((panel) => panel.id === saved)) setActivePanel(saved);
+    } catch { /* Section preference is optional. */ }
+    setPanelPreferenceLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!panelPreferenceLoaded) return;
+    try { window.localStorage.setItem(SETTINGS_SECTION_STORAGE_KEY, activePanel); } catch { /* Keep settings usable without storage. */ }
+  }, [activePanel, panelPreferenceLoaded]);
 
   const appearancePreview = useMemo(
     () => ({
@@ -267,6 +280,8 @@ export function SettingsPage({
   }, [appearancePreview]);
 
   const saveSection = async (section: SettingsSectionKey) => {
+    if (saveLock.current) return;
+    saveLock.current = true;
     setSaving(section);
     try {
       await onSaveSection(section, drafts[section]);
@@ -287,6 +302,7 @@ export function SettingsPage({
     } catch {
       toast({ variant: 'destructive', title: 'Settings not saved', description: `Noesis could not save the ${sectionLabel(section).toLowerCase()} section.` });
     } finally {
+      saveLock.current = false;
       setSaving(null);
     }
   };
@@ -794,7 +810,7 @@ export function SettingsPage({
       case 'ai':
         return (
           <div className="space-y-6">
-            <SettingsCard title="Contextual AI Assistance" description="Enable specific, manually invoked tools on approved detail pages only.">
+            <SettingsCard title="Contextual AI Assistance" description="Choose how manually requested assistance uses the context you provide.">
               <div className="grid gap-3">
                 <SwitchRow label="Enable contextual assistance" checked={drafts.ai.aiAssistanceEnabled} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, aiAssistanceEnabled: checked } }))} />
                 <SwitchRow label="Show context before sending" checked={drafts.ai.showContextBeforeSending} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, showContextBeforeSending: checked } }))} />
@@ -810,11 +826,11 @@ export function SettingsPage({
                 </Field>
               </div>
               <div className="mt-4 rounded-xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
-                Each action is started by you on a specific item. Context is limited to that item and directly linked records; results remain suggestions until you review and accept them. Accepted material is recorded as AI-assisted. Keys, billing details, and raw provider errors are never shown here.
+                You start every request. Item assistance uses that item and its linked records; Context Desk uses your selected items, and period reviews use the selected dates. Results remain suggestions until you review and accept them. Accepted material is recorded as AI-assisted.
               </div>
               <div className="mt-3 rounded-xl border border-border bg-background/60 p-4">
                 <div className="text-sm font-medium text-foreground">Where assistance appears</div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">Source reflection and claim extraction · annotation effect · concept definition · inquiry challenge · position analysis · completed practice outcome · selected Evolution period. No background or whole-workspace analysis runs.</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Library · Annotations · Concepts · Inquiries · Positions · completed practice reviews · Evolution period reviews · Profile philosophy reviews · Context Desk. No automatic workspace scans run.</p>
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background/60 p-4">
                 <div>

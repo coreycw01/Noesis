@@ -1,4 +1,4 @@
-import type { AiAssistedHistoryEntry } from './types';
+import type { AiAssistedHistoryEntry, UserProfile } from './types';
 import { appendAiReviewHistory } from './collection-integrity';
 
 export type ContextualAiScope = 'current_item' | 'linked_items' | 'selected_pair' | 'selected_period';
@@ -87,6 +87,23 @@ export function appendAiHistoryEntry(
   date = new Date().toISOString()
 ) {
   return appendAiReviewHistory(entries, aiHistoryEntry(result, content, date));
+}
+
+export function resolvedAiHistory(entries: AiAssistedHistoryEntry[] | undefined, legacy?: AiAssistedHistoryEntry): AiAssistedHistoryEntry[] {
+  // An explicitly empty history means the user removed it, not a missing migration.
+  if (Array.isArray(entries)) return entries;
+  return legacy?.content.trim() ? [legacy] : [];
+}
+
+export function profileSynthesisPatch(profile: UserProfile, result: AiReviewResult, content: string, reviewedAt = new Date().toISOString()): Partial<UserProfile> {
+  const statement = profileStatementFromSynthesis(content);
+  return {
+    ...(statement ? { philosophyStatement: statement } : {}),
+    philosophySynthesisReview: content,
+    philosophySynthesisReviewedAt: reviewedAt,
+    aiReviewHistory: appendAiHistoryEntry(profile.aiReviewHistory, result, content, reviewedAt),
+    dateUpdated: reviewedAt,
+  };
 }
 
 export function parseAssumptionSuggestions(content: string): AssumptionSuggestion[] {

@@ -31,7 +31,7 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { appendAiHistoryEntry, type AiReviewResult } from '@/lib/contextual-ai';
+import { appendAiHistoryEntry, resolvedAiHistory, type AiReviewResult } from '@/lib/contextual-ai';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { hasPracticeIntellectualBasis, normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
@@ -1084,6 +1084,10 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
     setPracticeWorkflowStep('design');
   }, [draft.id]);
   const schedule = practiceScheduleState(draft);
+  const savedReviews = resolvedAiHistory(draft.aiReviewHistory, {
+    id: 'legacy-outcome-review', action: 'synthesize_practice_outcome', title: 'Outcome review',
+    content: draft.aiOutcomeReview || '', date: draft.dateUpdated || draft.endDate || '',
+  });
   const readyToLog = Boolean(draft.id && schedule === 'running' && practiceDesignGaps(draft).length === 0 && hasPracticeBasis(draft as Practice));
   const recordObservation = async () => {
     if (logLock.current || !readyToLog || !observation.trim()) return;
@@ -1246,17 +1250,11 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   <Field label="ALTERNATIVE EXPLANATION"><Textarea value={draft.alternativeExplanation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What else could explain the result?" /></Field>
                   <Field label="EFFECT ON POSITION"><Textarea value={draft.effectOnPosition || ''} onChange={(event) => setDraft((prev) => ({ ...prev, effectOnPosition: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What position, inquiry, or concept should change because of this?" /></Field>
                 </div>
-                {(draft.aiReviewHistory?.length || draft.aiOutcomeReview?.trim()) && (
+                {savedReviews.length > 0 && (
                   <div className="mt-5">
                     <AiAssistedHistory
                       title="Saved outcome reviews"
-                      entries={draft.aiReviewHistory?.length ? draft.aiReviewHistory : [{
-                        id: 'legacy-outcome-review',
-                        action: 'synthesize_practice_outcome',
-                        title: 'Outcome review',
-                        content: draft.aiOutcomeReview || '',
-                        date: draft.dateUpdated || draft.endDate || new Date().toISOString(),
-                      }]}
+                      entries={savedReviews}
                       onChange={onSaveAiHistory}
                     />
                   </div>

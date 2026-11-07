@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { ContextualAiDocument } from '@/components/ai/ContextualAiPanel';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,7 @@ export function AiAssistedHistory({
   const [editing, setEditing] = useState<AiAssistedHistoryEntry | null>(null);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  const saveLock = useRef(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const visible = showAll ? ordered : ordered.slice(0, 3);
 
@@ -47,14 +48,15 @@ export function AiAssistedHistory({
   };
 
   const closeEditor = () => {
-    if (saving) return;
+    if (saveLock.current) return;
     setEditing(null);
     setDraft('');
     setConfirmDelete(false);
   };
 
   const save = async () => {
-    if (!editing || !draft.trim()) return;
+    if (!editing || !draft.trim() || saveLock.current) return;
+    saveLock.current = true;
     setSaving(true);
     try {
       await onChange(entries.map((entry) => entry.id === editing.id ? { ...entry, content: draft.trim() } : entry));
@@ -65,12 +67,14 @@ export function AiAssistedHistory({
     } catch (error) {
       toast({ variant: 'destructive', title: 'Could not update history', description: error instanceof Error ? error.message : 'Try again.' });
     } finally {
+      saveLock.current = false;
       setSaving(false);
     }
   };
 
   const remove = async () => {
-    if (!editing) return;
+    if (!editing || saveLock.current) return;
+    saveLock.current = true;
     setSaving(true);
     try {
       await onChange(entries.filter((entry) => entry.id !== editing.id));
@@ -81,6 +85,7 @@ export function AiAssistedHistory({
     } catch (error) {
       toast({ variant: 'destructive', title: 'Could not delete history note', description: error instanceof Error ? error.message : 'Try again.' });
     } finally {
+      saveLock.current = false;
       setSaving(false);
     }
   };
@@ -147,6 +152,7 @@ export function AiAssistedHistory({
             <p className="text-sm leading-6 text-muted-foreground">{editing?.title}</p>
           ) : (
             <Textarea
+              disabled={saving}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               aria-label="AI-assisted note content"

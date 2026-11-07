@@ -31,7 +31,7 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { appendAiHistoryEntry } from '@/lib/contextual-ai';
+import { appendAiHistoryEntry, resolvedAiHistory } from '@/lib/contextual-ai';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -145,6 +145,10 @@ export function AnnotationsIndex({
   const [sortBy, setSortBy] = usePersistentView<AnnotationSort>('noesis:annotations-sort', 'newest', ['newest', 'oldest', 'source', 'type', 'status']);
   const [viewMode, setViewMode] = useEntityViewPreference('annotations');
   const [editing, setEditing] = useState<FlatAnnotation | null>(null);
+  const savedReviews = resolvedAiHistory(editing?.aiReviewHistory, editing ? {
+    id: 'legacy-effect-review', action: 'suggest_annotation_effect', title: 'Effect review',
+    content: editing.aiEffectReview || '', date: editing.date,
+  } : undefined);
   const [annotationWorkflowStep, setAnnotationWorkflowStep] = useState<'understand' | 'apply' | 'connect' | 'trace'>('understand');
   const [editingMetadata, setEditingMetadata] = useState(false);
   const [detailEffect, setDetailEffect] = useState<ConsequenceAction>('reference');
@@ -1293,22 +1297,17 @@ export function AnnotationsIndex({
                 </details>
               </section>
 
-              {annotationWorkflowStep === 'apply' && (editing.aiReviewHistory?.length || editing.aiEffectReview) && (
+              {annotationWorkflowStep === 'apply' && savedReviews.length > 0 && (
                 <AiAssistedHistory
                   title="Saved effect reviews"
                   description="Reviewed assistance for this annotation. Editing or deleting a note does not change its links or status."
-                  entries={editing.aiReviewHistory?.length ? editing.aiReviewHistory : [{
-                    id: 'legacy-effect-review',
-                    action: 'suggest_annotation_effect',
-                    title: 'Effect review',
-                    content: editing.aiEffectReview || '',
-                    date: editing.date,
-                  }]}
-                  onChange={(aiReviewHistory) => {
-                    const { source, ...annotation } = editing;
-                    const next = { ...annotation, aiReviewHistory };
-                    void persistAnnotation(source.id, next);
-                    setEditing({ ...next, source });
+                  entries={savedReviews}
+                  onChange={async (aiReviewHistory) => {
+                    const saved = annotations.find((item) => item.id === editing.id && item.source.id === editing.source.id);
+                    if (!saved) throw new Error('This annotation is no longer available.');
+                    const { source, ...annotation } = saved;
+                    if (!await persistAnnotation(source.id, { ...annotation, aiReviewHistory })) throw new Error('Review history was not saved.');
+                    setEditing((current) => current ? { ...current, aiReviewHistory } : current);
                   }}
                 />
               )}
@@ -1354,10 +1353,12 @@ export function AnnotationsIndex({
                       userPrompt,
                     })}
                     onAccept={async (result, content) => {
-                      const { source, ...annotation } = editing;
+                      const saved = annotations.find((item) => item.id === editing.id && item.source.id === editing.source.id);
+                      if (!saved) throw new Error('This annotation is no longer available.');
+                      const { source, ...annotation } = saved;
                       const next = { ...annotation, aiEffectReview: content, aiReviewHistory: appendAiHistoryEntry(annotation.aiReviewHistory, result, content) };
                       if (!await persistAnnotation(source.id, next)) throw new Error('The reviewed note was not saved. Please retry.');
-                      setEditing({ ...next, source });
+                      setEditing((current) => current ? { ...current, aiEffectReview: next.aiEffectReview, aiReviewHistory: next.aiReviewHistory } : current);
                     }}
                   />
                 </div>

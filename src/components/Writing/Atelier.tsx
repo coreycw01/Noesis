@@ -243,6 +243,7 @@ function BufferedStructuredWorkSurface({
 }) {
   const [buffer, setBuffer] = useState(data);
   const onCommitRef = useRef(onCommit);
+  const pendingBufferRef = useRef<WorkTemplateData | null>(null);
   const propSignature = useMemo(() => JSON.stringify(data), [data]);
   const bufferSignature = useMemo(() => JSON.stringify(buffer), [buffer]);
   const previousPropSignatureRef = useRef(propSignature);
@@ -250,6 +251,13 @@ function BufferedStructuredWorkSurface({
   useEffect(() => {
     onCommitRef.current = onCommit;
   }, [onCommit]);
+
+  const flushBuffer = useCallback(() => {
+    const pending = pendingBufferRef.current;
+    if (!pending) return;
+    pendingBufferRef.current = null;
+    onCommitRef.current(pending);
+  }, []);
 
   useEffect(() => {
     if (propSignature === previousPropSignatureRef.current) return;
@@ -259,11 +267,11 @@ function BufferedStructuredWorkSurface({
 
   useEffect(() => {
     if (bufferSignature === propSignature) return;
-    const timeout = window.setTimeout(() => onCommitRef.current(buffer), 350);
+    const timeout = window.setTimeout(flushBuffer, 350);
     return () => window.clearTimeout(timeout);
-  }, [buffer, bufferSignature, propSignature]);
+  }, [bufferSignature, flushBuffer, propSignature]);
 
-  return <StructuredWorkSurface {...surfaceProps} data={buffer} onChange={setBuffer} />;
+  return <div className="contents" onBlurCapture={flushBuffer}><StructuredWorkSurface {...surfaceProps} data={buffer} onChange={(next) => { pendingBufferRef.current = next; setBuffer(next); }} /></div>;
 }
 
 function splitWorkLines(value?: string) {
@@ -1222,14 +1230,18 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   };
 
   if (active) {
+    const pageTools = activeToolSections.filter((section) => (section.pageId || 'main') === resolvedCurrentPageId);
     return (
       <div className="flex-1 flex flex-col h-full bg-background text-foreground overflow-hidden font-body">
         <header className="border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur z-50 sm:px-5">
           <div className="mx-auto flex max-w-[1800px] flex-col gap-2">
             <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap sm:items-start sm:justify-between">
               <button
+                type="button"
+                aria-label="Back to Works"
+                title="Back to Works"
                 onClick={closeDraft}
-                className="flex h-9 items-center gap-1 rounded-full px-2 font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-[var(--button-radius)] px-2 font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ChevronLeft className="size-4" /> <span className="hidden sm:inline">Works</span>
               </button>
@@ -1451,6 +1463,25 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   setEditorRibbon('drawing');
                   updateActive({ activeRibbon: 'drawing' });
                 }} onInsertTool={addDocumentTool} onUploadImage={uploadInlineImage} />}
+                {pageTools.length > 0 && (
+                  <div className="shrink-0 border-b border-border/40 px-2 md:hidden">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="ghost" className="min-h-11">
+                          <ListTree className="size-4" /> Page tools ({pageTools.length})
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        {pageTools.map((section) => (
+                          <DropdownMenuItem key={section.id} onSelect={() => {
+                            updateToolSectionWindow(section.id, { minimized: false });
+                            setFocusedToolId(section.id);
+                          }}>{workToolLabel(section.tool)}</DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
                 <DocumentCanvas
                   content={activeContent}
                   onContentChange={handleUpdateContent}

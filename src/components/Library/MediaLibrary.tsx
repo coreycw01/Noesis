@@ -1150,11 +1150,11 @@ export function MediaLibrary({
           aria-expanded={readingRoomOpen}
         >
           <div>
-            <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Active Sources</div>
+            <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Source activity</div>
             <p className="mt-1 text-xs text-muted-foreground">Continue, reflect, or develop active source threads.</p>
           </div>
           <span className="flex items-center gap-2">
-            <Badge variant="outline" className="rounded-full">{filtered.length} shown</Badge>
+            <Badge variant="outline" className="rounded-full">{readingRoomQueue.continueConsuming.length} to continue</Badge>
             <ChevronDown className={cn('size-4 transition-transform', readingRoomOpen && 'rotate-180')} />
           </span>
         </button>

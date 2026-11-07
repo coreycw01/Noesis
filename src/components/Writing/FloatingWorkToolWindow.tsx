@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { GripHorizontal, Maximize2, Minus, Pencil, X } from 'lucide-react';
+import { GripHorizontal, Maximize2, Minus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import type { WorkToolSection } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -48,6 +49,7 @@ function normalizedWindow(section: WorkToolSection): ToolWindow {
 
 export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, onPatch, onPlacementChange, onRemove, children }: FloatingWorkToolWindowProps) {
   const [frame, setFrame] = useState(() => normalizedWindow(section));
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const interactionRef = useRef<Interaction | null>(null);
   const windowRef = useRef<HTMLElement | null>(null);
 
@@ -128,23 +130,23 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
     windowRef.current?.querySelector<HTMLElement>('input, textarea, select, [contenteditable="true"]')?.focus();
   };
 
-  if (frame.minimized) {
-    return (
+  const minimizedControl = frame.minimized ? (
       <Button
         type="button"
         variant="outline"
         size="sm"
         onClick={() => setMinimized(false)}
-        className={cn('z-30 hidden h-9 max-w-56 rounded-md border-border/60 bg-background/95 shadow-md md:inline-flex', frame.placement === 'overlay' ? 'absolute' : 'relative my-2')}
-        style={{ left: frame.x, top: frame.y, zIndex: frame.zIndex }}
+        className={cn('z-30 hidden min-h-9 max-w-56 rounded-[var(--button-radius)] border-border/60 bg-background/95 shadow-md md:inline-flex', frame.placement === 'overlay' ? 'absolute left-[var(--work-tool-x)] top-[var(--work-tool-y)]' : 'relative my-2')}
+        style={{ '--work-tool-x': `${frame.x}px`, '--work-tool-y': `${frame.y}px`, zIndex: frame.zIndex } as CSSProperties}
         aria-label={`Restore ${label}`}
       >
         <Maximize2 className="mr-2 size-3.5" /> <span className="truncate">{label}</span>
       </Button>
-    );
-  }
+    ) : null;
 
   return (
+    <>
+    {minimizedControl}
     <section
       ref={windowRef}
       id={`work-tool-${section.id}`}
@@ -167,6 +169,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         '--work-tool-width': `${frame.width}px`,
         '--work-tool-height': `${frame.height}px`,
         zIndex: mobileActive ? 40 : frame.zIndex,
+        display: frame.minimized ? 'none' : undefined,
       } as CSSProperties}
     >
       <header
@@ -201,8 +204,8 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         <Button type="button" variant="ghost" size="icon" onClick={() => setMinimized(true)} className="size-10 shrink-0 rounded-md md:size-7" aria-label={`Minimize ${label}`}>
           <Minus className="size-4" />
         </Button>
-        <Button type="button" variant="ghost" size="icon" onClick={onRemove} className="size-10 shrink-0 rounded-md text-muted-foreground hover:text-destructive md:size-7" aria-label={`Close ${label}`}>
-          <X className="size-4" />
+        <Button type="button" variant="ghost" size="icon" onClick={() => setConfirmRemove(true)} className="size-10 shrink-0 rounded-md text-muted-foreground hover:text-destructive md:size-7" aria-label={`Remove ${label}`} title={`Remove ${label}`}>
+          <Trash2 className="size-4" />
         </Button>
       </header>
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-x-hidden overflow-y-auto overscroll-contain p-2 md:p-3">{children}</div>
@@ -227,6 +230,16 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
           <span className="absolute inset-1 rounded-sm border border-accent/70 bg-background" />
         </button>
       ))}
+      <ConfirmActionDialog
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        title={`Remove ${label}?`}
+        description="This removes the tool and its contents from this document. Your writing and other tools stay unchanged."
+        confirmLabel="Remove tool"
+        destructive
+        onConfirm={onRemove}
+      />
     </section>
+    </>
   );
 }
