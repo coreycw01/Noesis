@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { deriveAutomaticGoalProgress, type GoalProgressContext } from '../../src/lib/goal-progress';
+import { deriveAutomaticGoalProgress, deriveGoalProgress, questKindForGoal, type GoalProgressContext } from '../../src/lib/goal-progress';
 import type { Concept, Draft, GoalItem, Media, Practice, Question, VaultEntry } from '../../src/lib/types';
 
 function goal(overrides: Partial<GoalItem> = {}): GoalItem {
@@ -75,4 +75,21 @@ test('work commitments can be narrowed to one selected work', () => {
     workMeasure: 'published',
     relatedObjectIds: { conceptIds: ['concept-identity'], workIds: ['work-identity'] },
   }), 'expression', context), 1);
+});
+
+test('Home and commitment previews use the same refined progress instead of source totals', () => {
+  const item = goal({ goalKind: 'inquiry', inquiryMeasure: 'resolved', relatedObjectIds: { inquiryIds: ['inquiry-identity'] } });
+  const result = deriveGoalProgress(item, undefined, context, { book: 80 });
+  assert.deepEqual(result, { currentProgress: 1, targetProgress: 10, percent: 10 });
+  assert.equal(questKindForGoal({ title: 'Book target', goalKind: 'practice' }), 'practice');
+});
+
+test('shared progress preserves manual increments and unique completed check-ins without double counting', () => {
+  const item = goal({ goalKind: 'inquiry', currentProgress: 4, commitmentCheckIns: [
+    { id: 'a', date: '2026-11-05', status: 'completed' },
+    { id: 'b', date: '2026-11-05', status: 'completed' },
+    { id: 'c', date: '2026-11-06', status: 'skipped' },
+  ] });
+  assert.equal(deriveGoalProgress(item, undefined, context).currentProgress, 4);
+  assert.equal(deriveGoalProgress({ ...item, currentProgress: 0 }, undefined, { ...context, inquiries: [] }).currentProgress, 1);
 });

@@ -19,7 +19,7 @@ import type { CommitmentFrequency, Concept, Draft, GoalItem, GoalSettings, GoalT
 import { cn } from '@/lib/utils';
 import { expectedCommitmentProgress } from '@/lib/workflow-integrity';
 import { commitmentDueToday, commitmentExpectedDuration, completedCommitmentDates, localCommitmentDateKey } from '@/lib/commitments';
-import { deriveAutomaticGoalProgress } from '@/lib/goal-progress';
+import { deriveGoalProgress, goalKindForType, questKindForGoal } from '@/lib/goal-progress';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
 const QUEST_KIND_OPTIONS: Array<{ value: IntellectualGoalKind; label: string; description: string }> = [
@@ -91,22 +91,6 @@ function defaultGoalsFromLegacy(goal: GoalSettings, types: GoalType[], progress:
       updatedAt: today(),
     };
   });
-}
-
-function goalKindForType(type?: GoalType, fallbackTitle = ''): IntellectualGoalKind {
-  const name = `${type?.name || fallbackTitle}`.toLowerCase();
-  if (name.includes('source') || name.includes('book') || name.includes('article') || name.includes('video')) return 'consumption';
-  if (name.includes('concept') || name.includes('understand')) return 'understanding';
-  if (name.includes('question') || name.includes('inquiry')) return 'inquiry';
-  if (name.includes('position') || name.includes('belief')) return 'position';
-  if (name.includes('work') || name.includes('writing') || name.includes('essay')) return 'expression';
-  if (name.includes('practice') || name.includes('habit') || name.includes('experiment')) return 'practice';
-  if (name.includes('reflect')) return 'reflection';
-  return 'transformation';
-}
-
-function questKindForGoal(item: Pick<GoalItem, 'title' | 'goalKind'>, type?: GoalType): IntellectualGoalKind {
-  return item.goalKind || goalKindForType(type, item.title);
 }
 
 function questTypeForGoal(item: GoalItem, type?: GoalType) {
@@ -278,20 +262,10 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
 
   const enrichedGoals = useMemo(() => goals.map((item) => {
     const type = goalTypes.find((goalType) => goalType.id === item.typeId);
-    const kind = questKindForGoal(item, type);
-    const mediaProgress = (type?.mediaTypes || []).reduce((sum, mediaType) => sum + (goalProgress[mediaType] || 0), 0);
-    const automaticProgress = deriveAutomaticGoalProgress(item, kind, { concepts, inquiries, sources, positions, works, practices });
-    const checkInProgress = completedCommitmentDates(item).length;
-    const currentProgress = automaticProgress === null
-      ? Math.max(item.currentProgress || 0, mediaProgress, checkInProgress)
-      : Math.max(item.currentProgress || 0, automaticProgress, checkInProgress);
-    const targetProgress = Math.max(1, item.targetProgress || 1);
     return {
       ...item,
       type,
-      currentProgress,
-      targetProgress,
-      percent: Math.min(100, (currentProgress / targetProgress) * 100),
+      ...deriveGoalProgress(item, type, { concepts, inquiries, sources, positions, works, practices }, goalProgress),
     };
   }), [concepts, goals, goalProgress, goalTypes, inquiries, positions, practices, sources, works]);
 

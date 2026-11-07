@@ -169,7 +169,12 @@ layout choice. Validate decisions through complete working journeys instead.
   The category dialog explicitly explains overlap. No console errors observed.
   Mobile Atlas zoom, inspector close and full-screen exit were exercised; this
   does not sign off every graph layout or relationship-editing path.
-- Logic: 120 tests pass. Security: 15 tests pass.
+- Home commitment previews now use the same goal-kind, refinement, automatic
+  progress, manual progress and completed-check-in calculation as Commitments.
+  This removes the old source-only calculation from Home. Browser verified
+  matching 15/18, 14/8 and 3/6 values on both surfaces in the isolated demo.
+  These are existing goal rules, not new scoring or completion requirements.
+- Logic: 122 tests pass. Security: 15 tests pass.
 - Typecheck: passes. Lint: no errors, 29 existing warnings (hooks, images, fonts).
 - Production build: passes using .next-build-readiness, isolated from preview.
   A restricted Windows run first failed to create a generated folder; rerunning

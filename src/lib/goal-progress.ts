@@ -2,12 +2,14 @@ import type {
   Concept,
   Draft,
   GoalItem,
+  GoalType,
   IntellectualGoalKind,
   Media,
   Practice,
   Question,
   VaultEntry,
 } from '@/lib/types';
+import { completedCommitmentDates } from './commitments';
 
 export interface GoalProgressContext {
   concepts: Concept[];
@@ -16,6 +18,30 @@ export interface GoalProgressContext {
   positions: VaultEntry[];
   works: Draft[];
   practices: Practice[];
+}
+
+export function goalKindForType(type?: GoalType, fallbackTitle = ''): IntellectualGoalKind {
+  const name = `${type?.name || fallbackTitle}`.toLowerCase();
+  if (name.includes('source') || name.includes('book') || name.includes('article') || name.includes('video')) return 'consumption';
+  if (name.includes('concept') || name.includes('understand')) return 'understanding';
+  if (name.includes('question') || name.includes('inquiry')) return 'inquiry';
+  if (name.includes('position') || name.includes('belief')) return 'position';
+  if (name.includes('work') || name.includes('writing') || name.includes('essay')) return 'expression';
+  if (name.includes('practice') || name.includes('habit') || name.includes('experiment')) return 'practice';
+  if (name.includes('reflect')) return 'reflection';
+  return 'transformation';
+}
+
+export function questKindForGoal(item: Pick<GoalItem, 'title' | 'goalKind'>, type?: GoalType): IntellectualGoalKind {
+  return item.goalKind || goalKindForType(type, item.title);
+}
+
+export function deriveGoalProgress(item: GoalItem, type: GoalType | undefined, context: GoalProgressContext, legacyProgress: Partial<Record<Media['type'], number>> = {}) {
+  const automatic = deriveAutomaticGoalProgress(item, questKindForGoal(item, type), context);
+  const legacy = (type?.mediaTypes || []).reduce((sum, mediaType) => sum + (legacyProgress[mediaType] || 0), 0);
+  const currentProgress = Math.max(item.currentProgress || 0, automatic ?? legacy, completedCommitmentDates(item).length);
+  const targetProgress = Math.max(1, item.targetProgress || 1);
+  return { currentProgress, targetProgress, percent: Math.min(100, (currentProgress / targetProgress) * 100) };
 }
 
 function hasConceptTag(tags: string[] | undefined, conceptNames: string[]) {

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { practiceLogDates, practiceNeedsLog } from '@/lib/practice-state';
 import { deriveWorkspaceAttention } from '@/lib/workspace-attention';
+import { deriveGoalProgress } from '@/lib/goal-progress';
 import {
   ArrowRight,
   AlertTriangle,
@@ -190,14 +191,13 @@ export function ThinkingDesk({
     if (activeGoals.length) {
       return activeGoals.map((item) => {
         const category = categories.find((goalType) => goalType.id === item.typeId);
-        const done = (category?.mediaTypes || []).reduce((sum, type) => sum + (goalProgress[type] || 0), 0);
-        const target = Math.max(1, item.targetProgress || 1);
+        const progress = deriveGoalProgress(item, category, { concepts, inquiries, sources: media, positions, works, practices }, goalProgress);
         return {
           id: item.id,
           label: item.title || category?.name || 'Untitled goal',
-          done,
-          target,
-          percent: Math.min(100, (done / target) * 100),
+          done: progress.currentProgress,
+          target: progress.targetProgress,
+          percent: progress.percent,
         };
       }).slice(0, 3);
     }
@@ -213,7 +213,7 @@ export function ThinkingDesk({
         percent: Math.min(100, (done / target) * 100),
       };
     });
-  }, [goal, goalProgress]);
+  }, [concepts, goal, goalProgress, inquiries, media, positions, practices, works]);
 
   const continueItems = useMemo<DeskItem[]>(() => {
     const attention = deriveWorkspaceAttention({ annotations: [], positions, inquiries, practices });
