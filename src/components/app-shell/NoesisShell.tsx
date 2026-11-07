@@ -25,6 +25,8 @@ import { REVIEW_ACCOUNT_EMAIL } from '@/lib/demo-workspace';
 import { deriveAtlasRegions } from '@/components/Atlas/atlas-diagnostics';
 import { useNoesisRoute } from '@/lib/noesis-route-context';
 import { NOESIS_DATA_REQUIREMENT_LABELS } from '@/lib/noesis-page-definitions';
+import { deriveWorkspaceAttention } from '@/lib/workspace-attention';
+import { practiceLogDates } from '@/lib/practice-state';
 
 function timeValue(value?: string | null) {
   if (!value) return 0;
@@ -116,24 +118,18 @@ export function NoesisShell({
 
   const attentionCommandItems = React.useMemo<CommandPaletteItem[]>(() => {
     const annotations = allAnnotations(media);
-    const unprocessedAnnotations = annotations.filter((item) => {
-      const status = item.philosophyStatus || 'raw';
-      return ['raw', 'connected'].includes(status) && !item.createdInquiryId && !item.createdPositionId;
-    });
-    const unsupportedPositions = vault.filter((item) => (item.evidenceFor || []).length === 0 && (item.sourceIds || []).length === 0);
-    const unchallengedPositions = vault.filter((item) => (item.evidenceAgainst || []).length === 0 && item.status !== 'abandoned');
-    const untestedPositions = vault.filter((item) => !practices.some((practice) => (practice.positionIds || []).includes(item.id)) && item.status !== 'abandoned');
-    const unresolvedInquiries = questions.filter((item) => !['resolved', 'answered', 'archived', 'abandoned', 'suspended'].includes(item.status || '') && !item.answer?.trim());
+    const attention = deriveWorkspaceAttention({ annotations, positions: vault, inquiries: questions, practices });
+    const unprocessedAnnotations = attention.rawAnnotations;
+    const unsupportedPositions = attention.unsupportedPositions;
+    const unchallengedPositions = attention.currentPositions.filter((item) => (item.evidenceAgainst || []).length === 0);
+    const untestedPositions = attention.untestedPositions;
+    const unresolvedInquiries = attention.openInquiries;
     const staleConcepts = concepts.filter((item) => {
       const lastActive = timeValue(item.dateUpdated || item.dateCreated);
       return lastActive > 0 && lastActive < daysAgo(180);
     });
     const unfinishedWorks = drafts.filter((item) => !['final', 'complete', 'published', 'archived'].includes(item.status || ''));
-    const activePracticesNeedingLogs = practices.filter((item) => {
-      if (!['active', 'planned', 'proposed'].includes(item.status || '')) return false;
-      const lastLog = Math.max(...(item.logDates || []).map((date) => timeValue(date)), 0);
-      return lastLog === 0 || lastLog < daysAgo(7);
-    });
+    const activePracticesNeedingLogs = attention.practicesNeedingLogs;
 
     const items: CommandPaletteItem[] = [];
 
@@ -345,7 +341,7 @@ export function NoesisShell({
         summary: practice.description || practice.notes || 'A practice awaiting evidence from life.',
         matchedBecause: 'Practices should test positions through logged consequences, not just streaks.',
         connectedConcepts: practice.conceptTags || [],
-        relatedObjects: [`${practice.positionIds?.length || 0} positions tested`, `${practice.logDates?.length || 0} logs`],
+        relatedObjects: [`${practice.positionIds?.length || 0} positions tested`, `${practiceLogDates(practice).length} completed days`],
         lastChangedAt: practice.dateUpdated || practice.dateCreated,
         thinkingEventHint: 'Logging a result that affects a position or inquiry should create a tested/practice event.',
         aliases: ['log practice', 'practice result', 'needs observation', 'streak log', 'test outcome'],

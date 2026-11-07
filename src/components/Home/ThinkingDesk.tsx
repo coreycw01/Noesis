@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { practiceLogDates, practiceNeedsLog } from '@/lib/practice-state';
+import { deriveWorkspaceAttention } from '@/lib/workspace-attention';
 import {
   ArrowRight,
   AlertTriangle,
@@ -215,9 +216,10 @@ export function ThinkingDesk({
   }, [goal, goalProgress]);
 
   const continueItems = useMemo<DeskItem[]>(() => {
+    const attention = deriveWorkspaceAttention({ annotations: [], positions, inquiries, practices });
     const items: DeskItem[] = [];
-    const addPositionPressure = (priority = 95) => positions
-      .filter((item) => item.status !== 'abandoned' && item.status !== 'rejected' && ((item.evidenceAgainst || []).length === 0 || (item.sourceIds || []).length === 0))
+    const addPositionPressure = (priority = 95) => attention.currentPositions
+      .filter((item) => (item.evidenceAgainst || []).length === 0 || (item.sourceIds || []).length === 0)
       .forEach((item) => items.push({
           id: `position-${item.id}`,
           label: item.title || item.statement,
@@ -232,8 +234,7 @@ export function ThinkingDesk({
           targetId: item.id,
         } as DeskItem));
 
-    const addOpenInquiries = (priority = 88) => inquiries
-      .filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status))
+    const addOpenInquiries = (priority = 88) => attention.openInquiries
       .forEach((item) => items.push({
           id: `inquiry-${item.id}`,
           label: item.text,
@@ -399,8 +400,7 @@ export function ThinkingDesk({
 
     const sorted = uniqueDeskItems(items)
       .sort((a, b) => b.priority - a.priority || a.label.localeCompare(b.label));
-    const longestWaitingInquiry = [...inquiries]
-      .filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status))
+    const longestWaitingInquiry = [...attention.openInquiries]
       .sort((a, b) => recentDate(a.dateCreated) - recentDate(b.dateCreated))[0];
     const oldestInquiryItem = longestWaitingInquiry
       ? sorted.find((item) => item.view === 'questions' && item.targetId === longestWaitingInquiry.id)
@@ -409,7 +409,8 @@ export function ThinkingDesk({
   }, [concepts, inquiries, links, media, mode, positions, practices, works]);
 
   const provocation = useMemo(() => {
-    const untested = positions.find((position) => position.status !== 'abandoned' && !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
+    const attention = deriveWorkspaceAttention({ annotations: [], positions, inquiries, practices });
+    const untested = attention.untestedPositions[0];
     if (untested && provocationAngle === 0) {
       return {
         question: `What would it look like to test "${untested.title || untested.statement}" in behavior this week?`,
@@ -434,7 +435,7 @@ export function ThinkingDesk({
         evidence: 'Based on open inquiries and undefined concepts.',
       },
     ];
-    const unsupported = positions.find((item) => item.status !== 'abandoned' && (item.evidenceAgainst || []).length === 0);
+    const unsupported = attention.currentPositions.find((item) => (item.evidenceAgainst || []).length === 0);
     if (unsupported && provocationAngle === 0) {
       return {
         question: `What would make your position "${unsupported.title || unsupported.statement}" less convincing?`,
@@ -442,7 +443,7 @@ export function ThinkingDesk({
         evidence: 'Based on a position with no recorded challenging evidence.',
       };
     }
-    const openInquiry = inquiries.find((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status));
+    const openInquiry = attention.openInquiries[0];
     if (openInquiry && provocationAngle <= 1) {
       return {
         question: `What evidence would count as real progress on "${openInquiry.text}"?`,
@@ -454,10 +455,7 @@ export function ThinkingDesk({
   }, [inquiries, positions, practices, provocationAngle]);
 
   const pulseObservations = useMemo<PulseObservation[]>(() => {
-    const rawAnnotations = annotations.filter((item) => !item.philosophyStatus || item.philosophyStatus === 'raw');
-    const unsupportedPositions = positions.filter((item) => item.status !== 'abandoned' && (item.sourceIds || []).length === 0 && (item.evidenceFor || []).length === 0);
-    const untestedPositions = positions.filter((position) => position.status !== 'abandoned' && !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
-    const openInquiries = inquiries.filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status));
+    const { rawAnnotations, unsupportedPositions, untestedPositions, openInquiries } = deriveWorkspaceAttention({ annotations, positions, inquiries, practices });
     const finishedUnreflectedSources = media.filter((item) => item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange);
     const observations: PulseObservation[] = [];
 
@@ -620,14 +618,11 @@ export function ThinkingDesk({
   const primaryEdge = continueItems[0] || null;
   const secondaryEdges = continueItems.slice(1, 3);
   const workspaceSnapshot = useMemo(() => {
-    const openInquiries = inquiries.filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status)).length;
-    const unprocessedAnnotations = annotations.filter((item) => !item.philosophyStatus || item.philosophyStatus === 'raw').length;
+    const attention = deriveWorkspaceAttention({ annotations, positions, inquiries, practices });
+    const openInquiries = attention.metrics.openInquiries;
+    const unprocessedAnnotations = attention.metrics.rawAnnotations;
     const undefinedConcepts = concepts.filter((item) => !item.description?.trim() || item.philosophyStatus === 'undefined').length;
-    const positionsNeedingEvidence = positions.filter((item) =>
-      !['abandoned', 'rejected', 'replaced'].includes(item.status)
-      && (item.sourceIds || []).length === 0
-      && (item.evidenceFor || []).length === 0
-    ).length;
+    const positionsNeedingEvidence = attention.metrics.unsupportedPositions;
     const activeWorks = works.filter((item) => !['final', 'complete', 'completed', 'archived'].includes(item.status)).length;
     const activePractices = practices.filter((item) => item.status === 'active').length;
     const activeSources = media.filter((item) => ['Consuming', 'Want to Read', 'Paused'].includes(item.status)).length;

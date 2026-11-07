@@ -156,7 +156,20 @@ layout choice. Validate decisions through complete working journeys instead.
   activates and appears under Today. A saved observation survives reload as one
   completed day and a one-day streak. Closing the editor leaves zero dialogs and
   normal pointer interaction. No console errors in this tested journey.
-- Logic: 115 tests pass. Security: 15 tests pass.
+- Shared attention follow-up: sidebar, Home summaries/recommendations and command
+  suggestions use one selector for raw annotations, current positions, open
+  inquiries and practice basis. The headline counts distinct records rather than
+  adding overlapping categories. Closed/suspended records no longer repeatedly
+  request development. A practice may be anchored by its written purpose or an
+  inquiry, concept, source or position; a position is not mandatory. Promoted
+  annotations do not remain in the raw queue. Stable-id duplicate inputs count
+  once; this does not delete or merge persisted user records.
+- Browser verified attention remains 14 across Today, Library and Atlas in the
+  same isolated workspace, including the new practice with a written basis.
+  The category dialog explicitly explains overlap. No console errors observed.
+  Mobile Atlas zoom, inspector close and full-screen exit were exercised; this
+  does not sign off every graph layout or relationship-editing path.
+- Logic: 120 tests pass. Security: 15 tests pass.
 - Typecheck: passes. Lint: no errors, 29 existing warnings (hooks, images, fonts).
 - Production build: passes using .next-build-readiness, isolated from preview.
   A restricted Windows run first failed to create a generated folder; rerunning

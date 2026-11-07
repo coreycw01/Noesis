@@ -12,6 +12,7 @@ import { NoesisProviders } from '@/components/app-shell/NoesisProviders';
 import { navigateWorkspace } from '@/lib/workspace-navigation';
 import { positionRevisionHistory } from '@/lib/position-revisions';
 import { practiceStartDateForSave } from '@/lib/practice-state';
+import { deriveWorkspaceAttention } from '@/lib/workspace-attention';
 import { NoesisShell } from '@/components/app-shell/NoesisShell';
 import { NoesisWorkspaceGate } from '@/components/app-shell/NoesisWorkspaceGate';
 import { NoesisRouteContent } from '@/components/pages/NoesisRouteContent';
@@ -3027,13 +3028,7 @@ function ReadexWorkspace({
 
   const thinkingMetrics = { ...DEFAULT_THINKING_METRICS, ...(thinkingMetricsDoc || {}), lastComputedAt: thinkingMetricsDoc?.lastComputedAt || today() };
 
-  const movement: MovementMetrics = {
-    rawAnnotations: allAnnotations(media).filter((a) => !a.philosophyStatus || a.philosophyStatus === 'raw').length,
-    unsupportedPositions: vault.filter((v) => (v.evidenceFor || []).length === 0 && (v.sourceIds || []).length === 0 && v.status !== 'rejected').length,
-    openInquiries: questions.filter((q) => !q.answer && q.status !== 'answered' && q.status !== 'archived').length,
-    practicesWithoutPosition: practices.filter((p) => (p.positionIds || []).length === 0).length,
-    positionsWithoutPractice: vault.filter((v) => v.status !== 'rejected' && !practices.some((p) => (p.positionIds || []).includes(v.id))).length,
-  };
+  const movement: MovementMetrics = deriveWorkspaceAttention({ annotations: allAnnotations(media), positions: vault, inquiries: questions, practices }).metrics;
 
   const missingFocusedTarget = useMemo(() => {
     if (reviewDataLoading) return null;

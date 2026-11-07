@@ -30,13 +30,8 @@ import placeholderData from '@/app/lib/placeholder-images.json';
 import { NOESIS_WORKSPACE_SYNC_EVENT, type WorkspaceSyncState } from '@/lib/workspace-mutations';
 import { iconForNoesisView } from '@/lib/noesis-icons';
 
-export interface MovementMetrics {
-  rawAnnotations: number;
-  unsupportedPositions: number;
-  openInquiries: number;
-  practicesWithoutPosition: number;
-  positionsWithoutPractice: number;
-}
+import type { WorkspaceAttentionMetrics as MovementMetrics } from '@/lib/workspace-attention';
+export type { WorkspaceAttentionMetrics as MovementMetrics } from '@/lib/workspace-attention';
 
 export interface CommandPaletteItem {
   id: string;
@@ -569,9 +564,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'vault', label: 'Positions', icon: iconForNoesisView('vault'), view: 'vault' },
     { id: 'more', label: activeMobileMoreLabel, icon: activeMobileMoreItem?.icon || Menu, view: null },
   ];
-  const attentionTotal = movement
-    ? movement.rawAnnotations + movement.unsupportedPositions + movement.openInquiries + movement.practicesWithoutPosition + movement.positionsWithoutPractice
-    : 0;
+  const attentionTotal = movement?.uniqueTotal || 0;
   const attentionItems = [
     {
       id: 'raw-annotations',
@@ -604,8 +597,8 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     {
       id: 'practices-without-position',
       label: 'Unanchored practices',
-      count: movement?.practicesWithoutPosition || 0,
-      description: 'Practices need a linked position so the behavior tests an idea.',
+      count: movement?.unanchoredPractices || 0,
+      description: 'Add a reason or link an inquiry, concept, source, or position to give the practice an intellectual basis.',
       view: 'labs',
     },
   ].filter((item) => item.count > 0);
@@ -957,7 +950,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             <DialogHeader>
               <DialogTitle className="font-headline text-2xl font-semibold italic">Needs Attention</DialogTitle>
               <DialogDescription>
-                These are the parts of your workspace that need the next concrete move.
+                {attentionTotal} distinct items need a next move. An item can appear in more than one category below.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
