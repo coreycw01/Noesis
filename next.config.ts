@@ -3,18 +3,19 @@ import type { NextConfig } from 'next';
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ''} https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`,
+  // Firebase Auth's Google API loader fetches its iframe module from this path.
+  `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ''} https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://apis.google.com/js/api.js https://apis.google.com/_/scs/abc-static/_/js/`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
-  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://*.google.com",
+  `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://*.google.com${isDevelopment && process.env.NEXT_PUBLIC_NOESIS_LOCAL_EMULATORS === 'true' ? ' http://127.0.0.1:9198 http://127.0.0.1:8080' : ''}`,
   "frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://www.google.com/recaptcha/",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "upgrade-insecure-requests",
+  ...(!isDevelopment ? ["upgrade-insecure-requests"] : []),
 ].join('; ');
 
 const nextConfig: NextConfig = {
@@ -71,8 +72,14 @@ const nextConfig: NextConfig = {
         { key: 'X-Frame-Options', value: 'DENY' },
         { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=(), payment=(), usb=()' },
         { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
-        { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+        ...(!isDevelopment ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }] : []),
       ],
+    }, {
+      source: '/p/:slug',
+      headers: [{ key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' }],
+    }, {
+      source: '/api/contextual-ai',
+      headers: [{ key: 'Cache-Control', value: 'private, no-store' }],
     }];
   },
 };

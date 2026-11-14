@@ -1,5 +1,5 @@
 import type { Practice } from './types';
-import { localDateKey, previousCalendarDay } from './calendar';
+import { localDateKey, previousCalendarDay, recordDateKey } from './calendar';
 import { hasPracticeIntellectualBasis, normalizePracticeStatusForSave, practiceDesignGaps } from './workflow-integrity';
 
 export function isPracticeConcluded(practice: Partial<Practice>) {
@@ -27,11 +27,11 @@ export function practiceLogDates(practice: Pick<Practice, 'logs' | 'logDates'>) 
   return [...new Set([
     ...(practice.logDates || []),
     ...(practice.logs || []).filter((log) => log.actionCompleted).map((log) => log.date),
-  ].map((date) => date.slice(0, 10)).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort();
+  ].map(practiceCalendarDate).filter(Boolean))].sort();
 }
 
 export function practiceCurrentStreak(dates: string[], now = new Date()) {
-  const logged = new Set(dates.map((date) => date.slice(0, 10)));
+  const logged = new Set(dates.map(practiceCalendarDate).filter(Boolean));
   const today = localDateKey(now);
   let cursor = logged.has(today) ? today : previousCalendarDay(today);
   let streak = 0;
@@ -42,11 +42,17 @@ export function practiceCurrentStreak(dates: string[], now = new Date()) {
   return streak;
 }
 
+export function practiceCalendarDate(value?: string) {
+  return value ? recordDateKey(value.slice(0, 10)) : '';
+}
+
 export function practiceScheduleState(practice: Partial<Practice>, now = new Date()) {
   if (practice.status !== 'active') return 'inactive';
   const today = localDateKey(now);
-  if (practice.startDate && practice.startDate.slice(0, 10) > today) return 'scheduled';
-  if (practice.endDate && practice.endDate.slice(0, 10) < today) return 'review';
+  const start = practiceCalendarDate(practice.startDate);
+  const end = practiceCalendarDate(practice.endDate);
+  if (start && start > today) return 'scheduled';
+  if (end && end < today) return 'review';
   return 'running';
 }
 

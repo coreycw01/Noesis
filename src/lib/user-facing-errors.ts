@@ -7,6 +7,7 @@ export function noesisUserError(error: unknown, fallback: string) {
   const lower = message.toLowerCase();
 
   if (!message) return fallback;
+  if (error instanceof Error && error.name === 'WorkspaceRecordChangedError') return message;
   if (lower.includes('resource_exhausted') || lower.includes('429') || lower.includes('too many requests') || lower.includes('quota')) {
     return 'The service is temporarily rate-limited. Your data is still saved; try again shortly.';
   }

@@ -1,4 +1,36 @@
-import type { Question } from '@/lib/types';
+import type { InquiryEvidence, Question } from '@/lib/types';
+
+export const MAX_INQUIRY_EVIDENCE = 200;
+
+export function indexAnnotationInquiries(inquiries: readonly Question[]) {
+  const byAnnotation = new Map<string, Question[]>();
+  const byId = new Map(inquiries.map((inquiry) => [inquiry.id, inquiry]));
+  for (const inquiry of inquiries) {
+    for (const id of new Set([inquiry.sourceAnnotationId, ...(inquiry.evidenceIds || [])])) {
+      if (!id) continue;
+      const list = byAnnotation.get(id) || [];
+      list.push(inquiry);
+      byAnnotation.set(id, list);
+    }
+  }
+  return (annotationId: string, sourceId: string, createdInquiryId?: string) => {
+    const created = createdInquiryId ? byId.get(createdInquiryId) : undefined;
+    const evidence = (byAnnotation.get(annotationId) || []).filter((inquiry) =>
+      inquiry.id !== created?.id && (inquiry.sourceAnnotationId === annotationId || inquiry.sourceIds?.includes(sourceId)));
+    return created ? [created, ...evidence] : evidence;
+  };
+}
+
+export function assignInquiryEvidence(question: Question, evidence: InquiryEvidence, candidateId: string): InquiryEvidence {
+  if (candidateId && !question.candidateAnswers?.some((candidate) => candidate.id === candidateId)) {
+    throw new Error('Choose an existing candidate answer.');
+  }
+  return { ...evidence, candidateId };
+}
+
+export function formatInquiryEvidence(evidence: InquiryEvidence) {
+  return `${evidence.claim} (${evidence.type}; strength: ${evidence.strength}; reliability: ${evidence.reliability}${evidence.origin ? `; origin: ${evidence.origin}` : ''}${evidence.notes ? `; notes: ${evidence.notes}` : ''})`;
+}
 
 export const CLOSED_INQUIRY_STATUSES = new Set<Question['status']>([
   'answered',
@@ -16,8 +48,20 @@ export function inquirySourceIds(question: Question) {
   return Array.from(new Set([...(question.sourceIds || []), ...(question.evidenceIds || [])]));
 }
 
+export function inquiryPositionEvidence(question: Question, answer: string) {
+  const key = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+  const matching = (question.candidateAnswers || []).filter((candidate) => key(candidate.statement) === key(answer));
+  const adoptedIds = new Set(matching.map((candidate) => candidate.id));
+  const assignedEvidence = (question.evidenceRecords || []).filter((item) => item.type !== 'unknown' && adoptedIds.has(item.candidateId));
+  const unique = (values: (string | undefined)[]) => [...new Set(values.map((value) => value?.trim() || '').filter(Boolean))];
+  return {
+    evidenceFor: unique([...matching.map((candidate) => candidate.support), ...assignedEvidence.filter((item) => item.direction === 'supports').map(formatInquiryEvidence)]),
+    evidenceAgainst: unique([...matching.map((candidate) => candidate.objection), ...assignedEvidence.filter((item) => item.direction === 'challenges').map(formatInquiryEvidence)]),
+  };
+}
+
 export function isInquiryActive(question: Question) {
-  return ['captured', 'clarifying', 'open', 'investigating', 'gathering_evidence', 'comparing_answers', 'reopened', 'under_tension']
+  return ['captured', 'clarifying', 'open', 'investigating', 'gathering_evidence', 'comparing_answers', 'reopened', 'under_tension', 'partially_answered', 'provisionally_answered']
     .includes(question.status);
 }
 
@@ -27,7 +71,19 @@ export function inquiryCandidateCount(question: Question) {
 }
 
 export function inquiryNeedsEvidence(question: Question) {
-  return inquirySourceIds(question).length === 0 && !isInquiryClosed(question);
+  return !inquiryHasEvidence(question) && !isInquiryClosed(question);
+}
+
+function inquiryHasEvidence(question: Question) {
+  return inquirySourceIds(question).length > 0
+    || (question.evidenceRecords || []).some((item) => item.type !== 'unknown' && item.claim.trim())
+    || (question.candidateAnswers || []).some((item) => item.support?.trim() || item.objection?.trim());
+}
+
+export function inquiryHasRecordedObjection(question: Question) {
+  return (question.candidateAnswers || []).some((item) => item.objection?.trim())
+    || (question.evidenceRecords || []).some((item) => item.type !== 'unknown' && item.direction === 'challenges'
+      && question.candidateAnswers?.some((candidate) => candidate.id === item.candidateId) && item.claim.trim());
 }
 
 export function inquiryNeedsAssumptions(question: Question) {
@@ -43,14 +99,12 @@ export function inquiryReadyToResolve(question: Question) {
 }
 
 export function inquiryFormation(question: Question) {
-  const candidates = question.candidateAnswers || [];
   const checks = [
     Boolean(question.text?.trim()),
     Boolean(question.whyItMatters?.trim()),
     Boolean(question.currentIntuition?.trim()),
     (question.assumptions || []).some((item) => item.trim()),
-    inquirySourceIds(question).length > 0
-      || candidates.some((candidate) => Boolean(candidate.support?.trim() || candidate.objection?.trim())),
+    inquiryHasEvidence(question),
     inquiryCandidateCount(question) > 0,
     Boolean(question.answer?.trim()),
     Boolean(question.resolutionSummary?.trim()),
@@ -99,6 +153,10 @@ export function inquiryAiItemMemory(question: Question) {
       `Candidate ${index + 1} (${item.confidence ?? 'unrated'}): ${item.statement.trim()}; support: ${item.support?.trim() || 'none'}; objection: ${item.objection?.trim() || 'none'}; consequence: ${item.consequence?.trim() || 'none'}`
     ),
     question.answer?.trim() ? `Current answer: ${question.answer.trim()}` : '',
+    ...(question.evidenceRecords || []).slice(0, 5).map((item) => {
+      const candidate = question.candidateAnswers?.find((entry) => entry.id === item.candidateId);
+      return `Evidence (${item.direction}; ${candidate ? `candidate: ${candidate.statement.slice(0, 120)}` : 'unassigned'}): ${formatInquiryEvidence(item).slice(0, 520)}`;
+    }),
     question.resolutionSummary?.trim() ? `Resolution context: ${question.resolutionSummary.trim()}` : '',
   ].filter(Boolean);
 }

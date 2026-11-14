@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
+import { useLocalDay } from '@/hooks/use-local-day';
 import { Activity, CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Plus, Puzzle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -16,9 +17,10 @@ import type { Concept, Draft, Media, PhilosophicalLink, Practice, PracticeLog, P
 import { allQuestions, normalizeConceptTags, PRACTICE_LABELS, today, uid } from '@/lib/readex';
 import { appendPracticeObservation } from '@/lib/practice-observations';
 import { localDateKey as dateKey } from '@/lib/calendar';
-import { isPracticeConcluded, practiceCurrentStreak as currentStreak, practiceLogDates, practiceNeedsConsequence, practiceNeedsLog, practiceNeedsOutcome, practiceRecentlyConcluded, practiceScheduleState } from '@/lib/practice-state';
+import { isPracticeConcluded, practiceCalendarDate, practiceCurrentStreak as currentStreak, practiceLogDates, practiceNeedsConsequence, practiceNeedsLog, practiceNeedsOutcome, practiceRecentlyConcluded, practiceScheduleState } from '@/lib/practice-state';
 import { LabeledField } from '@/components/shared/LabeledField';
 import { cn } from '@/lib/utils';
+import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
 const PracticeIcon = NOESIS_ICONS.practice;
@@ -31,7 +33,8 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { appendAiHistoryEntry, resolvedAiHistory, type AiReviewResult } from '@/lib/contextual-ai';
+import { resolvedAiHistory, type AiReviewResult } from '@/lib/contextual-ai';
+import { practiceReviewTarget, type PracticeReviewApproval } from '@/lib/practice-ai-review';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { hasPracticeIntellectualBasis, normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
@@ -50,7 +53,7 @@ interface PracticesWorkspaceProps {
   drafts: Draft[];
   links: PhilosophicalLink[];
   onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
-  onUpdatePractice: (practice: Practice) => void;
+  onUpdatePractice: (practice: Practice, approval?: PracticeReviewApproval) => void | Promise<Practice | void>;
   onDeletePractice: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
@@ -143,6 +146,7 @@ function practiceExperimentShape(practice: Practice, linkedQuestions: Question[]
 }
 
 export function PracticesWorkspace({ aiSettings, practices, concepts, media, questions, positions, drafts, links, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute, onNavigateTarget }: PracticesWorkspaceProps) {
+  const localDay = useLocalDay();
   const { toast } = useToast();
   const savingRef = React.useRef(false);
   const [savingPractice, setSavingPractice] = useState(false);
@@ -152,15 +156,12 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   const [viewFilter, setViewFilter] = usePersistentView<PracticeViewFilter>('noesis:practices-filter', 'all', practiceViewFilters.map((item) => item.value));
   const [otherStatus, setOtherStatus] = usePersistentView<PracticeStatus>('noesis:practices-other-status', 'planned', statuses);
   const [practiceSection, setPracticeSection] = usePersistentView<'active' | 'other'>('noesis:practices-section', 'active', ['active', 'other']);
-  const [labTool, setLabTool] = usePersistentView<PraxisMethod>('noesis:labs-tool', 'practices', ['exercises', 'practices', 'experiments', 'commitments']);
+  const [labTool, setLabTool] = usePersistentView<Exclude<PraxisMethod, 'commitments'>>('noesis:labs-tool', 'practices', ['exercises', 'practices', 'experiments']);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useEntityViewPreference('practices');
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Practice | null>(null);
   const [draft, setDraft] = useState<Partial<Practice>>({ title: '', description: '', type: 'experiment', status: 'planned', durationDays: 7, durationMode: 'repeated', conceptTags: [] });
-  React.useEffect(() => {
-    if (labTool === 'commitments') onNavigateTarget({ view: 'goals' });
-  }, [labTool, onNavigateTarget]);
   const questionList = useMemo(() => allQuestions(media, questions), [media, questions]);
   const conceptFilterOptions = useMemo(
     () => concepts
@@ -175,25 +176,27 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   const labRecords = practices.filter(matchesLabTool);
   const activeLoops = labRecords.filter((practice) => normalizePracticeStatus(practice.status) === 'active');
   const practiceState = useMemo(() => {
+    const day = new Date(`${localDay}T12:00:00`);
     const questionById = new Map(questionList.map((question) => [question.id, question]));
     const positionById = new Map(positions.map((position) => [position.id, position]));
     return new Map(practices.map((practice) => {
       const linkedQuestions = (practice.questionIds || []).map((id) => questionById.get(id)).filter(Boolean) as Question[];
       const linkedPositions = (practice.positionIds || []).map((id) => positionById.get(id)).filter(Boolean) as VaultEntry[];
+      const schedule = practiceScheduleState(practice, day);
       return [practice.id, {
         linkedQuestions,
         linkedPositions,
         hasBasis: hasPracticeBasis(practice, linkedQuestions, linkedPositions),
-        needsLog: practiceNeedsLog(practice),
-        schedule: practiceScheduleState(practice),
-        scheduleReview: practiceScheduleState(practice) === 'review',
+        needsLog: practiceNeedsLog(practice, day),
+        schedule,
+        scheduleReview: schedule === 'review',
         needsDesign: practiceDesignGaps(practice).length > 0,
         needsOutcome: practiceNeedsOutcome(practice),
         needsConsequence: practiceNeedsConsequence(practice),
         recentlyConcluded: practiceRecentlyConcluded(practice),
       }];
     }));
-  }, [practices, questionList, positions]);
+  }, [localDay, practices, questionList, positions]);
   const filtered = practices.filter((practice) => {
     const state = practiceState.get(practice.id);
     const haystack = [
@@ -226,7 +229,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
     const state = practiceState.get(practice.id);
     return !state?.hasBasis || state?.needsDesign || state?.scheduleReview;
   });
-  const todayLoops = visibleActiveLoops.filter((practice) => practiceNeedsLog(practice));
+  const todayLoops = visibleActiveLoops.filter((practice) => practiceState.get(practice.id)?.needsLog);
   const ongoingLoops = visibleActiveLoops.filter((practice) => !needsAttentionLoops.some((item) => item.id === practice.id) && !todayLoops.some((item) => item.id === practice.id));
   const practiceStats = useMemo(() => ({
     total: practices.length,
@@ -240,7 +243,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       const state = practiceState.get(practice.id);
       return !isPracticeConcluded(practice) && (!state?.hasBasis || state?.needsDesign);
     }).length,
-    awaitingLog: practices.filter((practice) => practiceNeedsLog(practice)).length,
+    awaitingLog: practices.filter((practice) => practiceState.get(practice.id)?.needsLog).length,
     needsDesign: practices.filter((practice) => practiceDesignGaps(practice).length > 0).length,
     needsOutcome: practices.filter((practice) => practiceNeedsOutcome(practice)).length,
     needsConsequence: practices.filter((practice) => practiceNeedsConsequence(practice)).length,
@@ -256,7 +259,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       const state = practiceState.get(practice.id);
       return !isPracticeConcluded(practice) && (!state?.hasBasis || state?.needsDesign);
     }).length,
-    awaitingLog: labRecords.filter((practice) => practiceNeedsLog(practice)).length,
+    awaitingLog: labRecords.filter((practice) => practiceState.get(practice.id)?.needsLog).length,
     readyForReview: labRecords.filter((practice) => {
       const state = practiceState.get(practice.id);
       return state?.needsOutcome || state?.needsConsequence || state?.recentlyConcluded || state?.scheduleReview;
@@ -281,6 +284,10 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   ].filter(Boolean) as string[];
 
   const openEditor = (practice?: Practice, newType: 'practice' | 'experiment' = labTool === 'experiments' ? 'experiment' : 'practice') => {
+    if (practice && onOpenPracticeRoute) {
+      onOpenPracticeRoute(practice.id);
+      return;
+    }
     setDraft(practice ? { ...practice, type: normalizePracticeType(practice.type), status: normalizePracticeStatus(practice.status) } : {
       title: '',
       description: '',
@@ -320,13 +327,14 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
     }
     setStatusFilter('all');
     setViewFilter('ready_review');
-    setPracticeSection(labRecords.some((practice) => practiceScheduleState(practice) === 'review') ? 'active' : 'other');
+    setPracticeSection(labRecords.some((practice) => practiceState.get(practice.id)?.scheduleReview) ? 'active' : 'other');
     setOtherStatus('completed');
   };
 
   const openedPracticeId = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (!focusedPracticeId) {
+      if (openedPracticeId.current) setEditorOpen(false);
       openedPracticeId.current = null;
       return;
     }
@@ -389,7 +397,8 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           </span>
         }
         tabs={(
-          <WorkspaceTabs
+          <WorkspaceTabs<PraxisMethod>
+            activation="manual"
             value={labTool}
             onChange={(value) => {
               if (value === 'commitments') {
@@ -601,27 +610,40 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         ]}
       />
 
+      {practiceSection === 'other' && (
+        <div role="group" aria-label={`Other ${labTool} status`} className="mb-4 flex flex-wrap gap-2">
+          {statuses.filter((status) => status !== 'active').map((status) => (
+            <Button key={status} size="sm" type="button" variant={otherStatus === status ? 'secondary' : 'outline'} aria-pressed={otherStatus === status} onClick={() => setOtherStatus(status)} className="min-h-11 capitalize">
+              {status} {filtered.filter((practice) => normalizePracticeStatus(practice.status) === status).length}
+            </Button>
+          ))}
+        </div>
+      )}
+
       {viewMode === 'table' && (
-        <section className="mb-6 hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block" aria-label={`${practiceSection} ${labTool} table`}>
-          <Table>
-            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>{labTool === 'experiments' ? 'Experiment' : 'Practice'}</TableHead><TableHead className="w-36">Type</TableHead><TableHead className="w-36">Status</TableHead><TableHead>Action or hypothesis</TableHead><TableHead className="w-40">Progress</TableHead><TableHead className="w-24"><span className="sr-only">Action</span></TableHead></TableRow></TableHeader>
+        <section className="mb-6 min-w-0 rounded-lg border border-border/60 bg-card">
+          <Table className="table-fixed xl:table-auto" aria-label={`${practiceSection} ${labTool} table`}>
+            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>{labTool === 'experiments' ? 'Experiment' : 'Practice'}</TableHead><TableHead className="hidden w-36 xl:table-cell">Type</TableHead><TableHead className="hidden w-36 lg:table-cell">Status</TableHead><TableHead className="hidden xl:table-cell">Action or hypothesis</TableHead><TableHead className="hidden w-40 xl:table-cell">Progress</TableHead><TableHead className="w-20 sm:w-24"><span className="sr-only">Action</span></TableHead></TableRow></TableHeader>
             <TableBody>{(practiceSection === 'active' ? visibleActiveLoops : otherPractices).map((practice) => {
               const state = practiceState.get(practice.id);
               const progress = practice.status === 'abandoned' ? 'Record closed' : !isPracticeConcluded(practice) && (state?.needsDesign || !state?.hasBasis) ? 'Needs setup' : state?.schedule === 'scheduled' ? 'Scheduled' : state?.scheduleReview ? 'Review result' : state?.needsLog ? 'Log due' : state?.needsOutcome ? 'Review outcome' : state?.needsConsequence ? 'Connect result' : 'On track';
-              return <TableRow key={practice.id} tabIndex={0} className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={(event) => { if ((event.target as HTMLElement).closest('button,a')) return; openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openEditor(practice); onOpenPracticeRoute?.(practice.id); } }}>
-                <TableCell className="max-w-lg py-4"><div className="font-headline text-base font-semibold text-foreground">{practice.title}</div><div className="mt-1 line-clamp-1 text-xs text-muted-foreground">{practice.description || practice.intellectualBasis || 'Purpose not added'}</div></TableCell>
-                <TableCell className="font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground">{simplifiedTypeLabels[normalizePracticeType(practice.type)]}</TableCell>
-                <TableCell><StageBadge type="practice" stage={practice.stage} status={practice.status} /></TableCell>
-                <TableCell className="text-xs leading-5 text-muted-foreground">{practice.action || practice.hypothesis || 'Action not defined'}</TableCell>
-                <TableCell className="font-code text-[9px] uppercase tracking-wider text-muted-foreground">{progress}</TableCell>
-                <TableCell><Button size="sm" variant="outline" className="min-h-9 rounded-full" onClick={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }}>{state?.needsLog ? 'Log' : 'Open'}</Button></TableCell>
+              const open = () => openEditor(practice);
+              return <TableRow key={practice.id} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) open(); }}>
+                <TableCell className="max-w-lg py-2 [overflow-wrap:anywhere]"><button type="button" className="min-h-11 w-full rounded-sm text-left font-headline text-base font-semibold text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={open} onKeyDown={(event) => activateEntityOnKey(event, open)}>{practice.title}</button><p className="text-xs text-muted-foreground xl:hidden">{progress}</p><p className="line-clamp-2 pb-2 text-xs text-muted-foreground">{practice.action || practice.hypothesis || practice.description || 'Action not defined'}</p></TableCell>
+                <TableCell className="hidden font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground xl:table-cell">{simplifiedTypeLabels[normalizePracticeType(practice.type)]}</TableCell>
+                <TableCell className="hidden lg:table-cell"><StageBadge type="practice" stage={practice.stage} status={practice.status} /></TableCell>
+                <TableCell className="hidden text-xs leading-5 text-muted-foreground xl:table-cell">{practice.action || practice.hypothesis || 'Action not defined'}</TableCell>
+                <TableCell className="hidden font-code text-[9px] uppercase tracking-wider text-muted-foreground xl:table-cell">{progress}</TableCell>
+                <TableCell className="px-1 sm:px-4"><Button size="sm" variant="outline" className="min-h-11 rounded-full" onClick={open} onKeyDown={(event) => activateEntityOnKey(event, open)}>{state?.needsLog ? 'Log' : 'Open'}</Button></TableCell>
               </TableRow>;
-            })}</TableBody>
+            })}
+              {(practiceSection === 'active' ? visibleActiveLoops : otherPractices).length === 0 && <TableRow><TableCell colSpan={6} className="text-sm text-muted-foreground">No {labTool} match this view.</TableCell></TableRow>}
+            </TableBody>
           </Table>
         </section>
       )}
 
-      {practiceSection === 'active' && <section className={cn("mb-6 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm", viewMode === 'table' && "md:hidden")}>
+      {viewMode !== 'table' && practiceSection === 'active' && <section className="mb-6 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {labTool === 'experiments' ? <NOESIS_ICONS.lab className="size-4 text-accent" /> : <PracticeIcon className="size-4 text-accent" />}
@@ -632,9 +654,9 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           </p>
         </div>
         <div className="space-y-4">
-          <ActiveLoopGroup title="Needs attention" practices={needsAttentionLoops} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
-          <ActiveLoopGroup title="Today" practices={todayLoops.filter((practice) => !needsAttentionLoops.some((item) => item.id === practice.id))} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
-          <ActiveLoopGroup title="Ongoing" practices={ongoingLoops} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} onOpenPracticeRoute={onOpenPracticeRoute} />
+          <ActiveLoopGroup title="Needs attention" practices={needsAttentionLoops} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} />
+          <ActiveLoopGroup title="Today" practices={todayLoops.filter((practice) => !needsAttentionLoops.some((item) => item.id === practice.id))} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} />
+          <ActiveLoopGroup title="Ongoing" practices={ongoingLoops} questions={questionList} positions={positions} onEdit={openEditor} onDelete={setDeleteTarget} onUpdatePractice={onUpdatePractice} />
           {!visibleActiveLoops.length && (
             <Card className="border-dashed border-border/60 bg-muted/5 p-8 text-center shadow-inner md:col-span-2 xl:col-span-3 2xl:col-span-4 rounded-xl">
               {labTool === 'experiments' ? <NOESIS_ICONS.lab className="size-12 mx-auto mb-4 text-muted-foreground/30" /> : <PracticeIcon className="size-12 mx-auto mb-4 text-muted-foreground/30" />}
@@ -646,34 +668,16 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         </div>
       </section>}
 
-      {practiceSection === 'other' && <section className={cn("rounded-2xl border border-border/50 bg-card/60 p-4 shadow-sm", viewMode === 'table' && "md:hidden")}>
+      {viewMode !== 'table' && practiceSection === 'other' && <section className="rounded-2xl border border-border/50 bg-card/60 p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-headline text-xl font-bold italic text-primary/80">Other {labTool}</h2>
             <p className="text-xs italic text-muted-foreground">Planned, paused, completed, and abandoned {labTool} stay available without crowding the active surface.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {statuses.filter((status) => status !== 'active').map((status) => {
-              const count = filtered.filter((practice) => normalizePracticeStatus(practice.status) === status).length;
-              return (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => setOtherStatus(status)}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
-                    otherStatus === status ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
-                  )}
-                >
-                  {status} {count}
-                </button>
-              );
-            })}
-          </div>
         </div>
         <div className="grid grid-cols-1 gap-3">
           {otherPractices.map((practice) => (
-            <PracticeCard key={practice.id} compact practice={practice} questions={questionList} positions={positions} onEdit={() => { openEditor(practice); onOpenPracticeRoute?.(practice.id); }} onDelete={() => setDeleteTarget(practice)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
+            <PracticeCard key={practice.id} compact practice={practice} questions={questionList} positions={positions} onEdit={() => openEditor(practice)} onDelete={() => setDeleteTarget(practice)} onUpdatePractice={onUpdatePractice} onCreateLink={onCreateLink} />
           ))}
           {filtered.length === 0 && (
             <PageEmptyState
@@ -696,7 +700,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       <PracticeEditor
         busy={savingPractice}
         aiSettings={aiSettings}
-        open={editorOpen}
+        open={editorOpen && (!onOpenPracticeRoute || (draft.id || null) === (focusedPracticeId || null))}
         onOpenChange={(open) => {
           setEditorOpen(open);
           if (!open && focusedPracticeId) onOpenPracticeRoute?.(null);
@@ -717,8 +721,11 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         onSaveAiOutcome={async (result, content) => {
           const saved = practices.find((practice) => practice.id === draft.id);
           if (!saved) throw new Error('Save the practice before accepting an outcome review.');
-          const patch = { aiOutcomeReview: content, aiReviewHistory: appendAiHistoryEntry(saved.aiReviewHistory, result, content), dateUpdated: new Date().toISOString() };
-          await persistEditedPractice({ ...saved, ...patch }, patch);
+          const next = await onUpdatePractice(saved, { result, text: content });
+          if (next) setDraft((current) => current.id === next.id ? {
+            ...current, aiOutcomeReview: next.aiOutcomeReview, aiReviewHistory: next.aiReviewHistory,
+            outcomeProvenance: next.outcomeProvenance, dateUpdated: next.dateUpdated,
+          } : current);
         }}
         onSaveAiHistory={async (aiReviewHistory) => {
           const saved = practices.find((practice) => practice.id === draft.id);
@@ -727,7 +734,6 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           await persistEditedPractice({ ...saved, ...patch }, patch);
         }}
         onSave={handleSave}
-        routeOwned={Boolean(focusedPracticeId && draft.id === focusedPracticeId)}
       />
       <ConfirmActionDialog
         open={Boolean(deleteTarget)}
@@ -754,7 +760,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   );
 }
 
-function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDelete, onUpdatePractice, onOpenPracticeRoute }: {
+function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDelete, onUpdatePractice }: {
   title: string;
   practices: Practice[];
   questions: Question[];
@@ -762,7 +768,6 @@ function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDel
   onEdit: (practice?: Practice) => void;
   onDelete: (practice: Practice) => void;
   onUpdatePractice: (practice: Practice) => void;
-  onOpenPracticeRoute?: (id: string | null) => void;
 }) {
   if (!practices.length) return null;
   return (
@@ -780,7 +785,7 @@ function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDel
             practice={practice}
             questions={questions}
             positions={positions}
-            onEdit={() => { onEdit(practice); onOpenPracticeRoute?.(practice.id); }}
+            onEdit={() => onEdit(practice)}
             onDelete={() => onDelete(practice)}
             onUpdatePractice={onUpdatePractice}
             onCreateLink={() => {}}
@@ -812,7 +817,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   const recentlyConcluded = practiceRecentlyConcluded(practice);
   const [reviewOpen, setReviewOpen] = useState(experimentShape.needsOutcome);
   const [logOpen, setLogOpen] = useState(false);
-  const [logDraft, setLogDraft] = useState<Partial<PracticeLog>>({ date: todayKey, actionCompleted: true, confidence: 3 });
+  const [logDraft, setLogDraft] = useState<Partial<PracticeLog>>({ actionCompleted: true, confidence: 3 });
   const [reviewDraft, setReviewDraft] = useState({
     performedAsIntended: practice.conclusion?.performedAsIntended || '',
     whatHappened: practice.conclusion?.whatHappened || practice.observedOutcome || practice.notes || '',
@@ -886,7 +891,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       return;
     }
     if (!await onUpdatePractice(appendPracticeObservation(practice, nextLog, today()))) return;
-    setLogDraft({ date: todayKey, actionCompleted: true, confidence: 3 });
+    setLogDraft({ actionCompleted: true, confidence: 3 });
     setLogOpen(false);
   };
   const saveConclusionReview = async (status: PracticeStatus = 'completed') => {
@@ -906,7 +911,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   };
   return (
     <Card role="group" aria-label={`Practice: ${practice.title}`} tabIndex={0} onClick={(event) => {
-      if ((event.target as HTMLElement).closest('button,a,input,textarea,[role="checkbox"],[role="combobox"]')) return;
+      if (!isEntitySurfaceClick(event)) return;
       onEdit();
     }} onKeyDown={(event) => {
       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onEdit(); }
@@ -1053,7 +1058,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   );
 }
 
-function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onRecordLog, onSaveAiOutcome, onSaveAiHistory, onSave, busy, routeOwned = false }: {
+function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onRecordLog, onSaveAiOutcome, onSaveAiHistory, onSave, busy }: {
   busy: boolean;
   aiSettings: import('@/lib/types').AiSettings;
   open: boolean;
@@ -1070,7 +1075,6 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
   onSaveAiOutcome: (result: AiReviewResult, content: string) => void | Promise<void>;
   onSaveAiHistory: (entries: NonNullable<Practice['aiReviewHistory']>) => void | Promise<void>;
   onSave: () => void;
-  routeOwned?: boolean;
 }) {
   const [practiceWorkflowStep, setPracticeWorkflowStep] = useState<'design' | 'run' | 'review' | 'integrate'>('design');
   const [observation, setObservation] = useState('');
@@ -1120,7 +1124,6 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                 )}
                 showContextBeforeSending={aiSettings.showContextBeforeSending}
                 reasoningDepth={aiSettings.defaultReasoningDepth}
-                retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
                 actions={['synthesize_practice_outcome']}
                 buttonLabel="Outcome review"
                 promptLabel="What should Noesis examine?"
@@ -1212,8 +1215,8 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   </Select>
                 </Field>
                 <Field label="DURATION (DAYS)"><Input type="number" min={0} value={draft.durationDays || 0} onChange={(event) => setDraft((prev) => ({ ...prev, durationDays: Math.max(0, Number(event.target.value) || 0) }))} className="font-code rounded-full" /></Field>
-                <Field label="START DATE"><Input type="date" value={draft.startDate || ''} onChange={(event) => setDraft((prev) => ({ ...prev, startDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
-                <Field label="END DATE (EXPECTED)"><Input type="date" value={draft.endDate || ''} onChange={(event) => setDraft((prev) => ({ ...prev, endDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
+                <Field label="START DATE"><Input type="date" value={practiceCalendarDate(draft.startDate)} onChange={(event) => setDraft((prev) => ({ ...prev, startDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
+                <Field label="END DATE (EXPECTED)"><Input type="date" value={practiceCalendarDate(draft.endDate)} onChange={(event) => setDraft((prev) => ({ ...prev, endDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
                 <Field label="HYPOTHESIS"><Textarea value={draft.hypothesis || ''} onChange={(event) => setDraft((prev) => ({ ...prev, hypothesis: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="If I do this, what do I expect to happen or discover?" /></Field>
                 <Field label="CONTEXT"><Textarea value={draft.context || ''} onChange={(event) => setDraft((prev) => ({ ...prev, context: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="When, where, with whom, and under what conditions?" /></Field>
                 <Field label="OBSERVATION METHOD"><Textarea value={draft.observationMethod || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observationMethod: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="How will you know what happened without overstating the evidence?" /></Field>
@@ -1254,7 +1257,13 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   <div className="mt-5">
                     <AiAssistedHistory
                       title="Saved outcome reviews"
-                      entries={savedReviews}
+                      entries={savedReviews.map((entry) => ({
+                        ...entry,
+                        originDetails: draft.id && entry.id.startsWith('ai-review-') ? {
+                          provenance: { provenanceId: entry.id, kind: 'ai-assisted' },
+                          target: practiceReviewTarget(draft.id, entry.id),
+                        } : undefined,
+                      }))}
                       onChange={onSaveAiHistory}
                     />
                   </div>

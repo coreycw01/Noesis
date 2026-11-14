@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Archive, Check, ChevronDown, ChevronRight, Clock3, Compass, GripVertical, Minus, Plus, Puzzle, Save, Settings2, SkipForward, Target, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, ChevronRight, Clock3, Compass, Minus, Plus, Puzzle, Save, Settings2, SkipForward, Target, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -13,13 +13,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { useToast } from '@/hooks/use-toast';
-import { usePersistentView } from '@/hooks/use-persistent-view';
+import { useLocalDay } from '@/hooks/use-local-day';
 import { MEDIA_LABELS, MEDIA_TYPES, today, uid } from '@/lib/readex';
 import type { CommitmentFrequency, Concept, Draft, GoalItem, GoalSettings, GoalType, InquiryGoalMeasure, IntellectualGoalKind, IntellectualGoalStatus, Media, MediaType, PositionGoalMeasure, Practice, PracticeGoalMeasure, Question, SourceGoalMeasure, UserProfile, VaultEntry, WorkGoalMeasure } from '@/lib/types';
-import { cn } from '@/lib/utils';
-import { expectedCommitmentProgress } from '@/lib/workflow-integrity';
-import { commitmentDueToday, commitmentExpectedDuration, completedCommitmentDates, localCommitmentDateKey } from '@/lib/commitments';
-import { deriveGoalProgress, goalKindForType, questKindForGoal } from '@/lib/goal-progress';
+import { commitmentActivityToDate, commitmentDueToday, commitmentPositionFocusPatch, commitmentPositionIds, commitmentReviewDue, completedCommitmentDates, localCommitmentDateKey } from '@/lib/commitments';
+import { preserveSavedGoalCheckIns, type SaveGoalCheckIn, type SaveGoalPlan } from '@/lib/goal-persistence';
+import { deriveGoalProgress, goalCategories, goalCategoryChange, goalItems, goalKindForType, questKindForGoal } from '@/lib/goal-progress';
+import { practiceLogDates } from '@/lib/practice-state';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
 const QUEST_KIND_OPTIONS: Array<{ value: IntellectualGoalKind; label: string; description: string }> = [
@@ -34,8 +34,6 @@ const QUEST_KIND_OPTIONS: Array<{ value: IntellectualGoalKind; label: string; de
   { value: 'custom', label: 'Custom', description: 'Define a personal intellectual quest.' },
 ];
 
-const GOAL_STATUS_OPTIONS: IntellectualGoalStatus[] = ['planned', 'active', 'stalled', 'under_review', 'completed', 'abandoned', 'transformed', 'archived'];
-type QuestFilter = 'all' | 'needs_purpose' | 'needs_completion' | 'review_due' | 'needs_path' | 'stalled';
 type GoalsView = 'today' | 'active' | 'review';
 
 interface GoalsPageProps {
@@ -48,50 +46,13 @@ interface GoalsPageProps {
   works: Draft[];
   practices: Practice[];
   profile: UserProfile;
-  onSaveGoal: (goal: GoalSettings) => Promise<void>;
+  onSaveGoal: SaveGoalPlan;
+  onSaveCheckIn: SaveGoalCheckIn;
+  focusedGoalId: string | null;
+  onOpenCommitment: (goalId: string | null) => void;
   onOpenPraxis: (method: 'exercises' | 'practices' | 'experiments') => void;
 }
 
-function defaultTypesFromLegacy(goal: GoalSettings): GoalType[] {
-  if (goal.goalTypes?.length) return goal.goalTypes;
-  const legacyTypes: MediaType[] = goal.types?.length ? goal.types : ['book', 'audiobook', 'podcast'];
-  return legacyTypes.map((type, index) => ({
-    id: `${type}-type`,
-    name: MEDIA_LABELS[type],
-    mediaTypes: [type],
-    sortOrder: index,
-    createdAt: today(),
-    updatedAt: today(),
-  }));
-}
-
-function defaultGoalsFromLegacy(goal: GoalSettings, types: GoalType[], progress: Partial<Record<MediaType, number>>): GoalItem[] {
-  if (goal.goals?.length) {
-    return goal.goals.map((item, index) => ({ ...item, goalKind: item.goalKind || questKindForGoal(item, types.find((type) => type.id === item.typeId)), sortOrder: item.sortOrder ?? index }));
-  }
-  return types.map((type, index) => {
-    const mediaTypes = type.mediaTypes?.length ? type.mediaTypes : [];
-    const currentProgress = mediaTypes.reduce((sum, mediaType) => sum + (progress[mediaType] || 0), 0);
-    const targetProgress = mediaTypes.reduce((sum, mediaType) => sum + (goal.targets?.[mediaType] || 12), 0) || 12;
-    return {
-      id: `${type.id}-goal`,
-      title: type.name,
-      typeId: type.id,
-      goalKind: goalKindForType(type, type.name),
-      currentProgress,
-      targetProgress,
-      sortOrder: index,
-      status: 'active' as const,
-      purpose: `Develop intentional progress around ${type.name.toLowerCase()}.`,
-      evidenceOfProgress: 'Recorded material, notes, reflections, or linked objects show movement.',
-      completionCriteria: `Reach ${targetProgress} meaningful completions and write a short review.`,
-      reviewCadence: 'weekly',
-      commitmentFrequency: 'weekly',
-      createdAt: today(),
-      updatedAt: today(),
-    };
-  });
-}
 
 function questTypeForGoal(item: GoalItem, type?: GoalType) {
   const kind = questKindForGoal(item, type);
@@ -120,7 +81,7 @@ function goalProgressDescription(item: GoalItem, type?: GoalType) {
       ? 'Progress updates when a matching inquiry has a saved answer.'
       : 'Progress updates from active inquiries, optionally narrowed to one inquiry or concept.';
   if (kind === 'position') return item.positionMeasure === 'confident'
-    ? 'Progress updates when a matching position reaches 100% confidence.'
+    ? 'Counts matching current positions at 100% confidence.'
     : item.positionMeasure === 'revised'
       ? 'Progress updates when a matching position is revised.'
       : 'Progress updates when a matching position has a real review, challenge, or revision.';
@@ -137,41 +98,14 @@ function goalProgressDescription(item: GoalItem, type?: GoalType) {
 
 function questNextStep(item: GoalItem & { percent?: number }, type?: GoalType) {
   if (!item.commitmentAction?.trim()) return 'Define one observable action for this commitment.';
-  if (!(item.relatedObjectIds?.positionIds || []).length && !item.purpose?.trim()) return 'Link the Position this commitment expresses.';
+  if (!commitmentPositionIds(item).length && !item.purpose?.trim()) return 'Link the Position this commitment expresses.';
   if ((item.percent || 0) >= 100 || item.status === 'completed') return 'Write a review: what changed, what remains unclear, and whether the goal should transform.';
   if (commitmentDueToday(item)) return item.commitmentAction || `Complete the next ${questTypeForGoal(item, type)} action.`;
   return 'No action is due today. Review this commitment when its next interval arrives.';
 }
 
-function cadenceDays(item: GoalItem) {
-  if (item.reviewCadence === 'monthly') return 30;
-  if (item.reviewCadence === 'seasonal') return 90;
-  if (item.reviewCadence === 'custom') return 45;
-  return 7;
-}
-
-function dateAgeDays(value?: string) {
-  const time = Date.parse(value || '');
-  if (!Number.isFinite(time)) return Number.POSITIVE_INFINITY;
-  return Math.floor((Date.now() - time) / (1000 * 60 * 60 * 24));
-}
-
-
 function goalNeedsPurpose(item: GoalItem) {
-  return !(item.relatedObjectIds?.positionIds || []).length && !item.purpose?.trim();
-}
-
-function goalNeedsCompletionEvidence(item: GoalItem) {
-  return !item.commitmentAction?.trim();
-}
-
-function goalNeedsPath(item: GoalItem) {
-  return !(item.milestones || []).filter((milestone) => milestone.trim()).length;
-}
-
-function goalReviewDue(item: GoalItem) {
-  if (!['active', 'stalled', 'under_review'].includes(item.status)) return false;
-  return dateAgeDays(item.lastReviewAt || item.updatedAt || item.createdAt) >= cadenceDays(item);
+  return !commitmentPositionIds(item).length && !item.purpose?.trim();
 }
 
 function defaultQuestMilestones(item: GoalItem, type?: GoalType) {
@@ -234,113 +168,85 @@ function defaultQuestMilestones(item: GoalItem, type?: GoalType) {
   ];
 }
 
-export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, positions, works, practices, profile, onSaveGoal, onOpenPraxis }: GoalsPageProps) {
+export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, positions, works, practices, profile, onSaveGoal, onSaveCheckIn, focusedGoalId, onOpenCommitment, onOpenPraxis }: GoalsPageProps) {
+  const localDay = useLocalDay();
+  const dayAnchor = useMemo(() => new Date(`${localDay}T12:00:00`), [localDay]);
   const [draft, setDraft] = useState<GoalSettings>(goal);
   const [saving, setSaving] = useState(false);
+  const saveLock = useRef(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = usePersistentView<IntellectualGoalStatus | 'all'>('noesis:goals-status', 'active', ['all', ...GOAL_STATUS_OPTIONS]);
-  const [questFilter, setQuestFilter] = useState<QuestFilter>('all');
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
-  const [activeView, setActiveView] = useState<GoalsView>('today');
-  const [planningGoalId, setPlanningGoalId] = useState<string | null>(null);
+  const [listView, setActiveView] = useState<GoalsView>('today');
+  const activeView = focusedGoalId ? 'active' : listView;
+  const [localPlanningGoalId, setPlanningGoalId] = useState<string | null>(null);
+  const planningGoalId = focusedGoalId || localPlanningGoalId;
   const [skipGoalId, setSkipGoalId] = useState<string | null>(null);
-  const [skipReason, setSkipReason] = useState('');
+  const [skipReasons, setSkipReasons] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  const savedDraftRef = useRef(goal);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
-    const goalTypes = defaultTypesFromLegacy(goal);
-    setDraft({
+    const goalTypes = goalCategories(goal);
+    const next = {
       ...goal,
       goalTypes,
-      goals: defaultGoalsFromLegacy(goal, goalTypes, goalProgress),
-    });
-  }, [goal, goalProgress]);
+      goals: goalItems(goal, goalTypes),
+    };
+    if (draft === savedDraftRef.current) {
+      savedDraftRef.current = next;
+      setDraft(next);
+    } else {
+      setDraft((current) => preserveSavedGoalCheckIns(current, next));
+    }
+    // React to incoming saves, not to each edit of the local draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goal]);
 
   const goalTypes = useMemo(() => [...(draft.goalTypes || [])].sort((a, b) => a.sortOrder - b.sortOrder), [draft.goalTypes]);
   const activeGoalTypes = goalTypes.filter((type) => !type.archivedAt);
   const goals = useMemo(() => [...(draft.goals || [])].sort((a, b) => a.sortOrder - b.sortOrder), [draft.goals]);
 
-  const enrichedGoals = useMemo(() => goals.map((item) => {
-    const type = goalTypes.find((goalType) => goalType.id === item.typeId);
+  const progressContext = useMemo(() => ({ concepts, inquiries, sources, positions, works, practices }),
+    [concepts, inquiries, sources, positions, works, practices]);
+  const withProgress = useCallback((item: GoalItem, categories: GoalType[]) => {
+    const type = categories.find((goalType) => goalType.id === item.typeId);
     return {
       ...item,
       type,
-      ...deriveGoalProgress(item, type, { concepts, inquiries, sources, positions, works, practices }, goalProgress),
+      manualProgress: item.currentProgress,
+      ...deriveGoalProgress(item, type, progressContext, goalProgress),
     };
-  }), [concepts, goals, goalProgress, goalTypes, inquiries, positions, practices, sources, works]);
+  }, [goalProgress, progressContext]);
+  const enrichedGoals = useMemo(() => goals.map((item) => withProgress(item, goalTypes)), [goals, goalTypes, withProgress]);
+  const savedGoals = useMemo(() => {
+    const categories = goalCategories(goal);
+    return goalItems(goal, categories).map((item) => withProgress(item, categories));
+  }, [goal, withProgress]);
 
-  const visibleGoals = useMemo(
-    () => enrichedGoals.filter((item) => {
-      const statusOk = statusFilter === 'all' || item.status === statusFilter;
-      const questOk =
-        questFilter === 'all' ||
-        (questFilter === 'needs_purpose' && goalNeedsPurpose(item)) ||
-        (questFilter === 'needs_completion' && goalNeedsCompletionEvidence(item)) ||
-        (questFilter === 'review_due' && goalReviewDue(item)) ||
-        (questFilter === 'needs_path' && goalNeedsPath(item)) ||
-        (questFilter === 'stalled' && item.status === 'stalled');
-      return statusOk && questOk;
-    }),
-    [enrichedGoals, statusFilter, questFilter]
-  );
-
-  const featured = enrichedGoals.filter((item) => item.status === 'active').sort((a, b) => {
-    if (b.percent !== a.percent) return b.percent - a.percent;
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-  }).slice(0, 3);
-
-  const goalStats = {
-    planned: goals.filter((item) => item.status === 'planned').length,
-    active: goals.filter((item) => item.status === 'active').length,
-    underReview: goals.filter((item) => item.status === 'under_review').length,
-    completed: goals.filter((item) => item.status === 'completed').length,
-    transformed: goals.filter((item) => item.status === 'transformed').length,
-    averageProgress: Math.round(
-      enrichedGoals.length
-        ? enrichedGoals.reduce((sum, item) => sum + item.percent, 0) / enrichedGoals.length
-        : 0
-    ),
-    needsPurpose: enrichedGoals.filter(goalNeedsPurpose).length,
-    needsCompletion: enrichedGoals.filter(goalNeedsCompletionEvidence).length,
-    needsPath: enrichedGoals.filter(goalNeedsPath).length,
-    reviewDue: enrichedGoals.filter(goalReviewDue).length,
-  };
+  const focusedGoal = focusedGoalId ? enrichedGoals.find((item) => item.id === focusedGoalId) : undefined;
 
   const activeGoals = useMemo(
-    () => enrichedGoals.filter((item) => ['active', 'under_review', 'stalled'].includes(item.status)),
-    [enrichedGoals]
+    () => savedGoals.filter((item) => ['active', 'under_review', 'stalled'].includes(item.status)),
+    [savedGoals]
   );
   const todayCommitments = useMemo(
-    () => activeGoals.filter((item) => commitmentDueToday(item)),
-    [activeGoals]
+    () => savedGoals.filter((item) => commitmentDueToday(item, dayAnchor)),
+    [dayAnchor, savedGoals]
   );
   const todayFocusGoal = todayCommitments[0];
   const completedToday = useMemo(() => {
-    const key = localCommitmentDateKey();
-    return activeGoals.filter((item) => (item.commitmentCheckIns || []).some((entry) => localCommitmentDateKey(new Date(entry.date)) === key && entry.status === 'completed'));
-  }, [activeGoals]);
+    return savedGoals.filter((item) => completedCommitmentDates(item).includes(localDay));
+  }, [savedGoals, localDay]);
   const sayDoRows = useMemo(() => activeGoals.flatMap((item) => {
-    const linkedPositions = positions.filter((position) => (item.relatedObjectIds?.positionIds || []).includes(position.id));
+    const linkedPositions = positions.filter((position) => commitmentPositionIds(item).includes(position.id));
     if (!linkedPositions.length) return [];
     const linkedPractices = practices.filter((practice) => (
       (item.relatedObjectIds?.practiceIds || []).includes(practice.id)
       || practice.positionIds.some((positionId) => linkedPositions.some((position) => position.id === positionId))
     ));
     const confidence = Math.round(linkedPositions.reduce((sum, position) => sum + position.confidence, 0) / linkedPositions.length);
-    const loggedDates = new Set([
-      ...linkedPractices.flatMap((practice) => [
-        ...(practice.logDates || []),
-        ...(practice.logs || []).filter((log) => log.actionCompleted).map((log) => log.date),
-      ]).map((value) => value.slice(0, 10)),
-      ...completedCommitmentDates(item),
-    ]);
-    const loggedDays = loggedDates.size;
-    const expectedSoFar = expectedCommitmentProgress({
-      target: item.targetProgress,
-      createdAt: item.createdAt,
-      cadenceDays: commitmentExpectedDuration(item),
-    });
-    const livedPercent = Math.min(100, Math.round((loggedDays / expectedSoFar) * 100));
+    const { loggedDays, expectedSoFar, livedPercent } = commitmentActivityToDate(item, linkedPractices.flatMap(practiceLogDates), dayAnchor);
     return [{
       id: item.id,
       title: item.title,
@@ -351,7 +257,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
       livedPercent,
       gap: Math.max(0, confidence - livedPercent),
     }];
-  }).sort((a, b) => b.gap - a.gap), [activeGoals, positions, practices]);
+  }).sort((a, b) => b.gap - a.gap), [activeGoals, dayAnchor, positions, practices]);
 
   const updateGoal = (id: string, patch: Partial<GoalItem>) => {
     setDraft((prev) => ({
@@ -361,33 +267,25 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
   };
 
   const recordCommitmentCheckIn = async (item: GoalItem, status: 'completed' | 'skipped', note?: string) => {
-    const date = localCommitmentDateKey();
-    const storedItem = (draft.goals || []).find((goal) => goal.id === item.id) || item;
-    const remaining = (storedItem.commitmentCheckIns || []).filter((entry) => localCommitmentDateKey(new Date(entry.date)) !== date);
-    const nextItem: GoalItem = {
-      ...storedItem,
-      commitmentCheckIns: [...remaining, { id: uid(), date: new Date().toISOString(), status, ...(note?.trim() ? { note: note.trim() } : {}) }],
-      ...(status === 'completed' ? { currentProgress: Math.min(item.targetProgress, Math.max(item.currentProgress || 0, completedCommitmentDates(storedItem).length) + 1) } : {}),
-      updatedAt: today(),
-    };
-    const nextDraft = {
-      ...draft,
-      goals: (draft.goals || []).map((goal) => goal.id === item.id ? nextItem : goal),
-    };
-
-    setDraft(nextDraft);
+    if (saveLock.current) return;
+    saveLock.current = true;
     setSaving(true);
     try {
-      await onSaveGoal(nextDraft);
+      const now = new Date();
+      await onSaveCheckIn(item.id, { id: uid(), date: now.toISOString(), day: localCommitmentDateKey(now), status, ...(note?.trim() ? { note: note.trim() } : {}) });
       setSkipGoalId(null);
-      setSkipReason('');
+      setSkipReasons((reasons) => {
+        const { [item.id]: _saved, ...remaining } = reasons;
+        return remaining;
+      });
       toast({
         title: status === 'completed' ? 'Commitment logged' : 'Skip recorded',
         description: status === 'completed' ? 'Today now counts toward this commitment.' : 'The reason will remain available for review.',
       });
-    } catch {
-      toast({ variant: 'destructive', title: 'Check-in not saved', description: 'Your entry remains on screen so you can retry.' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Check-in not saved', description: error instanceof Error ? error.message : 'Try logging the action again.' });
     } finally {
+      saveLock.current = false;
       setSaving(false);
     }
   };
@@ -395,57 +293,8 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
   const deleteGoal = (id: string) => {
     setDraft((prev) => ({ ...prev, goals: (prev.goals || []).filter((item) => item.id !== id) }));
     setPlanningGoalId((current) => current === id ? null : current);
+    if (focusedGoalId === id) onOpenCommitment(null);
     toast({ title: 'Goal removed', description: 'It will be removed when you save your goals.' });
-  };
-
-  const updateType = (id: string, patch: Partial<GoalType>) => {
-    setDraft((prev) => ({
-      ...prev,
-      goalTypes: (prev.goalTypes || []).map((item) => item.id === id ? { ...item, ...patch, updatedAt: today() } : item),
-    }));
-  };
-
-  const addGoalType = () => {
-    const name = `New Goal Category ${goalTypes.length + 1}`;
-    const typeId = uid();
-    const now = today();
-    setDraft((prev) => ({
-      ...prev,
-      goalTypes: [
-        ...(prev.goalTypes || []),
-        { id: typeId, name, mediaTypes: [], sortOrder: goalTypes.length, createdAt: now, updatedAt: now },
-      ],
-      goals: [
-        ...(prev.goals || []),
-        {
-          id: uid(),
-          title: name,
-          typeId,
-          currentProgress: 0,
-          targetProgress: 1,
-          sortOrder: goals.length,
-          status: 'active',
-          goalKind: 'transformation',
-          purpose: `Use this quest to deliberately develop ${name.toLowerCase()}.`,
-          evidenceOfProgress: 'Add linked material, reflections, or completed steps that show genuine movement.',
-          completionCriteria: 'Define the concrete evidence that would make this goal complete.',
-          reviewCadence: 'weekly',
-          commitmentFrequency: 'weekly',
-          createdAt: now,
-          updatedAt: now,
-        },
-      ],
-    }));
-  };
-
-  const archiveType = (type: GoalType) => {
-    const used = goals.some((item) => item.typeId === type.id && item.status !== 'archived');
-    if (used) {
-      updateType(type.id, { archivedAt: today() });
-      toast({ title: 'Goal type archived', description: 'Existing goals keep their history and no longer become orphaned.' });
-      return;
-    }
-    setDraft((prev) => ({ ...prev, goalTypes: (prev.goalTypes || []).filter((item) => item.id !== type.id) }));
   };
 
   const addGoal = () => {
@@ -465,6 +314,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
           sortOrder: goals.length,
           status: 'active',
           goalKind: goalKindForType(activeGoalTypes.find((type) => type.id === typeId), activeGoalTypes.find((type) => type.id === typeId)?.name || ''),
+          commitmentPositionId: null,
           purpose: 'Choose a measurable Noesis milestone you want to reach.',
           evidenceOfProgress: 'Progress is counted from the selected app activity or adjusted manually.',
           completionCriteria: 'Reach the target and review what the milestone changed in your thinking.',
@@ -528,6 +378,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
   };
 
   const saveGoals = async () => {
+    if (saveLock.current) return;
     const trimmedLabel = draft.label.trim() || 'Intellectual Commitments';
     const cleanedTypes = (draft.goalTypes || []).map((type) => ({ ...type, name: type.name.trim() }));
     const duplicateNames = new Set<string>();
@@ -547,9 +398,12 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
         return;
       }
     }
-    const commitmentWithoutAction = (draft.goals || []).find((item) => (
-      ['active', 'under_review', 'stalled'].includes(item.status) && !item.commitmentAction?.trim()
-    ));
+    const needsSetup = (item: GoalItem, missing: (value: GoalItem) => boolean) => {
+      const previous = savedDraftRef.current.goals?.find((value) => value.id === item.id);
+      const isLive = (value: GoalItem) => ['active', 'under_review', 'stalled'].includes(value.status);
+      return isLive(item) && missing(item) && (!previous || !isLive(previous) || !missing(previous));
+    };
+    const commitmentWithoutAction = (draft.goals || []).find((item) => needsSetup(item, (value) => !value.commitmentAction?.trim()));
     if (commitmentWithoutAction) {
       toast({
         variant: 'destructive',
@@ -558,9 +412,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
       });
       return;
     }
-    const commitmentWithoutGrounding = (draft.goals || []).find((item) => (
-      !(item.relatedObjectIds?.positionIds || []).length && !item.purpose?.trim()
-    ));
+    const commitmentWithoutGrounding = (draft.goals || []).find((item) => needsSetup(item, goalNeedsPurpose));
     if (commitmentWithoutGrounding) {
       toast({
         variant: 'destructive',
@@ -569,13 +421,19 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
       });
       return;
     }
+    saveLock.current = true;
     setSaving(true);
     try {
-      await onSaveGoal({ ...draft, label: trimmedLabel, goalTypes: cleanedTypes });
+      const next = { ...draft, label: trimmedLabel, goalTypes: cleanedTypes };
+      const saved = await onSaveGoal(next, savedDraftRef.current);
+      savedDraftRef.current = saved;
+      setDraft((current) => current === draft ? saved : preserveSavedGoalCheckIns(current, saved));
+      setSaveError('');
       toast({ title: 'Commitments updated', description: 'Your commitments and their measured practice are now synced.' });
-    } catch {
-      toast({ variant: 'destructive', title: 'Commitments not saved', description: 'Noesis could not update your commitments.' });
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Noesis could not update your commitments.');
     } finally {
+      saveLock.current = false;
       setSaving(false);
     }
   };
@@ -584,17 +442,20 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
     <div className="noesis-page noesis-commitments-page" data-noesis-identity="commitment-ledger">
       <div className="noesis-page-inner">
         <PageHeader
-          title="Praxis"
-          description="Commitments help you uphold a chosen principle and compare what you say matters with what you repeatedly do."
-          meta={(
+          title={focusedGoalId ? focusedGoal?.title || 'Commitment unavailable' : 'Praxis'}
+          description={focusedGoalId
+            ? focusedGoal ? `${focusedGoal.currentProgress} of ${focusedGoal.targetProgress} toward this commitment` : 'This commitment may have been removed.'
+            : 'Commitments help you uphold a chosen principle and compare what you say matters with what you repeatedly do.'}
+          meta={!focusedGoalId && (
             <>
               <GoalStat label="Active" value={activeGoals.length} />
-              <GoalStat label="Completed" value={goalStats.completed} />
+              <GoalStat label="Completed" value={savedGoals.filter((item) => item.status === 'completed').length} />
             </>
           )}
-          tabs={(
+          tabs={!focusedGoalId && (
             <div className="space-y-2">
               <WorkspaceTabs<'exercises' | 'practices' | 'experiments' | 'commitments'>
+                activation="manual"
                 value="commitments"
                 onChange={(method) => {
                   if (method !== 'commitments') onOpenPraxis(method);
@@ -622,15 +483,27 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
           )}
           actions={(
             <>
-            <Button variant="outline" onClick={addGoal} className="rounded-full bg-card">
+            {focusedGoalId ? <Button variant="outline" onClick={() => onOpenCommitment(null)}>All commitments</Button> : <Button variant="outline" onClick={addGoal} className="rounded-full bg-card">
               <Plus className="mr-2 size-4" /> Add Commitment
-            </Button>
-            <Button onClick={saveGoals} disabled={saving} className="rounded-full px-7 font-bold shadow-md shadow-accent/20">
+            </Button>}
+            {(!focusedGoalId || focusedGoal) && <Button onClick={saveGoals} disabled={saving} className="rounded-full px-7 font-bold shadow-md shadow-accent/20">
               <Save className="mr-2 size-4" /> {saving ? 'Saving' : 'Save Commitments'}
-            </Button>
+            </Button>}
             </>
           )}
         />
+        {saveError && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 border border-destructive/50 p-3">
+            <p role="alert" className="flex-1 text-sm text-destructive">{saveError}</p>
+            <Button type="button" variant="outline" disabled={saving} onClick={() => {
+              const goalTypes = goalCategories(goal);
+              const latest = { ...goal, goalTypes, goals: goalItems(goal, goalTypes) };
+              savedDraftRef.current = latest;
+              setDraft(latest);
+              setSaveError('');
+            }}>Discard draft</Button>
+          </div>
+        )}
 
         {activeView === 'today' && (
           <div className="space-y-6" role="tabpanel" aria-label="Commitments due today">
@@ -648,7 +521,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                   ) : (
                     <>
                       <h2 className="mt-2 font-headline text-2xl font-bold italic">{activeGoals.length ? 'Nothing is due today' : 'Create your first meaningful commitment'}</h2>
-                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{activeGoals.length ? 'Your active commitments will return here when their cadence or review date is reached.' : 'Choose one Position you want your conduct to test, or state why the commitment matters.'}</p>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{activeGoals.length ? 'Scheduled actions appear here. Review reminders are in Insights.' : 'Choose one Position you want your conduct to test, or state why the commitment matters.'}</p>
                     </>
                   )}
                 </div>
@@ -658,14 +531,14 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                       <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Progress</div>
                       <div className="font-headline text-3xl font-bold italic">{Math.round(todayFocusGoal.percent)}%</div>
                     </div>
-                    <Button variant="outline" onClick={() => setActiveView('active')} className="min-h-10 rounded-full">
+                    <Button variant="outline" onClick={() => { setPlanningGoalId(todayFocusGoal.id); setActiveView('active'); }} className="min-h-10 rounded-full">
                       Open commitment <ChevronRight className="ml-1 size-4" />
                     </Button>
                   </div>
                 ) : activeGoals.length ? (
                   <Button variant="outline" onClick={() => setActiveView('active')} className="min-h-10 rounded-full">View active commitments</Button>
                 ) : (
-                  <Button onClick={addGoal} className="min-h-10 rounded-full"><Plus className="mr-2 size-4" /> Add commitment</Button>
+                  <Button onClick={() => { addGoal(); setActiveView('active'); }} className="min-h-10 rounded-full"><Plus className="mr-2 size-4" /> Add commitment</Button>
                 )}
               </div>
             </section>
@@ -689,8 +562,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                           <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">{questTypeForGoal(item, item.type)}</span>
-                            {item.status === 'stalled' && <Badge variant="outline" className="rounded-full text-[9px] uppercase">Needs a restart</Badge>}
-                            {goalReviewDue(item) && <Badge variant="outline" className="rounded-full text-[9px] uppercase">Review due</Badge>}
+                            {commitmentReviewDue(item) && <Badge variant="outline" className="rounded-full text-[9px] uppercase">Review due</Badge>}
                           </div>
                           <h3 className="mt-1 text-base font-semibold leading-6 text-foreground">{item.title}</h3>
                           <p className="mt-1 text-sm leading-5 text-muted-foreground">{item.commitmentAction || questNextStep(item, item.type)}</p>
@@ -698,18 +570,18 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                         </div>
                         <div className="min-w-0">
                           <div className="mb-1 flex justify-between font-code text-[9px] uppercase tracking-widest text-muted-foreground"><span>Progress</span><span>{item.currentProgress}/{item.targetProgress}</span></div>
-                          <Progress value={item.percent} className="h-2" />
+                          <Progress value={item.percent} aria-label={`Progress for ${item.title}`} aria-valuetext={`${item.currentProgress} of ${item.targetProgress}`} className="h-2" />
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                          <Button onClick={() => void recordCommitmentCheckIn(item, 'completed')} disabled={saving} className="min-h-10 rounded-full px-4" aria-label={`Log ${item.title} as completed today`}>
+                          <Button onClick={() => void recordCommitmentCheckIn(item, 'completed')} disabled={saving} className="min-h-10 rounded-full px-4" aria-label={`Done: log ${item.title} as completed today`}>
                             <Check className="mr-1.5 size-4" /> Done
                           </Button>
-                          <Button variant="ghost" onClick={() => setSkipGoalId((current) => current === item.id ? null : item.id)} className="min-h-10 px-2 text-sm"><SkipForward className="mr-1 size-4" /> Can&apos;t today</Button>
+                          <Button variant="ghost" disabled={saving} aria-expanded={skipGoalId === item.id} onClick={() => setSkipGoalId((current) => current === item.id ? null : item.id)} className="min-h-10 px-2 text-sm"><SkipForward className="mr-1 size-4" /> Can&apos;t today</Button>
                           <Button variant="ghost" onClick={() => { setPlanningGoalId(item.id); setActiveView('active'); }} className="min-h-10 px-2 text-sm">Details</Button>
                           {skipGoalId === item.id && (
                             <div className="flex w-full items-center gap-2 sm:max-w-md">
-                              <Input value={skipReason} onChange={(event) => setSkipReason(event.target.value)} placeholder="Why are you skipping today?" aria-label={`Reason for skipping ${item.title}`} />
-                              <Button variant="outline" disabled={!skipReason.trim() || saving} onClick={() => void recordCommitmentCheckIn(item, 'skipped', skipReason)}>Record</Button>
+                              <Input value={skipReasons[item.id] || ''} onChange={(event) => setSkipReasons((reasons) => ({ ...reasons, [item.id]: event.target.value }))} placeholder="Why are you skipping today?" aria-label={`Reason for skipping ${item.title}`} />
+                              <Button variant="outline" disabled={!skipReasons[item.id]?.trim() || saving} onClick={() => void recordCommitmentCheckIn(item, 'skipped', skipReasons[item.id])}>Record</Button>
                             </div>
                           )}
                         </div>
@@ -733,7 +605,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">Continue, revise, pause, complete, or abandon commitments based on what actually happened.</p>
               </div>
               <div className="divide-y divide-border border-y border-border">
-                {activeGoals.filter((item) => goalReviewDue(item) || (item.commitmentReviewDate && item.commitmentReviewDate <= localCommitmentDateKey())).map((item) => {
+                {activeGoals.filter((item) => commitmentReviewDue(item)).map((item) => {
                   const ItemIcon = goalIconForKind(questKindForGoal(item, item.type));
                   return (
                   <article key={item.id} className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
@@ -747,7 +619,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                     <Button variant="outline" onClick={() => { setPlanningGoalId(item.id); setActiveView('active'); }} className="min-h-10 rounded-full">Review commitment</Button>
                   </article>
                 )})}
-                {!activeGoals.some((item) => goalReviewDue(item) || (item.commitmentReviewDate && item.commitmentReviewDate <= localCommitmentDateKey())) && (
+                {!activeGoals.some((item) => commitmentReviewDue(item)) && (
                   <div className="py-6 text-sm text-muted-foreground">No commitment reviews are due.</div>
                 )}
               </div>
@@ -779,9 +651,9 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
           </div>
         )}
 
-        {activeView === 'active' && (
+        {activeView === 'active' && (!focusedGoalId || focusedGoal) && (
           <>
-            <section className="mb-6 border-y border-border py-5 md:py-6" aria-labelledby="goals-heading">
+            {!focusedGoalId && <section className="mb-6 border-y border-border py-5 md:py-6" aria-labelledby="goals-heading">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Commitment setup</div>
@@ -802,45 +674,51 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                   </li>
                 ))}
               </ol>
-            </section>
+            </section>}
 
             <section className="mb-6" aria-label="Basic goal settings">
               <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h3 className="font-headline text-xl font-bold italic">Your commitments</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Open one commitment to define its action, grounding, rhythm, and evidence.</p>
+                  <h3 className="font-headline text-xl font-bold italic">{focusedGoalId ? 'Progress settings' : 'Your commitments'}</h3>
+                  {!focusedGoalId && <p className="mt-1 text-sm text-muted-foreground">Open one commitment to define its action, grounding, rhythm, and evidence.</p>}
                 </div>
-                <span className="text-sm text-muted-foreground">{enrichedGoals.length} commitment{enrichedGoals.length === 1 ? '' : 's'}</span>
+                {!focusedGoalId && <span className="text-sm text-muted-foreground">
+                  {enrichedGoals.length} commitment{enrichedGoals.length === 1 ? '' : 's'}{enrichedGoals.length !== savedGoals.length ? ' in draft' : ''}
+                </span>}
               </div>
+              <p id="goal-manual-rule" className="mb-3 text-sm text-muted-foreground">Progress uses the highest of your manual count, matching activity, and completed check-ins. The counts are not added together.</p>
               <div className="divide-y divide-border border-y border-border">
-                {enrichedGoals.map((row) => (
+                {enrichedGoals.filter((row) => !focusedGoalId || row.id === focusedGoalId).map((row) => (
                   <article key={row.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(220px,1.3fr)_minmax(150px,.7fr)_minmax(170px,.8fr)_auto] lg:items-end">
                     <div>
-                      <Label className="readex-kicker flex items-center gap-1.5">{React.createElement(goalIconForKind(questKindForGoal(row, row.type)), { className: 'size-3.5 text-accent', 'aria-hidden': true })} Commitment</Label>
-                      <Input value={row.title} onChange={(event) => updateGoal(row.id, { title: event.target.value })} className="mt-2 h-10 font-medium" placeholder="What are you working toward?" />
+                      <Label htmlFor={`goal-title-${row.id}`} className="readex-kicker flex items-center gap-1.5">{React.createElement(goalIconForKind(questKindForGoal(row, row.type)), { className: 'size-3.5 text-accent', 'aria-hidden': true })} Commitment</Label>
+                      <Input id={`goal-title-${row.id}`} value={row.title} onChange={(event) => updateGoal(row.id, { title: event.target.value })} className="mt-2 h-10 font-medium" placeholder="What are you working toward?" />
                     </div>
                     <div>
-                      <Label className="readex-kicker">Progress comes from</Label>
-                      <Select value={row.typeId} onValueChange={(value) => updateGoal(row.id, { typeId: value, goalKind: goalKindForType(activeGoalTypes.find((type) => type.id === value)), sourceType: undefined })}>
-                        <SelectTrigger className="mt-2 h-10"><SelectValue /></SelectTrigger>
+                      <Label htmlFor={`goal-category-${row.id}`} className="readex-kicker">Progress comes from</Label>
+                      <Select value={row.typeId} onValueChange={(value) => {
+                        const category = activeGoalTypes.find((type) => type.id === value);
+                        if (category) updateGoal(row.id, goalCategoryChange(row, row.type, category));
+                      }}>
+                        <SelectTrigger id={`goal-category-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
                         <SelectContent>{activeGoalTypes.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <Label className="readex-kicker">Target</Label>
+                      <Label htmlFor={`goal-manual-${row.id}`} className="readex-kicker">Manual count / target</Label>
                       <div className="mt-2 flex items-center gap-2">
-                        <Button variant="outline" size="icon" onClick={() => updateGoal(row.id, { currentProgress: Math.max(0, row.currentProgress - 1) })} aria-label={`Decrease ${row.title} progress`}><Minus className="size-3.5" /></Button>
-                        <Input type="number" min={0} value={row.currentProgress} onChange={(event) => updateGoal(row.id, { currentProgress: Math.max(0, Number(event.target.value) || 0) })} className="h-10 min-w-0 text-center" aria-label={`${row.title} current progress`} />
+                        <Button variant="outline" size="icon" onClick={() => updateGoal(row.id, { currentProgress: Math.max(0, row.manualProgress - 1) })} aria-label={`Decrease ${row.title} manual count`}><Minus className="size-3.5" /></Button>
+                        <Input id={`goal-manual-${row.id}`} type="number" min={0} value={row.manualProgress} onChange={(event) => updateGoal(row.id, { currentProgress: Math.max(0, Number(event.target.value) || 0) })} className="h-10 min-w-0 text-center" aria-label={`${row.title} manual count`} aria-describedby="goal-manual-rule" />
                         <span className="text-muted-foreground">/</span>
                         <Input type="number" min={1} value={row.targetProgress} onChange={(event) => updateGoal(row.id, { targetProgress: Math.max(1, Number(event.target.value) || 1) })} className="h-10 min-w-0 text-center" aria-label={`${row.title} target progress`} />
-                        <Button variant="outline" size="icon" onClick={() => updateGoal(row.id, { currentProgress: Math.min(row.targetProgress, row.currentProgress + 1) })} aria-label={`Add progress to ${row.title}`}><Plus className="size-3.5" /></Button>
+                        <Button variant="outline" size="icon" onClick={() => updateGoal(row.id, { currentProgress: row.manualProgress + 1 })} aria-label={`Increase ${row.title} manual count`}><Plus className="size-3.5" /></Button>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 lg:justify-end">
-                      <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{Math.round(row.percent)}%</span>
-                      <Button variant="outline" size="sm" onClick={() => setPlanningGoalId((current) => current === row.id ? null : row.id)} className="min-h-10 rounded-full px-3">
+                      <span className="text-xs text-muted-foreground">{row.currentProgress} total progress</span>
+                      {!focusedGoalId && <Button variant="outline" size="sm" onClick={() => setPlanningGoalId((current) => current === row.id ? null : row.id)} className="min-h-10 rounded-full px-3">
                         {planningGoalId === row.id ? 'Close details' : 'Refine goal'}
-                      </Button>
+                      </Button>}
                     </div>
                   </article>
                 ))}
@@ -850,6 +728,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             {planningGoalId && (() => {
               const planningGoal = enrichedGoals.find((item) => item.id === planningGoalId);
               if (!planningGoal) return null;
+              const lastCheckIn = planningGoal.commitmentCheckIns?.at(-1);
               return (
               <section className="border-y border-border py-5" aria-label={`Plan ${planningGoal.title}`}>
                 <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -870,81 +749,9 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                       </SelectContent>
                     </Select>
                     <Button variant="ghost" size="sm" onClick={() => deleteGoal(planningGoal.id)} className="min-h-10 rounded-full text-destructive hover:text-destructive">Delete goal</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setPlanningGoalId(null)} className="min-h-10 rounded-full">Close details</Button>
+                    {!focusedGoalId && <Button variant="ghost" size="sm" onClick={() => setPlanningGoalId(null)} className="min-h-10 rounded-full">Close details</Button>}
                   </div>
                 </div>
-        <section className="hidden mb-8 grid-cols-1 gap-5 md:grid-cols-3">
-          {featured.map((row) => (
-            <Card key={row.id} className="rounded-xl border-accent/20 bg-card p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{questTypeForGoal(row, row.type)}</div>
-                  <h2 className="mt-1 font-headline text-2xl font-bold italic">{row.title}</h2>
-                </div>
-                <Compass className="size-5 text-accent" />
-              </div>
-              <p className="mb-4 line-clamp-2 text-sm italic text-muted-foreground">{row.purpose || 'No desired change stated yet.'}</p>
-              <div className="mb-3 flex items-end justify-between">
-                <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{Math.round(row.percent)}%</span>
-                <span className="font-headline text-3xl font-bold italic">{row.currentProgress}/{row.targetProgress}</span>
-              </div>
-              <Progress value={row.percent} className="h-2" />
-              <div className="mt-4 rounded-xl border border-border/50 bg-background/50 p-3 text-[12px] italic leading-relaxed text-muted-foreground">
-                {questNextStep(row, row.type)}
-              </div>
-            </Card>
-          ))}
-          {!featured.length && (
-            <Card className="rounded-xl border-dashed bg-card p-6 text-sm italic text-muted-foreground md:col-span-3">
-              Add an active goal to see your top progress cards.
-            </Card>
-          )}
-        </section>
-
-        <section className="hidden mb-6 flex-wrap gap-2">
-          {[
-            {
-              label: 'Needs Purpose',
-              value: goalStats.needsPurpose,
-              description: 'Quests without a clear reason or desired intellectual change.',
-              filter: 'needs_purpose' as QuestFilter,
-            },
-            {
-              label: 'Needs Completion',
-              value: goalStats.needsCompletion,
-              description: 'Quests missing evidence of progress or completion criteria.',
-              filter: 'needs_completion' as QuestFilter,
-            },
-            {
-              label: 'Review Due',
-              value: goalStats.reviewDue,
-              description: 'Active commitments whose review cadence has gone stale.',
-              filter: 'review_due' as QuestFilter,
-            },
-            {
-              label: 'Needs Quest Path',
-              value: goalStats.needsPath,
-              description: 'Goals without milestones that show how development unfolds.',
-              filter: 'needs_path' as QuestFilter,
-            },
-          ].filter((item) => item.value > 0).map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => setQuestFilter(questFilter === item.filter ? 'all' : item.filter)}
-              className={cn(
-                "rounded-full border px-4 py-2 text-left shadow-sm transition-colors",
-                questFilter === item.filter ? "border-accent/50 bg-accent/10 ring-2 ring-accent/15" : "border-border/50 bg-card"
-              )}
-            >
-              <div className="flex items-center gap-2" title={item.description}>
-                <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{item.label}</div>
-                <div className="font-headline text-lg font-bold italic leading-none text-primary">{item.value}</div>
-              </div>
-            </button>
-          ))}
-        </section>
-
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,.7fr)]">
           {enrichedGoals.filter((row) => row.id === planningGoalId).map((row) => (
             <React.Fragment key={`simple-plan:${row.id}`}>
@@ -966,7 +773,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                   <div>
                     <Label htmlFor={`commitment-position-${row.id}`} className="text-sm font-medium">Position this expresses</Label>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose the belief your behavior is meant to embody or test.</p>
-                    <Select value={row.relatedObjectIds?.positionIds?.[0] || 'no-linked-position'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, positionIds: value === 'no-linked-position' ? [] : [value] } })}>
+                    <Select value={commitmentPositionIds(row)[0] || 'no-linked-position'} onValueChange={(value) => updateGoal(row.id, { commitmentPositionId: value === 'no-linked-position' ? null : value })}>
                       <SelectTrigger id={`commitment-position-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
                       <SelectContent><SelectItem value="no-linked-position">No linked position</SelectItem>{positions.filter((position) => position.status !== 'abandoned').map((position) => <SelectItem key={position.id} value={position.id}>{position.title || position.statement}</SelectItem>)}</SelectContent>
                     </Select>
@@ -989,7 +796,6 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                       <Target className="size-4 text-accent" aria-hidden="true" />
                       <div>
                         <h4 className="text-sm font-medium">What advances this commitment</h4>
-                        <p className="text-xs leading-5 text-muted-foreground">Use the same order every time: result, concept, then a specific item or type.</p>
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-3">
@@ -1008,16 +814,22 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                         <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">Optional. Count only activity tagged with one concept.</p>
                         <Select value={row.relatedObjectIds?.conceptIds?.[0] || 'all-concepts'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, conceptIds: value === 'all-concepts' ? [] : [value] } })}>
                           <SelectTrigger id={`goal-concept-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                          <SelectContent><SelectItem value="all-concepts">Any concept</SelectItem>{concepts.map((concept) => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}</SelectContent>
+                          <SelectContent>
+                            <SelectItem value="all-concepts">Any concept</SelectItem>
+                            {row.relatedObjectIds?.conceptIds?.[0] && !concepts.some((concept) => concept.id === row.relatedObjectIds?.conceptIds?.[0]) && (
+                              <SelectItem value={row.relatedObjectIds.conceptIds[0]} disabled>Selected concept unavailable</SelectItem>
+                            )}
+                            {concepts.map((concept) => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}
+                          </SelectContent>
                         </Select>
                       </div>
 
                       <div>
                         <Label className="text-sm font-medium">Item focus</Label>
                         <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">Optional. Narrow progress to one item or source type.</p>
-                        {questKindForGoal(row, row.type) === 'consumption' && <Select value={row.sourceType || 'all-source-types'} onValueChange={(value) => updateGoal(row.id, { sourceType: value === 'all-source-types' ? undefined : value as MediaType })}><SelectTrigger className="mt-2 h-10" aria-label="Source type focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-source-types">Any source type</SelectItem>{MEDIA_TYPES.map((mediaType) => <SelectItem key={mediaType} value={mediaType}>{MEDIA_LABELS[mediaType]}</SelectItem>)}</SelectContent></Select>}
+                        {questKindForGoal(row, row.type) === 'consumption' && <Select value={row.sourceType || 'all-source-types'} onValueChange={(value) => updateGoal(row.id, { sourceType: value === 'all-source-types' ? undefined : value as MediaType })}><SelectTrigger className="mt-2 h-10" aria-label="Source type focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-source-types">{row.type?.mediaTypes?.length ? `Category default: ${row.type.mediaTypes.map((type) => MEDIA_LABELS[type]).join(', ')}` : 'Any source type'}</SelectItem>{MEDIA_TYPES.map((mediaType) => <SelectItem key={mediaType} value={mediaType}>{MEDIA_LABELS[mediaType]}</SelectItem>)}</SelectContent></Select>}
                         {questKindForGoal(row, row.type) === 'inquiry' && <Select value={row.relatedObjectIds?.inquiryIds?.[0] || 'all-inquiries'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, inquiryIds: value === 'all-inquiries' ? [] : [value] } })}><SelectTrigger className="mt-2 h-10" aria-label="Inquiry focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-inquiries">Any inquiry</SelectItem>{inquiries.filter((inquiry) => !['archived', 'no_longer_meaningful'].includes(inquiry.status)).map((inquiry) => <SelectItem key={inquiry.id} value={inquiry.id}>{inquiry.text}</SelectItem>)}</SelectContent></Select>}
-                        {questKindForGoal(row, row.type) === 'position' && <Select value={row.relatedObjectIds?.positionIds?.[0] || 'all-positions'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, positionIds: value === 'all-positions' ? [] : [value] } })}><SelectTrigger className="mt-2 h-10" aria-label="Position focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-positions">Any position</SelectItem>{positions.filter((position) => position.status !== 'abandoned').map((position) => <SelectItem key={position.id} value={position.id}>{position.title || position.statement}</SelectItem>)}</SelectContent></Select>}
+                        {questKindForGoal(row, row.type) === 'position' && <Select value={row.relatedObjectIds?.positionIds?.[0] || 'all-positions'} onValueChange={(value) => updateGoal(row.id, commitmentPositionFocusPatch(row, value === 'all-positions' ? null : value))}><SelectTrigger className="mt-2 h-10" aria-label="Position focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-positions">Any position</SelectItem>{positions.filter((position) => position.status !== 'abandoned').map((position) => <SelectItem key={position.id} value={position.id}>{position.title || position.statement}</SelectItem>)}</SelectContent></Select>}
                         {questKindForGoal(row, row.type) === 'practice' && <Select value={row.relatedObjectIds?.practiceIds?.[0] || 'all-practices'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, practiceIds: value === 'all-practices' ? [] : [value] } })}><SelectTrigger className="mt-2 h-10" aria-label="Practice focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-practices">Any practice</SelectItem>{practices.filter((practice) => practice.status !== 'abandoned').map((practice) => <SelectItem key={practice.id} value={practice.id}>{practice.title}</SelectItem>)}</SelectContent></Select>}
                         {questKindForGoal(row, row.type) === 'expression' && <Select value={row.relatedObjectIds?.workIds?.[0] || 'all-works'} onValueChange={(value) => updateGoal(row.id, { relatedObjectIds: { ...row.relatedObjectIds, workIds: value === 'all-works' ? [] : [value] } })}><SelectTrigger className="mt-2 h-10" aria-label="Work focus"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all-works">Any work</SelectItem>{works.filter((work) => !['archived', 'abandoned'].includes(work.status)).map((work) => <SelectItem key={work.id} value={work.id}>{work.title}</SelectItem>)}</SelectContent></Select>}
                       </div>
@@ -1032,8 +844,12 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                   <div className="font-headline text-4xl font-bold italic leading-none">{Math.round(row.percent)}%</div>
                   <span className="text-sm text-muted-foreground">{row.currentProgress} of {row.targetProgress}</span>
                 </div>
-                <Progress value={row.percent} className="mt-3 h-2" />
+                <Progress value={row.percent} aria-label={`Progress for ${row.title}`} aria-valuetext={`${row.currentProgress} of ${row.targetProgress}`} className="mt-3 h-2" />
                 <p className="mt-4 text-sm leading-6 text-muted-foreground">{goalProgressDescription(row, row.type)}</p>
+                {lastCheckIn && <div className="mt-4 border-t border-border pt-3 text-sm">
+                  <p className="font-medium">{lastCheckIn.status === 'skipped' ? 'Last check-in: skipped' : 'Last check-in: completed'}</p>
+                  {lastCheckIn.note && <p className="mt-1 break-words text-muted-foreground">{lastCheckIn.note}</p>}
+                </div>}
               </aside>
 
               <section className="border-y border-border py-4 lg:col-span-2">
@@ -1070,304 +886,6 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               </section>
             </React.Fragment>
           ))}
-        <div className="hidden grid gap-6 lg:grid-cols-[1fr_340px]">
-          <Card className="rounded-2xl border-border bg-card p-6 shadow-sm">
-            <div className="mb-6">
-              <Label className="readex-kicker text-[9px] font-bold uppercase">Goal Set Name</Label>
-              <Input value={draft.label} onChange={(event) => setDraft((prev) => ({ ...prev, label: event.target.value }))} className="mt-2 h-11 max-w-xl rounded-full" />
-            </div>
-
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-background/50 p-3">
-              <div>
-                <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Goals and challenges</div>
-                <div className="mt-1 text-sm text-muted-foreground">{visibleGoals.length} shown from {goals.length} total goals</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Select value={questFilter} onValueChange={(value) => setQuestFilter(value as QuestFilter)}>
-                  <SelectTrigger className="w-[190px] rounded-full font-code text-[10px] uppercase">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All quest states</SelectItem>
-                    <SelectItem value="needs_purpose">Needs Purpose</SelectItem>
-                    <SelectItem value="needs_completion">Needs Completion</SelectItem>
-                    <SelectItem value="review_due">Review Due</SelectItem>
-                    <SelectItem value="needs_path">Needs Quest Path</SelectItem>
-                    <SelectItem value="stalled">Stalled</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
-                  <SelectTrigger className="w-[180px] rounded-full font-code text-[10px] uppercase">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All goals</SelectItem>
-                    <SelectItem value="planned">Planned</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="stalled">Stalled</SelectItem>
-                    <SelectItem value="under_review">Under Review</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="abandoned">Abandoned</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid gap-3">
-              {enrichedGoals.filter((row) => row.id === planningGoalId).map((row) => (
-                <div
-                  key={row.id}
-                  draggable
-                  onDragStart={() => setDraggedId(row.id)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => draggedId && reorderGoal(draggedId, row.id)}
-                  className="grid gap-3 rounded-xl border border-border bg-background/50 p-3 transition-colors hover:border-accent/30 xl:grid-cols-[auto_1.4fr_180px_90px_90px_150px_auto]"
-                >
-                  <GripVertical className="size-4 cursor-grab text-muted-foreground/50" />
-                  <div>
-                    <Input value={row.title} onChange={(event) => updateGoal(row.id, { title: event.target.value })} className="h-9 rounded-full font-headline text-base italic" />
-                    <div className="mt-2 flex flex-wrap items-center gap-2 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                      <span>{questTypeForGoal(row, row.type)}</span>
-                      <span>{(row.type?.mediaTypes || []).length ? `Counts: ${(row.type?.mediaTypes || []).map((mediaType) => MEDIA_LABELS[mediaType]).join(', ')}` : 'No media types selected yet'}</span>
-                      <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase">{row.status}</Badge>
-                      {goalNeedsPurpose(row) && <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 font-code text-[8px] uppercase text-amber-800">needs purpose</Badge>}
-                      {goalNeedsCompletionEvidence(row) && <Badge variant="outline" className="rounded-full border-rose-200 bg-rose-50 font-code text-[8px] uppercase text-rose-800">needs criteria</Badge>}
-                      {goalNeedsPath(row) && <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 font-code text-[8px] uppercase text-blue-800">needs path</Badge>}
-                      {goalReviewDue(row) && <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 font-code text-[8px] uppercase text-emerald-800">review due</Badge>}
-                    </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-accent" style={{ width: `${row.percent}%` }} />
-                    </div>
-                    <details className="group mt-3 rounded-xl border border-border/50 bg-card/60 p-3">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-foreground">
-                        Goal details, milestones, and review
-                        <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-                      </summary>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <Textarea value={row.purpose || ''} onChange={(event) => updateGoal(row.id, { purpose: event.target.value })} className="min-h-20 text-xs italic" placeholder="Why does this quest matter?" />
-                      <Textarea value={row.reason || ''} onChange={(event) => updateGoal(row.id, { reason: event.target.value })} className="min-h-20 text-xs italic" placeholder="Why is this worth pursuing now?" />
-                      <Textarea value={row.completionCriteria || ''} onChange={(event) => updateGoal(row.id, { completionCriteria: event.target.value })} className="min-h-20 text-xs italic" placeholder="What evidence would make this complete?" />
-                      <Textarea value={row.evidenceOfProgress || ''} onChange={(event) => updateGoal(row.id, { evidenceOfProgress: event.target.value })} className="min-h-20 text-xs italic" placeholder="What counts as real progress?" />
-                      <Textarea value={row.evidence || ''} onChange={(event) => updateGoal(row.id, { evidence: event.target.value })} className="min-h-20 text-xs italic" placeholder="What evidence has already accumulated?" />
-                      <Textarea value={row.obstacles || ''} onChange={(event) => updateGoal(row.id, { obstacles: event.target.value })} className="min-h-20 text-xs italic" placeholder="What obstacle or uncertainty should the next review address?" />
-                      <Textarea
-                        value={(row.linkedObjectLabels || []).join('\n')}
-                        onChange={(event) => updateGoal(row.id, { linkedObjectLabels: event.target.value.split('\n').map((item) => item.trim()).filter(Boolean) })}
-                        className="min-h-20 text-xs italic md:col-span-2"
-                        placeholder="Linked objects, one per line: inquiry, position, source, work, practice, concept..."
-                      />
-                      </div>
-                      <div className="mt-3 rounded-xl border border-border/50 bg-card p-3 text-[12px] italic text-muted-foreground">
-                      <span className="font-code text-[8px] uppercase tracking-widest not-italic text-muted-foreground/70">Next review cue: </span>
-                      {questNextStep(row, row.type)}
-                      </div>
-                      <div className="mt-3 rounded-xl border border-border/50 bg-card p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <div className="font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Quest Path</div>
-                          <p className="mt-1 text-xs italic text-muted-foreground">Milestones should describe transformation, not just task completion.</p>
-                        </div>
-                        {!(row.milestones || []).length && (
-                          <Button variant="outline" size="sm" onClick={() => adoptQuestPath(row)} className="h-8 rounded-full bg-background">
-                            Adopt Path
-                          </Button>
-                        )}
-                        {!!(row.milestones || []).length && (
-                          <Button variant="outline" size="sm" onClick={() => addMilestone(row.id)} className="h-8 rounded-full bg-background">
-                            <Plus className="mr-1 size-3" /> Step
-                          </Button>
-                        )}
-                      </div>
-                      <div className="mt-3 space-y-2">
-                        {((row.milestones || []).length ? row.milestones || [] : defaultQuestMilestones(row, row.type)).map((milestone, index) => (
-                          <div key={`${row.id}:milestone:${index}`} className="grid gap-2 sm:grid-cols-[24px_1fr_auto]">
-                            <div className={cn(
-                              'mt-2 flex size-6 items-center justify-center rounded-full border font-code text-[9px] font-bold',
-                              (row.currentProgress || 0) > index ? 'border-accent bg-accent text-white' : 'border-border bg-background text-muted-foreground'
-                            )}>
-                              {index + 1}
-                            </div>
-                            {(row.milestones || []).length ? (
-                              <Input
-                                value={milestone}
-                                onChange={(event) => updateMilestone(row.id, index, event.target.value)}
-                                className="h-9 rounded-full text-xs italic"
-                              />
-                            ) : (
-                              <div className="rounded-xl border border-border/40 bg-background px-3 py-2 text-xs italic leading-5 text-muted-foreground">
-                                {milestone}
-                              </div>
-                            )}
-                            {(row.milestones || []).length ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeMilestone(row.id, index)}
-                                className="size-9 rounded-full text-muted-foreground hover:text-destructive"
-                                aria-label={`Remove milestone ${index + 1}`}
-                              >
-                                <Trash2 className="size-3.5" />
-                              </Button>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                      </div>
-                      <div className="mt-3 rounded-xl border border-border/50 bg-card p-3">
-                      <div className="font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Goal Review</div>
-                      <div className="mt-2 grid gap-2 md:grid-cols-2">
-                        <div className="rounded-xl border border-border/40 bg-background p-3 text-xs leading-5 text-muted-foreground">
-                          <p><span className="font-semibold text-foreground">Ask:</span> what progress occurred?</p>
-                          <p><span className="font-semibold text-foreground">Ask:</span> what changed?</p>
-                          <p><span className="font-semibold text-foreground">Ask:</span> what remains unclear?</p>
-                          <p><span className="font-semibold text-foreground">Ask:</span> should the path change?</p>
-                        </div>
-                        <div>
-                          <Textarea
-                            value={reviewDrafts[row.id] || ''}
-                            onChange={(event) => setReviewDrafts((prev) => ({ ...prev, [row.id]: event.target.value }))}
-                            className="min-h-24 text-xs italic"
-                            placeholder="Write the review: progress, change, remaining uncertainty, and whether this quest should continue or transform."
-                          />
-                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                              {row.lastReviewAt ? `Last reviewed ${new Date(row.lastReviewAt).toLocaleDateString()}` : 'No review yet'}
-                            </span>
-                            <Button size="sm" onClick={() => addGoalReview(row)} className="h-8 rounded-full">
-                              Save Review
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                      {!!row.reviewNotes?.length && (
-                        <div className="mt-3 space-y-2 border-t border-border/40 pt-3">
-                          {row.reviewNotes.slice(-2).map((note) => (
-                            <div key={note} className="rounded-xl border border-border/40 bg-background px-3 py-2 text-xs italic leading-5 text-muted-foreground">
-                              {note}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      </div>
-                    </details>
-                  </div>
-                  <div className="space-y-2">
-                    <Select value={row.typeId} onValueChange={(value) => updateGoal(row.id, { typeId: value, goalKind: goalKindForType(activeGoalTypes.find((type) => type.id === value)), sourceType: undefined })}>
-                      <SelectTrigger className="h-9 rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {activeGoalTypes.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Select value={row.goalKind || questKindForGoal(row, row.type)} onValueChange={(value) => updateGoal(row.id, { goalKind: value as IntellectualGoalKind })}>
-                      <SelectTrigger className="h-9 rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {QUEST_KIND_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="size-9 rounded-full" aria-label={`Decrease ${row.title} progress`} onClick={() => updateGoal(row.id, { currentProgress: Math.max(0, row.currentProgress - 1) })}>
-                      <Minus className="size-3.5" />
-                    </Button>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={row.currentProgress}
-                      onChange={(event) => updateGoal(row.id, { currentProgress: Math.max(0, Number(event.target.value) || 0) })}
-                      className="h-9 min-w-14 rounded-full text-center font-code text-xs"
-                      aria-label={`${row.title} current progress`}
-                    />
-                    <Button variant="outline" size="icon" className="size-9 rounded-full" aria-label={`Increase ${row.title} progress`} onClick={() => updateGoal(row.id, { currentProgress: row.currentProgress + 1 })}>
-                      <Plus className="size-3.5" />
-                    </Button>
-                  </div>
-                  <Input type="number" min={1} value={row.targetProgress} onChange={(event) => updateGoal(row.id, { targetProgress: Math.max(1, Number(event.target.value) || 1) })} className="h-9 rounded-full text-right font-code text-xs" />
-                  <Select value={row.reviewCadence || 'weekly'} onValueChange={(value) => updateGoal(row.id, { reviewCadence: value as GoalItem['reviewCadence'] })}>
-                    <SelectTrigger className="h-9 rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="seasonal">Seasonal</SelectItem>
-                      <SelectItem value="custom">Custom</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="flex items-center gap-1">
-                    <Select value={row.status} onValueChange={(value) => updateGoal(row.id, { status: value as IntellectualGoalStatus })}>
-                      <SelectTrigger className="h-9 w-[150px] rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {GOAL_STATUS_OPTIONS.map((status) => <SelectItem key={status} value={status}>{status.replace(/_/g, ' ')}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Button variant="ghost" size="icon" onClick={() => updateGoal(row.id, { status: 'archived' })} className="rounded-full text-muted-foreground hover:text-destructive">
-                      <Archive className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="hidden rounded-2xl border-border bg-card p-5 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Goal Trackers</h2>
-                <p className="mt-2 text-xs italic text-muted-foreground">Track a specific Noesis activity, such as books completed, inquiries resolved, works finished, or concepts clarified. Free-form life commitments belong in Practices.</p>
-              </div>
-              <Button variant="outline" size="sm" onClick={addGoalType} className="min-h-9 rounded-full"><Plus className="mr-1 size-3.5" /> Tracker</Button>
-            </div>
-            <details className="group mt-4 rounded-xl border border-border/50 bg-background/50 p-3">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-foreground">
-                Manage tracker types
-                <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-              </summary>
-            <div className="mt-4 rounded-xl border border-border/50 bg-background/50 p-3">
-              <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Quest Types</div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {QUEST_KIND_OPTIONS.map((type) => (
-                  <Badge key={type.value} variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-tighter" title={type.description}>
-                    {type.label}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            <div className="mt-5 space-y-3">
-              {goalTypes.map((type) => (
-                <div key={type.id} className={cn('rounded-xl border p-3', type.archivedAt ? 'bg-muted/20 opacity-55' : 'bg-background/50')}>
-                  <div className="flex items-center gap-2">
-                    <Input value={type.name} onChange={(event) => updateType(type.id, { name: event.target.value })} className="h-9 rounded-full text-sm font-bold" />
-                    <Button variant="ghost" size="icon" onClick={() => archiveType(type)} className="rounded-full text-muted-foreground hover:text-destructive">
-                      {type.archivedAt ? <Trash2 className="size-4" /> : <Archive className="size-4" />}
-                    </Button>
-                  </div>
-                  <div className="mt-3 font-code text-[8px] uppercase tracking-widest text-muted-foreground">Included Media Types</div>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {MEDIA_TYPES.map((mediaType) => {
-                      const active = (type.mediaTypes || []).includes(mediaType);
-                      return (
-                        <button
-                          key={mediaType}
-                          onClick={() => updateType(type.id, {
-                            mediaTypes: active
-                              ? (type.mediaTypes || []).filter((item) => item !== mediaType)
-                              : [...(type.mediaTypes || []), mediaType],
-                          })}
-                          className={cn(
-                            'rounded-full border px-2.5 py-1 font-code text-[8px] uppercase tracking-widest',
-                            active ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card text-muted-foreground'
-                          )}
-                        >
-                          {MEDIA_LABELS[mediaType]}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {type.archivedAt && <Badge variant="outline" className="mt-3 rounded-full font-code text-[8px] uppercase">Archived</Badge>}
-                </div>
-              ))}
-            </div>
-            </details>
-          </Card>
-        </div>
         </div>
               </section>
               );

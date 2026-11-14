@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 interface NoesisAiMarkProps {
@@ -9,21 +8,9 @@ interface NoesisAiMarkProps {
 
 export function NoesisAiMark({ className }: NoesisAiMarkProps) {
   return (
-    <span className={cn('relative inline-flex shrink-0 items-center justify-center overflow-hidden', className)} aria-hidden="true">
-      <Image
-        src="/noesis-contextual-assistance.png"
-        alt=""
-        width={64}
-        height={64}
-        className="size-full object-contain dark:hidden"
-      />
-      <Image
-        src="/noesis-contextual-assistance-dark.png"
-        alt=""
-        width={64}
-        height={64}
-        className="hidden size-full object-contain dark:block"
-      />
-    </span>
+    <span
+      className={cn('inline-block shrink-0 bg-contain bg-center bg-no-repeat bg-[url(/noesis-assistance-light.webp)] dark:bg-[url(/noesis-assistance-dark.webp)]', className)}
+      aria-hidden="true"
+    />
   );
 }

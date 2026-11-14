@@ -21,7 +21,60 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run test:logic
       - run: npm run test:security
-      - run: npm run build
+      - id: production-build
+        run: npm run build
       - name: Production dependency audit
         run: npm run audit:production
+      - name: Report startup asset budget
+        if: ${{ !cancelled() && steps.production-build.outcome == 'success' }}
+        shell: bash
+        run: |
+          set +e
+          npm run audit:performance 2>&1 | tee startup-assets.txt
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo '### Startup Asset Budget'
+            echo
+            echo 'Measured against the production build. This report is advisory in CI.'
+            echo
+            echo '~~~text'
+            cat startup-assets.txt
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if (( status != 0 )); then
+            echo "::warning title=Startup asset check did not pass::See the Startup Asset Budget job summary before release."
+          fi
+
+  firebase-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - name: Verify Firestore and Storage rules
+        run: npm exec --yes --package=firebase-tools@15.22.4 -- npm run test:rules
+      - name: Build for public profile privacy smoke test
+        env:
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-noesis-rules
+          NOESIS_BUILD_DIST_DIR: .next-build-public-smoke
+        run: npm run build
+      - name: Verify public profile publication and withdrawal over HTTP
+        env:
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-noesis-rules
+          NOESIS_BUILD_DIST_DIR: .next-build-public-smoke
+        run: npm exec --yes --package=firebase-tools@15.22.4 -- firebase emulators:exec --project demo-noesis-rules --only firestore "node scripts/smoke-public-profile.mjs"
+      - name: Verify contextual AI authentication and request limits over HTTP
+        env:
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-noesis-rules
+          NOESIS_BUILD_DIST_DIR: .next-build-public-smoke
+        run: npm exec --yes --package=firebase-tools@15.22.4 -- firebase emulators:exec --project demo-noesis-rules --only auth "node scripts/smoke-contextual-ai-auth.mjs --serve"

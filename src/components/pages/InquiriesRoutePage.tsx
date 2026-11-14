@@ -15,14 +15,14 @@ export interface InquiriesRoutePageProps {
   focusedQuestionId?: string | null;
   onAddQuestion: (data: Partial<Question>) => Promise<Question>;
   onUpdateQuestion: (question: Question) => void | Promise<void>;
+  onSaveAiReview: (inquiryId: string, review: import('@/lib/inquiry-ai-review').InquiryAiReview, content: string) => Promise<void>;
   onDeleteQuestion: (id: string) => void | Promise<void>;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
   onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
-  onUpdateDraft: (draft: Draft) => void;
+  onLinkItem: (inquiryId: string, type: 'work' | 'practice', itemId: string) => Promise<void>;
   onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
-  onUpdatePractice: (practice: Practice) => void;
-  onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
-  onNavigate: (view: NoesisView, options?: { questionId?: string | null; workId?: string | null; practiceId?: string | null }) => void;
+  onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => Promise<VaultEntry>;
+  onNavigate: (view: NoesisView, options?: { questionId?: string | null; workId?: string | null; practiceId?: string | null; positionId?: string | null }) => void;
 }
 
 export function InquiriesRoutePage({
@@ -36,12 +36,12 @@ export function InquiriesRoutePage({
   focusedQuestionId,
   onAddQuestion,
   onUpdateQuestion,
+  onSaveAiReview,
   onDeleteQuestion,
   onAddVaultEntry,
   onAddDraft,
-  onUpdateDraft,
+  onLinkItem,
   onAddPractice,
-  onUpdatePractice,
   onFormPositionFromInquiry,
   onNavigate,
 }: InquiriesRoutePageProps) {
@@ -56,13 +56,14 @@ export function InquiriesRoutePage({
       concepts={concepts}
       onAddQuestion={onAddQuestion}
       onUpdateQuestion={onUpdateQuestion}
+      onSaveAiReview={onSaveAiReview}
       onDeleteQuestion={onDeleteQuestion}
       onAddVaultEntry={onAddVaultEntry}
       onAddDraft={onAddDraft}
-      onUpdateDraft={onUpdateDraft}
+      onLinkItem={onLinkItem}
       onAddPractice={onAddPractice}
-      onUpdatePractice={onUpdatePractice}
       onOpenWork={(workId) => onNavigate('writing', { workId })}
+      onOpenPosition={(positionId) => onNavigate('vault', { positionId })}
       onOpenPractice={(practiceId) => onNavigate('labs', { practiceId })}
       onFormPositionFromInquiry={onFormPositionFromInquiry}
       focusedQuestionId={focusedQuestionId}

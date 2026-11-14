@@ -112,7 +112,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
-      <div className={containerClasses} ref={canvasRef} aria-label={`${title || 'Untitled work'} document canvas`}>
+      <div className={containerClasses} ref={canvasRef} data-noesis-scroll-region role="region" tabIndex={0} aria-label={`${title || 'Untitled work'} document canvas`}>
         <div className={canvasClasses}>
           {useContinuousCanvas ? (
             <div

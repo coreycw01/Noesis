@@ -1,8 +1,10 @@
+import { conceptLabelKey } from './readex';
 import type {
   AiAssistedHistoryEntry,
   Annotation,
   AnnotationRecord,
   Concept,
+  Media,
   DraftRevision,
   PracticeLog,
   VaultVersion,
@@ -49,10 +51,23 @@ export function boundedPositionVersionHistory(entries: VaultVersion[]) {
 }
 
 export function conceptIdsForLabels(labels: string[] | undefined, concepts: Concept[]) {
-  const byName = new Map(concepts.map((concept) => [concept.name.trim().toLocaleLowerCase(), concept.id]));
+  const byName = new Map<string, Concept>();
+  const isPlaceholder = (concept: Concept) => concept.createdFrom === 'tag' || concept.createdFrom === 'fallback';
+  for (const concept of concepts) {
+    const key = conceptLabelKey(concept.name);
+    const previous = byName.get(key);
+    if (!previous || (isPlaceholder(previous) && !isPlaceholder(concept))) byName.set(key, concept);
+  }
   return Array.from(new Set((labels || [])
-    .map((label) => byName.get(label.trim().toLocaleLowerCase()))
+    .map((label) => byName.get(conceptLabelKey(label))?.id)
     .filter((id): id is string => Boolean(id))));
+}
+
+export function tagConceptId(label: string) {
+  const bytes = new TextEncoder().encode(conceptLabelKey(label));
+  // Use a reversible, URL-safe key within Firestore's document ID limit.
+  if (!bytes.length || bytes.length > 748) return null;
+  return `tag-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 }
 
 export function annotationRecord(sourceId: string, annotation: Annotation, userId?: string): AnnotationRecord {
@@ -64,6 +79,30 @@ export function annotationRecord(sourceId: string, annotation: Annotation, userI
   };
 }
 
+export function inquiryAnnotationUpdates(
+  sources: Pick<Media, 'id' | 'annotations' | 'dateUpdated'>[],
+  references: ReadonlyArray<{ sourceId: string; annotationId: string }>,
+  inquiryId: string,
+) {
+  const bySource = new Map<string, Set<string>>();
+  for (const { sourceId, annotationId } of references) {
+    if (!bySource.has(sourceId)) bySource.set(sourceId, new Set());
+    bySource.get(sourceId)!.add(annotationId);
+  }
+  return [...bySource].map(([sourceId, ids]) => {
+    const source = sources.find((item) => item.id === sourceId);
+    if (!source || [...ids].some((id) => !source.annotations?.some((annotation) => annotation.id === id))) {
+      throw new Error('A selected annotation is no longer available. Refresh the selection and try again.');
+    }
+    const annotations = source.annotations.map((annotation) => ids.has(annotation.id) ? {
+      ...annotation,
+      philosophyStatus: 'questioned' as const,
+      createdInquiryId: annotation.createdInquiryId || inquiryId,
+    } : annotation);
+    return { sourceId, sourceVersion: source.dateUpdated, annotations: boundedNestedAnnotations(annotations), updated: annotations.filter((annotation) => ids.has(annotation.id)) };
+  });
+}
+
 export function mergeAnnotationRecords(nested: Annotation[], records: AnnotationRecord[]) {
   const merged = new Map(nested.map((annotation) => [annotation.id, annotation]));
   records.forEach((record) => {
@@ -71,4 +110,17 @@ export function mergeAnnotationRecords(nested: Annotation[], records: Annotation
     merged.set(record.id, annotation);
   });
   return newestFirst(Array.from(merged.values()), (entry) => entry.date);
+}
+
+export function mergeSourceAnnotationRecords<T extends { id: string; annotations?: Annotation[] }>(media: T[], annotations: AnnotationRecord[]): T[] {
+  const bySource = new Map<string, AnnotationRecord[]>();
+  for (const annotation of annotations) {
+    const group = bySource.get(annotation.sourceId);
+    if (group) group.push(annotation);
+    else bySource.set(annotation.sourceId, [annotation]);
+  }
+  return media.map((source) => ({
+    ...source,
+    annotations: mergeAnnotationRecords(source.annotations || [], bySource.get(source.id) || []),
+  }));
 }

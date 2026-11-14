@@ -8,13 +8,14 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SourceLinker } from '@/components/SourceLinker';
-import type { Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
+import type { Concept, Draft, InquiryEvidence, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, conceptKey, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
@@ -30,10 +31,14 @@ import { ContextRail, EntityMeta, IntellectualRoleLabel } from '@/components/sha
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { parseAiReviewItems, type AiContextEnvelope } from '@/lib/contextual-ai';
-import { MAX_AI_REVIEW_HISTORY } from '@/lib/collection-integrity';
+import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
+import type { AiContextEnvelope } from '@/lib/contextual-ai';
+import type { InquiryAiReview } from '@/lib/inquiry-ai-review';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
+  assignInquiryEvidence,
+  inquiryHasRecordedObjection,
+  MAX_INQUIRY_EVIDENCE,
   inquiryAiItemMemory,
   inquiryCandidateCount,
   inquiryFormation,
@@ -48,6 +53,8 @@ import {
   isInquiryClosed,
 } from '@/lib/inquiry-state';
 
+const EMPTY_EVIDENCE: Omit<InquiryEvidence, 'id' | 'date'> = { claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' };
+
 interface QuestionsWorkspaceProps {
   aiSettings: import('@/lib/types').AiSettings;
   questions: Question[];
@@ -58,15 +65,16 @@ interface QuestionsWorkspaceProps {
   concepts: Concept[];
   onAddQuestion: (data: Partial<Question>) => Promise<Question>;
   onUpdateQuestion: (question: Question) => void | Promise<void>;
+  onSaveAiReview: (inquiryId: string, review: InquiryAiReview, content: string) => Promise<void>;
   onDeleteQuestion: (id: string) => void | Promise<void>;
   onAddVaultEntry: (data: Partial<VaultEntry>) => void;
   onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
-  onUpdateDraft: (draft: Draft) => void;
+  onLinkItem: (inquiryId: string, type: 'work' | 'practice', itemId: string) => Promise<void>;
   onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
-  onUpdatePractice: (practice: Practice) => void;
   onOpenWork: (id: string) => void;
   onOpenPractice: (id: string) => void;
-  onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
+  onOpenPosition: (id: string) => void;
+  onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => Promise<VaultEntry>;
   focusedQuestionId?: string | null;
   onFocusedQuestionHandled?: () => void;
   onOpenQuestionRoute?: (id: string | null) => void;
@@ -104,7 +112,6 @@ const RESOLUTION_OPTIONS: Array<{ status: Question['status']; label: string; des
   { status: 'provisionally_answered', label: 'Provisionally Answered', description: 'The answer is useful, but still open to revision.' },
   { status: 'suspended', label: 'Suspend', description: 'Not enough evidence or attention to proceed right now.' },
   { status: 'enduring', label: 'Enduring Question', description: 'Keep this alive as a long-term question rather than closing it.' },
-  { status: 'converted', label: 'Converted', description: 'The inquiry has become a position, work, or another object.' },
   { status: 'no_longer_meaningful', label: 'No Longer Meaningful', description: 'The question no longer frames the issue well.' },
   { status: 'resolved', label: 'Resolved', description: 'A resolution summary exists and the current investigation can close.' },
 ];
@@ -122,7 +129,7 @@ function conceptReferenceLabel(reference: string, concepts: Concept[]) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onAddVaultEntry, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
+export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onSaveAiReview, onDeleteQuestion, onAddVaultEntry, onAddDraft, onLinkItem, onAddPractice, onOpenWork, onOpenPractice, onOpenPosition, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useEntityViewPreference('inquiries');
   const [filter, setFilter] = usePersistentView<FilterType>('noesis:inquiries-filter', 'all', Object.keys(INQUIRY_FILTER_LABELS) as FilterType[]);
@@ -136,13 +143,14 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
 
   const all = useMemo(() => allQuestions(media, questions), [media, questions]);
   React.useEffect(() => {
+    if (onOpenQuestionRoute) return;
     if (!focusedQuestionId) {
       setSelectedId(null);
       return;
     }
     setSelectedId(focusedQuestionId);
     onFocusedQuestionHandled?.();
-  }, [focusedQuestionId, onFocusedQuestionHandled]);
+  }, [focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute]);
   const filtered = all.filter((question) => {
     let typeOk = true;
     if (filter === 'active') typeOk = isInquiryActive(question);
@@ -177,7 +185,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
     ]);
     return typeOk && searchOk;
   });
-  const selected = all.find((question) => question.id === selectedId) || null;
+  const selected = all.find((question) => question.id === (onOpenQuestionRoute ? focusedQuestionId : selectedId)) || null;
 
   const openQuestion = (id: string, section: 'investigation' | 'answer' = 'investigation') => {
     setDetailSection(section);
@@ -219,7 +227,8 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
       ? selected.conceptIds
       : relatedSources.flatMap((item) => item.tags || []);
     const conceptNames = conceptReferences.map((value) => conceptReferenceLabel(value, concepts));
-    const relatedBeliefs = vault.filter((entry) => (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => sourceIds.includes(id)));
+    const relatedBeliefs = vault.filter((entry) => selected.beliefIds?.includes(entry.id) || entry.sourceInquiryId === selected.id
+      || (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => sourceIds.includes(id)));
     const relatedDrafts = drafts.filter((draft) => (draft.questionIds || []).includes(selected.id) || (draft.conceptTags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))));
     const relatedPractices = practices.filter((practice) => (practice.questionIds || []).includes(selected.id));
     return (
@@ -235,16 +244,17 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
           availablePractices={practices}
           onBack={closeQuestion}
           onUpdateQuestion={onUpdateQuestion}
+          onSaveAiReview={onSaveAiReview}
           onDeleteQuestion={(id) => {
             onDeleteQuestion(id);
             closeQuestion();
           }}
           onAddDraft={onAddDraft}
-          onUpdateDraft={onUpdateDraft}
+          onLinkItem={onLinkItem}
           onAddPractice={onAddPractice}
-          onUpdatePractice={onUpdatePractice}
           onOpenWork={onOpenWork}
           onOpenPractice={onOpenPractice}
+          onOpenPosition={onOpenPosition}
           onFormPositionFromInquiry={onFormPositionFromInquiry}
           onAiFeedback={(title, description, variant) => toast({ title, description, ...(variant ? { variant } : {}) })}
           routeOwned={focusedQuestionId === selected.id}
@@ -296,7 +306,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
         className="mb-3"
       >
         <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
-          <SelectTrigger className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Inquiry view filter" className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Inquiry View" />
           </SelectTrigger>
           <SelectContent>
@@ -336,40 +346,39 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
       </section>
 
       {viewMode === 'table' && filtered.length > 0 && (
-        <section className="hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block" aria-label="Inquiries table">
-          <Table>
-            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Inquiry</TableHead><TableHead className="w-40">State</TableHead><TableHead className="w-56">Source context</TableHead><TableHead>Next step</TableHead><TableHead className="w-32"><span className="sr-only">Action</span></TableHead></TableRow></TableHeader>
+        <section className="min-w-0 rounded-lg border border-border/60 bg-card">
+          <Table className="table-fixed xl:table-auto">
+            <caption className="sr-only">Inquiries</caption>
+            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Inquiry</TableHead><TableHead className="w-24 sm:w-32 xl:w-40">State</TableHead><TableHead className="hidden w-48 xl:table-cell">Source context</TableHead><TableHead className="hidden xl:table-cell">Next step</TableHead><TableHead className="hidden w-32 xl:table-cell"><span className="sr-only">Action</span></TableHead></TableRow></TableHeader>
             <TableBody>{filtered.map((question) => {
               const sources = media.filter((source) => inquirySourceIds(question).includes(source.id));
               const closed = isInquiryClosed(question);
-              return <TableRow key={question.id} tabIndex={0} className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={(event) => { if ((event.target as HTMLElement).closest('button,a')) return; openQuestion(question.id); }} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openQuestion(question.id); } }}>
-                <TableCell className="max-w-xl py-4 font-headline text-base font-semibold leading-6">{question.text}</TableCell>
+              return <TableRow key={question.id} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) openQuestion(question.id); }}>
+                <TableCell className="max-w-xl py-2 font-headline text-base font-semibold leading-6"><button type="button" className="min-h-11 w-full rounded-sm text-left [overflow-wrap:anywhere] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openQuestion(question.id)} onKeyDown={(event) => activateEntityOnKey(event, () => openQuestion(question.id))}>{question.text}</button><p className="pb-2 text-xs font-normal text-muted-foreground xl:hidden">{inquiryCardNextStep(question)}</p></TableCell>
                 <TableCell><StageBadge type="inquiry" stage={question.stage} status={question.status} /></TableCell>
-                <TableCell className="text-xs leading-5 text-muted-foreground">{sources.length ? sources.map((source) => source.title).join(', ') : 'No source linked'}</TableCell>
-                <TableCell className="text-xs leading-5 text-muted-foreground">{inquiryCardNextStep(question)}</TableCell>
-                <TableCell><Button size="sm" variant={closed ? 'outline' : 'default'} onClick={() => openQuestion(question.id, closed ? 'answer' : 'investigation')} className="min-h-9 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">{closed ? 'Review' : 'Investigate'}</Button></TableCell>
+                <TableCell className="hidden text-xs leading-5 text-muted-foreground xl:table-cell">{sources.length ? sources.map((source) => source.title).join(', ') : 'No source linked'}</TableCell>
+                <TableCell className="hidden text-xs leading-5 text-muted-foreground xl:table-cell">{inquiryCardNextStep(question)}</TableCell>
+                <TableCell className="hidden xl:table-cell"><Button size="sm" variant={closed ? 'outline' : 'default'} onClick={() => openQuestion(question.id, closed ? 'answer' : 'investigation')} className="min-h-9 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">{closed ? 'Review' : 'Investigate'}</Button></TableCell>
               </TableRow>;
             })}</TableBody>
           </Table>
         </section>
       )}
 
-      <div className={cn("grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3", viewMode === 'table' && "md:hidden")}>
-        {filtered.map((question) => {
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {viewMode !== 'table' && filtered.map((question) => {
           const sources = media.filter(m => inquirySourceIds(question).includes(m.id));
           const nextStep = inquiryCardNextStep(question);
           const closed = isInquiryClosed(question);
 
           return (
             <Card key={question.id} className="border border-accent/15 bg-card/95 p-4 rounded-xl shadow-sm">
-              <button className="w-full text-left group" onClick={() => openQuestion(question.id)}>
-                <StageBadge type="inquiry" stage={question.stage} status={question.status} className="mb-2" />
-                <h3 className="text-xl font-headline font-bold italic group-hover:text-accent transition-colors leading-snug text-primary mb-3">
-                  {question.text}
-                </h3>
-              </button>
+              <StageBadge type="inquiry" stage={question.stage} status={question.status} className="mb-2" />
+              <h2 className="mb-3 font-headline text-xl font-bold italic leading-snug text-primary">
+                <button type="button" className="w-full text-left transition-colors hover:text-accent" onClick={() => openQuestion(question.id)}>{question.text}</button>
+              </h2>
 
-              <div className="font-body text-xs text-muted-foreground italic flex items-center gap-2 opacity-70 border-t border-border/20 pt-3 mb-3">
+              <div className="font-body text-xs text-muted-foreground italic flex items-center gap-2 border-t border-border/20 pt-3 mb-3">
                 {sources.length > 0 ? (
                   <span className="truncate">From {sources.map(s => s.title).join(', ')}</span>
                 ) : (
@@ -423,7 +432,10 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="max-w-xl border-none shadow-2xl rounded-2xl">
-          <DialogHeader><DialogTitle className="font-headline text-3xl italic">Formulate Inquiry</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="font-headline text-3xl italic">Formulate Inquiry</DialogTitle>
+            <DialogDescription className="sr-only">Enter the question you want to investigate. Sources are optional.</DialogDescription>
+          </DialogHeader>
           <div className="space-y-8 pt-4">
             <div className="space-y-2">
               <Label className="readex-kicker">THE QUESTION</Label>
@@ -494,7 +506,7 @@ function investigationTools(question: Question, drafts: Draft[], practices: Prac
   return { tools, recommended };
 }
 
-function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, drafts, practices, availableDrafts, availablePractices, onBack, onUpdateQuestion: persistQuestion, onDeleteQuestion, onAddDraft, onUpdateDraft, onAddPractice, onUpdatePractice, onOpenWork, onOpenPractice, onFormPositionFromInquiry, onAiFeedback, routeOwned = false, initialSection = 'investigation' }: {
+function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, drafts, practices, availableDrafts, availablePractices, onBack, onUpdateQuestion: persistQuestion, onSaveAiReview, onDeleteQuestion, onAddDraft, onLinkItem, onAddPractice, onOpenWork, onOpenPractice, onOpenPosition, onFormPositionFromInquiry, onAiFeedback, routeOwned = false, initialSection = 'investigation' }: {
   aiSettings: import('@/lib/types').AiSettings;
   question: Question;
   sources: Media[];
@@ -506,36 +518,52 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   availablePractices: Practice[];
   onBack: () => void;
   onUpdateQuestion: (question: Question) => void | Promise<void>;
+  onSaveAiReview: QuestionsWorkspaceProps['onSaveAiReview'];
   onDeleteQuestion: (id: string) => void | Promise<void>;
   onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
-  onUpdateDraft: (draft: Draft) => void;
+  onLinkItem: QuestionsWorkspaceProps['onLinkItem'];
   onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
-  onUpdatePractice: (practice: Practice) => void;
   onOpenWork: (id: string) => void;
   onOpenPractice: (id: string) => void;
-  onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
+  onOpenPosition: (id: string) => void;
+  onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => Promise<VaultEntry>;
   onAiFeedback: (title: string, description: string, variant?: 'default' | 'destructive') => void;
   routeOwned?: boolean;
   initialSection?: 'investigation' | 'answer';
 }) {
   const saveLock = useRef(false);
   const [saving, setSaving] = useState(false);
-  const onUpdateQuestion = async (next: Question) => {
+  const onUpdateQuestion = async (next: Question, baseline = { version: question.dateUpdated }) => {
     if (saveLock.current) return false;
     saveLock.current = true;
     setSaving(true);
     try {
-      await persistQuestion(next);
+      await persistQuestion({ ...next, dateUpdated: baseline.version });
       return true;
-    } catch {
-      onAiFeedback('Inquiry not saved', 'Your input is still here. Check your connection and try saving again.', 'destructive');
+    } catch (error) {
+      const reason = error instanceof Error ? error.name : '';
+      const description = reason === 'WorkspaceRecordChangedError'
+        ? 'This inquiry changed in another session. Your input is still here; review the latest inquiry before saving again.'
+        : reason === 'WorkspaceOfflineError'
+          ? 'You are offline. Your input is still here; reconnect and try again.'
+          : 'Your input is still here. Check your connection and try saving again.';
+      onAiFeedback('Inquiry not saved', description, 'destructive');
       return false;
     } finally {
       saveLock.current = false;
       setSaving(false);
     }
   };
-  const [initialAnswer, setInitialAnswer] = useState(question.answer || '');
+  const [answerDraft, setAnswerDraft] = useState<{ value: string; base: string } | null>(null);
+  const savedAnswer = question.answer || '';
+  const initialAnswer = answerDraft?.value ?? savedAnswer;
+  const answerConflict = answerDraft !== null && answerDraft.base !== savedAnswer;
+  const answerConflictNotice = answerConflict && (
+    <div role="status" className="space-y-2 text-sm text-muted-foreground">
+      <p>The saved answer changed while you were writing. Your draft is still in Answer.</p>
+      <Button type="button" variant="outline" onClick={() => setAnswerDraft(null)}>Discard draft and load saved answer</Button>
+    </div>
+  );
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(false);
   const [questionDraft, setQuestionDraft] = useState(question.text);
@@ -550,14 +578,42 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     uncertainty: question.uncertainty || '',
     resolutionSummary: question.resolutionSummary || '',
   });
+  const [frameBase, setFrameBase] = useState<{ version: string | undefined } | null>(null);
+  const frameConflict = frameBase !== null && frameBase.version !== question.dateUpdated;
+  const editFrameField = (field: 'whyItMatters' | 'currentIntuition' | 'uncertainty', value: string) => {
+    if (!frameBase) setFrameBase({ version: question.dateUpdated });
+    setInvestigationDraft((previous) => ({
+      ...previous,
+      ...(!frameBase ? {
+        whyItMatters: question.whyItMatters || '',
+        currentIntuition: question.currentIntuition || '',
+        uncertainty: question.uncertainty || '',
+      } : {}),
+      [field]: value,
+    }));
+  };
+  const loadSavedFrame = () => {
+    setFrameBase(null);
+    setInvestigationDraft((previous) => ({
+      ...previous,
+      whyItMatters: question.whyItMatters || '',
+      currentIntuition: question.currentIntuition || '',
+      uncertainty: question.uncertainty || '',
+    }));
+  };
   const [candidateDraft, setCandidateDraft] = useState({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
-  const [evidenceDraft, setEvidenceDraft] = useState({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
+  const [evidenceDraft, setEvidenceDraft] = useState(EMPTY_EVIDENCE);
+  const [editingEvidenceId, setEditingEvidenceId] = useState<string | null>(null);
+  const [evidenceToRemove, setEvidenceToRemove] = useState<InquiryEvidence | null>(null);
+  const evidenceInput = useRef<HTMLTextAreaElement>(null);
   const [testDraft, setTestDraft] = useState({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
   const [checkpointSkipReason, setCheckpointSkipReason] = useState('');
+  const [positionConfidence, setPositionConfidence] = useState(50);
   React.useEffect(() => {
-    setInitialAnswer(question.answer || '');
+    setAnswerDraft(null);
     setQuestionDraft(question.text);
     setEditingQuestion(false);
+    setFrameBase(null);
     setWorkflowStep(initialSection === 'answer' ? 'answer' : 'frame');
     setSelectedTool(null);
     setInvestigationDraft({
@@ -568,12 +624,16 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     });
     setClarificationDraft('');
     setCandidateDraft({ statement: '', support: '', objection: '', consequence: '', confidence: 3 });
-    setEvidenceDraft({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
+    setEvidenceDraft(EMPTY_EVIDENCE);
+    setEditingEvidenceId(null);
+    setEvidenceToRemove(null);
     setTestDraft({ title: '', tested: '', predictionA: '', predictionB: '', method: '', reviewDate: '', result: '' });
     setCheckpointSkipReason('');
+    setPositionConfidence(50);
   }, [initialSection, question.id]);
   const { tools, recommended } = investigationTools(question, drafts, practices);
   const candidateAnswers = question.candidateAnswers || [];
+  const evidenceRecords = question.evidenceRecords || [];
   const candidateAnswerCount = inquiryCandidateCount(question);
   const recommendedMove = INQUIRY_TOOL_COPY[recommended].description;
   const openWorkflowStep = (step: 'frame' | 'answer' | 'investigate' | 'decide') => {
@@ -585,6 +645,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   };
 
   const saveProvisionalAnswer = async (status: Question['status'] = 'provisionally_answered') => {
+    if (answerConflict) return;
     if (!initialAnswer.trim()) {
       onAiFeedback('Answer required', 'Write a provisional answer before saving this inquiry.', 'destructive');
       return;
@@ -594,7 +655,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       onAiFeedback('Resolution summary required', 'Add a short resolution summary before choosing this inquiry outcome.', 'destructive');
       return;
     }
-    const hasSteelman = candidateAnswers.some((candidate) => candidate.objection?.trim());
+    const hasSteelman = inquiryHasRecordedObjection(question);
     if (requiresSummary && !hasSteelman && !checkpointSkipReason.trim()) {
       onAiFeedback('Steelman checkpoint', 'Record the strongest objection under Compare answers, or explain why you are skipping this checkpoint.', 'destructive');
       return;
@@ -602,25 +663,53 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     const checkpointSkips = requiresSummary && !hasSteelman && checkpointSkipReason.trim()
       ? [...(question.checkpointSkips || []), { id: uid(), transition: 'question_to_resolution', reason: checkpointSkipReason.trim(), date: today() }]
       : question.checkpointSkips;
-    if (!await onUpdateQuestion({
+    const next = {
       ...question,
       answer: initialAnswer.trim(),
       status,
-      resolutionSummary: requiresSummary || investigationDraft.resolutionSummary.trim() ? investigationDraft.resolutionSummary.trim() : question.resolutionSummary || '',
+      resolutionSummary: requiresSummary ? investigationDraft.resolutionSummary.trim() : question.resolutionSummary || '',
       checkpointSkips,
       dateUpdated: today(),
-    })) return;
+    };
+    if (status === 'converted') {
+      if (saveLock.current) return;
+      saveLock.current = true;
+      setSaving(true);
+      try {
+        const title = initialAnswer.trim().replace(/\s+/g, ' ');
+        const formed = await onFormPositionFromInquiry({ ...next, dateUpdated: question.dateUpdated }, {
+          title: title.length > 100 ? `${title.slice(0, 97).trimEnd()}...` : title,
+          statement: initialAnswer.trim(),
+          description: investigationDraft.resolutionSummary.trim(),
+          confidence: positionConfidence,
+        }, initialAnswer);
+        onAiFeedback('Position formed', 'The position and inquiry are linked.');
+        onOpenPosition(formed.id);
+      } catch (error) {
+        onAiFeedback('Position not saved', error instanceof Error && error.name === 'WorkspaceRecordChangedError'
+          ? 'The inquiry changed before the position could be formed. Your draft is still here.'
+          : 'Your answer and decision are still here. Check your connection and try again.', 'destructive');
+      } finally {
+        saveLock.current = false;
+        setSaving(false);
+      }
+      return;
+    }
+    if (!await onUpdateQuestion(next)) return;
+    setAnswerDraft(null);
     onAiFeedback(status === 'resolved' ? 'Inquiry resolved.' : 'Inquiry outcome saved.', status === 'resolved' ? 'The resolution summary is now stored on this inquiry.' : `Marked as ${status.replace(/_/g, ' ')} without pretending the question is fully closed.`);
   };
 
   const saveInvestigationFrame = async () => {
+    if (frameConflict) return;
     if (!await onUpdateQuestion({
       ...question,
       whyItMatters: investigationDraft.whyItMatters.trim(),
       currentIntuition: investigationDraft.currentIntuition.trim(),
       uncertainty: investigationDraft.uncertainty.trim(),
       dateUpdated: today(),
-    })) return;
+    }, frameBase ?? undefined)) return;
+    setFrameBase(null);
     onAiFeedback('Context saved.', 'Your stakes, current view, and remaining uncertainty are now part of this inquiry.');
   };
 
@@ -666,6 +755,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     onUpdateQuestion({
       ...question,
       candidateAnswers: (question.candidateAnswers || []).filter((candidate) => candidate.id !== id),
+      evidenceRecords: evidenceRecords.map((item) => item.candidateId === id ? { ...item, candidateId: '' } : item),
       dateUpdated: today(),
     });
   };
@@ -675,25 +765,32 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       onAiFeedback('Evidence claim required', 'Write the claim, observation, excerpt, or unknown before adding it.', 'destructive');
       return;
     }
-    const targetCandidateId = evidenceDraft.candidateId || candidateAnswers[0]?.id || '';
-    const nextCandidates = targetCandidateId
-      ? candidateAnswers.map((candidate) => {
-          if (candidate.id !== targetCandidateId) return candidate;
-          const record = `${evidenceDraft.claim.trim()} (${evidenceDraft.type}; ${evidenceDraft.direction}; strength: ${evidenceDraft.strength}; reliability: ${evidenceDraft.reliability}${evidenceDraft.origin.trim() ? `; origin: ${evidenceDraft.origin.trim()}` : ''}${evidenceDraft.notes.trim() ? `; notes: ${evidenceDraft.notes.trim()}` : ''})`;
-          if (evidenceDraft.direction === 'challenges') return { ...candidate, objection: [candidate.objection, record].filter(Boolean).join('\n') };
-          if (evidenceDraft.direction === 'contextualizes') return { ...candidate, consequence: [candidate.consequence, record].filter(Boolean).join('\n') };
-          return { ...candidate, support: [candidate.support, record].filter(Boolean).join('\n') };
-        })
-      : candidateAnswers;
+    const previous = evidenceRecords.find((item) => item.id === editingEvidenceId);
+    if (!previous && evidenceRecords.length >= MAX_INQUIRY_EVIDENCE) {
+      onAiFeedback('Evidence limit reached', 'Edit or remove a saved evidence record before adding another.', 'destructive');
+      return;
+    }
+    if (evidenceDraft.candidateId && !candidateAnswers.some((item) => item.id === evidenceDraft.candidateId)) {
+      onAiFeedback('Answer no longer available', 'Choose another answer or leave the evidence unassigned.', 'destructive');
+      return;
+    }
+    const next = assignInquiryEvidence(question, {
+      ...evidenceDraft,
+      id: previous?.id || uid(),
+      date: previous?.date || today(),
+      claim: evidenceDraft.claim.trim(),
+      origin: evidenceDraft.origin.trim(),
+      notes: evidenceDraft.notes.trim(),
+    }, evidenceDraft.candidateId);
     if (!await onUpdateQuestion({
       ...question,
-      candidateAnswers: nextCandidates,
-      currentIntuition: targetCandidateId ? question.currentIntuition : [question.currentIntuition, `Evidence to classify: ${evidenceDraft.claim.trim()}`].filter(Boolean).join('\n'),
-      status: 'gathering_evidence',
+      evidenceRecords: previous ? evidenceRecords.map((item) => item.id === previous.id ? next : item) : [next, ...evidenceRecords],
+      status: !isInquiryClosed(question) && inquiryNeedsEvidence(question) ? 'gathering_evidence' : question.status,
       dateUpdated: today(),
     })) return;
-    setEvidenceDraft({ claim: '', type: 'source excerpt', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' });
-    onAiFeedback('Evidence added.', targetCandidateId ? 'The evidence was attached to the selected candidate answer.' : 'Saved as inquiry evidence to classify later.');
+    setEvidenceDraft(EMPTY_EVIDENCE);
+    setEditingEvidenceId(null);
+    onAiFeedback('Evidence saved', next.candidateId ? 'Assigned to the selected answer.' : 'Saved without assigning it to an answer.');
   };
 
   const createTestRecord = async () => {
@@ -737,12 +834,11 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     if (!practice || saving) return;
     setSaving(true);
     try {
-    await onUpdatePractice({ ...practice, questionIds: [...new Set([...(practice.questionIds || []), question.id])], dateUpdated: today() });
-    if (!await onUpdateQuestion({ ...question, practiceIds: [...new Set([...(question.practiceIds || []), practice.id])], dateUpdated: today() })) throw new Error('Inquiry backlink not saved');
+    await onLinkItem(question.id, 'practice', practice.id);
     setExistingPracticeId('');
     onAiFeedback('Practice linked.', `"${practice.title}" now tests this inquiry.`);
     } catch {
-      onAiFeedback('Link not fully saved', 'Please retry to finish linking both records.', 'destructive');
+      onAiFeedback('Link not saved', 'Neither record was updated. Please try again.', 'destructive');
     } finally { setSaving(false); }
   };
 
@@ -773,12 +869,11 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     if (!work || saving) return;
     setSaving(true);
     try {
-    await onUpdateDraft({ ...work, questionIds: [...new Set([...(work.questionIds || []), question.id])] });
-    if (!await onUpdateQuestion({ ...question, draftIds: [...new Set([...(question.draftIds || []), work.id])], dateUpdated: today() })) throw new Error('Inquiry backlink not saved');
+    await onLinkItem(question.id, 'work', work.id);
     setExistingWorkId('');
     onAiFeedback('Work linked.', `"${work.title}" now develops this inquiry.`);
     } catch {
-      onAiFeedback('Link not fully saved', 'Please retry to finish linking both records.', 'destructive');
+      onAiFeedback('Link not saved', 'Neither record was updated. Please try again.', 'destructive');
     } finally { setSaving(false); }
   };
 
@@ -815,6 +910,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             <div className="max-w-3xl">
               <Badge variant="outline" className="mb-3 rounded-full">Archived inquiry</Badge>
               <h1 className="noesis-page-title text-3xl sm:text-4xl">{question.text}</h1>
+              <PromotedAnnotationOrigins origins={question.annotationOrigins} />
               <p className="mt-4 text-sm leading-7 text-muted-foreground">This inquiry is preserved as a read-only record. Reopen it before changing its investigation or answer.</p>
             </div>
             <Button onClick={() => updateInvestigationStatus('reopened')} className="rounded-full">Reopen Inquiry</Button>
@@ -850,25 +946,12 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               enabled={aiSettings.aiAssistanceEnabled}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
               reasoningDepth={aiSettings.defaultReasoningDepth}
-              retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
               actions={['socratic_inquiry_challenge']}
               buildEnvelope={buildAiEnvelope}
               buttonLabel="Socratic Challenge"
               promptLabel="What part of this inquiry should Noesis pressure?"
               promptPlaceholder="For example: Test whether my current answer actually follows from the evidence."
-              onAccept={async (result, content) => {
-                const existingNotes = question.investigationNotes || [];
-                const userNotes = existingNotes.filter((note) => note.origin !== 'ai-assisted');
-                const aiNotes = [
-                  ...parseAiReviewItems(result.action, content).map((item) => ({ id: crypto.randomUUID(), title: item.title, text: item.content, origin: 'ai-assisted' as const, date: today() })),
-                  ...existingNotes.filter((note) => note.origin === 'ai-assisted'),
-                ].slice(0, MAX_AI_REVIEW_HISTORY);
-                if (!await onUpdateQuestion({
-                  ...question,
-                  investigationNotes: [...userNotes, ...aiNotes],
-                  dateUpdated: today(),
-                })) throw new Error('The reviewed note was not saved. Wait for the current save or retry.');
-              }}
+              onAccept={(result, content) => onSaveAiReview(question.id, result, content)}
             />
             {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
               <DropdownMenu>
@@ -921,6 +1004,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           <>
             <DetailLabel view="questions" kind="Inquiry" status={question.status.replace(/_/g, ' ')} extra={sources.length ? `From ${sources[0].title}` : undefined} />
             <h1 className="noesis-page-title noesis-detail-title max-w-5xl">{question.text}</h1>
+            <PromotedAnnotationOrigins origins={question.annotationOrigins} />
           </>
         )}
       </header>
@@ -940,34 +1024,39 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
         {workflowStep === 'frame' && <WorkbenchPanel
           eyebrow="Frame"
           title="Your thinking"
+          headingLevel={2}
           description="Socratic Challenge can start from the question alone. Add only the context that makes the investigation more precise."
         >
           <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_16rem]">
             <div className="space-y-6">
               <div className="space-y-2">
               <Label htmlFor={`why-${question.id}`}>Why does this matter?</Label>
-              <Textarea id={`why-${question.id}`} value={investigationDraft.whyItMatters} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, whyItMatters: event.target.value }))} placeholder="Name the stakes, if useful." className="min-h-[108px]" />
+              <Textarea id={`why-${question.id}`} value={frameBase ? investigationDraft.whyItMatters : question.whyItMatters || ''} onChange={(event) => editFrameField('whyItMatters', event.target.value)} placeholder="Name the stakes, if useful." className="min-h-[108px]" disabled={saving} />
               </div>
               <div className="space-y-2">
               <Label htmlFor={`view-${question.id}`}>What do you currently think?</Label>
-              <Textarea id={`view-${question.id}`} value={investigationDraft.currentIntuition} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, currentIntuition: event.target.value }))} placeholder="Your present view can be tentative." className="min-h-[108px]" />
+              <Textarea id={`view-${question.id}`} value={frameBase ? investigationDraft.currentIntuition : question.currentIntuition || ''} onChange={(event) => editFrameField('currentIntuition', event.target.value)} placeholder="Your present view can be tentative." className="min-h-[108px]" disabled={saving} />
               </div>
               <div className="space-y-2">
               <Label htmlFor={`uncertainty-${question.id}`}>What remains uncertain?</Label>
-              <Textarea id={`uncertainty-${question.id}`} value={investigationDraft.uncertainty} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, uncertainty: event.target.value }))} placeholder="Name the part you cannot settle yet." className="min-h-[108px]" />
+              <Textarea id={`uncertainty-${question.id}`} value={frameBase ? investigationDraft.uncertainty : question.uncertainty || ''} onChange={(event) => editFrameField('uncertainty', event.target.value)} placeholder="Name the part you cannot settle yet." className="min-h-[108px]" disabled={saving} />
               </div>
               <div className="flex justify-end">
-                <Button onClick={saveInvestigationFrame} disabled={saving}>{saving ? 'Saving...' : 'Save Context'}</Button>
+                <Button onClick={saveInvestigationFrame} disabled={saving || !frameBase || frameConflict}>{saving ? 'Saving...' : 'Save Context'}</Button>
               </div>
             </div>
             <ContextRail title="Investigation context">
               <EntityMeta items={[
                 { label: 'Status', value: question.status.replace(/_/g, ' ') },
                 { label: 'Sources', value: sources.length },
-                { label: 'Candidate answers', value: candidateAnswers.length },
-                { label: 'Evidence', value: (question.evidenceIds || []).length },
+                { label: 'Candidate answers', value: candidateAnswerCount },
+                { label: 'Evidence records', value: evidenceRecords.length },
               ]} />
             </ContextRail>
+            {frameConflict && <div role="status" className="space-y-2 text-sm text-muted-foreground">
+              <p>This inquiry changed while you were editing. Copy any input you want to keep before loading the saved context.</p>
+              <Button type="button" variant="outline" onClick={loadSavedFrame}>Discard draft and load saved context</Button>
+            </div>}
           </div>
         </WorkbenchPanel>}
 
@@ -975,10 +1064,14 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             {question.answer?.trim() && <span className="font-code text-[10px] uppercase tracking-widest text-accent">Saved answer</span>}
           </div>
-          <Textarea aria-label="Current answer" value={initialAnswer} onChange={(event) => setInitialAnswer(event.target.value)} className="min-h-[180px] text-base leading-8" placeholder="What answer currently leads, and why does it remain revisable?" />
+          <Textarea aria-label="Current answer" value={initialAnswer} disabled={saving} onChange={(event) => {
+            const value = event.target.value;
+            setAnswerDraft((draft) => ({ value, base: draft?.base ?? savedAnswer }));
+          }} className="min-h-[180px] text-base leading-8" placeholder="What answer currently leads, and why does it remain revisable?" />
+          {answerConflictNotice}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground"><span className="font-medium text-foreground">Next:</span> {recommendedMove}</p>
-            <Button onClick={() => saveProvisionalAnswer('provisionally_answered')} disabled={saving || !initialAnswer.trim()}>{saving ? 'Saving...' : 'Save Answer'}</Button>
+            <Button onClick={() => saveProvisionalAnswer('provisionally_answered')} disabled={saving || answerConflict || !initialAnswer.trim()}>{saving ? 'Saving...' : 'Save Answer'}</Button>
           </div>
         </WorkbenchPanel>}
 
@@ -991,6 +1084,10 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               title: note.title || 'Socratic challenge',
               content: note.text,
               date: note.date,
+              originDetails: note.provenance ? {
+                provenance: note.provenance,
+                target: { type: 'inquiry', id: question.id, fieldPath: 'investigationNotes.text', subrecordId: note.id },
+              } : undefined,
             }))}
             onChange={async (entries) => {
               const userNotes = (question.investigationNotes || []).filter((note) => note.origin !== 'ai-assisted');
@@ -998,7 +1095,10 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                 ...question,
                 investigationNotes: [
                   ...userNotes,
-                  ...entries.map((entry) => ({ id: entry.id, title: entry.title, text: entry.content, origin: 'ai-assisted' as const, date: entry.date })),
+                  ...entries.map((entry) => ({
+                    ...question.investigationNotes?.find((note) => note.id === entry.id && note.origin === 'ai-assisted'),
+                    id: entry.id, title: entry.title, text: entry.content, origin: 'ai-assisted' as const, date: entry.date,
+                  })),
                 ],
                 dateUpdated: today(),
               })) throw new Error('The challenge-note history was not saved.');
@@ -1060,26 +1160,39 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
 
                 {selectedTool === 'Add evidence' && (
                   <div className="grid gap-3 md:grid-cols-2">
+                    {evidenceRecords.length > 0 && <ul aria-label="Saved evidence" className="divide-y divide-border border-b border-border md:col-span-2">
+                      {evidenceRecords.map((item) => (
+                        <li key={item.id} className="flex items-start gap-3 py-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="break-words text-sm font-medium">{item.claim}</p>
+                            <p className="mt-1 break-words text-xs text-muted-foreground">{item.direction} · {candidateAnswers.find((candidate) => candidate.id === item.candidateId)?.statement || 'Unassigned'} · {item.reliability} reliability</p>
+                          </div>
+                          <Button variant="ghost" size="icon" className="size-11 shrink-0" aria-label={`Edit evidence: ${item.claim}`} title="Edit evidence" onClick={() => { setEditingEvidenceId(item.id); setEvidenceDraft(item); evidenceInput.current?.focus(); }}>
+                            <Pencil className="size-4" aria-hidden="true" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>}
                     <div className="space-y-2 md:col-span-2">
                       <Label htmlFor={`evidence-${question.id}`}>What did you find?</Label>
-                      <Textarea id={`evidence-${question.id}`} value={evidenceDraft.claim} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, claim: event.target.value }))} placeholder="A source claim, observation, counterexample, or unanswered fact." className="min-h-[96px]" />
+                      <Textarea ref={evidenceInput} id={`evidence-${question.id}`} value={evidenceDraft.claim} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, claim: event.target.value }))} placeholder="A source claim, observation, counterexample, or unanswered fact." maxLength={1000} className="min-h-[96px]" />
                     </div>
                     <div className="space-y-2">
                       <Label>How does it affect this inquiry?</Label>
-                      <Select value={evidenceDraft.direction} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, direction: value }))}>
+                      <Select value={evidenceDraft.direction} onValueChange={(value: InquiryEvidence['direction']) => setEvidenceDraft((prev) => ({ ...prev, direction: value }))}>
                         <SelectTrigger aria-label="Evidence direction"><SelectValue /></SelectTrigger>
                         <SelectContent><SelectItem value="supports">Supports an answer</SelectItem><SelectItem value="challenges">Challenges an answer</SelectItem><SelectItem value="contextualizes">Adds context</SelectItem></SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`origin-${question.id}`}>Where is it from? <span className="font-normal text-muted-foreground">Optional</span></Label>
-                      <Input id={`origin-${question.id}`} value={evidenceDraft.origin} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, origin: event.target.value }))} placeholder="Source, conversation, or observation" />
+                      <Input id={`origin-${question.id}`} value={evidenceDraft.origin} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, origin: event.target.value }))} placeholder="Source, conversation, or observation" maxLength={200} />
                     </div>
                     {candidateAnswers.length > 0 && (
                       <div className="space-y-2 md:col-span-2">
                         <Label>Which answer does it affect? <span className="font-normal text-muted-foreground">Optional</span></Label>
                         <Select value={evidenceDraft.candidateId || 'none'} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, candidateId: value === 'none' ? '' : value }))}>
-                          <SelectTrigger><SelectValue placeholder="Leave unassigned for now" /></SelectTrigger>
+                          <SelectTrigger aria-label="Assign evidence to answer"><SelectValue placeholder="Leave unassigned for now" /></SelectTrigger>
                           <SelectContent><SelectItem value="none">Leave unassigned for now</SelectItem>{candidateAnswers.map((candidate) => <SelectItem key={candidate.id} value={candidate.id}>{candidate.statement.slice(0, 72)}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
@@ -1087,12 +1200,17 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                     <details className="md:col-span-2 rounded-lg border border-border/70 px-3 py-2">
                       <summary className="cursor-pointer text-sm text-muted-foreground">Optional evidence details</summary>
                       <div className="mt-3 grid gap-3 md:grid-cols-3">
-                        <Select value={evidenceDraft.type} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, type: value }))}><SelectTrigger aria-label="Evidence type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="source excerpt">Source excerpt</SelectItem><SelectItem value="personal observation">Personal observation</SelectItem><SelectItem value="counterexample">Counterexample</SelectItem><SelectItem value="unknown">Unknown</SelectItem></SelectContent></Select>
-                        <Select value={evidenceDraft.strength} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, strength: value }))}><SelectTrigger aria-label="Evidence strength"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="weak">Weak support</SelectItem><SelectItem value="moderate">Moderate support</SelectItem><SelectItem value="strong">Strong support</SelectItem></SelectContent></Select>
-                        <Select value={evidenceDraft.reliability} onValueChange={(value) => setEvidenceDraft((prev) => ({ ...prev, reliability: value }))}><SelectTrigger aria-label="Evidence reliability"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Low reliability</SelectItem><SelectItem value="moderate">Moderate reliability</SelectItem><SelectItem value="high">High reliability</SelectItem></SelectContent></Select>
+                        <Select value={evidenceDraft.type} onValueChange={(value: InquiryEvidence['type']) => setEvidenceDraft((prev) => ({ ...prev, type: value }))}><SelectTrigger aria-label="Evidence type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="source excerpt">Source excerpt</SelectItem><SelectItem value="personal observation">Personal observation</SelectItem><SelectItem value="counterexample">Counterexample</SelectItem><SelectItem value="unknown">Unknown</SelectItem></SelectContent></Select>
+                        <Select value={evidenceDraft.strength} onValueChange={(value: InquiryEvidence['strength']) => setEvidenceDraft((prev) => ({ ...prev, strength: value }))}><SelectTrigger aria-label="Evidence strength"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="weak">Weak</SelectItem><SelectItem value="moderate">Moderate</SelectItem><SelectItem value="strong">Strong</SelectItem></SelectContent></Select>
+                        <Select value={evidenceDraft.reliability} onValueChange={(value: InquiryEvidence['reliability']) => setEvidenceDraft((prev) => ({ ...prev, reliability: value }))}><SelectTrigger aria-label="Evidence reliability"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Low reliability</SelectItem><SelectItem value="moderate">Moderate reliability</SelectItem><SelectItem value="high">High reliability</SelectItem></SelectContent></Select>
+                        <div className="space-y-2 md:col-span-3"><Label htmlFor={`evidence-notes-${question.id}`}>Notes</Label><Input id={`evidence-notes-${question.id}`} maxLength={300} value={evidenceDraft.notes} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, notes: event.target.value }))} /></div>
                       </div>
                     </details>
-                    <div className="flex justify-end md:col-span-2"><Button onClick={addEvidenceRecord} disabled={!evidenceDraft.claim.trim()} className="rounded-full px-4">Save evidence</Button></div>
+                    <div className="flex flex-wrap justify-end gap-2 md:col-span-2">
+                      {editingEvidenceId && <Button variant="ghost" disabled={saving} className="mr-auto text-destructive" onClick={() => setEvidenceToRemove(evidenceRecords.find((item) => item.id === editingEvidenceId) || null)}>Remove evidence</Button>}
+                      {editingEvidenceId && <Button variant="ghost" onClick={() => { setEditingEvidenceId(null); setEvidenceDraft(EMPTY_EVIDENCE); }}>Cancel edit</Button>}
+                      <Button onClick={addEvidenceRecord} disabled={saving || !evidenceDraft.claim.trim()}>{editingEvidenceId ? 'Save changes' : 'Save evidence'}</Button>
+                    </div>
                   </div>
                 )}
 
@@ -1113,27 +1231,79 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-2"><Label htmlFor={`test-question-${question.id}`}>What are you trying to learn?</Label><Textarea id={`test-question-${question.id}`} value={testDraft.tested} onChange={(event) => setTestDraft((prev) => ({ ...prev, tested: event.target.value }))} placeholder="The claim or pattern you want to test." className="min-h-[92px]" /></div>
                     <div className="space-y-2"><Label htmlFor={`test-method-${question.id}`}>What will you do or observe?</Label><Textarea id={`test-method-${question.id}`} value={testDraft.method} onChange={(event) => setTestDraft((prev) => ({ ...prev, method: event.target.value }))} placeholder="One concrete action, observation, conversation, or research step." className="min-h-[92px]" /></div>
-                    <details className="md:col-span-2 rounded-lg border border-border/70 px-3 py-2"><summary className="cursor-pointer text-sm text-muted-foreground">Optional test details</summary><div className="mt-3 grid gap-3 md:grid-cols-2"><Input value={testDraft.title} onChange={(event) => setTestDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Practice name" /><Input value={testDraft.reviewDate} onChange={(event) => setTestDraft((prev) => ({ ...prev, reviewDate: event.target.value }))} placeholder="When will you review it?" /><Textarea value={testDraft.predictionA} onChange={(event) => setTestDraft((prev) => ({ ...prev, predictionA: event.target.value }))} placeholder="What would you expect to see?" /><Textarea value={testDraft.result} onChange={(event) => setTestDraft((prev) => ({ ...prev, result: event.target.value }))} placeholder="Result, if already known" /></div></details>
+                    <details className="md:col-span-2 rounded-lg border border-border/70 px-3 py-2">
+                      <summary className="cursor-pointer text-sm text-muted-foreground">Optional test details</summary>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor={`test-title-${question.id}`}>Practice name</Label>
+                          <Input id={`test-title-${question.id}`} value={testDraft.title} onChange={(event) => setTestDraft((prev) => ({ ...prev, title: event.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`test-reviewDate-${question.id}`}>When will you review it?</Label>
+                          <Input id={`test-reviewDate-${question.id}`} value={testDraft.reviewDate} onChange={(event) => setTestDraft((prev) => ({ ...prev, reviewDate: event.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`test-predictionA-${question.id}`}>What would you expect to see?</Label>
+                          <Textarea id={`test-predictionA-${question.id}`} value={testDraft.predictionA} onChange={(event) => setTestDraft((prev) => ({ ...prev, predictionA: event.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`test-result-${question.id}`}>Result, if already known</Label>
+                          <Textarea id={`test-result-${question.id}`} value={testDraft.result} onChange={(event) => setTestDraft((prev) => ({ ...prev, result: event.target.value }))} />
+                        </div>
+                      </div>
+                    </details>
                     <div className="flex flex-wrap justify-end gap-2 md:col-span-2"><Button onClick={createTestRecord} disabled={!testDraft.tested.trim() || !testDraft.method.trim()} className="rounded-full px-4">Create practice</Button></div>
-                    <div className="rounded-lg border border-border/70 p-3 md:col-span-2"><Label className="mb-2 block">Already have a practice?</Label><div className="flex flex-col gap-2 sm:flex-row"><Select value={existingPracticeId} onValueChange={setExistingPracticeId}><SelectTrigger className="flex-1"><SelectValue placeholder="Choose a practice to link" /></SelectTrigger><SelectContent>{availablePractices.filter((item) => !(item.questionIds || []).includes(question.id)).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select><Button variant="outline" onClick={linkExistingPractice} disabled={!existingPracticeId}>Link practice</Button></div></div>
+                    <div className="rounded-lg border border-border/70 p-3 md:col-span-2">
+                      <Label className="mb-2 block" htmlFor="inquiry-existing-practice">Already have a practice?</Label>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Select value={existingPracticeId} onValueChange={setExistingPracticeId} disabled={saving}>
+                          <SelectTrigger id="inquiry-existing-practice" className="flex-1"><SelectValue placeholder="Choose a practice to link" /></SelectTrigger>
+                          <SelectContent>{availablePractices.filter((item) => !(question.practiceIds?.includes(item.id) && item.questionIds?.includes(question.id))).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Button variant="outline" onClick={linkExistingPractice} disabled={saving || !existingPracticeId}>Link practice</Button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {selectedTool === 'Develop a work' && (
-                  <div className="space-y-3"><div className="flex flex-col gap-2 sm:flex-row"><Button onClick={createExpandedWork}>Create a work</Button><Select value={existingWorkId} onValueChange={setExistingWorkId}><SelectTrigger className="flex-1"><SelectValue placeholder="Or choose a work to link" /></SelectTrigger><SelectContent>{availableDrafts.filter((item) => !(item.questionIds || []).includes(question.id)).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select><Button variant="outline" onClick={linkExistingWork} disabled={!existingWorkId}>Link work</Button></div>{drafts.length > 0 && <p className="text-xs text-muted-foreground">Linked work: {drafts.map((work) => work.title).join(', ')}</p>}</div>
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button onClick={createExpandedWork} disabled={saving}>Create a work</Button>
+                      <Select value={existingWorkId} onValueChange={setExistingWorkId} disabled={saving}>
+                        <SelectTrigger aria-label="Choose an existing work to link" className="flex-1"><SelectValue placeholder="Or choose a work to link" /></SelectTrigger>
+                        <SelectContent>{availableDrafts.filter((item) => !(question.draftIds?.includes(item.id) && item.questionIds?.includes(question.id))).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Button variant="outline" onClick={linkExistingWork} disabled={saving || !existingWorkId}>Link work</Button>
+                    </div>
+                    {drafts.length > 0 && <p className="text-xs text-muted-foreground">Linked work: {drafts.map((work) => work.title).join(', ')}</p>}
+                  </div>
                 )}
 
                 {selectedTool === 'Decide outcome' && (
                   <div className="space-y-3">
                     <div className="space-y-2"><Label htmlFor={`resolution-${question.id}`}>What led you here?</Label><Textarea id={`resolution-${question.id}`} value={investigationDraft.resolutionSummary} onChange={(event) => setInvestigationDraft((prev) => ({ ...prev, resolutionSummary: event.target.value }))} placeholder="What mattered most, and what remains open?" className="min-h-[96px]" /></div>
-                    {!candidateAnswers.some((candidate) => candidate.objection?.trim()) && (
+                    {!inquiryHasRecordedObjection(question) && (
                       <div className="rounded-lg border border-border bg-muted/20 p-3">
                         <div className="text-sm font-semibold">Checkpoint: steelman before you settle</div>
                         <p className="mt-1 text-xs leading-5 text-muted-foreground">Use Compare answers to record the strongest objection. If that would not help this inquiry, record why you are skipping it.</p>
                         <Input value={checkpointSkipReason} onChange={(event) => setCheckpointSkipReason(event.target.value)} className="mt-3" aria-label="Reason for skipping steelman checkpoint" placeholder="Why is this checkpoint not useful here?" />
                       </div>
                     )}
-                    <div className="grid gap-2 md:grid-cols-2">{RESOLUTION_OPTIONS.map((option) => <button key={option.status} type="button" onClick={() => saveProvisionalAnswer(option.status)} disabled={!initialAnswer.trim()} className={cn('rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50', question.status === option.status ? 'border-accent bg-accent/10' : 'border-border bg-card hover:border-accent/40 hover:bg-accent/5')}><div className="text-sm font-semibold text-foreground">{option.label}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</p></button>)}</div>
+                    {!isInquiryClosed(question) && (
+                      <div className="flex flex-wrap items-end gap-3 border-b border-border pb-4">
+                        <div className="space-y-2">
+                          <Label htmlFor={`position-confidence-${question.id}`}>Position confidence (%)</Label>
+                          <Input id={`position-confidence-${question.id}`} type="number" min={0} max={100} value={positionConfidence} onChange={(event) => setPositionConfidence(Math.min(100, Math.max(0, Number(event.target.value))))} className="w-24" />
+                        </div>
+                        <Button onClick={() => void saveProvisionalAnswer('converted')} disabled={saving || answerConflict || !initialAnswer.trim()}>
+                          {saving ? 'Saving...' : 'Form Position from Answer'}
+                        </Button>
+                      </div>
+                    )}
+                    {beliefs.length > 0 && <div className="flex flex-wrap gap-2">{beliefs.map((belief) => <Button key={belief.id} variant="outline" onClick={() => onOpenPosition(belief.id)} className="h-auto min-h-11 max-w-full whitespace-normal text-left">Open position: {belief.title}</Button>)}</div>}
+                    {answerConflictNotice}
+                    <div className="grid gap-2 md:grid-cols-2">{RESOLUTION_OPTIONS.map((option) => <button key={option.status} type="button" onClick={() => void saveProvisionalAnswer(option.status)} disabled={saving || answerConflict || !initialAnswer.trim()} className={cn('rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50', question.status === option.status ? 'border-accent bg-accent/10' : 'border-border bg-card hover:border-accent/40 hover:bg-accent/5')}><div className="text-sm font-semibold text-foreground">{option.label}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</p></button>)}</div>
                   </div>
                 )}
               </section>
@@ -1141,6 +1311,22 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           </div>
         </section>}
       </div>
+      <ConfirmActionDialog
+        open={Boolean(evidenceToRemove)}
+        onOpenChange={(open) => { if (!open) setEvidenceToRemove(null); }}
+        title="Remove evidence?"
+        description="This removes the evidence record from this inquiry. Linked sources and candidate answers are not deleted."
+        confirmLabel="Remove evidence"
+        destructive
+        onConfirm={async () => {
+          if (!evidenceToRemove) return;
+          if (!await onUpdateQuestion({ ...question, evidenceRecords: evidenceRecords.filter((item) => item.id !== evidenceToRemove.id), dateUpdated: today() })) {
+            throw new Error('The evidence could not be removed. Please retry.');
+          }
+          setEditingEvidenceId(null);
+          setEvidenceDraft(EMPTY_EVIDENCE);
+        }}
+      />
       <ConfirmActionDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

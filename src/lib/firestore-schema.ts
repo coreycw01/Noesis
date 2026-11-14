@@ -42,6 +42,7 @@ export const READEX_COLLECTIONS = {
   timeline: 'timeline',
   insights: 'insights',
   thinkingEvents: 'thinkingEvents',
+  aiProvenance: 'aiProvenance',
   beliefProfiles: 'beliefProfiles',
   unknowns: 'unknowns',
   thinkingPatterns: 'thinkingPatterns',
@@ -208,6 +209,7 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
 export const DEFAULT_PROFILE_PRIVACY: ProfilePrivacySettings = {
   defaultVisibility: 'private',
   publicProfileEnabled: false,
+  publicAvatarEnabled: false,
   publicBioEnabled: true,
   publicPhilosophyEnabled: true,
   publicSeasonEnabled: true,

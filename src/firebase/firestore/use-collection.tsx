@@ -19,11 +19,12 @@ function listenerKey(query: Query<unknown>) {
     || 'unknown';
 }
 
-export function useCollection<T = DocumentData>(query: Query<T> | null) {
+export function useCollection<T = DocumentData>(query: Query<T> | null, retryVersion = 0) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const resolvedQueryRef = useRef<Query<T> | null>(null);
+  const resolvedVersionRef = useRef(0);
 
   useEffect(() => {
     if (!query) {
@@ -35,6 +36,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
     }
 
     let active = true;
+    resolvedQueryRef.current = null;
     setData([]);
     setLoading(true);
     setError(null);
@@ -56,6 +58,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
           id: doc.id,
         }));
         resolvedQueryRef.current = query;
+        resolvedVersionRef.current = retryVersion;
         setData(items);
         setLoading(false);
       },
@@ -69,6 +72,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
           errorEmitter.emit('permission-error', permissionError);
         }
         resolvedQueryRef.current = query;
+        resolvedVersionRef.current = retryVersion;
         setError(err);
         setLoading(false);
       }
@@ -83,9 +87,9 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
         else activeDevelopmentListeners.set(key, nextCount);
       }
     };
-  }, [query]);
+  }, [query, retryVersion]);
 
-  const hasResolvedCurrentQuery = !query || resolvedQueryRef.current === query;
+  const hasResolvedCurrentQuery = !query || (resolvedQueryRef.current === query && resolvedVersionRef.current === retryVersion);
   return {
     data: query && hasResolvedCurrentQuery ? data : [],
     loading: query ? !hasResolvedCurrentQuery || loading : false,

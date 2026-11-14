@@ -1,19 +1,16 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import {
-  FirebaseClientProvider,
-  initializeFirebase,
-  isFirebaseConfigComplete,
-  missingFirebaseConfigKeys,
-} from '@/firebase';
+import { initializeFirebaseAuth } from '@/firebase/auth/client-auth';
+import { isFirebaseConfigComplete, missingFirebaseConfigKeys } from '@/firebase/config';
+import { FirebaseAuthProvider } from '@/firebase/provider';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { noesisUserError } from '@/lib/user-facing-errors';
 
-type FirebaseInstances = ReturnType<typeof initializeFirebase>;
+type FirebaseInstances = ReturnType<typeof initializeFirebaseAuth>;
 
-export function NoesisProviders({ children }: { children: React.ReactNode }) {
+export function NoesisProviders({ children, unavailableFallback }: { children: React.ReactNode; unavailableFallback?: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [firebaseInstances, setFirebaseInstances] = useState<FirebaseInstances | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
@@ -25,11 +22,13 @@ export function NoesisProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!mounted || !isFirebaseConfigComplete) return;
     try {
-      setFirebaseInstances(initializeFirebase());
+      setFirebaseInstances(initializeFirebaseAuth());
     } catch (error) {
       setInitError(noesisUserError(error, 'Firebase initialization failed. Check the public Firebase environment variables and restart the app.'));
     }
   }, [mounted]);
+
+  if (mounted && (!isFirebaseConfigComplete || initError) && unavailableFallback) return unavailableFallback;
 
   if (mounted && !isFirebaseConfigComplete) {
     return (
@@ -80,8 +79,8 @@ export function NoesisProviders({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <FirebaseClientProvider firebaseApp={firebaseInstances.firebaseApp} firestore={firebaseInstances.firestore} auth={firebaseInstances.auth}>
+    <FirebaseAuthProvider auth={firebaseInstances.auth}>
       {children}
-    </FirebaseClientProvider>
+    </FirebaseAuthProvider>
   );
 }

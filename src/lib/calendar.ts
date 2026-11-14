@@ -9,6 +9,12 @@ export function previousCalendarDay(key: string) {
   return localDateKey(date);
 }
 
+export function millisecondsUntilLocalMidnight(now: Date) {
+  const next = new Date(now);
+  next.setHours(24, 0, 0, 0);
+  return next.getTime() - now.getTime();
+}
+
 export function recordDateKey(value: string) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return localDateKey(new Date(`${value}T12:00:00`)) === value ? value : '';

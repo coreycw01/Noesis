@@ -6,24 +6,24 @@ import {
   DocumentReference, 
   onSnapshot, 
   DocumentSnapshot, 
-  DocumentData 
+  DocumentData,
 } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
 
-export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
+export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null, retryVersion = 0) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const resolvedDocPathRef = useRef<string | null>(null);
+  const resolvedKeyRef = useRef<string | null>(null);
   const latestDocRef = useRef(docRef);
   latestDocRef.current = docRef;
-  const docPath = docRef?.path ?? null;
+  const key = docRef ? `${retryVersion}:${docRef.path}` : null;
 
   useEffect(() => {
     const subscribedDocRef = latestDocRef.current;
     if (!subscribedDocRef) {
-      resolvedDocPathRef.current = null;
+      resolvedKeyRef.current = null;
       setData(null);
       setError(null);
       setLoading(false);
@@ -31,6 +31,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
     }
 
     let active = true;
+    resolvedKeyRef.current = null;
     setData(null);
     setError(null);
     setLoading(true);
@@ -38,7 +39,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
       subscribedDocRef,
       (snapshot: DocumentSnapshot<T>) => {
         if (!active) return;
-        resolvedDocPathRef.current = subscribedDocRef.path;
+        resolvedKeyRef.current = key;
         setData(snapshot.exists() ? { ...snapshot.data()!, id: snapshot.id } : null);
         setLoading(false);
       },
@@ -51,7 +52,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
           });
           errorEmitter.emit('permission-error', permissionError);
         }
-        resolvedDocPathRef.current = subscribedDocRef.path;
+        resolvedKeyRef.current = key;
         setError(err);
         setLoading(false);
       }
@@ -61,9 +62,9 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
       active = false;
       unsubscribe();
     };
-  }, [docPath]);
+  }, [key]);
 
-  const hasResolvedCurrentDoc = !docPath || resolvedDocPathRef.current === docPath;
+  const hasResolvedCurrentDoc = !key || resolvedKeyRef.current === key;
   return {
     data: docRef && hasResolvedCurrentDoc ? data : null,
     loading: docRef ? !hasResolvedCurrentDoc || loading : false,

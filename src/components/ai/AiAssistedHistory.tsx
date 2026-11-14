@@ -9,9 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { AiAssistedHistoryEntry } from '@/lib/types';
+import type { AiProvenanceRecord, ProvenanceRef } from '@/lib/ai-provenance';
+import { AiProvenanceBadge } from './AiProvenanceBadge';
 
 interface AiAssistedHistoryProps {
-  entries: AiAssistedHistoryEntry[];
+  entries: Array<AiAssistedHistoryEntry & { originDetails?: { provenance: ProvenanceRef; target: AiProvenanceRecord['targets'][number] } }>;
   onChange: (entries: AiAssistedHistoryEntry[]) => void | Promise<void>;
   title?: string;
   description?: string;
@@ -115,7 +117,7 @@ export function AiAssistedHistory({
                 <div className="truncate text-sm font-medium text-foreground">{entry.title}</div>
                 <div className="mt-0.5 text-[11px] text-muted-foreground">{formatHistoryDate(entry.date)}</div>
               </div>
-              <Badge variant="outline" className="hidden shrink-0 rounded-full text-[9px] uppercase tracking-wider sm:inline-flex">AI-assisted</Badge>
+              <Badge variant="outline" className="shrink-0 rounded-full text-[9px] uppercase tracking-wider">AI-assisted</Badge>
               <Button
                 type="button"
                 variant="ghost"
@@ -133,6 +135,7 @@ export function AiAssistedHistory({
             </summary>
             <div className="pb-4 pr-10">
               <ContextualAiDocument content={entry.content} />
+              {entry.originDetails && <div className="mt-3"><AiProvenanceBadge {...entry.originDetails} title={entry.title} /></div>}
             </div>
           </details>
         ))}

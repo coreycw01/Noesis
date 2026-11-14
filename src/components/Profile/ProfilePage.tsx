@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { signOut } from 'firebase/auth';
 import { Brain, ChevronDown, ExternalLink, Globe, LogOut, Save, UserCircle2 } from 'lucide-react';
@@ -13,19 +13,27 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
 import { LabeledField as Field } from '@/components/shared/LabeledField';
+import { profileEditPatch, profileReviewTarget, type ProfileReviewApproval } from '@/lib/profile-edit';
 import { persistedConceptRecords } from '@/lib/workspace-counts';
+import { buildPublicProfileSnapshot, isValidPublicProfileSlug, PUBLIC_PROFILE_SECTION_LIMIT, publicProfilePickerResults, publicProfileSaveMode, publicProfileSections, publicProfileSelectedIds } from '@/lib/public-profile';
+import { thinkingHistoryDate } from '@/lib/evolution-history';
+import { isInquiryActive } from '@/lib/inquiry-state';
+import { isLivePosition } from '@/lib/position-state';
 import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { profileSynthesisPatch, resolvedAiHistory, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
+import { profileStatementFromSynthesis, resolvedAiHistory, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
 import { cn } from '@/lib/utils';
 import type { AiSettings, BeliefProfile, Concept, Draft, Media, Practice, ProfilePrivacySettings, PublicProfileSnapshot, Question, ThinkingEvent, ThinkingMetrics, ThinkingPattern, ThinkingPatternUserResponse, Unknown, UserProfile, VaultEntry } from '@/lib/types';
 
 interface ProfilePageProps {
   user: User | null;
+  reviewMode: boolean;
   profile: UserProfile;
   aiSettings: AiSettings;
   privacy: ProfilePrivacySettings;
@@ -40,8 +48,8 @@ interface ProfilePageProps {
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
   thinkingMetrics: ThinkingMetrics;
-  onSaveProfile: (profile: UserProfile) => Promise<void>;
-  onSavePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot) => Promise<void>;
+  onSaveProfile: (profile: Partial<UserProfile>, approval?: ProfileReviewApproval) => Promise<void>;
+  onSavePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot, expectedVersion: { dateUpdated?: string }) => Promise<ProfilePrivacySettings>;
   onUpdateUnknown: (unknown: Unknown) => void;
   onUpdateThinkingPattern: (pattern: ThinkingPattern) => void;
   onNavigate: (view: string, targetId?: string) => void;
@@ -51,7 +59,7 @@ type ProfileTab = 'profile' | 'philosophy' | 'reflection' | 'public';
 type PhilosophyView = 'foundation' | 'influences' | 'development';
 type ReflectionView = 'patterns' | 'open-edges';
 
-export function ProfilePage({ user, profile, aiSettings, privacy, concepts: workspaceConcepts, inquiries, positions, sources, works, practices, thinkingEvents, beliefProfiles, unknowns, thinkingPatterns, thinkingMetrics: _thinkingMetrics, onSaveProfile, onSavePrivacy, onUpdateUnknown, onUpdateThinkingPattern, onNavigate }: ProfilePageProps) {
+export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, concepts: workspaceConcepts, inquiries, positions, sources, works, practices, thinkingEvents, beliefProfiles, unknowns, thinkingPatterns, thinkingMetrics: _thinkingMetrics, onSaveProfile, onSavePrivacy, onUpdateUnknown, onUpdateThinkingPattern, onNavigate }: ProfilePageProps) {
   const concepts = useMemo(() => persistedConceptRecords(workspaceConcepts), [workspaceConcepts]);
   const auth = useAuth();
   const { toast } = useToast();
@@ -61,31 +69,44 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
     content: profileDraft.philosophySynthesisReview || '', date: profileDraft.philosophySynthesisReviewedAt || profileDraft.dateUpdated || '',
   });
   const [privacyDraft, setPrivacyDraft] = useState<ProfilePrivacySettings>(privacy);
+  const [privacyDraftBase, setPrivacyDraftBase] = useState(privacy);
   const [patternResponseDrafts, setPatternResponseDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<'profile' | 'privacy' | null>(null);
+  const [pendingPublication, setPendingPublication] = useState<{ privacy: ProfilePrivacySettings; snapshot: PublicProfileSnapshot; expectedVersion: { dateUpdated?: string } } | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
   const [philosophyView, setPhilosophyView] = useState<PhilosophyView>('foundation');
   const [reflectionView, setReflectionView] = useState<ReflectionView>('patterns');
-  const profileBaselineRef = useRef(JSON.stringify(profile));
-  const privacyBaselineRef = useRef(JSON.stringify(privacy));
+  const profileBaselineRef = useRef(profile);
+  const publishButtonRef = useRef<HTMLButtonElement>(null);
+  const shareSlugInput = useRef<HTMLInputElement>(null);
+  const shareSlugFeedback = React.useId();
+  const [showSlugError, setShowSlugError] = useState(false);
 
   useEffect(() => {
-    const next = JSON.stringify(profile);
-    setProfileDraft((current) => JSON.stringify(current) === profileBaselineRef.current ? profile : current);
-    profileBaselineRef.current = next;
+    const previous = profileBaselineRef.current;
+    if (JSON.stringify(profile) === JSON.stringify(previous)) return;
+    profileBaselineRef.current = profile;
+    setProfileDraft((current) => ({ ...profile, ...profileEditPatch(previous, current) }));
   }, [profile]);
   useEffect(() => {
-    const next = JSON.stringify(privacy);
-    setPrivacyDraft((current) => JSON.stringify(current) === privacyBaselineRef.current ? privacy : current);
-    privacyBaselineRef.current = next;
-  }, [privacy]);
+    if (JSON.stringify(privacyDraft) !== JSON.stringify(privacyDraftBase) || JSON.stringify(privacy) === JSON.stringify(privacyDraftBase)) return;
+    if (privacyDraftBase.dateUpdated && (!privacy.dateUpdated || privacy.dateUpdated < privacyDraftBase.dateUpdated)) return;
+    setPrivacyDraft(privacy);
+    setPrivacyDraftBase(privacy);
+  }, [privacy, privacyDraft, privacyDraftBase]);
+  const sharingChoicesChanged = privacyDraftBase.dateUpdated !== privacy.dateUpdated
+    && (!privacyDraftBase.dateUpdated || Boolean(privacy.dateUpdated && privacy.dateUpdated > privacyDraftBase.dateUpdated));
 
   const rankedConcepts = useMemo(() => [...concepts].sort((a, b) => (b.links.length + b.sourceIds.length) - (a.links.length + a.sourceIds.length)), [concepts]);
-  const activePositions = useMemo(() => [...positions].filter((item) => item.status !== 'rejected' && item.status !== 'abandoned').sort((a, b) => b.confidence - a.confidence), [positions]);
-  const openInquiries = useMemo(() => inquiries.filter((item) => !['resolved', 'archived', 'answered'].includes(item.status)), [inquiries]);
+  const activePositions = useMemo(() => positions.filter(isLivePosition).sort((a, b) => b.confidence - a.confidence), [positions]);
+  const shareablePositions = useMemo(() => positions.filter((item) => item.status !== 'rejected' && item.status !== 'abandoned').sort((a, b) => b.confidence - a.confidence), [positions]);
+  const openInquiries = useMemo(() => inquiries.filter(isInquiryActive), [inquiries]);
   const openUnknowns = useMemo(() => unknowns.filter((item) => item.status !== 'resolved' && item.status !== 'archived'), [unknowns]);
   const sourceLeaders = useMemo(() => [...sources].sort((a, b) => b.annotations.length - a.annotations.length).slice(0, 5), [sources]);
-  const recentBeliefEvents = useMemo(() => [...thinkingEvents].filter((event) => event.entityType === 'position').sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).slice(0, 8), [thinkingEvents]);
+  const publicBeliefEvents = useMemo(() => thinkingEvents
+    .filter((event) => event.entityType === 'position' && Number.isFinite(thinkingHistoryDate(event.createdAt)))
+    .sort((a, b) => thinkingHistoryDate(b.createdAt) - thinkingHistoryDate(a.createdAt)), [thinkingEvents]);
+  const recentBeliefEvents = publicBeliefEvents.slice(0, 8);
   const challengedPositions = useMemo(() => beliefProfiles.filter((item) => (item.challengedBy || []).length > 0).sort((a, b) => (b.challengedBy?.length || 0) - (a.challengedBy?.length || 0)).slice(0, 5).map((item) => positions.find((position) => position.id === item.positionId)).filter(Boolean) as VaultEntry[], [beliefProfiles, positions]);
 
   const derivedIdentity = useMemo(() => {
@@ -103,7 +124,7 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
 
   const patternEvidence = useMemo(() => {
     const objectFamilies = new Set(thinkingEvents.map((event) => event.entityType)).size;
-    const dates = thinkingEvents.map((event) => Date.parse(event.createdAt)).filter((date) => !Number.isNaN(date));
+    const dates = thinkingEvents.map((event) => thinkingHistoryDate(event.createdAt)).filter(Number.isFinite);
     return { sufficient: thinkingEvents.length >= 8 && objectFamilies >= 3, count: thinkingEvents.length, objectFamilies, range: dates.length ? `${formatDate(new Date(Math.min(...dates)).toISOString())} - ${formatDate(new Date(Math.max(...dates)).toISOString())}` : 'Not enough history' };
   }, [thinkingEvents]);
 
@@ -114,46 +135,49 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
     + works.filter((item) => (item.body || item.draftContent || '').trim()).length;
 
   const saveProfile = async () => {
+    const patch = profileEditPatch(profileBaselineRef.current, profileDraft);
+    if (!Object.keys(patch).length) return;
     setSaving('profile');
-    try { await onSaveProfile(profileDraft); toast({ title: 'Profile saved', description: 'Your identity and philosophy name are up to date.' }); }
+    try { await onSaveProfile(patch); toast({ title: 'Profile saved', description: 'Your identity and philosophy name are up to date.' }); }
     catch { toast({ variant: 'destructive', title: 'Profile not saved', description: 'Noesis could not save your profile right now.' }); }
     finally { setSaving(null); }
   };
 
-  const selectedRecords = <T extends { id: string },>(items: T[], ids: string[] | undefined, enabled: boolean) => {
-    if (!enabled) return [];
-    if (ids === undefined) return items.slice(0, 8);
-    const selected = new Set(ids);
-    return items.filter((item) => selected.has(item.id)).slice(0, 12);
-  };
+  const publicSnapshot = buildPublicProfileSnapshot(privacyDraft, profile, {
+    ...derivedIdentity, fallbackName: user?.displayName,
+  }, {
+    concepts: rankedConcepts, positions: shareablePositions, works, sources,
+    practices: practices.filter((practice) => practice.status === 'active'),
+    beliefHistory: publicBeliefEvents,
+  });
+  const validShareSlug = isValidPublicProfileSlug(publicSnapshot.shareSlug);
+  const { canPublish, requiresConfirmation } = publicProfileSaveMode(Boolean(user), reviewMode, publicSnapshot.enabled, privacyDraft.requireConfirmationBeforePublic);
+  const invalidShareSlug = showSlugError && publicSnapshot.enabled && !validShareSlug;
 
-  const savePrivacy = async () => {
+  const savePrivacy = async ({ privacy: choices, snapshot, expectedVersion }: NonNullable<typeof pendingPublication>) => {
     setSaving('privacy');
     try {
-      const normalizedSlug = privacyDraft.shareSlug?.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || '';
-      const nextPrivacy = { ...privacyDraft, shareSlug: normalizedSlug };
-      const snapshot: PublicProfileSnapshot = {
-        shareSlug: normalizedSlug,
-        enabled: nextPrivacy.publicProfileEnabled,
-        displayName: profileDraft.displayName || user?.displayName || 'Untitled Thinker',
-        ...((profileDraft.avatarUrl || profileDraft.photoURL) ? { avatarUrl: profileDraft.avatarUrl || profileDraft.photoURL } : {}),
-        ...((nextPrivacy.publicBioEnabled ?? true) && profileDraft.bio?.trim() ? { bio: profileDraft.bio.trim() } : {}),
-        ...((nextPrivacy.publicPhilosophyEnabled ?? true) && profileDraft.philosophyName?.trim() ? { philosophyName: profileDraft.philosophyName.trim(), philosophyNameStatus: profileDraft.philosophyNameStatus || 'working' } : {}),
-        ...((nextPrivacy.publicPhilosophyEnabled ?? true) && profileDraft.philosophyStatement?.trim() ? { philosophyStatement: profileDraft.philosophyStatement.trim() } : {}),
-        currentSeason: (nextPrivacy.publicSeasonEnabled ?? true) ? derivedIdentity.season : '',
-        themes: (nextPrivacy.publicThemesEnabled ?? true) ? derivedIdentity.themes : [],
-        concepts: selectedRecords(rankedConcepts, nextPrivacy.publicConceptIds, nextPrivacy.publicConceptsEnabled).map((concept) => ({ id: concept.id, name: concept.name, description: concept.description })),
-        positions: selectedRecords(activePositions, nextPrivacy.publicPositionIds, nextPrivacy.publicPositionsEnabled).map((position) => ({ id: position.id, statement: position.statement || position.title, confidence: position.confidence })),
-        works: selectedRecords(works, nextPrivacy.publicWorkIds, nextPrivacy.publicWorksEnabled).map((work) => ({ id: work.id, title: work.title, type: work.type })),
-        practices: selectedRecords(practices.filter((practice) => practice.status === 'active'), nextPrivacy.publicPracticeIds, nextPrivacy.publicPracticesEnabled).map((practice) => ({ id: practice.id, title: practice.title, type: practice.type })),
-        sources: selectedRecords(sources, nextPrivacy.publicSourceIds, nextPrivacy.publicSourcesEnabled).map((source) => ({ id: source.id, title: source.title, creator: source.creator, type: source.type })),
-        beliefHistory: selectedRecords(recentBeliefEvents, nextPrivacy.publicBeliefHistoryIds, nextPrivacy.publicBeliefBiographyEnabled).map((event) => ({ id: event.id, summary: event.summary, date: event.createdAt })),
-      };
-      setPrivacyDraft(nextPrivacy);
-      await onSavePrivacy(nextPrivacy, snapshot);
-      toast({ title: 'Public profile updated', description: 'Only the sections and items you selected will be visible.' });
-    } catch (error) { toast({ variant: 'destructive', title: 'Public profile not saved', description: error instanceof Error ? error.message : 'Noesis could not save your sharing choices.' }); }
-    finally { setSaving(null); }
+      const nextPrivacy = { ...choices, shareSlug: snapshot.shareSlug };
+      const saved = await onSavePrivacy(nextPrivacy, snapshot, expectedVersion);
+      setPrivacyDraftBase(saved);
+      setPrivacyDraft((current) => current === choices ? saved : current);
+      toast({ title: canPublish ? 'Sharing choices saved' : 'Preview choices saved', description: canPublish ? undefined : 'No public page was created.' });
+    } finally { setSaving(null); }
+  };
+
+  const requestPrivacySave = () => {
+    if (sharingChoicesChanged) return;
+    if (publicSnapshot.enabled && !validShareSlug) {
+      setShowSlugError(true);
+      shareSlugInput.current?.focus();
+      return;
+    }
+    const publication = { privacy: privacyDraft, snapshot: publicSnapshot, expectedVersion: { dateUpdated: privacyDraftBase.dateUpdated } };
+    if (requiresConfirmation) {
+      setPendingPublication(publication);
+      return;
+    }
+    void savePrivacy(publication).catch((error) => toast({ variant: 'destructive', title: 'Public profile not saved', description: error instanceof Error ? error.message : 'Noesis could not save your sharing choices.' }));
   };
 
   const respondToPattern = (pattern: ThinkingPattern, response: ThinkingPatternUserResponse, note?: string) => {
@@ -198,9 +222,9 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
   }, [activePositions, concepts.length, derivedIdentity.season, inquiries, openEdges.tensions.length, openEdges.unsupported.length, openUnknowns.length, practices, profile.id, profileDraft.philosophyName, profileDraft.philosophyNameStatus, profileDraft.philosophyStatement, rankedConcepts, recentBeliefEvents, sourceLeaders, sources.length, user?.uid, works]);
 
   const acceptPhilosophySynthesis = async (result: AiReviewResult, editedContent: string) => {
-    const patch = profileSynthesisPatch(profile, result, editedContent);
-    await onSaveProfile({ ...profile, ...patch });
-    setProfileDraft((current) => ({ ...current, ...patch }));
+    await onSaveProfile({}, { result, text: editedContent, baseline: profile });
+    const statement = profileStatementFromSynthesis(editedContent);
+    if (statement) setProfileDraft((current) => ({ ...current, philosophyStatement: statement }));
   };
 
   return (
@@ -238,6 +262,9 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
 
           <TabsContent value="philosophy" className="mt-0"><SectionCard title="Your Philosophy" description="Name the worldview taking shape, then inspect the records that give it substance.">
             <div className="space-y-4 rounded-xl border border-border bg-background/50 p-4"><div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end"><Field label="Philosophy name"><Input value={profileDraft.philosophyName || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, philosophyName: event.target.value }))} placeholder="Name it now, or leave it unnamed" /></Field><div><div className="mb-2 font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Naming status</div><div className="flex gap-2"><Button type="button" size="sm" variant={(profileDraft.philosophyNameStatus || 'working') === 'working' ? 'default' : 'outline'} onClick={() => setProfileDraft((previous) => ({ ...previous, philosophyNameStatus: 'working' }))} className="rounded-full">Working name</Button><Button type="button" size="sm" variant={profileDraft.philosophyNameStatus === 'established' ? 'default' : 'outline'} onClick={() => setProfileDraft((previous) => ({ ...previous, philosophyNameStatus: 'established' }))} className="rounded-full">Established</Button></div></div></div><Field label="Working philosophy statement"><Textarea value={profileDraft.philosophyStatement || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, philosophyStatement: event.target.value }))} className="min-h-[110px]" placeholder="Describe the central idea that connects your current thinking." /></Field></div>
+            {profile.philosophyStatementProvenance && <div className="mt-2">
+              <AiProvenanceBadge provenance={profile.philosophyStatementProvenance} target={profileReviewTarget(profile.philosophyStatementProvenance.provenanceId, 'philosophyStatement')} title="Working philosophy statement" />
+            </div>}
             <div className="mt-4 flex flex-col gap-4 noesis-recommendation sm:flex-row sm:items-center sm:justify-between">
               <div className="max-w-2xl">
                 <div className="flex items-center gap-2 font-medium"><NoesisAiMark className="size-6" />Shape My Philosophy</div>
@@ -251,7 +278,6 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
                   enabled={philosophyEvidenceCount >= 3}
                   showContextBeforeSending={aiSettings.showContextBeforeSending}
                   reasoningDepth={aiSettings.defaultReasoningDepth}
-                  retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
                   onAccept={acceptPhilosophySynthesis}
                   buttonLabel="Shape My Philosophy"
                   promptLabel="What should Noesis examine?"
@@ -263,10 +289,16 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
               <div className="mt-4">
                 <AiAssistedHistory
                   title="Saved philosophy reviews"
-                  entries={savedReviews}
+                  entries={savedReviews.map((entry) => ({
+                    ...entry,
+                    originDetails: entry.id.startsWith('ai-review-') ? {
+                      provenance: { provenanceId: entry.id, kind: 'ai-assisted' },
+                      target: profileReviewTarget(entry.id, 'aiReviewHistory.content'),
+                    } : undefined,
+                  }))}
                   onChange={async (aiReviewHistory) => {
                     const patch = { aiReviewHistory, dateUpdated: new Date().toISOString() };
-                    await onSaveProfile({ ...profile, ...patch });
+                    await onSaveProfile(patch);
                     setProfileDraft((current) => ({ ...current, ...patch }));
                   }}
                 />
@@ -285,15 +317,67 @@ export function ProfilePage({ user, profile, aiSettings, privacy, concepts: work
           </SectionCard></TabsContent>
 
           <TabsContent value="public" className="mt-0"><SectionCard title="Public Profile" description="Publish only the identity details, philosophy signals, and individual records you choose."><div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-            <div className="space-y-4"><div className="rounded-xl border border-border bg-background/50 p-4"><Field label="Profile URL name"><Input value={privacyDraft.shareSlug || ''} onChange={(event) => setPrivacyDraft((previous) => ({ ...previous, shareSlug: event.target.value }))} placeholder="your-public-noesis" /></Field><div className="mt-4"><SwitchRow label="Publish profile" checked={privacyDraft.publicProfileEnabled} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicProfileEnabled: checked }))} /></div>{privacy.publicProfileEnabled && privacy.shareSlug && <a href={`/p/${privacy.shareSlug}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">Open published profile <ExternalLink className="size-3.5" /></a>}</div>
-              <div className="grid gap-3 sm:grid-cols-2"><SwitchRow label="Introduction" checked={privacyDraft.publicBioEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicBioEnabled: checked }))} /><SwitchRow label="Philosophy name" checked={privacyDraft.publicPhilosophyEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicPhilosophyEnabled: checked }))} /><SwitchRow label="Current season" checked={privacyDraft.publicSeasonEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicSeasonEnabled: checked }))} /><SwitchRow label="Recurring themes" checked={privacyDraft.publicThemesEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicThemesEnabled: checked }))} /></div>
-              <div className="grid gap-3 md:grid-cols-2"><PublicationPicker title="Concepts" enabled={privacyDraft.publicConceptsEnabled} items={rankedConcepts.map((item) => ({ id: item.id, label: item.name }))} selectedIds={privacyDraft.publicConceptIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicConceptsEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicConceptIds: ids }))} /><PublicationPicker title="Positions" enabled={privacyDraft.publicPositionsEnabled} items={activePositions.map((item) => ({ id: item.id, label: item.statement || item.title }))} selectedIds={privacyDraft.publicPositionIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicPositionsEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicPositionIds: ids }))} /><PublicationPicker title="Works" enabled={privacyDraft.publicWorksEnabled} items={works.map((item) => ({ id: item.id, label: item.title }))} selectedIds={privacyDraft.publicWorkIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicWorksEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicWorkIds: ids }))} /><PublicationPicker title="Practices" enabled={privacyDraft.publicPracticesEnabled} items={practices.filter((item) => item.status === 'active').map((item) => ({ id: item.id, label: item.title }))} selectedIds={privacyDraft.publicPracticeIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicPracticesEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicPracticeIds: ids }))} /><PublicationPicker title="Sources" enabled={privacyDraft.publicSourcesEnabled} items={sources.map((item) => ({ id: item.id, label: item.title }))} selectedIds={privacyDraft.publicSourceIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicSourcesEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicSourceIds: ids }))} /><PublicationPicker title="Belief history" enabled={privacyDraft.publicBeliefBiographyEnabled} items={recentBeliefEvents.map((item) => ({ id: item.id, label: item.summary }))} selectedIds={privacyDraft.publicBeliefHistoryIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicBeliefBiographyEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicBeliefHistoryIds: ids }))} /></div>
-              <Button onClick={savePrivacy} disabled={saving === 'privacy'} className="w-full rounded-full font-semibold"><Save className="mr-2 size-4" />{saving === 'privacy' ? 'Saving choices' : 'Save public profile'}</Button></div>
-            <div className="self-start rounded-xl border border-border bg-card p-5 shadow-sm xl:sticky xl:top-4"><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 font-medium"><Globe className="size-4 text-accent" />Public preview</div><Badge variant={privacyDraft.publicProfileEnabled ? 'default' : 'outline'}>{privacyDraft.publicProfileEnabled ? 'Published' : 'Private'}</Badge></div><h3 className="mt-5 font-headline text-2xl font-semibold italic">{profileDraft.displayName || user?.displayName || 'Untitled Thinker'}</h3>{(privacyDraft.publicBioEnabled ?? true) && <p className="mt-2 text-sm leading-6 text-muted-foreground">{profileDraft.bio || 'No public introduction yet.'}</p>}{(privacyDraft.publicPhilosophyEnabled ?? true) && profileDraft.philosophyName && <PreviewLine label="Philosophy" value={`${profileDraft.philosophyName} (${profileDraft.philosophyNameStatus === 'established' ? 'established' : 'working name'})`} />}{(privacyDraft.publicPhilosophyEnabled ?? true) && profileDraft.philosophyStatement && <p className="mt-3 text-sm leading-6 text-muted-foreground">{profileDraft.philosophyStatement}</p>}{(privacyDraft.publicSeasonEnabled ?? true) && <PreviewLine label="Current season" value={derivedIdentity.season} />}{(privacyDraft.publicThemesEnabled ?? true) && <div className="mt-4 flex flex-wrap gap-2">{derivedIdentity.themes.map((theme) => <Badge key={theme} variant="secondary">{theme}</Badge>)}</div>}<p className="mt-5 border-t border-border/60 pt-4 text-xs leading-5 text-muted-foreground">Private notes, annotations, unknowns, and pattern feedback are never published.</p></div>
+            <div className="space-y-4"><div className="rounded-xl border border-border bg-background/50 p-4">
+              <Field label="Profile URL name"><Input ref={shareSlugInput} value={privacyDraft.shareSlug || ''} onChange={(event) => setPrivacyDraft((previous) => ({ ...previous, shareSlug: event.target.value }))} placeholder="your-public-noesis" aria-invalid={invalidShareSlug || undefined} aria-describedby={shareSlugFeedback} /></Field>
+              <p id={shareSlugFeedback} role={invalidShareSlug ? 'alert' : undefined} className={`mt-2 break-all text-xs ${invalidShareSlug ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {invalidShareSlug || !validShareSlug ? 'Use 3 to 60 letters, numbers, or hyphens.' : `${canPublish ? 'Public link' : 'Example link'}: /p/${publicSnapshot.shareSlug}`}
+              </p>
+              <div className="mt-4"><SwitchRow label={canPublish ? 'Publish profile' : 'Preview a public profile'} checked={privacyDraft.publicProfileEnabled} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicProfileEnabled: checked }))} /></div>{canPublish && privacy.publicProfileEnabled && privacy.shareSlug && <a href={`/p/${privacy.shareSlug}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline">Open published profile <ExternalLink className="size-3.5" /></a>}</div>
+              <div className="grid gap-3 sm:grid-cols-2"><SwitchRow label="Introduction" checked={privacyDraft.publicBioEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicBioEnabled: checked }))} /><SwitchRow label="Philosophy name and statement" checked={privacyDraft.publicPhilosophyEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicPhilosophyEnabled: checked }))} /><SwitchRow label="Current season" checked={privacyDraft.publicSeasonEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicSeasonEnabled: checked }))} /><SwitchRow label="Recurring themes" checked={privacyDraft.publicThemesEnabled ?? true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicThemesEnabled: checked }))} /></div>
+              <SwitchRow label="Profile photo" checked={privacyDraft.publicAvatarEnabled === true} onCheckedChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicAvatarEnabled: checked }))} />
+              <div className="grid gap-3 md:grid-cols-2"><PublicationPicker title="Concepts" enabled={privacyDraft.publicConceptsEnabled} items={rankedConcepts.map((item) => ({ id: item.id, label: item.name }))} selectedIds={privacyDraft.publicConceptIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicConceptsEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicConceptIds: ids }))} /><PublicationPicker title="Positions" enabled={privacyDraft.publicPositionsEnabled} items={shareablePositions.map((item) => ({ id: item.id, label: item.statement || item.title }))} selectedIds={privacyDraft.publicPositionIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicPositionsEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicPositionIds: ids }))} /><PublicationPicker title="Works" enabled={privacyDraft.publicWorksEnabled} items={works.map((item) => ({ id: item.id, label: item.title }))} selectedIds={privacyDraft.publicWorkIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicWorksEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicWorkIds: ids }))} /><PublicationPicker title="Practices" enabled={privacyDraft.publicPracticesEnabled} items={practices.filter((item) => item.status === 'active').map((item) => ({ id: item.id, label: item.title }))} selectedIds={privacyDraft.publicPracticeIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicPracticesEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicPracticeIds: ids }))} /><PublicationPicker title="Sources" enabled={privacyDraft.publicSourcesEnabled} items={sources.map((item) => ({ id: item.id, label: item.title }))} selectedIds={privacyDraft.publicSourceIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicSourcesEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicSourceIds: ids }))} /><PublicationPicker title="Belief history" enabled={privacyDraft.publicBeliefBiographyEnabled} items={publicBeliefEvents.map((item) => ({ id: item.id, label: item.summary }))} selectedIds={privacyDraft.publicBeliefHistoryIds} onEnabledChange={(checked) => setPrivacyDraft((previous) => ({ ...previous, publicBeliefBiographyEnabled: checked }))} onSelectionChange={(ids) => setPrivacyDraft((previous) => ({ ...previous, publicBeliefHistoryIds: ids }))} /></div>
+              {sharingChoicesChanged && <div className="space-y-2 border-y border-border py-3">
+                <p role="status" className="text-sm text-muted-foreground">Sharing choices changed in another tab. Reload them before publishing.</p>
+                <Button type="button" variant="outline" onClick={() => { setPrivacyDraftBase(privacy); setPrivacyDraft(privacy); }}>Discard draft and reload choices</Button>
+              </div>}
+              <Button ref={publishButtonRef} onClick={requestPrivacySave} disabled={saving === 'privacy' || sharingChoicesChanged} className="w-full rounded-full font-semibold"><Save className="mr-2 size-4" />{saving === 'privacy' ? 'Saving choices' : canPublish ? 'Save public profile' : 'Save preview choices'}</Button></div>
+            <div className="min-w-0 self-start rounded-xl border border-border bg-card p-5 xl:sticky xl:top-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="flex items-center gap-2 font-medium"><Globe className="size-4 text-accent" />Public preview</h3>
+                <Badge variant="outline">{!canPublish ? 'Demo only' : publicSnapshot.enabled ? 'Will be public after saving' : 'Private'}</Badge>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">{canPublish ? 'This preview uses your saved identity and philosophy.' : 'Preview choices stay in this workspace. No public page is created.'}</p>
+              {publicSnapshot.enabled ? <ProfileSnapshotContent snapshot={publicSnapshot} /> : <p className="mt-4 text-sm text-muted-foreground">{canPublish ? 'Visitors will not be able to open this profile after saving.' : 'Turn on the preview to see what visitors would see.'}</p>}
+              <p className="mt-5 border-t border-border/60 pt-4 text-xs leading-5 text-muted-foreground">Private notes, annotations, unknowns, and pattern feedback are never published.</p>
+            </div>
           </div></SectionCard></TabsContent>
         </Tabs>
+        <ConfirmActionDialog open={Boolean(pendingPublication)} onOpenChange={(open) => { if (!open) setPendingPublication(null); }}
+          returnFocusRef={publishButtonRef}
+          title={canPublish ? 'Publish these profile details?' : 'Save this profile preview?'}
+          description={canPublish ? 'Anyone with the public link can read and copy the information shown in your preview.' : 'These choices stay in this workspace and do not create a public page.'}
+          confirmLabel={canPublish ? 'Publish profile' : 'Save preview choices'} onConfirm={() => pendingPublication ? savePrivacy(pendingPublication) : undefined}>
+          {pendingPublication && (
+            <div role="region" aria-label="Details to be published" tabIndex={0} className="max-h-[34dvh] min-h-0 min-w-0 overflow-y-auto overscroll-contain border-y border-border px-1 pb-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <p className="mt-3 break-all text-xs text-muted-foreground">{canPublish ? 'Public link' : 'Example link'}: /p/{pendingPublication.snapshot.shareSlug}</p>
+              <ProfileSnapshotContent snapshot={pendingPublication.snapshot} />
+            </div>
+          )}
+        </ConfirmActionDialog>
       </div>
     </div>
+  );
+}
+
+function ProfileSnapshotContent({ snapshot }: { snapshot: PublicProfileSnapshot }) {
+  return (
+    <>
+      <div className="mt-4 flex items-center gap-3">
+        {snapshot.avatarUrl && <img src={snapshot.avatarUrl} alt="" referrerPolicy="no-referrer" className="size-10 shrink-0 rounded-full object-cover" />}
+        <p className="min-w-0 break-words font-headline text-2xl font-semibold">{snapshot.displayName}</p>
+      </div>
+      {snapshot.bio && <p className="mt-2 break-words text-sm leading-6 text-muted-foreground">{snapshot.bio}</p>}
+      {snapshot.philosophyName && <PreviewLine label={snapshot.philosophyNameStatus === 'established' ? 'Established philosophy' : 'Working philosophy name'} value={snapshot.philosophyName} />}
+      {snapshot.philosophyStatement && <p className="mt-3 break-words text-sm leading-6">{snapshot.philosophyStatement}</p>}
+      {snapshot.currentSeason && <PreviewLine label="Current season" value={snapshot.currentSeason} />}
+      {snapshot.themes.length > 0 && <PreviewLine label="Recurring themes" value={snapshot.themes.join(', ')} />}
+      {publicProfileSections(snapshot, formatDate).map(({ label, items }) => (
+        <details key={label} className="mt-3 border-t border-border pt-2">
+          <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">{label} ({items.length})</summary>
+          <ul className="space-y-2 pb-2 text-sm">{items.map((item) => <li key={item.id} className="break-words">{item.label}{item.detail && <span className="block text-xs text-muted-foreground">{item.detail}</span>}</li>)}</ul>
+        </details>
+      ))}
+    </>
   );
 }
 
@@ -312,9 +396,65 @@ function StatusList({ title, items, onResolve, onOpen }: { title: string; items:
 function TextList({ title, items, empty }: { title: string; items: string[]; empty: string }) { return <div className="rounded-xl border border-border bg-background/50 p-4"><div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{title}</div><div className="mt-3 space-y-2">{items.map((item) => <p key={item} className="rounded-lg border border-border bg-card p-3 text-sm leading-5">{item}</p>)}{!items.length && <EmptyCopy text={empty} />}</div></div>; }
 
 function PublicationPicker({ title, enabled, items, selectedIds, onEnabledChange, onSelectionChange }: { title: string; enabled: boolean; items: Array<{ id: string; label: string }>; selectedIds?: string[]; onEnabledChange: (checked: boolean) => void; onSelectionChange: (ids: string[]) => void }) {
-  const selected = selectedIds ?? items.slice(0, 8).map((item) => item.id);
-  const toggle = (id: string) => onSelectionChange(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
-  return <div className="rounded-xl border border-border bg-background/50"><div className="flex min-h-14 items-center gap-3 px-4"><div className="min-w-0 flex-1"><div className="text-sm font-medium">{title}</div><div className="text-xs text-muted-foreground">{enabled ? `${selected.length} selected` : 'Not shared'}</div></div><Switch aria-label={`Share ${title}`} checked={enabled} onCheckedChange={onEnabledChange} /></div>{enabled && <details className="group border-t border-border"><summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-4 text-xs font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Choose specific items<ChevronDown className="size-4 transition-transform group-open:rotate-180" /></summary><div className="max-h-56 space-y-1 overflow-y-auto border-t border-border p-2">{items.map((item) => <label key={item.id} className="flex min-h-10 cursor-pointer items-start gap-3 rounded-lg px-2 py-2 text-sm hover:bg-muted/20"><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggle(item.id)} className="mt-1 size-4" /><span className="leading-5">{item.label}</span></label>)}{!items.length && <div className="p-2 text-sm text-muted-foreground">Nothing available to share.</div>}</div></details>}</div>;
+  const [search, setSearch] = useState('');
+  const searchInput = useRef<HTMLInputElement>(null);
+  const choices = useRef(new Map<string, HTMLInputElement>());
+  const pendingFocus = useRef<string | null>(null);
+  const selected = publicProfileSelectedIds(items, selectedIds);
+  const results = publicProfilePickerResults(items, selected, search);
+  useLayoutEffect(() => {
+    if (!pendingFocus.current) return;
+    (choices.current.get(pendingFocus.current) ?? searchInput.current)?.focus();
+    pendingFocus.current = null;
+  });
+  const atLimit = selected.length >= PUBLIC_PROFILE_SECTION_LIMIT;
+  const toggle = (id: string) => {
+    if (selected.includes(id)) onSelectionChange(selected.filter((item) => item !== id));
+    else if (!atLimit) onSelectionChange([...selected, id]);
+  };
+  const renderItem = (item: { id: string; label: string }, checked: boolean) => (
+    <label key={item.id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--button-radius)] px-2 py-2 text-sm hover:bg-muted/20">
+      <input type="checkbox" checked={checked} disabled={atLimit && !checked}
+        ref={(node) => { if (node) choices.current.set(item.id, node); else choices.current.delete(item.id); }}
+        onChange={(event) => {
+          if (document.activeElement === event.currentTarget) pendingFocus.current = item.id;
+          toggle(item.id);
+        }}
+        className="mt-1 size-4 shrink-0 accent-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
+      <span className="min-w-0 break-words leading-5">{item.label}</span>
+    </label>
+  );
+  return (
+    <div className="min-w-0 rounded-xl border border-border bg-background/50">
+      <div className="flex min-h-14 items-center gap-3 px-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium">{title}</div>
+          <div className="text-xs text-muted-foreground" aria-live="polite">{enabled ? `${selected.length} of ${PUBLIC_PROFILE_SECTION_LIMIT} selected` : 'Not shared'}</div>
+        </div>
+        <Switch aria-label={`Share ${title}`} checked={enabled} onCheckedChange={onEnabledChange} />
+      </div>
+      {enabled && <details className="group border-t border-border">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 text-xs font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          Choose {title.toLocaleLowerCase()}<ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="space-y-2 border-t border-border p-2">
+          {items.length > 0 && <Input ref={searchInput} type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Find ${title.toLocaleLowerCase()}`} aria-label={`Search ${title.toLocaleLowerCase()} to share`} className="min-h-11" />}
+          <div className="max-h-56 space-y-2 overflow-y-auto overscroll-contain">
+            {results.selected.length > 0 && <div role="group" aria-label="Selected items">
+              <p className="px-2 pt-1 text-xs font-medium text-muted-foreground">Selected</p>
+              {results.selected.map((item) => renderItem(item, true))}
+            </div>}
+            {results.available.length > 0 && <div role="group" aria-label="Available items">
+              {results.selected.length > 0 && <p className="border-t border-border px-2 pt-2 text-xs font-medium text-muted-foreground">Available</p>}
+              {results.available.map((item) => renderItem(item, false))}
+            </div>}
+            {!items.length && <p className="p-2 text-sm text-muted-foreground">Nothing available to share.</p>}
+            {items.length > 0 && search.trim() && !results.available.length && <p role="status" className="p-2 text-sm text-muted-foreground">No other items match this search.</p>}
+          </div>
+        </div>
+      </details>}
+    </div>
+  );
 }
 
 function SwitchRow({ label, checked, onCheckedChange }: { label: string; checked: boolean; onCheckedChange: (checked: boolean) => void }) { return <div className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3"><span className="text-sm">{label}</span><Switch aria-label={label} checked={checked} onCheckedChange={onCheckedChange} /></div>; }

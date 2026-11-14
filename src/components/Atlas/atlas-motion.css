@@ -1,0 +1,26 @@
+.atlas-connection-trace {
+  pointer-events: none;
+  stroke: hsl(var(--accent));
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  animation: atlas-connection-ink 900ms ease-out 150ms both;
+}
+
+@keyframes atlas-connection-ink {
+  0% { stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; }
+  10% { opacity: 1; }
+  65% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dasharray: 1; stroke-dashoffset: 0; opacity: 0; }
+}
+
+.reduce-motion .atlas-connection-trace {
+  display: none;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-connection-trace {
+    display: none;
+    animation: none;
+  }
+}

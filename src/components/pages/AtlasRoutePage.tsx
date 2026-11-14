@@ -33,12 +33,13 @@ export interface AtlasRoutePageProps {
   uid: string;
   onAddConcept: (data: Partial<Concept>) => void;
   onUpdateConcept: (concept: Concept) => void;
-  onCreateLink: (data: Partial<PhilosophicalLink>) => void;
+  onCreateLink: (data: Partial<PhilosophicalLink>) => void | Promise<void>;
   onUpdateLink: (link: PhilosophicalLink) => void;
-  onAddAtlasMap: (data: Partial<AtlasMap>) => void;
-  onUpdateAtlasMap: (map: AtlasMap) => void;
-  onDeleteAtlasMap: (id: string) => void;
-  onDeleteLink: (id: string, options?: { method?: string }) => void;
+  onAddAtlasMap: (data: Partial<AtlasMap>) => Promise<string>;
+  onUpdateAtlasMap: (map: AtlasMap, rethrow?: boolean) => void | Promise<void>;
+  onMoveAtlasMapNode: (mapId: string, key: string, position: { x: number; y: number }) => Promise<void>;
+  onDeleteAtlasMap: (id: string) => Promise<void>;
+  onDeleteLink: (id: string, options?: { method?: string }) => Promise<void>;
   onInteractLink: (id: string) => void;
   onNavigate: (view: NoesisView, options?: {
     questionId?: string | null;
@@ -67,6 +68,7 @@ export function AtlasRoutePage({
   onUpdateLink,
   onAddAtlasMap,
   onUpdateAtlasMap,
+  onMoveAtlasMapNode,
   onDeleteAtlasMap,
   onDeleteLink,
   onInteractLink,
@@ -92,6 +94,7 @@ export function AtlasRoutePage({
       onUpdateLink={onUpdateLink}
       onAddAtlasMap={onAddAtlasMap}
       onUpdateAtlasMap={onUpdateAtlasMap}
+      onMoveAtlasMapNode={onMoveAtlasMapNode}
       onDeleteAtlasMap={onDeleteAtlasMap}
       onDeleteLink={onDeleteLink}
       onInteractLink={onInteractLink}

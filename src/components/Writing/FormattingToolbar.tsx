@@ -1,5 +1,7 @@
 "use client";
 
+import { workspaceScrollBehavior } from '@/lib/appearance';
+
 import React, { useEffect, useRef, useState } from 'react';
 import {
   AlignCenter,
@@ -216,7 +218,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
     const selection = window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
-    match.node.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    match.node.parentElement?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'center' });
     findCursorRef.current = matchIndex + 1;
     toast({ title: `Match ${matchIndex + 1} of ${matches.length}` });
     return true;
@@ -431,7 +433,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
-              <Button type="button" variant="ghost" size="sm" className="size-8 rounded-md p-0 font-code text-[9px] font-bold uppercase tracking-wider sm:h-8 sm:w-auto sm:px-2" aria-label="More editing actions"><MoreHorizontal className="size-4 sm:hidden" /><span className="hidden sm:inline">Edit</span></Button>
+              <Button type="button" variant="ghost" size="sm" className="size-8 rounded-md p-0 font-code text-[9px] font-bold uppercase tracking-wider sm:h-8 sm:w-auto sm:px-2"><MoreHorizontal className="size-4 sm:hidden" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Edit</span></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 border-border bg-popover text-popover-foreground">
               <DropdownMenuItem className="sm:hidden" onSelect={() => applyFormat('undo')}><RotateCcw className="mr-2 size-4" /> Undo</DropdownMenuItem>

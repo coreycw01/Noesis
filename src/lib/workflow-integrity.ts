@@ -1,5 +1,6 @@
 import type { NoesisCondition, NoesisStage, PhilosophicalObjectType, Practice, PracticeStatus } from '@/lib/types';
 import { UNSORTED_CONCEPT } from './readex';
+import { localDateKey, recordDateKey } from './calendar';
 
 const ACTIVE_PRACTICE_STATUSES = new Set<PracticeStatus>(['active']);
 
@@ -94,9 +95,10 @@ export function expectedCommitmentProgress({
   cadenceDays?: number;
 }) {
   const safeTarget = Math.max(1, target);
-  const started = createdAt ? new Date(createdAt) : now;
-  const elapsedDays = Number.isFinite(started.getTime())
-    ? Math.max(1, Math.floor((now.getTime() - started.getTime()) / 86_400_000) + 1)
+  const today = localDateKey(now);
+  const started = createdAt ? recordDateKey(createdAt) : today;
+  const elapsedDays = started && today
+    ? Math.max(1, (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${started}T00:00:00Z`)) / 86_400_000 + 1)
     : 1;
   const duration = Math.max(1, cadenceDays || safeTarget);
   return Math.min(safeTarget, Math.max(1, Math.ceil((elapsedDays / duration) * safeTarget)));

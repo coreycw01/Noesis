@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { MediaLibrary } from '@/components/Library/MediaLibrary';
-import { SourceIndex } from '@/components/Library/SourceIndex';
+import { PageLoadingState } from '@/components/shared/PageState';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { BookOpen, TableProperties } from 'lucide-react';
 import type { AiSettings, Concept, Draft, Media, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
+
+const SourceIndex = dynamic(() => import('@/components/Library/SourceIndex').then((module) => module.SourceIndex), {
+  loading: () => <PageLoadingState title="Opening Source Index" />,
+});
 
 export interface LibraryRoutePageProps {
   media: Media[];
@@ -18,7 +23,7 @@ export interface LibraryRoutePageProps {
   timeline: TimelineEvent[];
   focusedSourceId?: string | null;
   onAddMedia: (data: Partial<Media>) => void;
-  onUpdateMedia: (media: Media) => void;
+  onUpdateMedia: (media: Media, base?: Pick<Partial<Media>, 'dateUpdated'>, approval?: import('@/lib/source-ai-review').SourceReviewApproval) => void | Promise<unknown>;
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void | Promise<unknown>;

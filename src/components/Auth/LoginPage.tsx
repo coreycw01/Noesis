@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Capacitor } from '@capacitor/core';
 import {
   browserLocalPersistence,
+  browserPopupRedirectResolver,
   indexedDBLocalPersistence,
   createUserWithEmailAndPassword,
   getRedirectResult,
@@ -20,7 +21,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { Loader2, Eye, EyeOff, AlertCircle, ShieldAlert } from 'lucide-react';
-import { useAuth } from '@/firebase';
+import { useAuth } from '@/firebase/provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -81,7 +82,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
     if (redirectChecked.current || Capacitor.isNativePlatform()) return;
     redirectChecked.current = true;
 
-    void getRedirectResult(auth).catch((error) => {
+    void getRedirectResult(auth, browserPopupRedirectResolver).catch((error) => {
       const msg = authMessage(error);
       setErrorStatus(msg);
       if (!msg.startsWith('DOMAIN_ERROR')) {
@@ -142,7 +143,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
       }
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
-      await signInWithPopup(auth, provider);
+      await signInWithPopup(auth, provider, browserPopupRedirectResolver);
     } catch (error: any) {
       const code = String(error?.code || '');
       const shouldUseRedirect = [
@@ -155,7 +156,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
         try {
           const provider = new GoogleAuthProvider();
           provider.setCustomParameters({ prompt: 'select_account' });
-          await signInWithRedirect(auth, provider);
+          await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
           return;
         } catch (redirectError) {
           error = redirectError;

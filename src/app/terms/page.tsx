@@ -1,4 +1,5 @@
 import { LegalPage } from '@/components/LegalPage';
+import '../public.css';
 
 export const metadata = { title: 'Terms of Use | Noesis' };
 

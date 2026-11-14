@@ -15,7 +15,7 @@ export interface PracticesRoutePageProps {
   links: PhilosophicalLink[];
   focusedPracticeId?: string | null;
   onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
-  onUpdatePractice: (practice: Practice) => void;
+  onUpdatePractice: (practice: Practice, approval?: import('@/lib/practice-ai-review').PracticeReviewApproval) => void | Promise<Practice | void>;
   onDeletePractice: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;

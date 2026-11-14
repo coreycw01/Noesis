@@ -1,6 +1,8 @@
 import type { Annotation, Practice, Question, VaultEntry } from './types';
 import { isPracticeConcluded, practiceNeedsLog } from './practice-state';
 import { hasPracticeIntellectualBasis } from './workflow-integrity';
+import { isInquiryActive } from './inquiry-state';
+import { isLivePosition } from './position-state';
 
 export interface WorkspaceAttentionMetrics {
   rawAnnotations: number;
@@ -11,27 +13,36 @@ export interface WorkspaceAttentionMetrics {
   uniqueTotal: number;
 }
 
-function uniqueRecords<T extends { id: string }>(items: T[]) {
-  return [...new Map(items.map((item) => [item.id, item])).values()];
+function uniqueRecords<T extends { id: string }>(items: T[], key = (item: T) => item.id) {
+  return [...new Map(items.map((item) => [key(item), item])).values()];
 }
 
-export function deriveWorkspaceAttention<TAnnotation extends Annotation>({ annotations, positions, inquiries, practices }: {
+type AttentionAnnotation = Annotation & { source?: { id: string }; sourceId?: string };
+const annotationKey = (item: AttentionAnnotation) => JSON.stringify([item.source?.id ?? item.sourceId, item.id]);
+
+export function deriveWorkspaceAttention<TAnnotation extends AttentionAnnotation>({ annotations, positions, inquiries, practices, now }: {
   annotations: TAnnotation[];
   positions: VaultEntry[];
   inquiries: Question[];
   practices: Practice[];
+  now?: Date;
 }) {
-  const currentPositions = uniqueRecords(positions).filter((item) => !['abandoned', 'rejected', 'replaced', 'suspended'].includes(item.status));
+  const currentPositions = uniqueRecords(positions).filter(isLivePosition);
   const practiceRecords = uniqueRecords(practices);
-  const rawAnnotations = uniqueRecords(annotations).filter((item) => (!item.philosophyStatus || item.philosophyStatus === 'raw') && !item.createdInquiryId && !item.createdPositionId);
+  const rawAnnotations = uniqueRecords(annotations, annotationKey).filter((item) => (!item.philosophyStatus || item.philosophyStatus === 'raw') && !item.createdInquiryId && !item.createdPositionId);
   const unsupportedPositions = currentPositions.filter((item) => !item.evidenceFor?.length && !item.sourceIds?.length);
-  const untestedPositions = currentPositions.filter((item) => !practiceRecords.some((practice) => practice.status !== 'abandoned' && practice.positionIds?.includes(item.id)));
-  const openInquiries = uniqueRecords(inquiries).filter((item) => !item.answer?.trim() && !['answered', 'resolved', 'archived', 'suspended', 'converted', 'no_longer_meaningful'].includes(item.status));
+  const practicedPositionIds = new Set<string>();
+  for (const practice of practiceRecords) {
+    if (practice.status === 'abandoned') continue;
+    for (const positionId of practice.positionIds || []) practicedPositionIds.add(positionId);
+  }
+  const untestedPositions = currentPositions.filter((item) => !practicedPositionIds.has(item.id));
+  const openInquiries = uniqueRecords(inquiries).filter(isInquiryActive);
   const unanchoredPractices = practiceRecords.filter((item) => !isPracticeConcluded(item) && !hasPracticeIntellectualBasis(item));
-  const practicesNeedingLogs = practiceRecords.filter((item) => practiceNeedsLog(item));
+  const practicesNeedingLogs = practiceRecords.filter((item) => practiceNeedsLog(item, now));
   // Categories may overlap; the headline counts each record only once.
   const uniqueTotal = new Set([
-    ...rawAnnotations.map((item) => `annotation:${item.id}`),
+    ...rawAnnotations.map((item) => `annotation:${annotationKey(item)}`),
     ...[...unsupportedPositions, ...untestedPositions].map((item) => `position:${item.id}`),
     ...openInquiries.map((item) => `inquiry:${item.id}`),
     ...unanchoredPractices.map((item) => `practice:${item.id}`),

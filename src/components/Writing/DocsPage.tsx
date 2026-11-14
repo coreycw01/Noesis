@@ -388,10 +388,10 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
   };
 
   const colorClasses = {
-    blank: "bg-[#ffffff] text-[#211f1c]",
-    warm: "bg-[#fffaf0] text-[#302820]",
-    sepia: "bg-[#f4ecd8] text-[#5b4636]",
-    dark: "bg-slate-900 text-slate-200"
+    blank: "[--document-paper-color:#ffffff] bg-[var(--document-paper-color)] text-[#211f1c]",
+    warm: "[--document-paper-color:#fffaf0] bg-[var(--document-paper-color)] text-[#302820]",
+    sepia: "[--document-paper-color:#f4ecd8] bg-[var(--document-paper-color)] text-[#5b4636]",
+    dark: "[--document-paper-color:#0f172a] bg-[var(--document-paper-color)] text-slate-200"
   };
 
   const getPatternStyles = () => {
@@ -471,7 +471,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       </div>
 
       <div className="relative flex-1">
-        {inlineTools?.flow && <div className="contents" aria-label="Flowing document tools">{inlineTools.flow}</div>}
+        {inlineTools?.flow}
         <div
           ref={editorRef}
           contentEditable={isEditable}
@@ -498,7 +498,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
           }}
         />
       </div>
-      {inlineTools?.overlay && <div className="pointer-events-none absolute inset-0 z-30 [&>*]:pointer-events-auto" aria-label="Document tool windows">{inlineTools.overlay}</div>}
+      {inlineTools?.overlay && <div className="pointer-events-none absolute inset-0 md:z-30 [&>*]:pointer-events-auto">{inlineTools.overlay}</div>}
       <canvas
         ref={overlayRef}
         onPointerDown={startOverlayDraw}

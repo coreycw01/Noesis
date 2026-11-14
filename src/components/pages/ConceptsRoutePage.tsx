@@ -26,7 +26,7 @@ export interface ConceptsRoutePageProps {
   timeline: TimelineEvent[];
   focusedConceptId?: string | null;
   onAddConcept: (data: Partial<Concept>) => void;
-  onUpdateConcept: (concept: Concept) => void;
+  onUpdateConcept: (concept: Concept, approval?: import('@/lib/concept-ai-review').ConceptReviewApproval) => void | Promise<void>;
   onDeleteConcept: (id: string) => void;
   onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>, options?: { creationMethod?: string }) => void;

@@ -17,10 +17,11 @@ import {
   Video,
 } from 'lucide-react';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
+import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -29,9 +30,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { PageHeader } from '@/components/shared/PageHeader';
-import type { Concept, Draft, DraftStatus, DraftType, Media, Question, UserPreferences, VaultEntry, WorkCategory, WritingStyle } from '@/lib/types';
+import type { Draft, DraftStatus, DraftType, Media, Question, UserPreferences, VaultEntry, WorkCategory, WritingStyle } from '@/lib/types';
 import { DRAFT_LABELS, today, workCategoryForDraft } from '@/lib/readex';
 import { searchMatches } from '@/lib/search';
+import { compareLatestWorkTimestamp, workTimestamp } from '@/lib/work-activity';
 import { cn } from '@/lib/utils';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 import { StageBadge } from '@/components/shared/StageBadge';
@@ -46,11 +48,9 @@ interface WorksHubProps {
   media: Media[];
   vault: VaultEntry[];
   questions: Question[];
-  concepts: Concept[];
   writingDefaults: UserPreferences['writingDefaults'];
   onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
   onDeleteDraft: (id: string) => void;
-  onMarkDraftOpened: (draft: Draft) => void;
   onNavigate: (view: 'writing', options?: { workId?: string | null }) => void;
 }
 
@@ -92,7 +92,7 @@ function DraftThumbnail({ draft, Icon }: { draft: Draft; Icon: React.ComponentTy
     draft.thumbnailUrl || draft.canvasData || '',
   );
   return url
-    ? <img src={url} alt="" className="h-full w-full object-contain" />
+    ? <img src={url} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain" />
     : <Icon className="size-12 text-accent/45" aria-hidden="true" />;
 }
 
@@ -190,7 +190,7 @@ function createDraftPayload(type: DraftType, defaults: UserPreferences['writingD
   };
 }
 
-export function WorksHub({ drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onDeleteDraft, onMarkDraftOpened, onNavigate }: WorksHubProps) {
+export function WorksHub({ drafts, media, vault, questions, writingDefaults, onAddDraft, onDeleteDraft, onNavigate }: WorksHubProps) {
   const { toast } = useToast();
   const creatingRef = React.useRef(false);
   const [search, setSearch] = useState('');
@@ -210,26 +210,31 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
     revision: drafts.filter(isNeedsRevision).length,
   }), [drafts]);
 
-  const visibleDrafts = useMemo(() => drafts
+  const visibleDrafts = useMemo(() => {
+    const query = search.trim();
+    const sourcesById = new Map(query ? media.map((item) => [item.id, item]) : []);
+    const inquiriesById = new Map(query ? questions.map((item) => [item.id, item]) : []);
+    const positionsById = new Map(query ? vault.map((item) => [item.id, item]) : []);
+    return drafts
     .filter((draft) => {
       const draftCategory = (draft.workCategory || workCategoryForDraft(draft.type)) as WorkCategory;
       if (category !== 'all' && draftCategory !== category) return false;
       if (status === 'needs_revision' && !isNeedsRevision(draft)) return false;
       if (status === 'external_docs' && !draft.externalDoc) return false;
       if (status !== 'all' && status !== 'needs_revision' && status !== 'external_docs' && draft.status !== status) return false;
-      return searchMatches(search, [
+      if (!query) return true;
+      return searchMatches(query, [
         { value: draft.title, label: 'title' },
         { value: cleanText(draft), label: 'content' },
         { value: draft.type, label: 'type' },
         { value: draft.status, label: 'status' },
         ...(draft.conceptTags || []).map((tag) => ({ value: tag, label: 'concept' })),
-        ...media.filter((source) => (draft.sourceIds || []).includes(source.id)).flatMap((source) => [
-          { value: source.title, label: 'source' },
-          { value: source.creator, label: 'source creator' },
-        ]),
-        ...questions.filter((question) => (draft.questionIds || []).includes(question.id)).map((question) => ({ value: question.text, label: 'inquiry' })),
-        ...vault.filter((position) => (draft.beliefIds || []).includes(position.id)).map((position) => ({ value: position.title, label: 'position' })),
-        ...concepts.filter((concept) => (draft.conceptTags || []).some((tag) => tag.toLowerCase() === concept.name.toLowerCase())).map((concept) => ({ value: concept.name, label: 'concept' })),
+        ...(draft.sourceIds || []).flatMap((id) => {
+          const source = sourcesById.get(id);
+          return source ? [{ value: source.title, label: 'source' }, { value: source.creator, label: 'source creator' }] : [];
+        }),
+        ...(draft.questionIds || []).map((id) => ({ value: inquiriesById.get(id)?.text, label: 'inquiry' })),
+        ...(draft.beliefIds || []).map((id) => ({ value: positionsById.get(id)?.title, label: 'position' })),
       ]);
     })
     .sort((a, b) => {
@@ -244,8 +249,9 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
         : activityMode === 'opened'
           ? b.lastOpenedAt || ''
           : b.dateUpdated;
-      return new Date(right).getTime() - new Date(left).getTime();
-    }), [activityMode, category, concepts, drafts, media, questions, search, sort, status, vault]);
+      return compareLatestWorkTimestamp(left, right);
+    });
+  }, [activityMode, category, drafts, media, questions, search, sort, status, vault]);
 
   const hasFilters = Boolean(search || category !== 'all' || status !== 'all');
   const clearFilters = () => {
@@ -270,7 +276,6 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
   };
 
   const openDraft = (draft: Draft) => {
-    onMarkDraftOpened(draft);
     onNavigate('writing', { workId: draft.id });
   };
 
@@ -280,13 +285,12 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
     status !== 'all' ? `Status: ${status.replace(/_/g, ' ')}` : null,
   ].filter(Boolean) as string[];
 
-  const recentDrafts = useMemo(() => [...drafts]
-    .sort((left, right) => {
-      const leftDate = activityMode === 'opened' ? left.lastOpenedAt || left.dateUpdated : left.dateUpdated;
-      const rightDate = activityMode === 'opened' ? right.lastOpenedAt || right.dateUpdated : right.dateUpdated;
-      return new Date(rightDate).getTime() - new Date(leftDate).getTime();
-    })
-    .slice(0, 3), [activityMode, drafts]);
+  const recentDrafts = useMemo(() => {
+    const date = (draft: Draft) => activityMode === 'opened' ? draft.lastOpenedAt : draft.dateUpdated;
+    return drafts.filter((draft) => workTimestamp(date(draft)) !== null)
+      .sort((left, right) => compareLatestWorkTimestamp(date(left), date(right)))
+      .slice(0, 3);
+  }, [activityMode, drafts]);
 
   const externalDocs = drafts.filter((draft) => Boolean(draft.externalDoc)).length;
 
@@ -359,6 +363,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                 <button
                   key={item.id}
                   type="button"
+                  aria-pressed={activityMode === item.id && sort === 'activity'}
                   onClick={() => {
                     setActivityMode(item.id);
                     setSort('activity');
@@ -377,7 +382,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
           </div>
           <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{recentDrafts.length} recent</span>
         </div>
-        {recentDrafts.length > 0 && (
+        {recentDrafts.length > 0 ? (
           <div className="grid border-t border-border/50 md:grid-cols-3">
             {recentDrafts.map((draft, index) => {
               const Icon = workIcon(draft);
@@ -391,14 +396,14 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                   <Icon className="size-4 shrink-0 text-muted-foreground group-hover:text-accent" aria-hidden="true" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-foreground">{draft.title || 'Untitled work'}</span>
-                    <span className="mt-0.5 block font-code text-[8px] uppercase tracking-widest text-muted-foreground">{updatedLabel(activityMode === 'opened' ? draft.lastOpenedAt || draft.dateUpdated : draft.dateUpdated)}</span>
+                    <span className="mt-0.5 block font-code text-[8px] uppercase tracking-widest text-muted-foreground">{activityMode === 'opened' && draft.lastOpenedAt ? `Opened ${new Date(draft.lastOpenedAt).toLocaleDateString()}` : updatedLabel(draft.dateUpdated)}</span>
                   </span>
                   <ArrowUpRight className="size-4 shrink-0 text-muted-foreground group-hover:text-accent" aria-hidden="true" />
                 </button>
               );
             })}
           </div>
-        )}
+        ) : <p className="border-t border-border/50 px-3 py-3 text-sm text-muted-foreground">{activityMode === 'opened' ? 'No works opened yet.' : 'No recent edits yet.'}</p>}
       </section>
 
       {(counts.revision > 0 || externalDocs > 0) && (
@@ -433,16 +438,16 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
       ) : (
         <>
           {view === 'table' && (
-            <div className="mb-6 hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block">
-              <Table aria-label="Works table">
+            <div className="mb-6 min-w-0 rounded-lg border border-border/60 bg-card">
+              <Table aria-label="Works table" className="table-fixed xl:table-auto">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Work</TableHead>
-                    <TableHead className="w-36">Type</TableHead>
-                    <TableHead className="w-40">Status</TableHead>
-                    <TableHead className="w-28">Linked</TableHead>
-                    <TableHead className="w-36">Updated</TableHead>
-                    <TableHead className="w-16"><span className="sr-only">Actions</span></TableHead>
+                    <TableHead className="hidden w-32 lg:table-cell">Type</TableHead>
+                    <TableHead className="hidden w-36 lg:table-cell">Status</TableHead>
+                    <TableHead className="hidden w-24 xl:table-cell">Linked</TableHead>
+                    <TableHead className="hidden w-32 xl:table-cell">Updated</TableHead>
+                    <TableHead className="w-14 sm:w-16"><span className="sr-only">Actions</span></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -454,38 +459,32 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                     return (
                       <TableRow
                         key={draft.id}
-                        tabIndex={0}
                         className="cursor-pointer"
-                        aria-label={`Open ${draft.title || 'untitled work'}`}
-                        onClick={() => openDraft(draft)}
-                        onKeyDown={(event) => {
-                          if (event.key !== 'Enter' && event.key !== ' ') return;
-                          event.preventDefault();
-                          openDraft(draft);
-                        }}
+                        onClick={(event) => { if (isEntitySurfaceClick(event)) openDraft(draft); }}
                       >
                         <TableCell className="max-w-xl">
                           <div className="flex items-start gap-3">
                             <Icon className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
                             <div className="min-w-0">
-                              <div className="font-headline text-base font-semibold text-foreground">{draft.title || 'Untitled work'}</div>
+                              <button type="button" className="min-h-11 w-full rounded-sm text-left font-headline text-base font-semibold text-foreground [overflow-wrap:anywhere] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openDraft(draft)} onKeyDown={(event) => activateEntityOnKey(event, () => openDraft(draft))}>{draft.title || 'Untitled work'}</button>
+                              <p className="text-xs text-muted-foreground lg:hidden">{categoryLabel} / {draft.status}</p>
                               <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{text || 'A blank creative surface waiting for its first mark.'}</p>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="font-code text-[9px] uppercase tracking-wider text-muted-foreground">{categoryLabel}</TableCell>
-                        <TableCell>
+                        <TableCell className="hidden font-code text-[9px] uppercase tracking-wider text-muted-foreground lg:table-cell">{categoryLabel}</TableCell>
+                        <TableCell className="hidden lg:table-cell">
                           <div className="flex flex-wrap gap-1.5">
                             <StageBadge type="work" stage={draft.stage} status={draft.status} />
                             <Badge variant="outline" className="rounded-full border-border/70 font-code text-[8px] uppercase tracking-wider">{draft.status}</Badge>
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{linkCount}</TableCell>
-                        <TableCell className="font-code text-[9px] uppercase tracking-wider text-muted-foreground">{updatedLabel(draft.dateUpdated)}</TableCell>
-                        <TableCell onClick={(event) => event.stopPropagation()}>
+                        <TableCell className="hidden text-sm text-muted-foreground xl:table-cell">{linkCount}</TableCell>
+                        <TableCell className="hidden font-code text-[9px] uppercase tracking-wider text-muted-foreground xl:table-cell">{updatedLabel(draft.dateUpdated)}</TableCell>
+                        <TableCell className="px-1">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="size-10 rounded-md text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`}>
+                              <Button type="button" variant="ghost" size="icon" className="size-11 rounded-md text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`}>
                                 <MoreVertical className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -504,8 +503,8 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
             </div>
           )}
 
-          <div className={cn(view === 'cards' ? 'grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4' : 'divide-y divide-border/60 border-y border-border/60 md:hidden')}>
-          {visibleDrafts.map((draft) => {
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {view === 'cards' && visibleDrafts.map((draft) => {
             const Icon = workIcon(draft);
             const categoryLabel = workLabel(draft);
             const text = cleanText(draft);
@@ -516,16 +515,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
             return (
               <Card
                 key={draft.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`Open ${draft.title || 'untitled work'}`}
-                className={cn('group border-border/60 bg-card transition-colors hover:border-accent/50 hover:bg-muted/20', view === 'cards' ? 'overflow-hidden rounded-md' : 'border-0 rounded-none bg-transparent shadow-none')}
-                onClick={() => openDraft(draft)}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter' && event.key !== ' ') return;
-                  event.preventDefault();
-                  openDraft(draft);
-                }}
+                className="group relative overflow-hidden rounded-md border-border/60 bg-card transition-colors hover:border-accent/50 hover:bg-muted/20"
               >
                 <div className={cn('flex gap-4', view === 'cards' ? 'flex-col' : 'items-start p-3')}>
                   {view === 'cards' && hasVisualPreview && (
@@ -544,11 +534,15 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                           <Badge variant="outline" className="rounded-full border-border/70 font-code text-[8px] uppercase tracking-wider">{draft.status}</Badge>
                           {draft.externalDoc && <Cloud className="size-3.5 text-accent" aria-label="External document linked" />}
                         </div>
-                        <h2 className={cn('mt-2 font-headline text-xl font-bold italic text-foreground transition-colors group-hover:text-accent', view === 'cards' ? 'line-clamp-2' : 'line-clamp-1')}>{draft.title || 'Untitled work'}</h2>
+                        <h2 className="mt-2 break-words font-headline text-xl font-bold italic text-foreground transition-colors group-hover:text-accent">
+                          <button type="button" onClick={() => openDraft(draft)} className="text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring">
+                            {draft.title || 'Untitled work'}
+                          </button>
+                        </h2>
                       </div>
                     </div>
-                    <p className={cn('mt-3 text-sm leading-6 text-muted-foreground', view === 'table' && 'line-clamp-1')}>{text || 'A blank creative surface waiting for its first mark.'}</p>
-                    <div className="mt-4 flex flex-wrap items-center gap-2 font-code text-[9px] uppercase tracking-wider text-muted-foreground/70">
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">{text || 'A blank creative surface waiting for its first mark.'}</p>
+                    <div className="mt-4 flex flex-wrap items-center gap-2 font-code text-[9px] uppercase tracking-wider text-muted-foreground">
                       {categoryLabel === 'Writing' || draft.workCategory === 'writing' ? <span>{wordCount(draft)} words</span> : null}
                       {isRecording ? <span>{durationLabel(draft.durationSeconds)}</span> : null}
                       {linkCount > 0 && <span>{linkCount} linked</span>}
@@ -561,7 +555,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 rounded-md text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`} onClick={(event) => event.stopPropagation()}>
+                          <Button type="button" variant="ghost" size="icon" className="relative z-10 size-10 shrink-0 rounded-md text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`}>
                             <MoreVertical className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -573,7 +567,6 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
                       </DropdownMenu>
                     </div>
                   </div>
-                  {view === 'table' && <ArrowUpRight className="mr-4 size-4 shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />}
                 </div>
               </Card>
             );
@@ -584,7 +577,7 @@ export function WorksHub({ drafts, media, vault, questions, concepts, writingDef
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-2xl rounded-lg border-border/60 bg-card">
-          <DialogHeader><DialogTitle className="font-headline text-3xl italic">Start a work</DialogTitle><p className="text-sm italic text-muted-foreground">Choose a creative surface. Structure and links can come later.</p></DialogHeader>
+          <DialogHeader><DialogTitle className="font-headline text-3xl italic">Start a work</DialogTitle><DialogDescription className="italic">Choose a creative surface. Structure and links can come later.</DialogDescription></DialogHeader>
           <div className="grid gap-3 pt-3 sm:grid-cols-3">
             <LauncherButton icon={PencilLine} title="Document" description="A normal page for typing and drawing. Add thinking tools only when they help." onClick={() => openNewDraft('essay', 'blank_paper')} />
             <LauncherButton icon={NotebookPen} title="Note" description="A lightweight text, voice, or talk-to-text capture." onClick={() => { setAddOpen(false); setNoteOpen(true); }} />

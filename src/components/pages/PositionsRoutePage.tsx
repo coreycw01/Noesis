@@ -30,7 +30,7 @@ export interface PositionsRoutePageProps {
   unknowns: Unknown[];
   focusedEntryId?: string | null;
   onAddEntry: (data: Partial<VaultEntry>) => void | Promise<unknown>;
-  onUpdateEntry: (entry: VaultEntry) => void | Promise<void>;
+  onUpdateEntry: (entry: VaultEntry, approval?: import('@/lib/position-ai-review').PositionReviewApproval) => void | Promise<void>;
   onDeleteEntry: (id: string) => Promise<void>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;

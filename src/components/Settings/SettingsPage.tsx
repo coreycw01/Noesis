@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { sendPasswordResetEmail, signOut } from 'firebase/auth';
-import { Check, Download, LogOut, RefreshCw, Save, Shield, Trash2, Wrench } from 'lucide-react';
+import { Download, LogOut, RefreshCw, Save, Shield, Trash2, Wrench } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -16,9 +16,11 @@ import { noesisGuide } from '@/lib/noesis-guide';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { LabeledField as Field } from '@/components/shared/LabeledField';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
-import { reconcileSettingsDrafts } from '@/lib/settings-drafts';
+import { appearanceSnapshot, applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
+import { changedSettingsFields, reconcileSettingsDrafts } from '@/lib/settings-drafts';
+import { thinkingHistoryDate } from '@/lib/evolution-history';
 import { authenticatedFetch } from '@/lib/authenticated-fetch';
+import { WorkspaceOfflineError } from '@/lib/workspace-connectivity';
 import {
   MEDIA_LABELS,
   WRITING_STYLE_LABELS,
@@ -61,6 +63,7 @@ type SettingsState = {
 };
 
 type SettingsSectionKey = keyof SettingsState;
+export type SettingsDraftCache = { baseline: SettingsState; draft: SettingsState };
 type SettingsPanelId =
   | 'account'
   | 'appearance'
@@ -85,11 +88,16 @@ type SettingsImpact = {
 interface SettingsPageProps {
   user: User | null;
   settings: SettingsState;
+  draftCache: React.RefObject<SettingsDraftCache | null>;
   reviewMode: boolean;
-  onSaveSection: (section: SettingsSectionKey, value: SettingsState[SettingsSectionKey]) => Promise<void>;
-  onExportWorkspace: () => void;
+  onSaveSection: (section: SettingsSectionKey, value: Partial<SettingsState[SettingsSectionKey]>) => Promise<void>;
+  onExportWorkspace: () => Promise<void>;
   onOpenProfile?: () => void;
   recentDeletedItems?: ThinkingEvent[];
+  recentDeletedLoading?: boolean;
+  recentDeletedError?: boolean;
+  onRecoveryPanelChange?: (active: boolean) => void;
+  onRetryDeletedItems?: () => void;
   onRestoreDeletedItem?: (event: ThinkingEvent) => Promise<void>;
   onRefreshDemoWorkspace?: () => Promise<void>;
   refreshingDemoWorkspace?: boolean;
@@ -109,6 +117,7 @@ const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: 
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
   { id: 'appearance', label: 'Appearance', description: 'Theme, typography, collection layout, contrast, and motion.' },
   { id: 'works', label: 'Work Defaults', description: 'Starting type, status, paper, and editor feel for new Works.' },
+  { id: 'notifications', label: 'Today', description: 'Choose which commitment summary appears on Today.' },
   { id: 'ai', label: 'AI Assistance', description: 'Manual, bounded assistance and context privacy.' },
   { id: 'data', label: 'Data', description: 'Workspace export and demo refresh tools.' },
 ];
@@ -171,8 +180,8 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
     limitations: ['Every metacognitive claim must remain evidence-backed, dismissible, and safe to disable.'],
   },
   data: {
-    current: 'Manages export, import/reset permissions, and review-demo workspace refresh behavior.',
-    affects: ['Workspace export actions', 'Import/reset availability', 'Demo refresh behavior', 'Developer review diagnostics'],
+    current: 'Download saved workspace records or recover recently deleted items.',
+    affects: ['Workspace export', 'Recently deleted items', 'Demo refresh'],
     limitations: ['Firestore rules must allow the active user to write their own path before demo refresh can persist.'],
   },
   integrations: {
@@ -186,9 +195,9 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
     limitations: ['Custom renaming is not editable until navigation, exports, and the command palette can stay consistent.'],
   },
   privacy: {
-    current: 'Sets default visibility and permission posture for objects that may later support sharing.',
-    affects: ['Default object visibility', 'Review export inclusion', 'Public profile and anonymized analytics preferences'],
-    limitations: ['Sharing must stay private-by-default until explicit share routes and rules are implemented.'],
+    current: 'Workspace records stay private. Manage what appears on your public profile from Profile.',
+    affects: ['Public profile'],
+    limitations: [],
   },
   help: {
     current: 'Explains the Noesis hierarchy and workflow without saving app behavior.',
@@ -200,11 +209,16 @@ const SETTINGS_IMPACT_COPY: Record<SettingsPanelId, SettingsImpact> = {
 export function SettingsPage({
   user,
   settings,
+  draftCache,
   reviewMode,
   onSaveSection,
   onExportWorkspace,
   onOpenProfile,
   recentDeletedItems = [],
+  recentDeletedLoading = false,
+  recentDeletedError = false,
+  onRecoveryPanelChange,
+  onRetryDeletedItems,
   onRestoreDeletedItem,
   onRefreshDemoWorkspace,
   refreshingDemoWorkspace = false,
@@ -212,36 +226,102 @@ export function SettingsPage({
 }: SettingsPageProps) {
   const auth = useAuth();
   const { toast } = useToast();
-  const [drafts, setDrafts] = useState<SettingsState>(settings);
+  const [drafts, setDrafts] = useState<SettingsState>(() => {
+    const cached = draftCache.current;
+    return cached ? reconcileSettingsDrafts(cached.draft, cached.baseline, settings) : settings;
+  });
   const settingsBaseline = useRef(settings);
+  const savedAppearance = useRef(settings.appearance);
+  const [confirmedAppearance, setConfirmedAppearance] = useState(settings.appearance);
   const saveLock = useRef(false);
   const [saving, setSaving] = useState<SettingsSectionKey | 'reset' | 'refresh-demo' | null>(null);
   const [lastSaved, setLastSaved] = useState<SettingsSectionKey | null>(null);
+  const [restoringItem, setRestoringItem] = useState<string | null>(null);
+  const restoreLock = useRef(false);
+  const recoveryListHeading = useRef<HTMLHeadingElement>(null);
+  const exportLock = useRef(false);
+  const [exporting, setExporting] = useState(false);
   const [activePanel, setActivePanel] = useState<SettingsPanelId>('account');
+  useEffect(() => {
+    onRecoveryPanelChange?.(activePanel === 'data');
+    return () => onRecoveryPanelChange?.(false);
+  }, [activePanel, onRecoveryPanelChange]);
   const [panelPreferenceLoaded, setPanelPreferenceLoaded] = useState(false);
-  const [aiConnection, setAiConnection] = useState<'idle' | 'checking' | 'configured' | 'not_configured' | 'unavailable'>('idle');
+  const [aiConnection, setAiConnection] = useState<'idle' | 'checking' | 'configured' | 'not_configured' | 'sign_in_required' | 'email_not_verified' | 'unavailable'>('idle');
+  const aiCheck = useRef<AbortController | null>(null);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  const checkAiConnection = async () => {
-    setAiConnection('checking');
+  const exportWorkspace = async () => {
+    if (exportLock.current) return;
+    exportLock.current = true;
+    setExporting(true);
     try {
-      const response = await authenticatedFetch('/api/contextual-ai');
-      const data = await response.json().catch(() => ({}));
-      setAiConnection(response.ok && data.configured ? 'configured' : response.ok ? 'not_configured' : 'unavailable');
-    } catch {
-      setAiConnection('unavailable');
+      await onExportWorkspace();
+      toast({ title: 'Workspace JSON ready', description: 'Check your browser downloads.' });
+    } catch (error) {
+      toast({
+        title: 'Export not available',
+        description: error instanceof WorkspaceOfflineError
+          ? 'Reconnect to download your saved workspace records.'
+          : 'No file was downloaded. Check your connection and try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      exportLock.current = false;
+      setExporting(false);
     }
   };
+
+  const checkAiConnection = async () => {
+    if (aiCheck.current) return;
+    if (!user) {
+      setAiConnection('sign_in_required');
+      return;
+    }
+    const request = new AbortController();
+    aiCheck.current = request;
+    const timer = window.setTimeout(() => request.abort(), 10_000);
+    setAiConnection('checking');
+    try {
+      const response = await authenticatedFetch('/api/contextual-ai', { signal: request.signal });
+      const data = await response.json().catch(() => ({}));
+      if (aiCheck.current !== request) return;
+      if (response.status === 401) setAiConnection('sign_in_required');
+      else if (response.status === 403 && data?.code === 'email_not_verified') setAiConnection('email_not_verified');
+      else setAiConnection(response.ok && typeof data?.configured === 'boolean'
+        ? data.configured ? 'configured' : 'not_configured'
+        : 'unavailable');
+    } catch {
+      if (aiCheck.current === request) setAiConnection('unavailable');
+    } finally {
+      window.clearTimeout(timer);
+      if (aiCheck.current === request) aiCheck.current = null;
+    }
+  };
+
+  useEffect(() => () => {
+    aiCheck.current?.abort();
+    aiCheck.current = null;
+  }, []);
 
   useEffect(() => {
     const previous = settingsBaseline.current;
     setDrafts((current) => reconcileSettingsDrafts(current, previous, settings));
     settingsBaseline.current = settings;
+    if (previous.appearance !== settings.appearance
+      && JSON.stringify(previous.appearance) !== JSON.stringify(settings.appearance)) {
+      savedAppearance.current = settings.appearance;
+      setConfirmedAppearance(settings.appearance);
+    }
   }, [settings]);
 
+  useLayoutEffect(() => {
+    draftCache.current = { baseline: settings, draft: reconcileSettingsDrafts(drafts, settingsBaseline.current, settings) };
+  }, [draftCache, drafts, settings]);
+
   useEffect(() => () => {
-    applyAppearanceSettings(settingsBaseline.current.appearance);
+    applyAppearanceSettings(savedAppearance.current);
   }, []);
 
   useEffect(() => {
@@ -258,52 +338,71 @@ export function SettingsPage({
   }, [activePanel, panelPreferenceLoaded]);
 
   const appearancePreview = useMemo(
-    () => ({
-      themeMode: drafts.appearance.themeMode,
-      accentTheme: drafts.appearance.accentTheme,
-      headerFont: drafts.appearance.headerFont,
-      fontSize: drafts.appearance.fontSize,
-      interfaceShape: drafts.appearance.interfaceShape,
-      defaultCollectionView: drafts.appearance.defaultCollectionView,
-      highContrastMode: drafts.appearance.highContrastMode,
-      reducedMotion: drafts.appearance.reducedMotion,
-    }),
+    () => appearanceSnapshot(drafts.appearance),
     [drafts.appearance]
   );
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const applyTheme = () => applyAppearanceSettings(appearancePreview, mediaQuery.matches);
+    const applyTheme = () => applyAppearanceSettings(activePanel === 'appearance' ? appearancePreview : confirmedAppearance, mediaQuery.matches);
     applyTheme();
     mediaQuery.addEventListener('change', applyTheme);
     return () => mediaQuery.removeEventListener('change', applyTheme);
-  }, [appearancePreview]);
+  }, [activePanel, appearancePreview, confirmedAppearance]);
+
+  const sectionChanges = (section: SettingsSectionKey) => section === 'appearance'
+    ? changedSettingsFields(appearancePreview, appearanceSnapshot(confirmedAppearance))
+    : changedSettingsFields(drafts[section], settingsBaseline.current[section]);
+  const canSaveSection = (section: SettingsSectionKey) => Object.keys(sectionChanges(section)).length > 0;
+  const discardAppearance = () => {
+    setDrafts((current) => ({ ...current, appearance: savedAppearance.current }));
+  };
 
   const saveSection = async (section: SettingsSectionKey) => {
     if (saveLock.current) return;
     saveLock.current = true;
     setSaving(section);
     try {
-      await onSaveSection(section, drafts[section]);
+      const value = sectionChanges(section);
+      if (!Object.keys(value).length) return;
+      await onSaveSection(section, value);
       if (section === 'appearance') {
-        persistAppearanceSettings({
-          themeMode: drafts.appearance.themeMode,
-          accentTheme: drafts.appearance.accentTheme,
-          headerFont: drafts.appearance.headerFont,
-          fontSize: drafts.appearance.fontSize,
-          interfaceShape: drafts.appearance.interfaceShape,
-          defaultCollectionView: drafts.appearance.defaultCollectionView,
-          highContrastMode: drafts.appearance.highContrastMode,
-          reducedMotion: drafts.appearance.reducedMotion,
-        });
+        const acknowledged = { ...savedAppearance.current, ...value };
+        savedAppearance.current = acknowledged;
+        setConfirmedAppearance(acknowledged);
+        persistAppearanceSettings(appearanceSnapshot(acknowledged));
       }
       setLastSaved(section);
-      toast({ title: `${sectionLabel(section)} saved`, description: `Your ${sectionLabel(section).toLowerCase()} settings are updated.` });
+      toast({ title: `${sectionLabel(section)} saved` });
     } catch {
-      toast({ variant: 'destructive', title: 'Settings not saved', description: `Noesis could not save the ${sectionLabel(section).toLowerCase()} section.` });
+      toast({ variant: 'destructive', title: 'Settings not saved', description: `${sectionLabel(section)} could not be saved. Your changes are still here.` });
     } finally {
       saveLock.current = false;
       setSaving(null);
+    }
+  };
+
+  const saveProps = (section: SettingsSectionKey) => ({
+    onSave: () => saveSection(section),
+    saving: saving === section,
+    busy: saving !== null,
+    dirty: canSaveSection(section),
+    saved: lastSaved === section,
+  });
+
+  const restoreItem = async (event: ThinkingEvent) => {
+    if (!onRestoreDeletedItem || restoreLock.current) return;
+    restoreLock.current = true;
+    setRestoringItem(event.id);
+    try {
+      await onRestoreDeletedItem(event);
+      toast({ title: 'Item restored' });
+      recoveryListHeading.current?.focus({ preventScroll: true });
+    } catch (error) {
+      toast({ title: 'Item not restored', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
+    } finally {
+      restoreLock.current = false;
+      setRestoringItem(null);
     }
   };
 
@@ -343,12 +442,6 @@ export function SettingsPage({
       setDeleteAccountOpen(false);
       await signOut(auth).catch(() => undefined);
       toast({ title: 'Account deleted', description: 'Your Noesis workspace and sign-in account were deleted.' });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Account not deleted',
-        description: error instanceof Error ? error.message : 'Noesis could not delete the account. It is safe to retry.',
-      });
     } finally {
       setDeletingAccount(false);
     }
@@ -380,9 +473,9 @@ export function SettingsPage({
                 <Button variant="outline" onClick={resetPassword} disabled={!user?.email || saving === 'reset'} className="rounded-full bg-card px-6">
                   Reset Password
                 </Button>
-                <Button variant="outline" onClick={onExportWorkspace} className="rounded-full bg-card px-6">
+                <Button variant="outline" onClick={() => void exportWorkspace()} disabled={exporting} className="rounded-full bg-card px-6">
                   <Download className="mr-2 size-4" />
-                  Export Account Data
+                  {exporting ? 'Preparing export...' : 'Export Workspace JSON'}
                 </Button>
                 <Button variant="ghost" onClick={() => signOut(auth)} className="rounded-full text-destructive hover:text-destructive">
                   <LogOut className="mr-2 size-4" />
@@ -495,12 +588,7 @@ export function SettingsPage({
                   </div>
                 </div>
               </div>
-              <SaveBar
-                onSave={() => saveSection('appearance')}
-                saving={saving === 'appearance'}
-                dirty={JSON.stringify(drafts.appearance) !== JSON.stringify(settings.appearance)}
-                saved={lastSaved === 'appearance'}
-              />
+              <SaveBar {...saveProps('appearance')} onDiscard={discardAppearance} />
             </SettingsCard>
           </div>
         );
@@ -542,7 +630,7 @@ export function SettingsPage({
                 <SwitchRow label="Confirm before deleting objects" checked={drafts.workspace.confirmBeforeDeletingObjects} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, workspace: { ...prev.workspace, confirmBeforeDeletingObjects: checked } }))} />
                 <SwitchRow label="Enable review prompts after major edits" checked={drafts.workspace.enableReviewPromptsAfterMajorEdits} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, workspace: { ...prev.workspace, enableReviewPromptsAfterMajorEdits: checked } }))} />
               </div>
-              <SaveBar onSave={() => saveSection('workspace')} saving={saving === 'workspace'} />
+              <SaveBar {...saveProps('workspace')} />
             </SettingsCard>
 
             <SettingsCard title="Source Intake" description="Defaults and automation around metadata lookup, annotations, and source capture.">
@@ -571,10 +659,8 @@ export function SettingsPage({
                 <SwitchRow label="Enable ISBN lookup" checked={drafts.sourceIntake.enableIsbnLookup} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, enableIsbnLookup: checked } }))} />
                 <SwitchRow label="Enable DOI lookup" checked={drafts.sourceIntake.enableDoiLookup} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, enableDoiLookup: checked } }))} />
                 <SwitchRow label="Enable article metadata fetch" checked={drafts.sourceIntake.enableArticleMetadataFetch} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, enableArticleMetadataFetch: checked } }))} />
-                <SwitchRow label="Auto-create concepts from annotations" checked={drafts.sourceIntake.autoCreateConceptsFromAnnotations} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, autoCreateConceptsFromAnnotations: checked } }))} />
-                <SwitchRow label="Auto-create inquiries from question annotations" checked={drafts.sourceIntake.autoCreateInquiriesFromQuestions} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, autoCreateInquiriesFromQuestions: checked } }))} />
               </div>
-              <SaveBar onSave={() => saveSection('sourceIntake')} saving={saving === 'sourceIntake'} />
+              <SaveBar {...saveProps('sourceIntake')} />
             </SettingsCard>
 
             <SettingsCard title="Goal Preferences" description="Configure how goal reminders and source-counting defaults behave without turning Goals into a system setting.">
@@ -618,7 +704,7 @@ export function SettingsPage({
                 <SwitchRow label="Count completed podcasts" checked={drafts.goals.includePodcastsInLearningGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includePodcastsInLearningGoals: checked } }))} />
                 <SwitchRow label="Count completed videos" checked={drafts.goals.includeVideosInSourceGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includeVideosInSourceGoals: checked } }))} />
               </div>
-              <SaveBar onSave={() => saveSection('goals')} saving={saving === 'goals'} />
+              <SaveBar {...saveProps('goals')} />
             </SettingsCard>
 
             <SettingsCard title="Atlas & Notifications" description="Map defaults, overlays, and reminder surfaces that support the workspace without taking it over.">
@@ -657,11 +743,11 @@ export function SettingsPage({
                 <SwitchRow label="Unknown follow-up reminders" checked={drafts.notifications.unknownFollowUpReminders} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, unknownFollowUpReminders: checked } }))} />
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Button onClick={() => saveSection('atlas')} disabled={saving === 'atlas'} className="rounded-full px-6">
+                <Button onClick={() => saveSection('atlas')} disabled={saving !== null || !canSaveSection('atlas')} className="rounded-full px-6">
                   <Save className="mr-2 size-4" />
                   {saving === 'atlas' ? 'Saving Atlas' : 'Save Atlas Defaults'}
                 </Button>
-                <Button variant="outline" onClick={() => saveSection('notifications')} disabled={saving === 'notifications'} className="rounded-full bg-card px-6">
+                <Button variant="outline" onClick={() => saveSection('notifications')} disabled={saving !== null || !canSaveSection('notifications')} className="rounded-full bg-card px-6">
                   <Save className="mr-2 size-4" />
                   {saving === 'notifications' ? 'Saving Alerts' : 'Save Notifications'}
                 </Button>
@@ -710,18 +796,16 @@ export function SettingsPage({
                 <SwitchRow label="Enable ISBN lookup" checked={drafts.sourceIntake.enableIsbnLookup} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, enableIsbnLookup: checked } }))} />
                 <SwitchRow label="Enable DOI lookup" checked={drafts.sourceIntake.enableDoiLookup} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, enableDoiLookup: checked } }))} />
                 <SwitchRow label="Enable article metadata fetch" checked={drafts.sourceIntake.enableArticleMetadataFetch} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, enableArticleMetadataFetch: checked } }))} />
-                <SwitchRow label="Auto-create concepts from annotations" checked={drafts.sourceIntake.autoCreateConceptsFromAnnotations} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, autoCreateConceptsFromAnnotations: checked } }))} />
-                <SwitchRow label="Auto-create inquiries from question annotations" checked={drafts.sourceIntake.autoCreateInquiriesFromQuestions} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, sourceIntake: { ...prev.sourceIntake, autoCreateInquiriesFromQuestions: checked } }))} />
               </div>
               <div className="mt-5 rounded-2xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
                 Voice transcription, automatic timestamps, and browser capture are integration-dependent. They are listed here as capture behavior requirements, but Noesis will not show fake toggles until the provider is connected.
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Button onClick={() => saveSection('sourceIntake')} disabled={saving === 'sourceIntake'} className="rounded-full px-6">
+                <Button onClick={() => saveSection('sourceIntake')} disabled={saving !== null || !canSaveSection('sourceIntake')} className="rounded-full px-6">
                   <Save className="mr-2 size-4" />
                   {saving === 'sourceIntake' ? 'Saving Capture' : 'Save Capture Defaults'}
                 </Button>
-                <Button variant="outline" onClick={() => saveSection('workspace')} disabled={saving === 'workspace'} className="rounded-full bg-card px-6">
+                <Button variant="outline" onClick={() => saveSection('workspace')} disabled={saving !== null || !canSaveSection('workspace')} className="rounded-full bg-card px-6">
                   <Save className="mr-2 size-4" />
                   {saving === 'workspace' ? 'Saving Source Status' : 'Save Source Status'}
                 </Button>
@@ -771,41 +855,16 @@ export function SettingsPage({
                   </Select>
                 </Field>
               </div>
-              <SaveBar
-                onSave={() => saveSection('works')}
-                saving={saving === 'works'}
-                dirty={JSON.stringify(drafts.works) !== JSON.stringify(settings.works)}
-                saved={lastSaved === 'works'}
-              />
+              <SaveBar {...saveProps('works')} />
             </SettingsCard>
           </div>
         );
       case 'notifications':
         return (
-          <div className="space-y-6">
-            <SettingsCard title="Notifications" description="Reminders should return attention to unfinished thinking, not create noise.">
-              <div className="grid gap-3">
-                <SwitchRow label="Daily review reminders" checked={drafts.notifications.dailyReviewReminders} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, dailyReviewReminders: checked } }))} />
-                <SwitchRow label="Weekly evolution summary" checked={drafts.notifications.weeklyEvolutionSummary} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, weeklyEvolutionSummary: checked } }))} />
-                <SwitchRow label="Practice log reminders" checked={drafts.notifications.practiceReminders} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, practiceReminders: checked } }))} />
-                <SwitchRow label="Unknown follow-up reminders" checked={drafts.notifications.unknownFollowUpReminders} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, notifications: { ...prev.notifications, unknownFollowUpReminders: checked } }))} />
-                <SwitchRow label="Commitment reviews" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
-              </div>
-              <div className="mt-5 rounded-2xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
-                Source reflection, unresolved contradiction, and weekly review reminders should be generated from recorded objects. If a reminder cannot point to a real object, it should not appear.
-              </div>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Button onClick={() => saveSection('notifications')} disabled={saving === 'notifications'} className="rounded-full px-6">
-                  <Save className="mr-2 size-4" />
-                  {saving === 'notifications' ? 'Saving Notifications' : 'Save Notifications'}
-                </Button>
-                <Button variant="outline" onClick={() => saveSection('goals')} disabled={saving === 'goals'} className="rounded-full bg-card px-6">
-                  <Save className="mr-2 size-4" />
-                  {saving === 'goals' ? 'Saving Commitment Reviews' : 'Save Commitment Reviews'}
-                </Button>
-              </div>
-            </SettingsCard>
-          </div>
+          <SettingsCard title="Today" description="Hide the commitment summary without changing your saved commitments or progress.">
+            <SwitchRow label="Show commitments on Today" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
+            <SaveBar {...saveProps('goals')} />
+          </SettingsCard>
         );
       case 'ai':
         return (
@@ -813,7 +872,7 @@ export function SettingsPage({
             <SettingsCard title="Contextual AI Assistance" description="Choose how manually requested assistance uses the context you provide.">
               <div className="grid gap-3">
                 <SwitchRow label="Enable contextual assistance" checked={drafts.ai.aiAssistanceEnabled} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, aiAssistanceEnabled: checked } }))} />
-                <SwitchRow label="Show context before sending" checked={drafts.ai.showContextBeforeSending} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, showContextBeforeSending: checked } }))} />
+                <SwitchRow label="Open context preview by default" checked={drafts.ai.showContextBeforeSending} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, showContextBeforeSending: checked } }))} />
                 <Field label="Reasoning depth">
                   <Select value={drafts.ai.defaultReasoningDepth} onValueChange={(value) => setDrafts((prev) => ({ ...prev, ai: { ...prev.ai, defaultReasoningDepth: value as AiSettings['defaultReasoningDepth'] } }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -835,15 +894,15 @@ export function SettingsPage({
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background/60 p-4">
                 <div>
                   <div className="text-sm font-medium text-foreground">Server configuration</div>
-                  <div className="text-xs text-muted-foreground">
-                    {aiConnection === 'configured' ? 'A server-side AI key is configured. Provider billing and quota are verified only when an assistance action runs.' : aiConnection === 'not_configured' ? 'No server-side AI key is configured.' : aiConnection === 'unavailable' ? 'Configuration status could not be verified.' : aiConnection === 'checking' ? 'Checking securely...' : 'Not checked.'}
+                  <div role="status" className="text-xs text-muted-foreground">
+                    {!user || aiConnection === 'sign_in_required' ? 'Sign in to check server configuration.' : aiConnection === 'email_not_verified' ? 'Verify your email before checking server configuration.' : aiConnection === 'configured' ? 'Configured. This check does not run an AI request.' : aiConnection === 'not_configured' ? 'AI is not configured on the server.' : aiConnection === 'unavailable' ? 'Configuration status could not be verified. Try again.' : aiConnection === 'checking' ? 'Checking configuration...' : 'Not checked.'}
                   </div>
                 </div>
-                <Button variant="outline" onClick={checkAiConnection} disabled={aiConnection === 'checking'} className="rounded-full">
-                  <RefreshCw className={`mr-2 size-4 ${aiConnection === 'checking' ? 'animate-spin' : ''}`} /> Check Configuration
+                <Button variant="outline" onClick={checkAiConnection} disabled={!user || aiConnection === 'checking'} className="rounded-full">
+                  <RefreshCw aria-hidden="true" className={`mr-2 size-4 ${aiConnection === 'checking' ? 'animate-spin' : ''}`} /> Check Configuration
                 </Button>
               </div>
-              <SaveBar onSave={() => saveSection('ai')} saving={saving === 'ai'} dirty={JSON.stringify(drafts.ai) !== JSON.stringify(settings.ai)} saved={lastSaved === 'ai'} />
+              <SaveBar {...saveProps('ai')} />
             </SettingsCard>
           </div>
         );
@@ -866,11 +925,11 @@ export function SettingsPage({
                 <LimitationCard title="No identity labels" body="The app should say recent evidence suggests a tendency, never that the user is a fixed kind of thinker." />
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Button onClick={() => saveSection('metacognition')} disabled={saving === 'metacognition'} className="rounded-full px-6">
+                <Button onClick={() => saveSection('metacognition')} disabled={saving !== null || !canSaveSection('metacognition')} className="rounded-full px-6">
                   <Save className="mr-2 size-4" />
                   {saving === 'metacognition' ? 'Saving Experiments' : 'Save Experimental Features'}
                 </Button>
-                <Button variant="outline" onClick={() => saveSection('atlas')} disabled={saving === 'atlas'} className="rounded-full bg-card px-6">
+                <Button variant="outline" onClick={() => saveSection('atlas')} disabled={saving !== null || !canSaveSection('atlas')} className="rounded-full bg-card px-6">
                   <Save className="mr-2 size-4" />
                   {saving === 'atlas' ? 'Saving Atlas' : 'Save Atlas Overlays'}
                 </Button>
@@ -881,12 +940,12 @@ export function SettingsPage({
       case 'data':
         return (
           <div className="space-y-6">
-            <SettingsCard title="Workspace Data" description="Export your workspace or refresh the isolated demo workspace.">
+            <SettingsCard title="Workspace Data" description="Download a private copy of saved records and settings. This JSON file excludes uploaded files and cannot be imported to restore a workspace.">
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-3">
-                  <Button variant="outline" onClick={onExportWorkspace} className="rounded-full bg-card">
+                  <Button variant="outline" onClick={() => void exportWorkspace()} disabled={exporting} className="rounded-full bg-card">
                     <Download className="mr-2 size-4" />
-                    Export All Data
+                    {exporting ? 'Preparing export...' : 'Export Workspace JSON'}
                   </Button>
                   {reviewMode && onRefreshDemoWorkspace && (
                     <Button variant="outline" onClick={refreshDemoWorkspace} disabled={refreshingDemoWorkspace || saving === 'refresh-demo'} className="rounded-full bg-card">
@@ -898,12 +957,21 @@ export function SettingsPage({
               </div>
             </SettingsCard>
 
-            <SettingsCard title="Recently deleted" description="Restore supported records deleted in the last 30 days. Relationships removed with a record may need to be reconnected.">
-              {recentDeletedItems.length ? <div className="divide-y divide-border rounded-xl border border-border">
-                {recentDeletedItems.map((event) => <div key={event.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                  <div className="min-w-0"><div className="truncate text-sm font-medium text-foreground">{event.summary.replace(/^Deleted (concept|source|position|inquiry|work|practice): /i, '')}</div><div className="mt-1 text-xs text-muted-foreground">{event.entityType} · {new Date(event.createdAt).toLocaleDateString()}</div></div>
-                  <Button type="button" size="sm" variant="outline" disabled={!onRestoreDeletedItem} onClick={() => void onRestoreDeletedItem?.(event)} className="rounded-full">Restore</Button>
-                </div>)}</div> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">Deleted items will appear here for 30 days.</p>}
+            <SettingsCard title="Recently deleted" headingRef={recoveryListHeading} description="Restore supported records deleted in the last 30 days. Relationships removed with a record may need to be reconnected.">
+              {recentDeletedLoading ? <p role="status" className="text-sm text-muted-foreground">Loading recently deleted items...</p>
+                : recentDeletedError ? <div className="flex flex-wrap items-center gap-3">
+                  <p role="alert" className="text-sm text-destructive">Recently deleted items could not be loaded.</p>
+                  <Button type="button" variant="outline" onClick={onRetryDeletedItems}>Retry recently deleted</Button>
+                </div>
+                : recentDeletedItems.length ? <div className="divide-y divide-border rounded-xl border border-border">
+                {recentDeletedItems.map((event) => {
+                  const label = event.summary.replace(/^Deleted (annotation|concept|source|position|inquiry|work|practice): /i, '');
+                  const date = thinkingHistoryDate(event.createdAt);
+                  return <div key={event.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                    <div className="min-w-0"><div className="break-words text-sm font-medium text-foreground">{label}</div><div className="mt-1 text-xs text-muted-foreground">{event.entityType}{Number.isFinite(date) && <> · <time dateTime={new Date(date).toISOString()}>{new Date(date).toLocaleDateString()}</time></>}</div></div>
+                    <Button type="button" size="sm" variant="outline" aria-label={`Restore ${label}`} disabled={!onRestoreDeletedItem || restoringItem !== null} onClick={() => void restoreItem(event)} className="min-h-11 rounded-full">{restoringItem === event.id ? 'Restoring...' : 'Restore'}</Button>
+                  </div>;
+                })}</div> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">Deleted items will appear here for 30 days.</p>}
             </SettingsCard>
 
             {reviewMode && (
@@ -946,7 +1014,7 @@ export function SettingsPage({
                 <IntegrationCard title="Browser capture" status="Not connected" body="Web clipping and source context capture should wait for a browser capture integration rather than pretending URLs are enough." />
                 <IntegrationCard title="Transcription provider" status="Not connected" body="Voice notes and recordings need an explicit transcription provider before automatic transcripts can be offered." />
               </div>
-              <SaveBar onSave={() => saveSection('works')} saving={saving === 'works'} />
+              <SaveBar {...saveProps('works')} />
             </SettingsCard>
           </div>
         );
@@ -980,27 +1048,8 @@ export function SettingsPage({
       case 'privacy':
         return (
           <div className="space-y-6">
-            <SettingsCard title="Privacy & Permissions" description="Default visibility and protection around anything that may one day be shared.">
-              <div className="grid gap-3">
-                <Field label="Default object visibility">
-                  <Select value={drafts.privacy.defaultObjectVisibility} onValueChange={(value) => setDrafts((prev) => ({ ...prev, privacy: { ...prev.privacy, defaultObjectVisibility: value as PrivacySettings['defaultObjectVisibility'] } }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="private">Private</SelectItem>
-                      <SelectItem value="shared_link">Shared link</SelectItem>
-                      <SelectItem value="public">Public</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Shareable profile link">
-                  <Input value={drafts.privacy.shareableProfileLink || ''} onChange={(event) => setDrafts((prev) => ({ ...prev, privacy: { ...prev.privacy, shareableProfileLink: event.target.value } }))} placeholder="https://..." />
-                </Field>
-                <SwitchRow label="Public sharing enabled" checked={drafts.privacy.publicSharingEnabled} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, privacy: { ...prev.privacy, publicSharingEnabled: checked } }))} />
-                <SwitchRow label="Hide annotations from shared views" checked={drafts.privacy.hideAnnotationsFromSharedViews} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, privacy: { ...prev.privacy, hideAnnotationsFromSharedViews: checked } }))} />
-                <SwitchRow label="Hide metacognition from shared views" checked={drafts.privacy.hideMetacognitionFromSharedViews} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, privacy: { ...prev.privacy, hideMetacognitionFromSharedViews: checked } }))} />
-                <SwitchRow label="Require confirmation before public sharing" checked={drafts.privacy.requireConfirmationBeforePublic} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, privacy: { ...prev.privacy, requireConfirmationBeforePublic: checked } }))} />
-              </div>
-              <SaveBar onSave={() => saveSection('privacy')} saving={saving === 'privacy'} />
+            <SettingsCard title="Privacy & Permissions" description="Your workspace stays private. Only the information you publish from Profile appears on your public page.">
+              {onOpenProfile && <Button type="button" variant="outline" onClick={onOpenProfile}>Open Profile</Button>}
             </SettingsCard>
           </div>
         );
@@ -1118,10 +1167,10 @@ export function SettingsPage({
       open={deleteAccountOpen}
       onOpenChange={setDeleteAccountOpen}
       title="Delete your Noesis account?"
-      description="This permanently deletes your profile, sources, annotations, concepts, inquiries, positions, works, practices, settings, and sign-in account. Export your data first if you need a copy. This cannot be undone."
+      description="This removes your public profile, workspace records, uploaded files, and sign-in account. Download any records or files you want to keep before continuing. This cannot be undone in Noesis."
       confirmLabel={deletingAccount ? 'Deleting…' : 'Delete Account'}
       destructive
-      onConfirm={() => void deleteAccount()}
+      onConfirm={deleteAccount}
     />
     </>
   );
@@ -1215,11 +1264,11 @@ function BehaviorPreview({
   );
 }
 
-function SettingsCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function SettingsCard({ title, description, children, headingRef }: { title: string; description: string; children: React.ReactNode; headingRef?: React.Ref<HTMLHeadingElement> }) {
   return (
     <Card className="rounded-2xl border-border bg-card p-6 shadow-sm">
       <div className="mb-6">
-        <h2 className="font-headline text-2xl font-semibold italic">{title}</h2>
+        <h2 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="font-headline text-2xl font-semibold italic">{title}</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
       {children}
@@ -1227,13 +1276,14 @@ function SettingsCard({ title, description, children }: { title: string; descrip
   );
 }
 
-function SaveBar({ onSave, saving, dirty = true, saved = false }: { onSave: () => void; saving: boolean; dirty?: boolean; saved?: boolean }) {
+function SaveBar({ onSave, onDiscard, saving, busy, dirty, saved }: { onSave: () => void; onDiscard?: () => void; saving: boolean; busy: boolean; dirty: boolean; saved: boolean }) {
   return (
-    <div className="mt-6 flex items-center justify-end gap-3">
-      {!dirty && saved && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Check className="size-4 text-accent" /> Saved</span>}
-      <Button onClick={onSave} disabled={saving || !dirty} className="rounded-full px-6 font-semibold">
+    <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+      <span role="status" className="sr-only">{!dirty && saved ? 'Changes saved' : ''}</span>
+      {dirty && onDiscard && <Button type="button" variant="ghost" disabled={busy} onClick={onDiscard}>Discard preview</Button>}
+      <Button type="button" onClick={onSave} disabled={busy || !dirty} className="rounded-full px-6 font-semibold">
         {saving ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}
-        {saving ? 'Saving' : dirty ? 'Save Changes' : 'Saved'}
+        {saving ? 'Saving' : !dirty && saved ? 'Saved' : 'Save Changes'}
       </Button>
     </div>
   );
@@ -1321,6 +1371,8 @@ function ViewSelect({ value, onChange }: { value: string; onChange: (value: stri
 
 function sectionLabel(section: SettingsSectionKey) {
   switch (section) {
+    case 'ai':
+      return 'AI Assistance';
     case 'sourceIntake':
       return 'Source Intake';
     default:

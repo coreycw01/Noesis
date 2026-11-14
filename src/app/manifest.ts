@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ['education', 'productivity', 'books'],
     icons: [
       {
-        src: '/icon.png',
+        src: '/noesis-install-icon.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',

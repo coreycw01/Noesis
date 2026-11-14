@@ -7,16 +7,8 @@ import { z, type ZodType } from 'zod';
 import { adminAppCheck, adminAuth } from './firebase-admin';
 import { readBoundedRequestBody, RequestBodyTooLarge } from '../bounded-request-body';
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public code: string,
-    public retryAfter?: number,
-  ) {
-    super(message);
-  }
-}
+import { ApiError } from './api-error';
+export { ApiError } from './api-error';
 
 export interface ApiUser {
   uid: string;

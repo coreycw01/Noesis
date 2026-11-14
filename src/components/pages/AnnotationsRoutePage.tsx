@@ -9,7 +9,7 @@ export interface AnnotationsRoutePageProps {
   concepts: Concept[];
   positions: VaultEntry[];
   inquiries: Question[];
-  onUpdateAnnotation: (sourceId: string, annotation: Annotation) => void;
+  onUpdateAnnotation: (sourceId: string, annotation: Annotation, approval?: import('@/lib/annotation-ai-review').AnnotationReviewApproval) => void | Promise<Annotation | void>;
   onDeleteAnnotation: (sourceId: string, annotationId: string) => Promise<void>;
   onCreatePosition: (data: {
     title: string;

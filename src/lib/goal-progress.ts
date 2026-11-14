@@ -2,6 +2,7 @@ import type {
   Concept,
   Draft,
   GoalItem,
+  GoalSettings,
   GoalType,
   IntellectualGoalKind,
   Media,
@@ -9,7 +10,11 @@ import type {
   Question,
   VaultEntry,
 } from '@/lib/types';
-import { completedCommitmentDates } from './commitments';
+import { commitmentPositionIds, completedCommitmentDates } from './commitments';
+import { practiceLogDates } from './practice-state';
+import { MEDIA_LABELS, today } from './readex';
+import { isInquiryActive } from './inquiry-state';
+import { isLivePosition } from './position-state';
 
 export interface GoalProgressContext {
   concepts: Concept[];
@@ -22,6 +27,7 @@ export interface GoalProgressContext {
 
 export function goalKindForType(type?: GoalType, fallbackTitle = ''): IntellectualGoalKind {
   const name = `${type?.name || fallbackTitle}`.toLowerCase();
+  if (type?.mediaTypes?.length) return 'consumption';
   if (name.includes('source') || name.includes('book') || name.includes('article') || name.includes('video')) return 'consumption';
   if (name.includes('concept') || name.includes('understand')) return 'understanding';
   if (name.includes('question') || name.includes('inquiry')) return 'inquiry';
@@ -36,16 +42,50 @@ export function questKindForGoal(item: Pick<GoalItem, 'title' | 'goalKind'>, typ
   return item.goalKind || goalKindForType(type, item.title);
 }
 
+export function goalCategoryChange(item: GoalItem, previousType: GoalType | undefined, nextType: GoalType): Partial<GoalItem> {
+  if (item.typeId === nextType.id) return {};
+  const goalKind = goalKindForType(nextType);
+  const next = { typeId: nextType.id, goalKind, sourceType: undefined };
+  if (questKindForGoal(item, previousType) === goalKind) return next;
+  return {
+    ...next,
+    // A legacy position focus may also be this commitment's grounding.
+    commitmentPositionId: item.commitmentPositionId === undefined ? commitmentPositionIds(item)[0] ?? null : item.commitmentPositionId,
+    relatedObjectIds: { conceptIds: item.relatedObjectIds?.conceptIds || [] },
+    sourceMeasure: undefined,
+    inquiryMeasure: undefined,
+    positionMeasure: undefined,
+    practiceMeasure: undefined,
+    workMeasure: undefined,
+  };
+}
+
 export function deriveGoalProgress(item: GoalItem, type: GoalType | undefined, context: GoalProgressContext, legacyProgress: Partial<Record<Media['type'], number>> = {}) {
-  const automatic = deriveAutomaticGoalProgress(item, questKindForGoal(item, type), context);
+  const automatic = deriveAutomaticGoalProgress(item, questKindForGoal(item, type), context, type?.mediaTypes);
   const legacy = (type?.mediaTypes || []).reduce((sum, mediaType) => sum + (legacyProgress[mediaType] || 0), 0);
   const currentProgress = Math.max(item.currentProgress || 0, automatic ?? legacy, completedCommitmentDates(item).length);
   const targetProgress = Math.max(1, item.targetProgress || 1);
   return { currentProgress, targetProgress, percent: Math.min(100, (currentProgress / targetProgress) * 100) };
 }
 
-function hasConceptTag(tags: string[] | undefined, conceptNames: string[]) {
-  return !conceptNames.length || (tags || []).some((tag) => conceptNames.includes(tag.toLowerCase()));
+export function goalCategories(settings: GoalSettings): GoalType[] {
+  if (settings.goalTypes?.length) return settings.goalTypes;
+  const types = settings.types?.length ? settings.types : ['book', 'audiobook', 'podcast'] as const;
+  const now = today();
+  return types.map((type, sortOrder) => ({
+    id: `${type}-type`, name: MEDIA_LABELS[type], mediaTypes: [type], sortOrder, createdAt: now, updatedAt: now,
+  }));
+}
+
+export function goalItems(settings: GoalSettings, categories: GoalType[]): GoalItem[] {
+  if (settings.goals !== undefined) return settings.goals.map((item, sortOrder) => ({
+    ...item, goalKind: questKindForGoal(item, categories.find((type) => type.id === item.typeId)), sortOrder: item.sortOrder ?? sortOrder,
+  }));
+  return categories.filter((type) => !type.archivedAt && type.mediaTypes?.length).map((type, sortOrder) => ({
+    id: `${type.id}-goal`, title: type.name, typeId: type.id, goalKind: 'consumption',
+    currentProgress: 0, targetProgress: (type.mediaTypes || []).reduce((sum, mediaType) => sum + (settings.targets?.[mediaType] || 12), 0),
+    sortOrder, status: 'active', createdAt: type.createdAt, updatedAt: type.updatedAt,
+  }));
 }
 
 function sourceHasCompleteDetails(source: Media) {
@@ -78,8 +118,7 @@ function completedWork(work: Draft) {
   return ['complete', 'final', 'published'].includes(work.status);
 }
 
-function longestDateStreak(values: string[]) {
-  const uniqueDates = [...new Set(values.map((value) => value.slice(0, 10)).filter(Boolean))].sort();
+function longestDateStreak(uniqueDates: string[]) {
   let longest = 0;
   let current = 0;
   let previous: number | undefined;
@@ -93,50 +132,55 @@ function longestDateStreak(values: string[]) {
   return longest;
 }
 
-function practiceLogValues(practices: Practice[]) {
-  return practices.flatMap((practice) => [
-    ...(practice.logDates || []),
-    ...(practice.logs || []).filter((log) => log.actionCompleted).map((log) => log.date),
-  ]);
+function countDistinctItems<T extends { id: string }>(items: readonly T[], matches: (item: T) => boolean) {
+  const ids = new Set<string>();
+  for (const item of items) if (item.id && matches(item)) ids.add(item.id);
+  return ids.size;
 }
 
-export function deriveAutomaticGoalProgress(item: GoalItem, kind: IntellectualGoalKind, context: GoalProgressContext): number | null {
+export function deriveAutomaticGoalProgress(item: GoalItem, kind: IntellectualGoalKind, context: GoalProgressContext, categoryMediaTypes?: Media['type'][]): number | null {
   const conceptId = item.relatedObjectIds?.conceptIds?.[0];
   const scopedConcept = context.concepts.find((concept) => concept.id === conceptId);
   const conceptNames = scopedConcept
-    ? [scopedConcept.name, ...(scopedConcept.aliases || [])].map((name) => name.toLowerCase())
+    ? [scopedConcept.name, ...(scopedConcept.aliases || [])].map((name) => name.trim().toLowerCase()).filter(Boolean)
     : [];
+  const matchesConcept = (ids?: string[], tags?: string[]) => {
+    if (!conceptId) return true;
+    if (ids?.length) return ids.includes(conceptId);
+    return Boolean(tags?.some((tag) => conceptNames.includes(tag.trim().toLowerCase())));
+  };
 
   if (kind === 'consumption') {
     const sourceId = item.relatedObjectIds?.sourceIds?.[0];
-    return context.sources.filter((source) => {
+    return countDistinctItems(context.sources, (source) => {
       if (sourceId && source.id !== sourceId) return false;
       if (item.sourceType && source.type !== item.sourceType) return false;
-      if (!hasConceptTag(source.tags, conceptNames)) return false;
+      if (!item.sourceType && categoryMediaTypes?.length && !categoryMediaTypes.includes(source.type)) return false;
+      if (!matchesConcept(source.conceptIds, source.tags)) return false;
       return item.sourceMeasure === 'fully_reflected' ? sourceHasCompleteDetails(source) : source.status === 'Finished';
-    }).length;
+    });
   }
 
   if (kind === 'inquiry') {
     const inquiryId = item.relatedObjectIds?.inquiryIds?.[0];
-    return context.inquiries.filter((inquiry) => {
+    return countDistinctItems(context.inquiries, (inquiry) => {
       if (inquiryId && inquiry.id !== inquiryId) return false;
-      if (conceptId && !(inquiry.conceptIds || []).includes(conceptId)) return false;
-      if (item.inquiryMeasure === 'answered') return ['answered', 'resolved'].includes(inquiry.status) && Boolean(inquiry.answer?.trim());
+      if (!matchesConcept(inquiry.conceptIds)) return false;
+      if (item.inquiryMeasure === 'answered') return Boolean(inquiry.answer?.trim());
       if (item.inquiryMeasure === 'resolved') return inquiry.status === 'resolved' && Boolean(inquiry.answer?.trim());
-      return !['archived', 'no_longer_meaningful'].includes(inquiry.status);
-    }).length;
+      return isInquiryActive(inquiry);
+    });
   }
 
   if (kind === 'position') {
     const positionId = item.relatedObjectIds?.positionIds?.[0];
-    return context.positions.filter((position) => {
+    return countDistinctItems(context.positions, (position) => {
       if (positionId && position.id !== positionId) return false;
-      if (!hasConceptTag(position.tags, conceptNames)) return false;
+      if (!matchesConcept(position.conceptIds, position.tags)) return false;
       if (item.positionMeasure === 'revised') return Boolean(position.lastRevisedAt || position.status === 'revised' || position.versionHistory?.some((version) => version.eventType === 'revised'));
-      if (item.positionMeasure === 'confident') return position.status !== 'abandoned' && position.confidence >= 100;
+      if (item.positionMeasure === 'confident') return isLivePosition(position) && position.confidence >= 100;
       return positionHasReviewActivity(position);
-    }).length;
+    });
   }
 
   if (kind === 'practice') {
@@ -145,21 +189,20 @@ export function deriveAutomaticGoalProgress(item: GoalItem, kind: IntellectualGo
     const matches = context.practices.filter((practice) => {
       if (practiceId && practice.id !== practiceId) return false;
       if (positionId && !(practice.positionIds || []).includes(positionId)) return false;
-      return hasConceptTag(practice.conceptTags, conceptNames);
+      return matchesConcept(practice.conceptIds, practice.conceptTags);
     });
-    const logValues = practiceLogValues(matches);
-    if (item.practiceMeasure === 'logged_days') return new Set(logValues.map((value) => value.slice(0, 10)).filter(Boolean)).size;
-    if (item.practiceMeasure === 'log_streak') return longestDateStreak(logValues);
-    return matches.filter(completedPractice).length;
+    if (item.practiceMeasure === 'logged_days') return new Set(matches.flatMap(practiceLogDates)).size;
+    if (item.practiceMeasure === 'log_streak') return matches.reduce((longest, practice) => Math.max(longest, longestDateStreak(practiceLogDates(practice))), 0);
+    return countDistinctItems(matches, completedPractice);
   }
 
   if (kind === 'expression') {
     const workId = item.relatedObjectIds?.workIds?.[0];
-    return context.works.filter((work) => {
+    return countDistinctItems(context.works, (work) => {
       if (workId && work.id !== workId) return false;
-      if (!hasConceptTag(work.conceptTags, conceptNames)) return false;
+      if (!matchesConcept(work.conceptIds, work.conceptTags)) return false;
       return item.workMeasure === 'published' ? work.status === 'published' : completedWork(work);
-    }).length;
+    });
   }
 
   return null;

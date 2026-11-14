@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Check, ChevronRight, Puzzle, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 import type { Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 import { buildThoughtGames, thoughtGameDayKey } from '@/lib/thought-games';
+import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
+import { readBrowserPreference, workspacePreferenceKey, writeBrowserPreference } from '@/lib/browser-preferences';
 
 interface ThoughtGamesPanelProps {
   concepts: Concept[];
@@ -21,6 +23,8 @@ interface ThoughtGamesPanelProps {
 
 export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links, onNavigate, variant = 'full' }: ThoughtGamesPanelProps) {
   const dayKey = thoughtGameDayKey();
+  const workspaceKey = useContext(NoesisWorkspaceKeyContext);
+  const completionKey = workspacePreferenceKey(workspaceKey, `thought-games:${dayKey}`);
   const games = useMemo(
     () => buildThoughtGames({ concepts, inquiries, positions, media, links, dayKey }),
     [concepts, dayKey, inquiries, links, media, positions]
@@ -34,12 +38,13 @@ export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(`noesis:thought-games:${dayKey}`);
-      setCompletedIds(stored ? JSON.parse(stored) : []);
+      const stored = completionKey ? readBrowserPreference(completionKey) : null;
+      const values: unknown = stored ? JSON.parse(stored) : [];
+      setCompletedIds(Array.isArray(values) ? values.filter((value): value is string => typeof value === 'string') : []);
     } catch {
       setCompletedIds([]);
     }
-  }, [dayKey]);
+  }, [completionKey]);
 
   const resetResponse = () => {
     setSelectedOption('');
@@ -51,11 +56,7 @@ export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links
     if (!game) return;
     const next = Array.from(new Set([...completedIds, game.id]));
     setCompletedIds(next);
-    try {
-      window.localStorage.setItem(`noesis:thought-games:${dayKey}`, JSON.stringify(next));
-    } catch {
-      // Completion is a convenience marker; the exercise remains usable without local storage.
-    }
+    if (completionKey) writeBrowserPreference(completionKey, JSON.stringify(next));
   };
 
   const advanceGame = (markComplete: boolean) => {
