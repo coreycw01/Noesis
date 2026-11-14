@@ -12,6 +12,12 @@ Run typecheck, lint, logic and security tests, Firebase emulator rules tests, pr
 
 ## Remaining Checks
 
+Standalone release decision: do not deploy this candidate yet. At 390 px with cache disabled, 150 ms simulated latency and 200 KiB/s download throughput, three Chromium runs reached visible Today at 5,321 / 5,337 / 5,328 ms on Webpack and 5,435 / 5,460 / 5,478 ms on standalone. Standalone saved 25 KiB transferred but was 132 ms slower at the median and used 43 more requests. This measures local demo rendering, not signed-in startup or production hosting. Reduce the standalone request overhead and repeat the comparison before reconsidering the switch.
+
+Standalone Chromium sign-in passed against the local Firebase Auth and Firestore emulators: a disposable account signed in through the real email form, opened the authenticated workspace shell, and stayed signed in after reload. Use `scripts/probe-workspace-runtime.ts --serve --local-auth` with the local emulators and `scripts/smoke-standalone-auth.js` to repeat. This does not verify Google sign-in, hosted saves or Gemini.
+
+Standalone experiment: the styled local entry is about 313 KiB of initial code in the build estimate. Cache-disabled Chromium at 390 px measured 605 KiB transferred and 2,048 KiB decoded through visible Today (67 JS/CSS requests), compared with 630 KiB transferred and 2,128 KiB decoded (24 requests) on the current Webpack build. The extra 43 requests merit throttled testing before adopting this approach. Inquiry deep-link rendering and Praxis Back, Forward, and reload passed. This offline experiment does not change the release budget or verify authentication.
+
 The release audit now prints the shared framework baseline: 443 KiB raw in the current Webpack build, before route assets. The startup thresholds are unchanged and still fail. A fresh production dependency audit could not reach the npm advisory registry from this environment; obtain a successful audit before release.
 
 Production Chromium passed local demo persistence at 390 and 1440 px: save and reload inquiry stakes, save the Work title, autosave body text without clicking Save, reload, delete the Work, restore it from Settings > Data, and reopen it with both title and body intact. Repeat in a disposable local demo session with `scripts/smoke-workspace-persistence.js`. This does not verify cloud persistence.
