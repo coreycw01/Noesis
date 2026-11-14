@@ -9,7 +9,7 @@ export interface AnnotationsRoutePageProps {
   concepts: Concept[];
   positions: VaultEntry[];
   inquiries: Question[];
-  onUpdateAnnotation: (sourceId: string, annotation: Annotation) => void;
+  onUpdateAnnotation: (sourceId: string, annotation: Annotation, approval?: import('@/lib/annotation-ai-review').AnnotationReviewApproval) => void | Promise<Annotation | void>;
   onDeleteAnnotation: (sourceId: string, annotationId: string) => Promise<void>;
   onCreatePosition: (data: {
     title: string;
@@ -19,8 +19,8 @@ export interface AnnotationsRoutePageProps {
     sourceAnnotationId?: string;
     annotationRefs?: Array<{ sourceId: string; annotationId: string }>;
     position?: { title: string; statement: string; description: string; confidence: number };
-  }) => { positionId: string; insightId: string; title: string };
-  onCreateInquiry: (data: { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Question;
+  }) => Promise<{ positionId: string; insightId: string; title: string }>;
+  onCreateInquiry: (data: { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<Question>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onNavigate: (view: NoesisView, options?: {

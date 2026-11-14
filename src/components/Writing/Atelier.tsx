@@ -1,5 +1,9 @@
 "use client";
 
+import { workspaceScrollBehavior } from '@/lib/appearance';
+
+import './work-tool-window.css';
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Camera,
@@ -8,12 +12,14 @@ import {
   CirclePause,
   CirclePlay,
   Cloud,
+  CloudAlert,
   Download,
   Eraser,
   ExternalLink,
   FilePlus2,
   FileText,
   ImageIcon,
+  Focus,
   Grid3X3,
   History,
   Link2,
@@ -53,6 +59,9 @@ import { DocumentCanvas } from './DocumentCanvas';
 import { DocsPage } from './DocsPage';
 import { DrawingOverlayToolbar } from './DrawingOverlayToolbar';
 import { FloatingWorkToolWindow } from './FloatingWorkToolWindow';
+import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
+import { contextDeskWorkTarget } from '@/lib/context-desk-work';
 import { PageSettingsControl, PageViewControls } from './PageViewControls';
 import { isStructuredWorkStyle, StructuredWorkSurface, workToolLabel, type StructuredWorkStyle } from './StructuredWorkSurface';
 import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkDocumentPage, WorkTemplateData, WorkToolSection, WritingStyle } from '@/lib/types';
@@ -69,7 +78,11 @@ import { authenticatedFetch } from '@/lib/authenticated-fetch';
 import { cleanupReplacedDraftAssets, persistInlineDraftAssets, privateAssetDownloadUrl, uploadPrivateAsset, validateAssetBlob } from '@/lib/storage-assets';
 import { saveDemoRecording } from '@/lib/demo-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
+import { reportSlowAcknowledgement, requireWorkspaceConnection, WorkspaceOfflineError } from '@/lib/workspace-connectivity';
+import { canApplyWorkRecovery, isNewerWorkVersion, makeWorkRecovery, readWorkRecovery, removeWorkRecovery, tabRecoveryStorage, writeWorkRecovery, type WorkRecovery, type WorkVersion } from '@/lib/work-recovery';
+import { WorkspaceRecordChangedError } from '@/lib/workspace-mutations';
 import { removeDocumentPageSettings, resolveDocumentPageSettings, updateDocumentPageSettings } from '@/lib/work-page-settings';
+import { serializeWorkToolMarkdown } from '@/lib/work-tool-markdown';
 
 export type PageViewMode = DocumentViewMode;
 export type PageSize = DocumentPageSize;
@@ -98,7 +111,7 @@ interface AtelierProps {
   concepts: Concept[];
   writingDefaults: UserPreferences['writingDefaults'];
   onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
-  onUpdateDraft: (draft: Draft) => void | Promise<void>;
+  onUpdateDraft: (draft: Draft, expectedVersion?: WorkVersion) => Promise<Draft>;
   onDeleteDraft: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   focusedDraftId?: string | null;
@@ -168,6 +181,7 @@ const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'overlayAsset',
   'writingStyle',
   'externalDoc',
+  'aiReviewHistory',
   'conceptTags',
   'sourceIds',
   'questionIds',
@@ -242,6 +256,7 @@ function BufferedStructuredWorkSurface({
 }) {
   const [buffer, setBuffer] = useState(data);
   const onCommitRef = useRef(onCommit);
+  const pendingBufferRef = useRef<WorkTemplateData | null>(null);
   const propSignature = useMemo(() => JSON.stringify(data), [data]);
   const bufferSignature = useMemo(() => JSON.stringify(buffer), [buffer]);
   const previousPropSignatureRef = useRef(propSignature);
@@ -249,6 +264,13 @@ function BufferedStructuredWorkSurface({
   useEffect(() => {
     onCommitRef.current = onCommit;
   }, [onCommit]);
+
+  const flushBuffer = useCallback(() => {
+    const pending = pendingBufferRef.current;
+    if (!pending) return;
+    pendingBufferRef.current = null;
+    onCommitRef.current(pending);
+  }, []);
 
   useEffect(() => {
     if (propSignature === previousPropSignatureRef.current) return;
@@ -258,11 +280,11 @@ function BufferedStructuredWorkSurface({
 
   useEffect(() => {
     if (bufferSignature === propSignature) return;
-    const timeout = window.setTimeout(() => onCommitRef.current(buffer), 350);
+    const timeout = window.setTimeout(flushBuffer, 350);
     return () => window.clearTimeout(timeout);
-  }, [buffer, bufferSignature, propSignature]);
+  }, [bufferSignature, flushBuffer, propSignature]);
 
-  return <StructuredWorkSurface {...surfaceProps} data={buffer} onChange={setBuffer} />;
+  return <div className="contents" onBlurCapture={flushBuffer}><StructuredWorkSurface {...surfaceProps} data={buffer} onChange={(next) => { pendingBufferRef.current = next; setBuffer(next); }} /></div>;
 }
 
 function splitWorkLines(value?: string) {
@@ -364,7 +386,8 @@ function workStatusLabel(draft: Draft) {
 }
 
 export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, questions, concepts, writingDefaults, onAddDraft, onUpdateDraft, onDeleteDraft, onAddConcept, focusedDraftId, onOpenDraftRoute }: AtelierProps) {
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [localActiveId, setActiveId] = useState<string | null>(null);
+  const activeId = onOpenDraftRoute ? focusedDraftId : localActiveId;
   const [filter, setFilter] = useState<WorkFilter>('all');
   const [workTab, setWorkTab] = useState<WorkTab>('all');
   const [search, setSearch] = useState('');
@@ -375,6 +398,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [docDraft, setDocDraft] = useState({ title: '', url: '', provider: 'google_docs' as ExternalDocProvider, autoSync: true });
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [draftBuffer, setDraftBuffer] = useState<Draft | null>(null);
+  const [recoverableDraft, setRecoverableDraft] = useState<WorkRecovery | null>(null);
+  const recoveryBaseRef = useRef<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Draft | null>(null);
 
@@ -383,7 +408,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [paperColor, setPaperColor] = useState<PaperColor>('blank');
   const [paperPattern, setPaperPattern] = useState<PaperPattern>('none');
   const [currentPageId, setCurrentPageId] = useState('main');
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'waiting' | 'unsaved'>('saved');
   const [writingTool, setWritingTool] = useState<DrawingTool>('pen');
   const [writingStrokeColor, setWritingStrokeColor] = useState('#4c1d95');
   const [writingGradientColor, setWritingGradientColor] = useState<string | null>(null);
@@ -393,16 +418,18 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [focusedToolId, setFocusedToolId] = useState<string | null>(null);
   const [drawingRedoByPage, setDrawingRedoByPage] = useState<Record<string, DrawingStroke[]>>({});
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
-  const [railCollapsed, setRailCollapsed] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  const [writingFocus, setWritingFocus] = useState(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const latestDraftRef = useRef<Draft | null>(null);
   const autosaveErrorShownRef = useRef(false);
   const autosavePausedRef = useRef(false);
+  const conflictingWorkIdRef = useRef<string | null>(null);
 
   const { toast } = useToast();
   const activeFromStore = drafts.find((draft) => draft.id === activeId) || null;
-  const active = draftBuffer || activeFromStore;
+  const active = draftBuffer?.id === activeId ? draftBuffer : activeFromStore;
   latestDraftRef.current = active;
   const { url: activeOverlayUrl } = usePrivateAssetUrl(
     active?.overlayAsset?.storagePath,
@@ -413,7 +440,16 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     active?.canvasData || '',
   );
   const activeCategory = active ? active.workCategory || workCategoryForDraft(active.type) : null;
+  const recoveryEnabled = activeCategory === 'writing' || activeCategory === 'notes';
+  const activeWorkId = activeFromStore?.id;
+  const pendingRecovery = recoverableDraft && recoverableDraft.draft.id === activeWorkId
+    && draftSaveSignature(recoverableDraft.draft) !== draftSaveSignature(activeFromStore)
+    ? recoverableDraft : null;
   const isDocumentSurface = activeCategory === 'writing' || active?.type === 'drawing' || active?.type === 'drawing_note';
+
+  useEffect(() => {
+    setWritingFocus(isDocumentSurface);
+  }, [active?.id, isDocumentSurface]);
   // Older drawing records predate document formats. They must remain freeform
   // visual documents instead of inheriting whatever structured format is now
   // selected as the account-wide default.
@@ -423,10 +459,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     () => toolSectionsForDraft(active, activeWritingStyle),
     [active, activeWritingStyle],
   );
-  const activeStoreSignature = useMemo(() => draftSaveSignature(activeFromStore), [activeFromStore]);
-  const draftBufferSignature = useMemo(() => draftSaveSignature(draftBuffer), [draftBuffer]);
 
   useEffect(() => {
+    if (onOpenDraftRoute) return;
     if (!focusedDraftId) {
       setActiveId(null);
       return;
@@ -434,7 +469,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     if (drafts.some((draft) => draft.id === focusedDraftId)) {
       setActiveId(focusedDraftId);
     }
-  }, [drafts, focusedDraftId]);
+  }, [drafts, focusedDraftId, onOpenDraftRoute]);
 
   useEffect(() => {
     setEditorRibbon(activeFromStore?.activeRibbon || 'writing');
@@ -447,9 +482,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
   useEffect(() => {
     try {
-      setRailCollapsed(window.localStorage.getItem('noesis-works-rail-collapsed') === 'true');
+      setRailCollapsed(window.localStorage.getItem('noesis-works-rail-collapsed') !== 'false');
     } catch {
-      setRailCollapsed(false);
+      setRailCollapsed(true);
     }
   }, []);
 
@@ -515,11 +550,47 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     if (!base) return;
     const next = { ...base, ...patch, dateUpdated: today() };
     if (draftSaveSignature(next) === draftSaveSignature(base)) return;
+    if (recoveryBaseRef.current?.id !== base.id) recoveryBaseRef.current = activeFromStore;
     latestDraftRef.current = next;
     setDraftBuffer(next);
     setDirty(true);
     setSaveStatus('unsaved');
   }, [activeFromStore]);
+
+  useEffect(() => {
+    recoveryBaseRef.current = null;
+    autosavePausedRef.current = false;
+    conflictingWorkIdRef.current = null;
+    const storage = tabRecoveryStorage();
+    setRecoverableDraft(recoveryEnabled && storage && activeWorkId ? readWorkRecovery(storage, uid, activeWorkId) : null);
+  }, [activeWorkId, recoveryEnabled, uid]);
+
+  useEffect(() => {
+    if (!recoveryEnabled || !dirty || !draftBuffer) return;
+    const storage = tabRecoveryStorage();
+    if (!storage) return;
+    const persist = () => {
+      const base = recoveryBaseRef.current;
+      const latest = latestDraftRef.current;
+      if (!base || !latest || base.id !== draftBuffer.id || latest.id !== base.id) return;
+      if (draftSaveSignature(latest) === draftSaveSignature(base)) {
+        removeWorkRecovery(storage, uid, base.id);
+        return;
+      }
+      writeWorkRecovery(storage, uid, makeWorkRecovery(base, latest));
+    };
+    const timer = window.setTimeout(persist, 400);
+    window.addEventListener('pagehide', persist);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pagehide', persist);
+    };
+  }, [dirty, draftBuffer, recoveryEnabled, uid]);
+
+  const clearRecovery = (id: string) => {
+    const storage = tabRecoveryStorage();
+    if (storage) removeWorkRecovery(storage, uid, id);
+  };
 
   const updateDocumentSettings = useCallback((patch: Partial<DocumentSettings>) => {
     if (!active) return;
@@ -551,18 +622,49 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     else setActiveId(null);
   }, [onOpenDraftRoute]);
 
+  const preserveConflictingDraft = useCallback((draft: Draft) => {
+    const base = recoveryBaseRef.current;
+    if (!base || base.id !== draft.id || latestDraftRef.current?.id !== draft.id) return;
+    const recovery = makeWorkRecovery(base, latestDraftRef.current);
+    const storage = tabRecoveryStorage();
+    if (recoveryEnabled && storage) writeWorkRecovery(storage, uid, recovery);
+    autosavePausedRef.current = true;
+    conflictingWorkIdRef.current = draft.id;
+    setRecoverableDraft(recovery);
+  }, [recoveryEnabled, uid]);
+
+  const commitStudioDraft = useCallback(async (draft: Draft) => {
+    const base = recoveryBaseRef.current?.id === draft.id ? recoveryBaseRef.current : activeFromStore;
+    if (!base || base.id !== draft.id) throw new WorkspaceRecordChangedError();
+    if (!isReviewWorkspace) requireWorkspaceConnection();
+    const prepared = isReviewWorkspace ? draft : await persistInlineDraftAssets(uid, draft);
+    try {
+      const saved = await onUpdateDraft(prepared, base);
+      if (latestDraftRef.current?.id === saved.id) recoveryBaseRef.current = saved;
+      if (!isReviewWorkspace) await cleanupReplacedDraftAssets(base, saved).catch(() => undefined);
+      return saved;
+    } catch (error) {
+      if (error instanceof WorkspaceRecordChangedError) {
+        if (!isReviewWorkspace) await cleanupReplacedDraftAssets(prepared, draft).catch(() => undefined);
+        preserveConflictingDraft(draft);
+      }
+      throw error;
+    }
+  }, [activeFromStore, isReviewWorkspace, onUpdateDraft, preserveConflictingDraft, uid]);
+
   const saveActive = useCallback(async (patch?: Partial<Draft>) => {
-    if (!active) return null;
+    if (!active || pendingRecovery || conflictingWorkIdRef.current === active.id) return null;
+    if (patch) updateActive(patch);
     autosavePausedRef.current = false;
     const requestedId = active.id;
     const task = saveQueueRef.current.catch(() => undefined).then(async () => {
     const base = latestDraftRef.current;
-    if (!base || base.id !== requestedId) return null;
+    if (!base || base.id !== requestedId || conflictingWorkIdRef.current === requestedId) return null;
     const signatureBeforeSave = draftSaveSignature(base);
-    const patched = { ...base, ...patch };
+    const patched = base;
     const priorVersions = base.versionHistory || [];
     const latest = priorVersions[priorVersions.length - 1];
-    const shouldSnapshot = dirty && (!latest
+    const shouldSnapshot = (dirty || patch) && (!latest
       || latest.body !== patched.body
       || latest.title !== patched.title
       || JSON.stringify(latest.templateData || {}) !== JSON.stringify(patched.templateData || {})
@@ -585,36 +687,44 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         : priorVersions,
     };
     setSaveStatus('saving');
+    const stopWaiting = reportSlowAcknowledgement(() => setSaveStatus('waiting'));
     try {
-      // Demo workspaces save data URLs locally; they do not have a user Storage path.
-      const persistedDraft = isReviewWorkspace ? nextDraft : await persistInlineDraftAssets(uid, nextDraft);
-      await onUpdateDraft(persistedDraft);
-      if (!isReviewWorkspace) await cleanupReplacedDraftAssets(base, persistedDraft).catch(() => undefined);
+      const persistedDraft = await commitStudioDraft(nextDraft);
       if (latestDraftRef.current?.id === requestedId) {
         const unchanged = draftSaveSignature(latestDraftRef.current) === signatureBeforeSave;
         if (unchanged) {
+          const storage = tabRecoveryStorage();
+          if (storage) removeWorkRecovery(storage, uid, requestedId);
           latestDraftRef.current = persistedDraft;
           setDraftBuffer(persistedDraft);
+        } else {
+          const withSavedHistory = { ...latestDraftRef.current, versionHistory: persistedDraft.versionHistory };
+          latestDraftRef.current = withSavedHistory;
+          setDraftBuffer(withSavedHistory);
         }
         setDirty(!unchanged);
         setSaveStatus(unchanged ? 'saved' : 'unsaved');
       }
-      autosaveErrorShownRef.current = false;
-      autosavePausedRef.current = false;
+      if (latestDraftRef.current?.id === requestedId) {
+        autosaveErrorShownRef.current = false;
+        autosavePausedRef.current = false;
+      }
       return persistedDraft;
     } catch (error) {
-      setSaveStatus('unsaved');
+      if (latestDraftRef.current?.id === requestedId) setSaveStatus('unsaved');
       toast({
         title: 'Work not saved',
         description: error instanceof Error ? error.message : 'The work could not be saved safely.',
         variant: 'destructive',
       });
       return null;
+    } finally {
+      stopWaiting();
     }
     });
     saveQueueRef.current = task.then(() => undefined, () => undefined);
     return task;
-  }, [active, dirty, isReviewWorkspace, onUpdateDraft, toast, uid]);
+  }, [active, commitStudioDraft, dirty, pendingRecovery, toast, uid, updateActive]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -646,18 +756,10 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const exportManuscript = () => {
     if (!active) return;
     const template = active.templateData;
-    const serializeTool = (label: string, data: { fields?: Record<string, string>; branches?: string[]; timeline?: Array<{ date: string; branch?: string; title: string; detail: string }> }) => {
-      const sections = [
-      ...Object.entries(data.fields || {}).map(([field, value]) => `### ${field.replace(/_/g, ' ')}\n\n${value}`),
-      ...(data.branches?.filter(Boolean).length ? [`### Branches\n\n${data.branches.filter(Boolean).map((branch) => `- ${branch}`).join('\n')}`] : []),
-      ...(data.timeline?.length ? [`### Timeline\n\n${data.timeline.map((entry) => `#### ${entry.date || 'Untitled stage'}${entry.branch ? ` · ${entry.branch}` : ''}: ${entry.title || 'Untitled event'}\n${entry.detail}`).join('\n\n')}`] : []),
-      ].filter(Boolean);
-      return sections.length ? [`## ${label}`, ...sections].join('\n\n') : '';
-    };
     const structuredContent = template
       ? [
-          serializeTool('Document tool', template),
-          ...(template.sections || []).map((section) => serializeTool(section.tool.replace(/_/g, ' '), section.data)),
+          serializeWorkToolMarkdown('Document tool', template),
+          ...(template.sections || []).map((section) => serializeWorkToolMarkdown(workToolLabel(section.tool), section.data)),
         ].filter(Boolean).join('\n\n')
       : '';
     const proseContent = [
@@ -780,11 +882,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   };
 
   const detachExternalDoc = () => {
-    if (!active) return;
-    const { externalDoc, ...rest } = active;
-    setDraftBuffer(rest);
-    setDirty(true);
-    setSaveStatus('unsaved');
+    updateActive({ externalDoc: null });
   };
 
   const syncExternalDoc = async (draft: Draft) => {
@@ -831,16 +929,18 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       return;
     }
     if (!draftBuffer || draftBuffer.id !== activeFromStore.id) {
+      recoveryBaseRef.current = activeFromStore;
       setDraftBuffer(activeFromStore);
       setDirty(false);
       setSaveStatus('saved');
       return;
     }
-    if (!dirty && activeStoreSignature !== draftBufferSignature) {
+    if (!dirty && isNewerWorkVersion(activeFromStore, recoveryBaseRef.current ?? draftBuffer)) {
+      recoveryBaseRef.current = activeFromStore;
       setDraftBuffer(activeFromStore);
       setSaveStatus('saved');
     }
-  }, [activeFromStore, activeStoreSignature, draftBuffer, draftBufferSignature, dirty]);
+  }, [activeFromStore, draftBuffer, dirty]);
 
   useEffect(() => {
     if (!active) return;
@@ -852,34 +952,36 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   }, [active?.id, activeWritingStyle]);
 
   useEffect(() => {
-    if (!dirty || !draftBuffer) return;
+    if (!dirty || !draftBuffer || pendingRecovery) return;
     if (autosavePausedRef.current) return;
-    if (draftBufferSignature === activeStoreSignature) {
-      setDirty(false);
-      setSaveStatus('saved');
-      return;
-    }
     const timeout = window.setTimeout(() => {
-      setSaveStatus('saving');
       saveQueueRef.current = saveQueueRef.current
         .catch(() => undefined)
         .then(async () => {
           const latest = latestDraftRef.current;
-          if (!latest || latest.id !== draftBuffer.id) return;
+          if (!latest || latest.id !== draftBuffer.id || autosavePausedRef.current) return;
+          setSaveStatus('saving');
           const signatureBeforeSave = draftSaveSignature(latest);
           const nextDraft = {
             ...latest,
             dateUpdated: today(),
           };
-          // Demo workspaces retain inline assets in local demo data rather than uploading them.
-          const persisted = isReviewWorkspace ? nextDraft : await persistInlineDraftAssets(uid, nextDraft);
-          await onUpdateDraft(persisted);
-          if (!isReviewWorkspace) await cleanupReplacedDraftAssets(activeFromStore || latest, persisted).catch(() => undefined);
+          const stopWaiting = reportSlowAcknowledgement(() => setSaveStatus('waiting'));
+          let persisted: Draft;
+          try {
+            persisted = await commitStudioDraft(nextDraft);
+          } finally {
+            stopWaiting();
+          }
           setDraftBuffer((current) => {
             if (!current || current.id !== persisted.id) return current;
             return draftSaveSignature(current) === signatureBeforeSave ? persisted : current;
           });
+          if (latestDraftRef.current?.id !== persisted.id) return;
           if (draftSaveSignature(latestDraftRef.current) === signatureBeforeSave) {
+            const storage = tabRecoveryStorage();
+            if (storage) removeWorkRecovery(storage, uid, persisted.id);
+            latestDraftRef.current = persisted;
             setDirty(false);
             setSaveStatus('saved');
           } else {
@@ -887,20 +989,21 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
           }
         })
         .catch((error) => {
+          if (latestDraftRef.current?.id !== draftBuffer.id) return;
           setSaveStatus('unsaved');
           autosavePausedRef.current = true;
           if (!autosaveErrorShownRef.current) {
             autosaveErrorShownRef.current = true;
             toast({
-              title: 'Autosave paused',
-              description: `${error instanceof Error ? error.message : 'Your edits remain in this tab.'} Use Save to retry.`,
+              title: error instanceof WorkspaceOfflineError ? 'Work is unsaved while offline' : 'Autosave paused',
+              description: error instanceof WorkspaceRecordChangedError ? 'A newer version is saved. Download your local copy before switching versions.' : `${error instanceof Error ? error.message : 'Your edits remain in this tab.'} Use Save to retry.`,
               variant: 'destructive',
             });
           }
         });
     }, 750);
     return () => window.clearTimeout(timeout);
-  }, [activeStoreSignature, draftBuffer, draftBufferSignature, dirty, isReviewWorkspace, onUpdateDraft, toast, uid]);
+  }, [commitStudioDraft, draftBuffer, dirty, pendingRecovery, toast, uid]);
 
   useEffect(() => {
     if (!active) return;
@@ -978,30 +1081,15 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         height: item.window?.height ?? 430,
         minimized: item.window?.minimized ?? false,
         zIndex: item.window?.zIndex ?? 1,
+        ...item.window,
         ...patch,
       },
     } : item));
   }, [updateToolSections, writingDefaults.writingStyle]);
 
   const updateToolSectionPlacement = useCallback((sectionId: string, placement: NonNullable<NonNullable<WorkToolSection['window']>['placement']>) => {
-    const current = latestDraftRef.current;
-    if (!current) return;
-    const currentStyle = current.writingStyle
-      || (current.type === 'drawing' || current.type === 'drawing_note' ? 'blank_paper' : writingDefaults.writingStyle);
-    const sections = toolSectionsForDraft(current, currentStyle);
-    updateToolSections(sections.map((item) => item.id === sectionId ? {
-      ...item,
-      window: {
-        x: item.window?.x ?? 72,
-        y: item.window?.y ?? 220,
-        width: item.window?.width ?? Math.round(760 * ((item.widthPercent || 80) / 100)),
-        height: item.window?.height ?? 430,
-        minimized: item.window?.minimized ?? false,
-        zIndex: item.window?.zIndex ?? 1,
-        placement,
-      },
-    } : item));
-  }, [updateToolSections, writingDefaults.writingStyle]);
+    updateToolSectionWindow(sectionId, { placement });
+  }, [updateToolSectionWindow]);
 
   const activeDocumentPages = useMemo(() => active?.documentPages || [], [active?.documentPages]);
 
@@ -1058,7 +1146,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     };
     updateDocumentPages([...activeDocumentPages, page]);
     setCurrentPageId(page.id);
-    window.setTimeout(() => document.getElementById(`work-page-${page.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    window.setTimeout(() => document.getElementById(`work-page-${page.id}`)?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'start' }), 0);
   }, [activeDocumentPages, updateDocumentPages]);
   const updateDocumentPage = useCallback((pageId: string, patch: Partial<WorkDocumentPage>) => {
     const pages = latestDraftRef.current?.documentPages || [];
@@ -1106,18 +1194,18 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       pageSettings: removeDocumentPageSettings(current.pageSettings, pageId),
     });
     setCurrentPageId('main');
-    window.setTimeout(() => document.getElementById('work-page-main')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    window.setTimeout(() => document.getElementById('work-page-main')?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'start' }), 0);
   }, [updateActive]);
   const jumpToDocumentPage = useCallback((pageId: string) => {
     setCurrentPageId(pageId);
-    document.getElementById(`work-page-${pageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById(`work-page-${pageId}`)?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'start' });
   }, []);
   const jumpToDocumentTool = useCallback((section: WorkToolSection) => {
     const pageId = section.pageId || 'main';
     setCurrentPageId(pageId);
     setFocusedToolId(section.id);
     updateToolSectionWindow(section.id, { minimized: false });
-    document.getElementById(`work-page-${pageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById(`work-page-${pageId}`)?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'start' });
   }, [updateToolSectionWindow]);
   const activeSources = useMemo(() => {
     if (!active) return [];
@@ -1216,33 +1304,82 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   };
 
   if (active) {
+    const pageTools = activeToolSections.filter((section) => (section.pageId || 'main') === resolvedCurrentPageId);
+    const recoveryCanApply = Boolean(pendingRecovery && activeFromStore && !dirty && canApplyWorkRecovery(activeFromStore, pendingRecovery));
     return (
       <div className="flex-1 flex flex-col h-full bg-background text-foreground overflow-hidden font-body">
-        <header className="border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur z-50 sm:px-5">
+        {pendingRecovery && <section aria-label="Unsaved work recovery" className="shrink-0 border-b border-border bg-surface px-4 py-2">
+          <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-2">
+            <p role="status" className="text-sm">{recoveryCanApply ? 'Unsaved edits are available in this tab.' : 'The recovery copy cannot replace the current edits. Download it to keep both versions.'}</p>
+            <div className="flex flex-wrap gap-2">
+              {recoveryCanApply && <Button size="sm" onClick={() => {
+                if (!activeFromStore) return;
+                recoveryBaseRef.current = activeFromStore;
+                autosavePausedRef.current = true;
+                latestDraftRef.current = pendingRecovery.draft;
+                setDraftBuffer(pendingRecovery.draft);
+                setDirty(true);
+                setSaveStatus('unsaved');
+                setRecoverableDraft(null);
+              }}>Restore unsaved edits</Button>}
+              <Button size="sm" variant="outline" onClick={() => {
+                const copy = dirty ? active : pendingRecovery.draft;
+                const url = URL.createObjectURL(new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' }));
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'noesis-work-recovery.json';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+              }}>Download copy</Button>
+              <Button size="sm" variant="ghost" onClick={() => {
+                clearRecovery(active.id);
+                conflictingWorkIdRef.current = null;
+                autosavePausedRef.current = false;
+                if (dirty && activeFromStore) {
+                  recoveryBaseRef.current = activeFromStore;
+                  latestDraftRef.current = activeFromStore;
+                  setDraftBuffer(activeFromStore);
+                  setDirty(false);
+                  setSaveStatus('saved');
+                }
+                setRecoverableDraft(null);
+              }}>Keep current document</Button>
+            </div>
+          </div>
+        </section>}
+        <header data-noesis-route-focus="" tabIndex={-1} aria-labelledby="noesis-work-heading" className="border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur z-40 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring sm:px-5 md:z-50">
+          <h1 id="noesis-work-heading" className="sr-only">{active.title || `Untitled ${activeTypeLabel}`}</h1>
           <div className="mx-auto flex max-w-[1800px] flex-col gap-2">
             <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap sm:items-start sm:justify-between">
               <button
+                type="button"
+                aria-label="Back to Works"
+                title="Back to Works"
                 onClick={closeDraft}
-                className="flex h-9 items-center gap-1 rounded-full px-2 font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-[var(--button-radius)] px-2 font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ChevronLeft className="size-4" /> <span className="hidden sm:inline">Works</span>
               </button>
               <Input
-                className="min-w-0 flex-1 border-none bg-transparent p-0 font-headline text-lg font-bold italic text-foreground shadow-none outline-none placeholder:text-muted-foreground/30 focus-visible:ring-0 sm:min-w-[180px] sm:text-2xl"
+                aria-label="Work title"
+                className="min-w-0 flex-1 border-none bg-transparent p-0 font-body text-base font-medium text-foreground shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-1 sm:min-w-[180px] sm:text-lg"
                 value={active.title}
                 onChange={(event) => updateActive({ title: event.target.value })}
                 placeholder={`Untitled ${activeTypeLabel}`}
               />
               <div className="flex shrink-0 items-center justify-end gap-1 border-l border-border/30 pl-2 sm:gap-2">
+                {isDocumentSurface && <Button type="button" variant="ghost" size="icon" className="size-9" aria-label={writingFocus ? 'Leave writing focus' : 'Enter writing focus'} aria-pressed={writingFocus} title={writingFocus ? 'Leave writing focus' : 'Writing focus'} onClick={() => setWritingFocus((value) => !value)}><Focus className="size-4" /></Button>}
                 {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Open' : 'Connect'}</Button>}
-                <div className="hidden items-center gap-2 rounded-[var(--button-radius)] border border-border/30 bg-muted/10 px-3 py-1.5 sm:flex">
+                <div role="status" className="sr-only items-center gap-2 rounded-[var(--button-radius)] border border-border/30 bg-muted/10 px-3 py-1.5 sm:not-sr-only sm:flex">
                   <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
                   <span className="font-code text-[8px] uppercase tracking-widest font-bold text-muted-foreground">
-                    {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}
+                    {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : saveStatus === 'waiting' ? 'Waiting for server' : 'Unsaved'}
                   </span>
                 </div>
-                <Button aria-label={dirty ? 'Save work with unsaved changes' : 'Save work'} variant="outline" size="sm" disabled={saveStatus === 'saving'} onClick={() => saveActive()} className="size-9 rounded-md border-border/60 bg-card px-0 font-bold shadow-sm sm:h-9 sm:w-auto sm:px-4">
-                  <Save className="size-4 sm:mr-2" /> <span className="hidden sm:inline">{dirty ? 'Save*' : 'Save'}</span>
+                <Button aria-label={saveStatus === 'waiting' ? 'Work is waiting for server' : dirty ? 'Save work with unsaved changes' : 'Save work'} variant="outline" size="sm" disabled={Boolean(pendingRecovery) || saveStatus === 'saving' || saveStatus === 'waiting'} onClick={() => saveActive()} className="size-9 rounded-md border-border/60 bg-card px-0 font-bold shadow-sm sm:h-9 sm:w-auto sm:px-4">
+                  {saveStatus === 'waiting' ? <CloudAlert className="size-4 sm:mr-2" /> : <Save className="size-4 sm:mr-2" />} <span className="hidden sm:inline">{dirty ? 'Save*' : 'Save'}</span>
                 </Button>
                 {activeCategory === 'writing' && (
                     <Button variant="outline" size="sm" onClick={() => setIsVersionHistoryOpen(true)} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" title="Version history">
@@ -1272,7 +1409,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
             </div>
 
-            <div className="flex min-w-0 flex-wrap items-center gap-2 border-t border-border/20 pt-2">
+            <div className={cn('flex min-w-0 flex-wrap items-center gap-2 border-t border-border/20 pt-2', writingFocus && 'hidden')}>
               <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
                 <SelectTrigger className="h-8 w-28 shrink-0 rounded-md border-border/40 bg-background px-2 font-code text-[9px] font-bold uppercase tracking-wider shadow-sm">
                   <SelectValue />
@@ -1294,13 +1431,13 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
               <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="size-8 shrink-0 rounded-md bg-card px-0 sm:h-9 sm:w-auto sm:rounded-full sm:px-3" aria-label="Open studio reel" title="Studio reel">
-                    <NotebookPen className="size-4 sm:mr-2" /> <span className="hidden sm:inline">Studio reel</span>
+                  <Button variant="ghost" size="sm" className="h-9 shrink-0 px-2" aria-label="Open linked context" title="Linked context">
+                    <NotebookPen className="mr-2 size-4" /> <span>Context</span>
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto rounded-t-2xl border-border bg-background p-4">
                   <SheetHeader className="pb-3 text-left">
-                    <SheetTitle className="font-headline text-2xl font-bold italic">Studio reel</SheetTitle>
+                    <SheetTitle className="font-headline text-2xl font-bold italic">Linked context</SheetTitle>
                   </SheetHeader>
                   <WorkRailContent
                     sources={activeSources}
@@ -1310,11 +1447,17 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     annotations={unusedAnnotations}
                     coherenceSignals={coherenceSignals}
                   />
+                  <AiAssistedHistory entries={active.aiReviewHistory || []} onChange={async (entries) => {
+                    if (!await saveActive({ aiReviewHistory: entries })) throw new Error('Could not save this review history.');
+                  }} />
                 </SheetContent>
               </Sheet>
             </div>
 
-            <div className="flex flex-col gap-2">
+            {active.bodyProvenance && <div className="flex">
+                <AiProvenanceBadge provenance={active.bodyProvenance} target={contextDeskWorkTarget(active.id)} title="Work document" />
+            </div>}
+            <div className={cn('flex flex-col gap-2', writingFocus && 'hidden')}>
               {showExternalDocControls && active.externalDoc && (
                 <div className="noesis-recommendation flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -1412,9 +1555,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
         <div className={cn(
           "grid min-h-0 flex-1 grid-cols-1 overflow-hidden",
-          railCollapsed ? "xl:grid-cols-[minmax(0,1fr)_64px]" : "xl:grid-cols-[minmax(0,1fr)_340px]"
+          !writingFocus && !railCollapsed && "xl:grid-cols-[minmax(0,1fr)_340px]"
         )}>
-          <div className="relative min-h-0 overflow-hidden">
+          <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden">
             {isDocumentSurface ? (
               <>
                 {editorRibbon === 'drawing' ? (
@@ -1443,6 +1586,25 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   setEditorRibbon('drawing');
                   updateActive({ activeRibbon: 'drawing' });
                 }} onInsertTool={addDocumentTool} onUploadImage={uploadInlineImage} />}
+                {pageTools.length > 0 && (
+                  <div className="shrink-0 border-b border-border/40 px-2 md:hidden">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="ghost" className="min-h-11">
+                          <ListTree className="size-4" /> Page tools ({pageTools.length})
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        {pageTools.map((section) => (
+                          <DropdownMenuItem key={section.id} onSelect={() => {
+                            updateToolSectionWindow(section.id, { minimized: false });
+                            setFocusedToolId(section.id);
+                          }}>{workToolLabel(section.tool)}</DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
                 <DocumentCanvas
                   content={activeContent}
                   onContentChange={handleUpdateContent}
@@ -1520,7 +1682,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               <QuickNoteStudio draft={active} updateActive={updateActive} />
             )}
           </div>
-          <WorkIntellectualRail
+          {!writingFocus && !railCollapsed && <WorkIntellectualRail
             active={active}
             sources={activeSources}
             positions={activePositions}
@@ -1530,7 +1692,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             coherenceSignals={coherenceSignals}
             collapsed={railCollapsed}
             onCollapsedChange={setRailPreference}
-          />
+          />}
         </div>
 
         {showExternalDocControls && (
@@ -2142,6 +2304,7 @@ function RecordingStudio({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const previewRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const mediaRequestVersion = useRef(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const discardOnStopRef = useRef(false);
@@ -2176,6 +2339,7 @@ function RecordingStudio({
 
   useEffect(() => {
     return () => {
+      mediaRequestVersion.current += 1;
       if (recorderRef.current?.state !== 'inactive') {
         discardOnStopRef.current = true;
         recorderRef.current?.stop();
@@ -2186,6 +2350,7 @@ function RecordingStudio({
   }, [stopStream]);
 
   useEffect(() => {
+    mediaRequestVersion.current += 1;
     stopStream();
     if (stagedUrlRef.current) URL.revokeObjectURL(stagedUrlRef.current);
     stagedUrlRef.current = '';
@@ -2219,6 +2384,7 @@ function RecordingStudio({
   }, [state]);
 
   const requestMedia = async (nextCameraId = cameraId, nextMicrophoneId = microphoneId) => {
+    const version = ++mediaRequestVersion.current;
     setState('requesting');
     setError('');
     try {
@@ -2229,15 +2395,20 @@ function RecordingStudio({
         video: audioOnly ? false : nextCameraId ? { deviceId: { exact: nextCameraId } } : { facingMode: 'user' },
         audio: nextMicrophoneId ? { deviceId: { exact: nextMicrophoneId } } : true,
       });
+      if (version !== mediaRequestVersion.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       stopStream();
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         void videoRef.current.play().catch(() => {});
       }
-      await refreshDevices();
-      setState('ready');
+      void refreshDevices().catch(() => {});
+      if (version === mediaRequestVersion.current) setState('ready');
     } catch (reason) {
+      if (version !== mediaRequestVersion.current) return;
       setState('error');
       const name = reason instanceof DOMException ? reason.name : '';
       if (name === 'NotAllowedError' || name === 'SecurityError') {

@@ -1,14 +1,18 @@
 
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import './atlas-motion.css';
+
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { atlasFocusPan } from './atlas-keyboard-focus';
 import { FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -30,7 +34,6 @@ import { AtlasTerritoryView } from '@/components/Atlas/AtlasTerritoryView';
 import { AtlasTensionsBoard } from '@/components/Atlas/AtlasTensionsBoard';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { SourceLinker } from '@/components/SourceLinker';
-import { initializeFirebase } from '@/firebase';
 import type {
   AtlasAutoLinkFilters,
   AtlasMap,
@@ -53,10 +56,10 @@ import type {
   Unknown,
   VaultEntry,
 } from '@/lib/types';
-import { conceptKey, conceptRelated, taggedItemsForConcept, today, uid as makeId } from '@/lib/readex';
+import { conceptKey, conceptRelated, today, uid as makeId } from '@/lib/readex';
+import { countAtlasConceptTags } from './atlas-tag-counts';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { deleteObject, getStorage, ref as storageRef } from 'firebase/storage';
 import { uploadPrivateAsset } from '@/lib/storage-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -68,7 +71,8 @@ import {
   deriveAtlasTerritoryView,
   reconcileAtlasRegionNotices,
 } from './atlas-diagnostics';
-import { ATLAS_NODE_BOUNDS, atlasAutoNodePosition, atlasZoomPlane } from './atlas-layout';
+import { ATLAS_NODE_BOUNDS, atlasAutoNodePosition, atlasCanDrag, atlasCompactNodes, atlasMapScope, atlasMapTerms, atlasStoredZoom, atlasVisibleNodePosition, atlasZoomPlane } from './atlas-layout';
+import { shouldTraceAtlasConnection, type AtlasConnectionTrace } from './atlas-connection-trace';
 
 interface ConceptAtlasProps {
   concepts: Concept[];
@@ -83,14 +87,15 @@ interface ConceptAtlasProps {
   links: PhilosophicalLink[];
   thinkingEvents: ThinkingEvent[];
   unknowns: Unknown[];
-  onAddConcept: (data: Partial<Concept>) => void;
+  onAddConcept: (data: Partial<Concept>) => void | boolean | Promise<void | boolean>;
   onUpdateConcept: (concept: Concept) => void;
-  onCreateLink?: (data: Partial<PhilosophicalLink>) => void;
+  onCreateLink?: (data: Partial<PhilosophicalLink>) => void | Promise<void>;
   onUpdateLink?: (link: PhilosophicalLink) => void;
-  onAddAtlasMap: (data: Partial<AtlasMap>) => void;
-  onUpdateAtlasMap: (map: AtlasMap) => void;
-  onDeleteAtlasMap: (id: string) => void;
-  onDeleteLink?: (id: string, options?: { method?: string }) => void;
+  onAddAtlasMap: (data: Partial<AtlasMap>) => Promise<string>;
+  onUpdateAtlasMap: (map: AtlasMap, rethrow?: boolean) => void | Promise<void>;
+  onMoveAtlasMapNode: (mapId: string, key: string, position: { x: number; y: number }) => Promise<void>;
+  onDeleteAtlasMap: (id: string) => Promise<void>;
+  onDeleteLink?: (id: string, options?: { method?: string }) => Promise<void>;
   onInteractLink?: (id: string) => void;
   onOpenPosition?: (id: string) => void;
   onOpenQuestion?: (id: string) => void;
@@ -173,7 +178,7 @@ const defaultAtlasMapStyle: AtlasMapStyle = {
   showWeakLinks: false,
 };
 const ATLAS_BASE_ZOOM = 0.8;
-const ATLAS_MIN_ZOOM = 0.45;
+const ATLAS_MIN_ZOOM = ATLAS_BASE_ZOOM / 2;
 const ATLAS_MAX_ZOOM = 1.7;
 const ATLAS_ZOOM_STEP = 0.08;
 const ATLAS_ZOOM_STORAGE_KEY = 'noesis.atlas.zoom.v2';
@@ -253,17 +258,6 @@ function atlasLinkColorKey(link: Pick<AtlasLinkItem, 'id' | 'kind' | 'from' | 't
   return link.id;
 }
 
-function mergeAtlasColorOverrides(saved?: Record<string, string>, pending?: Record<string, string>) {
-  const merged = { ...(saved || {}) };
-  Object.entries(pending || {}).forEach(([key, value]) => {
-    if (value) {
-      merged[key] = value;
-    } else {
-      delete merged[key];
-    }
-  });
-  return merged;
-}
 
 function edgePriorityScore(edge: MapEdge) {
   const strengthBonus = edge.strength === 'strong' ? 24 : edge.strength === 'moderate' ? 12 : edge.strength === 'weak' ? 2 : 0;
@@ -295,6 +289,7 @@ export function ConceptAtlas({
   onUpdateLink,
   onAddAtlasMap,
   onUpdateAtlasMap,
+  onMoveAtlasMapNode,
   onDeleteAtlasMap,
   onDeleteLink,
   onInteractLink,
@@ -313,6 +308,13 @@ export function ConceptAtlas({
   const [atlasSection, setAtlasSection] = useState<AtlasSection>('map');
   const [connectionsTab, setConnectionsTab] = useState<'relationships' | 'tensions'>('relationships');
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const inspectorId = useId();
+  const inspectorCloseRef = useRef<HTMLButtonElement>(null);
+  const mapControlsRef = useRef<HTMLButtonElement>(null);
+  const fullScreenButtonRef = useRef<HTMLButtonElement>(null);
+  const nodeButtons = useRef(new Map<string, HTMLButtonElement>());
+  const focusInspectorRef = useRef(false);
+  const suppressNodeClickRef = useRef(false);
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
   const [regionDetailOpen, setRegionDetailOpen] = useState(false);
   const [newRegionIds, setNewRegionIds] = useState<string[]>([]);
@@ -326,10 +328,23 @@ export function ConceptAtlas({
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [isStyleOpen, setIsStyleOpen] = useState(false);
+  const styleBase = useRef<AtlasMap | null>(null);
+  const styleSaveLock = useRef(false);
+  const [savingStyle, setSavingStyle] = useState(false);
+  const [styleError, setStyleError] = useState('');
   const [isLinkOpen, setIsLinkOpen] = useState(false);
+  const [linkSaving, setLinkSaving] = useState(false);
+  const [linkError, setLinkError] = useState('');
+  const linkSaveLock = useRef(false);
   const [isNodeOpen, setIsNodeOpen] = useState(false);
   const [selectedLink, setSelectedLink] = useState<AtlasLinkItem | null>(null);
   const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null);
+  const [connectionTrace, setConnectionTrace] = useState<AtlasConnectionTrace | null>(null);
+  useEffect(() => {
+    if (!connectionTrace) return;
+    const timeout = window.setTimeout(() => setConnectionTrace(null), 8_000);
+    return () => window.clearTimeout(timeout);
+  }, [connectionTrace]);
   const [cutLinkCandidate, setCutLinkCandidate] = useState<AtlasLinkItem | null>(null);
   const [cutLinkMethod, setCutLinkMethod] = useState<'atlas_long_hold' | 'atlas_link_detail' | 'atlas_node_action'>('atlas_link_detail');
   const [isPositionsOpen, setIsPositionsOpen] = useState(false);
@@ -344,60 +359,58 @@ export function ConceptAtlas({
   const [quickLinkCursor, setQuickLinkCursor] = useState({ x: 0, y: 0 });
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [linkInteractionMap, setLinkInteractionMap] = useState<Record<string, { lastInteractedAt: string; interactionCount: number }>>({});
-  const [pendingNodeColors, setPendingNodeColors] = useState<Record<string, Record<string, string>>>({});
-  const [pendingLinkColors, setPendingLinkColors] = useState<Record<string, Record<string, string>>>({});
   const [newConcept, setNewConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
+  const [creatingConcept, setCreatingConcept] = useState(false);
+  const conceptCreationLock = useRef(false);
   const [newMap, setNewMap] = useState({ title: '', description: '' });
+  const [creatingMap, setCreatingMap] = useState(false);
+  const [mapCreationError, setMapCreationError] = useState('');
+  const mapCreationLock = useRef(false);
+  const [mapToDelete, setMapToDelete] = useState<AtlasMap | null>(null);
+  const [registryRemoval, setRegistryRemoval] = useState<{ id: string; options?: { method?: string } } | null>(null);
+  const registryRemovalOpener = useRef<HTMLButtonElement | null>(null);
+  const requestRegistryRemoval = onDeleteLink ? (id: string, options?: { method?: string }, opener?: HTMLButtonElement) => {
+    registryRemovalOpener.current = opener ?? null;
+    setRegistryRemoval({ id, options });
+  } : undefined;
   const [styleDraft, setStyleDraft] = useState<AtlasMapStyle>(defaultAtlasMapStyle);
   const [isUploadingBackground, setIsUploadingBackground] = useState(false);
   const [linkDraft, setLinkDraft] = useState<{ to: string; type: AtlasMapLinkType; label: string; note: string }>({ to: '', type: 'relates', label: '', note: '' });
   const [showAdvancedLinkTypes, setShowAdvancedLinkTypes] = useState(false);
-  const [draftPositions, setDraftPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [positionsByScope, setPositionsByScope] = useState<Record<string, Record<string, { x: number; y: number }>>>({});
   const [draggingName, setDraggingName] = useState<string | null>(null);
-  const [isPanning, setIsPanning] = useState(false);
-  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+  const [nodePreview, setNodePreview] = useState<{ scope: string; key: string; x: number; y: number } | null>(null);
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
+  const [nodeSizes, setNodeSizes] = useState<Record<string, { width: number; height: number }>>({});
   const mapZoomPlane = useMemo(() => atlasZoomPlane(zoom, ATLAS_BASE_ZOOM), [zoom]);
   const [panelSection, setPanelSection] = useState<'links' | 'evidence' | 'events' | 'actions'>('links');
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const panGestureRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const nodeGestureRef = useRef<{ pointerId: number; name: string; x: number; y: number; position?: { x: number; y: number } } | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
   const edgeHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressNextEdgeClickRef = useRef(false);
   const edgeHoverInteractionRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem(ATLAS_ZOOM_STORAGE_KEY);
-    if (!stored) return;
-    const parsed = Number(stored);
-    if (!Number.isFinite(parsed)) return;
-    setZoom(Math.min(ATLAS_MAX_ZOOM, Math.max(ATLAS_MIN_ZOOM, parsed)));
+    try {
+      setZoom(atlasStoredZoom(window.localStorage.getItem(ATLAS_ZOOM_STORAGE_KEY), ATLAS_BASE_ZOOM, ATLAS_MIN_ZOOM, ATLAS_MAX_ZOOM));
+    } catch { /* The map still works without browser storage. */ }
   }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(ATLAS_ZOOM_STORAGE_KEY, String(zoom));
-  }, [zoom]);
-
-  useEffect(() => {
-    setPan({ x: 0, y: 0 });
-    setZoom(ATLAS_BASE_ZOOM);
-  }, [mode, selectedRegionId]);
+  const changeZoom = (value: number) => {
+    const next = Math.min(ATLAS_MAX_ZOOM, Math.max(ATLAS_MIN_ZOOM, value));
+    setZoom(next);
+    try { window.localStorage.setItem(ATLAS_ZOOM_STORAGE_KEY, String(next)); } catch { /* Optional preference. */ }
+  };
 
   const terms = useMemo(
     () => Array.from(new Set(concepts.map((concept) => conceptKey(concept.name)).filter(Boolean))),
     [concepts]
   );
   const activeMap = atlasMaps.find((map) => map.id === activeMapId) || atlasMaps[0] || null;
-  const activeMapColorKey = activeMap?.id || 'default-map';
-  const effectiveNodeColors = useMemo(
-    () => mergeAtlasColorOverrides(activeMap?.nodeColors, pendingNodeColors[activeMapColorKey]),
-    [activeMap?.nodeColors, activeMapColorKey, pendingNodeColors]
-  );
-  const effectiveLinkColors = useMemo(
-    () => mergeAtlasColorOverrides(activeMap?.linkColors, pendingLinkColors[activeMapColorKey]),
-    [activeMap?.linkColors, activeMapColorKey, pendingLinkColors]
-  );
+  const effectiveNodeColors = activeMap?.nodeColors || {};
+  const effectiveLinkColors = activeMap?.linkColors || {};
   const activeMapStyle = useMemo(
     () => normalizeAtlasMapStyle(activeMap?.style),
     [activeMap?.style]
@@ -411,7 +424,9 @@ export function ConceptAtlas({
     styleDraft.background.imageUrl || '',
   );
   const selectedConcept = concepts.find((item) => conceptKey(item.name) === conceptKey(selectedName || ''));
-  const related = selectedName ? conceptRelated(selectedName, { media, insights, vault, drafts, practices, questions, timeline }) : null;
+  const related = useMemo(() => selectedName
+    ? conceptRelated(selectedName, { media, insights, vault, drafts, practices, questions, timeline })
+    : null, [selectedName, media, insights, vault, drafts, practices, questions, timeline]);
   const relatedUnknowns = useMemo(() => {
     if (!selectedName) return [];
     return unknowns.filter((item) => (item.conceptTags || []).some((tag) => conceptKey(tag) === conceptKey(selectedName)));
@@ -493,6 +508,33 @@ export function ConceptAtlas({
     () => atlasRegions.find((region) => region.id === selectedRegionId) || atlasRegions[0] || null,
     [atlasRegions, selectedRegionId]
   );
+  const mapScope = atlasMapScope(mode, activeMap?.id, selectedRegion?.id);
+  const draftPositions = positionsByScope[mapScope];
+  useEffect(() => {
+    setPan({ x: 0, y: 0 });
+    setActiveEdgeId(null);
+    setQuickLinkSource(null);
+    setQuickLinkTarget(null);
+    setQuickLinkHoverTarget(null);
+  }, [mapScope]);
+  useEffect(() => {
+    panGestureRef.current = null;
+    nodeGestureRef.current = null;
+    setDraggingName(null);
+    setNodePreview(null);
+  }, [mapScope, isFullScreen]);
+  useEffect(() => {
+    if (mode !== 'custom' || !activeMap?.nodePositions || !draftPositions || draggingName) return;
+    const saved = activeMap.nodePositions;
+    const acknowledged = Object.keys(draftPositions).filter((key) =>
+      saved[key]?.x === draftPositions[key].x && saved[key]?.y === draftPositions[key].y);
+    if (!acknowledged.length) return;
+    setPositionsByScope((current) => {
+      const next = { ...current[mapScope] };
+      for (const key of acknowledged) if (next[key] === draftPositions[key]) delete next[key];
+      return { ...current, [mapScope]: next };
+    });
+  }, [activeMap?.nodePositions, draftPositions, draggingName, mapScope, mode]);
   const atlasSectionMeta: Record<AtlasSection, { label: string; description: string }> = {
     territory: {
       label: 'Regions',
@@ -529,10 +571,6 @@ export function ConceptAtlas({
     return `Relationship Types: ${customRelationshipTypes.length} selected`;
   }, [customRelationshipTypes.length, relationshipFilterMode]);
 
-  useEffect(() => {
-    if (!activeMapId && atlasMaps[0]) setActiveMapId(atlasMaps[0].id);
-    if (activeMapId && !atlasMaps.some((map) => map.id === activeMapId)) setActiveMapId(atlasMaps[0]?.id || '');
-  }, [activeMapId, atlasMaps]);
 
   useEffect(() => {
     if (selectedName) setPanelSection('links');
@@ -543,20 +581,12 @@ export function ConceptAtlas({
   }, [atlasRegions, selectedRegionId]);
 
   useEffect(() => {
-    if (isStyleOpen) {
-      setStyleDraft(normalizeAtlasMapStyle(activeMap?.style));
-    }
-  }, [activeMap?.style, isStyleOpen]);
-
-  useEffect(() => {
     if (atlasSection !== 'map') return;
     const element = mapRef.current;
     if (!element) return;
     const updateSize = () => {
-      const rect = element.getBoundingClientRect();
       setMapSize((current) => {
-        const width = Math.round(rect.width);
-        const height = Math.round(rect.height);
+        const { clientWidth: width, clientHeight: height } = element;
         return current.width === width && current.height === height ? current : { width, height };
       });
     };
@@ -570,61 +600,65 @@ export function ConceptAtlas({
     };
   }, [atlasSection, isFullScreen]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setQuickLinkSource(null);
-        setQuickLinkTarget(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   const visibleTerms = useMemo(() => {
-    const baseTerms = mode === 'custom' ? (activeMap ? activeMap.nodeNames.map(conceptKey) : []) : terms;
-    if (atlasSection !== 'map' || !selectedRegion) return baseTerms;
+    if (mode === 'custom') return atlasMapTerms({ terms, customTerms: activeMap?.nodeNames.map(conceptKey) ?? [] });
+    if (atlasSection !== 'map' || !selectedRegion) return terms;
     const regionNames = new Set(selectedRegion.conceptIds
       .map((id) => concepts.find((concept) => concept.id === id)?.name)
       .filter((name): name is string => Boolean(name))
       .map(conceptKey));
-    return baseTerms.filter((name) => regionNames.has(conceptKey(name)));
-  }, [activeMap, atlasSection, concepts, mode, selectedRegion, terms]);
+    return atlasMapTerms({ terms, regionTerms: regionNames, focusedTerm: selectedName ? conceptKey(selectedName) : undefined });
+  }, [activeMap, atlasSection, concepts, mode, selectedName, selectedRegion, terms]);
+
+  const tagCounts = useMemo(() => countAtlasConceptTags([
+    ...media.map((item) => item.tags),
+    ...insights.map((item) => item.tags),
+    ...vault.map((item) => item.tags),
+    ...drafts.map((item) => item.conceptTags),
+    ...practices.map((item) => item.conceptTags),
+  ]), [drafts, insights, media, practices, vault]);
+
+  const displayedNodes = useMemo(() => {
+    const conceptsByName = new Map<string, Concept>();
+    for (const concept of concepts) {
+      const key = conceptKey(concept.name);
+      if (!conceptsByName.has(key)) conceptsByName.set(key, concept);
+    }
+    const filtered = visibleTerms.filter((name) => !search || name.toLowerCase().includes(search.toLowerCase()));
+    const candidates = filtered.map((name) => ({
+      name,
+      key: conceptKey(name),
+      concept: conceptsByName.get(conceptKey(name)),
+      count: tagCounts.get(conceptKey(name)) ?? 0,
+    }));
+    return isMobile && mode === 'auto' && !search.trim()
+      ? atlasCompactNodes(candidates, selectedName ? conceptKey(selectedName) : undefined)
+      : candidates;
+  }, [concepts, isMobile, mode, search, selectedName, tagCounts, visibleTerms]);
 
   const nodes = useMemo<MapNode[]>(() => {
-    const filtered = visibleTerms.filter((name) => !search || name.toLowerCase().includes(search.toLowerCase()));
-    const displayedTerms = isMobile && mode === 'auto' && !search && filtered.length > 8
-      ? [...filtered]
-          .sort((left, right) => (
-            taggedItemsForConcept(right, media, insights, vault, drafts, practices).length
-            - taggedItemsForConcept(left, media, insights, vault, drafts, practices).length
-          ))
-          .slice(0, 8)
-      : filtered;
-    return displayedTerms.map((name, index) => {
-      const concept = concepts.find((c) => conceptKey(c.name) === conceptKey(name));
-      const autoPosition = atlasAutoNodePosition(index, displayedTerms.length, isMobile);
-      const count = taggedItemsForConcept(name, media, insights, vault, drafts, practices).length;
-      const customPosition = activeMap?.nodePositions?.[conceptKey(name)];
+    return displayedNodes.map(({ name, key, concept, count }, index) => {
+      const autoPosition = atlasAutoNodePosition(index, displayedNodes.length, isMobile);
+      const customPosition = activeMap?.nodePositions?.[key];
+      const preview = nodePreview?.scope === mapScope && nodePreview.key === key ? nodePreview : null;
       return {
         name,
         concept,
         count,
-        x: draftPositions[conceptKey(name)]?.x
+        x: preview?.x ?? draftPositions?.[key]?.x
           ?? (mode === 'auto' ? autoPosition.x : customPosition?.x ?? concept?.x ?? autoPosition.x),
-        y: draftPositions[conceptKey(name)]?.y
+        y: preview?.y ?? draftPositions?.[key]?.y
           ?? (mode === 'auto' ? autoPosition.y : customPosition?.y ?? concept?.y ?? autoPosition.y),
       };
     });
-  }, [activeMap, concepts, drafts, draftPositions, insights, isMobile, media, mode, practices, search, vault, visibleTerms]);
+  }, [activeMap, displayedNodes, draftPositions, isMobile, mapScope, mode, nodePreview]);
 
   const relatedByNode = useMemo(() => {
-    return new Map(nodes.map((node) => [
-      conceptKey(node.name),
+    return new Map(displayedNodes.map((node) => [
+      node.key,
       conceptRelated(node.name, { media, insights, vault, drafts, practices, questions, timeline }),
     ]));
-  }, [drafts, insights, media, nodes, practices, questions, timeline, vault]);
+  }, [displayedNodes, drafts, insights, media, practices, questions, timeline, vault]);
   const conceptNameById = useMemo(
     () => new Map(concepts.map((concept) => [concept.id, concept.name])),
     [concepts]
@@ -658,12 +692,12 @@ export function ConceptAtlas({
     return pairs;
   }, [conceptNameById, links]);
 
-  const classifyStrength = (score: number) => {
+  const classifyStrength = useCallback((score: number) => {
     if (score >= 65) return 'strong' as const;
     if (score >= 35) return 'moderate' as const;
     if (score >= 15) return 'weak' as const;
     return 'suggested' as const;
-  };
+  }, []);
 
   const matchesConnectionFocus = (
     strength: MapEdge['strength'],
@@ -674,7 +708,7 @@ export function ConceptAtlas({
     return strength === 'strong';
   };
 
-  const deriveMapModesFromType = (type?: string): AtlasViewMode[] => {
+  const deriveMapModesFromType = useCallback((type?: string): AtlasViewMode[] => {
     const modes = new Set<AtlasViewMode>(['full']);
     if (!type || ['custom', 'relates'].includes(type)) {
       modes.add('core');
@@ -686,9 +720,9 @@ export function ConceptAtlas({
     if (['refines', 'replaces', 'changed_by', 'derived_from'].includes(type)) modes.add('evolution');
     if (highImportanceLinkTypes.has(type as AtlasMapLinkType) || moderateImportanceLinkTypes.has(type as AtlasMapLinkType)) modes.add('core');
     return Array.from(modes);
-  };
+  }, []);
 
-  const collectRelatedTags = (related: ReturnType<typeof conceptRelated>, conceptName: string) => {
+  const collectRelatedTags = useCallback((related: ReturnType<typeof conceptRelated>, conceptName: string) => {
     const tags = new Set<string>();
     related.sources.forEach((item) => (item.tags || []).forEach((tag) => tags.add(conceptKey(tag))));
     related.beliefs.forEach((item) => (item.tags || []).forEach((tag) => tags.add(conceptKey(tag))));
@@ -697,9 +731,9 @@ export function ConceptAtlas({
     related.questions.forEach((item) => (item.conceptIds || []).forEach((id) => tags.add(conceptKey(conceptNameById.get(id) || id))));
     tags.delete(conceptKey(conceptName));
     return tags;
-  };
+  }, [conceptNameById]);
 
-  const scoreSharedConnection = (
+  const scoreSharedConnection = useCallback((
     leftName: string,
     rightName: string,
     left: ReturnType<typeof conceptRelated>,
@@ -765,11 +799,11 @@ export function ConceptAtlas({
       mapModes: Array.from(modes),
       label: labelBits.slice(0, 2).join(' • '),
     };
-  };
+  }, [classifyStrength, collectRelatedTags, savedConceptLinkPairs, typedConceptPairMeta]);
 
   const edges = useMemo<MapEdge[]>(() => {
     const result: MapEdge[] = [];
-    const nodeNames = new Set(nodes.map((node) => conceptKey(node.name)));
+    const nodeNames = new Set(displayedNodes.map((node) => node.key));
     const filters = mode === 'custom' ? (activeMap?.autoLinkFilters || defaultAutoLinkFilters) : defaultAutoLinkFilters;
 
     if (mode === 'custom' && activeMap) {
@@ -814,23 +848,18 @@ export function ConceptAtlas({
     const autoFiltersEnabled = mode === 'auto' || filters.sharedSources || filters.sharedPositions || filters.sharedInquiries || filters.sharedWorks || filters.sharedPractices;
     if (autoFiltersEnabled) {
       const sharedCandidates: MapEdge[] = [];
-      for (let i = 0; i < nodes.length; i += 1) {
-        for (let j = i + 1; j < nodes.length; j += 1) {
-          const left = relatedByNode.get(conceptKey(nodes[i].name));
-          const right = relatedByNode.get(conceptKey(nodes[j].name));
+      for (let i = 0; i < displayedNodes.length; i += 1) {
+        for (let j = i + 1; j < displayedNodes.length; j += 1) {
+          const leftNode = displayedNodes[i];
+          const rightNode = displayedNodes[j];
+          const left = relatedByNode.get(leftNode.key);
+          const right = relatedByNode.get(rightNode.key);
           if (!left || !right) continue;
           const sharedSources = left.sources.filter((item) => right.sources.some((other) => other.id === item.id)).length;
           const sharedPositions = left.beliefs.filter((item) => right.beliefs.some((other) => other.id === item.id)).length;
           const sharedInquiries = left.questions.filter((item) => right.questions.some((other) => other.id === item.id)).length;
           const sharedWorks = left.drafts.filter((item) => right.drafts.some((other) => other.id === item.id)).length;
           const sharedPractices = left.practices.filter((item) => right.practices.some((other) => other.id === item.id)).length;
-          const objectTypeCount = [
-            sharedSources > 0,
-            sharedPositions > 0,
-            sharedInquiries > 0,
-            sharedWorks > 0,
-            sharedPractices > 0,
-          ].filter(Boolean).length;
           const shared =
             (mode === 'auto' || filters.sharedSources ? sharedSources : 0) +
             (mode === 'auto' || filters.sharedPositions ? sharedPositions : 0) +
@@ -838,7 +867,7 @@ export function ConceptAtlas({
             (mode === 'auto' || filters.sharedWorks ? sharedWorks : 0) +
             (mode === 'auto' || filters.sharedPractices ? sharedPractices : 0);
           if (shared) {
-            const scored = scoreSharedConnection(nodes[i].name, nodes[j].name, left, right, {
+            const scored = scoreSharedConnection(leftNode.name, rightNode.name, left, right, {
               sharedSources,
               sharedPositions,
               sharedInquiries,
@@ -846,8 +875,8 @@ export function ConceptAtlas({
               sharedPractices,
             });
             sharedCandidates.push({
-              from: nodes[i].name,
-              to: nodes[j].name,
+              from: leftNode.name,
+              to: rightNode.name,
               type: 'shared',
               label: scored.label || `${shared} shared`,
               weight: scored.score,
@@ -977,7 +1006,7 @@ export function ConceptAtlas({
       label: (edge.groupedTypes?.length || 0) > 1 ? `${edge.label} + ${(edge.groupedTypes?.length || 1) - 1} more` : edge.label,
     })));
     return result;
-  }, [activeMap, activeRelationshipTypes, autoConnectionFocus, concepts, deriveMapModesFromType, links, mode, nodes, relatedByNode, scoreSharedConnection, typedConceptPairMeta]);
+  }, [activeMap, activeRelationshipTypes, autoConnectionFocus, classifyStrength, concepts, deriveMapModesFromType, displayedNodes, links, mode, relatedByNode, scoreSharedConnection, typedConceptPairMeta]);
 
   const visibleEdges = useMemo(() => {
     const selectedKey = conceptKey(selectedName || '');
@@ -1101,6 +1130,31 @@ export function ConceptAtlas({
   }, [mode, nodes, search, selectedName, selectedRegion, visibleEdges]);
 
   const renderedNodeKeys = useMemo(() => new Set(renderedNodes.map((node) => conceptKey(node.name))), [renderedNodes]);
+  const renderedNodeNames = JSON.stringify(renderedNodes.map((node) => node.name));
+  useEffect(() => {
+    if (atlasSection !== 'map') return;
+    const names = JSON.parse(renderedNodeNames) as string[];
+    const measure = () => {
+      const sizes = Object.fromEntries(names.flatMap((name) => {
+        const button = nodeButtons.current.get(name);
+        return button ? [[name, { width: button.offsetWidth, height: button.offsetHeight }]] : [];
+      }));
+      setNodeSizes(sizes);
+    };
+    const observer = new ResizeObserver(measure);
+    names.forEach((name) => {
+      const button = nodeButtons.current.get(name);
+      if (button) observer.observe(button);
+    });
+    measure();
+    return () => observer.disconnect();
+  }, [atlasSection, renderedNodeNames]);
+
+  const positionedNodes = useMemo(() => renderedNodes.map((node) => ({
+    ...node,
+    ...atlasVisibleNodePosition(node, mapSize, nodeSizes[node.name] ?? { width: 152, height: 72 }, mapZoomPlane.scale),
+  })), [renderedNodes, mapSize, nodeSizes, mapZoomPlane.scale]);
+  const positionedNodeByKey = useMemo(() => new Map(positionedNodes.map((node) => [conceptKey(node.name), node])), [positionedNodes]);
   const renderedEdges = useMemo(
     () => visibleEdges.filter((edge) => renderedNodeKeys.has(conceptKey(edge.from)) && renderedNodeKeys.has(conceptKey(edge.to))),
     [renderedNodeKeys, visibleEdges],
@@ -1152,6 +1206,8 @@ export function ConceptAtlas({
   }, [activeEdgeId, selectedName, visibleEdges]);
 
   const openConceptInGraph = (name: string) => {
+    setMode('auto');
+    setSearch('');
     setSelectedName(name);
     setIsPanelOpen(true);
     setPanelSection('evidence');
@@ -1159,6 +1215,10 @@ export function ConceptAtlas({
   };
 
   const openRegionInMap = (regionId: string) => {
+    setMode('auto');
+    setSearch('');
+    setSelectedName(null);
+    setIsPanelOpen(false);
     setSelectedRegionId(regionId);
     setRegionDetailOpen(false);
     setAtlasSection('map');
@@ -1169,9 +1229,9 @@ export function ConceptAtlas({
   };
 
   const availableNodeTerms = useMemo(() => {
-    const existingNames = new Set(nodes.map(n => conceptKey(n.name)));
+    const existingNames = new Set((activeMap?.nodeNames || []).map(conceptKey));
     return terms.filter(t => !existingNames.has(conceptKey(t)));
-  }, [nodes, terms]);
+  }, [activeMap?.nodeNames, terms]);
 
   const selectedMapLinks = useMemo(() => {
     if (!selectedName || mode !== 'custom' || !activeMap) return [];
@@ -1244,6 +1304,37 @@ export function ConceptAtlas({
     setShowAdvancedLinkTypes(false);
   };
 
+  const activateMapNode = (name: string, moveFocus: boolean) => {
+    if (quickLinkSource) {
+      if (conceptKey(name) === conceptKey(quickLinkSource)) return;
+      setQuickLinkTarget(name);
+      setQuickLinkHoverTarget(name);
+      setLinkDraft((prev) => ({ ...prev, to: conceptKey(name), type: prev.type || 'supports', label: prev.label || 'supports' }));
+      setIsLinkOpen(true);
+      return;
+    }
+    if (moveFocus) {
+      focusInspectorRef.current = true;
+      inspectorCloseRef.current?.focus({ preventScroll: true });
+    }
+    setSelectedName(name);
+    setIsPanelOpen(true);
+  };
+
+  const closeNodeInspector = () => {
+    const trigger = selectedName ? nodeButtons.current.get(selectedName) : undefined;
+    clearQuickLinkMode();
+    setSelectedName(null);
+    setIsPanelOpen(false);
+    (trigger || mapControlsRef.current)?.focus({ preventScroll: true });
+  };
+
+  useEffect(() => {
+    if (!focusInspectorRef.current || !selectedName || !isPanelOpen) return;
+    focusInspectorRef.current = false;
+    inspectorCloseRef.current?.focus({ preventScroll: true });
+  }, [selectedName, isPanelOpen]);
+
   const getLinkInteractionTime = (link: AtlasLinkItem) =>
     linkInteractionMap[link.id]?.lastInteractedAt || link.lastInteractedAt || link.updatedAt || link.createdAt || '';
 
@@ -1255,6 +1346,7 @@ export function ConceptAtlas({
     edgeHoldTimerRef.current = setTimeout(() => {
       setSelectedLink(null);
       setCutLinkMethod('atlas_long_hold');
+      registryRemovalOpener.current = null;
       setCutLinkCandidate(linkItem);
       markLinkInteraction(linkItem);
       suppressNextEdgeClickRef.current = true;
@@ -1571,6 +1663,7 @@ export function ConceptAtlas({
             onClick={() => {
               setCutLinkMethod('atlas_node_action');
               setSelectedLink(null);
+              registryRemovalOpener.current = null;
               setCutLinkCandidate(link);
             }}
             className="h-7 rounded-full px-3 text-destructive hover:text-destructive disabled:text-muted-foreground"
@@ -1584,11 +1677,20 @@ export function ConceptAtlas({
 
   const atlasPanel = (
     <aside
+      id={inspectorId}
+      aria-label={selectedName ? `Atlas inspector: ${selectedName}` : 'Atlas inspector'}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented || !event.currentTarget.contains(event.target as Node)) return;
+        if (quickLinkSource) return;
+        event.preventDefault();
+        event.stopPropagation();
+        closeNodeInspector();
+      }}
       className={cn(
         "z-40 flex shrink-0 flex-col overflow-hidden border border-border bg-card shadow-lg",
         isFullScreen
-          ? "absolute inset-x-2 bottom-2 h-[42%] rounded-xl sm:inset-y-4 sm:left-auto sm:right-4 sm:h-auto sm:w-80 sm:rounded-2xl"
-          : "absolute inset-x-2 bottom-2 h-[min(52%,32rem)] rounded-xl md:inset-y-2 md:left-auto md:right-2 md:h-auto md:w-[min(22rem,calc(100%-1rem))]"
+          ? "absolute inset-x-2 bottom-2 h-[42%] rounded-xl sm:bottom-4 sm:left-auto sm:right-4 sm:top-16 sm:h-auto sm:w-80 sm:rounded-2xl"
+          : "absolute inset-x-2 bottom-2 h-[min(52%,32rem)] rounded-xl md:bottom-6 md:left-auto md:right-6 md:top-16 md:h-auto md:w-[min(22rem,calc(100%-1rem))]"
       )}
     >
       {selectedName ? (
@@ -1600,14 +1702,12 @@ export function ConceptAtlas({
               {selectedConcept?.description && <p className="mt-2 text-sm text-muted-foreground font-body">{selectedConcept.description}</p>}
             </div>
             <Button
+              ref={inspectorCloseRef}
               variant="ghost"
               size="icon"
-              className="rounded-full"
+              className="size-11 shrink-0 rounded-full"
               aria-label="Close Atlas inspector"
-              onClick={() => {
-                setSelectedName(null);
-                setIsPanelOpen(false);
-              }}
+              onClick={closeNodeInspector}
             >
               <X className="size-4" />
             </Button>
@@ -1616,7 +1716,7 @@ export function ConceptAtlas({
             <div className="mb-4 space-y-2">
               <Label className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Panel Section</Label>
               <Select value={panelSection} onValueChange={(value) => setPanelSection(value as 'links' | 'evidence' | 'events' | 'actions')}>
-                <SelectTrigger className="h-9 rounded-full bg-card">
+                <SelectTrigger aria-label="Inspector section" className="min-h-11 rounded-full bg-card">
                   <SelectValue placeholder="Choose section" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1745,7 +1845,11 @@ export function ConceptAtlas({
                   {panelSection === 'actions' && (
                     <section className="space-y-3">
                       <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
-                      <Button size="sm" variant="outline" className="h-8 w-full justify-center rounded-full text-xs" onClick={() => beginQuickLinkMode(selectedName!)}>
+                      <Button size="sm" variant="outline" className="min-h-11 w-full justify-center rounded-full text-xs" onClick={() => {
+                        beginQuickLinkMode(selectedName!);
+                        const next = renderedNodes.find((node) => node.name !== selectedName);
+                        if (next) nodeButtons.current.get(next.name)?.focus({ preventScroll: true });
+                      }}>
                         <Link2 className="mr-1.5 size-3.5" /> Quick Link
                       </Button>
                       <Button
@@ -1756,7 +1860,7 @@ export function ConceptAtlas({
                           setCutLinkMethod('atlas_node_action');
                           setIsDeleteAllLinksOpen(true);
                         }}
-                        className="h-7 w-full justify-center rounded-full px-2 text-[10px] text-destructive hover:text-destructive disabled:text-muted-foreground"
+                        className="min-h-11 w-full justify-center rounded-full px-2 text-xs text-destructive hover:text-destructive disabled:text-muted-foreground"
                       >
                         Delete Connected Links
                       </Button>
@@ -1773,7 +1877,7 @@ export function ConceptAtlas({
         <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-muted-foreground">
           <MapIcon className="mb-4 size-12 opacity-10" />
           <h3 className="mb-2 font-headline text-lg italic">Mental Atlas</h3>
-          <p className="text-sm font-body">Double-click a concept node to inspect its links, evidence, and outputs.</p>
+          <p className="text-sm font-body">Select a concept to see its links, evidence, and history.</p>
         </div>
       )}
     </aside>
@@ -1785,11 +1889,17 @@ export function ConceptAtlas({
     return visibleTerms.filter(t => conceptKey(t) !== key);
   }, [selectedName, visibleTerms]);
 
-  const addConcept = () => {
-    if (!newConcept.name?.trim()) return;
-    onAddConcept({ ...newConcept, name: conceptKey(newConcept.name), createdFrom: 'manual' });
-    setNewConcept({ name: '', description: '', sourceIds: [] });
-    setIsAddOpen(false);
+  const addConcept = async () => {
+    if (!newConcept.name?.trim() || conceptCreationLock.current) return;
+    conceptCreationLock.current = true;
+    setCreatingConcept(true);
+    try {
+      if (await onAddConcept({ ...newConcept, name: conceptKey(newConcept.name), createdFrom: 'manual' }) === false) throw new Error('Concept was not persisted.');
+      setNewConcept({ name: '', description: '', sourceIds: [] });
+      setIsAddOpen(false);
+    } catch {
+      toast({ title: 'Concept not saved', description: 'Your draft is still here. Please retry.', variant: 'destructive' });
+    } finally { conceptCreationLock.current = false; setCreatingConcept(false); }
   };
 
   const toggleNewConceptSource = (id: string) => {
@@ -1803,55 +1913,56 @@ export function ConceptAtlas({
   const atlasNodeIdsForNames = (names: string[]) =>
     names.map((name) => concepts.find((concept) => conceptKey(concept.name) === conceptKey(name))?.id || conceptKey(name));
 
-  const createCustomMap = () => {
-    if (!newMap.title.trim()) return;
+  const createCustomMap = async () => {
+    if (!newMap.title.trim() || mapCreationLock.current) return;
+    mapCreationLock.current = true;
+    setCreatingMap(true);
+    setMapCreationError('');
     const initialNodeNames = selectedName ? [conceptKey(selectedName)] : [];
-    onAddAtlasMap({
-      title: newMap.title.trim(),
-      mode: 'custom',
-      description: newMap.description.trim(),
-      nodeNames: initialNodeNames,
-      nodeIds: atlasNodeIdsForNames(initialNodeNames),
-      nodePositions: selectedName ? { [conceptKey(selectedName)]: { x: 50, y: 50 } } : {},
-      manualLinks: [],
-      nodeColors: {},
-      linkColors: {},
-      linkIds: [],
-      autoLinkFilters: defaultAutoLinkFilters,
-      style: defaultAtlasMapStyle,
-    });
-    setNewMap({ title: '', description: '' });
-    setMode('custom');
-    setIsMapOpen(false);
+    try {
+      const id = await onAddAtlasMap({
+        title: newMap.title.trim(),
+        mode: 'custom',
+        description: newMap.description.trim(),
+        nodeNames: initialNodeNames,
+        nodeIds: atlasNodeIdsForNames(initialNodeNames),
+        nodePositions: selectedName ? { [conceptKey(selectedName)]: { x: 50, y: 50 } } : {},
+        manualLinks: [],
+        nodeColors: {},
+        linkColors: {},
+        linkIds: [],
+        autoLinkFilters: defaultAutoLinkFilters,
+        style: defaultAtlasMapStyle,
+      });
+      setActiveMapId(id);
+      setNewMap({ title: '', description: '' });
+      setMode('custom');
+      setIsMapOpen(false);
+    } catch {
+      setMapCreationError('The map could not be saved. Your changes are still here.');
+    } finally {
+      mapCreationLock.current = false;
+      setCreatingMap(false);
+    }
   };
 
-  const updateActiveMap = (patch: Partial<AtlasMap>) => {
+  const updateActiveMap = (patch: Partial<AtlasMap>, rethrow = false) => {
     if (!activeMap) return;
     const nextNodeNames = patch.nodeNames || activeMap.nodeNames || [];
     const nextManualLinks = patch.manualLinks || activeMap.manualLinks || [];
-    onUpdateAtlasMap({
+    return onUpdateAtlasMap({
       ...activeMap,
       ...patch,
       mode: patch.mode || activeMap.mode || 'custom',
       nodeIds: patch.nodeIds || atlasNodeIdsForNames(nextNodeNames),
       linkIds: patch.linkIds || nextManualLinks.map((link) => link.id),
-      dateUpdated: today(),
-    });
+    }, rethrow);
   };
 
   const updateNodeColor = (nodeName: string, color?: string) => {
     if (!activeMap) return;
     const key = conceptKey(nodeName);
     const nextNodeColors = { ...(activeMap.nodeColors || {}) };
-    setPendingNodeColors((prev) => {
-      const current = { ...(prev[activeMapColorKey] || {}) };
-      if (color) {
-        current[key] = color;
-      } else {
-        current[key] = '';
-      }
-      return { ...prev, [activeMapColorKey]: current };
-    });
     if (color) {
       nextNodeColors[key] = color;
     } else {
@@ -1864,15 +1975,6 @@ export function ConceptAtlas({
     if (!activeMap) return;
     const key = atlasLinkColorKey(link);
     const nextLinkColors = { ...(activeMap.linkColors || {}) };
-    setPendingLinkColors((prev) => {
-      const current = { ...(prev[activeMapColorKey] || {}) };
-      if (color) {
-        current[key] = color;
-      } else {
-        current[key] = '';
-      }
-      return { ...prev, [activeMapColorKey]: current };
-    });
     if (color) {
       nextLinkColors[key] = color;
     } else {
@@ -1911,52 +2013,76 @@ export function ConceptAtlas({
     setSelectedName(null);
   }
 
-  const createLink = () => {
-    if (!selectedName || !linkDraft.to.trim()) return;
-    const targetConcept = concepts.find((concept) => conceptKey(concept.name) === conceptKey(linkDraft.to));
+  const createLink = async () => {
+    if (!selectedName || !linkDraft.to.trim() || linkSaveLock.current) return;
+    linkSaveLock.current = true;
+    setLinkSaving(true);
+    setLinkError('');
+    try {
+      const targetConcept = concepts.find((concept) => conceptKey(concept.name) === conceptKey(linkDraft.to));
 
-    if (mode === 'custom' && activeMap) {
-      const link: AtlasMapLink = {
-        id: makeId(),
-        from: conceptKey(selectedName),
-        to: conceptKey(linkDraft.to),
-        type: linkDraft.type,
-        label: linkDraft.label.trim() || linkDraft.type,
-        note: linkDraft.note.trim(),
-        dateCreated: today(),
-      };
-      updateActiveMap({ manualLinks: [...(activeMap.manualLinks || []), link] });
-    } else if (selectedConcept && targetConcept && onCreateLink) {
-      const requestedType = linkDraft.type;
-      const type = normalizeAtlasLinkType(requestedType);
-      const label = linkDraft.label.trim();
-      const note = [
-        label && label !== requestedType ? `Atlas label: ${label}` : '',
-        linkDraft.note.trim(),
-      ]
-        .filter(Boolean)
-        .join('\n');
-      onCreateLink({
-        fromType: 'concept',
-        fromId: selectedConcept.id,
-        fromLabel: selectedConcept.name,
-        toType: 'concept',
-        toId: targetConcept.id,
-        toLabel: targetConcept.name,
-        type,
-        note,
-        createdFrom: 'manual',
-        acceptedByUser: true,
-      });
-    } else if (selectedConcept) {
-      const links = Array.from(new Set([...(selectedConcept.links || []), conceptKey(linkDraft.to)]));
-      onUpdateConcept({ ...selectedConcept, links, dateUpdated: today() });
+      if (mode === 'custom' && activeMap) {
+        const link: AtlasMapLink = {
+          id: makeId(),
+          from: conceptKey(selectedName),
+          to: conceptKey(linkDraft.to),
+          type: linkDraft.type,
+          label: linkDraft.label.trim() || linkDraft.type,
+          note: linkDraft.note.trim(),
+          dateCreated: today(),
+        };
+        setConnectionTrace({ edgeId: link.id, from: link.from });
+        await updateActiveMap({ manualLinks: [...(activeMap.manualLinks || []), link] }, true);
+      } else if (selectedConcept && targetConcept && onCreateLink) {
+        const requestedType = linkDraft.type;
+        const type = normalizeAtlasLinkType(requestedType);
+        const label = linkDraft.label.trim();
+        const note = [
+          label && label !== requestedType ? `Atlas label: ${label}` : '',
+          linkDraft.note.trim(),
+        ]
+          .filter(Boolean)
+          .join('\n');
+        const from = conceptKey(selectedConcept.name);
+        const pairKey = [from, conceptKey(targetConcept.name)].sort().join('::');
+        const edgeId = `typed-group:${pairKey}`;
+        setConnectionTrace({ edgeId, from, previousLinkIds: new Set(links.map((link) => link.id)) });
+        await onCreateLink({
+          fromType: 'concept',
+          fromId: selectedConcept.id,
+          fromLabel: selectedConcept.name,
+          toType: 'concept',
+          toId: targetConcept.id,
+          toLabel: targetConcept.name,
+          type,
+          note,
+          createdFrom: 'manual',
+          acceptedByUser: true,
+        });
+      } else if (selectedConcept) {
+        const links = Array.from(new Set([...(selectedConcept.links || []), conceptKey(linkDraft.to)]));
+        if (links.length > (selectedConcept.links || []).length) {
+          setConnectionTrace({
+            edgeId: `concept:${selectedConcept.id}:${conceptKey(linkDraft.to)}`,
+            from: conceptKey(selectedConcept.name),
+          });
+        }
+        await onUpdateConcept({ ...selectedConcept, links, dateUpdated: today() });
+      } else {
+        throw new Error('Choose an existing source concept.');
+      }
+
+      setLinkDraft({ to: '', type: 'relates', label: '', note: '' });
+      setLinkSearch('');
+      setIsLinkOpen(false);
+      clearQuickLinkMode();
+    } catch {
+      setConnectionTrace(null);
+      setLinkError('Could not save the relationship. Your draft is still here.');
+    } finally {
+      linkSaveLock.current = false;
+      setLinkSaving(false);
     }
-
-    setLinkDraft({ to: '', type: 'relates', label: '', note: '' });
-    setLinkSearch('');
-    setIsLinkOpen(false);
-    clearQuickLinkMode();
   };
 
   const removeUserLink = (id: string) => {
@@ -1970,11 +2096,11 @@ export function ConceptAtlas({
     onUpdateConcept({ ...selectedConcept, links, dateUpdated: today() });
   };
 
-  const cutLink = (item: AtlasLinkItem) => {
+  const cutLink = async (item: AtlasLinkItem) => {
     if (item.kind === 'custom') {
       removeUserLink(item.id);
     } else if (item.kind === 'typed') {
-      onDeleteLink?.(item.id, { method: cutLinkMethod });
+      await onDeleteLink?.(item.id, { method: cutLinkMethod });
     } else if (item.kind === 'concept' && item.sourceConceptId && item.conceptTarget) {
       const sourceConcept = concepts.find((concept) => concept.id === item.sourceConceptId);
       if (sourceConcept) {
@@ -2011,7 +2137,9 @@ export function ConceptAtlas({
     });
 
     if (onDeleteLink) {
-      selectedTypedLinks.forEach((link) => onDeleteLink(link.id, { method: cutLinkMethod }));
+      selectedTypedLinks.forEach((link) => void onDeleteLink(link.id, { method: cutLinkMethod }).catch(() => {
+        toast({ title: 'A relationship could not be removed', variant: 'destructive' });
+      }));
     }
 
     setSelectedLink(null);
@@ -2021,53 +2149,71 @@ export function ConceptAtlas({
     setCutLinkMethod('atlas_link_detail');
   };
 
-  const startPanning = (event: React.MouseEvent | React.PointerEvent) => {
+  const startPanning = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || !atlasCanDrag(event, isFullScreen)) return;
     if (quickLinkSource) {
-      setLastMousePos({ x: event.clientX, y: event.clientY });
       setQuickLinkCursor({ x: event.clientX, y: event.clientY });
       return;
     }
-    if (draggingName) return;
-    if (event.target !== event.currentTarget) return;
-    if ('pointerId' in event) event.currentTarget.setPointerCapture?.(event.pointerId);
-    setIsPanning(true);
-    setLastMousePos({ x: event.clientX, y: event.clientY });
+    if (nodeGestureRef.current || panGestureRef.current) return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    panGestureRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
     setSelectedName(null);
   };
 
   const handlePointerMove = (event: React.PointerEvent) => {
+    if (!event.isPrimary) return;
     if (quickLinkSource) {
       setQuickLinkCursor({ x: event.clientX, y: event.clientY });
     }
-    if (!isPanning) return;
-    const dx = event.clientX - lastMousePos.x;
-    const dy = event.clientY - lastMousePos.y;
+    const gesture = panGestureRef.current;
+    if (gesture?.pointerId !== event.pointerId) return;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    gesture.x = event.clientX;
+    gesture.y = event.clientY;
     setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-    setLastMousePos({ x: event.clientX, y: event.clientY });
   };
 
-  const moveNode = (name: string, clientX: number, clientY: number) => {
+  const nodePositionAtPointer = (clientX: number, clientY: number) => {
     const rect = mapRef.current?.getBoundingClientRect();
     if (!rect) return;
     const x = Math.min(ATLAS_NODE_BOUNDS.maxX, Math.max(ATLAS_NODE_BOUNDS.minX, ((clientX - rect.left - pan.x) / rect.width) * 100));
     const y = Math.min(ATLAS_NODE_BOUNDS.maxY, Math.max(ATLAS_NODE_BOUNDS.minY, ((clientY - rect.top - pan.y) / rect.height) * 100));
-    setDraftPositions((prev) => ({ ...prev, [conceptKey(name)]: { x, y } }));
+    return { x, y };
   };
 
-  const persistNode = (name: string) => {
-    const position = draftPositions[conceptKey(name)];
-    const concept = concepts.find((item) => conceptKey(item.name) === conceptKey(name));
-    if (position && mode === 'custom' && activeMap) {
-      updateActiveMap({
-        nodePositions: {
-          ...(activeMap.nodePositions || {}),
-          [conceptKey(name)]: position,
-        },
+  const persistNode = (name: string, position: { x: number; y: number }) => {
+    const key = conceptKey(name);
+    const concept = concepts.find((item) => conceptKey(item.name) === key);
+    setPositionsByScope((prev) => ({ ...prev, [mapScope]: { ...prev[mapScope], [key]: position } }));
+    if (mode === 'custom' && activeMap) {
+      void onMoveAtlasMapNode(activeMap.id, key, position).catch(() => {
+        setPositionsByScope((current) => {
+          if (current[mapScope]?.[key] !== position) return current;
+          const next = { ...current[mapScope] };
+          delete next[key];
+          return { ...current, [mapScope]: next };
+        });
+        toast({ title: 'Node position not saved', description: 'The map will show its last saved position.', variant: 'destructive' });
       });
-    } else if (concept && position) {
+    } else if (concept) {
       onUpdateConcept({ ...concept, ...position, dateUpdated: today() });
     }
+  };
+
+  const endPan = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (panGestureRef.current?.pointerId === event.pointerId) panGestureRef.current = null;
+  };
+
+  const endNodeGesture = (pointerId: number, commit: boolean) => {
+    const gesture = nodeGestureRef.current;
+    if (gesture?.pointerId !== pointerId) return;
+    nodeGestureRef.current = null;
+    setNodePreview(null);
     setDraggingName(null);
+    suppressNodeClickRef.current = Boolean(gesture.position) || !commit;
+    if (commit && gesture.position) persistNode(gesture.name, gesture.position);
   };
 
   const edgePoints = (from: MapNode, to: MapNode) => {
@@ -2076,10 +2222,17 @@ export function ConceptAtlas({
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
     const ux = dx / len;
     const uy = dy / len;
-    const horizontalRadius = 7.2;
-    const verticalRadius = 4.2;
-    const fromRadius = Math.min(Math.abs(horizontalRadius / (ux || 0.001)), Math.abs(verticalRadius / (uy || 0.001)));
-    const toRadius = fromRadius;
+    const radius = (node: MapNode) => {
+      const size = nodeSizes[node.name];
+      if (!node.name) return 0;
+      if (!size || !mapSize.width || !mapSize.height) return 0;
+      return Math.min(
+        ux ? size.width * mapZoomPlane.scale * 50 / (mapSize.width * Math.abs(ux)) : Infinity,
+        uy ? size.height * mapZoomPlane.scale * 50 / (mapSize.height * Math.abs(uy)) : Infinity,
+      );
+    };
+    const fromRadius = radius(from);
+    const toRadius = radius(to);
     return {
       x1: from.x + ux * Math.min(fromRadius, len / 2),
       y1: from.y + uy * Math.min(fromRadius, len / 2),
@@ -2220,7 +2373,7 @@ export function ConceptAtlas({
   }, [activeMapStyle.background.blur, activeMapStyle.background.opacity, mode]);
 
   const nodeCardClassName = (nodeStyle: AtlasMapNodeStyle | undefined, isSelected: boolean) => cn(
-    'border-accent/20 bg-card/95 shadow-md transition-all hover:-translate-y-1 hover:shadow-xl',
+    'border-accent/20 bg-card/95 shadow-md hover:shadow-xl',
     nodeStyle === 'compact' && 'min-w-[112px] rounded-lg px-3 py-2',
     nodeStyle === 'pill' && 'min-w-[124px] rounded-full px-5 py-2.5',
     nodeStyle === 'card' && 'min-w-[152px] rounded-2xl px-4 py-4 shadow-lg',
@@ -2242,41 +2395,41 @@ export function ConceptAtlas({
     };
   };
 
-  const saveMapStyle = () => {
+  const openMapStyle = () => {
     if (!activeMap) return;
-    updateActiveMap({
-      style: styleDraft.background.storagePath
-        ? { ...styleDraft, background: { ...styleDraft.background, imageUrl: '' } }
-        : styleDraft,
-    });
-    setIsStyleOpen(false);
+    styleBase.current = activeMap;
+    setStyleDraft(normalizeAtlasMapStyle(activeMap.style));
+    setStyleError('');
+    setIsStyleOpen(true);
   };
 
-  const clearUploadedBackground = async () => {
-    if (!styleDraft.background.storagePath) {
-      setStyleDraft((prev) => ({
-        ...prev,
-        background: {
-          ...prev.background,
-          type: 'preset',
-          preset: 'dark',
-          imageUrl: '',
-          storagePath: '',
-          blur: 0,
-          opacity: 0.42,
-        },
-      }));
+  const saveMapStyle = async () => {
+    const base = styleBase.current;
+    if (!base || styleSaveLock.current) return;
+    if (base.id !== activeMap?.id || base.dateUpdated !== activeMap.dateUpdated) {
+      setStyleError('The map changed while you were editing. Close and reopen Map Style to use the latest version.');
       return;
     }
-
+    styleSaveLock.current = true;
+    setSavingStyle(true);
+    setStyleError('');
     try {
-      const { firebaseApp } = initializeFirebase();
-      const storage = getStorage(firebaseApp);
-      await deleteObject(storageRef(storage, styleDraft.background.storagePath));
+      const style = styleDraft.background.storagePath
+        ? { ...styleDraft, background: { ...styleDraft.background, imageUrl: '' } }
+        : styleDraft;
+      await onUpdateAtlasMap({ ...base, style }, true);
+      setIsStyleOpen(false);
     } catch (error) {
-      console.warn('Unable to delete atlas background from storage', error);
+      setStyleError(error instanceof Error && error.name === 'WorkspaceRecordChangedError'
+        ? 'The map changed before the style could be saved. Close and reopen Map Style to use the latest version.'
+        : 'Map style was not saved. Your changes are still here.');
+    } finally {
+      styleSaveLock.current = false;
+      setSavingStyle(false);
     }
+  };
 
+  const clearUploadedBackground = () => {
     setStyleDraft((prev) => ({
       ...prev,
       background: {
@@ -2336,9 +2489,19 @@ export function ConceptAtlas({
 
 
   return (
-    <div data-noesis-identity="network" className={cn(
+    <div data-noesis-identity="network" data-noesis-scroll-region onKeyDown={(event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || !event.currentTarget.contains(event.target as Node)) return;
+      if (quickLinkSource) clearQuickLinkMode();
+      else if (isPanelOpen) closeNodeInspector();
+      else if (isFullScreen) {
+        setIsFullScreen(false);
+        fullScreenButtonRef.current?.focus({ preventScroll: true });
+      } else return;
+      event.preventDefault();
+      event.stopPropagation();
+    }} className={cn(
       "relative flex w-full min-h-0 flex-col bg-background font-body",
-      isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "h-full flex-1 overflow-hidden"
+      isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "flex-1 overflow-y-auto md:h-full md:overflow-hidden"
     )}>
       {!isFullScreen && (
       <div className="noesis-gutter pt-[var(--page-top)]">
@@ -2349,7 +2512,7 @@ export function ConceptAtlas({
             <>
               <div className="relative min-w-0 flex-1 sm:flex-none">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-full rounded-full pl-9 sm:w-56" />
+                <Input aria-label="Search map" placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-full rounded-full pl-9 sm:w-56" />
               </div>
               <Button onClick={() => setIsAddOpen(true)} className="shrink-0">
                 <Plus className="size-4" /> New Concept
@@ -2385,7 +2548,7 @@ export function ConceptAtlas({
 
           <div className="hidden gap-2 overflow-x-auto pb-1 md:flex md:flex-wrap md:justify-end md:overflow-visible md:pb-0">
             <Select value={viewMode} onValueChange={(value) => setViewMode(value as AtlasViewMode)}>
-              <SelectTrigger className="h-8 w-36 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
+              <SelectTrigger aria-label="Map view" className="h-8 w-36 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
                 <SelectValue placeholder="View Mode" />
               </SelectTrigger>
               <SelectContent>
@@ -2398,7 +2561,7 @@ export function ConceptAtlas({
               </SelectContent>
             </Select>
             <Select value={autoConnectionFocus} onValueChange={(value) => setAutoConnectionFocus(value as 'strong' | 'moderate' | 'all')}>
-              <SelectTrigger className="h-8 w-40 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
+              <SelectTrigger aria-label="Connection focus" className="h-8 w-40 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
                 <SelectValue placeholder="Connection Focus" />
               </SelectTrigger>
               <SelectContent>
@@ -2413,7 +2576,7 @@ export function ConceptAtlas({
                   {relationshipFilterLabel}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-h-[420px] w-72 overflow-y-auto rounded-2xl">
+              <DropdownMenuContent align="end" scrollable className="w-72 rounded-2xl [--noesis-menu-max-height:420px]">
                 <DropdownMenuLabel className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Relationship Types</DropdownMenuLabel>
                 <div className="flex gap-2 px-2 pb-2 pt-1">
                   <Button size="sm" variant={relationshipFilterMode === 'recommended' ? 'default' : 'outline'} className="h-7 rounded-full px-3 text-[10px]" onClick={() => setRelationshipFilterMode('recommended')}>
@@ -2466,7 +2629,12 @@ export function ConceptAtlas({
                 <SlidersHorizontal className="mr-1.5 size-3.5" /> Map options
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="max-h-[70dvh] w-64 overflow-y-auto rounded-xl">
+            <DropdownMenuContent
+              align="start"
+              collisionPadding={12}
+              scrollable
+              className="w-64 rounded-xl"
+            >
               <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Map source</DropdownMenuLabel>
               <DropdownMenuCheckboxItem checked={mode === 'auto'} onCheckedChange={() => setMode('auto')}>Auto map</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem checked={mode === 'custom'} onCheckedChange={() => setMode('custom')}>Custom map</DropdownMenuCheckboxItem>
@@ -2503,22 +2671,23 @@ export function ConceptAtlas({
           </DropdownMenu>
 
           {mode === 'custom' && (
-            <div className="hidden gap-2 overflow-x-auto pb-1 md:flex md:flex-wrap md:overflow-visible md:pb-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <select
+                aria-label="Custom map"
                 value={activeMap?.id || ''}
                 onChange={(event) => setActiveMapId(event.target.value)}
-                className="h-8 rounded-full border border-input bg-background px-4 font-code text-[11px] uppercase tracking-wider shadow-sm appearance-none cursor-pointer"
+                className="h-11 w-full min-w-0 max-w-full rounded-[var(--button-radius)] border border-input bg-background px-3 text-sm md:h-8 md:w-auto md:max-w-64"
               >
                 {!atlasMaps.length && <option value="">No custom maps</option>}
                 {atlasMaps.map((map) => <option key={map.id} value={map.id}>{map.title}</option>)}
               </select>
-              <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setIsStyleOpen(true)} disabled={!activeMap}>
+              <Button variant="outline" size="sm" className="h-11 md:h-8" onClick={openMapStyle} disabled={!activeMap}>
                 <SlidersHorizontal className="mr-1.5 size-4" /> Map Style
               </Button>
-              <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setIsMapOpen(true)}><Plus className="mr-1.5 size-4" /> Custom Map</Button>
-              <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setIsNodeOpen(true)} disabled={!activeMap}><Plus className="mr-1.5 size-4" /> Add Node</Button>
+              <Button variant="outline" size="sm" className="h-11 md:h-8" onClick={() => setIsMapOpen(true)}><Plus className="mr-1.5 size-4" /> New Map</Button>
+              <Button variant="outline" size="sm" className="h-11 md:h-8" onClick={() => setIsNodeOpen(true)} disabled={!activeMap}><Plus className="mr-1.5 size-4" /> Add Node</Button>
               {activeMap && (
-                <Button variant="ghost" size="sm" onClick={() => onDeleteAtlasMap(activeMap.id)} className="h-8 text-destructive hover:text-destructive rounded-full">Delete Map</Button>
+                <Button variant="ghost" size="sm" onClick={() => setMapToDelete(activeMap)} className="h-11 text-destructive hover:text-destructive md:h-8">Delete Map</Button>
               )}
             </div>
           )}
@@ -2532,7 +2701,7 @@ export function ConceptAtlas({
             <Stat value={selectedName || 'None'} label="Active" />
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 md:justify-end md:overflow-visible md:pb-0">
-            {selectedRegion && (
+            {mode === 'auto' && selectedRegion && (
               <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setAtlasSection('territory')}>
                 {selectedRegion.name}
               </Button>
@@ -2587,7 +2756,10 @@ export function ConceptAtlas({
                 ]}
               />
               {connectionsTab === 'relationships' ? (
-                <AtlasConnectionsView links={links} concepts={concepts} regionConceptIds={selectedRegion?.conceptIds || []} regionObjectIds={selectedRegion ? [...selectedRegion.conceptIds, ...selectedRegion.positionIds, ...selectedRegion.practiceIds, ...selectedRegion.inquiryIds, ...selectedRegion.sourceIds, ...selectedRegion.workIds] : []} regionName={selectedRegion?.name} onUpdateLink={onUpdateLink} onDeleteLink={onDeleteLink} />
+                <AtlasConnectionsView links={links} concepts={concepts} regionMembers={selectedRegion ? {
+                  concept: selectedRegion.conceptIds, position: selectedRegion.positionIds, practice: selectedRegion.practiceIds,
+                  inquiry: selectedRegion.inquiryIds, source: selectedRegion.sourceIds, work: selectedRegion.workIds,
+                } : undefined} regionName={selectedRegion?.name} onUpdateLink={onUpdateLink} onDeleteLink={requestRegistryRemoval} />
               ) : (
                 <AtlasTensionsBoard tensions={atlasSystemTensions} onOpenRegion={openRegionWorkspace} />
               )}
@@ -2601,7 +2773,7 @@ export function ConceptAtlas({
               knownIds={atlasKnownIds}
               onUpdateConcept={onUpdateConcept}
               onUpdateLink={onUpdateLink}
-              onDeleteLink={onDeleteLink}
+              onDeleteLink={requestRegistryRemoval}
             />
           )}
         </div>
@@ -2609,15 +2781,16 @@ export function ConceptAtlas({
 
       {atlasSection === 'map' && (
       <div className={cn(
-        "relative flex min-h-0 flex-1 gap-4 max-md:h-[calc(100dvh-13rem)] max-md:min-h-[24rem]",
+        "relative flex min-h-0 flex-1 gap-4",
+        !isFullScreen && "max-md:h-[max(24rem,calc(100dvh-13rem))] max-md:flex-none",
         isFullScreen ? "overflow-hidden px-0 pb-0" : "noesis-gutter overflow-hidden pb-4"
       )}>
         <div
           ref={mapRef}
           className={cn(
-            "relative h-full min-h-0 min-w-0 flex-1 touch-none overflow-hidden rounded-[var(--card-radius)] border border-border bg-background",
+            "relative h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-[var(--card-radius)] border border-border bg-background",
             quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
-            isFullScreen && "rounded-none"
+            isFullScreen ? "touch-none rounded-none" : "touch-pan-y"
           )}
           onClick={() => {
             if (quickLinkSource) clearQuickLinkMode();
@@ -2625,9 +2798,9 @@ export function ConceptAtlas({
           }}
           onPointerDown={startPanning}
           onPointerMove={handlePointerMove}
-          onPointerUp={(event) => { event.currentTarget.releasePointerCapture?.(event.pointerId); setIsPanning(false); }}
-          onPointerCancel={() => setIsPanning(false)}
-          onPointerLeave={(event) => { if (event.pointerType === 'mouse') setIsPanning(false); }}
+          onPointerUp={endPan}
+          onPointerCancel={endPan}
+          onLostPointerCapture={endPan}
           data-map-width={mapSize.width || undefined}
           data-map-height={mapSize.height || undefined}
         >
@@ -2638,17 +2811,16 @@ export function ConceptAtlas({
             />
           )}
           <div className={cn(
-            "absolute right-4 top-4 z-50 flex h-9 rounded-full border border-border/50 bg-card/90 p-1 shadow-md backdrop-blur transition-[right]",
-            isPanelOpen && "md:right-[23rem]"
-          )}>
-            <Button variant="ghost" size="icon" aria-label="Zoom out" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.max(ATLAS_MIN_ZOOM, z - ATLAS_ZOOM_STEP)); }} className="size-10 rounded-full font-bold md:size-8">-</Button>
-            <div className="flex w-10 items-center justify-center font-code text-[10px] font-bold text-primary/60">{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</div>
-            <Button variant="ghost" size="icon" aria-label="Zoom in" onClick={(event) => { event.stopPropagation(); setZoom((z) => Math.min(ATLAS_MAX_ZOOM, z + ATLAS_ZOOM_STEP)); }} className="size-10 rounded-full font-bold md:size-8">+</Button>
+            "absolute right-4 top-4 z-50 flex rounded-full border border-border/50 bg-card/90 p-1 shadow-md backdrop-blur"
+          )} onClick={(event) => event.stopPropagation()}>
+            <Button variant="ghost" size="icon" aria-label="Zoom out" disabled={zoom <= ATLAS_MIN_ZOOM + 0.001} onClick={() => changeZoom(zoom - ATLAS_ZOOM_STEP)} className="size-10 rounded-full font-bold md:size-8">-</Button>
+            <Button variant="ghost" size="icon" className="size-10 font-code text-[10px] md:size-8" title="Reset map view" aria-label={`Reset map view, current zoom ${Math.round((zoom / ATLAS_BASE_ZOOM) * 100)} percent`} onClick={() => { setPan({ x: 0, y: 0 }); changeZoom(ATLAS_BASE_ZOOM); }}>{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</Button>
+            <Button variant="ghost" size="icon" aria-label="Zoom in" disabled={zoom >= ATLAS_MAX_ZOOM - 0.001} onClick={() => changeZoom(zoom + ATLAS_ZOOM_STEP)} className="size-10 rounded-full font-bold md:size-8">+</Button>
             <div className="mx-1 my-1 w-px bg-border" />
-            <Button variant={isPanelOpen ? 'secondary' : 'ghost'} size="icon" aria-label={isPanelOpen ? 'Hide map controls' : 'Show map controls'} onClick={(event) => { event.stopPropagation(); setIsPanelOpen((open) => !open); }} className="size-10 rounded-full md:size-8">
+            <Button ref={mapControlsRef} variant={isPanelOpen ? 'secondary' : 'ghost'} size="icon" aria-expanded={isPanelOpen} aria-controls={isPanelOpen ? inspectorId : undefined} aria-label={isPanelOpen ? 'Hide Atlas inspector' : 'Show Atlas inspector'} onClick={(event) => { event.stopPropagation(); setIsPanelOpen((open) => !open); }} className="size-10 rounded-full md:size-8">
               <SlidersHorizontal className="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" aria-label={isFullScreen ? 'Exit full screen map' : 'Open full screen map'} onClick={(event) => { event.stopPropagation(); setIsFullScreen(!isFullScreen); }} className="size-10 rounded-full md:size-8">
+            <Button ref={fullScreenButtonRef} variant="ghost" size="icon" aria-label={isFullScreen ? 'Exit full screen map' : 'Open full screen map'} aria-pressed={isFullScreen} title={isFullScreen ? 'Exit full screen' : 'Full screen for touch panning and dragging'} onClick={(event) => { event.stopPropagation(); setIsFullScreen(!isFullScreen); }} className="size-10 rounded-full md:size-8">
               {isFullScreen ? <Minimize className="size-3.5" /> : <Maximize className="size-3.5" />}
             </Button>
           </div>
@@ -2664,7 +2836,7 @@ export function ConceptAtlas({
           )}
 
           <div
-            className="absolute inset-0 h-full w-full"
+            className="pointer-events-none absolute inset-0 h-full w-full"
             style={{
               width: `${mapZoomPlane.extentPercent}%`,
               height: `${mapZoomPlane.extentPercent}%`,
@@ -2674,8 +2846,8 @@ export function ConceptAtlas({
           >
             <svg className="pointer-events-none absolute inset-0 h-full w-full">
               {renderedEdges.map((edge, index) => {
-                const from = nodes.find((node) => conceptKey(node.name) === conceptKey(edge.from));
-                const to = nodes.find((node) => conceptKey(node.name) === conceptKey(edge.to));
+                const from = positionedNodeByKey.get(conceptKey(edge.from));
+                const to = positionedNodeByKey.get(conceptKey(edge.to));
                 if (!from || !to) return null;
                 const points = edgePoints(from, to);
                 const key = `${edge.from}-${edge.to}-${edge.id || index}`;
@@ -2683,6 +2855,8 @@ export function ConceptAtlas({
                 const edgeColor = edgeStrokeColor(edge);
                 const isActive = activeEdgeId === edgeSignature(edge);
                 const isSelectedClusterEdge = selectedClusterEdges.has(edgeSignature(edge));
+                const showTrace = shouldTraceAtlasConnection(connectionTrace, edgeSignature(edge), edge.groupedLinkIds);
+                const reverseTrace = connectionTrace?.from === conceptKey(edge.to);
                 const visuals = edgeVisuals(
                   edge,
                   isHovered,
@@ -2717,6 +2891,19 @@ export function ConceptAtlas({
                       strokeLinecap="round"
                       className="transition-all"
                     />
+                    {showTrace && (
+                      <line
+                        aria-hidden="true"
+                        className="atlas-connection-trace"
+                        x1={`${reverseTrace ? points.x2 : points.x1}%`}
+                        y1={`${reverseTrace ? points.y2 : points.y1}%`}
+                        x2={`${reverseTrace ? points.x1 : points.x2}%`}
+                        y2={`${reverseTrace ? points.y1 : points.y2}%`}
+                        pathLength={1}
+                        strokeLinecap="round"
+                        onAnimationEnd={() => setConnectionTrace((current) => current === connectionTrace ? null : current)}
+                      />
+                    )}
                     <line
                       x1={`${points.x1}%`}
                       y1={`${points.y1}%`}
@@ -2749,6 +2936,7 @@ export function ConceptAtlas({
                         const linkItem = linkItemForEdge(edge);
                         if (linkItem.removable) {
                           setSelectedLink(null);
+                          registryRemovalOpener.current = null;
                           setCutLinkCandidate(linkItem);
                           setActiveEdgeId(linkItem.id);
                           markLinkInteraction(linkItem);
@@ -2770,7 +2958,7 @@ export function ConceptAtlas({
             </svg>
 
             {quickLinkSource && (() => {
-              const sourceNode = nodes.find((node) => conceptKey(node.name) === conceptKey(quickLinkSource));
+              const sourceNode = positionedNodeByKey.get(conceptKey(quickLinkSource));
               const rect = mapRef.current?.getBoundingClientRect();
               if (!sourceNode || !rect) return null;
               const cursorX = ((quickLinkCursor.x - rect.left - pan.x) / rect.width) * 100;
@@ -2793,69 +2981,17 @@ export function ConceptAtlas({
               );
             })()}
 
-            {renderedNodes.map((node) => (
-              <div
+            {positionedNodes.map((node) => (
+              <button
                 key={node.name}
-                role="button"
-                tabIndex={0}
-                aria-label={`Open concept ${node.name}`}
+                ref={(element) => { if (element) nodeButtons.current.set(node.name, element); else nodeButtons.current.delete(node.name); }}
+                type="button"
+                aria-expanded={!quickLinkSource ? isPanelOpen && selectedName === node.name : undefined}
+                aria-controls={isPanelOpen && selectedName === node.name ? inspectorId : undefined}
+                disabled={Boolean(quickLinkSource && conceptKey(node.name) === conceptKey(quickLinkSource))}
                 className={cn(
-                  "absolute -translate-x-1/2 -translate-y-1/2 text-center transition-none",
-                  quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"
-                )}
-                style={{ left: `${node.x}%`, top: `${node.y}%` }}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  openNodeLinkPanel(node.name);
-                }}
-                onPointerEnter={() => {
-                  if (quickLinkSource && conceptKey(node.name) !== conceptKey(quickLinkSource)) {
-                    setQuickLinkHoverTarget(node.name);
-                  }
-                }}
-                onPointerLeave={() => {
-                  if (quickLinkHoverTarget === node.name) setQuickLinkHoverTarget(null);
-                }}
-                onPointerDown={(event) => {
-                  if (quickLinkSource) {
-                    event.stopPropagation();
-                    if (conceptKey(node.name) === conceptKey(quickLinkSource)) return;
-                    setQuickLinkTarget(node.name);
-                    setQuickLinkHoverTarget(node.name);
-                    setLinkDraft((prev) => ({
-                      ...prev,
-                      to: conceptKey(node.name),
-                      type: prev.type || 'supports',
-                      label: prev.label || 'supports',
-                    }));
-                    setIsLinkOpen(true);
-                    return;
-                  }
-                  event.stopPropagation();
-                  setDraggingName(node.name);
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                }}
-                onDoubleClick={(event) => {
-                  if (quickLinkSource) return;
-                  event.stopPropagation();
-                  setSelectedName(node.name);
-                  setIsPanelOpen(true);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter' && event.key !== ' ') return;
-                  event.preventDefault();
-                  setSelectedName(node.name);
-                  setIsPanelOpen(true);
-                }}
-                onPointerMove={(event) => {
-                  if (draggingName === node.name) moveNode(node.name, event.clientX, event.clientY);
-                }}
-                onPointerUp={() => persistNode(node.name)}
-                onPointerCancel={() => setDraggingName(null)}
-              >
-                <Card
-                  className={cn(
+                  "pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 border bg-card text-center text-card-foreground transition-none focus-visible:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring",
+                  quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
                     nodeCardClassName(activeMapStyle.nodeStyle, selectedName === node.name),
                     quickLinkSource && conceptKey(node.name) === conceptKey(quickLinkSource) && 'border-accent ring-2 ring-accent shadow-2xl',
                     quickLinkSource && conceptKey(node.name) !== conceptKey(quickLinkSource) && 'opacity-95',
@@ -2864,58 +3000,55 @@ export function ConceptAtlas({
                     activeEdgeNodes.has(conceptKey(node.name)) && 'ring-2 ring-accent/60 shadow-xl',
                     !activeEdgeNodes.size && selectedClusterNodes.size > 0 && !selectedClusterNodes.has(conceptKey(node.name)) && 'opacity-25 saturate-50',
                     !activeEdgeNodes.size && selectedClusterNodes.has(conceptKey(node.name)) && selectedName !== node.name && 'border-accent/35 ring-1 ring-accent/35 shadow-lg'
-                  )}
-                  style={nodeColorStyle(node.name)}
-                >
-                  <h3 className={cn('font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-[15px]')}>
-                    {node.name}
-                  </h3>
-                  <div className="font-code text-[9px] uppercase text-muted-foreground">{node.count} linked</div>
-                  {selectedName === node.name && (
-                    <div
-                      className={cn(
-                        "flex items-center justify-center gap-1.5",
-                        isFullScreen
-                          ? "mt-2"
-                          : "absolute left-1/2 top-full z-20 mt-1.5 -translate-x-1/2 rounded-full border border-border/70 bg-card/96 px-1.5 py-1 shadow-lg backdrop-blur-sm"
-                      )}
-                    >
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className={cn("rounded-full text-[10px]", isFullScreen ? "h-6 px-2" : "h-5 px-1.5 text-[9px]")}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setSelectedName(node.name);
-                          beginQuickLinkMode(node.name);
-                        }}
-                      >
-                        <Link2 className="mr-1 size-3" /> Quick Link
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className={cn("rounded-full text-destructive hover:text-destructive", isFullScreen ? "h-6 px-2 text-[10px]" : "h-5 px-1.5 text-[9px]")}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (removableNodeLinks.length) {
-                            setSelectedName(node.name);
-                            setCutLinkMethod('atlas_node_action');
-                            setIsDeleteAllLinksOpen(true);
-                          }
-                        }}
-                        disabled={!removableNodeLinks.length}
-                      >
-                        Cut Links
-                      </Button>
-                    </div>
-                  )}
-                </Card>
-              </div>
+                )}
+                style={{ ...nodeColorStyle(node.name), left: `${node.x}%`, top: `${node.y}%` }}
+                onFocus={(event) => {
+                  if (!mapRef.current || !event.currentTarget.matches(':focus-visible')) return;
+                  const delta = atlasFocusPan(mapRef.current.getBoundingClientRect(), event.currentTarget.getBoundingClientRect());
+                  if (delta.x || delta.y) setPan((current) => ({ x: current.x + delta.x, y: current.y + delta.y }));
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  openNodeLinkPanel(node.name);
+                }}
+                onPointerEnter={() => {
+                  if (quickLinkSource) setQuickLinkHoverTarget(node.name);
+                }}
+                onPointerLeave={() => {
+                  if (quickLinkHoverTarget === node.name) setQuickLinkHoverTarget(null);
+                }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  if (!event.isPrimary) return;
+                  suppressNodeClickRef.current = false;
+                  if (quickLinkSource || !atlasCanDrag(event, isFullScreen) || panGestureRef.current || nodeGestureRef.current) return;
+                  nodeGestureRef.current = { pointerId: event.pointerId, name: node.name, x: event.clientX, y: event.clientY };
+                  setDraggingName(node.name);
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (event.detail !== 0 && suppressNodeClickRef.current) return;
+                  activateMapNode(node.name, event.detail === 0);
+                }}
+                onPointerMove={(event) => {
+                  const gesture = nodeGestureRef.current;
+                  if (gesture?.pointerId !== event.pointerId || gesture.name !== node.name) return;
+                  if (!gesture.position && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) <= 6) return;
+                  const position = nodePositionAtPointer(event.clientX, event.clientY);
+                  if (!position) return;
+                  gesture.position = position;
+                  setNodePreview({ scope: mapScope, key: conceptKey(node.name), ...position });
+                }}
+                onPointerUp={(event) => endNodeGesture(event.pointerId, true)}
+                onPointerCancel={(event) => endNodeGesture(event.pointerId, false)}
+                onLostPointerCapture={(event) => endNodeGesture(event.pointerId, false)}
+              >
+                <span className="sr-only">{quickLinkSource ? 'Link to' : 'Open concept'} </span>
+                <span className={cn('block max-w-28 break-words font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-[15px]')}>{node.name}</span>
+                <span className="block font-code text-[9px] uppercase text-muted-foreground">{node.count} linked</span>
+              </button>
             ))}
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-px bg-border" />
@@ -3066,6 +3199,7 @@ export function ConceptAtlas({
                 variant="destructive"
                 onClick={() => {
                   setCutLinkMethod('atlas_link_detail');
+                  registryRemovalOpener.current = null;
                   setCutLinkCandidate(selectedLink);
                   setSelectedLink(null);
                 }}
@@ -3078,30 +3212,26 @@ export function ConceptAtlas({
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={!!cutLinkCandidate}
+      <ConfirmActionDialog
+        open={Boolean(cutLinkCandidate || registryRemoval)}
         onOpenChange={(open) => {
-          if (!open) {
-            setCutLinkCandidate(null);
-            setCutLinkMethod('atlas_link_detail');
-          }
+          if (open) return;
+          setCutLinkCandidate(null);
+          setRegistryRemoval(null);
+          setCutLinkMethod('atlas_link_detail');
         }}
-      >
-        <DialogContent className="max-w-md border-none shadow-2xl rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="font-headline text-2xl italic">Remove this link?</DialogTitle>
-          </DialogHeader>
-          {cutLinkCandidate && (
-            <p className="pt-2 text-sm italic leading-6 text-muted-foreground">
-              This removes the relationship between <span className="text-foreground">{cutLinkCandidate.from}</span> and <span className="text-foreground">{cutLinkCandidate.to}</span>. The nodes and their source items stay intact.
-            </p>
-          )}
-          <DialogFooter className="pt-4">
-            <Button variant="ghost" onClick={() => setCutLinkCandidate(null)} className="rounded-full">Cancel</Button>
-            <Button variant="destructive" onClick={() => cutLink(cutLinkCandidate!)} className="rounded-full px-7">Remove</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Remove relationship?"
+        returnFocusRef={registryRemovalOpener}
+        description={cutLinkCandidate
+          ? `This removes the relationship between ${cutLinkCandidate.from} and ${cutLinkCandidate.to}. The linked items are kept.`
+          : 'This removes the relationship. The linked items are kept.'}
+        confirmLabel="Remove relationship"
+        destructive
+        onConfirm={async () => {
+          if (cutLinkCandidate) await cutLink(cutLinkCandidate);
+          else if (registryRemoval) await onDeleteLink?.(registryRemoval.id, registryRemoval.options);
+        }}
+      />
 
       <Dialog open={isPositionsOpen} onOpenChange={setIsPositionsOpen}>
         <DialogContent className="max-w-4xl border-none shadow-2xl rounded-2xl">
@@ -3209,33 +3339,47 @@ export function ConceptAtlas({
             </div>
             <SourceLinker media={media} selectedIds={newConcept.sourceIds || []} onToggle={toggleNewConceptSource} label="Root Evidence (Sources)" />
           </div>
-          <DialogFooter className="pt-4"><Button onClick={addConcept} className="rounded-full px-8">Anchor Node</Button></DialogFooter>
+          <DialogFooter className="pt-4"><Button onClick={addConcept} disabled={creatingConcept || !newConcept.name?.trim()} className="rounded-full px-8">{creatingConcept ? 'Saving…' : 'Save concept'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isMapOpen} onOpenChange={setIsMapOpen}>
+      <ConfirmActionDialog open={Boolean(mapToDelete)} onOpenChange={(open) => { if (!open) setMapToDelete(null); }}
+        title="Delete custom map?" description={`This removes ${mapToDelete?.title || 'the map'} and its layout. The concepts themselves are kept.`}
+        confirmLabel="Delete map" destructive onConfirm={async () => {
+          if (!mapToDelete) return;
+          await onDeleteAtlasMap(mapToDelete.id);
+          if (activeMapId === mapToDelete.id) setActiveMapId('');
+        }} />
+
+      <Dialog open={isMapOpen} onOpenChange={(open) => {
+        if (mapCreationLock.current) return;
+        setIsMapOpen(open);
+        if (!open) setMapCreationError('');
+      }}>
         <DialogContent className="max-w-lg border-none shadow-2xl rounded-2xl">
           <DialogHeader><DialogTitle className="font-headline text-2xl italic">New Custom Map</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label className="readex-kicker">Map Name</Label>
-              <Input value={newMap.title} onChange={(event) => setNewMap((prev) => ({ ...prev, title: event.target.value }))} placeholder="Discipline and Avoidance" className="rounded-full" />
+              <Label htmlFor="atlas-new-map-name" className="readex-kicker">Map Name</Label>
+              <Input id="atlas-new-map-name" disabled={creatingMap} value={newMap.title} onChange={(event) => setNewMap((prev) => ({ ...prev, title: event.target.value }))} placeholder="Discipline and Avoidance" className="rounded-full" />
             </div>
             <div className="space-y-2">
-              <Label className="readex-kicker">Purpose</Label>
-              <Textarea value={newMap.description} onChange={(event) => setNewMap((prev) => ({ ...prev, description: event.target.value }))} placeholder="What this map is trying to understand..." />
+              <Label htmlFor="atlas-new-map-purpose" className="readex-kicker">Purpose</Label>
+              <Textarea id="atlas-new-map-purpose" disabled={creatingMap} value={newMap.description} onChange={(event) => setNewMap((prev) => ({ ...prev, description: event.target.value }))} placeholder="What this map is trying to understand..." />
             </div>
           </div>
-          <DialogFooter className="pt-4"><Button onClick={createCustomMap} className="rounded-full px-8">Create Map</Button></DialogFooter>
+          {mapCreationError && <p role="alert" className="text-sm text-destructive">{mapCreationError}</p>}
+          <DialogFooter className="pt-4"><Button disabled={creatingMap || !newMap.title.trim()} onClick={() => void createCustomMap()} className="rounded-full px-8">{creatingMap ? 'Creating...' : 'Create Map'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isStyleOpen} onOpenChange={setIsStyleOpen}>
-        <DialogContent className="max-w-2xl border-none shadow-2xl rounded-2xl">
+      <Dialog open={isStyleOpen} onOpenChange={(open) => { if (!styleSaveLock.current) setIsStyleOpen(open); }}>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-2xl flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl italic">Customize Map</DialogTitle>
+            <DialogDescription className="sr-only">Set the appearance of this custom map.</DialogDescription>
           </DialogHeader>
-          <div className="max-h-[70vh] space-y-6 overflow-y-auto pt-2 pr-1">
+          <div className="min-h-0 space-y-6 overflow-y-auto overscroll-contain px-1 py-2">
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <Label className="readex-kicker">Line Color Preference</Label>
@@ -3243,7 +3387,7 @@ export function ConceptAtlas({
                   value={styleDraft.lineMode}
                   onValueChange={(value) => setStyleDraft((prev) => ({ ...prev, lineMode: value as AtlasMapStyle['lineMode'] }))}
                 >
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger aria-label="Line color preference" className="rounded-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -3257,11 +3401,13 @@ export function ConceptAtlas({
                   <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-3">
                     <Input
                       type="color"
+                      aria-label="Pick line color"
                       value={styleDraft.customLineColor || '#7c3aed'}
                       onChange={(event) => setStyleDraft((prev) => ({ ...prev, customLineColor: event.target.value }))}
                       className="h-10 w-16 rounded-lg p-1"
                     />
                     <Input
+                      aria-label="Line color value"
                       value={styleDraft.customLineColor || '#7c3aed'}
                       onChange={(event) => setStyleDraft((prev) => ({ ...prev, customLineColor: event.target.value }))}
                       className="rounded-full"
@@ -3276,7 +3422,7 @@ export function ConceptAtlas({
                   value={styleDraft.fontFamily}
                   onValueChange={(value) => setStyleDraft((prev) => ({ ...prev, fontFamily: value as AtlasMapFontFamily }))}
                 >
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger aria-label="Font choice" className="rounded-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -3303,7 +3449,7 @@ export function ConceptAtlas({
                     },
                   }))}
                 >
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger aria-label="Background choice" className="rounded-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -3324,7 +3470,7 @@ export function ConceptAtlas({
                       },
                     }))}
                   >
-                    <SelectTrigger className="rounded-full">
+                    <SelectTrigger aria-label="Background preset" className="rounded-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -3340,6 +3486,7 @@ export function ConceptAtlas({
                   <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-3">
                     <Input
                       type="color"
+                      aria-label="Pick background color"
                       value={styleDraft.background.color || '#111111'}
                       onChange={(event) => setStyleDraft((prev) => ({
                         ...prev,
@@ -3351,6 +3498,7 @@ export function ConceptAtlas({
                       className="h-10 w-16 rounded-lg p-1"
                     />
                     <Input
+                      aria-label="Background color value"
                       value={styleDraft.background.color || '#111111'}
                       onChange={(event) => setStyleDraft((prev) => ({
                         ...prev,
@@ -3411,7 +3559,7 @@ export function ConceptAtlas({
                   value={styleDraft.nodeStyle || 'default'}
                   onValueChange={(value) => setStyleDraft((prev) => ({ ...prev, nodeStyle: value as AtlasMapNodeStyle }))}
                 >
-                  <SelectTrigger className="rounded-full">
+                  <SelectTrigger aria-label="Node style" className="rounded-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -3429,6 +3577,7 @@ export function ConceptAtlas({
                       <p className="text-xs italic text-muted-foreground">Keep faint weak links visible on this custom map.</p>
                     </div>
                     <Switch
+                      aria-label="Show weak links"
                       checked={styleDraft.showWeakLinks ?? false}
                       onCheckedChange={(checked) => setStyleDraft((prev) => ({ ...prev, showWeakLinks: checked }))}
                     />
@@ -3446,6 +3595,7 @@ export function ConceptAtlas({
                   </span>
                 </div>
                 <Slider
+                  aria-label="Background opacity"
                   value={[Math.round((styleDraft.background.opacity ?? 0.42) * 100)]}
                   min={10}
                   max={100}
@@ -3467,6 +3617,7 @@ export function ConceptAtlas({
                   </span>
                 </div>
                 <Slider
+                  aria-label="Background blur"
                   value={[styleDraft.background.blur ?? 0]}
                   min={0}
                   max={18}
@@ -3483,8 +3634,9 @@ export function ConceptAtlas({
             </div>
           </div>
           <DialogFooter className="pt-4">
-            <Button variant="ghost" onClick={() => setIsStyleOpen(false)} className="rounded-full">Cancel</Button>
-            <Button onClick={saveMapStyle} className="rounded-full px-8">Save Map Style</Button>
+            {styleError && <p role="alert" className="text-sm text-destructive">{styleError}</p>}
+            <Button variant="ghost" disabled={savingStyle} onClick={() => setIsStyleOpen(false)} className="rounded-full">Cancel</Button>
+            <Button onClick={saveMapStyle} disabled={savingStyle || isUploadingBackground} className="rounded-full px-8">{savingStyle ? 'Saving...' : 'Save Map Style'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3509,7 +3661,9 @@ export function ConceptAtlas({
       </Dialog>
 
       <Dialog open={isLinkOpen} onOpenChange={(open) => {
+        if (linkSaveLock.current) return;
         setIsLinkOpen(open);
+        setLinkError('');
         if (!open) {
           setQuickLinkTarget(null);
           setShowAdvancedLinkTypes(false);
@@ -3520,15 +3674,17 @@ export function ConceptAtlas({
             <DialogTitle className="font-headline text-2xl italic">
               {quickLinkSource && quickLinkTarget ? `Link ${quickLinkSource} to ${quickLinkTarget}` : 'Link This Idea'}
             </DialogTitle>
+            <DialogDescription className="sr-only">Choose the target and relationship type.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
+          <fieldset disabled={linkSaving} className="min-w-0 space-y-4 pt-2">
             <div className="space-y-2">
-              <Label className="readex-kicker">From</Label>
-              <Input value={selectedName || ''} disabled className="rounded-full" />
+              <Label htmlFor="atlas-link-from" className="readex-kicker">From</Label>
+              <Input id="atlas-link-from" value={selectedName || ''} disabled className="rounded-full" />
             </div>
             <div className="space-y-2">
-              <Label className="readex-kicker">To</Label>
+              <Label htmlFor="atlas-link-to" className="readex-kicker">To</Label>
               <select
+                id="atlas-link-to"
                 value={linkDraft.to}
                 onChange={(event) => setLinkDraft((prev) => ({ ...prev, to: event.target.value }))}
                 className="h-10 w-full rounded-full border border-border/60 bg-card px-4 text-sm font-body shadow-sm appearance-none"
@@ -3584,8 +3740,9 @@ export function ConceptAtlas({
               <Label className="readex-kicker">Note</Label>
               <Textarea value={linkDraft.note} onChange={(event) => setLinkDraft((prev) => ({ ...prev, note: event.target.value }))} placeholder="Why do these belong together?" />
             </div>
-          </div>
-          <DialogFooter className="pt-4"><Button onClick={createLink} disabled={!linkDraft.to} className="rounded-full px-8">Save Link</Button></DialogFooter>
+          </fieldset>
+          {linkError && <p role="alert" className="text-sm text-destructive">{linkError}</p>}
+          <DialogFooter className="pt-4"><Button onClick={() => void createLink()} disabled={linkSaving || !linkDraft.to} className="rounded-full px-8">{linkSaving ? 'Saving link...' : 'Save Link'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -3595,7 +3752,7 @@ export function ConceptAtlas({
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex items-center gap-3 whitespace-nowrap rounded-full border border-border bg-card px-5 py-2 shadow-sm">
-      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</div>
+      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground font-bold">{label}</div>
       <div className="max-w-[120px] truncate font-headline text-lg font-bold italic text-primary">{value}</div>
     </div>
   );

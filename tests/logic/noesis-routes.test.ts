@@ -1,8 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NOESIS_ICONS, NOESIS_VIEW_ICON_KEYS } from '../../src/lib/noesis-icons';
-import { NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
-import { parseNoesisRoute, viewToPath } from '../../src/lib/noesis-routes';
+import { dataRequirementsForNoesisRoute, metadataForNoesisRouteState, NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
+
+test('Today loads its saved commitment visibility without visiting Settings first', () => {
+  assert.ok(dataRequirementsForNoesisRoute(parseNoesisRoute('/home')).includes('goalPreferences'));
+  assert.ok(!dataRequirementsForNoesisRoute(parseNoesisRoute('/library')).includes('goalPreferences'));
+});
+import { getNoesisRouteTarget, parseNoesisRoute, pathForNoesisRouteTarget, viewToPath } from '../../src/lib/noesis-routes';
+
+test('commitment detail links round-trip in signed-in and demo workspaces', () => {
+  for (const reviewMode of [false, true]) {
+    const path = viewToPath('goals', { goalId: 'focus / study', reviewMode });
+    assert.equal(path, `${reviewMode ? '/demo' : ''}/goals/focus%20%2F%20study`);
+    assert.deepEqual(parseNoesisRoute(path), { view: 'goals', focusedGoalId: 'focus / study' });
+    assert.ok(dataRequirementsForNoesisRoute(parseNoesisRoute(path)).includes('goal'));
+  }
+  assert.deepEqual(parseNoesisRoute('/goals'), { view: 'goals' });
+});
 
 test('Praxis keeps the Labs route compatible for existing practice links', () => {
   assert.deepEqual(parseNoesisRoute('/labs'), { view: 'labs', focusedPracticeId: null });
@@ -63,6 +78,14 @@ test('Source Index owns the sources route', () => {
   assert.equal(viewToPath('source-index', { reviewMode: true }), '/demo/sources');
 });
 
+test('direct routes request the records they actually consume', () => {
+  assert.equal(pageNeedsData('goals', 'concepts'), true);
+  assert.equal(pageNeedsData('writing', 'worksSettings'), true);
+  assert.ok(dataRequirementsForNoesisRoute(parseNoesisRoute('/works/essay')).includes('worksSettings'));
+  assert.equal(pageNeedsData('evolution', 'thinkingMetrics'), false);
+  assert.equal(pageNeedsData('profile', 'thinkingMetrics'), true);
+});
+
 test('annotations use URL-backed detail pages with source context', () => {
   assert.deepEqual(parseNoesisRoute('/annotations/source-1/note-2'), {
     view: 'annotations',
@@ -79,4 +102,22 @@ test('annotations use URL-backed detail pages with source context', () => {
     '/annotations/source%201/note%2F2'
   );
   assert.equal(viewToPath('annotations'), '/annotations');
+});
+
+test('encoded annotations retain both ids through routing without exposing them in metadata', () => {
+  const path = viewToPath('annotations', { reviewMode: true, annotationSourceId: 'source 1', annotationId: 'note/%2F' });
+  const state = parseNoesisRoute(path);
+  const target = getNoesisRouteTarget(state);
+  assert.deepEqual(target, { type: 'annotation', view: 'annotations', annotationSourceId: 'source 1', id: 'note/%2F' });
+  assert.ok(target);
+  assert.equal(pathForNoesisRouteTarget(target, { reviewMode: true }), path);
+  assert.ok(dataRequirementsForNoesisRoute(state).includes('media'));
+  assert.doesNotMatch(String(metadataForNoesisRouteState(state).description), /source 1|note\//);
+  assert.equal(getNoesisRouteTarget(parseNoesisRoute('/annotations/source-only')), null);
+});
+
+test('record paths safely round-trip reserved characters and malformed links do not throw', () => {
+  const workId = 'work 100% #2?';
+  assert.equal(parseNoesisRoute(viewToPath('writing', { workId })).focusedWorkId, workId);
+  assert.equal(parseNoesisRoute('/works/bad%id').focusedWorkId, 'bad%id');
 });

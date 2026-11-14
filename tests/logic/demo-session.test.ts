@@ -1,12 +1,75 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildDemoWorkspace } from '../../src/lib/demo-workspace';
-import { applyDemoChanges, applyDemoOverrides } from '../../src/lib/demo-session';
+import { applyDemoChanges, applyDemoOverrides, loadDemoSession, readDemoSession } from '../../src/lib/demo-session';
 
 const uid = 'demo-regression';
 const base = buildDemoWorkspace(uid);
 const inquiry = base.questions[0];
 const path = `users/${uid}/questions/${inquiry.id}`;
+
+test('loading the deferred demo session restores the seeded workspace', async () => {
+  await loadDemoSession();
+  assert.equal(readDemoSession(uid).questions[0]?.id, inquiry.id);
+  assert.equal(readDemoSession(uid).media.length, base.media.length);
+});
+
+test('demo profile saves support the owning account identity without allowing another account', () => {
+  const overrides = applyDemoChanges(base, {}, uid, [
+    { path: `users/${uid}`, operation: 'set', merge: true, data: { displayName: 'Updated thinker' } },
+    { path: `users/${uid}/profile/main`, operation: 'set', merge: true, data: { displayName: 'Updated thinker' } },
+  ]);
+  const restored = applyDemoOverrides(base, JSON.parse(JSON.stringify(overrides)));
+  assert.equal(restored.userIdentity?.displayName, 'Updated thinker');
+  assert.equal(restored.profile.displayName, 'Updated thinker');
+  assert.throws(() => applyDemoChanges(base, {}, uid, [{ path: 'users/another-account', operation: 'set', data: {} }]), /another workspace/);
+});
+
+test('demo updates records with domain-specific identifiers without duplication', () => {
+  const unknown = base.unknowns[0];
+  const overrides = applyDemoChanges(base, {}, uid, [{ path: `users/${uid}/unknowns/${unknown.unknownId}`, operation: 'update', data: { status: 'resolved', resolutionSummary: 'A working distinction.' } }]);
+  const restored = applyDemoOverrides(base, overrides);
+  assert.equal(restored.unknowns.length, base.unknowns.length);
+  assert.equal(restored.unknowns.find((item) => item.unknownId === unknown.unknownId)?.status, 'resolved');
+});
+
+test('source capture and first-class annotation writes commit together in the demo', () => {
+  const source = base.media[0];
+  const annotation = { id: 'captured-passage', text: 'A passage worth examining', type: 'thought', date: '2026-11-06' };
+  const overrides = applyDemoChanges(base, {}, uid, [
+    { path: `users/${uid}/media/${source.id}`, operation: 'update', data: { annotations: [annotation, ...source.annotations] } },
+    { path: `users/${uid}/annotations/${annotation.id}`, operation: 'set', data: { ...annotation, sourceId: source.id } },
+  ]);
+  const restored = applyDemoOverrides(base, JSON.parse(JSON.stringify(overrides)));
+  assert.equal(restored.media[0].annotations[0].text, annotation.text);
+  assert.equal(restored.annotations?.find((item) => item.id === annotation.id)?.sourceId, source.id);
+});
+
+test('demo supports only the named related history collections', () => {
+  const overrides = applyDemoChanges(base, {}, uid, [
+    { path: `users/${uid}/practiceLogs/log-1`, operation: 'set', data: { practiceId: base.practices[0].id } },
+    { path: `users/${uid}/positionVersions/version-1`, operation: 'set', data: { positionId: base.vault[0].id } },
+  ]);
+  const restored = applyDemoOverrides(base, overrides);
+  assert.equal(restored.practiceLogs?.length, 1);
+  assert.equal(restored.positionVersions?.length, 1);
+  assert.throws(() => applyDemoChanges(base, {}, uid, [{ path: `users/${uid}/arbitrary/id`, operation: 'set', data: {} }]), /not supported/);
+});
+
+test('saving a demo work and its first revision persists both atomically', () => {
+  const draft = base.drafts[0];
+  const changes = [
+    { path: `users/${uid}/drafts/${draft.id}`, operation: 'update' as const, data: { body: 'A revised passage', documentPages: [{ id: 'second', title: 'Page 2', content: '<p>A second page</p>' }] } },
+    { path: `users/${uid}/workRevisions/revision-1`, operation: 'set' as const, data: { workId: draft.id, body: 'A revised passage' } },
+  ];
+  const overrides = applyDemoChanges(base, {}, uid, changes);
+  const reopened = applyDemoOverrides(base, JSON.parse(JSON.stringify(overrides)));
+  assert.equal(reopened.drafts.find((item) => item.id === draft.id)?.body, 'A revised passage');
+  assert.equal(reopened.drafts.find((item) => item.id === draft.id)?.documentPages?.[0].id, 'second');
+  assert.equal(reopened.workRevisions?.[0].workId, draft.id);
+  assert.throws(() => applyDemoChanges(base, {}, uid, [...changes, { path: `users/${uid}/unrecognized/id`, operation: 'set', data: {} }]), /not supported/);
+  assert.equal(base.drafts.find((item) => item.id === draft.id)?.body, draft.body);
+});
 
 test('demo practice creation and inquiry backlink commit together', () => {
   const practicePath = `users/${uid}/practices/new-test`;
@@ -20,6 +83,46 @@ test('demo practice creation and inquiry backlink commit together', () => {
   const original = {};
   assert.throws(() => applyDemoChanges(base, original, uid, [...changes, { path: `users/${uid}/questions/missing`, operation: 'update', data: {} }]));
   assert.deepEqual(original, {});
+});
+
+test('inquiry conversion keeps the position, answer, backlink, and history together', () => {
+  const positionPath = `users/${uid}/vault/formed-position`;
+  const eventPath = `users/${uid}/thinkingEvents/formed-event`;
+  const changes = [
+    { path: positionPath, operation: 'create' as const, data: { sourceInquiryId: inquiry.id, statement: 'Start small.' } },
+    { path, operation: 'update' as const, data: { status: 'converted', answer: 'Start small.', beliefIds: ['formed-position'] } },
+    { path: eventPath, operation: 'create' as const, data: { entityId: 'formed-position', eventType: 'position_formed', relatedEntityIds: { inquiryIds: [inquiry.id] } } },
+  ];
+  const saved = applyDemoOverrides(base, applyDemoChanges(base, {}, uid, changes));
+  assert.equal(saved.vault.find((item) => item.id === 'formed-position')?.sourceInquiryId, inquiry.id);
+  assert.deepEqual(saved.questions.find((item) => item.id === inquiry.id)?.beliefIds, ['formed-position']);
+  assert.equal(saved.questions.find((item) => item.id === inquiry.id)?.answer, 'Start small.');
+  assert.equal(saved.thinkingEvents.find((item) => item.id === 'formed-event')?.eventType, 'position_formed');
+  const removed = applyDemoChanges(base, {}, uid, [{ path, operation: 'delete' }]);
+  assert.throws(() => applyDemoChanges(base, removed, uid, changes), /no longer available/);
+  assert.equal(applyDemoOverrides(base, removed).vault.some((item) => item.id === 'formed-position'), false);
+});
+
+test('tag placeholders are created once with their owner update and never overwrite a defined concept', () => {
+  const placeholderPath = `users/${uid}/concepts/tag-obligation`;
+  const eventPath = `users/${uid}/thinkingEvents/tag-obligation-created`;
+  const changes = [
+    { path, operation: 'update' as const, data: { conceptIds: ['tag-obligation'] } },
+    { path: placeholderPath, operation: 'create-if-missing' as const, data: { name: 'Obligation', createdFrom: 'tag' },
+      onCreate: { path: eventPath, operation: 'create' as const, data: { entityId: 'tag-obligation' } } },
+  ];
+  const first = applyDemoChanges(base, {}, uid, changes);
+  const defined = applyDemoChanges(base, first, uid, [
+    { path: placeholderPath, operation: 'update', data: { name: 'Obligation', createdFrom: 'manual', description: 'A defined concept.' } },
+  ]);
+  const result = applyDemoOverrides(base, applyDemoChanges(base, defined, uid, changes));
+  assert.deepEqual(result.questions.find((item) => item.id === inquiry.id)?.conceptIds, ['tag-obligation']);
+  assert.equal(result.concepts.filter((item) => item.id === 'tag-obligation').length, 1);
+  assert.equal(result.concepts.find((item) => item.id === 'tag-obligation')?.description, 'A defined concept.');
+  assert.equal(result.thinkingEvents.filter((item) => item.entityId === 'tag-obligation').length, 1);
+  const untouched = {};
+  assert.throws(() => applyDemoChanges(base, untouched, uid, [...changes, { path: `users/${uid}/questions/missing`, operation: 'update' }]));
+  assert.deepEqual(untouched, {});
 });
 
 test('deleted seeded works do not reappear after serialization or overwrite recovery', () => {
@@ -57,9 +160,46 @@ test('demo changes reject other accounts and nonexistent updates atomically', ()
   assert.throws(() => applyDemoChanges(base, {}, uid, [{ path: `users/${uid}/questions/missing`, operation: 'update', data: {} }]), /no longer available/);
 });
 
+test('one batch sees earlier changes and preserves rollback across deletes and recreations', () => {
+  const edits = [
+    { path, operation: 'delete' as const },
+    { path, operation: 'create' as const, data: { ...inquiry, text: 'Replacement question' } },
+    { path, operation: 'update' as const, data: { uncertainty: 'What is missing?' } },
+    { path, operation: 'create-if-missing' as const, data: { text: 'Must not replace the question' } },
+  ];
+  const original = {};
+  const saved = applyDemoOverrides(base, applyDemoChanges(base, original, uid, edits));
+  assert.equal(saved.questions.find((item) => item.id === inquiry.id)?.text, 'Replacement question');
+  assert.equal(saved.questions.find((item) => item.id === inquiry.id)?.uncertainty, 'What is missing?');
+  assert.throws(() => applyDemoChanges(base, original, uid, [
+    ...edits, { path: `users/${uid}/drafts/missing`, operation: 'update' },
+  ]), /no longer available/);
+  assert.deepEqual(original, {});
+});
+
+test('profile updates see fields saved through the legacy document alias', () => {
+  const changes = [
+    { path: `users/${uid}/settings/profile`, operation: 'set' as const, merge: true, data: { displayName: 'Updated thinker' } },
+    { path: `users/${uid}/profile/main`, operation: 'update' as const, data: { bio: 'A new bio' } },
+  ];
+  const restored = applyDemoOverrides(base, applyDemoChanges(base, {}, uid, changes));
+  assert.equal(restored.profile.displayName, 'Updated thinker');
+  assert.equal(restored.profile.bio, 'A new bio');
+});
+
 test('two genuine inquiries with matching titles remain separate in the demo', () => {
   const overrides = applyDemoChanges(base, {}, uid, ['first', 'second'].map((id) => ({
     path: `users/${uid}/questions/${id}`, operation: 'create' as const, data: { ...inquiry, id, text: 'A shared question' },
   })));
   assert.equal(applyDemoOverrides(base, overrides).questions.filter((item) => item.text === 'A shared question').length, 2);
+});
+
+test('paired settings writes preserve unrelated nested settings and survive serialization', () => {
+  const next = applyDemoChanges(base, {}, uid, [
+    { path: `users/${uid}/settings/metacognition`, operation: 'set', merge: true, data: { enableMetacognitionFeatures: false } },
+    { path: `users/${uid}/settings/workspace`, operation: 'set', merge: true, data: { featureFlags: { metacognitionEnabled: false } } },
+  ]);
+  const reopened = applyDemoOverrides(base, JSON.parse(JSON.stringify(next)));
+  assert.equal(reopened.settingsMetacognition.enableMetacognitionFeatures, false);
+  assert.deepEqual(reopened.workspace.featureFlags, { ...base.workspace.featureFlags, metacognitionEnabled: false });
 });

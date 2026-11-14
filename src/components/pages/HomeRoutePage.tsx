@@ -17,11 +17,7 @@ import type {
   VaultEntry,
 } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
-
-type HomeRouteTarget = {
-  view: NoesisView;
-  targetId?: string | null;
-};
+import type { HomeHistoryTarget } from '@/lib/home-history';
 
 export interface HomeRoutePageProps {
   profile: UserProfile;
@@ -36,8 +32,9 @@ export interface HomeRoutePageProps {
   unknowns: Unknown[];
   links: PhilosophicalLink[];
   goal: GoalSettings;
+  showCommitments: boolean;
   goalProgress: Partial<Record<MediaType, number>>;
-  onCreateInquiry: (data: Partial<Question>) => Question;
+  onCreateInquiry: (data: Partial<Question>) => Promise<Question>;
   onNavigate: (view: NoesisView, options?: {
     conceptId?: string | null;
     questionId?: string | null;
@@ -45,10 +42,13 @@ export interface HomeRoutePageProps {
     positionId?: string | null;
     workId?: string | null;
     practiceId?: string | null;
+    goalId?: string | null;
+    annotationSourceId?: string | null;
+    annotationId?: string | null;
   }) => void;
 }
 
-function routeOptionsForHomeTarget(target: HomeRouteTarget) {
+function routeOptionsForHomeTarget(target: HomeHistoryTarget) {
   return {
     conceptId: target.view === 'concepts' ? target.targetId : null,
     questionId: target.view === 'questions' ? target.targetId : null,
@@ -56,6 +56,9 @@ function routeOptionsForHomeTarget(target: HomeRouteTarget) {
     positionId: target.view === 'vault' ? target.targetId : null,
     workId: target.view === 'writing' ? target.targetId : null,
     practiceId: target.view === 'labs' ? target.targetId : null,
+    goalId: target.view === 'goals' ? target.targetId : null,
+    annotationSourceId: target.view === 'annotations' ? target.annotationSourceId : null,
+    annotationId: target.view === 'annotations' ? target.targetId : null,
   };
 }
 
@@ -72,6 +75,7 @@ export function HomeRoutePage({
   unknowns,
   links,
   goal,
+  showCommitments,
   goalProgress,
   onCreateInquiry,
   onNavigate,
@@ -90,6 +94,7 @@ export function HomeRoutePage({
       unknowns={unknowns}
       links={links}
       goal={goal}
+      showCommitments={showCommitments}
       goalProgress={goalProgress}
       onCreateInquiry={onCreateInquiry}
       onNavigate={(target) => onNavigate(target.view, routeOptionsForHomeTarget(target))}

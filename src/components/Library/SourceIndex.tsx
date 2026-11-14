@@ -22,6 +22,8 @@ import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { Checkbox } from '@/components/ui/checkbox';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
+import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
+import { sourceBibtex } from '@/lib/source-bibtex';
 
 const SourceIcon = NOESIS_ICONS.source;
 
@@ -37,9 +39,10 @@ interface SourceIndexProps {
 }
 
 function SourceIndexCover({ source }: { source: Media }) {
-  const [failed, setFailed] = useState(false);
-  if (source.thumbnailUrl && !failed) {
-    return <img src={source.thumbnailUrl} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />;
+  const [failedUrl, setFailedUrl] = useState<string>();
+  const url = source.thumbnailUrl;
+  if (url && failedUrl !== url) {
+    return <img src={url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" onError={() => setFailedUrl(url)} />;
   }
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 bg-muted/30 p-3 text-center text-muted-foreground">
@@ -454,6 +457,8 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
   };
 
   const selectedSourceSet = new Set(selectedSourceIds);
+  const selectedSources = media.filter((source) => selectedSourceSet.has(source.id));
+  const missingSelectedCount = selectedSourceIds.length - selectedSources.length;
   const visibleSourceIds = sourceRows.map(({ source }) => source.id);
   const allVisibleSelected = visibleSourceIds.length > 0 && visibleSourceIds.every((id) => selectedSourceSet.has(id));
   const someVisibleSelected = visibleSourceIds.some((id) => selectedSourceSet.has(id));
@@ -470,38 +475,31 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
     });
   };
 
-  const copyCitation = (m: Media) => {
-    const citation = apaCitation(m);
-    navigator.clipboard.writeText(citation);
-    toast({ title: 'Citation copied', description: 'APA-style entry ready for your references page.' });
+  const copyReferences = async (text: string, count: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: count === 1 ? 'Citation copied' : 'Bibliography copied' });
+    } catch {
+      toast({ title: 'Could not copy references', description: 'Select and copy the text from the export preview, or download the BibTeX file.', variant: 'destructive' });
+    }
   };
+  const copyCitation = (source: Media) => copyReferences(apaCitation(source), 1);
 
-  const escapeBibtex = (value: string) => value.replace(/[{}]/g, '').replace(/([#%&_])/g, '\\$1');
-  const bibtexFor = (source: Media) => {
-    const key = `${(source.creator || 'source').split(/\s+/).at(-1)?.replace(/[^a-z0-9]/gi, '') || 'source'}${source.year || ''}`;
-    const type = source.type === 'book' ? 'book' : source.type === 'paper' ? 'article' : 'misc';
-    const fields = [
-      ['title', source.title], ['author', source.creator || (source.creators || []).join(' and ')],
-      ['year', source.year], ['publisher', source.publisher], ['url', source.url], ['doi', source.doi],
-    ].filter(([, value]) => Boolean(value)).map(([name, value]) => `  ${name} = {${escapeBibtex(String(value))}}`).join(',\n');
-    return `@${type}{${key},\n${fields}\n}`;
-  };
-  const exportSources = selectedSourceIds.length ? media.filter((source) => selectedSourceSet.has(source.id)) : filtered;
+  const exportSources = selectedSourceIds.length ? selectedSources : filtered;
   const bibliographySources = [...exportSources].sort((a, b) => creatorSortKey(a).localeCompare(creatorSortKey(b)) || publicationYear(a).localeCompare(publicationYear(b)) || a.title.localeCompare(b.title));
   const citationPreview = `References\n\n${bibliographySources.map(apaCitation).join('\n\n')}`;
-  const bibtexPreview = bibliographySources.map(bibtexFor).join('\n\n');
-  const copyAllCitations = async () => {
-    await navigator.clipboard.writeText(citationPreview);
-    toast({ title: 'Bibliography copied', description: `${bibliographySources.length} entries copied.` });
-  };
+  const bibtexPreview = sourceBibtex(bibliographySources);
+  const copyAllCitations = () => copyReferences(citationPreview, bibliographySources.length);
   const downloadBibtex = () => {
     const blob = new Blob([bibtexPreview], { type: 'application/x-bibtex;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = 'noesis-sources.bib';
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     setExportPreviewOpen(false);
     toast({ title: 'BibTeX exported', description: `${bibliographySources.length} entries downloaded.` });
   };
@@ -611,8 +609,8 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           onCheckedChange={toggleVisibleSelection}
           aria-label={allVisibleSelected ? 'Clear visible source selection' : 'Select all visible sources'}
         />
-        <span className="text-sm text-foreground">
-          {selectedSourceIds.length ? `${selectedSourceIds.length} selected for export` : 'Select sources to export, or export the current filtered view.'}
+        <span role="status" className="text-sm text-foreground">
+          {selectedSourceIds.length ? `${selectedSources.length} selected for export${missingSelectedCount > 0 ? ` · ${missingSelectedCount} unavailable` : ''}` : 'Select sources to export, or export the current filtered view.'}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={toggleVisibleSelection} disabled={!visibleSourceIds.length} className="rounded-full text-xs">
@@ -627,7 +625,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       </div>
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
-        <span className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground/60">Quick views:</span>
+        <span className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Quick views:</span>
         {[
           { label: 'Needs cleanup', value: media.filter((item) => sourceMetadataGaps(item).length > 0).length, filter: 'missing_metadata' as CatalogFilter },
           { label: 'Unfinished', value: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length, filter: 'unfinished' as CatalogFilter },
@@ -782,33 +780,33 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       )}
 
       {!['covers', 'domains', 'timeline'].includes(view) && <div className="bg-card rounded-xl border border-border/40 shadow-md overflow-hidden">
-        <Table>
+        <Table aria-label="Source Index table" className="table-fixed">
           <TableHeader className="bg-muted/5 font-code text-[9px] uppercase tracking-[0.2em] font-bold">
             <TableRow>
-              <TableHead className="w-12">
+              <TableHead className="w-10 px-2 sm:w-12">
                 <Checkbox
                   checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
                   onCheckedChange={toggleVisibleSelection}
                   aria-label={allVisibleSelected ? 'Clear visible source selection' : 'Select all visible sources'}
                 />
               </TableHead>
-              <TableHead className="min-w-[320px] cursor-pointer" onClick={() => toggleSort('title')}>
-                Source <ArrowUpDown className="inline size-3 ml-1" />
+              <TableHead aria-sort={sortOption === 'manual' && sortKey === 'title' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : undefined}>
+                <button type="button" className="min-h-11 rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => toggleSort('title')} onKeyDown={(event) => activateEntityOnKey(event, () => toggleSort('title'))}>Source <ArrowUpDown className="ml-1 inline size-3" aria-hidden="true" /></button>
               </TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('year')}>
-                Year <ArrowUpDown className="inline size-3 ml-1" />
+              <TableHead className="hidden w-[10%] lg:table-cell">Type</TableHead>
+              <TableHead className="hidden w-16 lg:table-cell" aria-sort={sortOption === 'manual' && sortKey === 'year' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : undefined}>
+                <button type="button" className="min-h-11 rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => toggleSort('year')} onKeyDown={(event) => activateEntityOnKey(event, () => toggleSort('year'))}>Year <ArrowUpDown className="ml-1 inline size-3" aria-hidden="true" /></button>
               </TableHead>
-              <TableHead>Identifier/Pub</TableHead>
-              <TableHead>Links</TableHead>
-              <TableHead>Health</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="hidden w-[15%] xl:table-cell">Identifier/Pub</TableHead>
+              <TableHead className="hidden w-[21%] xl:table-cell">Links</TableHead>
+              <TableHead className="hidden w-[15%] xl:table-cell">Health</TableHead>
+              <TableHead className="w-14 px-1 sm:w-24"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="font-body text-[13px]">
             {sourceRows.map(({ source: m, influence, connected, progress, metadataGaps, health, catalogState, linkedPositions, linkedWorks, linkedPractices, linkedQuestions }) => {
               return (
-                <TableRow key={m.id} data-state={selectedSourceSet.has(m.id) ? 'selected' : undefined} className="group h-16 cursor-pointer transition-colors hover:bg-muted/5" onClick={() => previewSource(m)}>
+                <TableRow key={m.id} data-state={selectedSourceSet.has(m.id) ? 'selected' : undefined} className="group h-16 cursor-pointer transition-colors hover:bg-muted/5" onClick={(event) => { if (isEntitySurfaceClick(event)) previewSource(m); }}>
                   <TableCell className="w-12 py-2.5" onClick={(event) => event.stopPropagation()}>
                     <Checkbox
                       checked={selectedSourceSet.has(m.id)}
@@ -816,9 +814,10 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       aria-label={`Select ${m.title} for export`}
                     />
                   </TableCell>
-                  <TableCell className="py-2.5">
-                    <div className="font-semibold italic leading-5 text-primary/90">{m.title}</div>
+                  <TableCell className="py-2.5 [overflow-wrap:anywhere]">
+                    <button type="button" onClick={() => previewSource(m)} onKeyDown={(event) => activateEntityOnKey(event, () => previewSource(m))} className="min-h-11 w-full rounded-sm text-left font-semibold italic leading-5 text-primary/90 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{m.title}</button>
                     <div className="mt-0.5 text-xs text-muted-foreground">{m.creator || (m.creators || []).join(', ') || 'Unknown creator'}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground lg:hidden">{[MEDIA_LABELS[m.type], m.year].filter(Boolean).join(' / ')}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {(m.tags || []).slice(0, 3).map((tag) => (
                         <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-tighter rounded-full bg-muted/20 text-muted-foreground">{tag}</Badge>
@@ -840,12 +839,12 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="py-2.5">
+                  <TableCell className="hidden py-2.5 lg:table-cell">
                     <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full bg-card shadow-sm">{m.type}</Badge>
                   </TableCell>
-                  <TableCell className="py-2.5 font-code text-[10px] text-muted-foreground/60">{m.year || '-'}</TableCell>
-                  <TableCell className="py-2.5">
-                    <div className="max-w-[150px] truncate text-[11px] text-muted-foreground/80" title={m.isbn || m.publisher}>
+                  <TableCell className="hidden py-2.5 font-code text-[10px] text-muted-foreground lg:table-cell">{m.year || '-'}</TableCell>
+                  <TableCell className="hidden py-2.5 xl:table-cell">
+                    <div className="max-w-[150px] truncate text-[11px] text-muted-foreground" title={m.isbn || m.publisher}>
                       {m.isbn || m.doi || m.publisher || m.platform || '-'}
                     </div>
                     {metadataGaps.length > 0 && (
@@ -854,12 +853,12 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="py-2.5">
-                    <div className="whitespace-nowrap text-xs text-muted-foreground" title={`Influence ${influence}; ${connected} total linked objects`}>
+                  <TableCell className="hidden py-2.5 xl:table-cell">
+                    <div className="text-xs text-muted-foreground" title={`Influence ${influence}; ${connected} total linked objects`}>
                       <MessageSquare className="mr-1 inline size-3.5" />{countLabel((m.annotations || []).length, 'note')} · {countLabel(linkedQuestions, 'inquiry', 'inquiries')} · {countLabel(linkedPositions, 'position')} · {countLabel(linkedWorks, 'work')} · {countLabel(linkedPractices, 'practice', 'practices')}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden xl:table-cell">
                     <div className="flex items-center gap-2" title={`Influence ${influence} · Connected ${connected} · Progress ${progress}%`}>
                       <div className="w-16 h-1 bg-muted rounded-full overflow-hidden">
                         <div 
@@ -879,13 +878,13 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       {catalogState.nextAction}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={(event) => { event.stopPropagation(); copyCitation(m); }} title="Copy Citation">
+                  <TableCell className="px-1 text-right">
+                    <div className="flex flex-col items-end justify-end gap-1 sm:flex-row">
+                      <Button variant="ghost" size="icon" className="size-11 rounded-full" onClick={() => copyCitation(m)} aria-label={`Copy citation for ${m.title}`} title="Copy citation">
                         <Copy className="size-3.5" />
                       </Button>
                       {m.url && (
-                        <Button variant="ghost" size="icon" className="size-8 rounded-full" asChild title="Open URL" onClick={(event) => event.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="size-11 rounded-full" asChild title="Open URL" aria-label={`Open website for ${m.title}`}>
                           <a href={m.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="size-3.5" /></a>
                         </Button>
                       )}
@@ -915,7 +914,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             <DialogTitle>Preview bibliography</DialogTitle>
             <DialogDescription>
               {selectedSourceIds.length
-                ? `${bibliographySources.length} selected sources, alphabetized and formatted for an essay references page.`
+                ? `${bibliographySources.length} selected ${bibliographySources.length === 1 ? 'source' : 'sources'}, alphabetized and formatted for an essay references page.`
                 : `${bibliographySources.length} source records matching the current search and filters, alphabetized and formatted for an essay references page.`}
             </DialogDescription>
           </DialogHeader>
@@ -930,7 +929,9 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                 </div>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">No source records match the current view.</p>
+              <p className="text-sm text-muted-foreground">{selectedSourceIds.length
+                ? 'The selected sources are no longer available. Clear the selection to export the current view.'
+                : 'No source records match the current view.'}</p>
             )}
           </section>
           <DialogFooter className="flex-col gap-2 sm:flex-row">

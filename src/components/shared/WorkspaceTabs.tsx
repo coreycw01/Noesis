@@ -1,7 +1,9 @@
 "use client";
 
 import type { LucideIcon } from 'lucide-react';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { workspaceTabIndex } from '@/lib/workspace-tab-navigation';
 
 export interface WorkspaceTabItem<T extends string = string> {
   id: T;
@@ -17,6 +19,7 @@ interface WorkspaceTabsProps<T extends string = string> {
   items: WorkspaceTabItem<T>[];
   label: string;
   variant?: 'underline' | 'segmented';
+  activation?: 'automatic' | 'manual';
   className?: string;
 }
 
@@ -26,12 +29,29 @@ export function WorkspaceTabs<T extends string>({
   items,
   label,
   variant = 'underline',
+  activation = 'automatic',
   className,
 }: WorkspaceTabsProps<T>) {
+  const [focused, setFocused] = useState<T | null>(null);
+  const enabled = items.filter((item) => !item.disabled);
+  const entryTab = enabled.find((item) => item.id === focused)
+    ?? enabled.find((item) => item.id === value) ?? enabled[0];
   return (
     <div
       role="tablist"
       aria-label={label}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(null);
+      }}
+      onKeyDown={(event) => {
+        const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="tab"]:not(:disabled)'));
+        const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
+        const next = workspaceTabIndex(event.key, current, tabs.length);
+        if (next === null) return;
+        event.preventDefault();
+        tabs[next].focus();
+        if (activation === 'automatic') tabs[next].click();
+      }}
       className={cn(
         'flex max-w-full items-center gap-1 overflow-x-auto scrollbar-hide',
         variant === 'underline'
@@ -48,10 +68,17 @@ export function WorkspaceTabs<T extends string>({
             type="button"
             role="tab"
             aria-selected={active}
+            tabIndex={entryTab?.id === id ? 0 : -1}
+            onFocus={() => setFocused(id)}
             disabled={disabled}
             onClick={() => onChange(id)}
+            onKeyDown={(event) => {
+              if (activation !== 'manual' || (event.key !== 'Enter' && event.key !== ' ')) return;
+              event.preventDefault();
+              if (!event.repeat) onChange(id);
+            }}
             className={cn(
-              'inline-flex min-h-11 shrink-0 items-center justify-center gap-2 px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-45',
+              'inline-flex min-h-11 shrink-0 items-center justify-center gap-2 px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45',
               variant === 'underline'
                 ? 'border-b-2 border-transparent'
                 : 'rounded-[var(--button-radius)]',

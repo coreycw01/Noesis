@@ -12,12 +12,20 @@ test('AI context prioritizes the current item and stays within line and total li
   assert.equal(bounded.userPrompt?.length, 1000);
   assert.equal(input.itemMemory[0].length, 5000);
 });
-test('Evolution rejects missing, invalid and reversed periods', () => {
-  const period: AiContextEnvelope = { ...base, action: 'synthesize_evolution_period', targetType: 'evolution', scope: 'selected_period' };
+test('Evolution requires an exact, nonempty calendar period with a matching target', () => {
+  const period: AiContextEnvelope = { ...base, action: 'synthesize_evolution_period', targetType: 'evolution', scope: 'selected_period', linkedMemory: ['A position was revised.'] };
+  const select = (from: string, to: string): AiContextEnvelope => ({
+    ...period, targetId: `${from}:${to}`, selectedRange: { from, to },
+  });
   assert.equal(validAiSelection(period), false);
-  assert.equal(validAiSelection({ ...period, selectedRange: { from: 'invalid', to: '2026-10-11' } }), false);
-  assert.equal(validAiSelection({ ...period, selectedRange: { from: '2026-10-11', to: '2026-10-01' } }), false);
-  assert.equal(validAiSelection({ ...period, selectedRange: { from: '2026-10-01', to: '2026-10-11' } }), true);
+  assert.equal(validAiSelection(select('invalid', '2026-10-11')), false);
+  assert.equal(validAiSelection(select('2026-10-11', '2026-10-01')), false);
+  assert.equal(validAiSelection(select('2026-02-30', '2026-03-01')), false);
+  assert.equal(validAiSelection(select('2026-10-01T00:00:00Z', '2026-10-11')), false);
+  assert.equal(validAiSelection(select('2026-10-01', '2026-10-11')), true);
+  assert.equal(validAiSelection(select('2024-02-29', '2024-02-29')), true);
+  assert.equal(validAiSelection({ ...select('2026-10-01', '2026-10-11'), targetId: 'other-period' }), false);
+  assert.equal(validAiSelection({ ...select('2026-10-01', '2026-10-11'), linkedMemory: [] }), false);
 });
 test('comparison requires another recorded position; ordinary actions reject secondary context', () => {
   const secondaryTarget = { targetType: 'position' as const, targetId: 'p1', label: 'Claim', memory: ['Claim context'] };

@@ -1,8 +1,11 @@
 "use client";
 
-import { doc, serverTimestamp, setDoc, type CollectionReference, type WriteBatch } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, setDoc, type CollectionReference, type WriteBatch } from 'firebase/firestore';
+import { requireWorkspaceConnection } from '@/lib/workspace-connectivity';
 import type { ThinkingEvent, ThinkingEventEntityType, ThinkingEventEpistemicStatus, ThinkingEventImportance, ThinkingEventOrigin, ThinkingEventType } from '@/lib/types';
 import { uid } from '@/lib/readex';
+import type { AiProvenanceRecord } from '@/lib/ai-provenance';
+import { restoredItemHistorySnapshot } from '@/lib/deleted-items';
 
 type RelatedEntityIds = NonNullable<ThinkingEvent['relatedEntityIds']>;
 
@@ -79,8 +82,10 @@ export function makeThinkingEventPayload(input: WriteThinkingEventInput) {
   const eventId = input.idempotencyKey || uid();
   const eventRef = doc(input.collection, eventId);
   const before = sanitizeEventSnapshot(input.before);
-  const after = sanitizeEventSnapshot(input.after);
-  const diff = buildObjectDiff(before, after);
+  const after = sanitizeEventSnapshot(input.eventType === 'restored' && input.after
+    ? restoredItemHistorySnapshot(input.after) : input.after);
+  // Deletions keep a recovery snapshot; don't duplicate it in the event diff.
+  const diff = input.eventType === 'deleted' || input.eventType === 'restored' ? null : buildObjectDiff(before, after);
   const payload: ThinkingEvent = {
     id: eventRef.id,
     eventId: eventRef.id,
@@ -121,6 +126,36 @@ export async function writeThinkingEvent(input: WriteThinkingEventInput) {
   const { eventRef, payload } = makeThinkingEventPayload(input);
   await setDoc(eventRef, payload, { merge: false });
   return eventRef.id;
+}
+
+type PeriodSynthesisRecord = Pick<ThinkingEvent, 'userId' | 'entityType' | 'entityId' | 'eventType' | 'origin' | 'summary' | 'after'>;
+
+export function matchesPeriodSynthesis(existing: PeriodSynthesisRecord, intended: PeriodSynthesisRecord) {
+  return existing.userId === intended.userId && existing.entityType === 'evolution' && intended.entityType === 'evolution'
+    && existing.eventType === 'synthesized' && intended.eventType === 'synthesized'
+    && existing.origin === 'ai-assisted' && intended.origin === 'ai-assisted'
+    && existing.entityId === intended.entityId && existing.summary === intended.summary
+    && existing.after?.legacyTimelineEvent?.reason === intended.after?.legacyTimelineEvent?.reason;
+}
+
+export async function writePeriodSynthesis(input: WriteThinkingEventInput, provenance?: AiProvenanceRecord) {
+  requireWorkspaceConnection();
+  const { eventRef, payload } = makeThinkingEventPayload(input);
+  const owner = eventRef.parent.parent;
+  if (provenance && (owner?.path !== `users/${input.userId}` || provenance.id !== eventRef.id)) throw new Error('Invalid period review destination.');
+  const origin = provenance && owner ? doc(owner, 'aiProvenance', provenance.id) : undefined;
+  await runTransaction(eventRef.firestore, async (transaction) => {
+    const existing = await transaction.get(eventRef);
+    const storedOrigin = origin ? await transaction.get(origin) : undefined;
+    if (!existing.exists() && !storedOrigin?.exists()) {
+      transaction.set(eventRef, payload);
+      if (origin) transaction.set(origin, provenance!);
+    } else if (!existing.exists() || !matchesPeriodSynthesis(existing.data(), payload)
+      || (provenance && (storedOrigin?.data()?.acceptedTextHash !== provenance.acceptedTextHash
+        || JSON.stringify(storedOrigin.data()?.contextRefs ?? []) !== JSON.stringify(provenance.contextRefs ?? [])))) {
+      throw new Error('This review was already saved with different content. Start a new review to save another version.');
+    }
+  });
 }
 
 export function queueThinkingEvent(batch: WriteBatch, input: WriteThinkingEventInput) {

@@ -1,6 +1,13 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
+import { readBrowserPreference, workspacePreferenceKey, writeBrowserPreference } from '@/lib/browser-preferences';
+import { useToast } from '@/hooks/use-toast';
+import { practiceLogDates } from '@/lib/practice-state';
+import { useLocalDay } from '@/hooks/use-local-day';
+import { deriveWorkspaceAttention } from '@/lib/workspace-attention';
+import { deriveGoalProgress, goalCategories, goalItems } from '@/lib/goal-progress';
 import {
   ArrowRight,
   AlertTriangle,
@@ -13,7 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { Progress } from '@/components/ui/progress';
-import { allAnnotations, MEDIA_LABELS } from '@/lib/readex';
+import { allAnnotations } from '@/lib/readex';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
@@ -43,12 +50,11 @@ import type {
 } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 import { weeklyReviewEvents } from '@/lib/weekly-review';
-import { ThoughtGamesPanel } from '@/components/Home/ThoughtGamesPanel';
+import { homeHistoryTarget, recentHomeHistory, type HomeHistoryTarget } from '@/lib/home-history';
+import { thinkingHistoryDate } from '@/lib/evolution-history';
+import { ThoughtGamePreview } from '@/components/Home/ThoughtGamePreview';
 
-type HomeTarget = {
-  view: NoesisView;
-  targetId?: string | null;
-};
+type HomeTarget = HomeHistoryTarget;
 
 type DeskItem = HomeTarget & {
   id: string;
@@ -92,23 +98,15 @@ interface ThinkingDeskProps {
   unknowns: Unknown[];
   links: PhilosophicalLink[];
   goal: GoalSettings;
+  showCommitments: boolean;
   goalProgress: Partial<Record<MediaType, number>>;
   onNavigate: (target: HomeTarget) => void;
-  onCreateInquiry?: (data: Partial<Question>) => Question;
+  onCreateInquiry?: (data: Partial<Question>) => Promise<Question>;
 }
 
-function recentDate(value?: string) {
-  const time = Date.parse(value || '');
+function recentDate(value?: unknown) {
+  const time = thinkingHistoryDate(value);
   return Number.isFinite(time) ? time : 0;
-}
-
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function practiceLogDates(practice: Practice) {
-  const structured = (practice.logs || []).filter((log) => log.actionCompleted).map((log) => log.date.slice(0, 10));
-  return Array.from(new Set([...(practice.logDates || []), ...structured])).sort();
 }
 
 function firstName(profile: UserProfile) {
@@ -126,19 +124,6 @@ function uniqueDeskItems(items: DeskItem[]) {
   });
 }
 
-function targetFromEvent(event: ThinkingEvent | TimelineEvent): HomeTarget | null {
-  const entityType = 'entityType' in event ? event.entityType : '';
-  const entityId = 'entityId' in event ? event.entityId : '';
-  if (!entityId) return null;
-  if (entityType === 'vault' || entityType === 'position') return { view: 'vault', targetId: entityId };
-  if (entityType === 'question' || entityType === 'inquiry') return { view: 'questions', targetId: entityId };
-  if (entityType === 'media' || entityType === 'source') return { view: 'library', targetId: entityId };
-  if (entityType === 'draft' || entityType === 'work') return { view: 'writing', targetId: entityId };
-  if (entityType === 'practice') return { view: 'labs', targetId: entityId };
-  if (entityType === 'concept') return { view: 'concepts', targetId: entityId };
-  return null;
-}
-
 export function ThinkingDesk({
   profile,
   concepts,
@@ -152,28 +137,34 @@ export function ThinkingDesk({
   unknowns,
   links,
   goal,
+  showCommitments,
   goalProgress,
   onNavigate,
   onCreateInquiry,
 }: ThinkingDeskProps) {
+  const day = useLocalDay();
   const mode = useMemo<HomeMode>(() => 'continue', []);
   const [provocationAngle, setProvocationAngle] = useState(0);
   const [briefAnswer, setBriefAnswer] = useState('');
+  const [creatingInquiry, setCreatingInquiry] = useState(false);
+  const inquiryCreationLock = useRef(false);
+  const { toast } = useToast();
   const [irrelevantReason, setIrrelevantReason] = useState('');
   const [provocationDismissed, setProvocationDismissed] = useState(false);
   const [discoveryMode, setDiscoveryMode] = useState(false);
   const [lastHomeVisit, setLastHomeVisit] = useState<string | null>(null);
+  const workspaceKey = useContext(NoesisWorkspaceKeyContext);
   const annotations = useMemo(() => allAnnotations(media), [media]);
+  const attention = useMemo(() => deriveWorkspaceAttention({
+    annotations, positions, inquiries, practices, now: new Date(`${day}T12:00:00`),
+  }), [annotations, day, positions, inquiries, practices]);
 
   useEffect(() => {
-    try {
-      const previousVisit = window.localStorage.getItem(HOME_VISIT_KEY);
-      setLastHomeVisit(previousVisit);
-      window.localStorage.setItem(HOME_VISIT_KEY, new Date().toISOString());
-    } catch {
-      // The return view is a convenience layer; Home remains fully usable without local storage.
-    }
-  }, []);
+    const key = workspacePreferenceKey(workspaceKey, HOME_VISIT_KEY);
+    if (!key) return;
+    setLastHomeVisit(readBrowserPreference(key));
+    writeBrowserPreference(key, new Date().toISOString());
+  }, [workspaceKey]);
   const currentThemes = useMemo(() => {
     const terms = new Map<string, number>();
     [...positions.flatMap((item) => item.tags || []), ...media.flatMap((item) => item.tags || []), ...works.flatMap((item) => item.conceptTags || [])]
@@ -185,43 +176,28 @@ export function ThinkingDesk({
       .map(([term]) => term);
   }, [media, positions, works]);
   const activeGoalRows = useMemo(() => {
-    const categories = [...(goal.goalTypes || [])].sort((a, b) => a.sortOrder - b.sortOrder);
-    const activeGoals = [...(goal.goals || [])]
+    const categories = goalCategories(goal);
+    const activeGoals = goalItems(goal, categories)
       .filter((item) => item.status === 'active')
       .sort((a, b) => a.sortOrder - b.sortOrder);
 
-    if (activeGoals.length) {
-      return activeGoals.map((item) => {
-        const category = categories.find((goalType) => goalType.id === item.typeId);
-        const done = (category?.mediaTypes || []).reduce((sum, type) => sum + (goalProgress[type] || 0), 0);
-        const target = Math.max(1, item.targetProgress || 1);
-        return {
-          id: item.id,
-          label: item.title || category?.name || 'Untitled goal',
-          done,
-          target,
-          percent: Math.min(100, (done / target) * 100),
-        };
-      }).slice(0, 3);
-    }
-
-    return (goal.types || []).slice(0, 3).map((type) => {
-      const done = goalProgress[type] || 0;
-      const target = Math.max(1, goal.targets[type] || 12);
+    return activeGoals.slice(0, 3).map((item) => {
+      const category = categories.find((goalType) => goalType.id === item.typeId);
+      const progress = deriveGoalProgress(item, category, { concepts, inquiries, sources: media, positions, works, practices }, goalProgress);
       return {
-        id: type,
-        label: MEDIA_LABELS[type],
-        done,
-        target,
-        percent: Math.min(100, (done / target) * 100),
+        id: item.id,
+        label: item.title || category?.name || 'Untitled goal',
+        done: progress.currentProgress,
+        target: progress.targetProgress,
+        percent: progress.percent,
       };
     });
-  }, [goal, goalProgress]);
+  }, [concepts, goal, goalProgress, inquiries, media, positions, practices, works]);
 
   const continueItems = useMemo<DeskItem[]>(() => {
     const items: DeskItem[] = [];
-    const addPositionPressure = (priority = 95) => positions
-      .filter((item) => item.status !== 'abandoned' && item.status !== 'rejected' && ((item.evidenceAgainst || []).length === 0 || (item.sourceIds || []).length === 0))
+    const addPositionPressure = (priority = 95) => attention.currentPositions
+      .filter((item) => (item.evidenceAgainst || []).length === 0 || (item.sourceIds || []).length === 0)
       .forEach((item) => items.push({
           id: `position-${item.id}`,
           label: item.title || item.statement,
@@ -236,14 +212,15 @@ export function ThinkingDesk({
           targetId: item.id,
         } as DeskItem));
 
-    const addOpenInquiries = (priority = 88) => inquiries
-      .filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status))
+    const addOpenInquiries = (priority = 88) => attention.openInquiries
       .forEach((item) => items.push({
           id: `inquiry-${item.id}`,
           label: item.text,
           eyebrow: 'Inquiry awaiting development',
-          reason: 'This question is still open and can collect evidence, assumptions, or a working answer.',
-          action: 'Investigate',
+          reason: item.answer?.trim()
+            ? 'A working answer is saved. Review what supports it and decide what remains open.'
+            : 'This question is still open and can collect evidence, assumptions, or a working answer.',
+          action: item.answer?.trim() ? 'Review answer' : 'Investigate',
           priority,
           icon: HelpCircle,
           view: 'questions',
@@ -256,7 +233,7 @@ export function ThinkingDesk({
           id: `source-${item.id}`,
           label: item.title,
           eyebrow: 'Source awaiting reflection',
-          reason: 'This source is finished, but its after-reading reflection is still thin.',
+          reason: 'This source is finished, but its reflection on what changed is still incomplete.',
           action: 'Reflect on source',
           priority,
           icon: BookOpen,
@@ -264,8 +241,7 @@ export function ThinkingDesk({
           targetId: item.id,
         } as DeskItem));
 
-    const addPracticeLogs = (priority = 76) => practices
-      .filter((item) => item.status === 'active' && !practiceLogDates(item).includes(todayKey()))
+    const addPracticeLogs = (priority = 76) => attention.practicesNeedingLogs
       .forEach((item) => items.push({
           id: `practice-${item.id}`,
           label: item.title,
@@ -403,17 +379,16 @@ export function ThinkingDesk({
 
     const sorted = uniqueDeskItems(items)
       .sort((a, b) => b.priority - a.priority || a.label.localeCompare(b.label));
-    const longestWaitingInquiry = [...inquiries]
-      .filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status))
+    const longestWaitingInquiry = [...attention.openInquiries]
       .sort((a, b) => recentDate(a.dateCreated) - recentDate(b.dateCreated))[0];
     const oldestInquiryItem = longestWaitingInquiry
       ? sorted.find((item) => item.view === 'questions' && item.targetId === longestWaitingInquiry.id)
       : undefined;
     return uniqueDeskItems([sorted[0], oldestInquiryItem].filter(Boolean) as DeskItem[]).slice(0, 2);
-  }, [concepts, inquiries, links, media, mode, positions, practices, works]);
+  }, [attention, concepts, inquiries, links, media, mode, positions, works]);
 
   const provocation = useMemo(() => {
-    const untested = positions.find((position) => position.status !== 'abandoned' && !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
+    const untested = attention.untestedPositions[0];
     if (untested && provocationAngle === 0) {
       return {
         question: `What would it look like to test "${untested.title || untested.statement}" in behavior this week?`,
@@ -438,7 +413,7 @@ export function ThinkingDesk({
         evidence: 'Based on open inquiries and undefined concepts.',
       },
     ];
-    const unsupported = positions.find((item) => item.status !== 'abandoned' && (item.evidenceAgainst || []).length === 0);
+    const unsupported = attention.currentPositions.find((item) => (item.evidenceAgainst || []).length === 0);
     if (unsupported && provocationAngle === 0) {
       return {
         question: `What would make your position "${unsupported.title || unsupported.statement}" less convincing?`,
@@ -446,31 +421,28 @@ export function ThinkingDesk({
         evidence: 'Based on a position with no recorded challenging evidence.',
       };
     }
-    const openInquiry = inquiries.find((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status));
+    const openInquiry = attention.openInquiries[0];
     if (openInquiry && provocationAngle <= 1) {
       return {
         question: `What evidence would count as real progress on "${openInquiry.text}"?`,
         target: { view: 'questions' as NoesisView, targetId: openInquiry.id },
-        evidence: 'Based on an open inquiry without a working answer.',
+        evidence: openInquiry.answer?.trim() ? 'Based on an open inquiry with a working answer to revisit.' : 'Based on an open inquiry without a working answer.',
       };
     }
     return angles[provocationAngle % angles.length];
-  }, [inquiries, positions, practices, provocationAngle]);
+  }, [attention, provocationAngle]);
 
   const pulseObservations = useMemo<PulseObservation[]>(() => {
-    const rawAnnotations = annotations.filter((item) => !item.philosophyStatus || item.philosophyStatus === 'raw');
-    const unsupportedPositions = positions.filter((item) => item.status !== 'abandoned' && (item.sourceIds || []).length === 0 && (item.evidenceFor || []).length === 0);
-    const untestedPositions = positions.filter((position) => position.status !== 'abandoned' && !practices.some((practice) => (practice.positionIds || []).includes(position.id)));
-    const openInquiries = inquiries.filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status));
+    const { currentPositions, rawAnnotations, unsupportedPositions, untestedPositions, openInquiries } = attention;
     const finishedUnreflectedSources = media.filter((item) => item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange);
     const observations: PulseObservation[] = [];
 
-    if (positions.length > inquiries.length + 2) {
+    if (currentPositions.length > openInquiries.length + 2) {
       observations.push({
         id: 'positions-ahead-of-inquiries',
         title: 'Judgment is ahead of questioning',
         observation: 'You have more stated positions than active inquiries. This may be a good moment to add opposition or reopen a question.',
-        evidence: `${positions.length} positions vs ${inquiries.length} inquiries`,
+        evidence: `${currentPositions.length} current positions vs ${openInquiries.length} active inquiries`,
         tone: 'pressure',
         view: 'vault',
       });
@@ -498,7 +470,7 @@ export function ThinkingDesk({
     if (finishedUnreflectedSources.length) {
       observations.push({
         id: 'finished-sources',
-        title: 'Sources need after-reading judgment',
+        title: 'Finished sources need reflection',
         observation: 'Some finished sources still need reflection before they can change the rest of the system.',
         evidence: `${finishedUnreflectedSources.length} finished sources without a core argument or belief-change note`,
         tone: 'pressure',
@@ -511,7 +483,7 @@ export function ThinkingDesk({
         id: 'open-inquiries',
         title: 'Questions are still live',
         observation: 'Your inquiry layer has unresolved questions that could become evidence requests, definitions, or positions.',
-        evidence: `${openInquiries.length} open inquiries without a working answer`,
+        evidence: `${openInquiries.length} active ${openInquiries.length === 1 ? 'inquiry' : 'inquiries'}`,
         tone: 'movement',
         view: 'questions',
         targetId: openInquiries[0]?.id,
@@ -538,34 +510,20 @@ export function ThinkingDesk({
       });
     }
     return observations.slice(0, 3);
-  }, [annotations, inquiries, links.length, media, positions, practices, thinkingEvents.length]);
+  }, [attention, links.length, media, positions.length, practices.length, thinkingEvents.length]);
 
-  const recentMovement = useMemo(() => {
-    const events = thinkingEvents.length
-      ? thinkingEvents
-          .slice()
-          .sort((a, b) => recentDate(b.createdAt) - recentDate(a.createdAt))
-          .slice(0, 3)
-          .map((item) => ({
-            id: item.id,
-            title: item.summary,
-            meta: item.eventType.replace(/_/g, ' '),
-            date: item.createdAt,
-            target: targetFromEvent(item),
-          }))
-      : timeline
-          .slice()
-          .sort((a, b) => recentDate(b.date) - recentDate(a.date))
-          .slice(0, 3)
-          .map((item) => ({
-            id: item.id,
-            title: `${item.entityTitle}: ${item.reason || item.eventType}`,
-            meta: item.eventType,
-            date: item.date,
-            target: targetFromEvent(item),
-          }));
-    return events;
-  }, [thinkingEvents, timeline]);
+  const historyDestination = useCallback((event: ThinkingEvent | TimelineEvent): HomeTarget => {
+    const target = homeHistoryTarget(event, media);
+    if (!target.targetId || target.view === 'annotations') return target;
+    const records = ({
+      vault: positions, questions: inquiries, library: media, writing: works, labs: practices, concepts,
+    } as Partial<Record<NoesisView, ReadonlyArray<{ id: string }>>>)[target.view];
+    return records?.some((item) => item.id === target.targetId) ? target : { view: 'evolution' };
+  }, [concepts, inquiries, media, positions, practices, works]);
+
+  const recentMovement = useMemo(() => recentHomeHistory(thinkingEvents, timeline).map(({ event, ...row }) => ({
+    ...row, target: historyDestination(event),
+  })), [historyDestination, thinkingEvents, timeline]);
   const weeklyChanges = useMemo(() => weeklyReviewEvents(thinkingEvents), [thinkingEvents]);
 
   const returnMoments = useMemo<ReturnMoment[]>(() => {
@@ -574,8 +532,7 @@ export function ThinkingDesk({
       .filter((event) => recentDate(event.createdAt) > since && event.importance !== 'low')
       .sort((a, b) => recentDate(b.createdAt) - recentDate(a.createdAt))
       .flatMap((event) => {
-        const target = targetFromEvent(event);
-        if (!target) return [];
+        const target = historyDestination(event);
         return [{
           id: `event-${event.id}`,
           label: event.summary || event.eventType.replace(/_/g, ' '),
@@ -597,8 +554,7 @@ export function ThinkingDesk({
         targetId: source.id,
       }));
 
-    const practicesDue = practices
-      .filter((practice) => practice.status === 'active')
+    const practicesDue = attention.practicesNeedingLogs
       .filter((practice) => {
         const dates = practiceLogDates(practice);
         return !dates.length || recentDate(dates[dates.length - 1]) < Date.now() - 6 * 24 * 60 * 60 * 1000;
@@ -619,20 +575,16 @@ export function ThinkingDesk({
       if (!unique.has(key)) unique.set(key, item);
     });
     return Array.from(unique.values()).slice(0, 3);
-  }, [lastHomeVisit, media, practices, thinkingEvents]);
+  }, [attention.practicesNeedingLogs, historyDestination, lastHomeVisit, media, thinkingEvents]);
 
   const primaryEdge = continueItems[0] || null;
   const secondaryEdges = continueItems.slice(1, 3);
   const workspaceSnapshot = useMemo(() => {
-    const openInquiries = inquiries.filter((item) => !item.answer && !['answered', 'resolved', 'archived'].includes(item.status)).length;
-    const unprocessedAnnotations = annotations.filter((item) => !item.philosophyStatus || item.philosophyStatus === 'raw').length;
+    const openInquiries = attention.metrics.openInquiries;
+    const unprocessedAnnotations = attention.metrics.rawAnnotations;
     const undefinedConcepts = concepts.filter((item) => !item.description?.trim() || item.philosophyStatus === 'undefined').length;
-    const positionsNeedingEvidence = positions.filter((item) =>
-      !['abandoned', 'rejected', 'replaced'].includes(item.status)
-      && (item.sourceIds || []).length === 0
-      && (item.evidenceFor || []).length === 0
-    ).length;
-    const activeWorks = works.filter((item) => !['final', 'complete', 'completed', 'archived'].includes(item.status)).length;
+    const positionsNeedingEvidence = attention.metrics.unsupportedPositions;
+    const activeWorks = works.filter((item) => !['final', 'complete', 'completed', 'published', 'archived', 'abandoned'].includes(item.status)).length;
     const activePractices = practices.filter((item) => item.status === 'active').length;
     const activeSources = media.filter((item) => ['Consuming', 'Want to Read', 'Paused'].includes(item.status)).length;
     const openUnknowns = unknowns.filter((item) => item.status === 'active' || item.status === 'exploring').length;
@@ -641,13 +593,13 @@ export function ThinkingDesk({
       { label: 'Sources in motion', value: activeSources, view: 'library' as NoesisView, icon: NOESIS_ICONS.source },
       { label: 'Annotations to process', value: unprocessedAnnotations, view: 'annotations' as NoesisView, icon: NOESIS_ICONS.annotation },
       { label: 'Concepts to define', value: undefinedConcepts, view: 'concepts' as NoesisView, icon: NOESIS_ICONS.concept },
-      { label: 'Open inquiries', value: openInquiries, view: 'questions' as NoesisView, icon: NOESIS_ICONS.inquiry },
+      { label: 'Active inquiries', value: openInquiries, view: 'questions' as NoesisView, icon: NOESIS_ICONS.inquiry },
       { label: 'Positions needing evidence', value: positionsNeedingEvidence, view: 'vault' as NoesisView, icon: NOESIS_ICONS.position },
       { label: 'Works in progress', value: activeWorks, view: 'writing' as NoesisView, icon: NOESIS_ICONS.work },
       { label: 'Active practices', value: activePractices, view: 'labs' as NoesisView, icon: NOESIS_ICONS.practice },
       { label: 'Open unknowns', value: openUnknowns, view: 'profile' as NoesisView, icon: Compass },
     ];
-  }, [annotations, concepts, inquiries, media, positions, practices, unknowns, works]);
+  }, [attention, concepts, media, practices, unknowns, works]);
 
   const hasWorkspace = media.length + concepts.length + inquiries.length + positions.length + works.length + practices.length > 0;
 
@@ -851,26 +803,37 @@ export function ThinkingDesk({
     onNavigate(target);
   };
 
-  const turnProvocationIntoInquiry = () => {
-    const created = onCreateInquiry?.({
-      text: provocation.question,
-      whyItMatters: provocation.evidence,
-      currentIntuition: [
-        briefAnswer.trim(),
-        irrelevantReason.trim() ? `This prompt may miss because: ${irrelevantReason.trim()}` : '',
-      ].filter(Boolean).join('\n\n'),
-      status: 'open',
-      type: 'manual',
-      sourceDocumentId: provocation.target.targetId || '',
-    });
-    setBriefAnswer('');
-    setIrrelevantReason('');
-    onNavigate({ view: 'questions', targetId: created?.id });
+  const turnProvocationIntoInquiry = async () => {
+    if (!onCreateInquiry || inquiryCreationLock.current) return;
+    inquiryCreationLock.current = true;
+    setCreatingInquiry(true);
+    try {
+      const created = await onCreateInquiry({
+        text: provocation.question,
+        whyItMatters: provocation.evidence,
+        currentIntuition: [
+          briefAnswer.trim(),
+          irrelevantReason.trim() ? `This prompt may miss because: ${irrelevantReason.trim()}` : '',
+        ].filter(Boolean).join('\n\n'),
+        status: 'open',
+        type: 'manual',
+        beliefIds: provocation.target.view === 'vault' && provocation.target.targetId ? [provocation.target.targetId] : [],
+        conceptIds: provocation.target.view === 'concepts' && provocation.target.targetId ? [provocation.target.targetId] : [],
+        sourceIds: ['library', 'source-index'].includes(provocation.target.view) && provocation.target.targetId ? [provocation.target.targetId] : [],
+        draftIds: provocation.target.view === 'writing' && provocation.target.targetId ? [provocation.target.targetId] : [],
+        practiceIds: provocation.target.view === 'labs' && provocation.target.targetId ? [provocation.target.targetId] : [],
+      });
+      setBriefAnswer('');
+      setIrrelevantReason('');
+      onNavigate({ view: 'questions', targetId: created.id });
+    } catch {
+      toast({ title: 'Inquiry not saved', description: 'Your response is still here. Please retry.', variant: 'destructive' });
+    } finally { inquiryCreationLock.current = false; setCreatingInquiry(false); }
   };
 
   if (!hasWorkspace) {
     return (
-      <main className="noesis-page">
+      <div className="noesis-page">
         <PageHeader
           title="Today"
           description="Noesis becomes useful when it has something real to think with."
@@ -898,12 +861,12 @@ export function ThinkingDesk({
             </div>
           )}
         />
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="noesis-page">
+    <div className="noesis-page">
       <div className="noesis-page-inner">
         <PageHeader
           title={`Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, ${firstName(profile)}.`}
@@ -1004,14 +967,13 @@ export function ThinkingDesk({
               </div>
             </section>
 
-            <ThoughtGamesPanel
+            <ThoughtGamePreview
               concepts={concepts}
               inquiries={inquiries}
               positions={positions}
               media={media}
               links={links}
-              onNavigate={onNavigate}
-              variant="compact"
+              onOpen={() => onNavigate({ view: 'labs' })}
             />
 
             <section className="rounded-lg border border-border bg-card p-5">
@@ -1036,7 +998,7 @@ export function ThinkingDesk({
                           className="mt-3 min-h-[76px] rounded-md"
                         />
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" onClick={turnProvocationIntoInquiry} className="rounded-md">Open as inquiry</Button>
+                          <Button size="sm" onClick={turnProvocationIntoInquiry} disabled={creatingInquiry || !onCreateInquiry} className="rounded-md">{creatingInquiry ? 'Saving…' : 'Open as inquiry'}</Button>
                           <Button size="sm" variant="outline" onClick={() => previewOrNavigate(provocation.target, { label: 'Explore further', description: 'Reflection prompt', reason: provocation.evidence })} className="rounded-md">Explore</Button>
                           <Button
                             size="sm"
@@ -1129,7 +1091,7 @@ export function ThinkingDesk({
             )}
           </section>
 
-          <section className="border-b border-border p-5">
+          {showCommitments && <section className="border-b border-border p-5" aria-label="Active commitments">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Active Commitments</div>
@@ -1153,14 +1115,14 @@ export function ThinkingDesk({
                   <button
                     key={row.id}
                     type="button"
-                    onClick={() => onNavigate({ view: 'goals' })}
+                    onClick={() => onNavigate({ view: 'goals', targetId: row.id })}
                     className="w-full py-4 text-left outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="truncate text-sm font-medium text-foreground">{row.label}</span>
                       <span className="shrink-0 font-code text-[9px] text-muted-foreground">{row.done}/{row.target}</span>
                     </div>
-                    <Progress value={row.percent} className="mt-2 h-1.5" />
+                    <Progress value={row.percent} aria-hidden="true" className="mt-2 h-1.5" />
                   </button>
                 ))}
               </div>
@@ -1173,7 +1135,7 @@ export function ThinkingDesk({
                 Set an intellectual commitment for what deserves sustained attention.
               </button>
             )}
-          </section>
+          </section>}
 
           <section className="p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -1197,9 +1159,8 @@ export function ThinkingDesk({
                 <button
                   key={item.id}
                   type="button"
-                  disabled={!item.target}
-                  onClick={() => item.target && previewOrNavigate(item.target, { label: 'Open recent movement', description: item.meta, reason: item.title })}
-                  className="w-full py-4 text-left outline-none transition-colors enabled:hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-default"
+                  onClick={() => previewOrNavigate(item.target, { label: 'Open recent movement', description: item.meta, reason: item.title })}
+                  className="w-full py-4 text-left outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   <div className="text-sm font-medium text-foreground/80">{item.title}</div>
                   <div className="mt-1 font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">{item.meta}</div>
@@ -1212,7 +1173,7 @@ export function ThinkingDesk({
         </aside>
       </div>
       </div>
-    </main>
+    </div>
   );
 }
 

@@ -14,6 +14,7 @@ export function WorkbenchPanel({
   id,
   eyebrow,
   title,
+  headingLevel = 3,
   description,
   actions,
   collapsible = false,
@@ -29,6 +30,7 @@ export function WorkbenchPanel({
   id?: string;
   eyebrow?: ReactNode;
   title?: ReactNode;
+  headingLevel?: 2 | 3;
   description?: ReactNode;
   actions?: ReactNode;
   collapsible?: boolean;
@@ -42,11 +44,12 @@ export function WorkbenchPanel({
   'aria-label'?: string;
 }) {
   const hasHeader = Boolean(eyebrow || title || description || actions);
+  const Heading = headingLevel === 2 ? 'h2' : 'h3';
   const heading = hasHeader && (
     <>
       <div className="min-w-0 flex-1">
         {eyebrow && <div className="noesis-workbench-panel__eyebrow">{eyebrow}</div>}
-        {title && <h3 className="noesis-workbench-panel__title">{title}</h3>}
+        {title && <Heading className="noesis-workbench-panel__title">{title}</Heading>}
         {description && <p className="noesis-workbench-panel__description">{description}</p>}
       </div>
       {actions && <div className="noesis-workbench-panel__actions">{actions}</div>}

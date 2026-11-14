@@ -33,7 +33,9 @@ export type NoesisWorkspaceDataKey =
   | 'unknowns'
   | 'thinkingPatterns'
   | 'thinkingMetrics'
+  | 'worksSettings'
   | 'goal'
+  | 'goalPreferences'
   | 'preferences'
   | 'appearance'
   | 'legacyProfile'
@@ -187,7 +189,7 @@ export const NOESIS_PAGE_BY_VIEW = NOESIS_PAGE_DEFINITIONS.reduce((acc, page) =>
 }, {} as Record<NoesisView, NoesisPageDefinition>);
 
 export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDataKey[]> = {
-  home: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'thinkingEvents', 'unknowns', 'goal'],
+  home: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'thinkingEvents', 'unknowns', 'goal', 'goalPreferences'],
   atlas: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'atlasMaps', 'links', 'thinkingEvents', 'unknowns'],
   concepts: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'links', 'aiSettings'],
   questions: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
@@ -195,21 +197,22 @@ export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDa
   'source-index': ['media', 'questions', 'vault', 'drafts', 'practices'],
   annotations: ['media', 'concepts', 'questions', 'vault', 'aiSettings'],
   vault: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns', 'aiSettings'],
-  writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences'],
+  writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences', 'worksSettings'],
   'context-desk': ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'aiSettings'],
   labs: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
-  evolution: ['media', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'aiSettings'],
+  evolution: ['media', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'aiSettings'],
   profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs', 'aiSettings'],
-  goals: ['media', 'questions', 'vault', 'drafts', 'practices', 'goal'],
-  settings: ['preferences', 'legacyProfile', 'workspace', 'allSettings', 'thinkingEvents'],
+  goals: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'goal'],
+  settings: ['preferences', 'legacyProfile', 'workspace', 'allSettings'],
 };
 
 export const NOESIS_DETAIL_DATA_REQUIREMENTS: Record<NoesisRouteTargetType, NoesisWorkspaceDataKey[]> = {
   concept: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
   inquiry: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
   source: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
+  annotation: NOESIS_PAGE_DATA_REQUIREMENTS.annotations,
   position: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns', 'aiSettings'],
-  work: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences'],
+  work: NOESIS_PAGE_DATA_REQUIREMENTS.writing,
   practice: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
 };
 
@@ -229,6 +232,8 @@ export const NOESIS_SHELL_SUMMARY_REQUIREMENTS: NoesisWorkspaceDataKey[] = [
 ];
 
 export const NOESIS_DATA_REQUIREMENT_LABELS: Record<NoesisWorkspaceDataKey, string> = {
+  worksSettings: 'Works defaults',
+  goalPreferences: 'Commitment preferences',
   media: 'Sources',
   vault: 'Positions',
   insights: 'Position drafts',
@@ -286,15 +291,14 @@ export function metadataForNoesisView(view: NoesisView, detailLabel?: string): M
 export function metadataForNoesisDetail(
   view: NoesisView,
   targetType: NoesisRouteTargetType,
-  targetId?: string,
+  _targetId?: string,
 ): Metadata {
   const page = NOESIS_PAGE_BY_VIEW[view];
   const target = labelForNoesisRouteTarget(targetType);
-  const readableId = targetId ? targetId.replace(/[-_]+/g, ' ') : 'selected item';
 
   return {
     title: `${target.owner} ${target.singular} | Noesis`,
-    description: `${page.purpose} Open ${target.singular} detail: ${readableId}.`,
+    description: page.purpose,
   };
 }
 
@@ -308,10 +312,9 @@ export function metadataForNoesisRouteState(
   if (routeTarget) {
     const page = NOESIS_PAGE_BY_VIEW[routeState.view];
     const target = labelForNoesisRouteTarget(routeTarget.type);
-    const readableId = routeTarget.id.replace(/[-_]+/g, ' ');
     return {
       title: `${target.owner} ${target.singular}${suffix} | Noesis`,
-      description: `${page.purpose} Open ${target.singular} detail: ${readableId}.`,
+      description: page.purpose,
     };
   }
 

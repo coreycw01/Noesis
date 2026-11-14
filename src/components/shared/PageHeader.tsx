@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { iconForNoesisView } from '@/lib/noesis-icons';
 import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
+import { parseNoesisRoute, type NoesisView } from '@/lib/noesis-routes';
 
 interface PageHeaderProps {
   title: string;
@@ -19,33 +20,15 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, actions, meta, className, children, tabs }: PageHeaderProps) {
   const pathname = usePathname();
-  const routeSegment = pathname.split('/').filter(Boolean).find((segment) => segment !== 'demo') || 'home';
-  const view = ({
-    home: 'home',
-    atlas: 'atlas',
-    concepts: 'concepts',
-    inquiries: 'questions',
-    library: 'library',
-    sources: 'source-index',
-    annotations: 'annotations',
-    positions: 'vault',
-    works: 'writing',
-    'context-desk': 'context-desk',
-    labs: 'labs',
-    practices: 'labs',
-    evolution: 'evolution',
-    profile: 'profile',
-    goals: 'goals',
-    settings: 'settings',
-  } as Record<string, string>)[routeSegment] || 'home';
+  const { view } = parseNoesisRoute(pathname);
   const PageIcon = iconForNoesisView(view);
   const section = ({
     home: 'Today', atlas: 'Map', concepts: 'Vocabulary', questions: 'Investigation', library: 'Encounter',
     'source-index': 'Research index', annotations: 'Marginalia', vault: 'Argument', writing: 'Studio',
-    'context-desk': 'Synthesis', practices: 'Experiment', evolution: 'History', profile: 'Portrait',
+    'context-desk': 'Synthesis', labs: 'Praxis', evolution: 'History', profile: 'Portrait',
     goals: 'Commitment', settings: 'System',
-  } as Record<string, string>)[view] || 'Workspace';
-  const pageSection = NOESIS_PAGE_BY_VIEW[view as keyof typeof NOESIS_PAGE_BY_VIEW]?.section;
+  } satisfies Record<NoesisView, string>)[view];
+  const pageSection = NOESIS_PAGE_BY_VIEW[view].section;
   // Name where the page sits in the thinking flow, matching the sidebar groups.
   const stage = pageSection && pageSection !== 'More' && pageSection !== section ? pageSection : null;
 

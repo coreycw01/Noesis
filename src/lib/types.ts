@@ -107,6 +107,7 @@ export interface WorkToolSection {
     height: number;
     minimized?: boolean;
     zIndex?: number;
+    background?: { color?: string; opacity?: number };
     /** How the tool participates in the writing page. */
     placement?: 'overlay' | 'wrap' | 'break';
   };
@@ -190,7 +191,7 @@ export type ThinkingPatternUserResponse = 'confirmed' | 'partially_agree' | 'rej
 export type UnknownStatus = 'active' | 'exploring' | 'resolved' | 'archived';
 export type UnknownImportance = 'low' | 'medium' | 'high';
 export type BeliefProfileReviewStatus = 'current' | 'needs_review' | 'outdated' | 'abandoned';
-export type ThinkingEventEntityType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'insight' | 'atlasMap' | 'link' | 'unknown' | 'beliefProfile' | 'thinkingPattern' | 'metric' | 'suggestion' | 'evolution';
+export type ThinkingEventEntityType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice' | 'insight' | 'atlasMap' | 'link' | 'unknown' | 'beliefProfile' | 'thinkingPattern' | 'metric' | 'suggestion' | 'evolution' | 'profile';
 export type ThinkingEventOrigin = 'user' | 'ai-assisted' | 'ai' | 'system';
 export type ThinkingEventEpistemicStatus = 'raw_capture' | 'uncertain' | 'emerging' | 'working_belief' | 'strong_belief' | 'challenged' | 'abandoned' | 'resolved';
 export type ThinkingEventImportance = 'low' | 'medium' | 'high' | 'major';
@@ -200,6 +201,8 @@ export interface SecurityRuleContext {
 }
 
 export interface Annotation extends NoesisStageState {
+  textProvenance?: import('./ai-provenance').ProvenanceRef;
+  effectProvenance?: import('./ai-provenance').ProvenanceRef;
   id: string;
   text: string;
   type: AnnotationType;
@@ -273,6 +276,8 @@ export interface MediaCapture {
 }
 
 export interface Media extends NoesisStageState {
+  summaryProvenance?: import('./ai-provenance').ProvenanceRef;
+  reflectionProvenance?: import('./ai-provenance').ProvenanceRef;
   id: string;
   title: string;
   creator: string;
@@ -363,6 +368,7 @@ export interface VaultEntry extends NoesisStageState {
   createdFrom?: 'manual' | 'idea' | 'inquiry' | 'annotation' | 'work';
   sourceInquiryId?: string;
   sourceAnnotationId?: string;
+  annotationOrigins?: import('./ai-provenance').AnnotationOrigin[];
   sourceWorkId?: string;
   sourceDocumentId?: string;
   confidenceScore?: number;
@@ -390,6 +396,8 @@ export interface Insight {
 }
 
 export interface Concept extends NoesisStageState {
+  definitionProvenance?: import('./ai-provenance').ProvenanceRef;
+  boundaryProvenance?: import('./ai-provenance').ProvenanceRef;
   id: string;
   name: string;
   description: string;
@@ -409,6 +417,19 @@ export interface Concept extends NoesisStageState {
   atlasReviewStatus?: 'new' | 'confirmed' | 'rejected' | 'deferred';
 }
 
+export interface InquiryEvidence {
+  id: string;
+  claim: string;
+  type: 'source excerpt' | 'personal observation' | 'counterexample' | 'unknown';
+  direction: 'supports' | 'challenges' | 'contextualizes';
+  strength: 'weak' | 'moderate' | 'strong';
+  reliability: 'low' | 'moderate' | 'high';
+  candidateId: string;
+  origin: string;
+  notes: string;
+  date: string;
+}
+
 export interface Question extends NoesisStageState {
   id: string;
   text: string;
@@ -424,6 +445,7 @@ export interface Question extends NoesisStageState {
     text: string;
     origin: 'user' | 'ai-assisted';
     date: string;
+    provenance?: import('./ai-provenance').ProvenanceRef;
   }>;
   assumptions?: string[];
   candidateAnswers?: Array<{
@@ -436,6 +458,7 @@ export interface Question extends NoesisStageState {
   }>;
   resolutionSummary?: string;
   evidenceIds: string[];
+  evidenceRecords?: InquiryEvidence[];
   conceptIds: string[];
   sourceIds?: string[];
   beliefIds?: string[];
@@ -443,6 +466,7 @@ export interface Question extends NoesisStageState {
   practiceIds?: string[];
   type?: 'open' | 'annotation' | 'manual';
   sourceAnnotationId?: string;
+  annotationOrigins?: import('./ai-provenance').AnnotationOrigin[];
   sourceWorkId?: string;
   sourceDocumentId?: string;
   dateCreated: string;
@@ -450,6 +474,7 @@ export interface Question extends NoesisStageState {
 }
 
 export interface TimelineEvent {
+  synthesisProvenance?: import('./ai-provenance').ProvenanceRef;
   id: string;
   entityId: string;
   entityType: 'media' | 'vault' | 'concept' | 'question' | 'draft' | 'insight' | string;
@@ -461,6 +486,7 @@ export interface TimelineEvent {
 }
 
 export interface Draft extends NoesisStageState {
+  bodyProvenance?: import('./ai-provenance').ProvenanceRef;
   id: string;
   title: string;
   body: string;
@@ -512,7 +538,7 @@ export interface Draft extends NoesisStageState {
   writingOverlayStrokes?: DrawingStroke[];
   overlayAsset?: StoredAsset;
   writingStyle?: WritingStyle;
-  externalDoc?: ExternalDraftDocument;
+  externalDoc?: ExternalDraftDocument | null;
   conceptTags: string[];
   /** Stable concept identities; conceptTags remain as user-facing labels. */
   conceptIds?: string[];
@@ -569,6 +595,7 @@ export interface Practice extends NoesisStageState {
   effectOnPosition?: string;
   alternativeExplanation?: string;
   aiOutcomeReview?: string;
+  outcomeProvenance?: import('./ai-provenance').ProvenanceRef;
   conclusion?: {
     performedAsIntended?: string;
     whatHappened?: string;
@@ -804,6 +831,7 @@ export type CommitmentFrequency = 'daily' | 'weekly' | 'monthly' | 'custom';
 export interface CommitmentCheckIn {
   id: string;
   date: string;
+  day?: string;
   status: 'completed' | 'skipped';
   note?: string;
 }
@@ -822,6 +850,7 @@ export interface GoalItem {
   practiceMeasure?: PracticeGoalMeasure;
   workMeasure?: WorkGoalMeasure;
   commitmentAction?: string;
+  commitmentPositionId?: string | null;
   commitmentFrequency?: CommitmentFrequency;
   commitmentReviewDate?: string;
   commitmentCheckIns?: CommitmentCheckIn[];
@@ -866,6 +895,7 @@ export interface UserPreferences {
 }
 
 export interface UserProfile {
+  philosophyStatementProvenance?: import('./ai-provenance').ProvenanceRef;
   id?: string;
   displayName: string;
   email: string;
@@ -922,6 +952,7 @@ export interface ProfilePrivacySettings {
   id?: string;
   defaultVisibility: VisibilitySetting;
   publicProfileEnabled: boolean;
+  publicAvatarEnabled?: boolean;
   publicBioEnabled?: boolean;
   publicPhilosophyEnabled?: boolean;
   publicSeasonEnabled?: boolean;
@@ -1022,6 +1053,7 @@ export interface AiSettings {
   aiAssistanceEnabled: boolean;
   showContextBeforeSending: boolean;
   defaultReasoningDepth: 'light' | 'standard' | 'deep';
+  /** Legacy stored preference. Reviewed saves always retain their origin. */
   retainAcceptedAiProvenance: boolean;
   dateUpdated?: string;
 }

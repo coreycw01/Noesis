@@ -220,6 +220,27 @@
         "date": "ISO string"
       }
     },
+    "aiProvenance": {
+      "path": "/users/{uid}/aiProvenance/{provenanceId}",
+      "purpose": "Private, owner-scoped provenance for accepted Inquiry challenge notes, Context Desk Works, and Profile philosophy reviews. Written atomically with the destination and its thinking event; not included in public profiles.",
+      "fields": {
+        "id": "string equal to provenanceId",
+        "provenanceId": "string",
+        "kind": "ai-assisted",
+        "userId": "string owner id",
+        "schemaVersion": "1",
+        "targets": "array of type, id, fieldPath and subrecordId",
+        "origin": "feature and contextual AI action",
+        "sourceActionId": "string",
+        "generatedAt": "ISO string",
+        "acceptedAt": "server timestamp",
+        "precursor": "bounded string or null",
+        "acceptedText": "optional private approved synthesis text; omitted from history events",
+        "contextRefs": "optional bounded array of contributing record type and id",
+        "acceptedTextHash": "SHA-256 hex string",
+        "state": "active"
+      }
+    },
     "thinkingEvents": {
       "path": "/users/{uid}/thinkingEvents/{eventId}",
       "purpose": "Canonical immutable intellectual history with before/after snapshots, provenance, importance, and related stable ids.",

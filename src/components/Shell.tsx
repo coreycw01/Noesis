@@ -18,7 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -27,16 +27,14 @@ import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
 import type { NoesisRouteTargetType } from '@/lib/noesis-routes';
 import { NOESIS_OBJECT_PREVIEW_EVENT, type NoesisObjectPreviewItem } from '@/lib/noesis-object-preview';
 import placeholderData from '@/app/lib/placeholder-images.json';
-import { NOESIS_WORKSPACE_SYNC_EVENT, type WorkspaceSyncState } from '@/lib/workspace-mutations';
+import { NOESIS_WORKSPACE_SYNC_EVENT, type WorkspaceSyncState } from '@/lib/workspace-connectivity';
+import { MOBILE_REFRESH_THRESHOLD, mobilePullDistance, shouldRefreshFromPull } from '@/lib/mobile-refresh';
 import { iconForNoesisView } from '@/lib/noesis-icons';
+import { findMatchRank } from '@/lib/workspace-find-rank';
+import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
 
-export interface MovementMetrics {
-  rawAnnotations: number;
-  unsupportedPositions: number;
-  openInquiries: number;
-  practicesWithoutPosition: number;
-  positionsWithoutPractice: number;
-}
+import type { WorkspaceAttentionMetrics as MovementMetrics } from '@/lib/workspace-attention';
+export type { WorkspaceAttentionMetrics as MovementMetrics } from '@/lib/workspace-attention';
 
 export interface CommandPaletteItem {
   id: string;
@@ -46,6 +44,7 @@ export interface CommandPaletteItem {
   view: string;
   targetId?: string | null;
   targetType?: NoesisRouteTargetType;
+  annotationSourceId?: string;
   objectType?: string;
   kind?: 'navigation' | 'object' | 'create';
   intellectualStage?: 'Encounter' | 'Capture' | 'Interpret' | 'Question' | 'Judge' | 'Express' | 'Test' | 'Revise' | 'Understand' | 'Navigate' | 'Configure';
@@ -68,7 +67,6 @@ export interface CommandPaletteItem {
   }>;
 }
 
-const RECENT_COMMAND_ITEMS_KEY = 'noesis:recent-command-items';
 const MAX_RECENT_COMMAND_ITEMS = 8;
 
 function WorkspaceSyncIndicator({ state, compact = false, offline = false }: { state: WorkspaceSyncState | 'idle'; compact?: boolean; offline?: boolean }) {
@@ -77,12 +75,14 @@ function WorkspaceSyncIndicator({ state, compact = false, offline = false }: { s
     ? 'Offline'
     : visibleState === 'saving'
       ? 'Saving'
+      : visibleState === 'waiting'
+        ? 'Waiting for server'
       : visibleState === 'saved'
         ? 'Saved'
         : visibleState === 'error'
           ? 'Save failed'
           : 'Synced';
-  const Icon = visibleState === 'saving' ? LoaderCircle : visibleState === 'error' ? CloudAlert : Check;
+  const Icon = visibleState === 'saving' ? LoaderCircle : visibleState === 'error' || visibleState === 'waiting' ? CloudAlert : Check;
 
   return (
     <span
@@ -96,7 +96,7 @@ function WorkspaceSyncIndicator({ state, compact = false, offline = false }: { s
       )}
     >
       <Icon className={cn('size-3.5', visibleState === 'saving' && 'animate-spin')} aria-hidden="true" />
-      {!compact && <span>{label}</span>}
+      <span className={compact ? 'sr-only' : undefined}>{label}</span>
     </span>
   );
 }
@@ -234,15 +234,30 @@ interface ShellProps {
     role?: string;
   };
   workspaceMode?: string;
-  commandItems?: CommandPaletteItem[];
+  loadCommandItems?: (signal: AbortSignal) => Promise<{ items: CommandPaletteItem[]; cached?: boolean }>;
   onCommandSelect?: (item: CommandPaletteItem) => void;
 }
 
-export function Shell({ children, activeView, pendingPath, onViewChange, onOpenProfile, counts, movement, profile, workspaceMode, commandItems: workspaceCommandItems = [], onCommandSelect }: ShellProps) {
+export function Shell({ children, activeView, pendingPath, onViewChange, onOpenProfile, counts, movement, profile, workspaceMode, loadCommandItems, onCommandSelect }: ShellProps) {
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  useEffect(() => {
+    const handleNativeBack = (event: Event) => {
+      const layer = document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [role="menu"][data-state="open"], [role="listbox"][data-state="open"]');
+      if (layer) {
+        event.preventDefault();
+        (document.activeElement || layer).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      } else if (typeof window.history.state?.noesisPath === 'string') {
+        // WebView can omit same-document pushState entries from canGoBack().
+        event.preventDefault();
+        window.history.back();
+      }
+    };
+    window.addEventListener('noesis:native-back', handleNativeBack);
+    return () => window.removeEventListener('noesis:native-back', handleNativeBack);
+  }, []);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pullDistanceRef = useRef(0);
@@ -254,10 +269,26 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   } | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandPurpose, setCommandPurpose] = useState<'find' | 'create'>('find');
+  const [workspaceSearch, setWorkspaceSearch] = useState<{ load: NonNullable<ShellProps['loadCommandItems']>; items?: CommandPaletteItem[]; cached?: boolean } | null>(null);
   const [commandQuery, setCommandQuery] = useState('');
   const [previewItem, setPreviewItem] = useState<CommandPaletteItem | null>(null);
   const [recentCommandItems, setRecentCommandItems] = useState<CommandPaletteItem[]>([]);
   const [attentionOpen, setAttentionOpen] = useState(false);
+  const commandOpener = useRef<HTMLElement | null>(null);
+  const attentionOpener = useRef<HTMLElement | null>(null);
+  const previewOpener = useRef<HTMLElement | null>(null);
+  const restoreOverlayFocus = (opener: React.RefObject<HTMLElement | null>, event: Event) => {
+    event.preventDefault();
+    const element = opener.current;
+    opener.current = null;
+    if (element?.isConnected && !element.closest('[inert]')) element.focus({ preventScroll: true });
+  };
+  const openCommand = (purpose: 'find' | 'create', opener: HTMLElement) => {
+    commandOpener.current = opener;
+    setCommandPurpose(purpose);
+    setCommandQuery('');
+    setCommandOpen(true);
+  };
   const [isOnline, setIsOnline] = useState(true);
   const [syncState, setSyncState] = useState<WorkspaceSyncState | 'idle'>('idle');
   const navItems = useMemo(() => [
@@ -313,32 +344,28 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   }, [profile?.displayName, profile?.email]);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('noesis:sidebar-collapsed');
+    const saved = readBrowserPreference('noesis:sidebar-collapsed');
     if (saved) setCollapsed(saved === 'true');
   }, []);
 
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem(RECENT_COMMAND_ITEMS_KEY);
-      if (!saved) return;
-      const parsed = JSON.parse(saved) as CommandPaletteItem[];
-      if (Array.isArray(parsed)) setRecentCommandItems(parsed.slice(0, MAX_RECENT_COMMAND_ITEMS));
-    } catch {
-      setRecentCommandItems([]);
-    }
+      window.localStorage.removeItem('noesis:recent-command-items');
+    } catch { /* Optional legacy cleanup. */ }
   }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem('noesis:sidebar-collapsed', String(collapsed));
-  }, [collapsed]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        if (document.activeElement?.closest('[role="dialog"], [role="alertdialog"]')) return;
         event.preventDefault();
         setCommandPurpose('find');
         setCommandQuery('');
-        setCommandOpen((open) => !open);
+        commandOpener.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+          ? document.activeElement
+          : [...document.querySelectorAll<HTMLElement>('[data-noesis-find]')].find((element) => element.getClientRects().length > 0) ?? null;
+        setCommandOpen(true);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -349,6 +376,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     const onPreviewObject = (event: Event) => {
       const detail = (event as CustomEvent<NoesisObjectPreviewItem>).detail;
       if (!detail?.id || !detail.label || !detail.view) return;
+      previewOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setPreviewItem({
         ...detail,
         kind: detail.kind || 'object',
@@ -359,7 +387,11 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     return () => window.removeEventListener(NOESIS_OBJECT_PREVIEW_EVENT, onPreviewObject);
   }, []);
 
-  const toggleSidebar = () => setCollapsed((current) => !current);
+  const toggleSidebar = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    writeBrowserPreference('noesis:sidebar-collapsed', String(next));
+  };
   const handleNavChange = (view: string) => {
     if (view === activeView && !pendingPath) {
       setMobileNavOpen(false);
@@ -386,12 +418,23 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     return null;
   };
 
+  const cancelMobilePull = () => {
+    pullGestureRef.current = null;
+    pullDistanceRef.current = 0;
+    setPullDistance(0);
+  };
+
+  const mobileRefreshBlocked = !isMobile || !isOnline || isRefreshing || Boolean(pendingPath)
+    || mobileNavOpen || mobileMoreOpen || commandOpen || syncState === 'saving' || syncState === 'waiting';
+
   const handleMobileTouchStart = (event: React.TouchEvent<HTMLElement>) => {
-    if (!isMobile || event.touches.length !== 1 || mobileNavOpen || mobileMoreOpen || commandOpen || syncState === 'saving') return;
+    if (isRefreshing) return;
+    cancelMobilePull();
+    if (mobileRefreshBlocked || event.touches.length !== 1) return;
     const target = event.target;
-    if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+    if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], .touch-none')) return;
     const touch = event.touches[0];
-    const scrollElement = findMobileScrollElement(target);
+    const scrollElement = findMobileScrollElement(target instanceof Element && !(target instanceof HTMLElement) ? target.parentElement : target);
     const atTop = scrollElement ? scrollElement.scrollTop <= 0 : window.scrollY <= 0;
     pullGestureRef.current = {
       startX: touch.clientX,
@@ -403,39 +446,54 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
   const handleMobileTouchMove = (event: React.TouchEvent<HTMLElement>) => {
     const gesture = pullGestureRef.current;
-    if (!gesture?.eligible || event.touches.length !== 1 || isRefreshing) return;
-    const touch = event.touches[0];
-    const deltaX = Math.abs(touch.clientX - gesture.startX);
-    const deltaY = touch.clientY - gesture.startY;
-    const stillAtTop = gesture.scrollElement ? gesture.scrollElement.scrollTop <= 0 : window.scrollY <= 0;
-    if (!stillAtTop || deltaX > Math.max(12, deltaY)) {
-      gesture.eligible = false;
-      pullDistanceRef.current = 0;
-      setPullDistance(0);
+    if (!gesture?.eligible) return;
+    if (mobileRefreshBlocked || event.touches.length !== 1) {
+      cancelMobilePull();
       return;
     }
-    if (deltaY > 0) {
-      const nextDistance = Math.min(92, deltaY * 0.48);
-      pullDistanceRef.current = nextDistance;
-      setPullDistance(nextDistance);
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - gesture.startX;
+    const deltaY = touch.clientY - gesture.startY;
+    const stillAtTop = gesture.scrollElement ? gesture.scrollElement.scrollTop <= 0 : window.scrollY <= 0;
+    const nextDistance = mobilePullDistance(deltaX, deltaY, stillAtTop);
+    if (nextDistance === null) {
+      cancelMobilePull();
+      return;
     }
+    pullDistanceRef.current = nextDistance;
+    setPullDistance(nextDistance);
   };
 
   const finishMobilePull = () => {
-    const shouldRefresh = pullGestureRef.current?.eligible && pullDistanceRef.current >= 64;
-    pullGestureRef.current = null;
-    if (!shouldRefresh) {
-      pullDistanceRef.current = 0;
-      setPullDistance(0);
-      return;
-    }
+    const shouldRefresh = shouldRefreshFromPull(pullDistanceRef.current, Boolean(pullGestureRef.current?.eligible), mobileRefreshBlocked);
+    cancelMobilePull();
+    if (!shouldRefresh) return;
     setIsRefreshing(true);
-    pullDistanceRef.current = 64;
-    setPullDistance(64);
+    setPullDistance(MOBILE_REFRESH_THRESHOLD);
     window.setTimeout(() => window.location.reload(), 140);
   };
 
+  useEffect(() => {
+    if (!commandOpen || commandPurpose !== 'find' || !loadCommandItems || workspaceSearch?.load === loadCommandItems) return;
+    const request = new AbortController();
+    const timer = window.setTimeout(() => {
+      request.abort();
+      setWorkspaceSearch({ load: loadCommandItems });
+    }, 12_000);
+    void loadCommandItems(request.signal).then(
+      (result) => { if (!request.signal.aborted) setWorkspaceSearch({ load: loadCommandItems, ...result }); },
+      () => { if (!request.signal.aborted) setWorkspaceSearch({ load: loadCommandItems }); },
+    ).finally(() => window.clearTimeout(timer));
+    return () => { request.abort(); window.clearTimeout(timer); };
+  }, [commandOpen, commandPurpose, loadCommandItems, workspaceSearch]);
+  useEffect(() => {
+    if (!commandOpen) setWorkspaceSearch(null);
+  }, [commandOpen]);
+  const indexedWorkspace = workspaceSearch?.load === loadCommandItems ? workspaceSearch : null;
+  const indexingWorkspace = Boolean(commandOpen && commandPurpose === 'find' && loadCommandItems && !indexedWorkspace);
+
   const commandItems = useMemo<CommandPaletteItem[]>(() => {
+    if (!commandOpen) return [];
     const recent = recentCommandItems.map((item) => ({
       ...item,
       id: `recent-${item.id}`,
@@ -471,9 +529,9 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     const query = commandQuery.trim().toLowerCase();
     const availableItems = commandPurpose === 'create'
       ? creation
-      : [...recent, ...core, ...utilities, ...workspaceCommandItems.filter((item) => item.kind !== 'create')];
+      : [...recent, ...core, ...utilities, ...(indexedWorkspace?.items ?? [])];
     return availableItems
-      .filter((item) => {
+      .map((item) => {
         const searchable = [
           item.label,
           item.section,
@@ -490,35 +548,35 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           ...(item.connectedConcepts || []),
           ...(item.relatedObjects || []),
         ].filter(Boolean).join(' ');
-        return !query || searchable.toLowerCase().includes(query);
+        return { item, rank: findMatchRank(query, item.label, searchable) };
       })
-      .slice(0, 18);
-  }, [commandPurpose, commandQuery, navItems, recentCommandItems, workspaceCommandItems]);
+      .filter(({ rank }) => rank > 0)
+      .sort((left, right) => right.rank - left.rank)
+      .slice(0, 18)
+      .map(({ item }) => item);
+  }, [commandOpen, commandPurpose, commandQuery, indexedWorkspace, navItems, recentCommandItems]);
 
   const rememberCommandItem = (item: CommandPaletteItem) => {
     if (!item.targetId || item.kind !== 'object') return;
     setRecentCommandItems((current) => {
       const cleanId = item.id.replace(/^recent-/, '');
       const nextItem = { ...item, id: cleanId, section: item.section === 'Recent' ? 'Object' : item.section };
-      const next = [nextItem, ...current.filter((entry) => entry.targetId !== item.targetId || entry.view !== item.view)]
+      return [nextItem, ...current.filter((entry) => entry.targetId !== item.targetId || entry.view !== item.view || entry.annotationSourceId !== item.annotationSourceId)]
         .slice(0, MAX_RECENT_COMMAND_ITEMS);
-      try {
-        window.localStorage.setItem(RECENT_COMMAND_ITEMS_KEY, JSON.stringify(next));
-      } catch {
-        // Recent items are a convenience layer; navigation should never depend on storage.
-      }
-      return next;
     });
   };
 
   const handleCommandSelect = (item: CommandPaletteItem) => {
     if (item.kind === 'object' || item.targetId) {
       rememberCommandItem(item);
+      previewOpener.current = commandOpener.current;
+      commandOpener.current = null;
       setPreviewItem(item);
       setCommandOpen(false);
       setCommandQuery('');
       return;
     }
+    if (item.view !== activeView) commandOpener.current = null;
     if (onCommandSelect) {
       onCommandSelect(item);
     } else {
@@ -530,6 +588,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
   const openPreviewItem = (item: CommandPaletteItem) => {
     rememberCommandItem(item);
+    if (item.view !== activeView || item.targetType) previewOpener.current = null;
     if (onCommandSelect) {
       onCommandSelect(item);
     } else {
@@ -557,21 +616,13 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const activeMobileMorePage = activeMobileMoreItem
     ? NOESIS_PAGE_BY_VIEW[activeMobileMoreItem.id as keyof typeof NOESIS_PAGE_BY_VIEW]
     : null;
-  const activeMobileMoreLabel = activeView === 'context-desk'
-    ? 'Context'
-    : activeView === 'source-index'
-      ? 'Sources'
-      : activeMobileMorePage?.title || 'More';
   const mobilePrimaryNav = [
     { id: 'home', label: 'Today', icon: iconForNoesisView('home'), view: 'home' },
     { id: 'library', label: 'Library', icon: iconForNoesisView('library'), view: 'library' },
     { id: 'questions', label: 'Inquiries', icon: iconForNoesisView('questions'), view: 'questions' },
     { id: 'vault', label: 'Positions', icon: iconForNoesisView('vault'), view: 'vault' },
-    { id: 'more', label: activeMobileMoreLabel, icon: activeMobileMoreItem?.icon || Menu, view: null },
   ];
-  const attentionTotal = movement
-    ? movement.rawAnnotations + movement.unsupportedPositions + movement.openInquiries + movement.practicesWithoutPosition + movement.positionsWithoutPractice
-    : 0;
+  const attentionTotal = movement?.uniqueTotal || 0;
   const attentionItems = [
     {
       id: 'raw-annotations',
@@ -582,7 +633,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     },
     {
       id: 'open-inquiries',
-      label: 'Open inquiries',
+      label: 'Active inquiries',
       count: movement?.openInquiries || 0,
       description: 'Questions are still active and need evidence, a working answer, or resolution.',
       view: 'questions',
@@ -604,8 +655,8 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     {
       id: 'practices-without-position',
       label: 'Unanchored practices',
-      count: movement?.practicesWithoutPosition || 0,
-      description: 'Practices need a linked position so the behavior tests an idea.',
+      count: movement?.unanchoredPractices || 0,
+      description: 'Add a reason or link an inquiry, concept, source, or position to give the practice an intellectual basis.',
       view: 'labs',
     },
   ].filter((item) => item.count > 0);
@@ -687,7 +738,8 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             size="icon"
             onClick={isMobile ? () => setMobileNavOpen(false) : toggleSidebar}
             className="rounded-full text-sidebar-foreground/55 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
-            title={collapsed && !isMobile ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isMobile ? 'Close navigation' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={isMobile ? 'Close navigation' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {isMobile ? <ChevronLeft className="size-4" /> : <ChevronLeft className={cn("size-4 transition-transform", collapsed && "rotate-180")} />}
           </Button>
@@ -724,26 +776,25 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         <div className={cn("shrink-0 border-b border-sidebar-border", collapsed && !isMobile ? "px-3 py-3" : "px-5 py-3")}>
           <button
             type="button"
-            onClick={() => setAttentionOpen(true)}
+            onClick={(event) => { attentionOpener.current = event.currentTarget; setAttentionOpen(true); }}
             className={cn(
               "group flex w-full items-center rounded-full border border-accent/30 bg-accent/10 text-sidebar-foreground transition-colors hover:border-accent/45 hover:bg-accent/15",
               collapsed && !isMobile ? "justify-center p-2.5" : "gap-2 px-3 py-2"
             )}
             title={`${attentionTotal} item${attentionTotal === 1 ? '' : 's'} need attention`}
-            aria-label={`${attentionTotal} item${attentionTotal === 1 ? '' : 's'} need attention`}
           >
-            <span className="relative">
-              <AlertTriangle className="size-4 text-accent" />
+            <span className="relative" aria-hidden="true">
+              <AlertTriangle className="size-4 text-sidebar-primary" />
               <span className="absolute -right-2 -top-2 grid min-w-4 place-items-center rounded-full bg-accent px-1 font-code text-[8px] font-bold text-accent-foreground">
                 {attentionTotal > 9 ? '9+' : attentionTotal}
               </span>
             </span>
-            {(!collapsed || isMobile) && (
+            {(!collapsed || isMobile) ? (
               <span className="min-w-0 flex-1 text-left">
-                <span className="block truncate font-code text-[8px] font-bold uppercase tracking-[0.16em] text-accent">Attention</span>
+                <span className="block truncate font-code text-[8px] font-bold uppercase tracking-[0.16em] text-sidebar-primary">Attention</span>
                 <span className="block truncate text-[11px] text-sidebar-foreground/55">{attentionTotal} item{attentionTotal === 1 ? '' : 's'} to review</span>
               </span>
-            )}
+            ) : <span className="sr-only">Attention {attentionTotal} item{attentionTotal === 1 ? '' : 's'} to review</span>}
           </button>
         </div>
       )}
@@ -768,20 +819,19 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       <div className={cn("shrink-0 border-t border-sidebar-border bg-transparent", collapsed && !isMobile ? "p-3 text-center" : "p-4")}>
         <button
           type="button"
-          onClick={() => { setCommandPurpose('find'); setCommandQuery(''); setCommandOpen(true); }}
+          data-noesis-find
+          onClick={(event) => openCommand('find', event.currentTarget)}
           className={cn(
             "mb-2 flex w-full items-center rounded-xl border border-sidebar-border bg-sidebar-foreground/5 text-sidebar-foreground/55 transition-colors hover:border-sidebar-foreground/20 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground",
             collapsed && !isMobile ? "justify-center p-2.5" : "gap-2 px-3 py-2"
           )}
-          aria-label="Find in Noesis"
+          aria-keyshortcuts="Control+k Meta+k"
           title="Find in Noesis (Ctrl K)"
         >
           <Search className="size-4 shrink-0" />
+          <span className={collapsed && !isMobile ? "sr-only" : "flex-1 text-left font-code text-[8px] uppercase tracking-[0.14em]"}>Find in Noesis</span>
           {(!collapsed || isMobile) && (
-            <>
-              <span className="flex-1 text-left font-code text-[8px] uppercase tracking-[0.14em]">Find in Noesis</span>
-              <span className="font-code text-[8px] uppercase tracking-[0.12em] text-sidebar-foreground/30">Ctrl K</span>
-            </>
+              <span aria-hidden="true" className="font-code text-[8px] uppercase tracking-[0.12em] text-sidebar-foreground/60">Ctrl K</span>
           )}
         </button>
         <div className={cn('flex items-center gap-2', collapsed && !isMobile ? 'justify-center' : 'justify-between')}>
@@ -794,9 +844,18 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
   return (
     <TooltipProvider delayDuration={160}>
+      <Sheet open={mobileMoreOpen} onOpenChange={setMobileMoreOpen}>
       <div className="noesis-app flex h-[100dvh] w-full overflow-hidden bg-background">
+        <a href="#noesis-main-content" onClick={(event) => {
+          const main = document.getElementById('noesis-main-content');
+          if (!main) return;
+          event.preventDefault();
+          main.focus({ preventScroll: true });
+        }} className="sr-only z-[60] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:rounded-[var(--button-radius)] focus:bg-surface focus:px-4 focus:py-3 focus:text-foreground focus:outline focus:outline-2 focus:outline-ring">
+          Skip to workspace content
+        </a>
         {!isMobile && (
-          <aside className={cn(
+          <aside aria-label="Workspace sidebar" className={cn(
             "noesis-sidebar hidden md:flex bg-sidebar text-sidebar-foreground flex-col border-r border-sidebar-border z-20 transition-[width] duration-300 ease-out",
             collapsed ? "w-[84px]" : "w-[252px]"
           )}>
@@ -805,17 +864,16 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         )}
 
         {isMobile && (
-          <>
-            <div className="noesis-mobile-header fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-2 border-b border-border/70 bg-background/95 px-3 shadow-sm backdrop-blur md:hidden">
-              <Button
+          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+            <header className="noesis-mobile-header fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-2 border-b border-border/70 bg-background/95 px-3 shadow-sm backdrop-blur md:hidden">
+              <SheetTrigger asChild><Button
                 variant="outline"
                 size="icon"
-                onClick={() => setMobileNavOpen(true)}
                 className="size-9 rounded-full border-border/60 bg-card shadow-sm"
                 aria-label="Open navigation"
               >
                 <Menu className="size-4" />
-              </Button>
+              </Button></SheetTrigger>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-headline text-lg font-semibold italic leading-none text-foreground/85">{activePage.title}</div>
                 <div className="mt-0.5 truncate font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{activePage.section}</div>
@@ -824,20 +882,21 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => { setCommandPurpose('find'); setCommandQuery(''); setCommandOpen(true); }}
+                data-noesis-find
+                onClick={(event) => openCommand('find', event.currentTarget)}
                 className="size-9 rounded-full border-border/60 bg-card shadow-sm"
                 aria-label="Find in Noesis"
               >
                 <Search className="size-4" />
               </Button>
-            </div>
-            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-              <SheetContent side="left" className="noesis-sidebar w-[280px] border-r border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
+            </header>
+              <SheetContent side="left" aria-describedby={undefined} className="noesis-sidebar w-[280px] border-r border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
                 <SheetTitle className="sr-only">Navigation</SheetTitle>
                 <div className="flex h-full flex-col">{sidebarContent}</div>
               </SheetContent>
-            </Sheet>
-            <Sheet open={mobileMoreOpen} onOpenChange={setMobileMoreOpen}>
+          </Sheet>
+        )}
+        {isMobile && (
               <SheetContent side="bottom" className="max-h-[78dvh] rounded-t-2xl border-border bg-background px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4">
                 <SheetHeader className="border-b border-border/70 pb-3 text-left">
                   <SheetTitle className="font-headline text-xl font-semibold italic">More pages</SheetTitle>
@@ -874,7 +933,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                         <item.icon className={cn('mt-0.5 size-5 shrink-0', isActive ? 'text-accent' : 'text-muted-foreground')} aria-hidden="true" />
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center justify-between gap-2">
-                            <span className="truncate text-sm font-semibold">{page.title}</span>
+                            <span className="min-w-0 break-words text-sm font-semibold">{page.title}</span>
                             {typeof count === 'number' && <span className="font-code text-[10px] text-muted-foreground">{count}</span>}
                           </span>
                           <span className="mt-1 block line-clamp-2 text-xs leading-4 text-muted-foreground">{page.purpose}</span>
@@ -884,17 +943,17 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                   })}
                 </div>
               </SheetContent>
-            </Sheet>
-          </>
         )}
 
         <main
+          id="noesis-main-content"
+          tabIndex={-1}
           className="noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-32 pt-14 md:pb-0 md:pt-0"
           aria-busy={Boolean(pendingPath)}
           onTouchStart={handleMobileTouchStart}
           onTouchMove={handleMobileTouchMove}
           onTouchEnd={finishMobilePull}
-          onTouchCancel={finishMobilePull}
+          onTouchCancel={cancelMobilePull}
         >
           {isMobile && (pullDistance > 0 || isRefreshing) && (
             <div
@@ -904,13 +963,13 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
               style={{ opacity: Math.min(1, Math.max(0.35, pullDistance / 64)) }}
             >
               <LoaderCircle className={cn('size-4 text-accent', isRefreshing && 'animate-spin')} aria-hidden="true" />
-              <span>{isRefreshing ? 'Refreshing' : pullDistance >= 64 ? 'Release to refresh' : 'Pull to refresh'}</span>
+              <span>{isRefreshing ? 'Refreshing' : pullDistance >= MOBILE_REFRESH_THRESHOLD ? 'Release to refresh' : 'Pull to refresh'}</span>
             </div>
           )}
           {!isOnline && (
             <div role="status" className="flex shrink-0 items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs leading-5 text-foreground sm:px-6">
               <WifiOff className="size-4 shrink-0 text-destructive" aria-hidden="true" />
-              <span><strong className="font-medium">You&apos;re offline.</strong> Recent workspace data remains available; saved changes will sync when you reconnect.</span>
+              <span><strong className="font-medium">You&apos;re offline.</strong> Recent records may still be available. Keep this tab open and reconnect before saving.</span>
             </div>
           )}
           {children}
@@ -918,13 +977,13 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             <nav className="noesis-mobile-nav fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-2 py-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur md:hidden" aria-label="Primary mobile navigation">
               <div className="grid grid-cols-5 gap-1">
                 {mobilePrimaryNav.map((item) => {
-                  const isActive = item.view !== null ? activeView === item.view : !mobilePrimaryViews.has(activeView);
+                  const isActive = activeView === item.view;
                   return (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => item.view ? handleNavChange(item.view) : setMobileMoreOpen(true)}
-                      aria-label={item.id === 'more' ? 'Open more pages' : `Open ${item.label}`}
+                      onClick={() => handleNavChange(item.view)}
+                      aria-label={`Open ${item.label}`}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
                         'flex min-h-11 flex-col items-center justify-center rounded-2xl px-1 py-1 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -936,13 +995,26 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                     </button>
                   );
                 })}
+                <SheetTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={activeMobileMorePage ? `More pages, current page: ${activeMobileMorePage.title}` : 'More pages'}
+                    className={cn(
+                      'flex min-h-11 flex-col items-center justify-center rounded-[var(--button-radius)] px-1 py-1 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      activeMobileMorePage ? 'bg-accent/12 text-accent' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                    )}
+                  >
+                    <Menu className="size-[18px]" aria-hidden="true" />
+                    <span className="mt-0.5 font-code text-[9px] uppercase">More</span>
+                  </button>
+                </SheetTrigger>
               </div>
             </nav>
           )}
           {isMobile && activeView === 'home' && (
             <Button
               type="button"
-              onClick={() => { setCommandPurpose('create'); setCommandQuery(''); setCommandOpen(true); }}
+              onClick={(event) => openCommand('create', event.currentTarget)}
               className="fixed bottom-[76px] right-4 z-40 size-12 rounded-full shadow-lg md:hidden"
               aria-label="Capture or create an item"
               title="Capture or create"
@@ -953,11 +1025,11 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         </main>
 
         <Dialog open={attentionOpen} onOpenChange={setAttentionOpen}>
-          <DialogContent className="max-w-lg rounded-3xl border-border bg-card shadow-2xl">
+          <DialogContent onCloseAutoFocus={(event) => restoreOverlayFocus(attentionOpener, event)} className="max-w-lg rounded-3xl border-border bg-card shadow-2xl">
             <DialogHeader>
               <DialogTitle className="font-headline text-2xl font-semibold italic">Needs Attention</DialogTitle>
               <DialogDescription>
-                These are the parts of your workspace that need the next concrete move.
+                {attentionTotal} distinct items need a next move. An item can appear in more than one category below.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
@@ -966,6 +1038,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                   key={item.id}
                   type="button"
                   onClick={() => {
+                    if (item.view !== activeView) attentionOpener.current = null;
                     setAttentionOpen(false);
                     handleNavChange(item.view);
                   }}
@@ -993,7 +1066,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         </Dialog>
 
         <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
-          <DialogContent className="max-w-xl rounded-3xl border-border bg-card p-0 shadow-2xl">
+          <DialogContent onCloseAutoFocus={(event) => restoreOverlayFocus(commandOpener, event)} className="max-w-xl rounded-3xl border-border bg-card p-0 shadow-2xl">
             <DialogHeader className="border-b border-border px-6 py-5">
               <DialogTitle className="font-headline text-2xl font-semibold italic">{commandPurpose === 'find' ? 'Find in Noesis' : 'Create in Noesis'}</DialogTitle>
               <DialogDescription>{commandPurpose === 'find' ? 'Find and open an existing item or workspace.' : 'Choose the kind of thought you want to add.'}</DialogDescription>
@@ -1003,6 +1076,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   autoFocus
+                  aria-label={commandPurpose === 'find' ? 'Find in Noesis' : 'Filter creation choices'}
                   value={commandQuery}
                   onChange={(event) => setCommandQuery(event.target.value)}
                   placeholder={commandPurpose === 'find' ? 'Find concepts, inquiries, sources, positions...' : 'Filter creation choices...'}
@@ -1060,7 +1134,14 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                     <span className="rounded-full border border-border px-2.5 py-1 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{item.section}</span>
                   </button>
                 ))}
-                {!commandItems.length && (
+                {commandPurpose === 'find' && indexedWorkspace && !indexedWorkspace.items && (
+                  <p role="status" className="px-2 py-3 text-sm text-muted-foreground">
+                    Workspace items could not be loaded. <Button size="sm" variant="ghost" onClick={() => setWorkspaceSearch(null)}>Retry</Button>
+                  </p>
+                )}
+                {indexingWorkspace && <p role="status" className="px-2 py-3 text-sm text-muted-foreground">Loading workspace items…</p>}
+                {indexedWorkspace?.cached && <p role="status" className="px-2 py-3 text-sm text-muted-foreground">Offline: searching records saved on this device. Results may be incomplete.</p>}
+                {!commandItems.length && !indexingWorkspace && !(commandPurpose === 'find' && indexedWorkspace && !indexedWorkspace.items) && (
                   <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                     {commandPurpose === 'find' ? 'No matching items or destinations.' : 'No creation choices match.'}
                   </div>
@@ -1071,7 +1152,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         </Dialog>
 
         <Sheet open={Boolean(previewItem)} onOpenChange={(open) => !open && setPreviewItem(null)}>
-          <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden border-l border-border bg-card p-0 sm:max-w-md">
+          <SheetContent onCloseAutoFocus={(event) => restoreOverlayFocus(previewOpener, event)} side="right" className="flex w-full flex-col gap-0 overflow-hidden border-l border-border bg-card p-0 sm:max-w-md">
             <SheetHeader className="border-b border-border px-6 py-5 text-left">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-border px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
@@ -1256,6 +1337,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           </SheetContent>
         </Sheet>
       </div>
+      </Sheet>
     </TooltipProvider>
   );
 }

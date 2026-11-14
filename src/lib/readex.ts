@@ -147,9 +147,17 @@ export function normalizeConceptTags(tags?: string[]) {
 }
 
 export function ensureConceptTerms(concepts: Concept[], ...tagSets: (string[] | undefined)[]) {
-  const seen = new Set(concepts.map((c) => conceptKey(c.name)));
-  const inferred = tagSets.flat().map(conceptKey).filter(Boolean);
-  return Array.from(new Set(inferred)).filter((tag) => !seen.has(tag));
+  const seen = new Set(concepts.map((c) => conceptLabelKey(c.name)));
+  return tagSets.flat().map(conceptKey).filter((name) => {
+    const key = conceptLabelKey(name);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function conceptLabelKey(value: string) {
+  return value.normalize('NFC').trim().replace(/[\s_-]+/g, ' ').toLowerCase();
 }
 
 export function allAnnotations(media: Media[]) {

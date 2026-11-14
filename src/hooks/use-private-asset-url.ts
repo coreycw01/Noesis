@@ -5,7 +5,7 @@ import { privateAssetObjectUrl } from '@/lib/storage-assets';
 import { demoRecordingUrl, isDemoAsset } from '@/lib/demo-assets';
 
 export function usePrivateAssetUrl(storagePath?: string, fallback = '') {
-  const [url, setUrl] = useState(fallback);
+  const [url, setUrl] = useState(() => isDemoAsset(fallback) ? '' : fallback);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
@@ -14,10 +14,7 @@ export function usePrivateAssetUrl(storagePath?: string, fallback = '') {
     setError(null);
     const local = isDemoAsset(fallback);
     setUrl(local ? '' : fallback);
-    if (!storagePath && !local) {
-      setUrl(fallback);
-      return;
-    }
+    if (!storagePath && !local) return;
     void (local ? demoRecordingUrl(fallback) : privateAssetObjectUrl(storagePath!))
       .then((nextUrl) => {
         objectUrl = nextUrl;

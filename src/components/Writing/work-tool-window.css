@@ -1,0 +1,117 @@
+/* Rich document inserts are intentionally semantic HTML, so the same graph
+   survives saving, sanitizing, exporting, and every appearance theme. */
+.noesis-app [contenteditable="true"] figure[data-noesis-chart] {
+  margin: 2rem 0;
+  border: 1px solid hsl(var(--border) / .65);
+  border-radius: var(--card-radius);
+  padding: 1rem;
+  color: inherit;
+}
+
+.noesis-app [contenteditable="true"] figure[data-noesis-chart] svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+.noesis-app [contenteditable="true"] figure[data-noesis-chart] figcaption {
+  margin-top: .5rem;
+  color: hsl(var(--muted-foreground));
+  font-family: var(--font-interface);
+  font-size: .75rem;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.noesis-app [contenteditable="true"] figure[data-noesis-image] {
+  margin: 2rem 0;
+  border: 1px solid hsl(var(--border) / .65);
+  border-radius: var(--card-radius);
+  padding: .75rem;
+}
+
+.noesis-app [contenteditable="true"] figure[data-noesis-image] img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+
+.noesis-app [contenteditable="true"] figure[data-noesis-image] figcaption {
+  margin-top: .625rem;
+  color: hsl(var(--muted-foreground));
+  font-family: var(--font-interface);
+  font-size: .75rem;
+  font-style: normal;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.noesis-app .noesis-inline-tool,
+.noesis-app .noesis-inline-tool input,
+.noesis-app .noesis-inline-tool textarea,
+.noesis-app .noesis-inline-tool select,
+.noesis-app .noesis-inline-tool [class*="bg-background"] {
+  color: inherit;
+}
+
+.noesis-app .noesis-inline-tool input,
+.noesis-app .noesis-inline-tool textarea,
+.noesis-app .noesis-inline-tool select,
+.noesis-app .noesis-inline-tool [class*="bg-background"] {
+  background-color: color-mix(in srgb, currentColor 4%, transparent) !important;
+  border-color: color-mix(in srgb, currentColor 22%, transparent) !important;
+}
+
+.works-tool-window {
+  opacity: 1;
+  scale: 1;
+  transform-origin: top center;
+  transition:
+    opacity 180ms var(--ease-noesis),
+    scale 180ms var(--ease-noesis),
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.works-tool-window[data-minimized='true'] {
+  opacity: 0;
+  scale: 1 .94;
+  pointer-events: none;
+  transition-property: opacity, scale, display;
+  transition-duration: 180ms;
+  transition-behavior: allow-discrete;
+}
+
+.works-tool-window[data-custom-background='true'] {
+  --work-tool-base: hsl(var(--background));
+  --work-tool-surface: color-mix(in srgb, var(--work-tool-tint, var(--work-tool-base)) 24%, var(--work-tool-base));
+  background-color: color-mix(in srgb, var(--work-tool-surface) var(--work-tool-alpha), transparent);
+}
+
+@media (min-width: 768px) {
+  .works-tool-window[data-custom-background='true'] {
+    --work-tool-base: var(--document-paper-color, hsl(var(--background)));
+  }
+}
+
+@starting-style {
+  .works-tool-window:not([data-minimized='true']) {
+    opacity: 0;
+    scale: 1 .94;
+  }
+}
+
+.reduce-motion .works-tool-window {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .works-tool-window,
+  .works-tool-window[data-minimized='true'] {
+    transition: none;
+  }
+}

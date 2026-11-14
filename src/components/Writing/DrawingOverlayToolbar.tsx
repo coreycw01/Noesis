@@ -49,7 +49,7 @@ export function DrawingOverlayToolbar({ tool, color, gradientColor, size, opacit
   const previewWidth = tool === 'highlighter' ? size * 3.5 : tool === 'marker' ? size * 2.5 : tool === 'calligraphy' ? size * 1.8 : size;
 
   return (
-    <div className="sticky top-0 z-40 h-[60px] shrink-0 overflow-hidden border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur sm:h-[101px] sm:px-6">
+    <div className="sticky top-0 z-40 shrink-0 border-b border-border/30 bg-background/95 px-2 py-1.5 backdrop-blur sm:px-4">
       <div className="flex min-h-11 w-full flex-nowrap items-center justify-start gap-1 rounded-[var(--card-radius)] border border-border/60 bg-card p-1.5 shadow-sm sm:flex-wrap sm:justify-center sm:gap-1.5">
         <div className="flex shrink-0 items-center gap-1 border-r border-border/40 pr-2">
           <Button type="button" variant="ghost" size="sm" onClick={onReturnToWriting} className="h-8 rounded-md px-2.5 font-code text-[9px] font-bold uppercase tracking-wider" title="Return to writing tools">

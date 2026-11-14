@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CONTEXTUAL_AI_LABELS, CONTEXTUAL_AI_POLICIES, CONTEXTUAL_AI_SUGGESTED_PROMPTS, isContextualAiRequestCompatible, parseAiReviewItems, parseAssumptionSuggestions, profileStatementFromSynthesis, serializeAiReviewItems } from '../../src/lib/contextual-ai';
+import { AI_CONTEXT_MEMORY_LIMIT, aiContextMemorySize, validAiSelection } from '../../src/lib/contextual-ai';
+import { boundedAiContext, buildContextDeskMemory, CONTEXTUAL_AI_LABELS, CONTEXTUAL_AI_POLICIES, CONTEXTUAL_AI_SUGGESTED_PROMPTS, isContextualAiRequestCompatible, parseAiReviewItems, parseAssumptionSuggestions, profileStatementFromSynthesis, serializeAiReviewItems } from '../../src/lib/contextual-ai';
 import {
   NOESIS_DETAIL_DATA_REQUIREMENTS,
   NOESIS_PAGE_DATA_REQUIREMENTS,
@@ -18,6 +19,32 @@ test('allows each contextual action only on its intended object and scope', () =
 
 test('uses concise review language for selected context', () => {
   assert.equal(CONTEXTUAL_AI_LABELS.review_selected_context, 'Review Context');
+});
+
+test('a large first position cannot crowd the second out of the comparison budget', () => {
+  const input = boundedAiContext({
+    action: 'compare_selected_positions', targetType: 'position', targetId: 'a', scope: 'selected_pair',
+    itemMemory: Array(20).fill('a'.repeat(4_000)), linkedMemory: ['Related context'],
+    secondaryTarget: { targetType: 'position', targetId: 'b', label: 'Second position', memory: Array(12).fill('b'.repeat(4_000)) },
+  });
+  assert.equal(input.itemMemory.join('').length, 16_000);
+  assert.equal(input.secondaryTarget?.memory.join('').length, 16_000);
+  assert.equal(aiContextMemorySize(input), AI_CONTEXT_MEMORY_LIMIT);
+  assert.ok(validAiSelection(input));
+});
+
+test('Context Desk sends a bounded excerpt for each of twelve selected records', () => {
+  const records = Array.from({ length: 12 }, (_, index) => ({
+    type: 'source', label: `Source ${index + 1}`, memory: ['A'.repeat(8_000), 'Later notes'],
+  }));
+  const envelope = boundedAiContext({
+    action: 'review_selected_context', targetType: 'context_desk', targetId: 'selection', scope: 'linked_items',
+    ...buildContextDeskMemory(records),
+  });
+  const excerpts = [...envelope.itemMemory, ...envelope.linkedMemory];
+  assert.equal(excerpts.length, 12);
+  assert.ok(excerpts.every((excerpt, index) => excerpt.startsWith(`Selected source: Source ${index + 1}\n`) && excerpt.length <= 4_000));
+  assert.ok(excerpts.reduce((sum, excerpt) => sum + excerpt.length, 0) <= 32_000);
 });
 
 test('rejects cross-page or overly broad contextual action combinations', () => {

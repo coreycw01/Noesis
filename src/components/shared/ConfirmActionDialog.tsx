@@ -18,6 +18,8 @@ interface ConfirmActionDialogProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description: string;
+  children?: React.ReactNode;
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
   confirmLabel?: string;
   cancelLabel?: string;
   alternateLabel?: string;
@@ -31,6 +33,8 @@ export function ConfirmActionDialog({
   onOpenChange,
   title,
   description,
+  children,
+  returnFocusRef,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   alternateLabel,
@@ -59,11 +63,17 @@ export function ConfirmActionDialog({
   };
   return (
     <AlertDialog open={open} onOpenChange={(next) => { if (!busy.current) onOpenChange(next); }}>
-      <AlertDialogContent>
+      <AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain" onCloseAutoFocus={returnFocusRef ? (event) => {
+        const target = returnFocusRef.current;
+        if (!target?.isConnected || target.matches(':disabled')) return;
+        event.preventDefault();
+        target.focus();
+      } : undefined}>
         <AlertDialogHeader>
           <AlertDialogTitle className="font-headline text-2xl italic">{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {children}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>{cancelLabel}</AlertDialogCancel>

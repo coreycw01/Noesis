@@ -48,4 +48,5 @@ firestore-debug.log
 /build-log.txt
 /capacitor-build-log.txt
 /.next-demo-*/
+/.next-dev-*/
 /.next-build-*/

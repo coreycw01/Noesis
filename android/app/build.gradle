@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+def requireReleaseSigning = providers.gradleProperty('noesisSignedRelease').orElse('false').get().toBoolean()
+def signingFile = providers.environmentVariable('NOESIS_ANDROID_KEYSTORE').orNull
+def signingPassword = providers.environmentVariable('NOESIS_ANDROID_STORE_PASSWORD').orNull
+def signingAlias = providers.environmentVariable('NOESIS_ANDROID_KEY_ALIAS').orNull
+def signingKeyPassword = providers.environmentVariable('NOESIS_ANDROID_KEY_PASSWORD').orNull
+def servicesJSON = file('google-services.json')
+
 android {
     namespace = "com.noesis.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +23,30 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    if (requireReleaseSigning) {
+        if (![signingFile, signingPassword, signingAlias, signingKeyPassword].every { it?.trim() } || !rootProject.file(signingFile).isFile()) {
+            throw new GradleException('Signed release requires a keystore and all NOESIS_ANDROID signing environment variables.')
+        }
+        if (!servicesJSON.isFile() || !servicesJSON.length()) {
+            throw new GradleException('Signed release requires the Firebase google-services.json for com.noesis.app.')
+        }
+        def configFile = file('src/main/assets/capacitor.config.json')
+        def server = configFile.isFile() ? new groovy.json.JsonSlurper().parse(configFile).server : null
+        if (server?.url != 'https://noesis-0--studio-4677603495-e05e8.us-east4.hosted.app' || server?.cleartext != false) {
+            throw new GradleException('Signed release requires the production HTTPS configuration. Remove CAPACITOR_SERVER_URL and run npm run mobile:sync.')
+        }
+        signingConfigs {
+            release {
+                storeFile rootProject.file(signingFile)
+                storePassword signingPassword
+                keyAlias signingAlias
+                keyPassword signingKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (requireReleaseSigning) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -44,11 +73,8 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+if (servicesJSON.isFile() && servicesJSON.length()) {
+    apply plugin: 'com.google.gms.google-services'
+} else {
+    logger.info('google-services.json not found; native Firebase setup is unavailable.')
 }

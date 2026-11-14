@@ -1,7 +1,11 @@
 
 "use client";
 
+import { workspaceScrollBehavior } from '@/lib/appearance';
+
 import React, { useEffect, useMemo, useState } from 'react';
+import { persistedConceptRecords } from '@/lib/workspace-counts';
+import { LabeledField } from '@/components/shared/LabeledField';
 import { AlertTriangle, ArrowLeft, ArrowRight, BookOpen, ChevronDown, Edit, Plus, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -16,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Concept, Draft, Insight, Media, PhilosophicalLink, PhilosophicalLinkType, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import { conceptKey, conceptRelated, conceptTerms, UNSORTED_CONCEPT } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
 const ConceptIcon = NOESIS_ICONS.concept;
@@ -34,7 +39,9 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { appendAiHistoryEntry, type ContextualAiAction } from '@/lib/contextual-ai';
+import type { ContextualAiAction } from '@/lib/contextual-ai';
+import { conceptReviewTarget, type ConceptReviewApproval } from '@/lib/concept-ai-review';
+import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
 import type { AiSettings } from '@/lib/types';
 
 interface ConceptEncyclopediaProps {
@@ -46,8 +53,8 @@ interface ConceptEncyclopediaProps {
   practices: Practice[];
   questions: Question[];
   timeline: TimelineEvent[];
-  onAddConcept: (data: Partial<Concept>) => void;
-  onUpdateConcept: (concept: Concept) => void;
+  onAddConcept: (data: Partial<Concept>) => void | boolean | Promise<void | boolean>;
+  onUpdateConcept: (concept: Concept, approval?: ConceptReviewApproval) => void | Promise<void>;
   onDeleteConcept: (id: string) => void;
   onCreateIdea: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void;
   onCreateLink?: (data: Partial<PhilosophicalLink>, options?: { creationMethod?: string }) => void;
@@ -237,14 +244,18 @@ function conceptMaturityScore({
 }
 
 export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
-  const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept, onDeleteConcept, onCreateIdea, onCreateLink, focusedConceptId, onOpenConceptRoute, aiSettings } = props;
+  const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept: persistConcept, onDeleteConcept, onCreateIdea, onCreateLink, focusedConceptId, onOpenConceptRoute, aiSettings } = props;
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useEntityViewPreference('concepts');
   const [listView, setListView] = useState<ConceptListView>('all');
-  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [localSelectedName, setSelectedName] = useState<string | null>(null);
+  const focusedConcept = concepts.find((concept) => concept.id === focusedConceptId);
+  const selectedName = onOpenConceptRoute ? focusedConcept?.name ?? null : localSelectedName;
   const [conceptWorkflowStep, setConceptWorkflowStep] = useState<'define' | 'boundaries' | 'diagnose' | 'connect' | 'history'>('define');
   const [editing, setEditing] = useState<Concept | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [savingConcept, setSavingConcept] = useState(false);
+  const conceptSaveLock = React.useRef(false);
   const [draftConcept, setDraftConcept] = useState<Partial<Concept>>({ name: '', description: '', sourceIds: [] });
   const [boundaryAnswers, setBoundaryAnswers] = useState<Record<string, BoundaryAnswer>>({});
   const [boundaryRefinement, setBoundaryRefinement] = useState('');
@@ -261,22 +272,22 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const { toast } = useToast();
   
   const allTerms = useMemo(() => conceptTerms(concepts, media, insights, vault, drafts, practices), [concepts, media, insights, vault, drafts, practices]);
+  const countableConcepts = useMemo(() => persistedConceptRecords(concepts), [concepts]);
   const selectedRelated = useMemo(() => selectedName ? conceptRelated(selectedName, { media, insights, vault, drafts, practices, questions, timeline }) : null, [selectedName, media, insights, vault, drafts, practices, questions, timeline]);
 
   useEffect(() => {
-    if (!focusedConceptId) return;
-    const focusedConcept = concepts.find((concept) => concept.id === focusedConceptId);
+    if (onOpenConceptRoute || !focusedConcept) return;
     if (focusedConcept && conceptKey(focusedConcept.name) !== conceptKey(selectedName || '')) {
       setSelectedName(focusedConcept.name);
     }
-  }, [concepts, focusedConceptId, selectedName]);
+  }, [focusedConcept, onOpenConceptRoute, selectedName]);
   
   const conceptRows = useMemo<ConceptListRow[]>(() => {
     return allTerms
       .map((name) => {
       const isUnsorted = conceptKey(name) === conceptKey(UNSORTED_CONCEPT);
       if (isUnsorted) return null;
-      const conceptDoc = concepts.find(c => conceptKey(c.name) === conceptKey(name));
+      const conceptDoc = countableConcepts.find(c => conceptKey(c.name) === conceptKey(name));
       if (!conceptDoc) return null;
       const related = conceptRelated(name, { media, insights, vault, drafts, practices, questions, timeline });
       const diagnosis = computeConceptDiagnosis(name, related, conceptDoc.description);
@@ -326,7 +337,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       if (listView === 'duplicates') return b.possibleDuplicates.length - a.possibleDuplicates.length || a.name.localeCompare(b.name);
       return a.name.localeCompare(b.name);
     });
-  }, [allTerms, search, listView, concepts, media, insights, vault, drafts, practices, questions, timeline]);
+  }, [allTerms, countableConcepts, search, listView, concepts, media, insights, vault, drafts, practices, questions, timeline]);
   const conceptFiltersActive = Boolean(search.trim() || listView !== 'all');
   const activeConceptFilterLabels = [
     search.trim() ? `Search: ${search.trim()}` : null,
@@ -349,7 +360,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const primaryConceptViews = CONCEPT_LIST_VIEWS.filter((view) => ['all', 'recent', 'needs_attention', 'connected'].includes(view.id));
   const moreConceptViews = CONCEPT_LIST_VIEWS.filter((view) => !primaryConceptViews.some((primary) => primary.id === view.id));
   const moreConceptViewActive = moreConceptViews.some((view) => view.id === listView);
-  const maturitySummary = `${totalConceptCount} concepts · ${matureConceptCount} mature · ${developingConceptCount} developing · ${emergingConceptCount} emerging`;
+  const maturitySummary = `${conceptFiltersActive ? `${totalConceptCount} matching of ${countableConcepts.length}` : totalConceptCount} concepts · ${matureConceptCount} mature · ${developingConceptCount} developing · ${emergingConceptCount} emerging`;
 
   const openEditor = (concept?: Concept) => {
     if (concept) {
@@ -368,35 +379,67 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
   const openConceptDetail = (name: string, concept?: Concept | null) => {
     setConceptWorkflowStep('define');
-    setSelectedName(name);
-    if (concept?.id) {
-      onOpenConceptRoute?.(concept.id);
+    if (onOpenConceptRoute && concept?.id) onOpenConceptRoute(concept.id);
+    else setSelectedName(name);
+  };
+
+  const onUpdateConcept = async (concept: Concept) => {
+    try {
+      await persistConcept(concept);
+      return true;
+    } catch {
+      toast({ title: 'Concept not saved', description: 'Your changes are still available. Please retry.', variant: 'destructive' });
+      return false;
     }
   };
 
-  const saveConcept = () => {
-    const name = conceptKey(draftConcept.name);
-    if (!name) return;
-    if (editing) {
-      onUpdateConcept({ 
-        ...editing, 
-        name, 
-        description: draftConcept.description || '', 
-        sourceIds: draftConcept.sourceIds || [],
-        dateUpdated: new Date().toISOString() 
-      });
-    } else {
-      onAddConcept({ 
-        name, 
-        description: draftConcept.description || '', 
-        sourceIds: draftConcept.sourceIds || [],
-        createdFrom: 'manual' 
-      });
-    }
-    setEditing(null);
-    setEditorOpen(false);
-    setDraftConcept({ name: '', description: '', sourceIds: [] });
+  const saveConcept = async () => {
+    const name = (draftConcept.name || '').trim();
+    if (!name || conceptSaveLock.current) return;
+    conceptSaveLock.current = true;
+    setSavingConcept(true);
+    try {
+      if (editing) {
+        if (!await onUpdateConcept({
+          ...editing,
+          name,
+          description: draftConcept.description || '',
+          sourceIds: draftConcept.sourceIds || [],
+          dateUpdated: new Date().toISOString()
+        })) return;
+      } else {
+        const saved = await onAddConcept({
+          name,
+          description: draftConcept.description || '',
+          sourceIds: draftConcept.sourceIds || [],
+          createdFrom: 'manual'
+        });
+        if (saved === false) throw new Error('Concept was not persisted.');
+      }
+      setEditing(null);
+      setEditorOpen(false);
+      setDraftConcept({ name: '', description: '', sourceIds: [] });
+    } catch {
+      toast({ title: 'Concept not saved', description: 'Your draft is still here. Please retry.', variant: 'destructive' });
+    } finally { conceptSaveLock.current = false; setSavingConcept(false); }
   };
+
+  const conceptEditorDialog = (
+    <Dialog open={editorOpen} onOpenChange={(open) => { setEditorOpen(open); if (!open) { setEditing(null); setDraftConcept({ name: '', description: '', sourceIds: [] }); } }}>
+      <DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto rounded-2xl border-none bg-card shadow-2xl">
+        <DialogHeader><DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle></DialogHeader>
+        <div className="space-y-6 pt-2">
+          <LabeledField label="Concept name"><Input value={draftConcept.name} onChange={(event) => setDraftConcept((previous) => ({ ...previous, name: event.target.value }))} /></LabeledField>
+          <LabeledField label="Definition"><Textarea value={draftConcept.description} onChange={(event) => setDraftConcept((previous) => ({ ...previous, description: event.target.value }))} className="min-h-[120px]" placeholder="What does this concept mean to you? How do you understand it?" /></LabeledField>
+          <SourceLinker media={media} selectedIds={draftConcept.sourceIds || []} onToggle={(id) => toggleConceptSource(id)} label="Linked sources" />
+        </div>
+        <DialogFooter className="gap-2 pt-4">
+          {editing && <Button variant="destructive" disabled={savingConcept} onClick={() => { setEditorOpen(false); setDeleteTarget(editing); }}><Trash2 className="mr-2 size-4" />Delete</Button>}
+          <Button onClick={saveConcept} disabled={savingConcept || !draftConcept.name?.trim()}>{savingConcept ? 'Saving…' : 'Save concept'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   const conceptDeleteDialog = (
     <ConfirmActionDialog
@@ -496,15 +539,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           ? 'Your answers suggest the current boundary is usable, but examples and counterexamples would make it stronger.'
           : 'Classify edge cases to see whether the definition is too wide, too narrow, or condition-dependent.';
     const driftEvents = sortedEvents.filter((event) => /concept|definition|revise|transform|changed/i.test(`${event.eventType} ${event.reason || ''}`));
-    const saveBoundaryRefinement = () => {
+    const saveBoundaryRefinement = async () => {
       if (!concept || !boundaryRefinement.trim()) return;
       const trimmed = boundaryRefinement.trim();
       const existingDefinition = concept.description?.trim() || '';
-      onUpdateConcept({
+      if (!await onUpdateConcept({
         ...concept,
         description: `${existingDefinition}${existingDefinition ? '\n\n' : ''}Boundary note: ${trimmed}`,
         philosophyStatus: concept.philosophyStatus === 'undefined' ? 'emerging' : concept.philosophyStatus,
-      });
+      })) return;
       setBoundaryRefinement('');
       toast({ title: 'Boundary note added', description: 'The working definition now records this user-confirmed boundary refinement.' });
     };
@@ -520,15 +563,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       setIsDefinitionEditing(true);
     };
 
-    const saveInlineDefinition = () => {
+    const saveInlineDefinition = async () => {
       if (!concept) return;
       const description = definitionDraft.trim();
-      onUpdateConcept({
+      if (!await onUpdateConcept({
         ...concept,
         description,
         philosophyStatus: description ? (concept.philosophyStatus === 'undefined' ? 'emerging' : concept.philosophyStatus) : 'undefined',
         dateUpdated: new Date().toISOString(),
-      });
+      })) return;
       setIsDefinitionEditing(false);
       toast({ title: 'Definition updated', description: 'The concept definition was revised in place.' });
     };
@@ -691,7 +734,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     };
 
     return (
-      <div className="noesis-concept-entry flex-1 overflow-y-auto font-body" data-noesis-identity="encyclopedia-entry">
+      <div className="noesis-concept-entry flex-1 overflow-y-auto font-body" data-noesis-scroll-region data-noesis-identity="encyclopedia-entry">
         {/* Sticky nav bar */}
         <div className="noesis-gutter sticky top-0 z-10 bg-background/95 pt-[var(--page-top)] backdrop-blur-sm">
           <div className="noesis-detail-toolbar mb-0">
@@ -706,7 +749,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                   showContextBeforeSending={aiSettings?.showContextBeforeSending}
                   reasoningDepth={aiSettings?.defaultReasoningDepth}
-                  retainAcceptedProvenance={aiSettings?.retainAcceptedAiProvenance}
                   buttonLabel="Concept Assistance"
                   promptLabel="What should Noesis examine about this concept?"
                   promptPlaceholder="For example: Where does my use of this concept conflict with its definition?"
@@ -731,9 +773,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     ],
                     userPrompt,
                   })}
-                  onAccept={(result, content) => onUpdateConcept(result.action === 'clarify_concept_boundaries'
-                    ? { ...concept, boundaryReview: content, aiReviewHistory: appendAiHistoryEntry(concept.aiReviewHistory, result, content) }
-                    : { ...concept, description: content, aiReviewHistory: appendAiHistoryEntry(concept.aiReviewHistory, result, content) })}
+                  onAccept={(result, text) => persistConcept(concept, { result, text, baseline: concept })}
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Concept actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
@@ -773,6 +813,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             ) : concept?.description ? (
               <div className="max-w-3xl">
                 <p className="text-lg text-muted-foreground font-body leading-relaxed">{concept.description}</p>
+                {concept.definitionProvenance && <AiProvenanceBadge provenance={concept.definitionProvenance} target={conceptReviewTarget(concept.id, 'description', concept.definitionProvenance.provenanceId)} title="Concept definition" />}
                 <Button variant="ghost" size="sm" onClick={startDefinitionEdit} className="mt-2 h-8 rounded-full px-3 text-muted-foreground hover:text-foreground">
                   <Edit className="mr-2 size-3.5" /> Edit Definition
                 </Button>
@@ -806,7 +847,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               window.requestAnimationFrame(() => {
                 const target = document.getElementById(`concept-${step}`);
                 if (target instanceof HTMLDetailsElement) target.open = true;
-                target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                target?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'start' });
               });
             }}
             steps={[
@@ -920,6 +961,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
                 </div>
                 <ContextualAiDocument content={concept.boundaryReview} />
+                {concept.boundaryProvenance && <AiProvenanceBadge provenance={concept.boundaryProvenance} target={conceptReviewTarget(concept.id, 'boundaryReview', concept.boundaryProvenance.provenanceId)} title="Boundary review" />}
               </div>
             )}
 
@@ -927,7 +969,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <div className="mt-4">
                 <AiAssistedHistory
                   entries={concept.aiReviewHistory || []}
-                  onChange={(aiReviewHistory) => onUpdateConcept({ ...concept, aiReviewHistory })}
+                  onChange={async (aiReviewHistory) => { if (!await onUpdateConcept({ ...concept, aiReviewHistory })) throw new Error('Review history was not saved.'); }}
                 />
               </div>
             )}
@@ -1335,35 +1377,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           </details>
         </div>
 
-        {/* Concept editor dialog (accessible from detail page too) */}
-        <Dialog open={editorOpen} onOpenChange={(open) => { setEditorOpen(open); if (!open) { setEditing(null); setDraftConcept({ name: '', description: '', sourceIds: [] }); } }}>
-          <DialogContent className="max-w-xl bg-card border-none shadow-2xl rounded-2xl">
-            <DialogHeader>
-              <div className="flex items-center justify-between pr-8">
-                <DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle>
-              </div>
-            </DialogHeader>
-            <div className="space-y-6 pt-2">
-              <div className="space-y-2">
-                <Label className="readex-kicker">Concept Name</Label>
-                <Input value={draftConcept.name} onChange={(e) => setDraftConcept((p) => ({ ...p, name: e.target.value }))} className="rounded-full" />
-              </div>
-              <div className="space-y-2">
-                <Label className="readex-kicker">Definition</Label>
-                <Textarea value={draftConcept.description} onChange={(e) => setDraftConcept((p) => ({ ...p, description: e.target.value }))} className="min-h-[120px]" placeholder="What does this concept mean to you? How do you understand it?" />
-              </div>
-              <SourceLinker media={media} selectedIds={draftConcept.sourceIds || []} onToggle={toggleConceptSource} label="Root Evidence (Sources)" />
-            </div>
-            <DialogFooter className="gap-2 pt-4">
-              {editing && (
-                <Button variant="destructive" onClick={() => setDeleteTarget(editing)} className="rounded-full px-6">
-                  <Trash2 className="size-4 mr-2" /> Delete
-                </Button>
-              )}
-              <Button onClick={saveConcept} className="bg-accent shadow-md shadow-accent/20 rounded-full px-8">Anchor Concept</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {conceptEditorDialog}
         {conceptDeleteDialog}
 
       </div>
@@ -1384,11 +1398,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       />
 
       <div className="mb-6 hidden grid-cols-1 gap-3 md:grid md:grid-cols-3">
-        <Stat value={totalConceptCount} label="Concepts" sub="Vocabulary size" />
+        <Stat value={totalConceptCount} label={conceptFiltersActive ? 'Matching concepts' : 'Concepts'} sub={conceptFiltersActive ? 'Current filters' : 'Vocabulary size'} />
         <Stat value={wellDevelopedCount} label="Well Developed" sub="Ready for argument" />
         <button
           type="button"
-          aria-label={`Show ${needsAttentionRows.length} concepts needing attention`}
           onClick={() => setListView('needs_attention')}
           className={cn(
             "text-left transition-all rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
@@ -1434,7 +1447,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             );
           })}
           <Select value={moreConceptViewActive ? listView : 'more'} onValueChange={(value) => setListView(value as ConceptListView)}>
-            <SelectTrigger className={cn(
+            <SelectTrigger aria-label="More concept filters" className={cn(
               'h-8 w-[150px] rounded-full border bg-background/70 px-3 font-code text-[9px] uppercase tracking-[0.14em]',
               moreConceptViewActive ? 'border-accent text-accent' : 'border-border text-muted-foreground'
             )}>
@@ -1453,17 +1466,18 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       </FilterToolbar>
 
       {viewMode === 'table' && conceptRows.length > 0 && (
-        <section className="hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block" aria-label="Concepts table">
-          <Table>
-            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Concept</TableHead><TableHead className="w-40">Maturity</TableHead><TableHead className="w-28">Links</TableHead><TableHead>Missing requirements</TableHead><TableHead className="w-16"><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
+        <section className="min-w-0 rounded-lg border border-border/60 bg-card">
+          <Table className="table-fixed xl:table-auto">
+            <caption className="sr-only">Concepts</caption>
+            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Concept</TableHead><TableHead className="w-24 sm:w-32 xl:w-40">Maturity</TableHead><TableHead className="hidden w-20 xl:table-cell">Links</TableHead><TableHead className="hidden xl:table-cell">Missing requirements</TableHead><TableHead className="hidden w-16 sm:table-cell"><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
             <TableBody>
               {conceptRows.map(({ name, concept, diagnosis: diag, connectionCount, repairFlags }) => (
-                <TableRow key={name} tabIndex={0} className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={(event) => { if ((event.target as HTMLElement).closest('button,a')) return; openConceptDetail(name, concept); }} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openConceptDetail(name, concept); } }}>
-                  <TableCell className="max-w-xl py-4"><div className="font-headline text-base font-semibold text-foreground">{name}</div><p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{concept?.description || 'Definition not added'}</p></TableCell>
+                <TableRow key={name} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) openConceptDetail(name, concept); }}>
+                  <TableCell className="max-w-xl py-2 [overflow-wrap:anywhere]"><button type="button" className="min-h-11 w-full rounded-sm text-left font-headline text-base font-semibold text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openConceptDetail(name, concept)} onKeyDown={(event) => activateEntityOnKey(event, () => openConceptDetail(name, concept))}>{name}</button><p className="line-clamp-2 pb-1 text-xs leading-5 text-muted-foreground">{concept?.description || 'Definition not added'}</p></TableCell>
                   <TableCell><div className="space-y-1.5"><StageBadge type="concept" stage={concept?.stage} status={concept?.philosophyStatus} /><span className={cn('block w-fit font-code text-[8px] font-bold uppercase tracking-widest', CLARITY_BG[diag.level])}>{diag.level}</span></div></TableCell>
-                  <TableCell className="font-code text-[10px] uppercase tracking-wider text-muted-foreground">{connectionCount}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{repairFlags.length ? repairFlags.slice(0, 3).map((flag) => flag.label).join(' · ') : 'Ready for use'}</TableCell>
-                  <TableCell>{concept && <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-10 rounded-full" onClick={() => openEditor(concept)}><Edit className="size-4" /></Button>}</TableCell>
+                  <TableCell className="hidden font-code text-[10px] uppercase tracking-wider text-muted-foreground xl:table-cell">{connectionCount}</TableCell>
+                  <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">{repairFlags.length ? repairFlags.slice(0, 3).map((flag) => flag.label).join(' · ') : 'Ready for use'}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{concept && <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-11 rounded-full" onClick={() => openEditor(concept)}><Edit className="size-4" /></Button>}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -1471,8 +1485,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         </section>
       )}
 
-      <div className={cn("grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4", viewMode === 'table' && "md:hidden")}>
-        {conceptRows.map(({ name, concept, related, diagnosis: diag, maturity, connectionCount, possibleDuplicates, repairFlags }) => {
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
+        {viewMode !== 'table' && conceptRows.map(({ name, concept, related, diagnosis: diag, maturity, connectionCount, possibleDuplicates, repairFlags }) => {
 
           return (
             <Card
@@ -1485,7 +1499,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="flex-1">
                   <div className="flex gap-2 items-start">
-                    <h3 className="font-headline text-xl font-bold flex-1 group-hover:text-accent transition-colors leading-tight">{name}</h3>
+                    <h2 className="font-headline text-xl font-bold flex-1 group-hover:text-accent transition-colors leading-tight">{name}</h2>
                     {concept && (
                       <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-10 opacity-100 transition-opacity rounded-full md:size-9 md:opacity-0 md:group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); openEditor(concept); }}>
                         <Edit className="size-3" />
@@ -1497,8 +1511,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     <span className={cn('font-code text-[8px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full border', CLARITY_BG[diag.level])}>
                       {diag.level}
                     </span>
-                    <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">
-                      {connectionCount} links
+                    <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">
+                      {connectionCount} {connectionCount === 1 ? 'link' : 'links'}
                     </span>
                   </div>
                 </div>
@@ -1520,7 +1534,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 </div>
               )}
 
-              <div className="border-t border-border/30 pt-3 font-code text-[8px] uppercase tracking-wider text-muted-foreground/60">
+              <div className="border-t border-border/30 pt-3 font-code text-[8px] uppercase tracking-wider text-muted-foreground">
                 {related.sources.length} sources · {related.beliefs.length} positions · {related.drafts.length} works
               </div>
             </Card>
@@ -1536,34 +1550,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         )}
       </div>
 
-      <Dialog open={editorOpen} onOpenChange={(open) => { setEditorOpen(open); if (!open) { setEditing(null); setDraftConcept({ name: '', description: '', sourceIds: [] }); } }}>
-        <DialogContent className="max-w-xl bg-card border-none shadow-2xl rounded-2xl">
-          <DialogHeader>
-            <div className="flex items-center justify-between pr-8">
-              <DialogTitle className="font-headline text-2xl italic">{editing ? 'Edit Concept' : 'New Concept'}</DialogTitle>
-            </div>
-          </DialogHeader>
-          <div className="space-y-6 pt-2">
-            <div className="space-y-2">
-              <Label className="readex-kicker">Concept Name</Label>
-              <Input value={draftConcept.name} onChange={(event) => setDraftConcept((prev) => ({ ...prev, name: event.target.value }))} className="rounded-full" />
-            </div>
-            <div className="space-y-2">
-              <Label className="readex-kicker">Definition</Label>
-              <Textarea value={draftConcept.description} onChange={(event) => setDraftConcept((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[120px]" placeholder="What does this concept mean to you? How do you understand it?" />
-            </div>
-            <SourceLinker media={media} selectedIds={draftConcept.sourceIds || []} onToggle={toggleConceptSource} label="Root Evidence (Sources)" />
-          </div>
-          <DialogFooter className="gap-2 pt-4">
-            {editing && (
-              <Button variant="destructive" onClick={() => setDeleteTarget(editing)} className="rounded-full px-6">
-                <Trash2 className="size-4 mr-2" /> Delete
-              </Button>
-            )}
-            <Button onClick={saveConcept} className="bg-accent shadow-md shadow-accent/20 rounded-full px-8">Anchor Concept</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {conceptEditorDialog}
       {conceptDeleteDialog}
     </div>
   );
@@ -1590,7 +1577,7 @@ function Stat({ value, label, sub, tone = 'default', interactive = false }: { va
       interactive && "pr-10 hover:border-amber-300 hover:shadow-md",
       tone === 'warning' ? "border-amber-200" : "border-accent/10"
     )}>
-      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</div>
+      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">{label}</div>
       <div className={cn("mt-1 text-2xl font-headline font-bold leading-none", tone === 'warning' ? "text-amber-700" : "text-accent")}>{value}</div>
       <div className="mt-1 text-[10px] text-muted-foreground/40 truncate font-body">{sub}</div>
       {interactive && <ArrowRight aria-hidden="true" className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-amber-700" />}

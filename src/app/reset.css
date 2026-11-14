@@ -1,0 +1,22 @@
+@tailwind base;
+
+#noesis-startup-retry:not([hidden]) {
+  position: fixed;
+  inset: auto 1rem 1rem;
+  z-index: 100;
+  max-width: 32rem;
+  margin-inline: auto;
+  padding: 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--card-radius);
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  box-shadow: var(--shadow-elevated);
+}
+
+#noesis-startup-retry p:first-child { font-weight: 500; }
+#noesis-startup-retry p + p {
+  margin-top: .25rem;
+  font-size: .875rem;
+  color: hsl(var(--muted-foreground));
+}

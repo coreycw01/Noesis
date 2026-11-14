@@ -2,6 +2,7 @@
 
 import type { User } from 'firebase/auth';
 import { ProfilePage } from '@/components/Profile/ProfilePage';
+import type { ProfileReviewApproval } from '@/lib/profile-edit';
 import type {
   BeliefProfile,
   AiSettings,
@@ -23,6 +24,7 @@ import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface ProfileRoutePageProps {
   user: User | null;
+  reviewMode: boolean;
   profile: UserProfile;
   aiSettings: AiSettings;
   privacy: ProfilePrivacySettings;
@@ -37,8 +39,8 @@ export interface ProfileRoutePageProps {
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
   thinkingMetrics: ThinkingMetrics;
-  onSaveProfile: (profile: UserProfile) => Promise<void>;
-  onSavePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot) => Promise<void>;
+  onSaveProfile: (profile: Partial<UserProfile>, approval?: ProfileReviewApproval) => Promise<void>;
+  onSavePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot, expectedVersion: { dateUpdated?: string }) => Promise<ProfilePrivacySettings>;
   onUpdateUnknown: (unknown: Unknown) => void;
   onUpdateThinkingPattern: (pattern: ThinkingPattern) => void;
   onNavigate: (view: NoesisView, options?: {
@@ -50,6 +52,7 @@ export interface ProfileRoutePageProps {
 
 export function ProfileRoutePage({
   user,
+  reviewMode,
   profile,
   aiSettings,
   privacy,
@@ -73,6 +76,7 @@ export function ProfileRoutePage({
   return (
     <ProfilePage
       user={user}
+      reviewMode={reviewMode}
       profile={profile}
       aiSettings={aiSettings}
       privacy={privacy}

@@ -2,28 +2,25 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  BookOpen,
-  Brain,
   CalendarRange,
   ChevronDown,
-  CircleHelp,
-  FileText,
-  FlaskConical,
   History,
-  Lightbulb,
-  ShieldCheck,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Media, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
+import type { Media, ThinkingEvent, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
+import { localDateKey } from '@/lib/calendar';
+import { NOESIS_ICONS } from '@/lib/noesis-icons';
+import { EVOLUTION_SYNTHESIS_SAMPLE_LIMIT, evolutionActionKey, evolutionDateMatches, evolutionDisplayDate, evolutionSynthesisExcerpt, evolutionSynthesisReviewKey, evolutionSynthesisSourceIds, evolutionValueChange, indexEvolutionSources, isEvolutionDateOnly, isEvolutionSynthesis, isEvolutionTurningPoint, normalizeEvolutionDate, olderEvolutionHistoryMayMatch, readEvolutionSynthesis, unmatchedEvolutionMilestones } from '@/lib/evolution-history';
 
 interface EvolutionTimelineProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -32,10 +29,11 @@ interface EvolutionTimelineProps {
   thinkingEvents: ThinkingEvent[];
   thinkingEventsHasMore: boolean;
   loadMoreThinkingEvents: () => void;
+  historyLoadingOlder: boolean;
+  historyOlderError: boolean;
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
-  metrics: ThinkingMetrics;
-  onSaveSynthesis: (event: TimelineEvent) => void | Promise<void>;
+  onSaveSynthesis: (event: TimelineEvent, result?: import('@/lib/contextual-ai').AiReviewResult, eventIds?: readonly string[]) => void | Promise<void>;
 }
 type EvolutionFilter =
   | 'all'
@@ -66,11 +64,12 @@ type DisplayEvent = {
   date: string;
   filter: EvolutionFilter;
   chips: string[];
-  importance?: string;
+  isTurningPoint?: boolean;
   sourceIds?: string[];
   turningPoint?: string;
   trigger?: string;
   significance?: string;
+  synthesisProvenance?: TimelineEvent['synthesisProvenance'];
   beforeLabel?: string;
   afterLabel?: string;
   changedFields?: string[];
@@ -127,6 +126,7 @@ const NOTABLE_THINKING_EVENT_TYPES = new Set<string>([
   'source_distilled',
   'work_revised',
   'practice_concluded',
+  'link_removed',
   'stress_test_answered',
   'suggestion_accepted',
   'thinking_pattern_acknowledged',
@@ -140,10 +140,11 @@ function isRoutineDeletion(summary?: string, metadata?: Record<string, unknown>)
 }
 
 function isNotableThinkingEvent(event: ThinkingEvent) {
-  const eventType = String(event.eventType || event.actionType || '');
+  const eventType = evolutionActionKey(String(event.eventType || event.actionType || ''));
   if (!eventType || isRoutineDeletion(event.summary, event.metadata)) return false;
   return event.importance === 'major'
     || event.importance === 'high'
+    || isEvolutionTurningPoint(eventType, event.confidenceBefore, event.confidenceAfter)
     || NOTABLE_THINKING_EVENT_TYPES.has(eventType);
 }
 
@@ -164,45 +165,17 @@ function isNotableTimelineEvent(event: TimelineEvent) {
   ].some((signal) => text.includes(signal));
 }
 
-function isReviewedEvolutionSynthesis(event: TimelineEvent) {
-  return event.entityType === 'evolution' && event.entityTitle.toLowerCase().startsWith('period synthesis');
-}
-
-function normalizedEvolutionDate(value: unknown): string | null {
-  let date: Date | null = null;
-  if (value instanceof Date) {
-    date = value;
-  } else if (typeof value === 'string' || typeof value === 'number') {
-    date = new Date(value);
-  } else if (value && typeof value === 'object') {
-    const timestamp = value as { toDate?: () => Date; seconds?: number; _seconds?: number };
-    if (typeof timestamp.toDate === 'function') date = timestamp.toDate();
-    else {
-      const seconds = timestamp.seconds ?? timestamp._seconds;
-      if (typeof seconds === 'number') date = new Date(seconds * 1000);
-    }
-  }
-  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
-}
-
-function safeEventDetail(value: unknown, fallback: string) {
-  if (!value || typeof value !== 'object') return fallback;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return fallback;
-  }
-}
-
-function mapThinkingEventToFilter(eventType: ThinkingEvent['eventType']): EvolutionFilter {
-  if (['created', 'edited', 'revised', 'abandoned', 'position_created', 'position_revised', 'position_abandoned'].includes(eventType)) return 'belief_revisions';
+function mapThinkingEventToFilter(action: string, object: string): EvolutionFilter {
+  const eventType = evolutionActionKey(action);
+  const position = object === 'position' || object === 'vault';
+  if (position && ['revised', 'abandoned', 'position_revised', 'position_abandoned'].includes(eventType)) return 'belief_revisions';
   if (eventType === 'confidence_changed') return 'confidence';
   if (['unknown_created', 'unknown_resolved'].includes(eventType)) return 'unknowns';
   if (['contradiction_detected', 'contradiction_resolved'].includes(eventType)) return 'contradictions';
   if (['thinking_pattern_inferred', 'thinking_pattern_acknowledged', 'thinking_pattern_dismissed'].includes(eventType)) return 'patterns';
   if (['question_created', 'question_promoted', 'question_resolved', 'position_formed'].includes(eventType)) return 'questions';
-  if (['position_replaced'].includes(eventType)) return 'replacements';
-  if (['link_created', 'linked', 'unlinked'].includes(eventType)) return 'links';
+  if (['replaced', 'position_replaced'].includes(eventType)) return 'replacements';
+  if (['link_created', 'link_removed', 'linked', 'unlinked'].includes(eventType)) return 'links';
   return 'all';
 }
 
@@ -223,7 +196,7 @@ function summarizeSnapshot(value: unknown): string | undefined {
 function thinkingEventMeaning(event: ThinkingEvent): Pick<DisplayEvent, 'turningPoint' | 'trigger' | 'significance' | 'beforeLabel' | 'afterLabel'> {
   const eventType = String(event.eventType || event.actionType || 'change');
   const eventText = eventType.replace(/_/g, ' ');
-  const turningPoint = event.importance === 'major'
+  const turningPoint = event.importance === 'major' && isEvolutionTurningPoint(eventType, event.confidenceBefore, event.confidenceAfter)
     ? 'Major Turning Point'
     : eventType.includes('revised') || eventType === 'confidence_changed'
       ? 'Revision'
@@ -249,8 +222,7 @@ function thinkingEventMeaning(event: ThinkingEvent): Pick<DisplayEvent, 'turning
     turningPoint,
     trigger: String(trigger),
     significance,
-    beforeLabel: summarizeSnapshot(event.before),
-    afterLabel: summarizeSnapshot(event.after),
+    ...(evolutionValueChange(event) ?? { beforeLabel: summarizeSnapshot(event.before), afterLabel: summarizeSnapshot(event.after) }),
   };
 }
 
@@ -281,25 +253,19 @@ function displayEventMeaning(event: DisplayEvent) {
   return { turningPoint, trigger, significance };
 }
 
-function dateInputValue(value?: string) {
-  const date = value ? new Date(value) : new Date();
-  if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
-  return date.toISOString().slice(0, 10);
-}
-
 function eventTime(value: string) {
-  const time = new Date(value).getTime();
+  const time = evolutionDisplayDate(value).getTime();
   return Number.isNaN(time) ? 0 : time;
 }
 
 function eventMonthKey(value: string) {
-  const date = new Date(value);
+  const date = evolutionDisplayDate(value);
   return Number.isNaN(date.getTime()) ? 'unknown' : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function eventMonthLabel(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'Undated' : date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const date = evolutionDisplayDate(value);
+  return Number.isNaN(date.getTime()) ? 'Undated' : date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
 function groupEventsByMonth(events: DisplayEvent[]) {
@@ -315,14 +281,15 @@ function groupEventsByMonth(events: DisplayEvent[]) {
 
 function EventTypeIcon({ targetType, className }: { targetType: string; className?: string }) {
   const normalized = targetType.toLowerCase();
-  if (normalized.includes('position') || normalized.includes('vault')) return <ShieldCheck className={className} aria-hidden="true" />;
-  if (normalized.includes('concept')) return <Lightbulb className={className} aria-hidden="true" />;
-  if (normalized.includes('question') || normalized.includes('inquiry') || normalized.includes('unknown')) return <CircleHelp className={className} aria-hidden="true" />;
-  if (normalized.includes('practice')) return <FlaskConical className={className} aria-hidden="true" />;
-  if (normalized.includes('work') || normalized.includes('draft')) return <FileText className={className} aria-hidden="true" />;
-  if (normalized.includes('source') || normalized.includes('media')) return <BookOpen className={className} aria-hidden="true" />;
-  if (normalized.includes('pattern')) return <Brain className={className} aria-hidden="true" />;
-  return <History className={className} aria-hidden="true" />;
+  const Icon = normalized === 'vault' || normalized === 'position' ? NOESIS_ICONS.position
+    : normalized === 'concept' ? NOESIS_ICONS.concept
+    : ['question', 'inquiry', 'unknown'].includes(normalized) ? NOESIS_ICONS.inquiry
+    : normalized === 'practice' ? NOESIS_ICONS.practice
+    : ['work', 'draft'].includes(normalized) ? NOESIS_ICONS.work
+    : ['source', 'media'].includes(normalized) ? NOESIS_ICONS.source
+    : normalized === 'annotation' ? NOESIS_ICONS.annotation
+    : History;
+  return <Icon className={className} aria-hidden="true" />;
 }
 
 function eventEvidenceQuality(event: DisplayEvent) {
@@ -393,72 +360,83 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
   return 'gained';
 }
 
-export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, thinkingEventsHasMore, loadMoreThinkingEvents, unknowns, thinkingPatterns, onSaveSynthesis }: EvolutionTimelineProps) {
+export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, thinkingEventsHasMore, loadMoreThinkingEvents, historyLoadingOlder, historyOlderError, unknowns, thinkingPatterns, onSaveSynthesis }: EvolutionTimelineProps) {
   const [view, setView] = useState<EvolutionView>('timeline');
   const [timelineLayout, setTimelineLayout] = useEntityViewPreference('evolution');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
   const [visibleCount, setVisibleCount] = useState(12);
-  const [scrubberDate, setScrubberDate] = useState(() => dateInputValue(new Date().toISOString()));
+  const [scrubberDate, setScrubberDate] = useState(() => localDateKey());
   const [periodEnd, setPeriodEnd] = useState('');
   const [periodStart, setPeriodStart] = useState('');
+  const periodErrorId = React.useId();
+  const sourcesForEvent = useMemo(() => indexEvolutionSources(media), [media]);
 
   const displayEvents = useMemo<DisplayEvent[]>(() => {
-    const fromThinking = thinkingEvents.filter(isNotableThinkingEvent).map((event) => ({
+    const notableThinking = thinkingEvents.filter((event) => !readEvolutionSynthesis(event) && isNotableThinkingEvent(event));
+    const fromThinking = notableThinking.map((event) => ({
       id: event.eventId || event.id,
       kind: 'thinking' as const,
       targetId: event.targetId || event.entityId,
-      targetType: String(event.targetType || event.entityType || 'evolution'),
+      targetType: String(event.entityType || event.targetType || 'evolution'),
       title: event.summary || 'Recorded intellectual milestone',
-      detail: safeEventDetail(event.metadata, `${event.targetType || event.entityType} · ${event.sourceType || event.origin || 'system'}`),
-      date: normalizedEvolutionDate(event.createdAt || event.updatedAt) || '',
-      filter: mapThinkingEventToFilter(event.eventType || event.actionType || 'revised'),
+      detail: event.userReason || event.aiReason || event.systemReason || '',
+      date: normalizeEvolutionDate(event.createdAt ?? event.updatedAt) || '',
+      filter: mapThinkingEventToFilter(event.eventType || event.actionType || '', String(event.entityType || event.targetType || '')),
       chips: [String(event.actionType || event.eventType || 'revised').replace(/_/g, ' '), event.sourceType || event.origin || 'system', String(event.targetType || event.entityType || 'evolution')],
-      importance: event.importance,
+      isTurningPoint: isEvolutionTurningPoint(String(event.eventType || event.actionType || ''), event.confidenceBefore, event.confidenceAfter),
+      sourceIds: event.relatedEntityIds?.sourceIds,
       changedFields: event.changedFields,
       ...thinkingEventMeaning(event),
     })).filter((event) => Boolean(event.date));
 
-    const useLegacyFallback = fromThinking.length === 0;
-    const fromTimeline = events.filter((event) => useLegacyFallback ? isNotableTimelineEvent(event) : isReviewedEvolutionSynthesis(event)).map((event) => ({
+    const savedSyntheses = thinkingEvents.map(readEvolutionSynthesis).filter((event): event is TimelineEvent => event !== null);
+    const synthesizedIds = new Set(savedSyntheses.map((event) => event.id));
+    const milestones = unmatchedEvolutionMilestones(events, notableThinking);
+    const fromTimeline = [...savedSyntheses, ...milestones.filter((event) => !synthesizedIds.has(event.id)
+      && (isEvolutionSynthesis(event) || isNotableTimelineEvent(event)))].map((event) => ({
       id: event.id,
       kind: 'timeline' as const,
       targetId: event.entityId,
       targetType: event.entityType || 'evolution',
       title: event.entityTitle || 'Recorded milestone',
-      detail: event.reason || 'Legacy intellectual milestone.',
-      date: normalizedEvolutionDate(event.date) || '',
-      filter: 'all' as const,
-      chips: [event.eventType, event.entityType],
+      detail: event.reason || (event.synthesisProvenance ? '' : 'Legacy intellectual milestone.'),
+      date: normalizeEvolutionDate(event.date) || '',
+      filter: mapThinkingEventToFilter(event.eventType, event.entityType),
+      chips: [event.eventType, isEvolutionSynthesis(event) ? 'ai-assisted' : event.entityType],
+      synthesisProvenance: event.synthesisProvenance,
+      isTurningPoint: !isEvolutionSynthesis(event) && isEvolutionTurningPoint(event.eventType),
       sourceIds: event.influencedBy,
-      trigger: isReviewedEvolutionSynthesis(event) ? 'Created after the user reviewed and accepted a contextual synthesis.' : event.reason,
-      significance: isReviewedEvolutionSynthesis(event) ? 'This is an AI-assisted interpretation of recorded changes, reviewed and saved by the user.' : undefined,
+      trigger: isEvolutionSynthesis(event) ? 'Created after the user reviewed and accepted a contextual synthesis.' : event.reason,
+      significance: isEvolutionSynthesis(event) ? 'This is an AI-assisted interpretation of recorded changes, reviewed and saved by the user.' : undefined,
     })).filter((event) => Boolean(event.date));
 
-    const fromUnknowns = useLegacyFallback ? unknowns.filter((item) => item.status === 'resolved').map((item) => ({
+    const resolvedUnknowns = new Set(notableThinking.filter((event) => event.eventType === 'unknown_resolved').map((event) => event.entityId));
+    const acknowledgedPatterns = new Set(notableThinking.filter((event) => event.eventType === 'thinking_pattern_acknowledged').map((event) => event.entityId));
+    const fromUnknowns = unknowns.filter((item) => item.status === 'resolved' && !resolvedUnknowns.has(item.unknownId)).map((item) => ({
       id: item.unknownId,
       kind: 'unknown' as const,
       targetId: item.unknownId,
       targetType: 'unknown',
       title: item.title,
       detail: item.resolutionSummary || item.description || 'Unknown recorded in the system.',
-      date: normalizedEvolutionDate(item.resolvedAt || item.dateUpdated || item.dateCreated) || '',
+      date: normalizeEvolutionDate(item.resolvedAt || item.dateUpdated || item.dateCreated) || '',
       filter: 'unknowns' as const,
       chips: [item.status, item.importance, item.createdFrom],
       sourceIds: item.sourceIds,
-    })).filter((event) => Boolean(event.date)) : [];
+    })).filter((event) => Boolean(event.date));
 
-    const fromPatterns = useLegacyFallback ? thinkingPatterns.filter((pattern) => pattern.status === 'acknowledged').map((pattern) => ({
+    const fromPatterns = thinkingPatterns.filter((pattern) => pattern.status === 'acknowledged' && !acknowledgedPatterns.has(pattern.patternId)).map((pattern) => ({
       id: pattern.patternId,
       kind: 'pattern' as const,
       targetId: pattern.patternId,
       targetType: 'thinking_pattern',
       title: pattern.label,
       detail: pattern.description,
-      date: normalizedEvolutionDate(pattern.dateUpdated || pattern.dateCreated) || '',
+      date: normalizeEvolutionDate(pattern.dateUpdated || pattern.dateCreated) || '',
       filter: 'patterns' as const,
       chips: [String(pattern.patternType || 'pattern').replace(/_/g, ' '), pattern.status, pattern.trendDirection],
-    })).filter((event) => Boolean(event.date)) : [];
+    })).filter((event) => Boolean(event.date));
 
     return [...fromThinking, ...fromTimeline, ...fromUnknowns, ...fromPatterns].sort(
       (a, b) => eventTime(b.date) - eventTime(a.date)
@@ -468,8 +446,11 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
   const hasDateFilter = Boolean(periodStart || periodEnd);
   const dateRangeIsValid = !(periodStart && periodEnd && periodStart > periodEnd);
   const completePeriod = Boolean(periodStart && periodEnd && dateRangeIsValid);
+  const searchTerm = search.trim();
 
   const filteredEvents = useMemo(() => {
+    if (view !== 'timeline' || !dateRangeIsValid) return [];
+    const query = searchTerm.toLowerCase();
     return displayEvents.filter((event) => {
       const filterOk = filter === 'all' ||
         event.filter === filter ||
@@ -479,38 +460,25 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
         (filter === 'works' && targetTypeMatches(event, ['work', 'draft'])) ||
         (filter === 'practices' && targetTypeMatches(event, ['practice'])) ||
         (filter === 'sources' && targetTypeMatches(event, ['source', 'media']));
-      const haystack = `${event.title} ${event.detail} ${event.chips.join(' ')}`.toLowerCase();
-      const queryOk = !search || haystack.includes(search.toLowerCase());
-      const time = eventTime(event.date);
-      const startsAfter = !periodStart || time >= new Date(`${periodStart}T00:00:00`).getTime();
-      const endsBefore = !periodEnd || time <= new Date(`${periodEnd}T23:59:59`).getTime();
-      const dateOk = dateRangeIsValid && startsAfter && endsBefore;
-      return filterOk && queryOk && dateOk;
+      return filterOk && (!query || `${event.title} ${event.detail} ${event.chips.join(' ')}`.toLowerCase().includes(query))
+        && evolutionDateMatches(event.date, periodStart, periodEnd);
     });
-  }, [dateRangeIsValid, displayEvents, filter, periodEnd, periodStart, search]);
+  }, [dateRangeIsValid, displayEvents, filter, periodEnd, periodStart, searchTerm, view]);
 
   const turningPoints = useMemo(() => {
-    return displayEvents.filter((event) => {
-      const text = `${event.turningPoint || ''} ${event.chips.join(' ')} ${event.title}`.toLowerCase();
-      return event.importance === 'major' ||
-        event.importance === 'high' ||
-        event.filter === 'replacements' ||
-        text.includes('revised') ||
-        text.includes('abandoned') ||
-        text.includes('replaced') ||
-        text.includes('contradiction resolved') ||
-        text.includes('inquiry resolved') ||
-        (event.filter === 'confidence' && Boolean(event.beforeLabel && event.afterLabel));
-    }).slice(0, 8);
-  }, [displayEvents]);
+    return view === 'turning_points' ? displayEvents.filter((event) => event.isTurningPoint).slice(0, 8) : [];
+  }, [displayEvents, view]);
 
   const beliefRivers = useMemo(() => {
+    if (view !== 'belief_rivers') return [];
     const grouped = new Map<string, DisplayEvent[]>();
     displayEvents
       .filter((event) => targetTypeMatches(event, ['position', 'vault']))
       .forEach((event) => {
         const key = event.targetId || event.title;
-        grouped.set(key, [...(grouped.get(key) || []), event]);
+        const group = grouped.get(key);
+        if (group) group.push(event);
+        else grouped.set(key, [event]);
       });
     return Array.from(grouped.entries())
       .map(([id, items]) => {
@@ -532,34 +500,38 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
       })
       .sort((a, b) => eventTime(b.latest.date) - eventTime(a.latest.date))
       .slice(0, 6);
-  }, [displayEvents]);
+  }, [displayEvents, view]);
 
   const periods = useMemo(() => {
+    if (view !== 'periods') return [];
     const grouped = new Map<string, DisplayEvent[]>();
     displayEvents.forEach((event) => {
-      const date = new Date(event.date);
-      const key = Number.isNaN(date.getTime()) ? 'Undated' : date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      grouped.set(key, [...(grouped.get(key) || []), event]);
+      const key = eventMonthLabel(event.date);
+      const group = grouped.get(key);
+      if (group) group.push(event);
+      else grouped.set(key, [event]);
     });
-    return Array.from(grouped.entries()).map(([label, items]) => {
-      const sorted = [...items].sort((a, b) => eventTime(b.date) - eventTime(a.date));
-      const revisionCount = sorted.filter((event) => event.filter === 'belief_revisions' || event.filter === 'confidence').length;
-      const uncertaintyCount = sorted.filter((event) => event.filter === 'unknowns' || event.filter === 'questions').length;
-      const structureCount = sorted.filter((event) => event.filter === 'links' || event.filter === 'contradictions' || event.filter === 'patterns').length;
+    return Array.from(grouped.entries()).slice(0, 8).map(([label, items]) => {
+      const revisionCount = items.filter((event) => event.filter === 'belief_revisions' || event.filter === 'confidence').length;
+      const uncertaintyCount = items.filter((event) => event.filter === 'unknowns' || event.filter === 'questions').length;
+      const structureCount = items.filter((event) => event.filter === 'links' || event.filter === 'contradictions' || event.filter === 'patterns').length;
       const tone = revisionCount >= uncertaintyCount && revisionCount >= structureCount
         ? 'Worldview reconstruction'
         : uncertaintyCount >= structureCount
           ? 'Uncertainty and inquiry'
           : 'Structural integration';
-      return { label, items: sorted, revisionCount, uncertaintyCount, structureCount, tone };
-    }).sort((a, b) => eventTime(b.items[0]?.date || '') - eventTime(a.items[0]?.date || '')).slice(0, 8);
-  }, [displayEvents]);
+      return { label, items, revisionCount, uncertaintyCount, structureCount, tone };
+    });
+  }, [displayEvents, view]);
 
   const changeMap = useMemo(() => {
+    if (view !== 'change_map') return [];
     const grouped = new Map<string, DisplayEvent[]>();
     displayEvents.forEach((event) => {
       const area = changeAreaForEvent(event);
-      grouped.set(area, [...(grouped.get(area) || []), event]);
+      const group = grouped.get(area);
+      if (group) group.push(event);
+      else grouped.set(area, [event]);
     });
 
     return Array.from(grouped.entries())
@@ -571,7 +543,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
           },
           { gained: 0, weakened: 0, fractured: 0, stabilized: 0 }
         );
-        const latest = [...items].sort((a, b) => eventTime(b.date) - eventTime(a.date))[0];
+        const latest = items[0];
         const dominant = (Object.entries(movements).sort((a, b) => b[1] - a[1])[0]?.[0] || 'gained') as keyof typeof movements;
         const status =
           dominant === 'fractured' ? 'fractured' :
@@ -581,43 +553,38 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
         return { area, items, movements, latest, status };
       })
       .sort((a, b) => b.items.length - a.items.length);
-  }, [displayEvents]);
+  }, [displayEvents, view]);
 
   const scrubberSummary = useMemo(() => {
-    const selectedEnd = new Date(`${scrubberDate}T23:59:59`).getTime();
-    const throughDate = displayEvents.filter((event) => eventTime(event.date) <= selectedEnd);
-    const afterDate = displayEvents.filter((event) => eventTime(event.date) > selectedEnd);
-    const activePositionEvents = throughDate.filter((event) =>
-      targetTypeMatches(event, ['position', 'vault']) &&
-      !event.chips.join(' ').toLowerCase().includes('abandoned') &&
-      !event.chips.join(' ').toLowerCase().includes('replaced')
-    );
+    const throughDate: DisplayEvent[] = [];
+    const afterDate: DisplayEvent[] = [];
+    if (view === 'before_after' && scrubberDate) {
+      for (const event of displayEvents) {
+        if (evolutionDateMatches(event.date, '', scrubberDate)) throughDate.push(event);
+        else if (afterDate.length < 4) afterDate.push(event);
+      }
+    }
+    const positionEvents = throughDate.filter((event) => targetTypeMatches(event, ['position', 'vault']));
     const conceptEvents = throughDate.filter((event) => targetTypeMatches(event, ['concept']));
-    const inquiryEvents = throughDate.filter((event) =>
-      targetTypeMatches(event, ['question', 'inquiry']) &&
-      !event.chips.join(' ').toLowerCase().includes('resolved')
-    );
+    const inquiryEvents = throughDate.filter((event) => targetTypeMatches(event, ['question', 'inquiry']));
     const atlasEvents = throughDate.filter((event) =>
       targetTypeMatches(event, ['link', 'relationship', 'pattern', 'unknown']) ||
       ['links', 'contradictions', 'patterns', 'unknowns'].includes(event.filter)
     );
     return {
-      throughDate,
-      afterDate,
-      activePositionEvents,
+      positionEvents,
       conceptEvents,
       inquiryEvents,
       atlasEvents,
-      currentDifferences: afterDate.slice(0, 4),
+      currentDifferences: afterDate,
     };
-  }, [displayEvents, scrubberDate]);
+  }, [displayEvents, scrubberDate, view]);
 
   useEffect(() => {
     setVisibleCount(12);
-  }, [filter, periodEnd, periodStart, search]);
+  }, [filter, periodEnd, periodStart, searchTerm]);
 
   const pagedEvents = filteredEvents.slice(0, visibleCount);
-  const rangeStart = filteredEvents.length ? 1 : 0;
   const rangeEnd = Math.min(filteredEvents.length, visibleCount);
   const clearEvolutionFilters = () => {
     setSearch('');
@@ -625,19 +592,32 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
     setPeriodStart('');
     setPeriodEnd('');
   };
-  const evolutionFiltersActive = Boolean(search || filter !== 'all' || hasDateFilter);
+  const evolutionFiltersActive = Boolean(searchTerm || filter !== 'all' || hasDateFilter);
   const activeEvolutionFilterLabels = [
-    search.trim() ? `Search: ${search.trim()}` : null,
+    searchTerm ? `Search: ${searchTerm}` : null,
     filter !== 'all' ? `Change type: ${FILTER_OPTIONS.find((option) => option.value === filter)?.label || filter.replace(/_/g, ' ')}` : null,
     periodStart ? `From: ${periodStart}` : null,
     periodEnd ? `To: ${periodEnd}` : null,
   ].filter(Boolean) as string[];
-  const selectedPeriodEvents = displayEvents.filter((event) => {
-    if (!completePeriod) return false;
-    if (event.targetType === 'evolution') return false;
-    const time = eventTime(event.date);
-    return time >= new Date(`${periodStart}T00:00:00`).getTime() && time <= new Date(`${periodEnd}T23:59:59`).getTime();
-  });
+  const selectedPeriodEvents = useMemo(() => {
+    if (view !== 'timeline' || !completePeriod || !aiSettings.aiAssistanceEnabled) return [];
+    return displayEvents.filter((event) => event.targetType !== 'evolution' && evolutionDateMatches(event.date, periodStart, periodEnd));
+  }, [view, completePeriod, aiSettings.aiAssistanceEnabled, displayEvents, periodStart, periodEnd]);
+  const periodSample = selectedPeriodEvents.slice(0, EVOLUTION_SYNTHESIS_SAMPLE_LIMIT);
+  const periodHasOlderMatches = useMemo(
+    () => olderEvolutionHistoryMayMatch(thinkingEventsHasMore, periodStart, thinkingEvents),
+    [thinkingEventsHasMore, periodStart, thinkingEvents],
+  );
+  const olderHistoryControl = thinkingEventsHasMore && (
+    <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <Button type="button" variant="outline" size="sm" disabled={historyLoadingOlder} onClick={loadMoreThinkingEvents}>
+        {historyLoadingOlder ? 'Loading older history' : historyOlderError ? 'Retry older history' : 'Load older history'}
+      </Button>
+      <span role="status" className="text-xs text-muted-foreground">
+        {historyLoadingOlder ? 'Showing previously loaded changes.' : historyOlderError ? 'Older history could not be loaded. Previously loaded changes are still visible.' : 'Older changes may not be included in this view.'}
+      </span>
+    </div>
+  );
 
   return (
     <div className="noesis-page noesis-evolution-page" data-noesis-identity="chronology">
@@ -653,6 +633,8 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
           />
         )}
       />
+
+      {view !== 'timeline' && olderHistoryControl}
 
       {view === 'turning_points' && (
         <section className="mb-8 border-y border-border/60 py-6">
@@ -698,7 +680,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                   <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{river.events.length} events</Badge>
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-4">
-                  <MiniEvolutionStat label="Origin" value={river.origin ? new Date(river.origin.date).toLocaleDateString() : 'None'} />
+                  <MiniEvolutionStat label="Origin" value={river.origin ? evolutionDisplayDate(river.origin.date).toLocaleDateString() : 'None'} />
                   <MiniEvolutionStat label="Revisions" value={river.revisions.length} />
                   <MiniEvolutionStat label="Challenges" value={river.challenges.length} />
                   <MiniEvolutionStat label="Confidence" value={river.confidenceMoves.length} />
@@ -754,11 +736,12 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
             <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Time Scrubber</div>
             <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Recorded thought at a selected date</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              This is a recorded-state reconstruction from thinking events, unknowns, patterns, and timeline entries. It reflects what Noesis has evidence for, not everything you may have thought.
+              Counts show recorded changes through the selected date, not how many items were active at the time.
             </p>
           </div>
           <input
             type="date"
+            aria-label="Compare history through date"
             value={scrubberDate}
             onChange={(event) => setScrubberDate(event.target.value)}
             className="h-10 rounded-full border border-border/60 bg-background px-4 font-code text-[10px] uppercase tracking-widest text-foreground shadow-sm"
@@ -767,25 +750,25 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <ScrubberCard
-            label="Active Positions Then"
-            value={scrubberSummary.activePositionEvents.length}
-            items={scrubberSummary.activePositionEvents.slice(0, 3).map((event) => event.title)}
+            label="Position Changes"
+            value={scrubberSummary.positionEvents.length}
+            items={scrubberSummary.positionEvents.slice(0, 3).map((event) => event.title)}
             empty="No position events recorded by this date."
           />
           <ScrubberCard
-            label="Concept Definitions Then"
+            label="Concept Changes"
             value={scrubberSummary.conceptEvents.length}
             items={scrubberSummary.conceptEvents.slice(0, 3).map((event) => event.title)}
             empty="No concept changes recorded by this date."
           />
           <ScrubberCard
-            label="Unresolved Inquiries Then"
+            label="Inquiry Changes"
             value={scrubberSummary.inquiryEvents.length}
             items={scrubberSummary.inquiryEvents.slice(0, 3).map((event) => event.title)}
             empty="No inquiry events recorded by this date."
           />
           <ScrubberCard
-            label="Atlas Structure Then"
+            label="Atlas Changes"
             value={scrubberSummary.atlasEvents.length}
             items={scrubberSummary.atlasEvents.slice(0, 3).map((event) => event.title)}
             empty="No relationship, unknown, or pattern events yet."
@@ -852,7 +835,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                         <>
                           <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{area.latest.title}</p>
                           <p className="mt-1 text-xs italic text-muted-foreground">
-                            {new Date(area.latest.date).toLocaleDateString()} · {area.latest.kind === 'thinking' ? 'thinking event' : area.latest.kind}
+                            {evolutionDisplayDate(area.latest.date).toLocaleDateString()} · {area.latest.kind === 'thinking' ? 'thinking event' : area.latest.kind}
                           </p>
                         </>
                       ) : (
@@ -888,123 +871,101 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
         }
         className="mb-5"
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setFilter('all')}
-            className={cn(
-              'px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap',
-              filter === 'all' ? 'bg-accent text-accent-foreground shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
-            )}
+        <label className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-muted-foreground">
+          Change filter
+          <select
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as EvolutionFilter)}
+            className="min-h-11 max-w-full rounded-[var(--button-radius)] border border-border bg-surface px-3 font-interface text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9 sm:text-sm"
           >
-            All
-          </button>
-          <span className="font-code text-[8px] font-bold uppercase tracking-[0.16em] text-muted-foreground/60">Events</span>
-          {EVENT_FILTERS.map((value) => {
-            const option = FILTER_OPTIONS.find((item) => item.value === value)!;
-            return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setFilter(option.value)}
-              className={cn(
-                'px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap',
-                filter === option.value ? 'bg-accent text-accent-foreground shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              {option.label}
-            </button>
-            );
-          })}
-          <span className="font-code text-[8px] font-bold uppercase tracking-[0.16em] text-muted-foreground/60">Objects</span>
-          {OBJECT_FILTERS.map((value) => {
-            const option = FILTER_OPTIONS.find((item) => item.value === value)!;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setFilter(option.value)}
-                className={cn(
-                  'px-3 py-1.5 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all whitespace-nowrap',
-                  filter === option.value ? 'bg-accent text-accent-foreground shadow-sm' : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
+            <option value="all">All changes</option>
+            <optgroup label="Event type">
+              {FILTER_OPTIONS.filter((option) => EVENT_FILTERS.includes(option.value)).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </optgroup>
+            <optgroup label="Object type">
+              {FILTER_OPTIONS.filter((option) => OBJECT_FILTERS.includes(option.value)).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </optgroup>
+          </select>
+        </label>
       </FilterToolbar>
 
       <div className="mb-4 flex flex-col gap-3 border-b border-border/60 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Meaningful Change Feed</div>
-          <p className="mt-1 font-headline text-xl font-semibold text-foreground sm:text-2xl">
-            {filteredEvents.length ? `${filteredEvents.length} meaningful ${filteredEvents.length === 1 ? 'change' : 'changes'}` : 'No meaningful changes'}
-          </p>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {filteredEvents.length ? `Showing ${rangeStart}-${rangeEnd} of ${filteredEvents.length}` : 'Showing 0'}
+          <p role="status" className="mt-1 font-headline text-xl font-semibold text-foreground sm:text-2xl">
+            {!dateRangeIsValid ? 'Choose a valid date range' : filteredEvents.length
+              ? `Showing ${rangeEnd} of ${filteredEvents.length} ${periodHasOlderMatches ? 'loaded ' : ''}${filteredEvents.length === 1 ? 'change' : 'changes'}`
+              : periodHasOlderMatches ? 'No matches in loaded history' : 'No matching changes'}
           </p>
         </div>
-        <div className="flex w-fit max-w-full flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-card/60 p-1.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent" aria-hidden="true"><CalendarRange className="size-4" /></div>
-          <label className="flex h-8 items-center gap-1.5 rounded-md border border-border/50 bg-background px-2.5 text-muted-foreground">
-            <span className="font-code text-[8px] font-bold uppercase tracking-widest">From</span>
+        <div className="flex w-fit max-w-full flex-wrap items-center gap-2">
+          <CalendarRange className="hidden size-4 shrink-0 text-muted-foreground sm:block" aria-hidden="true" />
+          <label className="flex min-h-11 max-w-full items-center gap-1.5 rounded-[var(--button-radius)] border border-border bg-surface px-2 text-muted-foreground focus-within:ring-2 focus-within:ring-ring sm:min-h-8">
+            <span className="text-xs font-medium">From</span>
             <input
               aria-label="Evolution period start"
               type="date"
               value={periodStart}
-              onInput={(event) => setPeriodStart(event.currentTarget.value)}
               onChange={(event) => setPeriodStart(event.target.value)}
-              className="h-7 w-[7.6rem] border-0 bg-transparent p-0 text-xs text-foreground outline-none"
+              aria-invalid={!dateRangeIsValid}
+              aria-describedby={!dateRangeIsValid ? periodErrorId : undefined}
+              className="min-h-10 w-[8rem] min-w-0 border-0 bg-transparent p-0 text-base text-foreground outline-none sm:min-h-7 sm:w-[7.6rem] sm:text-sm"
             />
           </label>
-          <label className="flex h-8 items-center gap-1.5 rounded-md border border-border/50 bg-background px-2.5 text-muted-foreground">
-            <span className="font-code text-[8px] font-bold uppercase tracking-widest">To</span>
+          <label className="flex min-h-11 max-w-full items-center gap-1.5 rounded-[var(--button-radius)] border border-border bg-surface px-2 text-muted-foreground focus-within:ring-2 focus-within:ring-ring sm:min-h-8">
+            <span className="text-xs font-medium">To</span>
             <input
               aria-label="Evolution period end"
               type="date"
               value={periodEnd}
-              onInput={(event) => setPeriodEnd(event.currentTarget.value)}
               onChange={(event) => setPeriodEnd(event.target.value)}
-              className="h-7 w-[7.6rem] border-0 bg-transparent p-0 text-xs text-foreground outline-none"
+              aria-invalid={!dateRangeIsValid}
+              aria-describedby={!dateRangeIsValid ? periodErrorId : undefined}
+              className="min-h-10 w-[8rem] min-w-0 border-0 bg-transparent p-0 text-base text-foreground outline-none sm:min-h-7 sm:w-[7.6rem] sm:text-sm"
             />
           </label>
-          {!dateRangeIsValid && <span className="px-1 text-xs text-destructive" role="alert">Check dates</span>}
+          {!dateRangeIsValid && <p id={periodErrorId} className="basis-full text-xs text-destructive" role="alert">The end date must be on or after the start date.</p>}
+          {aiSettings.aiAssistanceEnabled && completePeriod && (
+            <p className="basis-full px-1 text-xs text-muted-foreground" role="status">
+              {selectedPeriodEvents.length === 0
+                ? 'No loaded changes in this date range are available for synthesis.'
+                : `Synthesis uses ${periodSample.length} of ${selectedPeriodEvents.length} loaded changes in this date range. It excludes previous syntheses.`}
+              {(searchTerm || filter !== 'all') && ' Timeline search and change filters do not affect synthesis.'}
+              {periodHasOlderMatches && ' Older history may not be loaded.'}
+            </p>
+          )}
           {aiSettings.aiAssistanceEnabled && completePeriod && (
             <ContextualAiPanel
               enabled={selectedPeriodEvents.length > 0}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
               reasoningDepth={aiSettings.defaultReasoningDepth}
-              retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
               actions={['synthesize_evolution_period']}
+              reviewContextKey={evolutionSynthesisReviewKey(periodSample)}
               buttonLabel="Synthesize Period"
               promptLabel="What should Noesis examine in this period?"
               promptPlaceholder="For example: Did my confidence change faster than my evidence, or did I resolve a recurring tension?"
-              buildEnvelope={() => ({
+              buildEnvelope={(_, userPrompt) => ({
                 action: 'synthesize_evolution_period',
                 scope: 'selected_period',
                 targetType: 'evolution',
                 targetId: `${periodStart}:${periodEnd}`,
                 selectedRange: { from: periodStart, to: periodEnd },
+                userPrompt,
                 itemMemory: [
                   `Selected period: ${periodStart} through ${periodEnd}`,
-                  `${selectedPeriodEvents.length} meaningful recorded changes`,
-                  `Change areas: ${Array.from(new Set(selectedPeriodEvents.map(changeAreaForEvent))).join(', ') || 'none'}`,
-                  `Event types: ${Array.from(new Set(selectedPeriodEvents.flatMap((event) => event.chips.slice(0, 1)))).join(', ') || 'none'}`,
+                  `Provided sample: ${periodSample.length} of ${selectedPeriodEvents.length} loaded matching changes. ${periodHasOlderMatches ? 'Older history may not be loaded; do not treat the sample as exhaustive.' : 'Use only the supplied events as evidence.'}`,
+                  `Change areas in sample: ${Array.from(new Set(periodSample.map(changeAreaForEvent))).join(', ') || 'none'}`,
+                  `Event types in sample: ${Array.from(new Set(periodSample.flatMap((event) => event.chips.slice(0, 1)))).join(', ') || 'none'}`,
                 ],
-                linkedMemory: selectedPeriodEvents.slice(0, 20).map((event) => [
-                  `${event.date}: ${event.title}`,
-                  `object: ${event.targetType}`,
-                  `record: ${event.detail}`,
-                  event.beforeLabel ? `before: ${event.beforeLabel}` : '',
-                  event.afterLabel ? `after: ${event.afterLabel}` : '',
-                  event.trigger ? `reason: ${event.trigger}` : '',
-                  event.significance ? `significance: ${event.significance}` : '',
-                ].filter(Boolean).join('; ')),
+                linkedMemory: periodSample.map((event) => evolutionSynthesisExcerpt({
+                  ...event,
+                  action: event.chips[0],
+                  actor: event.kind === 'thinking' ? event.chips[1] : undefined,
+                })),
               })}
-              onAccept={async (_, content) => {
-                const id = crypto.randomUUID();
+              onAccept={async (result, content) => {
+                if (!result.reviewId) throw new Error('This review could not be identified. Run assistance again.');
+                const id = `period-review-${result.reviewId}`;
                 await onSaveSynthesis({
                   id,
                   entityId: `${periodStart}:${periodEnd}`,
@@ -1012,35 +973,38 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                   entityTitle: `Period synthesis · ${periodStart} to ${periodEnd}`,
                   eventType: 'refined',
                   reason: content,
-                  influencedBy: selectedPeriodEvents.map((event) => event.targetId).filter(Boolean).slice(0, 20),
+                  influencedBy: evolutionSynthesisSourceIds(periodSample),
                   date: new Date().toISOString(),
-                });
+                }, result, periodSample.map(({ id }) => id));
               }}
             />
           )}
         </div>
       </div>
 
+      {dateRangeIsValid && periodHasOlderMatches && olderHistoryControl}
+
       {timelineLayout === 'table' && pagedEvents.length > 0 && (
-        <div className="mb-6 hidden overflow-hidden rounded-lg border border-border/60 bg-card md:block">
-          <Table>
+        <div className="mb-6 min-w-0 rounded-lg border border-border/60 bg-card">
+          <Table className="table-fixed xl:table-auto">
+            <caption className="sr-only">Evolution changes</caption>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[9rem]">Date</TableHead>
+                <TableHead className="w-[5.5rem] sm:w-[9rem]">Date</TableHead>
                 <TableHead>Change</TableHead>
-                <TableHead className="w-[9rem]">Object</TableHead>
-                <TableHead className="w-[10rem]">Before / after</TableHead>
-                <TableHead className="w-[15rem]">Why it matters</TableHead>
+                <TableHead className="hidden w-[9rem] lg:table-cell">Object</TableHead>
+                <TableHead className="hidden w-[10rem] xl:table-cell">Before / after</TableHead>
+                <TableHead className="hidden w-[15rem] xl:table-cell">Why it matters</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pagedEvents.map((event) => {
                 const meaning = displayEventMeaning(event);
-                const eventDate = new Date(event.date);
+                const eventDate = evolutionDisplayDate(event.date);
                 return (
                   <TableRow key={event.id}>
                     <TableCell className="align-top font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
-                      {eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      <time dateTime={event.date}>{eventDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time>
                     </TableCell>
                     <TableCell className="align-top">
                       <div className="flex items-center gap-2 text-accent">
@@ -1048,11 +1012,20 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                         <span className="font-code text-[9px] font-bold uppercase tracking-[0.14em]">
                           {event.chips[0] || event.targetType.replace(/_/g, ' ')}
                         </span>
+                        {event.chips[1] === 'ai-assisted' && <span className="text-xs text-muted-foreground">AI-assisted</span>}
                       </div>
-                      <div className="mt-1 font-headline text-base font-semibold leading-snug text-foreground">{event.title}</div>
+                      <details className="mt-1">
+                        <summary className="cursor-pointer rounded-sm font-headline text-base font-semibold leading-snug text-foreground [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{event.title}</summary>
+                        <p className="mt-2 text-xs capitalize text-muted-foreground lg:hidden">{event.targetType.replace(/_/g, ' ')}{event.kind === 'thinking' && event.chips[1] ? ` / ${event.chips[1]}` : ''}</p>
+                        {meaning.significance && <p className="mt-2 text-sm text-muted-foreground xl:hidden">{meaning.significance}</p>}
+                        <EvolutionEventDetails event={event} influencedSources={sourcesForEvent(event.sourceIds)} className="mt-3" />
+                      </details>
                     </TableCell>
-                    <TableCell className="align-top capitalize text-sm text-muted-foreground">{event.targetType.replace(/_/g, ' ')}</TableCell>
-                    <TableCell className="align-top text-sm leading-5 text-foreground/75">
+                    <TableCell className="hidden align-top text-sm text-muted-foreground lg:table-cell">
+                      <span className="capitalize">{event.targetType.replace(/_/g, ' ')}</span>
+                      {event.kind === 'thinking' && event.chips[1] && <span className="mt-1 block text-xs">{event.chips[1]}</span>}
+                    </TableCell>
+                    <TableCell className="hidden align-top text-sm leading-5 text-foreground/75 xl:table-cell">
                       {event.beforeLabel || event.afterLabel ? (
                         <>
                           <div className="line-clamp-2">{event.beforeLabel || 'Previous state not recorded'}</div>
@@ -1062,7 +1035,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                         <span className="text-muted-foreground">No state comparison</span>
                       )}
                     </TableCell>
-                    <TableCell className="align-top text-sm leading-5 text-foreground/75">
+                    <TableCell className="hidden align-top text-sm leading-5 text-foreground/75 xl:table-cell">
                       <p className="line-clamp-3">{meaning.significance || 'No significance note recorded.'}</p>
                     </TableCell>
                   </TableRow>
@@ -1073,8 +1046,8 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
         </div>
       )}
 
-      <div className={cn('space-y-1', timelineLayout === 'table' && 'md:hidden')}>
-        {groupEventsByMonth(pagedEvents).map((group) => (
+      <div className="space-y-1">
+        {timelineLayout !== 'table' && groupEventsByMonth(pagedEvents).map((group) => (
           <section key={group.key} className="relative ml-2 border-l border-border/70 pl-6 sm:pl-8">
             <div className="relative border-b border-border/60 py-3">
               <span className="absolute -left-[1.9rem] top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-muted-foreground/50 sm:-left-[2.15rem]" aria-hidden="true" />
@@ -1082,11 +1055,9 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
             </div>
             <div>
               {group.events.map((event) => {
-                const influencedSources = media.filter((item) => (event.sourceIds || []).includes(item.id));
                 const meaning = displayEventMeaning(event);
-                const evidence = eventEvidenceQuality(event);
                 const movement = changeMovementForEvent(event);
-                const eventDate = new Date(event.date);
+                const eventDate = evolutionDisplayDate(event.date);
                 return (
                   <details key={event.id} className="group relative border-b border-border/55 open:bg-card/35">
                     <span
@@ -1097,23 +1068,30 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                       aria-hidden="true"
                     />
                     <summary className="relative grid cursor-pointer list-none gap-3 py-4 pr-7 outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:grid-cols-[7rem_minmax(0,1fr)_1.5rem] sm:items-start sm:px-3 sm:pr-3 lg:grid-cols-[7rem_minmax(0,1fr)_minmax(8rem,13rem)_1.5rem] [&::-webkit-details-marker]:hidden">
-                      <time className="font-code text-[9px] uppercase leading-5 tracking-[0.14em] text-muted-foreground">
+                      <time dateTime={event.date} className="font-code text-[9px] uppercase leading-5 tracking-[0.14em] text-muted-foreground">
                         <span className="block font-bold text-foreground/80">
-                          {eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {eventDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                         </span>
-                        <span className="block text-muted-foreground/70">
-                          {eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                        </span>
+                        {!isEvolutionDateOnly(event.date) && <span className="block">
+                          {eventDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                        </span>}
                       </time>
                       <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-2 text-accent">
                           <EventTypeIcon targetType={event.targetType} className="size-[18px] shrink-0 stroke-[2.4]" />
-                          <span className="min-w-max whitespace-nowrap font-code text-[9px] font-bold uppercase tracking-[0.16em]">
+                          <span className="min-w-0 break-words font-code text-[9px] font-bold uppercase tracking-[0.16em] lg:whitespace-nowrap">
                             {event.chips[0] || event.targetType.replace(/_/g, ' ')}
                           </span>
                         </div>
                         <h3 className="mt-1 max-w-3xl font-headline text-lg font-semibold leading-snug text-foreground sm:text-xl">{event.title}</h3>
                         <p className="mt-1 text-xs text-muted-foreground">{event.targetType.replace(/_/g, ' ')} · {event.chips[1] || event.kind}</p>
+                        {event.beforeLabel && event.afterLabel && (
+                          <p className="mt-2 line-clamp-2 break-words text-xs leading-5 text-muted-foreground group-open:hidden">
+                            <span>Before: {event.beforeLabel}</span>
+                            {' '}<span className="mx-1" aria-hidden="true">&rarr;</span>{' '}
+                            <span className="text-foreground">After: {event.afterLabel}</span>
+                          </p>
+                        )}
                       </div>
                       {meaning.significance && (
                         <div className="border-t border-border/40 pt-3 sm:col-start-2 sm:col-end-3 sm:row-start-2 lg:col-auto lg:row-auto lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
@@ -1124,59 +1102,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                       <ChevronDown className="absolute right-1 top-5 size-4 stroke-[2.4] text-muted-foreground transition-transform group-open:rotate-180 sm:static sm:col-start-3 sm:row-start-1 sm:mt-1 lg:col-auto lg:row-auto" aria-hidden="true" />
                     </summary>
 
-                    <div className="grid gap-4 border-t border-border/45 px-0 py-4 sm:ml-[7rem] sm:grid-cols-3 sm:px-3">
-                      <div>
-                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Evidence quality</div>
-                        <p className="mt-1 text-sm leading-5 text-foreground/75"><span className="font-semibold text-foreground">{evidence.label}.</span> {evidence.detail}</p>
-                      </div>
-                      <div>
-                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Turning point</div>
-                        <p className="mt-1 text-sm leading-5 text-foreground/75">{meaning.turningPoint}</p>
-                      </div>
-                      <div>
-                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Trigger</div>
-                        <p className="mt-1 text-sm leading-5 text-foreground/75">{meaning.trigger}</p>
-                      </div>
-
-                      {(event.beforeLabel || event.afterLabel) && (
-                        <div className="grid gap-3 border-t border-border/40 pt-4 sm:col-span-3 sm:grid-cols-2">
-                          <div>
-                            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Before</div>
-                            <p className="mt-1 text-sm leading-5 text-foreground/70">{event.beforeLabel || 'Previous state not recorded.'}</p>
-                          </div>
-                          <div>
-                            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">After</div>
-                            <p className="mt-1 text-sm leading-5 text-foreground/80">{event.afterLabel || 'Current state not recorded.'}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {event.targetType === 'evolution' && event.detail.trim() && (
-                        <div className="border-t border-border/40 pt-4 sm:col-span-3">
-                          <div className="mb-3 flex items-center gap-2">
-                            <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Saved period review</div>
-                            <Badge variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-wider">AI-assisted</Badge>
-                          </div>
-                          <ContextualAiDocument content={event.detail} />
-                        </div>
-                      )}
-
-                      {(event.changedFields?.length || influencedSources.length > 0) && (
-                        <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4 sm:col-span-3">
-                          {event.changedFields?.slice(0, 10).map((field) => (
-                            <Badge key={field} variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-widest">
-                              {field.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}
-                            </Badge>
-                          ))}
-                          {influencedSources.map((source) => (
-                            <Badge key={source.id} variant="secondary" className="flex items-center gap-1.5 rounded-md font-code text-[8px] uppercase tracking-wider">
-                              <BookOpen className="size-3 opacity-60" aria-hidden="true" />
-                              {source.title}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <EvolutionEventDetails event={event} influencedSources={sourcesForEvent(event.sourceIds)} className="sm:ml-[7rem] sm:grid-cols-3 sm:px-3" />
                   </details>
                 );
               })}
@@ -1184,33 +1110,93 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
           </section>
         ))}
 
-        {filteredEvents.length === 0 && (
+        {dateRangeIsValid && filteredEvents.length === 0 && (
           <div>
             <PageEmptyState
               icon={History}
-              title="No evolution recorded"
-              description="Once positions are revised, unknowns are named, and tensions are resolved, the memory-of-change layer will appear here."
+              title={periodHasOlderMatches ? 'No matches in loaded history' : evolutionFiltersActive ? 'No changes match these filters' : 'No evolution recorded'}
+              description={periodHasOlderMatches ? 'Load older history to check for more changes.' : evolutionFiltersActive ? 'Adjust the dates or clear your filters.' : 'Revisions, resolutions, and other meaningful changes will appear here.'}
               action={evolutionFiltersActive ? <Button variant="outline" onClick={clearEvolutionFilters} className="rounded-full">Clear filters</Button> : undefined}
             />
           </div>
         )}
       </div>
-      {(rangeEnd < filteredEvents.length || thinkingEventsHasMore) && (
+      {rangeEnd < filteredEvents.length && (
         <div className="mt-8 flex justify-center">
           <Button
             variant="outline"
-            onClick={() => {
-              if (rangeEnd < filteredEvents.length) setVisibleCount((count) => count + 12);
-              else loadMoreThinkingEvents();
-            }}
+            onClick={() => setVisibleCount((count) => count + 12)}
             className="rounded-full px-5 font-code text-[10px] uppercase tracking-widest"
           >
-            {rangeEnd < filteredEvents.length ? 'Load more history' : 'Load older history'}
+            Show more loaded changes
           </Button>
         </div>
       )}
       </>
       )}
+    </div>
+  );
+}
+
+function EvolutionEventDetails({ event, influencedSources, className }: { event: DisplayEvent; influencedSources: Media[]; className?: string }) {
+  const meaning = displayEventMeaning(event);
+  const evidence = eventEvidenceQuality(event);
+  return (
+    <div className={cn('grid gap-4 break-words border-t border-border/45 py-4', className)}>
+    <div>
+      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Evidence quality</div>
+      <p className="mt-1 text-sm leading-5 text-foreground/75"><span className="font-semibold text-foreground">{evidence.label}.</span> {evidence.detail}</p>
+    </div>
+    <div>
+      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{event.isTurningPoint ? 'Turning point' : 'Change type'}</div>
+      <p className="mt-1 text-sm leading-5 text-foreground/75">{meaning.turningPoint}</p>
+    </div>
+    <div>
+      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Trigger</div>
+      <p className="mt-1 text-sm leading-5 text-foreground/75">{meaning.trigger}</p>
+    </div>
+
+    {(event.beforeLabel || event.afterLabel) && (
+      <div className="grid gap-3 border-t border-border/40 pt-4 sm:col-span-3 sm:grid-cols-2">
+        <div>
+          <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Before</div>
+          <p className="mt-1 text-sm leading-5 text-foreground/70">{event.beforeLabel || 'Previous state not recorded.'}</p>
+        </div>
+        <div>
+          <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">After</div>
+          <p className="mt-1 text-sm leading-5 text-foreground/80">{event.afterLabel || 'Current state not recorded.'}</p>
+        </div>
+      </div>
+    )}
+
+    {event.synthesisProvenance && <AiProvenanceBadge provenance={event.synthesisProvenance}
+      target={{ type: 'evolution', id: event.id, fieldPath: 'synthesis', subrecordId: event.id }}
+      title="Period synthesis" label="Open AI-assisted synthesis" />}
+    {event.kind === 'timeline' && event.targetType === 'evolution' && !event.synthesisProvenance && event.detail.trim() && (
+      <div className="border-t border-border/40 pt-4 sm:col-span-3">
+        <div className="mb-3 flex items-center gap-2">
+          <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Saved period review</div>
+          <Badge variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-wider">AI-assisted</Badge>
+        </div>
+        <ContextualAiDocument content={event.detail} />
+      </div>
+    )}
+
+    {((event.changedFields?.length ?? 0) > 0 || influencedSources.length > 0) && (
+      <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4 sm:col-span-3">
+        {event.changedFields?.slice(0, 10).map((field) => (
+          <Badge key={field} variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-widest">
+            {field.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}
+          </Badge>
+        ))}
+        {influencedSources.map((source) => (
+          <Badge key={source.id} variant="secondary" className="flex items-center gap-1.5 rounded-md font-code text-[8px] uppercase tracking-wider">
+            <NOESIS_ICONS.source className="size-3 opacity-60" aria-hidden="true" />
+            {source.title}
+          </Badge>
+        ))}
+      </div>
+    )}
     </div>
   );
 }

@@ -23,16 +23,18 @@ export interface NoesisRouteState {
   focusedPositionId?: string | null;
   focusedWorkId?: string | null;
   focusedPracticeId?: string | null;
+  focusedGoalId?: string | null;
   focusedAnnotationSourceId?: string | null;
   focusedAnnotationId?: string | null;
 }
 
-export type NoesisRouteTargetType = 'concept' | 'inquiry' | 'source' | 'position' | 'work' | 'practice';
+export type NoesisRouteTargetType = 'concept' | 'inquiry' | 'source' | 'annotation' | 'position' | 'work' | 'practice';
 
 export interface NoesisRouteTarget {
   type: NoesisRouteTargetType;
   id: string;
   view: NoesisView;
+  annotationSourceId?: string;
 }
 
 export const NOESIS_ROUTE_TARGET_LABELS: Record<NoesisRouteTargetType, {
@@ -43,9 +45,10 @@ export const NOESIS_ROUTE_TARGET_LABELS: Record<NoesisRouteTargetType, {
   concept: { singular: 'concept', plural: 'concepts', owner: 'Concepts' },
   inquiry: { singular: 'inquiry', plural: 'inquiries', owner: 'Inquiries' },
   source: { singular: 'source', plural: 'sources', owner: 'Library' },
+  annotation: { singular: 'annotation', plural: 'annotations', owner: 'Annotations' },
   position: { singular: 'position', plural: 'positions', owner: 'Positions' },
   work: { singular: 'work', plural: 'works', owner: 'Works' },
-  practice: { singular: 'practice', plural: 'practices', owner: 'Labs' },
+  practice: { singular: 'practice', plural: 'practices', owner: 'Praxis' },
 };
 
 function normalizePathname(pathname: string) {
@@ -54,13 +57,18 @@ function normalizePathname(pathname: string) {
   return clean || '/';
 }
 
+function decodeRouteId(value: string | undefined) {
+  if (!value) return null;
+  try { return decodeURIComponent(value); } catch { return value; }
+}
+
 export function parseNoesisRoute(pathname: string): NoesisRouteState {
   const clean = normalizePathname(pathname);
   const parts = clean.split('/').filter(Boolean);
   const isReviewRoute = parts.length > 0 && (parts[0] === 'demo' || parts[0] === 'review');
   const maybeSection = isReviewRoute ? parts[1] : parts[0];
-  const maybeId = isReviewRoute ? parts[2] : parts[1];
-  const maybeChildId = isReviewRoute ? parts[3] : parts[2];
+  const maybeId = decodeRouteId(isReviewRoute ? parts[2] : parts[1]);
+  const maybeChildId = decodeRouteId(isReviewRoute ? parts[3] : parts[2]);
 
   switch (maybeSection) {
     case undefined:
@@ -98,7 +106,7 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
     case 'profile':
       return { view: 'profile' };
     case 'goals':
-      return { view: 'goals' };
+      return maybeId ? { view: 'goals', focusedGoalId: maybeId } : { view: 'goals' };
     case 'settings':
       return { view: 'settings' };
     default:
@@ -114,6 +122,7 @@ export function viewToPath(view: NoesisView, options?: {
   positionId?: string | null;
   workId?: string | null;
   practiceId?: string | null;
+  goalId?: string | null;
   annotationSourceId?: string | null;
   annotationId?: string | null;
 }) {
@@ -124,11 +133,11 @@ export function viewToPath(view: NoesisView, options?: {
     case 'atlas':
       return `${prefix}/atlas`;
     case 'concepts':
-      return options?.conceptId ? `${prefix}/concepts/${options.conceptId}` : `${prefix}/concepts`;
+      return options?.conceptId ? `${prefix}/concepts/${encodeURIComponent(options.conceptId)}` : `${prefix}/concepts`;
     case 'questions':
-      return options?.questionId ? `${prefix}/inquiries/${options.questionId}` : `${prefix}/inquiries`;
+      return options?.questionId ? `${prefix}/inquiries/${encodeURIComponent(options.questionId)}` : `${prefix}/inquiries`;
     case 'library':
-      return options?.sourceId ? `${prefix}/library/${options.sourceId}` : `${prefix}/library`;
+      return options?.sourceId ? `${prefix}/library/${encodeURIComponent(options.sourceId)}` : `${prefix}/library`;
     case 'source-index':
       return `${prefix}/sources`;
     case 'annotations':
@@ -136,19 +145,19 @@ export function viewToPath(view: NoesisView, options?: {
         ? `${prefix}/annotations/${encodeURIComponent(options.annotationSourceId)}/${encodeURIComponent(options.annotationId)}`
         : `${prefix}/annotations`;
     case 'vault':
-      return options?.positionId ? `${prefix}/positions/${options.positionId}` : `${prefix}/positions`;
+      return options?.positionId ? `${prefix}/positions/${encodeURIComponent(options.positionId)}` : `${prefix}/positions`;
     case 'writing':
-      return options?.workId ? `${prefix}/works/${options.workId}` : `${prefix}/works`;
+      return options?.workId ? `${prefix}/works/${encodeURIComponent(options.workId)}` : `${prefix}/works`;
     case 'context-desk':
       return `${prefix}/context-desk`;
     case 'labs':
-      return options?.practiceId ? `${prefix}/labs/${options.practiceId}` : `${prefix}/labs`;
+      return options?.practiceId ? `${prefix}/labs/${encodeURIComponent(options.practiceId)}` : `${prefix}/labs`;
     case 'evolution':
       return `${prefix}/evolution`;
     case 'profile':
       return `${prefix}/profile`;
     case 'goals':
-      return `${prefix}/goals`;
+      return options?.goalId ? `${prefix}/goals/${encodeURIComponent(options.goalId)}` : `${prefix}/goals`;
     case 'settings':
       return `${prefix}/settings`;
     default:
@@ -165,6 +174,9 @@ export function getNoesisRouteTarget(routeState: NoesisRouteState): NoesisRouteT
   }
   if (routeState.focusedSourceId) {
     return { type: 'source', id: routeState.focusedSourceId, view: 'library' };
+  }
+  if (routeState.focusedAnnotationSourceId && routeState.focusedAnnotationId) {
+    return { type: 'annotation', id: routeState.focusedAnnotationId, view: 'annotations', annotationSourceId: routeState.focusedAnnotationSourceId };
   }
   if (routeState.focusedPositionId) {
     return { type: 'position', id: routeState.focusedPositionId, view: 'vault' };
@@ -186,12 +198,16 @@ export function focusedIdForNoesisView(routeState: NoesisRouteState, view: Noesi
       return routeState.focusedQuestionId || null;
     case 'library':
       return routeState.focusedSourceId || null;
+    case 'annotations':
+      return routeState.focusedAnnotationSourceId ? routeState.focusedAnnotationId || null : null;
     case 'vault':
       return routeState.focusedPositionId || null;
     case 'writing':
       return routeState.focusedWorkId || null;
     case 'labs':
       return routeState.focusedPracticeId || null;
+    case 'goals':
+      return routeState.focusedGoalId || null;
     default:
       return null;
   }
@@ -205,6 +221,8 @@ export function viewOptionsForNoesisRouteTarget(target: NoesisRouteTarget) {
     positionId: target.type === 'position' ? target.id : null,
     workId: target.type === 'work' ? target.id : null,
     practiceId: target.type === 'practice' ? target.id : null,
+    annotationId: target.type === 'annotation' ? target.id : null,
+    annotationSourceId: target.type === 'annotation' ? target.annotationSourceId : null,
   };
 }
 

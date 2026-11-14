@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
+import { contextDeskRecordIsExcluded, contextDeskReviewKey, contextDeskSourceIds, contextDeskStorageKeys, MAX_CONTEXT_ITEMS, normalizeContextDeskSelection } from '@/lib/context-desk-selection';
 import { Check, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
-import { appendAiHistoryEntry, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
+import { buildContextDeskMemory, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
+import { contextDeskWorkDraft, type ContextDeskWorkOrigin } from '@/lib/context-desk-work';
 import { EntityPicker } from '@/components/search/EntityPicker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -52,13 +55,9 @@ interface ContextDeskRoutePageProps {
   positions: VaultEntry[];
   works: Draft[];
   practices: Practice[];
-  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
-  onNavigate: (view: string, targetId?: string | null) => void;
+  onAddDraft: (data: Partial<Draft>, origin?: ContextDeskWorkOrigin) => Promise<Draft>;
+  onNavigate: (view: string, targetId?: string | null, sourceId?: string) => void;
 }
-
-const SESSION_KEY = 'noesis:context-desk:selected';
-const EXCLUSION_SESSION_KEY = 'noesis:context-desk:excluded';
-const MAX_CONTEXT_ITEMS = 12;
 
 const viewForType: Record<ContextRecordType, string> = {
   source: 'library',
@@ -108,7 +107,12 @@ export function ContextDeskRoutePage({
   onAddDraft,
   onNavigate,
 }: ContextDeskRoutePageProps) {
+  const workspaceKey = useContext(NoesisWorkspaceKeyContext);
+  const storageKeys = useMemo(() => workspaceKey ? contextDeskStorageKeys(workspaceKey) : null, [workspaceKey]);
   const conceptNameById = useMemo(() => new Map(concepts.map((concept) => [concept.id, concept.name])), [concepts]);
+  const knownSourceIds = useMemo(() => new Set(media.map((source) => source.id)), [media]);
+  const sourceByAnnotation = useMemo(() => new Map(media.flatMap((source) =>
+    (source.annotations || []).map((note) => [note.id, source.id] as const))), [media]);
   const records = useMemo<ContextRecord[]>(() => [
     ...media.map((item) => ({
       key: `source:${item.id}`,
@@ -180,7 +184,11 @@ export function ContextDeskRoutePage({
         `Current view: ${item.currentIntuition || item.answer || 'Not recorded.'}`,
         `Remaining uncertainty: ${item.uncertainty || 'Not recorded.'}`,
       ],
-      sourceIds: item.sourceIds || [],
+      sourceIds: contextDeskSourceIds(
+        [...(item.sourceIds || []), ...(item.evidenceIds || []).filter((id) => knownSourceIds.has(id))],
+        [item.sourceAnnotationId, ...(item.evidenceIds || [])],
+        sourceByAnnotation,
+      ),
       conceptIds: item.conceptIds || [],
       conceptTags: (item.conceptIds || []).map((id) => conceptNameById.get(id)).filter((name): name is string => Boolean(name)),
       createdAt: item.dateCreated,
@@ -200,7 +208,7 @@ export function ContextDeskRoutePage({
         `Supporting evidence: ${(item.evidenceFor || []).join('; ') || 'None recorded.'}`,
         `Challenging evidence: ${(item.evidenceAgainst || []).join('; ') || 'None recorded.'}`,
       ],
-      sourceIds: item.sourceIds || [],
+      sourceIds: contextDeskSourceIds(item.sourceIds, [item.sourceAnnotationId], sourceByAnnotation),
       conceptIds: [],
       conceptTags: item.tags || [],
       createdAt: item.dateCreated,
@@ -244,7 +252,7 @@ export function ContextDeskRoutePage({
       createdAt: item.dateCreated,
       updatedAt: item.dateUpdated || item.dateCreated,
     })),
-  ], [conceptNameById, concepts, media, positions, practices, questions, works]);
+  ], [conceptNameById, concepts, knownSourceIds, media, positions, practices, questions, sourceByAnnotation, works]);
 
   const [query, setQuery] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -257,20 +265,21 @@ export function ContextDeskRoutePage({
   const [excludedTypes, setExcludedTypes] = useState<ContextRecordType[]>([]);
   const [excludedSourceIds, setExcludedSourceIds] = useState<string[]>([]);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const reviewButton = useRef<HTMLButtonElement>(null);
+  const [visibleLimit, setVisibleLimit] = useState(100);
+  const [storageReady, setStorageReady] = useState(false);
+  useEffect(() => { setVisibleLimit(100); }, [query, typeFilter, sourceFilter, conceptFilter, dateFilter, sortBy]);
 
   useEffect(() => {
     try {
-      const stored = window.sessionStorage.getItem(SESSION_KEY);
+      const stored = storageKeys ? window.sessionStorage.getItem(storageKeys.selection) : null;
       const parsed = stored ? JSON.parse(stored) : [];
-      if (Array.isArray(parsed)) setSelectedKeys(parsed.filter((value): value is string => typeof value === 'string'));
+      setSelectedKeys(normalizeContextDeskSelection(parsed));
     } catch {
       setSelectedKeys([]);
     }
-  }, []);
-
-  useEffect(() => {
     try {
-      const stored = window.sessionStorage.getItem(EXCLUSION_SESSION_KEY);
+      const stored = storageKeys ? window.sessionStorage.getItem(storageKeys.exclusions) : null;
       const parsed = stored ? JSON.parse(stored) : {};
       if (Array.isArray(parsed.keys)) setExcludedKeys(parsed.keys.filter((value: unknown): value is string => typeof value === 'string'));
       if (Array.isArray(parsed.types)) setExcludedTypes(parsed.types.filter((value: unknown): value is ContextRecordType => typeof value === 'string' && value in contextTypeLabels));
@@ -280,30 +289,35 @@ export function ContextDeskRoutePage({
       setExcludedTypes([]);
       setExcludedSourceIds([]);
     }
-  }, []);
+    setStorageReady(true);
+  }, [storageKeys]);
 
   useEffect(() => {
-    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(selectedKeys));
-  }, [selectedKeys]);
+    if (!storageReady || !storageKeys) return;
+    try { window.sessionStorage.setItem(storageKeys.selection, JSON.stringify(selectedKeys)); } catch { /* Selection remains usable in memory. */ }
+  }, [selectedKeys, storageKeys, storageReady]);
 
   useEffect(() => {
-    window.sessionStorage.setItem(EXCLUSION_SESSION_KEY, JSON.stringify({ keys: excludedKeys, types: excludedTypes, sourceIds: excludedSourceIds }));
-  }, [excludedKeys, excludedSourceIds, excludedTypes]);
+    if (!storageReady || !storageKeys) return;
+    try { window.sessionStorage.setItem(storageKeys.exclusions, JSON.stringify({ keys: excludedKeys, types: excludedTypes, sourceIds: excludedSourceIds })); } catch { /* Exclusions remain usable in memory. */ }
+  }, [excludedKeys, excludedSourceIds, excludedTypes, storageKeys, storageReady]);
 
+  const recordsByKey = useMemo(() => new Map(records.map((record) => [record.key, record])), [records]);
+  const exclusionRules = useMemo(() => ({
+    keys: new Set(excludedKeys), types: new Set(excludedTypes), sourceIds: new Set(excludedSourceIds),
+  }), [excludedKeys, excludedSourceIds, excludedTypes]);
   const selected = useMemo(() => selectedKeys
-    .map((key) => records.find((record) => record.key === key))
+    .map((key) => recordsByKey.get(key))
     .filter((record): record is ContextRecord => Boolean(record))
-    .filter((record) => !excludedKeys.includes(record.key) && !excludedTypes.includes(record.type) && !record.sourceIds.some((id) => excludedSourceIds.includes(id))),
-  [excludedKeys, excludedSourceIds, excludedTypes, records, selectedKeys]);
-  const staleSelectionCount = selectedKeys.filter((key) => !records.some((record) => record.key === key)).length;
+    .filter((record) => !contextDeskRecordIsExcluded(record, exclusionRules)),
+  [exclusionRules, recordsByKey, selectedKeys]);
+  const staleSelectionCount = selectedKeys.filter((key) => !recordsByKey.has(key)).length;
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const dateWindow = dateFilter === 'all' ? 0 : ({ '7d': 7, '30d': 30, '90d': 90, year: 365 } as const)[dateFilter];
     const cutoff = dateWindow ? Date.now() - dateWindow * 24 * 60 * 60 * 1000 : 0;
     return records
-      .filter((record) => !excludedKeys.includes(record.key))
-      .filter((record) => !excludedTypes.includes(record.type))
-      .filter((record) => !record.sourceIds.some((id) => excludedSourceIds.includes(id)))
+      .filter((record) => !contextDeskRecordIsExcluded(record, exclusionRules))
       .filter((record) => typeFilter === 'all' || record.type === typeFilter)
       .filter((record) => sourceFilter === 'all' || record.sourceIds.includes(sourceFilter))
       .filter((record) => conceptFilter === 'all' || record.conceptIds.includes(conceptFilter) || record.conceptTags.some((tag) => tag.toLowerCase() === conceptNameById.get(conceptFilter)?.toLowerCase()))
@@ -313,21 +327,26 @@ export function ContextDeskRoutePage({
         if (sortBy === 'title') return left.label.localeCompare(right.label);
         if (sortBy === 'created') return dateValue(right.createdAt) - dateValue(left.createdAt);
         return dateValue(right.updatedAt) - dateValue(left.updatedAt);
-      })
-      .slice(0, 100);
-  }, [conceptFilter, conceptNameById, dateFilter, excludedKeys, excludedSourceIds, excludedTypes, query, records, sortBy, sourceFilter, typeFilter]);
+      });
+  }, [conceptFilter, conceptNameById, dateFilter, exclusionRules, query, records, sortBy, sourceFilter, typeFilter]);
+  const visibleRecords = filtered.slice(0, visibleLimit);
 
   const activeFilterCount = [typeFilter !== 'all', sourceFilter !== 'all', conceptFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
   const exclusionCount = excludedKeys.length + excludedTypes.length + excludedSourceIds.length;
-  const selectedCounts = useMemo(() => (Object.keys(contextTypeLabels) as ContextRecordType[]).map((type) => ({
+  const selectedGroups = useMemo(() => (Object.keys(contextTypeLabels) as ContextRecordType[]).map((type) => ({
     type,
-    count: selected.filter((record) => record.type === type).length,
-  })).filter((entry) => entry.count > 0), [selected]);
-  const excludedRecordCount = useMemo(() => records.filter((record) => (
-    excludedKeys.includes(record.key)
-    || excludedTypes.includes(record.type)
-    || record.sourceIds.some((id) => excludedSourceIds.includes(id))
-  )).length, [excludedKeys, excludedSourceIds, excludedTypes, records]);
+    records: selected.filter((record) => record.type === type),
+  })).filter((entry) => entry.records.length > 0), [selected]);
+  const excludedRecords = useMemo(() => {
+    const counts = new Map<ContextRecordType, number>();
+    let total = 0;
+    for (const record of records) {
+      if (!contextDeskRecordIsExcluded(record, exclusionRules)) continue;
+      total += 1;
+      counts.set(record.type, (counts.get(record.type) ?? 0) + 1);
+    }
+    return { counts, total };
+  }, [exclusionRules, records]);
   const sourceExclusionItems = useMemo(() => media.map((source) => ({
     id: source.id,
     label: source.title,
@@ -338,9 +357,16 @@ export function ContextDeskRoutePage({
   const toggleRecord = (record: ContextRecord) => {
     setSelectedKeys((current) => {
       if (current.includes(record.key)) return current.filter((key) => key !== record.key);
-      if (current.length >= MAX_CONTEXT_ITEMS) return current;
-      return [...current, record.key];
+      if (contextDeskRecordIsExcluded(record, exclusionRules)) return current;
+      const available = current.filter(isEligibleKey);
+      if (available.length >= MAX_CONTEXT_ITEMS) return current;
+      return [...available, record.key];
     });
+  };
+
+  const isEligibleKey = (key: string) => {
+    const record = recordsByKey.get(key);
+    return record !== undefined && !contextDeskRecordIsExcluded(record, exclusionRules);
   };
 
   const excludeRecord = (record: ContextRecord) => {
@@ -351,13 +377,13 @@ export function ContextDeskRoutePage({
   const toggleExcludedType = (type: ContextRecordType) => {
     const willExclude = !excludedTypes.includes(type);
     setExcludedTypes((current) => willExclude ? [...current, type] : current.filter((value) => value !== type));
-    if (willExclude) setSelectedKeys((current) => current.filter((key) => records.find((record) => record.key === key)?.type !== type));
+    if (willExclude) setSelectedKeys((current) => current.filter((key) => recordsByKey.get(key)?.type !== type));
   };
 
   const toggleExcludedSource = (sourceId: string) => {
     const willExclude = !excludedSourceIds.includes(sourceId);
     setExcludedSourceIds((current) => willExclude ? [...current, sourceId] : current.filter((value) => value !== sourceId));
-    if (willExclude) setSelectedKeys((current) => current.filter((key) => !records.find((record) => record.key === key)?.sourceIds.includes(sourceId)));
+    if (willExclude) setSelectedKeys((current) => current.filter((key) => !recordsByKey.get(key)?.sourceIds.includes(sourceId)));
   };
 
   const clearFilters = () => {
@@ -370,14 +396,8 @@ export function ContextDeskRoutePage({
 
   const addVisibleRecords = () => {
     setSelectedKeys((current) => {
-      const next = current.filter((key) => {
-        const record = records.find((candidate) => candidate.key === key);
-        return Boolean(record)
-          && !excludedKeys.includes(key)
-          && !excludedTypes.includes(record!.type)
-          && !record!.sourceIds.some((id) => excludedSourceIds.includes(id));
-      });
-      for (const record of filtered) {
+      const next = current.filter(isEligibleKey);
+      for (const record of visibleRecords) {
         if (next.length >= MAX_CONTEXT_ITEMS) break;
         if (!next.includes(record.key)) next.push(record.key);
       }
@@ -387,24 +407,20 @@ export function ContextDeskRoutePage({
 
   const buildEnvelope = (_action: ContextualAiAction, userPrompt?: string): AiContextEnvelope | null => {
     if (!selected.length) return null;
-    const [primary, ...linked] = selected;
     return {
       action: 'review_selected_context',
       targetType: 'context_desk',
       targetId: `selection:${selected.map((record) => record.key).sort().join('|')}`.slice(0, 256),
       scope: 'linked_items',
-      itemMemory: [`Primary selected record (${primary.type})`, ...primary.memory],
-      linkedMemory: linked.flatMap((record) => [`Selected ${record.type}: ${record.label}`, ...record.memory]),
+      ...buildContextDeskMemory(selected),
       userPrompt,
     };
   };
 
-  const selectedConceptNames = selected.filter((record) => record.type === 'concept').map((record) => record.label);
-  const selectedIds = (type: ContextRecordType) => selected.filter((record) => record.type === type).map((record) => record.id);
   const activeSource = media.find((source) => source.id === sourceFilter);
   const activeConcept = concepts.find((concept) => concept.id === conceptFilter);
   return (
-    <main className="noesis-context-desk min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <div className="noesis-context-desk min-h-0 flex-1 overflow-y-auto overscroll-contain" data-noesis-scroll-region>
       <div className="noesis-gutter w-full pb-28 pt-[var(--page-top)] lg:pb-12">
       <PageHeader
         title="Context Desk"
@@ -470,14 +486,13 @@ export function ContextDeskRoutePage({
                   <span className="flex min-w-0 items-center gap-2"><SlidersHorizontal className="size-4 shrink-0" aria-hidden="true" /><span className="truncate">Exclusions{exclusionCount ? ` (${exclusionCount})` : ''}</span></span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72 max-h-[min(70vh,32rem)] overflow-y-auto">
+              <DropdownMenuContent align="end" scrollable className="w-72 [--noesis-menu-max-height:min(70dvh,32rem)]">
                 <DropdownMenuLabel>Exclude item types</DropdownMenuLabel>
                 {(Object.entries(contextTypeLabels) as Array<[ContextRecordType, string]>).map(([type, label]) => (
-                  <DropdownMenuCheckboxItem key={type} checked={excludedTypes.includes(type)} onCheckedChange={() => toggleExcludedType(type)}>{label}</DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem key={type} checked={excludedTypes.includes(type)} onSelect={(event) => event.preventDefault()} onCheckedChange={() => toggleExcludedType(type)}>{label}</DropdownMenuCheckboxItem>
                 ))}
                 <DropdownMenuSeparator />
                 {excludedKeys.length > 0 && <>
-                  <DropdownMenuSeparator />
                   <DropdownMenuLabel>Individually excluded</DropdownMenuLabel>
                   {excludedKeys.map((key) => {
                     const record = records.find((candidate) => candidate.key === key);
@@ -515,7 +530,7 @@ export function ContextDeskRoutePage({
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[var(--card-radius)] border border-border/60 bg-card/35 px-3 py-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Filter className="size-4 shrink-0" aria-hidden="true" />
-              <span>Showing {filtered.length} matching record{filtered.length === 1 ? '' : 's'}</span>
+              <span>Showing {visibleRecords.length} of {filtered.length} matching record{filtered.length === 1 ? '' : 's'}</span>
               {activeSource && <Badge variant="outline" className="max-w-56 truncate">Source: {activeSource.title}</Badge>}
               {activeConcept && <Badge variant="outline">Concept: {activeConcept.name}</Badge>}
               {exclusionCount > 0 && <Badge variant="outline">{exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</Badge>}
@@ -527,7 +542,7 @@ export function ContextDeskRoutePage({
           </div>
           <ScrollArea className="mt-3 h-[min(52vh,34rem)] overflow-hidden rounded-[var(--card-radius)] border border-border bg-card/25">
             <div className="divide-y divide-border">
-              {filtered.map((record) => {
+              {visibleRecords.map((record) => {
                 const active = selectedKeys.includes(record.key);
                 const Icon = iconForNoesisView(viewForType[record.type]);
                 return (
@@ -556,6 +571,7 @@ export function ContextDeskRoutePage({
                 );
               })}
               {!filtered.length && <p className="px-3 py-10 text-center text-sm text-muted-foreground">No records match that search.</p>}
+              {visibleRecords.length < filtered.length && <div className="p-3"><Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => setVisibleLimit((limit) => limit + 100)}>Show more records</Button></div>}
             </div>
           </ScrollArea>
         </section>
@@ -575,7 +591,7 @@ export function ContextDeskRoutePage({
               return (
                 <div key={record.key} className="grid grid-cols-[1.75rem_minmax(0,1fr)_2.5rem] items-start gap-2 py-3">
                   <Icon className="mt-1 size-4 text-muted-foreground" aria-hidden="true" />
-                  <button type="button" className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(viewForType[record.type], record.id)}>
+                  <button type="button" className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(viewForType[record.type], record.id, record.type === 'annotation' ? record.sourceIds[0] : undefined)}>
                     <span className="block text-sm font-medium leading-5 text-foreground">{record.label}</span>
                     <span className="mt-0.5 block text-[10px] uppercase text-muted-foreground">{record.type}</span>
                     <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">Included: {record.summary}</span>
@@ -602,9 +618,9 @@ export function ContextDeskRoutePage({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold">{selected.length} selected · {exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Only the reviewed selection is sent.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Only selected records are used for analysis.</p>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={() => setReviewOpen(true)}>Review Context</Button>
+              <Button ref={reviewButton} type="button" variant="outline" size="sm" onClick={() => setReviewOpen(true)}>Review Context</Button>
             </div>
             <div>
               <h3 className="text-sm font-semibold">Review destination</h3>
@@ -615,26 +631,13 @@ export function ContextDeskRoutePage({
               enabled={aiSettings.aiAssistanceEnabled && selected.length > 0}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
               reasoningDepth={aiSettings.defaultReasoningDepth}
-              retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
+              reviewContextKey={contextDeskReviewKey(selected)}
               buttonLabel={selected.length ? 'Analyze selected context' : 'Select context first'}
               promptLabel="What should Noesis examine across these records?"
               promptPlaceholder="For example: Where do these records contradict each other, and what should I investigate next?"
               buildEnvelope={buildEnvelope}
               onAccept={async (result, content) => {
-                const created = await onAddDraft({
-                  title: `Context review - ${new Date().toLocaleDateString()}`,
-                  body: content,
-                  draftContent: content,
-                  type: 'reflection',
-                  status: 'drafting',
-                  workCategory: 'writing',
-                  workPurpose: 'synthesize',
-                  conceptTags: selectedConceptNames,
-                  sourceIds: selectedIds('source'),
-                  questionIds: selectedIds('inquiry'),
-                  beliefIds: selectedIds('position'),
-                  aiReviewHistory: appendAiHistoryEntry([], result, content),
-                });
+                const created = await onAddDraft(contextDeskWorkDraft(result, content, selected), { result, records: selected });
                 onNavigate('writing', created.id);
               }}
             />
@@ -645,25 +648,44 @@ export function ContextDeskRoutePage({
       </div>
 
       <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
-        <DialogContent className="max-h-[min(84vh,46rem)] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[min(84dvh,46rem)] max-w-2xl overflow-y-auto" onCloseAutoFocus={(event) => {
+          if (!reviewButton.current?.isConnected) return;
+          event.preventDefault();
+          reviewButton.current.focus({ preventScroll: true });
+        }}>
           <DialogHeader>
             <DialogTitle>Review Context</DialogTitle>
-            <DialogDescription>Confirm the exact records Noesis may consider before starting the analysis.</DialogDescription>
+            <DialogDescription>Review the included records and exclusions. Opening or closing this preview sends nothing.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-5 sm:grid-cols-2">
             <section aria-labelledby="included-context-summary">
               <h3 id="included-context-summary" className="text-sm font-semibold">Included · {selected.length}</h3>
               <div className="mt-2 divide-y divide-border overflow-hidden rounded-[var(--card-radius)] border border-border px-3">
-                {selectedCounts.map(({ type, count }) => (
-                  <div key={type} className="flex items-center justify-between gap-3 py-2 text-sm">
-                    <span>{contextTypeLabels[type]}</span><span className="font-code text-xs text-muted-foreground">{count}</span>
+                {selectedGroups.map(({ type, records: group }) => (
+                  <div key={type} className="py-2 text-sm">
+                    <div className="flex items-center justify-between gap-3 font-medium">
+                      <span>{contextTypeLabels[type]}</span><span className="font-code text-xs text-muted-foreground">{group.length}</span>
+                    </div>
+                    <ul className="mt-1 space-y-1 text-muted-foreground">
+                      {group.map((record) => <li key={record.key} className="break-words">{record.label}</li>)}
+                    </ul>
                   </div>
                 ))}
                 {!selected.length && <p className="py-4 text-sm text-muted-foreground">No records selected yet.</p>}
               </div>
             </section>
             <section aria-labelledby="excluded-context-summary">
-              <h3 id="excluded-context-summary" className="text-sm font-semibold">Excluded · {excludedRecordCount} affected records</h3>
+              <h3 id="excluded-context-summary" className="text-sm font-semibold">Excluded · {excludedRecords.total} affected records</h3>
+              {excludedRecords.total > 0 && (
+                <dl className="mt-2 divide-y divide-border text-sm">
+                  {[...excludedRecords.counts].map(([type, count]) => (
+                    <div key={type} className="flex justify-between gap-3 py-2">
+                      <dt>{contextTypeLabels[type]}</dt>
+                      <dd className="font-code text-xs text-muted-foreground">{count}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
               <div className="mt-2 space-y-2 text-sm text-muted-foreground">
                 <p>{excludedTypes.length} excluded item type{excludedTypes.length === 1 ? '' : 's'}</p>
                 <p>{excludedSourceIds.length} excluded source{excludedSourceIds.length === 1 ? '' : 's'}</p>
@@ -671,12 +693,11 @@ export function ContextDeskRoutePage({
               </div>
             </section>
           </div>
-          <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setReviewOpen(false)}>Continue selecting</Button>
-            <Button type="button" onClick={() => setReviewOpen(false)} disabled={!selected.length}>Context confirmed</Button>
+          <div className="flex justify-end border-t border-border pt-4">
+            <Button type="button" variant="outline" onClick={() => setReviewOpen(false)}>Back to selection</Button>
           </div>
         </DialogContent>
       </Dialog>
-    </main>
+    </div>
   );
 }

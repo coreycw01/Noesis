@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Check, ChevronRight, Puzzle, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 import type { Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 import { buildThoughtGames, thoughtGameDayKey } from '@/lib/thought-games';
+import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
+import { readBrowserPreference, workspacePreferenceKey, writeBrowserPreference } from '@/lib/browser-preferences';
 
 interface ThoughtGamesPanelProps {
   concepts: Concept[];
@@ -16,11 +18,12 @@ interface ThoughtGamesPanelProps {
   media: Media[];
   links: PhilosophicalLink[];
   onNavigate: (target: { view: NoesisView; targetId?: string | null }) => void;
-  variant?: 'full' | 'compact';
 }
 
-export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links, onNavigate, variant = 'full' }: ThoughtGamesPanelProps) {
+export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links, onNavigate }: ThoughtGamesPanelProps) {
   const dayKey = thoughtGameDayKey();
+  const workspaceKey = useContext(NoesisWorkspaceKeyContext);
+  const completionKey = workspacePreferenceKey(workspaceKey, `thought-games:${dayKey}`);
   const games = useMemo(
     () => buildThoughtGames({ concepts, inquiries, positions, media, links, dayKey }),
     [concepts, dayKey, inquiries, links, media, positions]
@@ -34,12 +37,13 @@ export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(`noesis:thought-games:${dayKey}`);
-      setCompletedIds(stored ? JSON.parse(stored) : []);
+      const stored = completionKey ? readBrowserPreference(completionKey) : null;
+      const values: unknown = stored ? JSON.parse(stored) : [];
+      setCompletedIds(Array.isArray(values) ? values.filter((value): value is string => typeof value === 'string') : []);
     } catch {
       setCompletedIds([]);
     }
-  }, [dayKey]);
+  }, [completionKey]);
 
   const resetResponse = () => {
     setSelectedOption('');
@@ -51,11 +55,7 @@ export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links
     if (!game) return;
     const next = Array.from(new Set([...completedIds, game.id]));
     setCompletedIds(next);
-    try {
-      window.localStorage.setItem(`noesis:thought-games:${dayKey}`, JSON.stringify(next));
-    } catch {
-      // Completion is a convenience marker; the exercise remains usable without local storage.
-    }
+    if (completionKey) writeBrowserPreference(completionKey, JSON.stringify(next));
   };
 
   const advanceGame = (markComplete: boolean) => {
@@ -65,25 +65,6 @@ export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links
   };
 
   if (!game) return null;
-
-  if (variant === 'compact') {
-    return (
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between" aria-label="Today’s exercise">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
-            <Puzzle className="size-4 stroke-[2.4]" aria-hidden="true" />
-            Today&apos;s exercise
-          </div>
-          <h2 className="mt-2 font-headline text-lg font-semibold italic leading-tight text-foreground">{game.title}</h2>
-          <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{game.instruction}</p>
-        </div>
-        <Button type="button" size="sm" onClick={() => onNavigate({ view: 'labs' })} className="shrink-0 rounded-md">
-          Open exercises
-          <ArrowRight className="ml-1 size-4" aria-hidden="true" />
-        </Button>
-      </section>
-    );
-  }
 
   const canReveal = Boolean(selectedOption || response.trim());
   const completed = completedIds.includes(game.id);

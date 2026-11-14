@@ -45,19 +45,9 @@ import type {
   SourceIntakeSettings,
 } from './types';
 
-export const REVIEW_ACCOUNT_EMAIL = 'noesisdev4@gmail.com';
-export const REVIEW_WORKSPACE_UID = 'DxhP1l3gE7SZFRgUKdLcI2AD9Nr2';
+import { REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS, REVIEW_WORKSPACE_UID } from './review-workspace-config';
+export { REVIEW_ACCOUNT_EMAIL, REVIEW_FEATURE_FLAGS, REVIEW_WORKSPACE_UID } from './review-workspace-config';
 export const DEMO_SEED_VERSION = 2;
-
-export const REVIEW_FEATURE_FLAGS = {
-  reviewMode: true,
-  demoWorkspaceSeed: true,
-  atlasCustomMaps: true,
-  sourceIntakeProviders: true,
-  worksMultimodal: true,
-  contradictionReview: true,
-  externalDocSync: true,
-} satisfies Record<string, boolean>;
 
 type DemoWorkspaceData = {
   profile: UserProfile;
@@ -131,7 +121,7 @@ export function buildDemoWorkspace(uid: string): DemoWorkspaceData {
       genre: 'Stoicism',
       description: 'Personal reflections on inner rule, duty, impermanence, and the discipline of attention.',
       url: 'https://books.google.com/books?id=meditations-demo',
-      thumbnailUrl: 'https://covers.openlibrary.org/b/id/14823833-L.jpg',
+      thumbnailUrl: '',
       publisher: 'Public Domain',
       isbn: '',
       doi: '',

@@ -1,33 +1,24 @@
 
 'use client';
 
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
+  connectFirestoreEmulator,
   getFirestore,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
   Firestore,
 } from 'firebase/firestore';
-import { getAuth, Auth } from 'firebase/auth';
-import { firebaseConfig, isFirebaseConfigComplete, missingFirebaseConfigKeys } from './config';
+import { initializeFirebaseAuth } from './auth/client-auth';
+import { isFirebaseConfigComplete, missingFirebaseConfigKeys } from './config';
+import { useLocalFirebaseEmulators } from './local-emulators';
 
-let firebaseApp: FirebaseApp;
 let firestore: Firestore;
-let auth: Auth;
 let firestoreInitialized = false;
 
 export function initializeFirebase() {
   try {
-    if (!isFirebaseConfigComplete) {
-      throw new Error(`Missing Firebase environment variables: ${missingFirebaseConfigKeys.join(', ')}`);
-    }
-
-    if (getApps().length > 0) {
-      firebaseApp = getApp();
-    } else {
-      firebaseApp = initializeApp(firebaseConfig);
-    }
+    const { firebaseApp, auth } = initializeFirebaseAuth();
     
     if (!firestoreInitialized) {
       try {
@@ -42,10 +33,9 @@ export function initializeFirebase() {
         // usable even when the browser cannot provide persistent storage.
         firestore = getFirestore(firebaseApp);
       }
+      if (useLocalFirebaseEmulators) connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
       firestoreInitialized = true;
     }
-    auth = getAuth(firebaseApp);
-
     return { firebaseApp, firestore, auth };
   } catch (error) {
     console.error('Firebase initialization failed', error);

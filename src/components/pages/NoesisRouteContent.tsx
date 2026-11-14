@@ -1,6 +1,8 @@
 "use client";
 
 import type { User } from 'firebase/auth';
+import type { RefObject } from 'react';
+import type { SettingsDraftCache } from '@/components/Settings/SettingsPage';
 import dynamic from 'next/dynamic';
 import type {
   AccountSettings,
@@ -42,6 +44,9 @@ import type {
   WorkspaceSettings,
 } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
+import type { WorkVersion } from '@/lib/work-recovery';
+import type { ContextDeskWorkOrigin } from '@/lib/context-desk-work';
+import type { ProfileReviewApproval } from '@/lib/profile-edit';
 import { allQuestions } from '@/lib/readex';
 
 const HomeRoutePage = dynamic(() => import('./HomeRoutePage').then((module) => module.HomeRoutePage));
@@ -79,6 +84,8 @@ export interface NoesisRouteContentProps {
   thinkingEvents: ThinkingEvent[];
   thinkingEventsHasMore: boolean;
   loadMoreThinkingEvents: () => void;
+  historyLoadingOlder: boolean;
+  historyOlderError: boolean;
   beliefProfiles: BeliefProfile[];
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
@@ -109,6 +116,7 @@ export interface NoesisRouteContentProps {
   focusedQuestionId: string | null;
   focusedWorkId: string | null;
   focusedPracticeId: string | null;
+  focusedGoalId: string | null;
   focusedAnnotationSourceId: string | null;
   focusedAnnotationId: string | null;
   refreshingDemoWorkspace: boolean;
@@ -119,20 +127,22 @@ export interface NoesisRouteContentProps {
     positionId?: string | null;
     workId?: string | null;
     practiceId?: string | null;
+    goalId?: string | null;
     annotationSourceId?: string | null;
     annotationId?: string | null;
   }) => void;
-  addQuestion: (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Question | void;
+  addQuestion: (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<Question>;
   updateQuestion: (question: Question) => void | Promise<void>;
+  saveInquiryAiReview: (inquiryId: string, review: import('@/lib/inquiry-ai-review').InquiryAiReview, content: string) => Promise<void>;
   deleteQuestion: (id: string) => void | Promise<void>;
-  formPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => void;
-  addConcept: (data: Partial<Concept>) => Concept | void;
-  updateConcept: (concept: Concept) => void;
+  formPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => Promise<VaultEntry>;
+  addConcept: (data: Partial<Concept>) => Promise<boolean>;
+  updateConcept: (concept: Concept, approval?: import('@/lib/concept-ai-review').ConceptReviewApproval) => void | Promise<void>;
   deleteConcept: (id: string) => void;
-  addMedia: (data: Partial<Media>) => Media | void;
-  updateMedia: (media: Media) => void;
+  addMedia: (data: Partial<Media>) => Media | void | Promise<void>;
+  updateMedia: (media: Media, base?: Pick<Partial<Media>, 'dateUpdated'>, approval?: import('@/lib/source-ai-review').SourceReviewApproval) => void | Promise<unknown>;
   deleteMedia: (id: string) => void;
-  updateAnnotation: (sourceId: string, annotation: Annotation) => void;
+  updateAnnotation: (sourceId: string, annotation: Annotation, approval?: import('@/lib/annotation-ai-review').AnnotationReviewApproval) => void | Promise<Annotation | void>;
   deleteAnnotation: (sourceId: string, annotationId: string) => Promise<void>;
   createIdea: (data: {
     title: string;
@@ -146,39 +156,48 @@ export interface NoesisRouteContentProps {
       description: string;
       confidence: number;
     };
-  }) => { positionId: string; insightId: string; title: string };
+  }) => Promise<{ positionId: string; insightId: string; title: string }>;
   addPhilosophicalLink: (data: Partial<PhilosophicalLink>) => void;
-  addAtlasQuickLink: (data: Partial<PhilosophicalLink>) => void;
+  addAtlasQuickLink: (data: Partial<PhilosophicalLink>) => void | Promise<void>;
   updatePhilosophicalLink: (link: PhilosophicalLink) => void;
-  deletePhilosophicalLink: (id: string) => void;
+  deletePhilosophicalLink: (id: string, options?: { method?: string }) => Promise<void>;
   markPhilosophicalLinkInteraction: (id: string) => void;
-  addAtlasMap: (data: Partial<AtlasMap>) => AtlasMap | void;
-  updateAtlasMap: (map: AtlasMap) => void;
-  deleteAtlasMap: (id: string) => void;
-  addVaultEntry: (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => VaultEntry | void;
-  updateVaultEntry: (entry: VaultEntry) => void;
+  addAtlasMap: (data: Partial<AtlasMap>) => Promise<string>;
+  updateAtlasMap: (map: AtlasMap, rethrow?: boolean) => void | Promise<void>;
+  moveAtlasMapNode: (mapId: string, key: string, position: { x: number; y: number }) => Promise<void>;
+  deleteAtlasMap: (id: string) => Promise<void>;
+  addVaultEntry: (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<VaultEntry>;
+  updateVaultEntry: (entry: VaultEntry, approval?: import('@/lib/position-ai-review').PositionReviewApproval) => void | Promise<void>;
   deleteVaultEntry: (id: string) => Promise<void>;
-  addDraft: (data: Partial<Draft>) => Promise<Draft>;
-  updateDraft: (draft: Draft) => void;
+  addDraft: (data: Partial<Draft>, origin?: ContextDeskWorkOrigin) => Promise<Draft>;
+  linkInquiryItem: (inquiryId: string, type: 'work' | 'practice', itemId: string) => Promise<void>;
+  updateDraft: (draft: Draft, expectedVersion?: WorkVersion) => Promise<Draft>;
   markDraftOpened: (draft: Draft) => void | Promise<void>;
   deleteDraft: (id: string) => void;
   addPractice: (data: Partial<Practice>) => Promise<Practice>;
-  updatePractice: (practice: Practice) => void;
+  updatePractice: (practice: Practice, approval?: import('@/lib/practice-ai-review').PracticeReviewApproval) => void | Promise<Practice | void>;
   deletePractice: (id: string) => void;
   addUnknown: (data: Partial<Unknown>) => Unknown;
   updateUnknown: (unknown: Unknown) => void;
   updateThinkingPattern: (pattern: ThinkingPattern) => void;
-  addTimelineEvent: (event: TimelineEvent) => void | Promise<void>;
-  saveGoal: (goal: GoalSettings) => Promise<void>;
-  saveProfile: (profile: UserProfile) => Promise<void>;
-  saveProfilePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot) => Promise<void>;
+  addTimelineEvent: (event: TimelineEvent, result?: import('@/lib/contextual-ai').AiReviewResult, eventIds?: readonly string[]) => void | Promise<void>;
+  saveGoal: import('@/lib/goal-persistence').SaveGoalPlan;
+  saveGoalCheckIn: import('@/lib/goal-persistence').SaveGoalCheckIn;
+  saveProfile: (profile: Partial<UserProfile>, approval?: ProfileReviewApproval) => Promise<void>;
+  saveProfilePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot, expectedVersion: { dateUpdated?: string }) => Promise<ProfilePrivacySettings>;
   saveSettingsSection: (
     section: 'account' | 'appearance' | 'workspace' | 'ai' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer',
     data: unknown,
   ) => Promise<void>;
   exportWorkspaceData: () => Promise<void>;
+  settingsDraftCache: RefObject<SettingsDraftCache | null>;
   seedReviewWorkspace: (options?: { force?: boolean; preserveUserCreated?: boolean }) => void | Promise<void>;
   restoreDeletedItem: (event: ThinkingEvent) => Promise<void>;
+  recentDeletedItems: ThinkingEvent[];
+  recentDeletedLoading: boolean;
+  recentDeletedError: boolean;
+  onRecoveryPanelChange: (active: boolean) => void;
+  onRetryDeletedItems: () => void;
 }
 
 export function NoesisRouteContent({
@@ -200,6 +219,8 @@ export function NoesisRouteContent({
   thinkingEvents,
   thinkingEventsHasMore,
   loadMoreThinkingEvents,
+  historyLoadingOlder,
+  historyOlderError,
   beliefProfiles,
   unknowns,
   thinkingPatterns,
@@ -230,6 +251,7 @@ export function NoesisRouteContent({
   focusedQuestionId,
   focusedWorkId,
   focusedPracticeId,
+  focusedGoalId,
   focusedAnnotationSourceId,
   focusedAnnotationId,
   refreshingDemoWorkspace,
@@ -254,11 +276,14 @@ export function NoesisRouteContent({
   markPhilosophicalLinkInteraction,
   addAtlasMap,
   updateAtlasMap,
+  moveAtlasMapNode,
   deleteAtlasMap,
   addVaultEntry,
   updateVaultEntry,
   deleteVaultEntry,
   addDraft,
+  linkInquiryItem,
+  saveInquiryAiReview,
   updateDraft,
   markDraftOpened,
   deleteDraft,
@@ -270,12 +295,19 @@ export function NoesisRouteContent({
   updateThinkingPattern,
   addTimelineEvent,
   saveGoal,
+  saveGoalCheckIn,
   saveProfile,
   saveProfilePrivacy,
   saveSettingsSection,
   exportWorkspaceData,
+  settingsDraftCache,
   seedReviewWorkspace,
   restoreDeletedItem,
+  recentDeletedItems,
+  recentDeletedLoading,
+  recentDeletedError,
+  onRecoveryPanelChange,
+  onRetryDeletedItems,
 }: NoesisRouteContentProps) {
   const canonicalInquiries = allQuestions(media, questions);
   switch (activeView) {
@@ -294,8 +326,9 @@ export function NoesisRouteContent({
           unknowns={unknowns}
           links={links}
           goal={goalState}
+          showCommitments={goalPreferenceSettings.showGoalsOnDashboard}
           goalProgress={goalProgress}
-          onCreateInquiry={(data) => addQuestion(data) as Question}
+          onCreateInquiry={addQuestion}
           onNavigate={navigateToView}
         />
       );
@@ -320,6 +353,7 @@ export function NoesisRouteContent({
           onUpdateLink={updatePhilosophicalLink}
           onAddAtlasMap={addAtlasMap}
           onUpdateAtlasMap={updateAtlasMap}
+          onMoveAtlasMapNode={moveAtlasMapNode}
           onDeleteAtlasMap={deleteAtlasMap}
           onDeleteLink={deletePhilosophicalLink}
           onInteractLink={markPhilosophicalLinkInteraction}
@@ -367,6 +401,7 @@ export function NoesisRouteContent({
             title: data.title,
             statement: data.title,
             description: data.body,
+            confidenceReasoning: data.body,
             confidence: 60,
             status: 'developing',
             tags: data.tags,
@@ -388,8 +423,8 @@ export function NoesisRouteContent({
           inquiries={questions}
           onUpdateAnnotation={updateAnnotation}
           onDeleteAnnotation={deleteAnnotation}
-          onCreatePosition={(data) => {
-            const created = addVaultEntry({
+          onCreatePosition={async (data) => {
+            const created = await addVaultEntry({
               title: data.position?.title || data.title,
               statement: data.position?.statement || data.title,
               description: data.position?.description || data.body,
@@ -400,10 +435,10 @@ export function NoesisRouteContent({
               sourceAnnotationId: data.sourceAnnotationId,
               annotationRefs: data.annotationRefs,
               createdFrom: 'annotation',
-            }) as VaultEntry;
+            });
             return { positionId: created.id, insightId: '', title: created.title };
           }}
-          onCreateInquiry={(data) => addQuestion(data) as Question}
+          onCreateInquiry={addQuestion}
           onAddConcept={addConcept}
           onCreateLink={addPhilosophicalLink}
           focusedAnnotationSourceId={focusedAnnotationSourceId}
@@ -414,7 +449,7 @@ export function NoesisRouteContent({
     case 'source-index':
       return <SourceIndexRoutePage media={media} vault={vault} drafts={drafts} practices={practices} questions={questions} onNavigate={navigateToView} />;
     case 'goals':
-      return <GoalsRoutePage goal={goalState} goalProgress={goalProgress} concepts={concepts} inquiries={questions} sources={media} positions={vault} works={drafts} practices={practices} profile={profile} onSaveGoal={saveGoal} onOpenPraxis={(method) => {
+      return <GoalsRoutePage goal={goalState} goalProgress={goalProgress} concepts={concepts} inquiries={questions} sources={media} positions={vault} works={drafts} practices={practices} profile={profile} onSaveGoal={saveGoal} onSaveCheckIn={saveGoalCheckIn} focusedGoalId={focusedGoalId} onOpenCommitment={(goalId) => navigateToView('goals', { goalId })} onOpenPraxis={(method) => {
         try { window.localStorage.setItem('noesis:labs-tool', method); } catch { /* Optional view preference. */ }
         navigateToView('labs');
       }} />;
@@ -422,6 +457,7 @@ export function NoesisRouteContent({
       return (
         <ProfileRoutePage
           user={user}
+          reviewMode={isReviewWorkspace}
           profile={profile}
           aiSettings={aiSettings}
           privacy={profilePrivacy}
@@ -464,14 +500,14 @@ export function NoesisRouteContent({
           onCreateLink={addPhilosophicalLink}
           onAddDraft={addDraft}
           onAddPractice={addPractice}
-          onAddQuestion={(data) => addQuestion(data) as Question}
+          onAddQuestion={addQuestion}
           onUpdateLink={updatePhilosophicalLink}
           focusedEntryId={focusedPositionId}
           onNavigate={navigateToView}
         />
       );
     case 'questions':
-      return <InquiriesRoutePage aiSettings={aiSettings} questions={questions} media={media} vault={vault} drafts={drafts} practices={practices} concepts={concepts} onAddQuestion={(data) => addQuestion(data) as Question} onUpdateQuestion={updateQuestion} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onUpdateDraft={updateDraft} onAddPractice={addPractice} onUpdatePractice={updatePractice} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
+      return <InquiriesRoutePage aiSettings={aiSettings} questions={questions} media={media} vault={vault} drafts={drafts} practices={practices} concepts={concepts} onAddQuestion={addQuestion} onUpdateQuestion={updateQuestion} onSaveAiReview={saveInquiryAiReview} onDeleteQuestion={deleteQuestion} onAddVaultEntry={addVaultEntry} onAddDraft={addDraft} onLinkItem={linkInquiryItem} onAddPractice={addPractice} onFormPositionFromInquiry={formPositionFromInquiry} focusedQuestionId={focusedQuestionId} onNavigate={navigateToView} />;
     case 'writing':
       return <WorksRoutePage uid={effectiveUid} isReviewWorkspace={isOfflineReviewPreview} drafts={drafts} media={media} vault={vault} questions={questions} concepts={concepts} writingDefaults={preferences.writingDefaults} onAddDraft={addDraft} onUpdateDraft={updateDraft} onMarkDraftOpened={markDraftOpened} onDeleteDraft={deleteDraft} onAddConcept={addConcept} focusedDraftId={focusedWorkId} onNavigate={navigateToView} />;
     case 'context-desk':
@@ -485,7 +521,9 @@ export function NoesisRouteContent({
           works={drafts}
           practices={practices}
           onAddDraft={addDraft}
-          onNavigate={(view, targetId) => navigateToView(view as NoesisView, {
+          onNavigate={(view, targetId, annotationSourceId) => navigateToView(view as NoesisView, {
+            annotationId: view === 'annotations' ? targetId : null,
+            annotationSourceId: view === 'annotations' ? annotationSourceId : null,
             conceptId: view === 'concepts' ? targetId : null,
             questionId: view === 'questions' ? targetId : null,
             sourceId: view === 'library' ? targetId : null,
@@ -496,13 +534,14 @@ export function NoesisRouteContent({
         />
       );
     case 'evolution':
-      return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} thinkingEventsHasMore={thinkingEventsHasMore} loadMoreThinkingEvents={loadMoreThinkingEvents} unknowns={unknowns} thinkingPatterns={thinkingPatterns} metrics={thinkingMetrics} onSaveSynthesis={addTimelineEvent} />;
+      return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} thinkingEventsHasMore={thinkingEventsHasMore} loadMoreThinkingEvents={loadMoreThinkingEvents} historyLoadingOlder={historyLoadingOlder} historyOlderError={historyOlderError} unknowns={unknowns} thinkingPatterns={thinkingPatterns} onSaveSynthesis={addTimelineEvent} />;
     case 'labs':
       return <PracticesRoutePage aiSettings={aiSettings} practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} links={links} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
     case 'settings':
       return (
         <SettingsRoutePage
           user={user}
+          draftCache={settingsDraftCache}
           settings={{
             account: accountSettings,
             appearance: appearanceSettings,
@@ -522,7 +561,11 @@ export function NoesisRouteContent({
           onSaveSection={saveSettingsSection}
           onExportWorkspace={exportWorkspaceData}
           onOpenProfile={() => navigateToView('profile')}
-          recentDeletedItems={thinkingEvents.filter((event) => event.eventType === 'deleted' && Date.now() - new Date(event.createdAt).getTime() <= 30 * 24 * 60 * 60 * 1000 && ['concept', 'source', 'position', 'inquiry', 'work', 'practice'].includes(event.entityType) && !thinkingEvents.some((restored) => restored.eventType === 'restored' && restored.entityType === event.entityType && restored.entityId === event.entityId))}
+          recentDeletedItems={recentDeletedItems}
+          recentDeletedLoading={recentDeletedLoading}
+          recentDeletedError={recentDeletedError}
+          onRecoveryPanelChange={onRecoveryPanelChange}
+          onRetryDeletedItems={onRetryDeletedItems}
           onRestoreDeletedItem={restoreDeletedItem}
           onRefreshDemoWorkspace={() => Promise.resolve(seedReviewWorkspace({ force: true }))}
           refreshingDemoWorkspace={refreshingDemoWorkspace}

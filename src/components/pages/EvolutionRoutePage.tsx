@@ -1,7 +1,7 @@
 "use client";
 
 import { EvolutionTimeline } from '@/components/Evolution/EvolutionTimeline';
-import type { AiSettings, Media, ThinkingEvent, ThinkingMetrics, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
+import type { AiSettings, Media, ThinkingEvent, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
 
 export interface EvolutionRoutePageProps {
   aiSettings: AiSettings;
@@ -10,10 +10,11 @@ export interface EvolutionRoutePageProps {
   thinkingEvents: ThinkingEvent[];
   thinkingEventsHasMore: boolean;
   loadMoreThinkingEvents: () => void;
+  historyLoadingOlder: boolean;
+  historyOlderError: boolean;
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
-  metrics: ThinkingMetrics;
-  onSaveSynthesis: (event: TimelineEvent) => void | Promise<void>;
+  onSaveSynthesis: (event: TimelineEvent, result?: import('@/lib/contextual-ai').AiReviewResult, eventIds?: readonly string[]) => void | Promise<void>;
 }
 
 export function EvolutionRoutePage({
@@ -23,9 +24,10 @@ export function EvolutionRoutePage({
   thinkingEvents,
   thinkingEventsHasMore,
   loadMoreThinkingEvents,
+  historyLoadingOlder,
+  historyOlderError,
   unknowns,
   thinkingPatterns,
-  metrics,
   onSaveSynthesis,
 }: EvolutionRoutePageProps) {
   return (
@@ -36,9 +38,10 @@ export function EvolutionRoutePage({
       thinkingEvents={thinkingEvents}
       thinkingEventsHasMore={thinkingEventsHasMore}
       loadMoreThinkingEvents={loadMoreThinkingEvents}
+      historyLoadingOlder={historyLoadingOlder}
+      historyOlderError={historyOlderError}
       unknowns={unknowns}
       thinkingPatterns={thinkingPatterns}
-      metrics={metrics}
       onSaveSynthesis={onSaveSynthesis}
     />
   );

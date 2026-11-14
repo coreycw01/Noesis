@@ -8,6 +8,9 @@ const config: CapacitorConfig = {
   appName: 'Noesis',
   webDir: 'capacitor-www',
   plugins: {
+    SystemBars: {
+      insetsHandling: 'native',
+    },
     FirebaseAuthentication: {
       skipNativeAuth: true,
       providers: ['google.com'],

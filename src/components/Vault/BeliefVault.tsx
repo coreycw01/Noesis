@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -20,9 +20,10 @@ import type { BeliefProfile, Concept, Draft, Media, PhilosophicalLink, PositionK
 import { normalizeConceptTags, today } from '@/lib/readex';
 import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { cn } from '@/lib/utils';
+import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { derivePositionLifecycleStage } from '@/lib/workflow-integrity';
 import { StageBadge } from '@/components/shared/StageBadge';
-import { ConceptDetailDialog } from '@/components/Library/MediaLibrary';
+import { ConceptDetailDialog } from '@/components/Concepts/ConceptDetailDialog';
 import { useToast } from '@/hooks/use-toast';
 import { DetailLabel, PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
@@ -37,7 +38,9 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { appendAiHistoryEntry, type AiContextEnvelope, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
+import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
+import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
+import { positionReviewTarget, type PositionReviewApproval } from '@/lib/position-ai-review';
 
 interface BeliefVaultProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -51,14 +54,14 @@ interface BeliefVaultProps {
   links: PhilosophicalLink[];
   beliefProfiles: BeliefProfile[];
   unknowns: Unknown[];
-  onAddEntry: (data: Partial<VaultEntry>) => void;
-  onUpdateEntry: (entry: VaultEntry) => void | Promise<void>;
+  onAddEntry: (data: Partial<VaultEntry>) => void | Promise<unknown>;
+  onUpdateEntry: (entry: VaultEntry, approval?: PositionReviewApproval) => void | Promise<void>;
   onDeleteEntry: (id: string) => Promise<void>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
   onAddDraft: (data: Partial<Draft>) => void;
   onAddPractice: (data: Partial<Practice>) => void;
-  onAddQuestion: (data: Partial<Question>) => void;
+  onAddQuestion: (data: Partial<Question>) => void | Promise<unknown>;
   onUpdateLink?: (link: PhilosophicalLink) => void;
   onOpenSource?: (id: string) => void;
   onOpenQuestion?: (id: string) => void;
@@ -446,6 +449,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [comparePositionId, setComparePositionId] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
+  const [savingEntry, setSavingEntry] = useState(false);
+  const entrySaveRef = useRef(false);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = usePersistentView<'all' | VaultType>('noesis:positions-type', 'all', ['all', ...vaultTypes]);
   const [conceptFilter, setConceptFilter] = useState('all');
@@ -456,6 +461,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VaultEntry | null>(null);
   const { toast } = useToast();
+  const inquiryCreationLock = useRef(false);
 
   const [stressAnswer, setStressAnswer] = useState('');
   const [revisionReason, setRevisionReason] = useState('');
@@ -475,7 +481,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     safeEntries.forEach((entry) => map.set(entry.id, diagnosePosition(entry, links, practices)));
     return map;
   }, [safeEntries, links, practices]);
-  const selected = safeEntries.find((entry) => entry.id === selectedId) || null;
+  const routeControlsSelection = Boolean(onOpenEntryRoute);
+  const activeEntryId = routeControlsSelection ? focusedEntryId : selectedId;
+  const selected = safeEntries.find((entry) => entry.id === activeEntryId) || null;
   const filteredEntries = safeEntries.filter(e => {
     const diagnostic = positionDiagnostics.get(e.id) || diagnosePosition(e, links, practices);
     const typeOk = typeFilter === 'all'
@@ -581,36 +589,36 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       return;
     }
     if (safeEntries.some((entry) => entry.id === focusedEntryId)) {
-      setSelectedId(focusedEntryId);
+      if (!routeControlsSelection) setSelectedId(focusedEntryId);
       setDetailTab('state');
       onFocusedEntryHandled?.();
     }
-  }, [safeEntries, focusedEntryId, onFocusedEntryHandled]);
+  }, [safeEntries, focusedEntryId, onFocusedEntryHandled, routeControlsSelection]);
 
-  const saveEntry = () => {
+  const saveEntry = async () => {
     if (!draftEntry.title?.trim()) return;
+    if (entrySaveRef.current) return;
+    entrySaveRef.current = true;
+    setSavingEntry(true);
+    try {
     if (draftEntry.id) {
-      const previous = safeEntries.find((entry) => entry.id === draftEntry.id);
       const nextConfidence = confidencePercent(draftEntry.confidence);
-      const confidenceChanged = previous && confidencePercent(previous.confidence) !== nextConfidence;
-      onUpdateEntry({
+      await onUpdateEntry({
         ...(draftEntry as VaultEntry),
+        title: draftEntry.title.trim(),
         tags: normalizeConceptTags(draftEntry.tags),
         confidence: nextConfidence,
-        versionHistory: confidenceChanged ? [
-          ...(draftEntry.versionHistory || []),
-          {
-            date: today(),
-            eventType: 'revised',
-            description: `Confidence changed from ${confidencePercent(previous.confidence)}% to ${nextConfidence}%.`,
-            confidence: nextConfidence,
-          },
-        ] : draftEntry.versionHistory,
         dateUpdated: today(),
       });
     }
-    else onAddEntry({ ...draftEntry, tags: normalizeConceptTags(draftEntry.tags) });
+    else await onAddEntry({ ...draftEntry, title: draftEntry.title.trim(), tags: normalizeConceptTags(draftEntry.tags) });
     setEditorOpen(false);
+    } catch (error) {
+      toast({ title: 'Position not saved', description: noesisUserError(error, 'save this position'), variant: 'destructive' });
+    } finally {
+      entrySaveRef.current = false;
+      setSavingEntry(false);
+    }
   };
 
   const openEntry = (id: string) => {
@@ -1030,57 +1038,18 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     };
 
     const acceptPositionAiResult = async (result: AiReviewResult, content: string) => {
-      const baseHistory = selected.versionHistory || [];
-      const reviewEntry = { date: today(), eventType: 'revised' as const, description: `Reviewed AI-assisted ${result.action.replace(/_/g, ' ')}.` };
-      const aiReviewHistory = appendAiHistoryEntry(selected.aiReviewHistory, result, content);
-      if (result.action === 'find_position_assumptions') {
-        await onUpdateEntry({ ...selected, assumptions: Array.from(new Set([...(selected.assumptions || []), ...splitLines(content)])), versionHistory: [...baseHistory, reviewEntry], aiReviewHistory, dateUpdated: today() });
-        return;
-      }
-      if (result.action === 'generate_position_counterargument') {
-        await onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), content], versionHistory: [...baseHistory, reviewEntry], aiReviewHistory, dateUpdated: today() });
-        return;
-      }
-      if (result.action === 'identify_missing_position_evidence') {
-        await onUpdateEntry({
-          ...selected,
-          missingEvidence: Array.from(new Set([...(selected.missingEvidence || []), ...splitLines(content)])),
-          versionHistory: [...baseHistory, reviewEntry],
-          aiReviewHistory,
-          dateUpdated: today(),
-        });
-        return;
-      }
-      if (result.action === 'compare_selected_positions' && comparisonTarget) {
-        await onUpdateEntry({
-          ...selected,
-          comparisonReviews: [
-            ...(selected.comparisonReviews || []),
-            { positionId: comparisonTarget.id, positionTitle: comparisonTarget.title, content, date: today() },
-          ],
-          versionHistory: [...baseHistory, reviewEntry],
-          aiReviewHistory,
-          dateUpdated: today(),
-        });
-        return;
-      }
-      await onUpdateEntry({
-        ...selected,
-        versionHistory: [...baseHistory, reviewEntry],
-        aiReviewHistory,
-        dateUpdated: today(),
-      });
+      await onUpdateEntry(selected, { result, text: content, comparisonId: result.action === 'compare_selected_positions' ? comparisonTarget?.id : undefined });
     };
 
     return (
-      <div className="noesis-position-detail noesis-gutter flex-1 w-full overflow-y-auto pb-8 pt-[var(--page-top)] font-body" data-noesis-identity="examination">
+      <div className="noesis-position-detail noesis-gutter flex-1 w-full overflow-y-auto pb-8 pt-[var(--page-top)] font-body" data-noesis-scroll-region data-noesis-identity="examination">
         <div className="noesis-detail-toolbar">
           <button type="button" onClick={closeEntry} className="noesis-back-link"><ArrowLeft aria-hidden="true" /> Positions</button>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
             {aiSettings.aiAssistanceEnabled && (
               <div className="basis-full sm:basis-auto">
                 <Select value={comparePositionId} onValueChange={setComparePositionId}>
-                  <SelectTrigger className="h-9 w-full rounded-full sm:w-48"><SelectValue placeholder="Compare position" /></SelectTrigger>
+                  <SelectTrigger aria-label="Position to compare" className="h-9 w-full rounded-full sm:w-48"><SelectValue placeholder="Compare position" /></SelectTrigger>
                   <SelectContent>
                     {safeEntries.filter((entry) => entry.id !== selected.id).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.title}</SelectItem>)}
                   </SelectContent>
@@ -1091,7 +1060,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               enabled={aiSettings.aiAssistanceEnabled}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
               reasoningDepth={aiSettings.defaultReasoningDepth}
-              retainAcceptedProvenance={aiSettings.retainAcceptedAiProvenance}
               actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'compare_selected_positions']}
               buildEnvelope={buildPositionAiEnvelope}
               buttonLabel="Test Position"
@@ -1112,7 +1080,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_17rem]">
             <div className="w-full min-w-0 flex-1">
               <h1 className="noesis-page-title noesis-detail-title">{selected.title}</h1>
-              <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>
+              {(selected.statement || selected.description || '').trim() !== selected.title.trim() && <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>}
+              <PromotedAnnotationOrigins origins={selected.annotationOrigins} />
               {!!(selected.tags || []).length && <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2">
                 {(selected.tags || []).map((tag) => (
                   <button key={tag} onClick={() => setConceptPopupName(tag)} className="border-b border-border font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:border-accent hover:text-accent">{tag}</button>
@@ -1135,7 +1104,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 { label: 'Type', value: (selected.type || 'belief').replace('_', ' ') },
                 { label: 'Mode', value: (selected.positionKind || 'interpretive').replace(/_/g, ' ') },
                 { label: 'Status', value: selected.status },
-                { label: 'Updated', value: selected.dateUpdated },
+                { label: 'Updated', value: safePositionDate(selected.dateUpdated || selected.dateCreated) },
               ]} />
             </ContextRail>
           </div>
@@ -1159,7 +1128,12 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
         <div className="mb-5">
           <AiAssistedHistory
-            entries={selected.aiReviewHistory || []}
+            entries={(selected.aiReviewHistory || []).map((entry) => {
+              const target = positionReviewTarget(selected.id, entry.action, entry.id);
+              return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? {
+                provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target,
+              } : undefined };
+            })}
             onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })}
           />
         </div>
@@ -1195,14 +1169,23 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             },
             {
               label: 'Connect inquiry',
-              onClick: () => onAddQuestion({
+              onClick: async () => {
+                if (inquiryCreationLock.current) return;
+                inquiryCreationLock.current = true;
+                try {
+                await onAddQuestion({
                 text: `What would revise: ${selected.title}?`,
                 status: 'open',
                 beliefIds: [selected.id],
                 conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
                 sourceIds: selected.sourceIds || [],
                 evidenceIds: [],
-              }),
+                });
+                toast({ title: 'Inquiry created', description: 'The new question is linked to this position.' });
+                } catch {
+                  toast({ title: 'Inquiry not saved', description: 'Your position is unchanged. Please retry.', variant: 'destructive' });
+                } finally { inquiryCreationLock.current = false; }
+              },
             },
             {
               label: 'Revise position',
@@ -1597,7 +1580,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           timeline={timeline}
         />
 
-        <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} />
+        <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} saving={savingEntry} />
       </div>
     );
   }
@@ -1645,7 +1628,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         className="mb-3"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PositionViewFilter)}>
-          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Position view" className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Position View" />
           </SelectTrigger>
           <SelectContent>
@@ -1656,7 +1639,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         </Select>
 
         <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as VaultType | 'all')}>
-          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Position type" className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Position Type" />
           </SelectTrigger>
           <SelectContent>
@@ -1667,7 +1650,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </SelectContent>
         </Select>
         <Select value={conceptFilter} onValueChange={setConceptFilter}>
-          <SelectTrigger className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Filter positions by concept" className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Concept" />
           </SelectTrigger>
           <SelectContent className="max-h-80">
@@ -1713,12 +1696,12 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             <Card 
               key={entry.id} 
               className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-card p-4 rounded-xl shadow-md md:p-5"
-              onClick={() => openEntry(entry.id)}
+              onClick={(event) => { if (isEntitySurfaceClick(event)) openEntry(entry.id); }}
             >
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex-1 min-w-0">
                 <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                  <span className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                  <span className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
                     {TYPE_LABELS[entry.type] || 'Position'}
                   </span>
                   <StageBadge type="position" stage={entry.stage} status={entry.status} />
@@ -1726,7 +1709,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                     <button
                       key={tag}
                       type="button"
-                      onClick={(event) => { event.stopPropagation(); setConceptPopupName(tag); }}
+                      onClick={() => setConceptPopupName(tag)}
                       className="rounded-full border border-border/50 bg-muted/20 px-2 py-0.5 font-code text-[8px] font-bold uppercase tracking-wider text-muted-foreground hover:border-accent/40 hover:text-accent"
                     >
                       {tag}
@@ -1734,9 +1717,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   ))}
                   {(entry.tags || []).length > 2 && <span className="font-code text-[8px] text-muted-foreground">+{(entry.tags || []).length - 2}</span>}
                 </div>
-                <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors whitespace-normal break-words text-primary">
-                  {entry.title}
-                </h3>
+                <h2 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors whitespace-normal break-words text-primary">
+                  <button type="button" className="text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openEntry(entry.id)}>{entry.title}</button>
+                </h2>
               </div>
               <div className="size-10 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/50 shadow-sm">
                 <Triangle className="size-4 fill-current rotate-180" />
@@ -1752,7 +1735,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{diagnostic.label}</Badge>
                 <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{diagnostic.daysSinceUpdate}d since review</span>
               </div>
-              <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60">Next move</div>
+              <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Next move</div>
               <p className="line-clamp-2 text-xs italic leading-5 text-muted-foreground">{diagnostic.nextAction}</p>
               {!!diagnostic.flags.length && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1861,7 +1844,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         </DialogContent>
       </Dialog>
 
-      <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} />
+      <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} saving={savingEntry} />
 
       {/* Draft position pipeline removed in the AI-free release.
       <Dialog open={ideaOpen} onOpenChange={(open) => { if (!open) setIdeaOpen(false); }}>
@@ -2026,7 +2009,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               versionHistory: [...(target.versionHistory || []), { date: today(), eventType: 'abandoned', description: 'Position abandoned instead of deleted.' }],
               dateUpdated: today(),
             });
-            if (selectedId === target.id) closeEntry();
+            if (activeEntryId === target.id) closeEntry();
             toast({ title: 'Position abandoned.', description: 'Its history and connected work remain available for review.' });
           } catch (error) {
             toast({ variant: 'destructive', title: 'Position could not be abandoned', description: noesisUserError(error, 'abandon this position') });
@@ -2038,7 +2021,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           setDeleteTarget(null);
           try {
             await onDeleteEntry(target.id);
-            if (selectedId === target.id) closeEntry();
+            if (activeEntryId === target.id) closeEntry();
             toast({ title: 'Position deleted.' });
           } catch (error) {
             toast({
@@ -2166,44 +2149,48 @@ function PositionsTable({
   }
 
   return (
-    <>
-      <Card className="hidden overflow-hidden rounded-xl border-border/60 bg-card shadow-sm md:block">
-        <Table>
+      <Card className="min-w-0 rounded-xl border-border/60 bg-card shadow-sm">
+        <Table aria-label="Positions table" className="table-fixed">
           <TableHeader>
             <TableRow>
               <TableHead>Position</TableHead>
-              <TableHead>Kind</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Confidence</TableHead>
-              <TableHead>Pressure</TableHead>
-              <TableHead>Health</TableHead>
-              <TableHead>Next Action</TableHead>
-              <TableHead>Updated</TableHead>
+              <TableHead className="hidden w-[10%] xl:table-cell">Kind</TableHead>
+              <TableHead className="hidden w-[13%] lg:table-cell">Status</TableHead>
+              <TableHead className="w-24 sm:w-28">Confidence</TableHead>
+              <TableHead className="hidden w-[12%] 2xl:table-cell">Pressure</TableHead>
+              <TableHead className="hidden w-[12%] 2xl:table-cell">Health</TableHead>
+              <TableHead className="hidden w-[18%] xl:table-cell">Next Action</TableHead>
+              <TableHead className="hidden w-[11%] xl:table-cell">Updated</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {entries.map((entry) => {
               const diagnostic = diagnostics.get(entry.id) || diagnosePosition(entry, links, practices);
               return (
-              <TableRow key={entry.id} className="cursor-pointer" onClick={() => onOpen(entry.id)}>
-                <TableCell>
-                  <div className="font-headline text-base font-semibold italic">{entry.title}</div>
+              <TableRow key={entry.id} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) onOpen(entry.id); }}>
+                <TableCell className="[overflow-wrap:anywhere]">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground xl:hidden">
+                    <span>{TYPE_LABELS[entry.type] || 'Position'}</span>
+                    <span className="lg:hidden"><StageBadge type="position" stage={entry.stage} status={entry.status} /></span>
+                  </div>
+                  <button type="button" className="min-h-11 w-full rounded-sm text-left font-headline text-base font-semibold italic hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => onOpen(entry.id)} onKeyDown={(event) => activateEntityOnKey(event, () => onOpen(entry.id))}>{entry.title}</button>
                   <div className="max-w-xl whitespace-normal text-xs leading-5 text-muted-foreground">{entry.statement || entry.description}</div>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground xl:hidden">{diagnostic.nextAction}</p>
                 </TableCell>
-                <TableCell className="font-code text-[10px] uppercase tracking-widest">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
-                <TableCell><div className="flex flex-wrap gap-1"><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge><StageBadge type="position" stage={entry.stage} status={entry.status} /></div></TableCell>
+                <TableCell className="hidden font-code text-[10px] uppercase tracking-widest xl:table-cell">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
+                <TableCell className="hidden lg:table-cell"><div className="flex flex-wrap gap-1"><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge><StageBadge type="position" stage={entry.stage} status={entry.status} /></div></TableCell>
                 <TableCell>
-                  <div className="min-w-24">
+                  <div className="min-w-0">
                     <div className="mb-1 font-code text-[10px] font-bold">{confidencePercent(entry.confidence)}%</div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-accent" style={{ width: `${confidencePercent(entry.confidence)}%` }} />
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
+                <TableCell className="hidden font-code text-[10px] uppercase tracking-widest text-muted-foreground 2xl:table-cell">
                   {diagnostic.supportCount} support / {diagnostic.challengeCount} challenge / {diagnostic.practiceCount} tests
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden 2xl:table-cell">
                   <div className="flex flex-wrap gap-1.5">
                     <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{diagnostic.label}</Badge>
                     {diagnostic.flags.slice(0, 2).map((flag) => (
@@ -2211,8 +2198,8 @@ function PositionsTable({
                     ))}
                   </div>
                 </TableCell>
-                <TableCell className="max-w-[260px] text-xs italic leading-5 text-muted-foreground">{diagnostic.nextAction}</TableCell>
-                <TableCell className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{safePositionDate(entry.dateUpdated || entry.dateCreated)}</TableCell>
+                <TableCell className="hidden text-xs italic leading-5 text-muted-foreground xl:table-cell">{diagnostic.nextAction}</TableCell>
+                <TableCell className="hidden font-code text-[10px] uppercase tracking-widest text-muted-foreground xl:table-cell">{safePositionDate(entry.dateUpdated || entry.dateCreated)}</TableCell>
               </TableRow>
               );
             })}
@@ -2220,33 +2207,6 @@ function PositionsTable({
         </Table>
       </Card>
 
-      <div className="grid gap-3 md:hidden">
-        {entries.map((entry) => (
-          <button key={entry.id} onClick={() => onOpen(entry.id)} className="rounded-xl border border-border/60 bg-card p-4 text-left shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{TYPE_LABELS[entry.type] || 'Position'}</div>
-                <h3 className="mt-1 font-headline text-xl font-bold italic">{entry.title}</h3>
-              </div>
-              <div className="flex flex-col items-end gap-1"><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge><StageBadge type="position" stage={entry.stage} status={entry.status} /></div>
-            </div>
-            <p className="mt-2 whitespace-normal text-sm italic leading-6 text-muted-foreground">{entry.statement || entry.description}</p>
-            <div className="mt-3 rounded-lg border border-border/50 bg-muted/10 p-3">
-              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
-                {(diagnostics.get(entry.id) || diagnosePosition(entry, links, practices)).label}
-              </Badge>
-              <p className="mt-2 text-xs italic leading-5 text-muted-foreground">
-                {(diagnostics.get(entry.id) || diagnosePosition(entry, links, practices)).nextAction}
-              </p>
-            </div>
-            <div className="mt-4 flex justify-between font-code text-[9px] uppercase tracking-widest text-muted-foreground">
-              <span>{confidencePercent(entry.confidence)}% confidence</span>
-              <span>{(diagnostics.get(entry.id) || diagnosePosition(entry, links, practices)).supportCount} support</span>
-            </div>
-          </button>
-        ))}
-      </div>
-    </>
   );
 }
 
@@ -2399,7 +2359,7 @@ function EntityListPanel({
   );
 }
 
-function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, onAddConcept, onSave }: {
+function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, onAddConcept, onSave, saving = false }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   draft: Partial<VaultEntry>;
@@ -2408,6 +2368,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
   media: Media[];
   onAddConcept: (data: Partial<Concept>) => void;
   onSave: () => void;
+  saving?: boolean;
 }) {
   const toggleSource = (id: string) => {
     setDraft(prev => {
@@ -2523,7 +2484,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             </div>
           </details>
         </div>
-        <DialogFooter className="pt-4"><Button onClick={onSave} className="bg-accent shadow-md shadow-accent/20 h-11 px-10 rounded-full font-bold">Save Position</Button></DialogFooter>
+        <DialogFooter className="pt-4"><Button onClick={onSave} disabled={saving || !draft.title?.trim()} className="bg-accent h-11 px-10 rounded-full font-bold">{saving ? 'Saving…' : 'Save position'}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

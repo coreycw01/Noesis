@@ -22,7 +22,7 @@ export function AtlasReviewQueue({
   knownIds: Partial<Record<PhilosophicalObjectType, Set<string>>>;
   onUpdateConcept: (concept: Concept) => void;
   onUpdateLink?: (link: PhilosophicalLink) => void;
-  onDeleteLink?: (id: string, options?: { method?: string }) => void;
+  onDeleteLink?: (id: string, options: { method: string }, opener: HTMLButtonElement) => void;
 }) {
   const groupedConceptIds = new Set(regions.flatMap((region) => region.conceptIds));
   const broken = links.filter((link) => !knownIds[link.fromType]?.has(link.fromId) || !knownIds[link.toType]?.has(link.toId));
@@ -62,7 +62,7 @@ export function AtlasReviewQueue({
         <ReviewLane title="Broken references" count={broken.length}>
           {broken.map((link) => (
             <ReviewItem key={link.id} title={`${link.fromLabel || link.fromType} → ${link.toLabel || link.toType}`} detail="One endpoint no longer exists in this workspace.">
-              <Button size="sm" variant="destructive" onClick={() => onDeleteLink?.(link.id, { method: 'broken-reference-review' })}><Trash2 className="mr-1 size-3" /> Remove link</Button>
+              <Button size="sm" variant="destructive" onClick={(event) => onDeleteLink?.(link.id, { method: 'broken-reference-review' }, event.currentTarget)}><Trash2 className="mr-1 size-3" /> Remove link</Button>
             </ReviewItem>
           ))}
         </ReviewLane>

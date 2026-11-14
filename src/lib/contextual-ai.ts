@@ -1,4 +1,4 @@
-import type { AiAssistedHistoryEntry } from './types';
+import type { AiAssistedHistoryEntry, UserProfile } from './types';
 import { appendAiReviewHistory } from './collection-integrity';
 
 export type ContextualAiScope = 'current_item' | 'linked_items' | 'selected_pair' | 'selected_period';
@@ -47,6 +47,7 @@ export interface AiReviewResult {
   content: string;
   contextSummary: string;
   generatedAt: string;
+  reviewId?: string;
 }
 
 export interface AssumptionSuggestion {
@@ -87,6 +88,23 @@ export function appendAiHistoryEntry(
   date = new Date().toISOString()
 ) {
   return appendAiReviewHistory(entries, aiHistoryEntry(result, content, date));
+}
+
+export function resolvedAiHistory(entries: AiAssistedHistoryEntry[] | undefined, legacy?: AiAssistedHistoryEntry): AiAssistedHistoryEntry[] {
+  // An explicitly empty history means the user removed it, not a missing migration.
+  if (Array.isArray(entries)) return entries;
+  return legacy?.content.trim() ? [legacy] : [];
+}
+
+export function profileSynthesisPatch(profile: UserProfile, result: AiReviewResult, content: string, reviewedAt = new Date().toISOString()): Partial<UserProfile> {
+  const statement = profileStatementFromSynthesis(content);
+  return {
+    ...(statement ? { philosophyStatement: statement } : {}),
+    philosophySynthesisReview: content,
+    philosophySynthesisReviewedAt: reviewedAt,
+    aiReviewHistory: appendAiHistoryEntry(profile.aiReviewHistory, result, content, reviewedAt),
+    dateUpdated: reviewedAt,
+  };
 }
 
 export function parseAssumptionSuggestions(content: string): AssumptionSuggestion[] {
@@ -366,17 +384,40 @@ export function isContextualAiRequestCompatible(input: Pick<AiContextEnvelope, '
   return Boolean(policy && policy.targetType === input.targetType && policy.scope === input.scope);
 }
 
+export const AI_CONTEXT_MEMORY_LIMIT = 32_000;
+export const AI_USER_PROMPT_LIMIT = 1_000;
+
+export function aiContextMemorySize(input: Pick<AiContextEnvelope, 'itemMemory' | 'linkedMemory' | 'secondaryTarget'>) {
+  return [...input.itemMemory, ...input.linkedMemory, ...(input.secondaryTarget?.memory ?? [])]
+    .reduce((size, line) => size + line.length, 0);
+}
+
 export function boundedAiContext(input: AiContextEnvelope): AiContextEnvelope {
-  let remaining = 32_000;
-  const limit = (lines: string[], count: number) => lines.slice(0, count).flatMap((line) => {
-    const value = line.trim().slice(0, Math.min(4_000, remaining));
+  let remaining = AI_CONTEXT_MEMORY_LIMIT;
+  const limit = (lines: string[], count: number, budget = remaining) => lines.slice(0, count).flatMap((line) => {
+    const value = line.trim().slice(0, Math.min(4_000, remaining, budget)).trimEnd();
     remaining -= value.length;
+    budget -= value.length;
     return value ? [value] : [];
   });
-  const itemMemory = limit(input.itemMemory, 20);
+  const secondSize = input.secondaryTarget?.memory.slice(0, 12).reduce((size, line) => size + Math.min(line.trim().length, 4_000), 0) ?? 0;
+  const reserve = Math.min(secondSize, AI_CONTEXT_MEMORY_LIMIT / 2);
+  const itemMemory = limit(input.itemMemory, 20, remaining - reserve);
   const secondaryTarget = input.secondaryTarget ? { ...input.secondaryTarget, memory: limit(input.secondaryTarget.memory, 12) } : undefined;
   const linkedMemory = limit(input.linkedMemory, 20);
-  return { ...input, itemMemory, secondaryTarget, linkedMemory, userPrompt: input.userPrompt?.trim().slice(0, 1_000) || undefined };
+  return { ...input, itemMemory, secondaryTarget, linkedMemory, userPrompt: input.userPrompt?.trim().slice(0, AI_USER_PROMPT_LIMIT).trimEnd() || undefined };
+}
+
+export function buildContextDeskMemory(records: ReadonlyArray<{ type: string; label: string; memory: string[] }>) {
+  const [primary, ...linked] = records;
+  // Give each selected record its own excerpt so earlier records cannot crowd it out.
+  const excerptSize = Math.min(4_000, Math.floor(AI_CONTEXT_MEMORY_LIMIT / Math.max(1, records.length)));
+  const excerpt = (record: typeof primary) =>
+    [`Selected ${record.type}: ${record.label.slice(0, 240)}`, ...record.memory].join('\n').slice(0, excerptSize);
+  return {
+    itemMemory: primary ? [excerpt(primary)] : [],
+    linkedMemory: linked.map(excerpt),
+  };
 }
 
 export function validAiSelection(input: AiContextEnvelope): boolean {
@@ -384,10 +425,15 @@ export function validAiSelection(input: AiContextEnvelope): boolean {
     if (!input.secondaryTarget || input.secondaryTarget.targetId === input.targetId || !input.secondaryTarget.memory.length) return false;
   } else if (input.secondaryTarget) return false;
   if (input.action === 'synthesize_evolution_period') {
-    if (!input.selectedRange) return false;
-    const from = Date.parse(input.selectedRange.from);
-    const to = Date.parse(input.selectedRange.to);
-    return Number.isFinite(from) && Number.isFinite(to) && from <= to;
+    if (!input.selectedRange || !input.linkedMemory.length) return false;
+    const { from, to } = input.selectedRange;
+    return isCalendarDate(from) && isCalendarDate(to) && from <= to && input.targetId === `${from}:${to}`;
   }
   return !input.selectedRange;
+}
+
+function isCalendarDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000-')) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }

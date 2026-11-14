@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
-import './globals.css';
-import { NoesisPersistentWorkspace } from './noesis-persistent-workspace';
+import { CHUNK_RECOVERY_SCRIPT } from '@/lib/chunk-recovery';
+import './reset.css';
+import './theme.css';
+
+const workspaceFontStylesheet = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap';
 
 export const metadata: Metadata = {
   title: 'Noesis - Turn thought into understanding',
@@ -17,8 +19,8 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/icon.png',
-    apple: '/icon.png',
+    icon: { url: '/icon.png', sizes: '48x48', type: 'image/png' },
+    apple: { url: '/noesis-install-icon.png', sizes: '512x512', type: 'image/png' },
   },
 };
 
@@ -30,9 +32,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script
+        <script
           id="theme-init"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
 try {
@@ -58,43 +59,35 @@ try {
             `.trim(),
           }}
         />
-        <Script
+        <script
           id="chunk-recovery"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
-            __html: `
-(function () {
-  var key = 'noesis:chunk-recovery';
-  var recovering = false;
-  function textFor(value) {
-    if (!value) return '';
-    if (typeof value === 'string') return value;
-    return String(value.message || value.reason || value.name || value);
-  }
-  function isChunkFailure(value) {
-    var text = textFor(value);
-    return /ChunkLoadError|Loading chunk [\\w-]+ failed|Failed to fetch dynamically imported module/i.test(text);
-  }
-  function recover(value) {
-    if (recovering || !isChunkFailure(value)) return;
-    recovering = true;
-    var previous = Number(sessionStorage.getItem(key) || 0);
-    if (Date.now() - previous < 30000) return;
-    sessionStorage.setItem(key, String(Date.now()));
-    window.location.reload();
-  }
-  window.addEventListener('error', function (event) { recover(event.error || event.message); }, true);
-  window.addEventListener('unhandledrejection', function (event) { recover(event.reason); });
-})();
-            `.trim(),
+            __html: CHUNK_RECOVERY_SCRIPT,
           }}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet" />
+        <script
+          id="load-workspace-fonts"
+          dangerouslySetInnerHTML={{
+            __html: `(function () {
+  var style = document.createElement('link');
+  style.rel = 'stylesheet';
+  style.media = 'print';
+  style.addEventListener('load', function () { style.media = 'all'; }, { once: true });
+  style.href = ${JSON.stringify(workspaceFontStylesheet)};
+  document.head.appendChild(style);
+})();`,
+          }}
+        />
+        <noscript><link href={workspaceFontStylesheet} rel="stylesheet" /></noscript>
       </head>
-      <body className="font-body antialiased selection:bg-accent/20 selection:text-accent-foreground">
-        <NoesisPersistentWorkspace>{children}</NoesisPersistentWorkspace>
+      <body>
+        {children}
+        <aside id="noesis-startup-retry" hidden suppressHydrationWarning role="alert">
+          <p>Noesis could not finish loading.</p>
+          <p>Check your connection and reload this page.</p>
+        </aside>
       </body>
     </html>
   );

@@ -2,9 +2,9 @@
 'use client';
 
 import React, { createContext, useContext } from 'react';
-import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
-import { Auth } from 'firebase/auth';
+import type { FirebaseApp } from 'firebase/app';
+import type { Firestore } from 'firebase/firestore';
+import type { Auth } from 'firebase/auth';
 
 interface FirebaseContextType {
   firebaseApp: FirebaseApp;
@@ -13,6 +13,11 @@ interface FirebaseContextType {
 }
 
 const FirebaseContext = createContext<FirebaseContextType | null>(null);
+const AuthContext = createContext<Auth | null>(null);
+
+export function FirebaseAuthProvider({ auth, children }: { auth: Auth; children: React.ReactNode }) {
+  return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
+}
 
 export function FirebaseProvider({ 
   children, 
@@ -46,4 +51,10 @@ export const useFirebase = () => {
 
 export const useFirebaseApp = () => useFirebase().firebaseApp;
 export const useFirestore = () => useFirebase().db;
-export const useAuth = () => useFirebase().auth;
+export function useAuth() {
+  const authOnly = useContext(AuthContext);
+  const firebase = useContext(FirebaseContext);
+  const auth = firebase?.auth ?? authOnly;
+  if (!auth) throw new Error('useAuth must be used within a Firebase provider');
+  return auth;
+}

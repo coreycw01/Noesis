@@ -18,6 +18,7 @@ export interface NoesisRouteContextValue {
 }
 
 const NoesisRouteContext = createContext<NoesisRouteContextValue | null>(null);
+export const NoesisWorkspaceKeyContext = createContext<string | null>(null);
 
 export function NoesisRouteProvider({
   routeState,

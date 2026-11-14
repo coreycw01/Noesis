@@ -9,7 +9,7 @@ interface ConceptTagPickerProps {
   concepts: Concept[];
   value: string[];
   onChange: (tags: string[]) => void;
-  onCreateConcept?: (name: string) => void;
+  onCreateConcept?: (name: string) => void | boolean | Promise<void | boolean>;
   compact?: boolean;
   inline?: boolean;
   className?: string;
@@ -38,10 +38,11 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
     onChange(normalizeConceptTags(next));
   };
 
-  const create = (query: string) => {
+  const create = async (query: string) => {
     const name = conceptKey(query);
-    onCreateConcept?.(name);
+    if (await onCreateConcept?.(name) === false) return false;
     onChange(normalizeConceptTags([...selected.filter((tag) => tag !== UNSORTED_CONCEPT), name]));
+    return true;
   };
 
   return (

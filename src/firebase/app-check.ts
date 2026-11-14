@@ -5,7 +5,7 @@ import {
   ReCaptchaEnterpriseProvider,
   type AppCheck,
 } from 'firebase/app-check';
-import { initializeFirebase } from './index';
+import { initializeFirebaseAuth } from './auth/client-auth';
 
 let appCheck: AppCheck | null = null;
 
@@ -22,7 +22,7 @@ export function initializeNoesisAppCheck() {
       process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG_TOKEN;
   }
 
-  const { firebaseApp } = initializeFirebase();
+  const { firebaseApp } = initializeFirebaseAuth();
   appCheck = initializeAppCheck(firebaseApp, {
     provider: new ReCaptchaEnterpriseProvider(siteKey),
     isTokenAutoRefreshEnabled: true,

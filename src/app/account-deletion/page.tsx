@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { LegalPage } from '@/components/LegalPage';
+import '../public.css';
 
 export const metadata = { title: 'Delete Your Account | Noesis' };
 
@@ -25,6 +26,7 @@ export default function AccountDeletionPage() {
       <section>
         <h2>What is deleted</h2>
         <p>The Firebase Authentication account and records stored beneath the account&apos;s <code>/users/&#123;uid&#125;</code> workspace are deleted. This includes sources, annotations, concepts, inquiries, positions, works, practices, links, settings, and history.</p>
+        <p>Deletion also removes your public profile pages and uploaded workspace files. Copies retained by the storage provider expire according to its retention policy and cannot be recovered through Noesis.</p>
       </section>
       <section>
         <h2>If you cannot sign in</h2>

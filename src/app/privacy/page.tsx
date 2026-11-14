@@ -1,4 +1,5 @@
 import { LegalPage } from '@/components/LegalPage';
+import '../public.css';
 
 export const metadata = { title: 'Privacy Policy | Noesis' };
 

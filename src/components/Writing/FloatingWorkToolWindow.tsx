@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { GripHorizontal, Maximize2, Minus, Pencil, X } from 'lucide-react';
+import React, { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { GripHorizontal, Maximize2, Minus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { WorkToolSection } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -32,9 +35,12 @@ interface FloatingWorkToolWindowProps {
 type Interaction = {
   kind: 'move' | 'resize';
   corner?: 'nw' | 'ne' | 'sw' | 'se';
+  pointerId: number;
   startX: number;
   startY: number;
   frame: ToolWindow;
+  geometry?: Pick<ToolWindow, 'x' | 'y' | 'width' | 'height'>;
+  previousUserSelect: string;
 };
 
 function normalizedWindow(section: WorkToolSection): ToolWindow {
@@ -48,8 +54,15 @@ function normalizedWindow(section: WorkToolSection): ToolWindow {
 
 export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, onPatch, onPlacementChange, onRemove, children }: FloatingWorkToolWindowProps) {
   const [frame, setFrame] = useState(() => normalizedWindow(section));
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const isMobile = useIsMobile();
   const interactionRef = useRef<Interaction | null>(null);
   const windowRef = useRef<HTMLElement | null>(null);
+  const onPatchRef = useRef(onPatch);
+
+  useEffect(() => {
+    onPatchRef.current = onPatch;
+  }, [onPatch]);
 
   useEffect(() => {
     if (interactionRef.current) return;
@@ -59,60 +72,78 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
   useEffect(() => {
     const move = (event: PointerEvent) => {
       const interaction = interactionRef.current;
-      if (!interaction) return;
+      if (!interaction || interaction.pointerId !== event.pointerId) return;
+      const { frame } = interaction;
+      const current = interaction.geometry || frame;
       const dx = event.clientX - interaction.startX;
       const dy = event.clientY - interaction.startY;
       const bounds = windowRef.current?.parentElement?.getBoundingClientRect();
       const availableWidth = Math.max(360, bounds?.width || 850);
       const availableHeight = Math.max(420, bounds?.height || 1030);
       if (interaction.kind === 'move') {
-        setFrame((current) => ({
-          ...current,
-          x: Math.max(0, Math.min(Math.max(0, availableWidth - current.width), interaction.frame.x + dx)),
-          y: Math.max(48, Math.min(Math.max(48, availableHeight - current.height), interaction.frame.y + dy)),
-        }));
+        const geometry = {
+          width: current.width,
+          height: current.height,
+          x: Math.max(0, Math.min(Math.max(0, availableWidth - current.width), frame.x + dx)),
+          y: Math.max(48, Math.min(Math.max(48, availableHeight - current.height), frame.y + dy)),
+        };
+        interaction.geometry = geometry;
+        setFrame((current) => ({ ...current, ...geometry }));
         return;
       }
 
       const corner = interaction.corner || 'se';
       const fromLeft = corner.endsWith('w');
       const fromTop = corner.startsWith('n');
-      const nextWidth = Math.max(320, Math.min(availableWidth, interaction.frame.width + (fromLeft ? -dx : dx)));
-      const nextHeight = Math.max(260, Math.min(availableHeight - 48, interaction.frame.height + (fromTop ? -dy : dy)));
-      setFrame((current) => ({
-        ...current,
+      const nextWidth = Math.max(320, Math.min(availableWidth, frame.width + (fromLeft ? -dx : dx)));
+      const nextHeight = Math.max(260, Math.min(availableHeight - 48, frame.height + (fromTop ? -dy : dy)));
+      const geometry = {
         width: nextWidth,
         height: nextHeight,
-        x: fromLeft ? Math.max(0, interaction.frame.x + interaction.frame.width - nextWidth) : Math.min(current.x, Math.max(0, availableWidth - nextWidth)),
-        y: fromTop ? Math.max(48, interaction.frame.y + interaction.frame.height - nextHeight) : Math.min(current.y, Math.max(48, availableHeight - nextHeight)),
-      }));
+        x: fromLeft ? Math.max(0, frame.x + frame.width - nextWidth) : Math.min(current.x, Math.max(0, availableWidth - nextWidth)),
+        y: fromTop ? Math.max(48, frame.y + frame.height - nextHeight) : Math.min(current.y, Math.max(48, availableHeight - nextHeight)),
+      };
+      interaction.geometry = geometry;
+      setFrame((current) => ({ ...current, ...geometry }));
     };
-    const end = () => {
-      if (!interactionRef.current) return;
+    const end = (event: PointerEvent) => {
+      const interaction = interactionRef.current;
+      if (!interaction || interaction.pointerId !== event.pointerId) return;
       interactionRef.current = null;
-      document.body.style.userSelect = '';
-      setFrame((current) => {
-        onPatch(current);
-        return current;
-      });
+      document.body.style.userSelect = interaction.previousUserSelect;
+      if (interaction.geometry) onPatchRef.current(interaction.geometry);
+    };
+    const cancel = (event: Event) => {
+      const interaction = interactionRef.current;
+      if (!interaction || ('pointerId' in event && interaction.pointerId !== event.pointerId)) return;
+      interactionRef.current = null;
+      document.body.style.userSelect = interaction.previousUserSelect;
+      setFrame(interaction.frame);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('blur', cancel);
     return () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', end);
-      window.removeEventListener('pointercancel', end);
-      document.body.style.userSelect = '';
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('blur', cancel);
+      if (interactionRef.current) document.body.style.userSelect = interactionRef.current.previousUserSelect;
+      interactionRef.current = null;
     };
-  }, [onPatch]);
+  }, []);
 
   const begin = (event: ReactPointerEvent, kind: Interaction['kind'], corner?: Interaction['corner']) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || interactionRef.current) return;
     event.preventDefault();
     event.stopPropagation();
     onFocus();
-    interactionRef.current = { kind, corner, startX: event.clientX, startY: event.clientY, frame };
+    interactionRef.current = {
+      kind, corner, frame, pointerId: event.pointerId,
+      startX: event.clientX, startY: event.clientY,
+      previousUserSelect: document.body.style.userSelect,
+    };
     document.body.style.userSelect = 'none';
   };
 
@@ -123,39 +154,50 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
     if (!minimized) onFocus();
   };
 
-  const focusEditor = () => {
-    onFocus();
-    windowRef.current?.querySelector<HTMLElement>('input, textarea, select, [contenteditable="true"]')?.focus();
+  const color = frame.background?.color;
+  const tint = color && /^#[0-9a-f]{6}$/i.test(color) ? color : undefined;
+  const savedOpacity = frame.background?.opacity;
+  const opacity = typeof savedOpacity === 'number' && Number.isFinite(savedOpacity)
+    ? Math.max(0, Math.min(100, Math.round(savedOpacity)))
+    : undefined;
+  const displayedOpacity = opacity ?? (isMobile ? 100 : 0);
+  const customBackground = Boolean(tint || opacity !== undefined);
+  const updateBackground = (background: NonNullable<ToolWindow['background']>) => {
+    setFrame((current) => ({ ...current, background }));
+    onPatch({ background });
   };
 
-  if (frame.minimized) {
-    return (
+  const minimizedControl = frame.minimized ? (
       <Button
         type="button"
         variant="outline"
         size="sm"
         onClick={() => setMinimized(false)}
-        className={cn('z-30 hidden h-9 max-w-56 rounded-md border-border/60 bg-background/95 shadow-md md:inline-flex', frame.placement === 'overlay' ? 'absolute' : 'relative my-2')}
-        style={{ left: frame.x, top: frame.y, zIndex: frame.zIndex }}
+        className={cn('z-30 hidden min-h-9 max-w-56 rounded-[var(--button-radius)] border-border/60 bg-background/95 shadow-md md:inline-flex', frame.placement === 'overlay' ? 'absolute left-[var(--work-tool-x)] top-[var(--work-tool-y)]' : 'relative my-2')}
+        style={{ '--work-tool-x': `${frame.x}px`, '--work-tool-y': `${frame.y}px`, zIndex: frame.zIndex } as CSSProperties}
         aria-label={`Restore ${label}`}
       >
         <Maximize2 className="mr-2 size-3.5" /> <span className="truncate">{label}</span>
       </Button>
-    );
-  }
+    ) : null;
 
   return (
+    <>
+    {minimizedControl}
     <section
       ref={windowRef}
       id={`work-tool-${section.id}`}
       aria-label={`${label} tool window`}
+      data-minimized={frame.minimized ? 'true' : undefined}
+      data-custom-background={customBackground ? 'true' : undefined}
+      inert={frame.minimized}
       onPointerDown={(event) => {
         event.stopPropagation();
         onFocus();
       }}
       className={cn(
-        'group/tool flex min-h-0 flex-col overflow-hidden bg-background/55 shadow-sm backdrop-blur-sm transition-[background-color,border-color,box-shadow]',
-        'fixed inset-x-2 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] top-[calc(4.5rem+env(safe-area-inset-top))] z-40 border border-border/25 md:bottom-auto md:right-auto md:h-[var(--work-tool-height)] md:w-[var(--work-tool-width)] md:rounded-md md:focus-within:border-accent/45 md:focus-within:bg-background/80 md:focus-within:shadow-md md:hover:border-border/55 md:hover:bg-background/70',
+        'works-tool-window group/tool flex min-h-0 flex-col overflow-hidden bg-background text-foreground max-md:shadow-sm md:bg-transparent md:text-inherit md:shadow-none',
+        'fixed inset-x-2 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] top-[calc(4.5rem+env(safe-area-inset-top))] z-[45] rounded-[var(--card-radius)] border border-border/25 md:bottom-auto md:right-auto md:z-[var(--work-tool-layer)] md:h-[var(--work-tool-height)] md:w-[var(--work-tool-width)] md:rounded-md md:border-transparent md:focus-within:border-accent/45 md:hover:border-current/20',
         frame.placement === 'overlay' && 'md:absolute md:left-[var(--work-tool-x)] md:top-[var(--work-tool-y)]',
         frame.placement === 'wrap' && 'md:relative md:float-right md:inset-auto md:mb-5 md:ml-6 md:mr-[var(--document-page-padding)] md:mt-2 md:max-w-[62%]',
         frame.placement === 'break' && 'md:relative md:inset-auto md:mx-auto md:my-6 md:clear-both md:max-w-[85%]',
@@ -166,19 +208,22 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         '--work-tool-y': `${frame.y}px`,
         '--work-tool-width': `${frame.width}px`,
         '--work-tool-height': `${frame.height}px`,
-        zIndex: mobileActive ? 40 : frame.zIndex,
+        '--work-tool-tint': tint,
+        '--work-tool-alpha': `${opacity ?? 100}%`,
+        '--work-tool-layer': mobileActive ? 40 : frame.zIndex,
+        display: frame.minimized ? 'none' : undefined,
       } as CSSProperties}
     >
       <header
-        className="flex h-12 shrink-0 items-center gap-2 border-b border-border/20 bg-background/35 px-3 md:h-9 md:cursor-move md:px-2"
+        className="flex h-12 shrink-0 items-center gap-2 border-b border-border/20 bg-background px-3 md:h-9 md:cursor-move md:border-current/10 md:bg-transparent md:px-2"
         onPointerDown={(event) => {
           if ((event.target as HTMLElement).closest('button,select')) return;
-          if (frame.placement !== 'overlay') return;
+          if (isMobile || frame.placement !== 'overlay') return;
           begin(event, 'move');
         }}
       >
         <GripHorizontal className="hidden size-4 shrink-0 text-muted-foreground/60 md:block" />
-        <span className="min-w-0 flex-1 truncate font-code text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/75">{label}</span>
+        <span className="min-w-0 flex-1 truncate font-code text-[10px] font-semibold uppercase tracking-[0.14em] opacity-75">{label}</span>
         <select
           value={frame.placement || 'overlay'}
           onChange={(event) => {
@@ -195,17 +240,37 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
           <option value="wrap">Wrap text</option>
           <option value="break">Break text</option>
         </select>
-        <Button type="button" variant="ghost" size="icon" onClick={focusEditor} className="size-10 shrink-0 rounded-md md:size-7" aria-label={`Edit ${label}`} title={`Edit ${label}`}>
-          <Pencil className="size-3.5" />
-        </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 rounded-md md:size-7" aria-label={`${label} appearance`} title="Tool appearance">
+              <Pencil className="size-3.5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" aria-label={`${label} appearance settings`} className="w-64 max-w-[calc(100vw-1rem)] space-y-3" onPointerDown={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold">Tool appearance</span>
+              <Button type="button" size="sm" variant="ghost" disabled={!customBackground} onClick={() => updateBackground({})}>Reset</Button>
+            </div>
+            <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+              Background tint
+              <input type="color" value={tint ?? '#d8a75e'} onInput={(event) => updateBackground({ color: event.currentTarget.value, opacity: displayedOpacity || 80 })} className="size-10 cursor-pointer rounded border border-border bg-transparent p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+            </label>
+            <label className="block space-y-1.5 text-sm">
+              <span className="flex justify-between gap-2">Background opacity <span aria-hidden="true" className="tabular-nums text-muted-foreground">{displayedOpacity}%</span></span>
+              <input type="range" min={0} max={100} step={1} value={displayedOpacity} onChange={(event) => updateBackground({ ...frame.background, opacity: event.target.valueAsNumber })} className="h-8 w-full accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+            </label>
+          </PopoverContent>
+        </Popover>
         <Button type="button" variant="ghost" size="icon" onClick={() => setMinimized(true)} className="size-10 shrink-0 rounded-md md:size-7" aria-label={`Minimize ${label}`}>
           <Minus className="size-4" />
         </Button>
-        <Button type="button" variant="ghost" size="icon" onClick={onRemove} className="size-10 shrink-0 rounded-md text-muted-foreground hover:text-destructive md:size-7" aria-label={`Close ${label}`}>
-          <X className="size-4" />
+        <Button type="button" variant="ghost" size="icon" onClick={() => setConfirmRemove(true)} className="size-10 shrink-0 rounded-md text-muted-foreground hover:text-destructive md:size-7" aria-label={`Remove ${label}`} title={`Remove ${label}`}>
+          <Trash2 className="size-4" />
         </Button>
       </header>
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-x-hidden overflow-y-auto overscroll-contain p-2 md:p-3">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain p-2 md:p-3">
+        <div className="my-auto flex w-full min-w-0 shrink-0 justify-center">{children}</div>
+      </div>
       <div className="flex h-12 shrink-0 items-center justify-end gap-2 border-t border-border/40 px-3 md:hidden">
         <Button type="button" variant="outline" onClick={() => setMinimized(true)} className="min-h-11">Minimize</Button>
         <Button type="button" onClick={() => setMinimized(true)} className="min-h-11">Done</Button>
@@ -227,6 +292,16 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
           <span className="absolute inset-1 rounded-sm border border-accent/70 bg-background" />
         </button>
       ))}
+      <ConfirmActionDialog
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        title={`Remove ${label}?`}
+        description="This removes the tool and its contents from this document. Your writing and other tools stay unchanged."
+        confirmLabel="Remove tool"
+        destructive
+        onConfirm={onRemove}
+      />
     </section>
+    </>
   );
 }
