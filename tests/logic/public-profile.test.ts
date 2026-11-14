@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildDemoWorkspace } from '../../src/lib/demo-workspace';
 import { buildPublicProfileSnapshot, isValidPublicProfileSlug, publicProfilePickerResults, publicProfileSaveMode, publicProfileSections, publicProfileSelectedIds } from '../../src/lib/public-profile';
-import nextConfig from '../../next.config';
+import { publicProfileCacheRule } from '../../src/lib/public-profile-cache';
 import { Timestamp } from 'firebase/firestore';
 
 const demo = buildDemoWorkspace('public-profile-test');
@@ -21,10 +21,9 @@ test('public profile reads and writes share URL name bounds', () => {
   for (const slug of ['', 'ab', 'x'.repeat(61), '../name', 'a/b', 'a%2Fb', 'my philosophy']) assert.equal(isValidPublicProfileSlug(slug), false);
 });
 
-test('public profile route explicitly disallows retaining a shareable response in caches', async () => {
-  const headers = await nextConfig.headers?.();
-  const profileRoute = headers?.find(({ source }) => source === '/p/:slug');
-  assert.match(profileRoute?.headers.find(({ key }) => key === 'Cache-Control')?.value ?? '', /\bprivate, no-store\b/);
+test('public profile cache policy disallows retaining a shareable response', () => {
+  assert.equal(publicProfileCacheRule.source, '/p/:slug');
+  assert.match(publicProfileCacheRule.headers.find(({ key }) => key === 'Cache-Control')?.value ?? '', /\bprivate, no-store\b/);
 });
 
 test('public profile only includes explicitly selected records in enabled sections', () => {

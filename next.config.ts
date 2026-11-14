@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { publicProfileCacheRule } from './src/lib/public-profile-cache';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const contentSecurityPolicy = [
@@ -74,10 +75,7 @@ const nextConfig: NextConfig = {
         { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
         ...(!isDevelopment ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }] : []),
       ],
-    }, {
-      source: '/p/:slug',
-      headers: [{ key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' }],
-    }, {
+    }, publicProfileCacheRule, {
       source: '/api/contextual-ai',
       headers: [{ key: 'Cache-Control', value: 'private, no-store' }],
     }];
