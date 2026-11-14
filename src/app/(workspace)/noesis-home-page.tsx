@@ -123,12 +123,12 @@ import { deletedAnnotationSource, recentRecoverableDeletions, sourceRecoveryAnno
 import { inquiryPositionEvidence, inquirySourceIds, isInquiryClosed } from '@/lib/inquiry-state';
 import { inquiryAiReviewPatch, inquiryHistorySnapshot, makeInquiryAiProvenance, writeInquiryAiReview, type InquiryAiReview } from '@/lib/inquiry-ai-review';
 import { acceptedTextHash, promotedAnnotationOrigins, type AiProvenanceRecord } from '@/lib/ai-provenance';
-import { matchesPositionReview, positionReviewEvent, preparePositionReview, writePositionReview, type PositionReviewApproval } from '@/lib/position-ai-review';
-import { matchesPracticeReview, practiceReviewEvent, preparePracticeReview, writePracticeReview, type PracticeReviewApproval } from '@/lib/practice-ai-review';
-import { annotationReviewEvent, matchesAnnotationReview, prepareAnnotationReview, writeAnnotationReview, type AnnotationReviewApproval } from '@/lib/annotation-ai-review';
-import { matchesSourceReview, prepareSourceReview, sourceReviewEvent, writeSourceReview, type SourceReviewApproval } from '@/lib/source-ai-review';
-import { assertConceptReviewBaseline, conceptReviewEvent, prepareConceptReview, writeConceptReview, type ConceptReviewApproval } from '@/lib/concept-ai-review';
-import { assertProfileReviewBaseline, prepareProfileReview, profileReviewEvent, writeProfileReview, type ProfileReviewApproval } from '@/lib/profile-edit';
+import type { PositionReviewApproval } from '@/lib/position-ai-review';
+import type { PracticeReviewApproval } from '@/lib/practice-ai-review';
+import type { AnnotationReviewApproval } from '@/lib/annotation-ai-review';
+import type { SourceReviewApproval } from '@/lib/source-ai-review';
+import type { ConceptReviewApproval } from '@/lib/concept-ai-review';
+import type { ProfileReviewApproval } from '@/lib/profile-edit';
 import { applyGoalCheckIn, applyGoalPlan, writeGoalSettings, type SaveGoalCheckIn, type SaveGoalPlan } from '@/lib/goal-persistence';
 import { metacognitionFeatureFlagPatch, resolveAiSettings, workDefaultPreferencePatch } from '@/lib/settings-drafts';
 import { readBrowserPreference } from '@/lib/browser-preferences';
@@ -1478,6 +1478,7 @@ export function ReadexWorkspace({
         collection: refs.thinkingEvents, userId: effectiveUid, entityId: concept.id, entityType: 'concept',
         eventType: 'suggestion_accepted', origin: 'ai-assisted', summary: 'Reviewed contextual assistance: concept',
       };
+      const { assertConceptReviewBaseline, conceptReviewEvent, prepareConceptReview, writeConceptReview } = await import('@/lib/concept-ai-review');
       if (!isOfflineReviewPreview) return writeConceptReview(conceptRef, approval, date, event);
       const { field, record, patch } = await prepareConceptReview(effectiveUid, approval, date, date);
       const demo = readDemoSession(effectiveUid);
@@ -1614,6 +1615,7 @@ export function ReadexWorkspace({
         collection: refs.thinkingEvents, userId: effectiveUid, entityType: 'source', entityId: item.id,
         eventType: 'suggestion_accepted', origin: 'ai-assisted', summary: 'Reviewed contextual assistance: source',
       };
+      const { matchesSourceReview, prepareSourceReview, sourceReviewEvent, writeSourceReview } = await import('@/lib/source-ai-review');
       if (!isOfflineReviewPreview) return writeSourceReview(mediaRef, approval, date, event);
       const { record, patch } = await prepareSourceReview(effectiveUid, approval, date, date);
       const demo = readDemoSession(effectiveUid);
@@ -1738,6 +1740,7 @@ export function ReadexWorkspace({
         collection: refs.thinkingEvents, userId: effectiveUid, entityType: 'annotation', entityId: annotation.id,
         eventType: 'suggestion_accepted', origin: 'ai-assisted', summary: 'Reviewed contextual assistance: annotation effect',
       };
+      const { annotationReviewEvent, matchesAnnotationReview, prepareAnnotationReview, writeAnnotationReview } = await import('@/lib/annotation-ai-review');
       if (!isOfflineReviewPreview) return writeAnnotationReview(mediaRef, annotation, approval, date, event);
       const { record, patch } = await prepareAnnotationReview(effectiveUid, sourceId, annotation, approval, date, date);
       const demo = readDemoSession(effectiveUid);
@@ -1931,6 +1934,7 @@ export function ReadexWorkspace({
         collection: refs.thinkingEvents, userId: effectiveUid, entityType: 'position', entityId: entry.id,
         eventType: 'suggestion_accepted', origin: 'ai-assisted', summary: 'Reviewed contextual assistance: position',
       };
+      const { matchesPositionReview, positionReviewEvent, preparePositionReview, writePositionReview } = await import('@/lib/position-ai-review');
       if (!isOfflineReviewPreview) return writePositionReview(vaultRef, approval, date, event);
       const { record, patch } = await preparePositionReview(effectiveUid, entry.id, approval, date, date);
       const demo = readDemoSession(effectiveUid);
@@ -2683,6 +2687,7 @@ export function ReadexWorkspace({
         collection: refs.thinkingEvents, userId: effectiveUid, entityType: 'practice', entityId: practice.id,
         eventType: 'suggestion_accepted', origin: 'ai-assisted', summary: 'Reviewed contextual assistance: practice outcome',
       };
+      const { matchesPracticeReview, practiceReviewEvent, preparePracticeReview, writePracticeReview } = await import('@/lib/practice-ai-review');
       if (!isOfflineReviewPreview) return writePracticeReview(practiceRef, practice, approval, date, event);
       const { record, patch } = await preparePracticeReview(effectiveUid, practice, approval, date, date);
       const demo = readDemoSession(effectiveUid);
@@ -3275,6 +3280,7 @@ export function ReadexWorkspace({
         collection: refs.thinkingEvents, userId: effectiveUid, entityType: 'profile', entityId: 'main',
         eventType: 'suggestion_accepted', origin: 'ai-assisted', summary: 'Reviewed contextual assistance: philosophy synthesis',
       };
+      const { assertProfileReviewBaseline, prepareProfileReview, profileReviewEvent, writeProfileReview } = await import('@/lib/profile-edit');
       if (!isOfflineReviewPreview) return writeProfileReview(refs.profileMain, approval, dateUpdated, event);
       const prepared = await prepareProfileReview(effectiveUid, approval.baseline, approval.result, approval.text, dateUpdated, dateUpdated);
       const { record } = prepared;

@@ -52,7 +52,7 @@ import type { NoesisView } from '@/lib/noesis-routes';
 import { weeklyReviewEvents } from '@/lib/weekly-review';
 import { homeHistoryTarget, recentHomeHistory, type HomeHistoryTarget } from '@/lib/home-history';
 import { thinkingHistoryDate } from '@/lib/evolution-history';
-import { ThoughtGamesPanel } from '@/components/Home/ThoughtGamesPanel';
+import { ThoughtGamePreview } from '@/components/Home/ThoughtGamePreview';
 
 type HomeTarget = HomeHistoryTarget;
 
@@ -967,14 +967,13 @@ export function ThinkingDesk({
               </div>
             </section>
 
-            <ThoughtGamesPanel
+            <ThoughtGamePreview
               concepts={concepts}
               inquiries={inquiries}
               positions={positions}
               media={media}
               links={links}
-              onNavigate={onNavigate}
-              variant="compact"
+              onOpen={() => onNavigate({ view: 'labs' })}
             />
 
             <section className="rounded-lg border border-border bg-card p-5">

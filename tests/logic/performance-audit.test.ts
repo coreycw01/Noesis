@@ -31,6 +31,7 @@ test('performance audit reads current build manifests and counts shared runtime 
     writeFileSync(asset, 'x'.repeat(10 * 1024));
     const result = spawnSync(process.execPath, ['scripts/audit-performance.mjs'], { encoding: 'utf8', env: { ...process.env, NOESIS_BUILD_DIST_DIR: fixture } });
     assert.equal(result.status, 1);
+    assert.match(result.stdout, /Shared framework startup: 500 KB raw before route assets/);
     assert.match(result.stdout, /FAIL \/home\/page: 500 KB \/ 400 KB/);
     assert.match(result.stdout, /Largest manifest assets: runtime\.js \(500 KB\)/);
     assert.match(result.stdout, /Prerendered document assets: 60 KB modern raw \/ \d+ KB estimated gzip; 12 KB legacy-only raw/);
@@ -45,7 +46,10 @@ test('performance audit reads current build manifests and counts shared runtime 
     writeFileSync(path.join(fixture, 'static', 'modern.js'), 'x'.repeat(401 * 1024));
     writeFileSync(path.join(fixture, 'server/app/p/[slug]/page_client-reference-manifest.js'),
       `globalThis.__RSC_MANIFEST["/p/[slug]/page"] = ${JSON.stringify({
-        clientModules: { page: { chunks: ['/_next/static/legacy.js'] } },
+        clientModules: {
+          page: { chunks: ['/_next/static/legacy.js', 'static/chunks/app/p/%5Bslug%5D/page-public.js'] },
+          sibling: { chunks: ['static/chunks/app/(workspace)/layout-workspace.js'] },
+        },
         entryCSSFiles: {
           'C:\\repo\\src\\app\\layout': [{ path: 'static/public.css' }],
           'C:\\repo\\src\\app\\(workspace)\\layout': [{ path: 'static/workspace.css' }],
@@ -55,12 +59,16 @@ test('performance audit reads current build manifests and counts shared runtime 
     writeFileSync(path.join(fixture, 'static/public.css'), 'x'.repeat(8 * 1024));
     writeFileSync(path.join(fixture, 'static/profile.css'), 'x'.repeat(5 * 1024));
     writeFileSync(path.join(fixture, 'static/workspace.css'), 'x'.repeat(180 * 1024));
+    mkdirSync(path.join(fixture, 'static/chunks/app/p/[slug]'), { recursive: true });
+    mkdirSync(path.join(fixture, 'static/chunks/app/(workspace)'), { recursive: true });
+    writeFileSync(path.join(fixture, 'static/chunks/app/p/[slug]/page-public.js'), 'x'.repeat(4 * 1024));
+    writeFileSync(path.join(fixture, 'static/chunks/app/(workspace)/layout-workspace.js'), 'x'.repeat(180 * 1024));
     const spaced = spawnSync(process.execPath, ['scripts/audit-performance.mjs'], { encoding: 'utf8', env: { ...process.env, NOESIS_BUILD_DIST_DIR: fixture } });
     assert.equal(spaced.status, 1);
     assert.match(spaced.stdout, /FAIL \/home\/page: 401 KB \/ 400 KB/);
     assert.match(spaced.stdout, /Largest document assets: static\/modern\.js \(401 KB\)/);
     assert.match(spaced.stdout, /Prerendered document assets: 401 KB modern raw/);
-    assert.match(spaced.stdout, /PASS \/p\/\[slug\]\/page: 375 KB \/ 450 KB/);
+    assert.match(spaced.stdout, /PASS \/p\/\[slug\]\/page: 379 KB \/ 450 KB/);
     assert.equal(spaced.stderr, '');
   } finally {
     assert.equal(path.dirname(path.resolve(fixture)), path.resolve(tmpdir()));

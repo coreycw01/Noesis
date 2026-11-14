@@ -81,7 +81,16 @@ function routeFiles(route) {
     if (!assignment.startsWith('=')) return null;
     const routeManifest = JSON.parse(assignment.slice(1).trim().replace(/;$/, ''));
     const chunks = Object.values(routeManifest.clientModules || {}).flatMap((module) => module.chunks || [])
-      .filter((chunk) => typeof chunk === 'string' && !/^\d+$/.test(chunk));
+      .filter((chunk) => {
+        if (typeof chunk !== 'string' || /^\d+$/.test(chunk)) return false;
+        // Webpack can include explicit app entries from sibling route groups.
+        // Keep unnamed/shared chunks; filter only entries with identifiable ownership.
+        const entry = chunk.replace(/^\/_next\//, '').match(/^static\/chunks\/app\/(.*?)(page|layout)-[^/]+\.js$/);
+        if (!entry) return true;
+        const segment = decodeURIComponent(entry[1]).replace(/\/$/, '');
+        return entry[2] === 'page' ? segment === routePath
+          : !segment || routePath === segment || routePath.startsWith(`${segment}/`);
+      });
     // Next can list entries from sibling routes in the same client manifest.
     // Only the current page and its ancestor segments supply document CSS.
     const css = Object.entries(routeManifest.entryCSSFiles || {}).flatMap(([entry, files]) => {
@@ -101,6 +110,15 @@ function routeFiles(route) {
 }
 
 let failed = false;
+if (manifest.rootMainFiles?.length) {
+  try {
+    const baseline = measureAssets(manifest.rootMainFiles);
+    console.log(`Shared framework startup: ${Math.round(baseline.bytes / 1024)} KB raw before route assets`);
+  } catch (error) {
+    console.error(`Cannot measure shared framework startup: ${error.message}`);
+    failed = true;
+  }
+}
 for (const [route, budgetKb] of Object.entries(routeBudgets)) {
   const files = routeFiles(route);
   if (!files) {
