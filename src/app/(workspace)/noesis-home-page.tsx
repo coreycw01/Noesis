@@ -922,17 +922,20 @@ export function ReadexWorkspace({
     URL.revokeObjectURL(url);
   };
 
-  const exportWorkspaceData = async () => {
+  const exportWorkspaceData = async (format: 'json' | 'mindmap' = 'json') => {
     const demo = isOfflineReviewPreview ? readDemoSession(effectiveUid) : null;
     const payload = demo
       ? await buildWorkspaceExport(effectiveUid, async (name) => demoExportCollection(demo, name),
         async () => demo.userIdentity ? { ...demo.userIdentity, id: effectiveUid } : null)
       : await exportSavedWorkspace(refs.user);
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const { workspaceMindMap } = await import('@/lib/workspace-mindmap');
+    const blob = format === 'mindmap'
+      ? new Blob([workspaceMindMap(payload.collections, 'Noesis')], { type: 'application/x-freemind' })
+      : new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `noesis-workspace-${effectiveUid}.json`;
+    anchor.download = format === 'mindmap' ? `noesis-mind-map-${effectiveUid}.mm` : `noesis-workspace-${effectiveUid}.json`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();

@@ -3,7 +3,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { sendPasswordResetEmail, signOut } from 'firebase/auth';
-import { Download, LogOut, RefreshCw, Save, Shield, Trash2, Wrench } from 'lucide-react';
+import { Download, LogOut, Network, RefreshCw, Save, Shield, Trash2, Wrench } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -92,7 +92,7 @@ interface SettingsPageProps {
   draftCache: React.RefObject<SettingsDraftCache | null>;
   reviewMode: boolean;
   onSaveSection: (section: SettingsSectionKey, value: Partial<SettingsState[SettingsSectionKey]>) => Promise<void>;
-  onExportWorkspace: () => Promise<void>;
+  onExportWorkspace: (format?: 'json' | 'mindmap') => Promise<void>;
   onOpenProfile?: () => void;
   recentDeletedItems?: ThinkingEvent[];
   recentDeletedLoading?: boolean;
@@ -253,13 +253,13 @@ export function SettingsPage({
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  const exportWorkspace = async () => {
+  const exportWorkspace = async (format: 'json' | 'mindmap' = 'json') => {
     if (exportLock.current) return;
     exportLock.current = true;
     setExporting(true);
     try {
-      await onExportWorkspace();
-      toast({ title: 'Workspace JSON ready', description: 'Check your browser downloads.' });
+      await onExportWorkspace(format);
+      toast({ title: format === 'mindmap' ? 'Mind map ready' : 'Workspace JSON ready', description: format === 'mindmap' ? 'A .mm file for FreeMind, Freeplane, XMind, or MindNode. Check your browser downloads.' : 'Check your browser downloads.' });
     } catch (error) {
       toast({
         title: 'Export not available',
@@ -942,12 +942,16 @@ export function SettingsPage({
       case 'data':
         return (
           <div className="space-y-6">
-            <SettingsCard title="Workspace Data" description="Download a private copy of saved records and settings. This JSON file excludes uploaded files and cannot be imported to restore a workspace.">
+            <SettingsCard title="Workspace Data" description="Download a private copy of everything you have saved. The JSON file holds every record and setting (no uploaded files) and cannot be imported to restore a workspace. The mind map lays your concepts out as branches with the positions, inquiries, sources, and practices that use them.">
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-3">
                   <Button variant="outline" onClick={() => void exportWorkspace()} disabled={exporting} className="rounded-full bg-card">
                     <Download className="mr-2 size-4" />
                     {exporting ? 'Preparing export...' : 'Export Workspace JSON'}
+                  </Button>
+                  <Button variant="outline" onClick={() => void exportWorkspace('mindmap')} disabled={exporting} className="rounded-full bg-card">
+                    <Network className="mr-2 size-4" />
+                    Export as Mind Map
                   </Button>
                   {reviewMode && onRefreshDemoWorkspace && (
                     <Button variant="outline" onClick={refreshDemoWorkspace} disabled={refreshingDemoWorkspace || saving === 'refresh-demo'} className="rounded-full bg-card">

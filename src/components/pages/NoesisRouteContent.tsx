@@ -189,7 +189,7 @@ export interface NoesisRouteContentProps {
     section: 'account' | 'appearance' | 'workspace' | 'ai' | 'metacognition' | 'privacy' | 'data' | 'sourceIntake' | 'works' | 'atlas' | 'notifications' | 'goals' | 'developer',
     data: unknown,
   ) => Promise<void>;
-  exportWorkspaceData: () => Promise<void>;
+  exportWorkspaceData: (format?: 'json' | 'mindmap') => Promise<void>;
   settingsDraftCache: RefObject<SettingsDraftCache | null>;
   seedReviewWorkspace: (options?: { force?: boolean; preserveUserCreated?: boolean }) => void | Promise<void>;
   restoreDeletedItem: (event: ThinkingEvent) => Promise<void>;
