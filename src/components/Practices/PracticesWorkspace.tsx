@@ -42,6 +42,7 @@ import { hasPracticeIntellectualBasis, normalizePracticeStatusForSave, practiceD
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { ThoughtGamesPanel } from '@/components/Home/ThoughtGamesPanel';
+import { PraxisDayStrip, PraxisMethodShape, praxisShapeFor } from '@/components/Practices/PraxisMethodShape';
 import type { NoesisView } from '@/lib/noesis-routes';
 
 interface PracticesWorkspaceProps {
@@ -832,6 +833,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   };
   const setStatus = (status: PracticeStatus) => onUpdatePractice({ ...practice, status, dateUpdated: today() });
   const visibleType = normalizePracticeType(practice.type);
+  const method = praxisShapeFor(practice.type);
   const visibleStatus = normalizePracticeStatus(practice.status);
   const scheduleState = practiceScheduleState(practice);
   const meaningfulStreak = visibleType === 'habit' || visibleType === 'experiment';
@@ -929,7 +931,10 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
               {setupNeed ? 'Needs setup' : scheduleState === 'scheduled' ? 'Scheduled' : scheduleState === 'review' || recentlyConcluded ? 'Review result' : needsLog ? 'Log due' : visibleStatus}
             </Badge>
           </div>
-          <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors text-primary whitespace-normal break-words">{practice.title}</h3>
+          <div className="flex items-start gap-2.5" data-stage-tone={method.tone}>
+            <PraxisMethodShape shape={method.shape} className="mt-1" title={method.intent} />
+            <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors text-primary whitespace-normal break-words">{practice.title}</h3>
+          </div>
           <p className="mt-1 text-[12px] italic leading-5 text-muted-foreground whitespace-normal">
             {practice.action || practice.description || 'No action defined yet.'}
           </p>
@@ -951,6 +956,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
         <span className="min-w-0 max-w-xl truncate italic text-primary/80">{practice.intellectualBasis || firstLinkedPosition?.title || linkedQuestions[0]?.text || 'No linked idea named yet.'}</span>
+        <span data-stage-tone={method.tone}><PraxisDayStrip shape={method.shape} logDates={logDates} days={practice.durationDays} startDate={practice.startDate} /></span>
         <span className="font-code text-[8px] uppercase tracking-widest">{durationText}</span>
         <span className="font-code text-[8px] uppercase tracking-widest">{experimentShape.logCount} {experimentShape.logCount === 1 ? 'log' : 'logs'}</span>
         {meaningfulStreak && <span className="font-code text-[8px] uppercase tracking-widest">{streak}d streak</span>}
