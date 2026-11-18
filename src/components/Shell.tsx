@@ -23,7 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
+import { NOESIS_NAV_SECTIONS, NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
 import type { NoesisRouteTargetType } from '@/lib/noesis-routes';
 import { NOESIS_OBJECT_PREVIEW_EVENT, type NoesisObjectPreviewItem } from '@/lib/noesis-object-preview';
 import placeholderData from '@/app/lib/placeholder-images.json';
@@ -293,7 +293,6 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const [syncState, setSyncState] = useState<WorkspaceSyncState | 'idle'>('idle');
   const navItems = useMemo(() => [
     { id: 'home', icon: iconForNoesisView('home') },
-    { id: 'atlas', icon: iconForNoesisView('atlas') },
     { id: 'concepts', icon: iconForNoesisView('concepts'), count: counts.concepts },
     { id: 'questions', icon: iconForNoesisView('questions'), count: counts.questions },
     { id: 'library', icon: iconForNoesisView('library'), count: counts.media },
@@ -303,6 +302,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'context-desk', icon: iconForNoesisView('context-desk') },
     { id: 'labs', icon: iconForNoesisView('labs'), count: counts.practices },
     { id: 'evolution', icon: iconForNoesisView('evolution'), count: counts.timeline },
+    { id: 'atlas', icon: iconForNoesisView('atlas') },
     { id: 'settings', icon: iconForNoesisView('settings') },
   ], [counts.annotations, counts.concepts, counts.drafts, counts.media, counts.practices, counts.questions, counts.timeline, counts.vault]);
 
@@ -678,11 +678,11 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           collapsed && !isMobile ? 'justify-center px-3 py-2.5' : 'gap-2.5 px-5 py-2.5',
           'border-l-2 duration-150',
           isActive
-            ? 'border-accent bg-sidebar-foreground/[0.07] text-sidebar-foreground'
+            ? 'noesis-nav-item--active bg-sidebar-foreground/[0.07] text-sidebar-foreground'
             : 'border-transparent text-sidebar-foreground/62 hover:border-sidebar-foreground/20 hover:bg-sidebar-foreground/[0.04] hover:text-sidebar-foreground'
         )}
       >
-        <item.icon className={cn('size-4 shrink-0', isActive ? 'text-accent' : 'group-hover:text-accent')} />
+        <item.icon className="noesis-nav-item__icon size-4 shrink-0" />
         {(!collapsed || isMobile) && (
           <>
             <span className={cn('text-[13px] font-body tracking-wide flex-1 text-left', isActive ? 'font-semibold' : 'font-medium')}>{page.title}</span>
@@ -800,11 +800,11 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       )}
 
       <nav className="min-h-0 flex-1 overflow-y-auto py-4 scrollbar-hide">
-        {['Today', 'Encounter', 'Question', 'Claim', 'Praxis', 'Revise', 'More'].map((section) => (
-          <div key={section} className="mb-5">
-            {(!collapsed || isMobile) && (
+        {NOESIS_NAV_SECTIONS.map((section) => (
+          <div key={section} className="noesis-nav-section mb-5" data-stage={NOESIS_NAV_SECTION_TONE[section]}>
+            {(!collapsed || isMobile) && section !== 'Today' && (
               <div className="px-5 mb-1">
-                <h4 className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/40 font-bold">{section}</h4>
+                <h4 className="noesis-nav-section__label font-code text-[9px] uppercase tracking-[0.14em] font-bold">{section}</h4>
               </div>
             )}
             <ul className="space-y-1">

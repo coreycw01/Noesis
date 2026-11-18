@@ -57,6 +57,21 @@
   --sidebar-accent: 346 38% 18%;
   --sidebar-accent-foreground: 0 0% 100%;
   --sidebar-border: 30 4% 16%;
+  /* Thinking-loop stage colors. Pages, nav groups, and badges take their tone
+     from the stage they belong to, so the loop reads at a glance. */
+  --stage-encounter: 33 87% 35%;
+  --stage-examine: 184 32% 34%;
+  --stage-claim: 12 62% 43%;
+  --stage-act: 95 41% 33%;
+  --stage-integrate: 270 29% 43%;
+  --stage-more: 225 41% 42%;
+  /* The sidebar is always dark, so it keeps the bright stage set in both themes. */
+  --sidebar-stage-encounter: 35 73% 55%;
+  --sidebar-stage-examine: 182 21% 63%;
+  --sidebar-stage-claim: 15 65% 61%;
+  --sidebar-stage-act: 87 30% 63%;
+  --sidebar-stage-integrate: 275 28% 71%;
+  --sidebar-stage-more: 223 45% 71%;
   --sidebar-ring: 262 73% 46%;
 }
 
@@ -78,6 +93,12 @@
   --sidebar-background: 30 6% 7%;
   --sidebar-foreground: 45 18% 84%;
   --sidebar-border: 30 5% 15%;
+  --stage-encounter: 35 73% 55%;
+  --stage-examine: 182 21% 63%;
+  --stage-claim: 15 65% 61%;
+  --stage-act: 87 30% 63%;
+  --stage-integrate: 275 28% 71%;
+  --stage-more: 223 45% 71%;
 }
 
 .high-contrast {
@@ -539,3 +560,34 @@ button:disabled,
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
 }
+
+/* Sidebar: each stage group tints its label, active marker, and icons. */
+.noesis-nav-section { --nav-stage: var(--sidebar-stage-encounter); }
+.noesis-nav-section[data-stage="examine"] { --nav-stage: var(--sidebar-stage-examine); }
+.noesis-nav-section[data-stage="claim"] { --nav-stage: var(--sidebar-stage-claim); }
+.noesis-nav-section[data-stage="act"] { --nav-stage: var(--sidebar-stage-act); }
+.noesis-nav-section[data-stage="integrate"] { --nav-stage: var(--sidebar-stage-integrate); }
+.noesis-nav-section[data-stage="more"] { --nav-stage: var(--sidebar-stage-more); }
+.noesis-nav-section__label { color: hsl(var(--nav-stage) / .85); }
+.noesis-nav-item__icon { color: hsl(var(--nav-stage) / .7); transition: color var(--motion-quick) var(--ease-noesis); }
+.noesis-nav-section button:hover .noesis-nav-item__icon,
+.noesis-nav-item--active .noesis-nav-item__icon { color: hsl(var(--nav-stage)); }
+.noesis-nav-item--active { border-left-color: hsl(var(--nav-stage)); }
+
+/* Stage badges (StageBadge) and any element tagged with a stage. */
+[data-stage-tone] { --stage: var(--stage-encounter); }
+[data-stage-tone="examine"] { --stage: var(--stage-examine); }
+[data-stage-tone="claim"] { --stage: var(--stage-claim); }
+[data-stage-tone="act"] { --stage: var(--stage-act); }
+[data-stage-tone="integrate"] { --stage: var(--stage-integrate); }
+[data-stage-tone="more"] { --stage: var(--stage-more); }
+.noesis-stage-badge { color: hsl(var(--stage)); border-left-color: hsl(var(--stage) / .6); }
+
+/* Page and record headers: the opening rule, margin marker, and stage label
+   take the page's stage color instead of the global accent. */
+.noesis-page-header[data-stage-tone] .noesis-page-header__rule,
+.noesis-detail-label[data-stage-tone] .noesis-page-header__rule { background: hsl(var(--stage)); }
+.noesis-page-header[data-stage-tone] .noesis-margin-marker,
+.noesis-detail-label[data-stage-tone] .noesis-margin-marker { color: hsl(var(--stage)); border-left-color: hsl(var(--stage)); }
+.noesis-page-header[data-stage-tone] .noesis-route-label__section,
+.noesis-detail-label[data-stage-tone] .noesis-route-label__section { color: hsl(var(--stage)); }

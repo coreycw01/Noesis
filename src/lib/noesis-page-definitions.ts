@@ -7,12 +7,31 @@ import {
 } from '@/lib/noesis-routes';
 import type { Metadata } from 'next';
 
+/**
+ * The thinking loop the sidebar is organized around. Stage names are verbs:
+ * meet material (Encounter), clarify and investigate it (Examine), commit to a
+ * view (Claim), live it (Act), and fold what changed back in (Integrate).
+ */
+export const NOESIS_NAV_SECTIONS = ['Today', 'Encounter', 'Examine', 'Claim', 'Act', 'Integrate', 'More'] as const;
+export type NoesisNavSection = typeof NOESIS_NAV_SECTIONS[number];
+
+/** Stage color token for each section (defined in theme.css as --stage-*). */
+export const NOESIS_NAV_SECTION_TONE: Record<NoesisNavSection, string> = {
+  Today: 'encounter',
+  Encounter: 'encounter',
+  Examine: 'examine',
+  Claim: 'claim',
+  Act: 'act',
+  Integrate: 'integrate',
+  More: 'more',
+};
+
 export interface NoesisPageDefinition {
   view: NoesisView;
   route: string;
   title: string;
   purpose: string;
-  section: 'Today' | 'Encounter' | 'Question' | 'Claim' | 'Praxis' | 'Revise' | 'More';
+  section: NoesisNavSection;
   signatureExperience: string;
   loadingLayout: 'desk' | 'map' | 'list' | 'detail' | 'studio' | 'timeline';
 }
@@ -60,7 +79,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/atlas',
     title: 'Atlas',
     purpose: 'Reveal the territories, tensions, dependencies, and development of the whole thinking system.',
-    section: 'More',
+    section: 'Integrate',
     signatureExperience: 'Region and relationship maps for worldview-level diagnosis.',
     loadingLayout: 'map',
   },
@@ -69,7 +88,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/concepts',
     title: 'Concepts',
     purpose: 'Clarify the vocabulary that organizes recurring concepts across Noesis.',
-    section: 'Question',
+    section: 'Examine',
     signatureExperience: 'A concept laboratory for definitions, distinctions, examples, and ambiguity.',
     loadingLayout: 'detail',
   },
@@ -78,7 +97,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/inquiries',
     title: 'Inquiries',
     purpose: 'Investigate recurring questions with evidence, assumptions, unknowns, and working answers.',
-    section: 'Question',
+    section: 'Examine',
     signatureExperience: 'Structured investigation workspaces rather than saved question cards.',
     loadingLayout: 'detail',
   },
@@ -141,7 +160,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/labs',
     title: 'Praxis',
     purpose: 'Test ideas, build consistency, and uphold chosen principles through lived action.',
-    section: 'Praxis',
+    section: 'Act',
     signatureExperience: 'One lived-action workspace for exercises, experiments, practices, commitments, observations, and outcomes.',
     loadingLayout: 'detail',
   },
@@ -150,7 +169,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/evolution',
     title: 'Evolution',
     purpose: 'Show meaningful changes in concepts, inquiries, positions, works, and practices over time.',
-    section: 'Revise',
+    section: 'Integrate',
     signatureExperience: 'A time-lapse of thought driven by thinking events.',
     loadingLayout: 'timeline',
   },
@@ -168,7 +187,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/goals',
     title: 'Commitments',
     purpose: 'Connect what the user says matters to the practices through which it is lived.',
-    section: 'Praxis',
+    section: 'Act',
     signatureExperience: 'A Say/Do bridge between held positions and repeated practice.',
     loadingLayout: 'list',
   },

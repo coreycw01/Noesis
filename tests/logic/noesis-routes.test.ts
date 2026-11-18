@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NOESIS_ICONS, NOESIS_VIEW_ICON_KEYS } from '../../src/lib/noesis-icons';
-import { dataRequirementsForNoesisRoute, metadataForNoesisRouteState, NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
+import { dataRequirementsForNoesisRoute, metadataForNoesisRouteState, NOESIS_NAV_SECTIONS, NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
 
 test('Today loads its saved commitment visibility without visiting Settings first', () => {
   assert.ok(dataRequirementsForNoesisRoute(parseNoesisRoute('/home')).includes('goalPreferences'));
@@ -26,10 +26,20 @@ test('Praxis keeps the Labs route compatible for existing practice links', () =>
   assert.equal(viewToPath('labs', { reviewMode: true }), '/demo/labs');
 });
 
-test('Praxis is the approved user-facing stage for lived action', () => {
-  assert.equal(NOESIS_PAGE_BY_VIEW.labs.section, 'Praxis');
-  assert.equal(NOESIS_PAGE_BY_VIEW.goals.section, 'Praxis');
-  assert.equal(NOESIS_PAGE_DEFINITIONS.some((page) => (page.section as string) === 'Test'), false);
+test('Act is the user-facing stage for lived action; the page keeps the Praxis name', () => {
+  assert.equal(NOESIS_PAGE_BY_VIEW.labs.section, 'Act');
+  assert.equal(NOESIS_PAGE_BY_VIEW.labs.title, 'Praxis');
+  assert.equal(NOESIS_PAGE_BY_VIEW.goals.section, 'Act');
+  assert.equal(NOESIS_PAGE_DEFINITIONS.some((page) => ['Test', 'Praxis'].includes(page.section as string)), false);
+});
+
+test('the sidebar follows the Encounter, Examine, Claim, Act, Integrate loop', () => {
+  assert.deepEqual([...NOESIS_NAV_SECTIONS], ['Today', 'Encounter', 'Examine', 'Claim', 'Act', 'Integrate', 'More']);
+  assert.equal(NOESIS_PAGE_BY_VIEW.concepts.section, 'Examine');
+  assert.equal(NOESIS_PAGE_BY_VIEW.questions.section, 'Examine');
+  assert.equal(NOESIS_PAGE_BY_VIEW.evolution.section, 'Integrate');
+  assert.equal(NOESIS_PAGE_BY_VIEW.atlas.section, 'Integrate');
+  for (const page of NOESIS_PAGE_DEFINITIONS) assert.ok(NOESIS_NAV_SECTIONS.includes(page.section), page.view);
 });
 
 test('Context Desk keeps its own lightweight route identity', () => {
