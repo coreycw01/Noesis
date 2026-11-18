@@ -5,7 +5,7 @@ import './atlas-motion.css';
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { atlasFocusPan } from './atlas-keyboard-focus';
-import { FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { CalendarRange, FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { Card } from '@/components/ui/card';
@@ -73,6 +73,7 @@ import {
 } from './atlas-diagnostics';
 import { ATLAS_NODE_BOUNDS, atlasAutoNodePosition, atlasCanDrag, atlasCompactNodes, atlasMapScope, atlasMapTerms, atlasStoredZoom, atlasVisibleNodePosition, atlasZoomPlane } from './atlas-layout';
 import { shouldTraceAtlasConnection, type AtlasConnectionTrace } from './atlas-connection-trace';
+import { atlasNodeTimelineState, atlasTimelineBounds, atlasTimelineDayValue, formatAtlasTimelineDate, type AtlasTimelineWindow } from './atlas-timeline';
 
 interface ConceptAtlasProps {
   concepts: Concept[];
@@ -305,6 +306,8 @@ export function ConceptAtlas({
   const [zoom, setZoom] = useState(ATLAS_BASE_ZOOM);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
+  // Timeline replay: null shows the map as it stands now.
+  const [timelineWindow, setTimelineWindow] = useState<AtlasTimelineWindow | null>(null);
   const [atlasSection, setAtlasSection] = useState<AtlasSection>('map');
   const [connectionsTab, setConnectionsTab] = useState<'relationships' | 'tensions'>('relationships');
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -610,6 +613,11 @@ export function ConceptAtlas({
     return atlasMapTerms({ terms, regionTerms: regionNames, focusedTerm: selectedName ? conceptKey(selectedName) : undefined });
   }, [activeMap, atlasSection, concepts, mode, selectedName, selectedRegion, terms]);
 
+  const timelineBounds = useMemo(() => atlasTimelineBounds(concepts.map((concept) => concept.dateCreated)), [concepts]);
+  const timelineNewCount = useMemo(() => timelineWindow
+    ? concepts.filter((concept) => atlasNodeTimelineState(concept.dateCreated, timelineWindow) === 'new').length
+    : 0, [concepts, timelineWindow]);
+
   const tagCounts = useMemo(() => countAtlasConceptTags([
     ...media.map((item) => item.tags),
     ...insights.map((item) => item.tags),
@@ -624,7 +632,8 @@ export function ConceptAtlas({
       const key = conceptKey(concept.name);
       if (!conceptsByName.has(key)) conceptsByName.set(key, concept);
     }
-    const filtered = visibleTerms.filter((name) => !search || name.toLowerCase().includes(search.toLowerCase()));
+    const filtered = visibleTerms.filter((name) => (!search || name.toLowerCase().includes(search.toLowerCase()))
+      && atlasNodeTimelineState(conceptsByName.get(conceptKey(name))?.dateCreated, timelineWindow) !== 'unborn');
     const candidates = filtered.map((name) => ({
       name,
       key: conceptKey(name),
@@ -634,7 +643,7 @@ export function ConceptAtlas({
     return isMobile && mode === 'auto' && !search.trim()
       ? atlasCompactNodes(candidates, selectedName ? conceptKey(selectedName) : undefined)
       : candidates;
-  }, [concepts, isMobile, mode, search, selectedName, tagCounts, visibleTerms]);
+  }, [concepts, isMobile, mode, search, selectedName, tagCounts, timelineWindow, visibleTerms]);
 
   const nodes = useMemo<MapNode[]>(() => {
     return displayedNodes.map(({ name, key, concept, count }, index) => {
@@ -2694,7 +2703,7 @@ export function ConceptAtlas({
         </div>
 
         <div className="hidden flex-col gap-2 pb-1 md:flex lg:flex-row lg:items-center lg:justify-between lg:gap-3">
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          <div className="flex flex-wrap gap-2">
             <Stat value={renderedNodes.length} label="Nodes" />
             <Stat value={renderedEdges.length} label="Visible Links" />
             <Stat value={visibleFamilies} label="Visible Families" />
@@ -2713,6 +2722,55 @@ export function ConceptAtlas({
               {autoConnectionFocus === 'strong' ? 'Strong' : autoConnectionFocus === 'moderate' ? 'Moderate' : 'All'}
             </Badge>
           </div>
+        </div>
+        <div className="noesis-atlas-timeline" data-open={timelineWindow ? 'true' : undefined}>
+          <Button
+            type="button"
+            variant={timelineWindow ? 'default' : 'outline'}
+            size="sm"
+            className="h-9 shrink-0 rounded-full"
+            aria-pressed={Boolean(timelineWindow)}
+            onClick={() => setTimelineWindow((current) => current ? null : { from: Math.max(timelineBounds.start, timelineBounds.end - 30 * 86400000), asOf: timelineBounds.end })}
+          >
+            <CalendarRange className="mr-1.5 size-4" aria-hidden="true" /> Timeline
+          </Button>
+          {timelineWindow ? (
+            <>
+              <label className="noesis-atlas-timeline__date">
+                <span>New since</span>
+                <input
+                  type="date"
+                  value={atlasTimelineDayValue(timelineWindow.from)}
+                  min={atlasTimelineDayValue(timelineBounds.start)}
+                  max={atlasTimelineDayValue(timelineWindow.asOf)}
+                  onChange={(event) => {
+                    const value = Date.parse(event.target.value);
+                    if (Number.isFinite(value)) setTimelineWindow((current) => current && { ...current, from: Math.min(value, current.asOf) });
+                  }}
+                />
+              </label>
+              <label className="noesis-atlas-timeline__slider">
+                <span className="sr-only">Show the map as of</span>
+                <input
+                  type="range"
+                  min={timelineBounds.start}
+                  max={timelineBounds.end}
+                  step={86400000}
+                  value={timelineWindow.asOf}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setTimelineWindow((current) => current && { from: Math.min(current.from, value), asOf: value });
+                  }}
+                />
+              </label>
+              <span className="noesis-atlas-timeline__readout">
+                As of <b>{formatAtlasTimelineDate(timelineWindow.asOf)}</b> · {timelineNewCount} new
+              </span>
+              <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full" onClick={() => setTimelineWindow(null)}>Now</Button>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">Replay the map on any date and see which concepts are new.</span>
+          )}
         </div>
         </>
         )}
@@ -2782,6 +2840,8 @@ export function ConceptAtlas({
       {atlasSection === 'map' && (
       <div className={cn(
         "relative flex min-h-0 flex-1 gap-4",
+        // Keep room for the map to breathe when the controls wrap onto extra rows.
+        !isFullScreen && "md:min-h-[30rem]",
         !isFullScreen && "max-md:h-[max(24rem,calc(100dvh-13rem))] max-md:flex-none",
         isFullScreen ? "overflow-hidden px-0 pb-0" : "noesis-gutter overflow-hidden pb-4"
       )}>
@@ -3001,6 +3061,7 @@ export function ConceptAtlas({
                     !activeEdgeNodes.size && selectedClusterNodes.size > 0 && !selectedClusterNodes.has(conceptKey(node.name)) && 'opacity-25 saturate-50',
                     !activeEdgeNodes.size && selectedClusterNodes.has(conceptKey(node.name)) && selectedName !== node.name && 'border-accent/35 ring-1 ring-accent/35 shadow-lg'
                 )}
+                data-timeline={atlasNodeTimelineState(node.concept?.dateCreated, timelineWindow) === 'new' ? 'new' : undefined}
                 style={{ ...nodeColorStyle(node.name), left: `${node.x}%`, top: `${node.y}%` }}
                 onFocus={(event) => {
                   if (!mapRef.current || !event.currentTarget.matches(':focus-visible')) return;

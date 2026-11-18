@@ -689,3 +689,14 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-step-ring[data-active] { color: hsl(var(--stage, var(--accent))); }
 .noesis-step-next { color: hsl(var(--stage, var(--accent))); }
 .noesis-source-detail { --stage: var(--stage-encounter); }
+
+/* Atlas timeline replay. */
+.noesis-atlas-timeline { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .9rem; padding: .35rem 0 .5rem; }
+.noesis-atlas-timeline__date { display: inline-flex; align-items: center; gap: .45rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-atlas-timeline__date input { height: 2rem; border-radius: 999px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); padding: 0 .7rem; font-size: .75rem; letter-spacing: 0; color: hsl(var(--foreground)); color-scheme: inherit; }
+.noesis-atlas-timeline__slider { flex: 1 1 14rem; display: flex; align-items: center; min-width: 10rem; }
+.noesis-atlas-timeline__slider input { width: 100%; accent-color: hsl(var(--stage-integrate)); }
+.noesis-atlas-timeline__readout { font-size: .8rem; color: hsl(var(--muted-foreground)); white-space: nowrap; }
+.noesis-atlas-timeline__readout b { color: hsl(var(--foreground)); font-weight: 600; }
+[data-noesis-identity="network"] button[data-timeline="new"] { box-shadow: 0 0 0 2px hsl(var(--stage-integrate)), 0 0 22px -4px hsl(var(--stage-integrate) / .7); }
+[data-noesis-identity="network"] button[data-timeline="new"]::after { content: "new"; position: absolute; top: -.55rem; right: .6rem; padding: 0 .4rem; border-radius: 999px; background: hsl(var(--stage-integrate)); color: hsl(var(--background)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .5rem; letter-spacing: .14em; text-transform: uppercase; line-height: 1rem; }
