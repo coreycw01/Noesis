@@ -4,10 +4,11 @@
 import { workspaceScrollBehavior } from '@/lib/appearance';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowLeft, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Quote, Trash2 } from 'lucide-react';
+import { Archive, ArrowLeft, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Plus, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { writeBrowserPreference } from '@/lib/browser-preferences';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -140,6 +141,8 @@ export function AnnotationsIndex({
   onCloseAnnotation,
 }: AnnotationsIndexProps) {
   const [search, setSearch] = useState('');
+  const [newAnnotationOpen, setNewAnnotationOpen] = useState(false);
+  const [newAnnotationSearch, setNewAnnotationSearch] = useState('');
   const [filterType, setFilterType] = usePersistentView<AnnotationFilter>('noesis:annotations-filter', 'all', [
     'all',
     'has_relationships',
@@ -752,12 +755,44 @@ export function AnnotationsIndex({
         title="Annotations"
         description="Review and refine captured highlights, thoughts, questions, and connections across all sources."
         meta={<span>{typeCounts.total} {typeCounts.total === 1 ? 'excerpt' : 'excerpts'}</span>}
+        actions={media.length ? (
+          <Button type="button" onClick={() => setNewAnnotationOpen(true)} className="rounded-full">
+            <Plus className="size-4" aria-hidden="true" /> New annotation
+          </Button>
+        ) : undefined}
       />
+      <Dialog open={newAnnotationOpen} onOpenChange={(open) => { setNewAnnotationOpen(open); if (!open) setNewAnnotationSearch(''); }}>
+        <DialogContent className="max-h-[min(84dvh,40rem)] max-w-lg overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>New annotation</DialogTitle>
+            <DialogDescription>Every note belongs to a source. Choose one and it opens at Capture.</DialogDescription>
+          </DialogHeader>
+          <Input autoFocus value={newAnnotationSearch} onChange={(event) => setNewAnnotationSearch(event.target.value)} placeholder="Search sources" aria-label="Search sources" />
+          <ul className="-mx-1 max-h-[22rem] space-y-1 overflow-y-auto px-1">
+            {media.filter((source) => !newAnnotationSearch.trim() || `${source.title} ${source.creator || ''}`.toLowerCase().includes(newAnnotationSearch.trim().toLowerCase())).slice(0, 40).map((source) => (
+              <li key={source.id}>
+                <button
+                  type="button"
+                  className="grid w-full gap-0.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => {
+                    writeBrowserPreference('noesis:source-open-step', 'annotations', 'sessionStorage');
+                    setNewAnnotationOpen(false);
+                    onOpenSource(source.id);
+                  }}
+                >
+                  <span className="text-sm font-medium">{source.title}</span>
+                  <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{[source.creator, source.type, `${(source.annotations || []).length} notes`].filter(Boolean).join(' · ')}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
 
       <FilterToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search excerpt text..."
+        searchPlaceholder="Search notes, sources, concepts, linked positions..."
         resultCount={filtered.length}
         resultLabel="annotations"
         onClear={clearFilters}

@@ -37,6 +37,7 @@ import { searchMatches } from '@/lib/search';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { nextSourceJourneyStep, sourceJourney } from '@/lib/source-journey';
+import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
 import type { ContextualAiAction } from '@/lib/contextual-ai';
 import { sourceReviewTarget, type SourceReviewApproval } from '@/lib/source-ai-review';
 import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
@@ -172,6 +173,14 @@ export function MediaLibrary({
   const [readingRoomOpen, setReadingRoomOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sourceWorkbenchStep, setSourceWorkbenchStep] = useState<SourceWorkbenchStep>('overview');
+  // Another page (Annotations > New annotation) can ask a source to open on a given step.
+  useEffect(() => {
+    if (!focusedSourceId) return;
+    const requested = readBrowserPreference('noesis:source-open-step', 'sessionStorage');
+    if (requested !== 'annotations') return;
+    writeBrowserPreference('noesis:source-open-step', '', 'sessionStorage');
+    setSourceWorkbenchStep('annotations');
+  }, [focusedSourceId]);
   const [engagementPhase, setEngagementPhase] = useState<'before' | 'sessions' | 'after'>('before');
   const [editorOpen, setEditorOpen] = useState(false);
   const [savingSource, setSavingSource] = useState(false);
