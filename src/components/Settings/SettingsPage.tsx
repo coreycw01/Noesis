@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { useNavStyle, writeNavStyle } from '@/components/app-shell/LoopDock';
 import { useToast } from '@/hooks/use-toast';
 import { noesisGuide } from '@/lib/noesis-guide';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -563,6 +564,7 @@ export function SettingsPage({
               <div className="mt-5 grid gap-3">
                 <SwitchRow label="Reduced motion" checked={drafts.appearance.reducedMotion} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, reducedMotion: checked } }))} />
                 <SwitchRow label="High contrast mode" checked={drafts.appearance.highContrastMode} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, highContrastMode: checked } }))} />
+                <LoopNavigationRow />
               </div>
               <div className="mt-6 overflow-hidden rounded-2xl border-2 border-border bg-background shadow-sm" aria-label="Live theme preview">
                 <div className="flex min-h-48">
@@ -1327,6 +1329,17 @@ function ClassificationCard({ title, body }: { title: string; body: string }) {
       <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">Classification system</div>
       <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{title}</div>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{body}</p>
+    </div>
+  );
+}
+
+/** Navigation style is a per-device choice, so it applies at once instead of waiting for Save. */
+function LoopNavigationRow() {
+  const style = useNavStyle();
+  return (
+    <div className="grid gap-1">
+      <SwitchRow label="Use the Loop dock instead of the sidebar" checked={style === 'loop'} onCheckedChange={(checked) => writeNavStyle(checked ? 'loop' : 'sidebar')} />
+      <p className="px-1 text-xs text-muted-foreground">A floating dock that lays pages out as Encounter, Examine, Claim, Act, Integrate. Desktop only; applies on this device immediately.</p>
     </div>
   );
 }
