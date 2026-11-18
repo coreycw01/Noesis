@@ -723,3 +723,16 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-ai-depth__option:hover:not(:disabled) { border-color: hsl(var(--stage-more) / .6); }
 .noesis-ai-depth__option[aria-checked="true"] { border-color: hsl(var(--stage-more)); background: hsl(var(--stage-more) / .12); box-shadow: inset 0 0 0 1px hsl(var(--stage-more) / .5); }
 @media (max-width: 520px) { .noesis-ai-depth { grid-template-columns: 1fr; } }
+
+/* Shape My Philosophy: guided process. */
+.noesis-philosophy-launch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.25rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--stage) / .45); background: hsl(var(--stage) / .07); }
+.noesis-philosophy-steps { display: flex; flex-wrap: wrap; gap: .4rem; list-style: none; margin: 0; padding: 0; }
+.noesis-philosophy-steps button { display: inline-flex; align-items: center; gap: .45rem; height: 2rem; padding: 0 .8rem; border-radius: 999px; border: 1px solid hsl(var(--border)); font-size: .82rem; color: hsl(var(--muted-foreground)); background: transparent; }
+.noesis-philosophy-steps button[aria-current="step"] { border-color: hsl(var(--stage)); background: hsl(var(--stage) / .14); color: hsl(var(--foreground)); }
+.noesis-philosophy-steps button:disabled { opacity: .45; }
+.noesis-philosophy-rule { border-left: 2px solid hsl(var(--stage)); padding-left: .8rem; font-size: .85rem; color: hsl(var(--muted-foreground)); }
+.noesis-philosophy-item { display: grid; gap: .6rem; padding: 1rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--border)); background: hsl(var(--background) / .5); }
+.noesis-philosophy-word { padding: .2rem .55rem; border-radius: 999px; border: 1px solid hsl(var(--border)); font-size: .9rem; background: transparent; }
+.noesis-philosophy-word[aria-pressed="true"] { border-color: hsl(var(--stage)); background: hsl(var(--stage) / .18); }
+.noesis-philosophy-ladder { display: grid; gap: .5rem; margin: 0; padding-left: 1.1rem; }
+.noesis-philosophy-ladder li { display: grid; gap: .1rem; }
