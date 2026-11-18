@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { iconForNoesisView } from '@/lib/noesis-icons';
 import { NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
-import { parseNoesisRoute, type NoesisView } from '@/lib/noesis-routes';
+import { parseNoesisRoute, type NoesisRouteTargetType, type NoesisView } from '@/lib/noesis-routes';
+import { RecentlyOpenedStrip } from '@/components/shared/RecentlyOpenedStrip';
 
 interface PageHeaderProps {
   title: string;
@@ -29,6 +30,9 @@ export function PageHeader({ title, description, actions, meta, className, child
     goals: 'Commitment', settings: 'System',
   } satisfies Record<NoesisView, string>)[view];
   const pageSection = NOESIS_PAGE_BY_VIEW[view].section;
+  // Index pages for records get a strip of the ones last opened on this device.
+  const recentType = ({ concepts: 'concept', questions: 'inquiry', vault: 'position', library: 'source', labs: 'practice' } as Partial<Record<NoesisView, NoesisRouteTargetType>>)[view];
+  const reviewMode = /^\/(demo|review)(\/|$)/.test(pathname || '');
   // Name where the page sits in the thinking flow, matching the sidebar groups.
   const stage = pageSection && pageSection !== 'More' && pageSection !== section ? pageSection : null;
 
@@ -49,6 +53,7 @@ export function PageHeader({ title, description, actions, meta, className, child
           </div>
           <p className="noesis-page-description mt-2 max-w-3xl text-sm leading-6 md:mt-3 md:text-base md:leading-7">{description}</p>
           {meta && <div className="noesis-page-header__meta">{meta}</div>}
+          {recentType && <RecentlyOpenedStrip type={recentType} reviewMode={reviewMode} />}
         </div>
         {actions && <div className="noesis-page-header-actions">{actions}</div>}
       </div>

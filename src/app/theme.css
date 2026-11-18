@@ -748,3 +748,9 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-concept-zone--relation { border-left: 3px solid hsl(var(--stage) / .7); transition: background var(--motion-quick) var(--ease-noesis), border-color var(--motion-quick) var(--ease-noesis); }
 .noesis-concept-zone__title { color: hsl(var(--stage)); }
 .noesis-concept-zone[data-drop-active] { background: hsl(var(--stage) / .1); border-color: hsl(var(--stage)); }
+
+/* "Last opened" quick links under index page headers. */
+.noesis-recent-strip { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .9rem; }
+.noesis-recent-strip__label { display: inline-flex; align-items: center; gap: .35rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-right: .2rem; }
+.noesis-recent-strip__item { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; height: 1.75rem; padding: 0 .75rem; border-radius: 999px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); font-size: .78rem; color: hsl(var(--foreground) / .85); }
+.noesis-recent-strip__item:hover { border-color: hsl(var(--stage, var(--accent)) / .6); }

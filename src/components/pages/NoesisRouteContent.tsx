@@ -4,6 +4,9 @@ import type { User } from 'firebase/auth';
 import type { RefObject } from 'react';
 import type { SettingsDraftCache } from '@/components/Settings/SettingsPage';
 import dynamic from 'next/dynamic';
+import { useContext, useEffect } from 'react';
+import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
+import { recordRecentlyOpened } from '@/lib/recently-opened';
 import type {
   AccountSettings,
   AiSettings,
@@ -310,6 +313,24 @@ export function NoesisRouteContent({
   onRetryDeletedItems,
 }: NoesisRouteContentProps) {
   const canonicalInquiries = allQuestions(media, questions);
+  const workspaceKey = useContext(NoesisWorkspaceKeyContext);
+  // Remember what was opened, on this device, for the "Recently opened" strip.
+  const openedLabel = (() => {
+    if (focusedConceptId) return { type: 'concept' as const, id: focusedConceptId, label: concepts.find((item) => item.id === focusedConceptId)?.name };
+    if (focusedQuestionId) return { type: 'inquiry' as const, id: focusedQuestionId, label: canonicalInquiries.find((item) => item.id === focusedQuestionId)?.text };
+    if (focusedPositionId) return { type: 'position' as const, id: focusedPositionId, label: vault.find((item) => item.id === focusedPositionId)?.title };
+    if (focusedSourceId) return { type: 'source' as const, id: focusedSourceId, label: media.find((item) => item.id === focusedSourceId)?.title };
+    if (focusedPracticeId) return { type: 'practice' as const, id: focusedPracticeId, label: practices.find((item) => item.id === focusedPracticeId)?.title };
+    if (focusedWorkId) return { type: 'work' as const, id: focusedWorkId, label: drafts.find((item) => item.id === focusedWorkId)?.title };
+    return null;
+  })();
+  const openedSignature = openedLabel?.label ? `${openedLabel.type}:${openedLabel.id}:${openedLabel.label}` : '';
+  useEffect(() => {
+    if (!openedLabel?.label) return;
+    recordRecentlyOpened(workspaceKey, { type: openedLabel.type, id: openedLabel.id, label: openedLabel.label });
+    // Record once per opened record; the label rides along in the signature.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openedSignature, workspaceKey]);
   switch (activeView) {
     case 'home':
       return (
