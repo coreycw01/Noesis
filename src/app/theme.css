@@ -736,3 +736,6 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-philosophy-word[aria-pressed="true"] { border-color: hsl(var(--stage)); background: hsl(var(--stage) / .18); }
 .noesis-philosophy-ladder { display: grid; gap: .5rem; margin: 0; padding-left: 1.1rem; }
 .noesis-philosophy-ladder li { display: grid; gap: .1rem; }
+
+/* Evolution: each change wears its record's stage color. */
+.noesis-event-kind { color: hsl(var(--stage)); }

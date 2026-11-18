@@ -116,16 +116,15 @@ const SETTINGS_SECTION_STORAGE_KEY = 'noesis:settings-section';
 
 const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: string }> = [
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
-  { id: 'appearance', label: 'Appearance', description: 'Theme, typography, collection layout, contrast, and motion.' },
+  { id: 'appearance', label: 'Appearance', description: 'Theme, typography, layout, navigation, and what appears on Today.' },
   { id: 'works', label: 'Work Defaults', description: 'Starting type, status, paper, and editor feel for new Works.' },
-  { id: 'notifications', label: 'Today', description: 'Choose which commitment summary appears on Today.' },
   { id: 'ai', label: 'AI Assistance', description: 'Manual, bounded assistance and context privacy.' },
   { id: 'data', label: 'Data', description: 'Workspace export and demo refresh tools.' },
 ];
 
 const PANEL_SECTION_MAP: Record<SettingsPanelId, SettingsSectionKey[]> = {
   account: [],
-  appearance: ['appearance'],
+  appearance: ['appearance', 'goals'],
   workspace: ['workspace'],
   capture: ['sourceIntake', 'workspace'],
   works: ['works'],
@@ -328,7 +327,9 @@ export function SettingsPage({
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(SETTINGS_SECTION_STORAGE_KEY) as SettingsPanelId | null;
-      if (saved && SETTINGS_PANELS.some((panel) => panel.id === saved)) setActivePanel(saved);
+      // Today settings now live under Appearance.
+      const resolved = saved === 'notifications' ? 'appearance' : saved;
+      if (resolved && SETTINGS_PANELS.some((panel) => panel.id === resolved)) setActivePanel(resolved);
     } catch { /* Section preference is optional. */ }
     setPanelPreferenceLoaded(true);
   }, []);
@@ -591,6 +592,10 @@ export function SettingsPage({
                 </div>
               </div>
               <SaveBar {...saveProps('appearance')} onDiscard={discardAppearance} />
+            </SettingsCard>
+            <SettingsCard title="Today" description="What appears on Today. Hiding the commitment summary does not change your saved commitments or progress.">
+              <SwitchRow label="Show commitments on Today" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
+              <SaveBar {...saveProps('goals')} />
             </SettingsCard>
           </div>
         );
