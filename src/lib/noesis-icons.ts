@@ -8,7 +8,6 @@ import {
   MapPinned,
   Network,
   Repeat2,
-  ScanSearch,
   Target,
   UserCircle2,
 } from 'lucide-react';
@@ -105,6 +104,7 @@ const AtlasChain = glyph('atlas', [
   ['circle', { cx: 7, cy: 5, r: 1.4, ...FILL }],
   ['circle', { cx: 9.8, cy: 8.6, r: 1.4, ...FILL }],
 ]);
+const AiSpark = glyph('ai', [['path', { d: 'M7 1.5 8.4 5.6 12.5 7 8.4 8.4 7 12.5 5.6 8.4 1.5 7 5.6 5.6Z', ...FILL }]]);
 const WorkSheet = glyph('work', [['path', { d: 'M3 2h6l2 2v8H3Z', strokeWidth: 1.3 }]]);
 const SettingsDial = glyph('settings', [
   ['circle', { cx: 7, cy: 7, r: 2.2, strokeWidth: 1.4 }],
@@ -147,7 +147,7 @@ export const NOESIS_ICONS: Record<NoesisIconKey, LucideIcon> = {
   annotation: InkTrail,
   position: PlantedFlag,
   work: WorkSheet,
-  context: ScanSearch,
+  context: AiSpark,
   lab: FlaskConical,
   praxis: PraxisTarget,
   practice: Repeat2,
