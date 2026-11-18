@@ -4,8 +4,9 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { iconForNoesisView } from '@/lib/noesis-icons';
-import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
-import { parseNoesisRoute, type NoesisView } from '@/lib/noesis-routes';
+import { NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
+import { parseNoesisRoute, type NoesisRouteTargetType, type NoesisView } from '@/lib/noesis-routes';
+import { RecentlyOpenedStrip } from '@/components/shared/RecentlyOpenedStrip';
 
 interface PageHeaderProps {
   title: string;
@@ -29,11 +30,14 @@ export function PageHeader({ title, description, actions, meta, className, child
     goals: 'Commitment', settings: 'System',
   } satisfies Record<NoesisView, string>)[view];
   const pageSection = NOESIS_PAGE_BY_VIEW[view].section;
+  // Index pages for records get a strip of the ones last opened on this device.
+  const recentType = ({ concepts: 'concept', questions: 'inquiry', vault: 'position', library: 'source', labs: 'practice' } as Partial<Record<NoesisView, NoesisRouteTargetType>>)[view];
+  const reviewMode = /^\/(demo|review)(\/|$)/.test(pathname || '');
   // Name where the page sits in the thinking flow, matching the sidebar groups.
   const stage = pageSection && pageSection !== 'More' && pageSection !== section ? pageSection : null;
 
   return (
-    <header data-noesis-route={view} className={cn('noesis-page-header', tabs && 'noesis-page-header--with-tabs', className)}>
+    <header data-noesis-route={view} data-stage-tone={NOESIS_NAV_SECTION_TONE[pageSection]} className={cn('noesis-page-header', tabs && 'noesis-page-header--with-tabs', className)}>
       <div className="noesis-page-header__rule" aria-hidden="true" />
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
         <div className="min-w-0 max-w-4xl">
@@ -49,6 +53,7 @@ export function PageHeader({ title, description, actions, meta, className, child
           </div>
           <p className="noesis-page-description mt-2 max-w-3xl text-sm leading-6 md:mt-3 md:text-base md:leading-7">{description}</p>
           {meta && <div className="noesis-page-header__meta">{meta}</div>}
+          {recentType && <RecentlyOpenedStrip type={recentType} reviewMode={reviewMode} />}
         </div>
         {actions && <div className="noesis-page-header-actions">{actions}</div>}
       </div>
@@ -65,8 +70,9 @@ export function PageHeader({ title, description, actions, meta, className, child
  */
 export function DetailLabel({ view, kind, status, extra }: { view: string; kind: string; status?: React.ReactNode; extra?: React.ReactNode }) {
   const Icon = iconForNoesisView(view);
+  const pageSection = NOESIS_PAGE_BY_VIEW[view as NoesisView]?.section;
   return (
-    <div className="noesis-detail-label">
+    <div className="noesis-detail-label" data-stage-tone={pageSection ? NOESIS_NAV_SECTION_TONE[pageSection] : undefined}>
       <div className="noesis-page-header__rule" aria-hidden="true" />
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
         <span className="noesis-margin-marker"><Icon className="size-3.5" strokeWidth={2.2} aria-hidden="true" /></span>

@@ -42,7 +42,10 @@ import {
   Undo2,
   Unlink,
   Video,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -64,7 +67,7 @@ import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
 import { contextDeskWorkTarget } from '@/lib/context-desk-work';
 import { PageSettingsControl, PageViewControls } from './PageViewControls';
 import { isStructuredWorkStyle, StructuredWorkSurface, workToolLabel, type StructuredWorkStyle } from './StructuredWorkSurface';
-import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkDocumentPage, WorkTemplateData, WorkToolSection, WritingStyle } from '@/lib/types';
+import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkDocumentPage, WorkMark, WorkTemplateData, WorkToolSection, WritingStyle } from '@/lib/types';
 import { DRAFT_LABELS, WORK_CATEGORY_LABELS, WRITING_STYLE_DESCRIPTIONS, WRITING_STYLE_LABELS, normalizeConceptTags, today, workCategoryForDraft } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -182,6 +185,7 @@ const DRAFT_SAVE_FIELDS: Array<keyof Draft> = [
   'writingStyle',
   'externalDoc',
   'aiReviewHistory',
+  'marks',
   'conceptTags',
   'sourceIds',
   'questionIds',
@@ -415,6 +419,10 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [writingStrokeSize, setWritingStrokeSize] = useState(3);
   const [writingStrokeOpacity, setWritingStrokeOpacity] = useState(1);
   const [editorRibbon, setEditorRibbon] = useState<'writing' | 'drawing'>('writing');
+  const [ribbonCollapsed, setRibbonCollapsed] = useState(false);
+  useEffect(() => {
+    setRibbonCollapsed(readBrowserPreference('noesis:works-ribbon-collapsed') === '1');
+  }, []);
   const [focusedToolId, setFocusedToolId] = useState<string | null>(null);
   const [drawingRedoByPage, setDrawingRedoByPage] = useState<Record<string, DrawingStroke[]>>({});
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
@@ -1278,8 +1286,13 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         mobileActive={focusedToolId === section.id}
         onFocus={() => {
           setFocusedToolId(section.id);
+          if (section.window?.layerLocked) return;
           const topZ = activeToolSections.reduce((highest, item) => Math.max(highest, item.window?.zIndex || 1), 1);
           if ((section.window?.zIndex || 1) < topZ) updateToolSectionWindow(section.id, { zIndex: topZ + 1 });
+        }}
+        layerRange={{
+          min: activeToolSections.reduce((lowest, item) => Math.min(lowest, item.window?.zIndex ?? 1), 1),
+          max: activeToolSections.reduce((highest, item) => Math.max(highest, item.window?.zIndex ?? 1), 1),
         }}
         onRemove={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))}
         onPatch={(patch) => updateToolSectionWindow(section.id, patch)}
@@ -1555,12 +1568,14 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
         <div className={cn(
           "grid min-h-0 flex-1 grid-cols-1 overflow-hidden",
-          !writingFocus && !railCollapsed && "xl:grid-cols-[minmax(0,1fr)_340px]"
+          !writingFocus && (railCollapsed ? "xl:grid-cols-[minmax(0,1fr)_56px]" : "xl:grid-cols-[minmax(0,1fr)_340px]")
         )}>
           <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden">
             {isDocumentSurface ? (
               <>
-                {editorRibbon === 'drawing' ? (
+                <div className="noesis-ribbon-row" data-collapsed={ribbonCollapsed || undefined}>
+                <div className="min-w-0 flex-1">
+                {!ribbonCollapsed && (editorRibbon === 'drawing' ? (
                   <DrawingOverlayToolbar
                     tool={writingTool}
                     color={writingStrokeColor}
@@ -1585,7 +1600,42 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 ) : <FormattingToolbar saveStatus={saveStatus} onOpenDrawing={() => {
                   setEditorRibbon('drawing');
                   updateActive({ activeRibbon: 'drawing' });
-                }} onInsertTool={addDocumentTool} onUploadImage={uploadInlineImage} />}
+                }} onInsertTool={addDocumentTool} onUploadImage={uploadInlineImage} />)}
+                </div>
+                <button
+                    type="button"
+                    className="noesis-ribbon-fold__toggle"
+                    aria-expanded={!ribbonCollapsed}
+                    aria-label={ribbonCollapsed ? 'Show the ribbon' : 'Hide the ribbon'}
+                    title={ribbonCollapsed ? 'Show the ribbon' : 'Hide the ribbon'}
+                    onClick={() => {
+                      const next = !ribbonCollapsed;
+                      setRibbonCollapsed(next);
+                      writeBrowserPreference('noesis:works-ribbon-collapsed', next ? '1' : '0');
+                    }}
+                  >
+                    {ribbonCollapsed ? <><ChevronDown className="size-3.5" aria-hidden="true" /><span>Ribbon</span></> : <ChevronUp className="size-3.5" aria-hidden="true" />}
+                  </button>
+                </div>
+                {pageTools.length > 0 && (
+                  <div className="noesis-tool-strip hidden md:flex" role="toolbar" aria-label="Tools on this page">
+                    <span className="noesis-tool-strip__label">On this page</span>
+                    {pageTools.map((section) => (
+                      <button
+                        key={section.id}
+                        type="button"
+                        className="noesis-tool-strip__chip"
+                        aria-pressed={focusedToolId === section.id}
+                        onClick={() => {
+                          updateToolSectionWindow(section.id, { minimized: false });
+                          setFocusedToolId(section.id);
+                        }}
+                      >
+                        {workToolLabel(section.tool)}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {pageTools.length > 0 && (
                   <div className="shrink-0 border-b border-border/40 px-2 md:hidden">
                     <DropdownMenu>
@@ -1682,7 +1732,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               <QuickNoteStudio draft={active} updateActive={updateActive} />
             )}
           </div>
-          {!writingFocus && !railCollapsed && <WorkIntellectualRail
+          {/* Collapsed, the rail stays as a slim strip so it can always be reopened. */}
+          {!writingFocus && <WorkIntellectualRail
             active={active}
             sources={activeSources}
             positions={activePositions}
@@ -1692,6 +1743,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             coherenceSignals={coherenceSignals}
             collapsed={railCollapsed}
             onCollapsedChange={setRailPreference}
+            onMarksChange={(marks) => updateActive({ marks })}
           />}
         </div>
 
@@ -3118,7 +3170,9 @@ function WorkIntellectualRail({
   coherenceSignals,
   collapsed,
   onCollapsedChange,
+  onMarksChange,
 }: {
+  onMarksChange: (marks: WorkMark[]) => void;
   active: Draft;
   sources: Media[];
   positions: VaultEntry[];
@@ -3130,6 +3184,7 @@ function WorkIntellectualRail({
   onCollapsedChange: (collapsed: boolean) => void;
 }) {
   const category = active.workCategory || workCategoryForDraft(active.type);
+  const [railTab, setRailTab] = useState<'reel' | 'mark'>('reel');
 
   return (
     <aside className={cn(
@@ -3181,10 +3236,82 @@ function WorkIntellectualRail({
           <p className="mt-3 text-sm leading-6 text-muted-foreground">Linked material stays here, so the creative surface remains primary.</p>
         </div>
 
-        <WorkRailContent sources={sources} positions={positions} inquiries={inquiries} concepts={concepts} annotations={annotations} coherenceSignals={coherenceSignals} hideIntro />
+        <div className="noesis-rail-tabs" role="tablist" aria-label="Rail views">
+          {([['reel', 'Studio Reel'], ['mark', `Mark${(active.marks || []).length ? ` · ${(active.marks || []).length}` : ''}`]] as const).map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={railTab === id} onClick={() => setRailTab(id)}>{label}</button>
+          ))}
+        </div>
+        {railTab === 'mark'
+          ? <WorkMarkPanel marks={active.marks || []} onChange={onMarksChange} />
+          : <WorkRailContent sources={sources} positions={positions} inquiries={inquiries} concepts={concepts} annotations={annotations} coherenceSignals={coherenceSignals} hideIntro />}
       </div>
       )}
     </aside>
+  );
+}
+
+const MARK_KINDS: Array<{ id: WorkMark['kind']; label: string; tone: string }> = [
+  { id: 'claim', label: 'Claim', tone: 'claim' },
+  { id: 'question', label: 'Question', tone: 'examine' },
+  { id: 'evidence', label: 'Evidence', tone: 'encounter' },
+  { id: 'definition', label: 'Definition', tone: 'examine' },
+  { id: 'revisit', label: 'Revisit', tone: 'more' },
+];
+
+/**
+ * Mark: tag a passage by what it does in the argument. Unlike the highlighter,
+ * marking changes nothing in the text; it keeps a list beside the page.
+ */
+function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (marks: WorkMark[]) => void }) {
+  const [selection, setSelection] = useState('');
+  useEffect(() => {
+    const read = () => {
+      const current = window.getSelection();
+      const anchor = current?.anchorNode instanceof Element ? current.anchorNode : current?.anchorNode?.parentElement;
+      const inDocument = Boolean(anchor?.closest('[aria-label="Document body"]'));
+      const text = inDocument ? (current?.toString() || '').replace(/\s+/g, ' ').trim() : '';
+      if (text) setSelection(text.slice(0, 400));
+    };
+    document.addEventListener('selectionchange', read);
+    return () => document.removeEventListener('selectionchange', read);
+  }, []);
+  const mark = (kind: WorkMark['kind']) => {
+    if (!selection) return;
+    onChange([...marks, { id: `mark-${Date.now().toString(36)}`, text: selection, kind, date: new Date().toISOString() }]);
+    setSelection('');
+  };
+  const find = (text: string) => {
+    const finder = (window as Window & { find?: (text: string) => boolean }).find;
+    finder?.call(window, text.slice(0, 80));
+  };
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border/60 bg-card/70 p-3">
+        <div className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Mark the selection as</div>
+        <p className="mt-1 line-clamp-3 text-xs italic leading-5 text-muted-foreground">{selection ? `“${selection}”` : 'Select a passage in the document first.'}</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {MARK_KINDS.map((kind) => (
+            <button key={kind.id} type="button" data-stage-tone={kind.tone} disabled={!selection} onClick={() => mark(kind.id)} className="noesis-mark-kind">{kind.label}</button>
+          ))}
+        </div>
+      </div>
+      {MARK_KINDS.map((kind) => {
+        const group = marks.filter((item) => item.kind === kind.id);
+        if (!group.length) return null;
+        return (
+          <div key={kind.id} data-stage-tone={kind.tone} className="space-y-1.5">
+            <div className="noesis-stage-badge border-l-2 pl-2 font-code text-[9px] font-bold uppercase tracking-[0.16em]">{kind.label} · {group.length}</div>
+            {group.map((item) => (
+              <div key={item.id} className="group/mark flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/40">
+                <button type="button" onClick={() => find(item.text)} className="min-w-0 flex-1 text-left text-xs leading-5" title="Find in the document">“{item.text}”</button>
+                <button type="button" onClick={() => onChange(marks.filter((entry) => entry.id !== item.id))} className="text-xs text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/mark:opacity-100 focus-visible:opacity-100" aria-label="Remove mark">×</button>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      {!marks.length && <p className="text-xs text-muted-foreground">Nothing marked yet. Marks stay beside the page; the text itself is not changed.</p>}
+    </div>
   );
 }
 

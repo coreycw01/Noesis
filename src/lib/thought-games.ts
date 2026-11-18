@@ -8,7 +8,28 @@ export type ThoughtGameKind =
   | 'confidence_calibration'
   | 'source_recall'
   | 'counterexample'
-  | 'tension_test';
+  | 'tension_test'
+  | 'steelman'
+  | 'boundary_sort'
+  | 'whose_words'
+  | 'question_assumption'
+  | 'not_same_as';
+
+/** Plain names for each exercise kind, in the order they are offered. */
+export const THOUGHT_GAME_KIND_LABELS: Record<ThoughtGameKind, string> = {
+  statement_type: 'Statement Type',
+  define_it: 'Define It',
+  assumption_hunt: 'Assumption Hunt',
+  confidence_calibration: 'Confidence Calibration',
+  source_recall: 'Source Recall',
+  counterexample: 'Counterexample',
+  tension_test: 'Tension Test',
+  steelman: 'Steelman',
+  boundary_sort: 'Boundary Sort',
+  whose_words: 'Whose Words?',
+  question_assumption: 'Question the Question',
+  not_same_as: 'Not the Same As',
+};
 
 export interface ThoughtGame {
   id: string;
@@ -186,6 +207,92 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
       reveal: `The current recorded relationship is “${link.type.replace(/_/g, ' ')}.” That record is not automatically correct; open the Position if your judgment has changed.`,
       sourceLabel: `${left.title} / ${right.title}`,
       target: { view: 'vault', targetId: left.id },
+    });
+  });
+
+  rotate(activePositions.filter((position) => position.evidenceAgainst?.some((item) => item.trim())), `${dayKey}:steelman`).slice(0, 2).forEach((position) => {
+    const against = distinct(position.evidenceAgainst || []);
+    games.push({
+      id: `steelman:${position.id}`,
+      kind: 'steelman',
+      label: 'Steelman',
+      title: 'State the strongest case against your own position.',
+      instruction: 'Argue it as its best defender would, then compare it with the objections you have recorded.',
+      prompt: position.statement || position.title,
+      reveal: `Recorded objection${against.length === 1 ? '' : 's'}: ${against.join(' • ')}. If yours was stronger, add it to the Position.`,
+      sourceLabel: position.title || 'Recorded position',
+      target: { view: 'vault', targetId: position.id },
+    });
+  });
+
+  rotate(concepts.filter((concept) => (concept.examples || []).some((item) => item.trim()) && (concept.counterexamples || []).some((item) => item.trim())), `${dayKey}:boundary`).slice(0, 2).forEach((concept) => {
+    const inside = rotate(distinct(concept.examples || []), `${dayKey}:${concept.id}:in`)[0];
+    const outside = rotate(distinct(concept.counterexamples || []), `${dayKey}:${concept.id}:out`)[0];
+    const pickInside = stableHash(`${dayKey}:${concept.id}:side`) % 2 === 0;
+    games.push({
+      id: `boundary:${concept.id}`,
+      kind: 'boundary_sort',
+      label: 'Boundary Sort',
+      title: `Is this inside or outside “${concept.name}”?`,
+      instruction: 'Sort the case using your own definition, then see where you filed it before.',
+      prompt: pickInside ? inside : outside,
+      options: ['Inside the concept', 'Outside the concept', 'On the boundary'],
+      answer: pickInside ? 'Inside the concept' : 'Outside the concept',
+      reveal: `You recorded this as ${pickInside ? 'an example' : 'a counterexample'} of ${concept.name}. If you hesitated, the boundary may need sharpening.`,
+      sourceLabel: concept.name,
+      target: { view: 'concepts', targetId: concept.id },
+    });
+  });
+
+  const quoted = media.flatMap((source) => (source.annotations || [])
+    .filter((note) => note.text.trim().length > 30 && ['highlight', 'excerpt'].includes(note.type))
+    .map((note) => ({ note, source })));
+  rotate(quoted, `${dayKey}:quotes`).slice(0, 2).forEach(({ note, source }) => {
+    const alternatives = media.filter((item) => item.id !== source.id).map((item) => item.title);
+    if (alternatives.length < 2) return;
+    games.push({
+      id: `whose-words:${note.id}`,
+      kind: 'whose_words',
+      label: 'Whose Words?',
+      title: 'Which source did you capture this from?',
+      instruction: 'Remembering where an idea came from is part of owning it.',
+      prompt: note.text,
+      options: choiceOptions(source.title, alternatives, `${dayKey}:${note.id}`),
+      answer: source.title,
+      reveal: `You captured this from ${source.title}${source.creator ? ` by ${source.creator}` : ''}.`,
+      sourceLabel: source.title,
+      target: { view: 'library', targetId: source.id },
+    });
+  });
+
+  rotate(inquiries.filter((inquiry) => !['resolved', 'archived'].includes(inquiry.status)), `${dayKey}:question-assumptions`).slice(0, 2).forEach((inquiry) => {
+    games.push({
+      id: `question-assumption:${inquiry.id}`,
+      kind: 'question_assumption',
+      label: 'Question the Question',
+      title: 'What is this question already assuming?',
+      instruction: 'Name one premise built into the wording. Nothing is saved until you choose to work on the Inquiry.',
+      prompt: inquiry.text,
+      reveal: inquiry.assumptions?.length
+        ? `You previously recorded: ${inquiry.assumptions.join(' • ')}`
+        : 'No assumptions are recorded yet. Open the Inquiry if this exercise uncovered one worth keeping.',
+      sourceLabel: inquiry.text,
+      target: { view: 'questions', targetId: inquiry.id },
+    });
+  });
+
+  rotate(concepts.filter((concept) => (concept.notSameAs || []).some((item) => item.trim())), `${dayKey}:not-same`).slice(0, 2).forEach((concept) => {
+    const distinctions = distinct(concept.notSameAs || []);
+    games.push({
+      id: `not-same:${concept.id}`,
+      kind: 'not_same_as',
+      label: 'Not the Same As',
+      title: `What is “${concept.name}” easily confused with, and how do they differ?`,
+      instruction: 'Name the neighbour and the difference before checking your recorded distinctions.',
+      prompt: `${concept.name}: ${concept.description || 'no definition yet'}`,
+      reveal: `You distinguished it from: ${distinctions.join(' • ')}.`,
+      sourceLabel: concept.name,
+      target: { view: 'concepts', targetId: concept.id },
     });
   });
 

@@ -221,8 +221,8 @@ export function AtlasTerritoryView({
       <div className={detailMode ? 'grid gap-6' : 'grid gap-6 xl:grid-cols-[1.1fr,0.9fr]'}>
         {!detailMode && <div className="grid gap-4 md:grid-cols-2">
           {cards.map((card) => (
-            <button key={card.id} type="button" className="text-left" onClick={() => onSelectRegion(card.id)}>
-              <Card className={`h-full rounded-3xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${selectedRegion?.id === card.id ? 'border-accent/50 bg-accent/5' : 'border-border/60 bg-card/85'}`}>
+            <button key={card.id} type="button" className={selectedRegion?.id === card.id ? 'self-start text-left' : 'text-left'} aria-current={selectedRegion?.id === card.id ? 'true' : undefined} onClick={() => onSelectRegion(card.id)}>
+              <Card className={`rounded-3xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${selectedRegion?.id === card.id ? 'border-accent/50 bg-accent/5' : 'h-full border-border/60 bg-card/85'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <Badge variant="outline" className="mb-2 rounded-full border-dashed font-code text-[8px] uppercase tracking-widest">
@@ -232,10 +232,14 @@ export function AtlasTerritoryView({
                       <Badge className="mb-2 ml-1 rounded-full bg-accent font-code text-[8px] uppercase tracking-widest">New</Badge>
                     )}
                     <div className="font-headline text-2xl font-semibold italic text-foreground">{card.name}</div>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{card.description}</p>
+                    {selectedRegion?.id === card.id
+                      ? <p className="mt-2 font-code text-[9px] uppercase tracking-widest text-accent">Open in the panel beside this list</p>
+                      : <p className="mt-2 text-sm leading-6 text-muted-foreground">{card.description}</p>}
                   </div>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
                 </div>
+                {/* The selected region is described once, in the detail panel, not twice. */}
+                {selectedRegion?.id !== card.id && <>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Badge variant="secondary" className="rounded-full font-code text-[9px] uppercase tracking-widest">
                     {card.confirmedMemberCount} concept{card.confirmedMemberCount === 1 ? '' : 's'}
@@ -273,6 +277,7 @@ export function AtlasTerritoryView({
                   <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Suggested next move</div>
                   <div className="mt-2 font-headline text-lg font-semibold italic text-foreground">{card.nextAction ? regionActionDisplay(card.nextAction) : 'Keep exploring'}</div>
                 </div>
+                </>}
               </Card>
             </button>
           ))}

@@ -132,6 +132,17 @@ const NOTABLE_THINKING_EVENT_TYPES = new Set<string>([
   'thinking_pattern_acknowledged',
 ]);
 
+
+/** Each change takes the color of the stage its record belongs to. */
+function eventStageTone(targetType: string) {
+  const type = targetType.toLowerCase();
+  if (type.includes('position') || type.includes('belief')) return 'claim';
+  if (type.includes('concept') || type.includes('inquiry') || type.includes('question') || type.includes('unknown')) return 'examine';
+  if (type.includes('source') || type.includes('media') || type.includes('annotation')) return 'encounter';
+  if (type.includes('practice') || type.includes('commitment') || type.includes('goal')) return 'act';
+  if (type.includes('work') || type.includes('draft')) return 'more';
+  return 'integrate';
+}
 function isRoutineDeletion(summary?: string, metadata?: Record<string, unknown>) {
   const text = String(summary || '').trim().toLowerCase();
   return text.startsWith('deleted ')
@@ -1007,7 +1018,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                       <time dateTime={event.date}>{eventDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time>
                     </TableCell>
                     <TableCell className="align-top">
-                      <div className="flex items-center gap-2 text-accent">
+                      <div className="noesis-event-kind flex items-center gap-2" data-stage-tone={eventStageTone(event.targetType)}>
                         <EventTypeIcon targetType={event.targetType} className="size-4 shrink-0 stroke-[2.4]" />
                         <span className="font-code text-[9px] font-bold uppercase tracking-[0.14em]">
                           {event.chips[0] || event.targetType.replace(/_/g, ' ')}
@@ -1077,7 +1088,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                         </span>}
                       </time>
                       <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-2 text-accent">
+                        <div className="noesis-event-kind flex min-w-0 items-center gap-2" data-stage-tone={eventStageTone(event.targetType)}>
                           <EventTypeIcon targetType={event.targetType} className="size-[18px] shrink-0 stroke-[2.4]" />
                           <span className="min-w-0 break-words font-code text-[9px] font-bold uppercase tracking-[0.16em] lg:whitespace-nowrap">
                             {event.chips[0] || event.targetType.replace(/_/g, ' ')}

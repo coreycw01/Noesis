@@ -23,13 +23,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
+import { NOESIS_NAV_SECTIONS, NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
 import type { NoesisRouteTargetType } from '@/lib/noesis-routes';
 import { NOESIS_OBJECT_PREVIEW_EVENT, type NoesisObjectPreviewItem } from '@/lib/noesis-object-preview';
 import placeholderData from '@/app/lib/placeholder-images.json';
 import { NOESIS_WORKSPACE_SYNC_EVENT, type WorkspaceSyncState } from '@/lib/workspace-connectivity';
 import { MOBILE_REFRESH_THRESHOLD, mobilePullDistance, shouldRefreshFromPull } from '@/lib/mobile-refresh';
 import { iconForNoesisView } from '@/lib/noesis-icons';
+import { LoopDock, useNavStyle } from '@/components/app-shell/LoopDock';
 import { findMatchRank } from '@/lib/workspace-find-rank';
 import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
 
@@ -241,6 +242,8 @@ interface ShellProps {
 export function Shell({ children, activeView, pendingPath, onViewChange, onOpenProfile, counts, movement, profile, workspaceMode, loadCommandItems, onCommandSelect }: ShellProps) {
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
+  const navStyle = useNavStyle();
+  const loopNav = navStyle === 'loop' && !isMobile;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   useEffect(() => {
@@ -293,7 +296,6 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const [syncState, setSyncState] = useState<WorkspaceSyncState | 'idle'>('idle');
   const navItems = useMemo(() => [
     { id: 'home', icon: iconForNoesisView('home') },
-    { id: 'atlas', icon: iconForNoesisView('atlas') },
     { id: 'concepts', icon: iconForNoesisView('concepts'), count: counts.concepts },
     { id: 'questions', icon: iconForNoesisView('questions'), count: counts.questions },
     { id: 'library', icon: iconForNoesisView('library'), count: counts.media },
@@ -303,6 +305,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'context-desk', icon: iconForNoesisView('context-desk') },
     { id: 'labs', icon: iconForNoesisView('labs'), count: counts.practices },
     { id: 'evolution', icon: iconForNoesisView('evolution'), count: counts.timeline },
+    { id: 'atlas', icon: iconForNoesisView('atlas') },
     { id: 'settings', icon: iconForNoesisView('settings') },
   ], [counts.annotations, counts.concepts, counts.drafts, counts.media, counts.practices, counts.questions, counts.timeline, counts.vault]);
 
@@ -678,11 +681,11 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           collapsed && !isMobile ? 'justify-center px-3 py-2.5' : 'gap-2.5 px-5 py-2.5',
           'border-l-2 duration-150',
           isActive
-            ? 'border-accent bg-sidebar-foreground/[0.07] text-sidebar-foreground'
+            ? 'noesis-nav-item--active bg-sidebar-foreground/[0.07] text-sidebar-foreground'
             : 'border-transparent text-sidebar-foreground/62 hover:border-sidebar-foreground/20 hover:bg-sidebar-foreground/[0.04] hover:text-sidebar-foreground'
         )}
       >
-        <item.icon className={cn('size-4 shrink-0', isActive ? 'text-accent' : 'group-hover:text-accent')} />
+        <item.icon className="noesis-nav-item__icon size-4 shrink-0" />
         {(!collapsed || isMobile) && (
           <>
             <span className={cn('text-[13px] font-body tracking-wide flex-1 text-left', isActive ? 'font-semibold' : 'font-medium')}>{page.title}</span>
@@ -800,11 +803,11 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       )}
 
       <nav className="min-h-0 flex-1 overflow-y-auto py-4 scrollbar-hide">
-        {['Today', 'Encounter', 'Question', 'Claim', 'Praxis', 'Revise', 'More'].map((section) => (
-          <div key={section} className="mb-5">
-            {(!collapsed || isMobile) && (
+        {NOESIS_NAV_SECTIONS.map((section) => (
+          <div key={section} className="noesis-nav-section mb-5" data-stage={NOESIS_NAV_SECTION_TONE[section]}>
+            {(!collapsed || isMobile) && section !== 'Today' && (
               <div className="px-5 mb-1">
-                <h4 className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/40 font-bold">{section}</h4>
+                <h4 className="noesis-nav-section__label font-code text-[9px] uppercase tracking-[0.14em] font-bold">{section}</h4>
               </div>
             )}
             <ul className="space-y-1">
@@ -854,7 +857,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         }} className="sr-only z-[60] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:rounded-[var(--button-radius)] focus:bg-surface focus:px-4 focus:py-3 focus:text-foreground focus:outline focus:outline-2 focus:outline-ring">
           Skip to workspace content
         </a>
-        {!isMobile && (
+        {!isMobile && !loopNav && (
           <aside aria-label="Workspace sidebar" className={cn(
             "noesis-sidebar hidden md:flex bg-sidebar text-sidebar-foreground flex-col border-r border-sidebar-border z-20 transition-[width] duration-300 ease-out",
             collapsed ? "w-[84px]" : "w-[252px]"
@@ -948,7 +951,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         <main
           id="noesis-main-content"
           tabIndex={-1}
-          className="noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-32 pt-14 md:pb-0 md:pt-0"
+          className={cn("noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-32 pt-14 md:pb-0 md:pt-0", loopNav && "noesis-app-main--loop")}
           aria-busy={Boolean(pendingPath)}
           onTouchStart={handleMobileTouchStart}
           onTouchMove={handleMobileTouchMove}
@@ -973,6 +976,16 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             </div>
           )}
           {children}
+          {loopNav && (
+            <LoopDock
+              items={navItems}
+              activeView={activeView}
+              attention={attentionTotal}
+              onNavigate={handleNavChange}
+              onFind={(opener) => openCommand('find', opener)}
+              onOpenProfile={onOpenProfile || (() => handleNavChange('profile'))}
+            />
+          )}
           {isMobile && (
             <nav className="noesis-mobile-nav fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background/95 px-2 py-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur md:hidden" aria-label="Primary mobile navigation">
               <div className="grid grid-cols-5 gap-1">

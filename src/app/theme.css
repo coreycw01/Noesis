@@ -57,6 +57,21 @@
   --sidebar-accent: 346 38% 18%;
   --sidebar-accent-foreground: 0 0% 100%;
   --sidebar-border: 30 4% 16%;
+  /* Thinking-loop stage colors. Pages, nav groups, and badges take their tone
+     from the stage they belong to, so the loop reads at a glance. */
+  --stage-encounter: 33 87% 35%;
+  --stage-examine: 184 32% 34%;
+  --stage-claim: 12 62% 43%;
+  --stage-act: 95 41% 33%;
+  --stage-integrate: 270 29% 43%;
+  --stage-more: 225 41% 42%;
+  /* The sidebar is always dark, so it keeps the bright stage set in both themes. */
+  --sidebar-stage-encounter: 35 73% 55%;
+  --sidebar-stage-examine: 182 21% 63%;
+  --sidebar-stage-claim: 15 65% 61%;
+  --sidebar-stage-act: 87 30% 63%;
+  --sidebar-stage-integrate: 275 28% 71%;
+  --sidebar-stage-more: 223 45% 71%;
   --sidebar-ring: 262 73% 46%;
 }
 
@@ -78,6 +93,12 @@
   --sidebar-background: 30 6% 7%;
   --sidebar-foreground: 45 18% 84%;
   --sidebar-border: 30 5% 15%;
+  --stage-encounter: 35 73% 55%;
+  --stage-examine: 182 21% 63%;
+  --stage-claim: 15 65% 61%;
+  --stage-act: 87 30% 63%;
+  --stage-integrate: 275 28% 71%;
+  --stage-more: 223 45% 71%;
 }
 
 .high-contrast {
@@ -539,3 +560,205 @@ button:disabled,
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
 }
+
+/* Sidebar: each stage group tints its label, active marker, and icons. */
+.noesis-nav-section { --nav-stage: var(--sidebar-stage-encounter); }
+.noesis-nav-section[data-stage="examine"] { --nav-stage: var(--sidebar-stage-examine); }
+.noesis-nav-section[data-stage="claim"] { --nav-stage: var(--sidebar-stage-claim); }
+.noesis-nav-section[data-stage="act"] { --nav-stage: var(--sidebar-stage-act); }
+.noesis-nav-section[data-stage="integrate"] { --nav-stage: var(--sidebar-stage-integrate); }
+.noesis-nav-section[data-stage="more"] { --nav-stage: var(--sidebar-stage-more); }
+.noesis-nav-section__label { color: hsl(var(--nav-stage) / .85); }
+.noesis-nav-item__icon { color: hsl(var(--nav-stage) / .7); transition: color var(--motion-quick) var(--ease-noesis); }
+.noesis-nav-section button:hover .noesis-nav-item__icon,
+.noesis-nav-item--active .noesis-nav-item__icon { color: hsl(var(--nav-stage)); }
+.noesis-nav-item--active { border-left-color: hsl(var(--nav-stage)); }
+
+/* Stage badges (StageBadge) and any element tagged with a stage. */
+[data-stage-tone] { --stage: var(--stage-encounter); }
+[data-stage-tone="examine"] { --stage: var(--stage-examine); }
+[data-stage-tone="claim"] { --stage: var(--stage-claim); }
+[data-stage-tone="act"] { --stage: var(--stage-act); }
+[data-stage-tone="integrate"] { --stage: var(--stage-integrate); }
+[data-stage-tone="more"] { --stage: var(--stage-more); }
+.noesis-stage-badge { color: hsl(var(--stage)); border-left-color: hsl(var(--stage) / .6); }
+
+/* Page and record headers: the opening rule, margin marker, and stage label
+   take the page's stage color instead of the global accent. */
+.noesis-page-header[data-stage-tone] .noesis-page-header__rule,
+.noesis-detail-label[data-stage-tone] .noesis-page-header__rule { background: hsl(var(--stage)); }
+.noesis-page-header[data-stage-tone] .noesis-margin-marker,
+.noesis-detail-label[data-stage-tone] .noesis-margin-marker { color: hsl(var(--stage)); border-left-color: hsl(var(--stage)); }
+.noesis-page-header[data-stage-tone] .noesis-route-label__section,
+.noesis-detail-label[data-stage-tone] .noesis-route-label__section { color: hsl(var(--stage)); }
+
+/* Pages center on a reading measure; canvases (Atlas) keep the full width. */
+:root { --page-measure: 78rem; }
+.noesis-page,
+.noesis-gutter { padding-inline: max(var(--page-gutter), calc((100% - var(--page-measure)) / 2)); }
+[data-noesis-identity="network"] .noesis-gutter { padding-inline: var(--page-gutter); }
+
+/* The Loop dock: an alternative to the sidebar (Settings > Appearance). */
+.noesis-app-main--loop { padding-bottom: 5.5rem; }
+.noesis-loop {
+  --dock-bg: hsl(var(--sidebar-background) / .94);
+  position: fixed; left: 50%; bottom: max(1rem, env(safe-area-inset-bottom)); z-index: 40;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: .35rem;
+  padding: .4rem .5rem; border-radius: 999px;
+  background: var(--dock-bg); color: hsl(var(--sidebar-foreground));
+  border: 1px solid hsl(var(--sidebar-border));
+  box-shadow: 0 18px 40px -18px hsl(0 0% 0% / .55);
+  backdrop-filter: blur(10px);
+  max-width: calc(100vw - 2rem);
+}
+.noesis-loop [data-stage], .noesis-loop[data-stage] { --nav-stage: var(--sidebar-stage-encounter); }
+.noesis-loop [data-stage="examine"], .noesis-loop[data-stage="examine"] { --nav-stage: var(--sidebar-stage-examine); }
+.noesis-loop [data-stage="claim"], .noesis-loop[data-stage="claim"] { --nav-stage: var(--sidebar-stage-claim); }
+.noesis-loop [data-stage="act"], .noesis-loop[data-stage="act"] { --nav-stage: var(--sidebar-stage-act); }
+.noesis-loop [data-stage="integrate"], .noesis-loop[data-stage="integrate"] { --nav-stage: var(--sidebar-stage-integrate); }
+.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--sidebar-stage-more); }
+.noesis-loop__cycle { display: flex; align-items: center; }
+.noesis-loop__divider { width: 1px; height: 1.6rem; background: hsl(var(--sidebar-border)); margin-inline: .2rem; }
+.noesis-loop__link { width: .9rem; height: 1px; background: hsl(var(--sidebar-foreground) / .22); }
+.noesis-loop__stage { position: relative; }
+.noesis-loop__stage-button, .noesis-loop__today, .noesis-loop__fold {
+  display: inline-flex; align-items: center; gap: .45rem; border-radius: 999px;
+  padding: .3rem .55rem .3rem .3rem; background: transparent;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase;
+  color: hsl(var(--sidebar-foreground) / .7);
+  transition: background var(--motion-quick) var(--ease-noesis), color var(--motion-quick) var(--ease-noesis);
+}
+.noesis-loop__today { padding-left: .6rem; color: hsl(var(--nav-stage)); position: relative; }
+.noesis-loop__fold { padding: .35rem; }
+.noesis-loop__stage-button:hover, .noesis-loop__today:hover, .noesis-loop__fold:hover,
+.noesis-loop__stage-button[aria-expanded="true"] { background: hsl(var(--sidebar-foreground) / .08); color: hsl(var(--sidebar-foreground)); }
+.noesis-loop__ring {
+  display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 999px;
+  border: 1.5px solid hsl(var(--nav-stage) / .55); color: hsl(var(--nav-stage));
+}
+.noesis-loop__stage-button[aria-current="true"] { color: hsl(var(--nav-stage)); }
+.noesis-loop__stage-button[aria-current="true"] .noesis-loop__ring { background: hsl(var(--nav-stage) / .18); border-color: hsl(var(--nav-stage)); }
+.noesis-loop__today[aria-current="page"] { background: hsl(var(--nav-stage) / .16); }
+.noesis-loop__badge {
+  min-width: 1rem; padding: 0 .25rem; border-radius: 999px; font-size: .55rem; letter-spacing: 0;
+  background: hsl(var(--nav-stage)); color: hsl(var(--sidebar-background));
+}
+.noesis-loop__pop {
+  position: absolute; bottom: calc(100% + .7rem); left: 50%; transform: translateX(-50%);
+  min-width: 13rem; padding: .4rem; border-radius: 14px;
+  background: hsl(var(--sidebar-background)); border: 1px solid hsl(var(--nav-stage) / .45);
+  box-shadow: 0 18px 40px -16px hsl(0 0% 0% / .6);
+  animation: noesis-loop-pop var(--motion-quick) var(--ease-noesis) both;
+}
+.noesis-loop__pop-label { padding: .3rem .55rem .35rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .55rem; letter-spacing: .18em; text-transform: uppercase; color: hsl(var(--nav-stage)); }
+.noesis-loop__pop-item {
+  display: flex; width: 100%; align-items: center; gap: .6rem; border-radius: 9px; padding: .5rem .55rem;
+  font-size: .85rem; color: hsl(var(--sidebar-foreground) / .85); background: transparent;
+}
+.noesis-loop__pop-item svg { color: hsl(var(--nav-stage)); }
+.noesis-loop__pop-item:hover, .noesis-loop__pop-item[aria-current="page"] { background: hsl(var(--nav-stage) / .14); color: hsl(var(--sidebar-foreground)); }
+.noesis-loop--folded { padding: 0; }
+.noesis-loop__pill {
+  display: inline-flex; align-items: center; gap: .5rem; padding: .55rem .9rem; border-radius: 999px;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .62rem; letter-spacing: .14em; text-transform: uppercase;
+  color: hsl(var(--nav-stage)); background: transparent;
+}
+@media (max-width: 1100px) { .noesis-loop__stage-name { display: none; } .noesis-loop__stage-button { padding-right: .3rem; } }
+@keyframes noesis-loop-pop { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .noesis-loop__pop { animation: none; } }
+
+/* Positions: calibration gauge (stated confidence against the evidence balance). */
+.noesis-calibration__track { position: relative; display: flex; height: .7rem; margin-top: .6rem; border-radius: 999px; overflow: visible; }
+.noesis-calibration__zone { flex: 1; background: hsl(var(--stage)); }
+.noesis-calibration__zone:first-child { border-radius: 999px 0 0 999px; }
+.noesis-calibration__zone:last-child { border-radius: 0 999px 999px 0; }
+.noesis-calibration__zone + .noesis-calibration__zone { margin-left: 2px; }
+.noesis-calibration__gap { position: absolute; top: 50%; height: 2px; transform: translateY(-50%); background: repeating-linear-gradient(90deg, hsl(var(--foreground) / .7) 0 3px, transparent 3px 6px); }
+.noesis-calibration__stated, .noesis-calibration__earned { position: absolute; top: 50%; width: .95rem; height: .95rem; border-radius: 999px; transform: translate(-50%, -50%); transition: left var(--motion-calm) var(--ease-noesis); }
+.noesis-calibration__stated { background: hsl(var(--stage)); border: 2px solid hsl(var(--card)); box-shadow: 0 0 0 1px hsl(var(--stage)); }
+.noesis-calibration__earned { background: hsl(var(--card)); border: 2px solid hsl(var(--foreground) / .75); }
+.noesis-calibration__labels { display: flex; margin-top: .35rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .5rem; letter-spacing: .06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-calibration__labels span { flex: 1; text-align: center; }
+.noesis-calibration__key { display: inline-block; width: .5rem; height: .5rem; margin-right: .3rem; border-radius: 999px; vertical-align: middle; }
+.noesis-calibration__key--stated { background: hsl(var(--stage)); }
+.noesis-calibration__key--earned { border: 1.5px solid hsl(var(--foreground) / .75); }
+
+/* Workbench steps with progress (source journey): ring arc and next-step hint. */
+.noesis-step-ring__arc { stroke: hsl(var(--stage, var(--accent))); transition: stroke-dasharray var(--motion-calm) var(--ease-noesis); }
+.noesis-step-ring[data-active] { color: hsl(var(--stage, var(--accent))); }
+.noesis-step-next { color: hsl(var(--stage, var(--accent))); }
+.noesis-source-detail { --stage: var(--stage-encounter); }
+
+/* Atlas timeline replay. */
+.noesis-atlas-timeline { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .9rem; padding: .35rem 0 .5rem; }
+.noesis-atlas-timeline__date { display: inline-flex; align-items: center; gap: .45rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-atlas-timeline__date input { height: 2rem; border-radius: 999px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); padding: 0 .7rem; font-size: .75rem; letter-spacing: 0; color: hsl(var(--foreground)); color-scheme: inherit; }
+.noesis-atlas-timeline__slider { flex: 1 1 14rem; display: flex; align-items: center; min-width: 10rem; }
+.noesis-atlas-timeline__slider input { width: 100%; accent-color: hsl(var(--stage-integrate)); }
+.noesis-atlas-timeline__readout { font-size: .8rem; color: hsl(var(--muted-foreground)); white-space: nowrap; }
+.noesis-atlas-timeline__readout b { color: hsl(var(--foreground)); font-weight: 600; }
+[data-noesis-identity="network"] button[data-timeline="new"] { box-shadow: 0 0 0 2px hsl(var(--stage-integrate)), 0 0 22px -4px hsl(var(--stage-integrate) / .7); }
+[data-noesis-identity="network"] button[data-timeline="new"]::after { content: "new"; position: absolute; top: -.55rem; right: .6rem; padding: 0 .4rem; border-radius: 999px; background: hsl(var(--stage-integrate)); color: hsl(var(--background)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .5rem; letter-spacing: .14em; text-transform: uppercase; line-height: 1rem; }
+
+/* Works: a foldable ribbon and a strip naming the tools placed on this page. */
+.noesis-ribbon-row { display: flex; align-items: flex-start; flex-shrink: 0; }
+.noesis-ribbon-row[data-collapsed] { justify-content: flex-end; border-bottom: 1px solid hsl(var(--border) / .5); padding: .3rem 0; }
+.noesis-ribbon-fold__toggle {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: .3rem; margin: .65rem .75rem 0 -.25rem;
+  height: 1.6rem; padding: 0 .45rem; border-radius: 999px; border: 1px solid hsl(var(--border));
+  background: hsl(var(--card)); color: hsl(var(--muted-foreground));
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .55rem; letter-spacing: .14em; text-transform: uppercase;
+}
+.noesis-ribbon-row[data-collapsed] .noesis-ribbon-fold__toggle { margin-top: 0; }
+.noesis-ribbon-fold__toggle:hover { color: hsl(var(--foreground)); border-color: hsl(var(--stage-more) / .6); }
+.noesis-tool-strip { flex-wrap: wrap; align-items: center; gap: .4rem; padding: .35rem 1rem; border-bottom: 1px solid hsl(var(--border) / .45); }
+.noesis-tool-strip__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .55rem; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-right: .2rem; }
+.noesis-tool-strip__chip { height: 1.6rem; padding: 0 .7rem; border-radius: 999px; border: 1px solid hsl(var(--border)); background: transparent; font-size: .75rem; color: hsl(var(--foreground) / .85); }
+.noesis-tool-strip__chip:hover, .noesis-tool-strip__chip[aria-pressed="true"] { border-color: hsl(var(--stage-more)); background: hsl(var(--stage-more) / .12); }
+
+/* Assistance panel: per-action reasoning depth. */
+.noesis-ai-depth { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.noesis-ai-depth__option { display: grid; gap: .15rem; text-align: left; padding: .6rem .75rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--border)); background: hsl(var(--card)); font-size: .9rem; }
+.noesis-ai-depth__option:hover:not(:disabled) { border-color: hsl(var(--stage-more) / .6); }
+.noesis-ai-depth__option[aria-checked="true"] { border-color: hsl(var(--stage-more)); background: hsl(var(--stage-more) / .12); box-shadow: inset 0 0 0 1px hsl(var(--stage-more) / .5); }
+@media (max-width: 520px) { .noesis-ai-depth { grid-template-columns: 1fr; } }
+
+/* Shape My Philosophy: guided process. */
+.noesis-philosophy-launch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.25rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--stage) / .45); background: hsl(var(--stage) / .07); }
+.noesis-philosophy-steps { display: flex; flex-wrap: wrap; gap: .4rem; list-style: none; margin: 0; padding: 0; }
+.noesis-philosophy-steps button { display: inline-flex; align-items: center; gap: .45rem; height: 2rem; padding: 0 .8rem; border-radius: 999px; border: 1px solid hsl(var(--border)); font-size: .82rem; color: hsl(var(--muted-foreground)); background: transparent; }
+.noesis-philosophy-steps button[aria-current="step"] { border-color: hsl(var(--stage)); background: hsl(var(--stage) / .14); color: hsl(var(--foreground)); }
+.noesis-philosophy-steps button:disabled { opacity: .45; }
+.noesis-philosophy-rule { border-left: 2px solid hsl(var(--stage)); padding-left: .8rem; font-size: .85rem; color: hsl(var(--muted-foreground)); }
+.noesis-philosophy-item { display: grid; gap: .6rem; padding: 1rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--border)); background: hsl(var(--background) / .5); }
+.noesis-philosophy-word { padding: .2rem .55rem; border-radius: 999px; border: 1px solid hsl(var(--border)); font-size: .9rem; background: transparent; }
+.noesis-philosophy-word[aria-pressed="true"] { border-color: hsl(var(--stage)); background: hsl(var(--stage) / .18); }
+.noesis-philosophy-ladder { display: grid; gap: .5rem; margin: 0; padding-left: 1.1rem; }
+.noesis-philosophy-ladder li { display: grid; gap: .1rem; }
+
+/* Evolution: each change wears its record's stage color. */
+.noesis-event-kind { color: hsl(var(--stage)); }
+
+/* Concepts: relation zones with a draggable shelf of the user's concepts. */
+.noesis-concept-shelf { margin-bottom: 1rem; display: grid; gap: .55rem; padding: .75rem; border-radius: var(--card-radius); border: 1px dashed hsl(var(--border)); }
+.noesis-concept-shelf__list { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .25rem; scrollbar-width: thin; }
+.noesis-concept-shelf__chip { flex-shrink: 0; cursor: grab; user-select: none; padding: .25rem .65rem; border-radius: 999px; border: 1px solid hsl(var(--stage-examine) / .55); color: hsl(var(--foreground) / .9); font-size: .75rem; background: hsl(var(--stage-examine) / .08); }
+.noesis-concept-shelf__chip:active { cursor: grabbing; }
+.noesis-concept-zone--relation { border-left: 3px solid hsl(var(--stage) / .7); transition: background var(--motion-quick) var(--ease-noesis), border-color var(--motion-quick) var(--ease-noesis); }
+.noesis-concept-zone__title { color: hsl(var(--stage)); }
+.noesis-concept-zone[data-drop-active] { background: hsl(var(--stage) / .1); border-color: hsl(var(--stage)); }
+
+/* "Last opened" quick links under index page headers. */
+.noesis-recent-strip { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .9rem; }
+.noesis-recent-strip__label { display: inline-flex; align-items: center; gap: .35rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-right: .2rem; }
+.noesis-recent-strip__item { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; height: 1.75rem; padding: 0 .75rem; border-radius: 999px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); font-size: .78rem; color: hsl(var(--foreground) / .85); }
+.noesis-recent-strip__item:hover { border-color: hsl(var(--stage, var(--accent)) / .6); }
+
+/* Works rail: Studio Reel / Mark tabs, and mark kinds. */
+.noesis-rail-tabs { display: flex; gap: .25rem; padding: .2rem; border-radius: 999px; border: 1px solid hsl(var(--border)); }
+.noesis-rail-tabs button { flex: 1; height: 1.9rem; border-radius: 999px; font-size: .78rem; color: hsl(var(--muted-foreground)); background: transparent; }
+.noesis-rail-tabs button[aria-selected="true"] { background: hsl(var(--stage-more) / .16); color: hsl(var(--foreground)); }
+.noesis-mark-kind { height: 1.7rem; padding: 0 .7rem; border-radius: 999px; border: 1px solid hsl(var(--stage) / .6); color: hsl(var(--stage)); background: transparent; font-size: .75rem; }
+.noesis-mark-kind:hover:not(:disabled) { background: hsl(var(--stage) / .14); }
+.noesis-mark-kind:disabled { opacity: .4; }

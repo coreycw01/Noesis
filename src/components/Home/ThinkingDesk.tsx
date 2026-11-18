@@ -577,8 +577,11 @@ export function ThinkingDesk({
     return Array.from(unique.values()).slice(0, 3);
   }, [attention.practicesNeedingLogs, historyDestination, lastHomeVisit, media, thinkingEvents]);
 
-  const primaryEdge = continueItems[0] || null;
-  const secondaryEdges = continueItems.slice(1, 3);
+  // Rotate among the top few moves so one avoided suggestion never blocks the card.
+  const [edgeOffset, setEdgeOffset] = useState(0);
+  const rotation = continueItems.slice(0, 3);
+  const primaryEdge = rotation.length ? rotation[edgeOffset % rotation.length] : null;
+  const secondaryEdges = continueItems.filter((item) => item !== primaryEdge).slice(0, 2);
   const workspaceSnapshot = useMemo(() => {
     const openInquiries = attention.metrics.openInquiries;
     const unprocessedAnnotations = attention.metrics.rawAnnotations;
@@ -890,6 +893,11 @@ export function ThinkingDesk({
                     <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">What to do next</div>
                     <p className="mt-1 text-xs text-muted-foreground">One recommended move, followed by your longest-waiting unanswered question.</p>
                   </div>
+                  {rotation.length > 1 && (
+                    <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full text-xs" onClick={() => setEdgeOffset((current) => current + 1)}>
+                      Show another · {(edgeOffset % rotation.length) + 1}/{rotation.length}
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="p-5">

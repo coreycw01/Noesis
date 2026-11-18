@@ -1,9 +1,10 @@
 'use client';
 
-import { Fragment, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
 import { addContextDeskSelection, contextDeskStorageKeys, normalizeContextDeskSelection } from '@/lib/context-desk-selection';
 import { navigateWorkspace } from '@/lib/workspace-navigation';
+import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
 import { ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCopy, Eye, Layers3, LayoutList, Loader2, Pencil, RotateCcw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -102,6 +103,14 @@ export function ContextualAiDocument({ content }: { content: string }) {
   return <div className="space-y-4">{blocks}</div>;
 }
 
+type AiDepth = 'light' | 'standard' | 'deep';
+const AI_DEPTH_KEY = 'noesis:ai-depth-by-action';
+const AI_DEPTHS: Array<{ id: AiDepth; label: string; hint: string }> = [
+  { id: 'light', label: 'Quick', hint: 'The single strongest observation.' },
+  { id: 'standard', label: 'Standard', hint: 'Main reasons and uncertainty.' },
+  { id: 'deep', label: 'Deep', hint: 'Competing readings, weighed.' },
+];
+
 export function ContextualAiPanel({
   actions,
   buildEnvelope,
@@ -146,7 +155,23 @@ export function ContextualAiPanel({
   const rawEnvelope = useMemo(() => buildEnvelope(action, userPrompt.trim() || undefined), [action, buildEnvelope, userPrompt]);
   const envelope = useMemo(() => rawEnvelope ? boundedAiContext(rawEnvelope) : null, [rawEnvelope]);
   const actionAvailable = enabled && actions.includes(action);
-  const request = useMemo(() => envelope && actionAvailable && !promptTooShort ? { ...envelope, reasoningDepth } : null, [envelope, reasoningDepth, actionAvailable, promptTooShort]);
+  // Depth can be set per action (remembered on this device); the Settings default applies otherwise.
+  const [depthByAction, setDepthByAction] = useState<Partial<Record<ContextualAiAction, AiDepth>>>({});
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(readBrowserPreference(AI_DEPTH_KEY) || '{}') as Partial<Record<ContextualAiAction, AiDepth>>;
+      if (saved && typeof saved === 'object') setDepthByAction(saved);
+    } catch { /* A malformed preference falls back to the default depth. */ }
+  }, []);
+  const effectiveDepth: AiDepth = depthByAction[action] || reasoningDepth;
+  const chooseDepth = (depth: AiDepth) => {
+    setDepthByAction((current) => {
+      const next = { ...current, [action]: depth };
+      writeBrowserPreference(AI_DEPTH_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+  const request = useMemo(() => envelope && actionAvailable && !promptTooShort ? { ...envelope, reasoningDepth: effectiveDepth } : null, [envelope, effectiveDepth, actionAvailable, promptTooShort]);
   const requestSignature = request ? JSON.stringify([request, reviewContextKey]) : null;
   const reviewIsStale = Boolean(result && (!request || result.targetId !== request.targetId || result.targetType !== request.targetType
     || result.action !== action || reviewedRequest.current !== requestSignature));
@@ -440,6 +465,27 @@ export function ContextualAiPanel({
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-medium text-foreground">How deep should it go?</legend>
+                    <div className="noesis-ai-depth" role="radiogroup" aria-label="Reasoning depth">
+                      {AI_DEPTHS.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={effectiveDepth === option.id}
+                          disabled={loading || accepting}
+                          onClick={() => { chooseDepth(option.id); setResult(null); setReviewItems([]); setFocusedItemId(null); }}
+                          className="noesis-ai-depth__option"
+                        >
+                          <span className="font-semibold">{option.label}</span>
+                          <span className="text-xs text-muted-foreground">{option.hint}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Remembered for {CONTEXTUAL_AI_LABELS[action]} on this device. The default is set in Settings.</p>
+                  </fieldset>
 
                   {promptLabel && (
                     <div className="space-y-2">

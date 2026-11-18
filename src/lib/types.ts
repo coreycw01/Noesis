@@ -110,6 +110,8 @@ export interface WorkToolSection {
     background?: { color?: string; opacity?: number };
     /** How the tool participates in the writing page. */
     placement?: 'overlay' | 'wrap' | 'break';
+    /** Set once the writer chooses a layer, so focusing the tool no longer raises it. */
+    layerLocked?: boolean;
   };
   data: WorkToolData;
 }
@@ -403,6 +405,8 @@ export interface Concept extends NoesisStageState {
   description: string;
   aliases?: string[];
   notSameAs?: string[];
+  /** Concepts this one stands against: opposites and rivals. */
+  opposedTo?: string[];
   examples?: string[];
   counterexamples?: string[];
   boundaryReview?: string;
@@ -485,7 +489,16 @@ export interface TimelineEvent {
   date: string;
 }
 
+/** A passage the writer marked in a Work, distinct from highlighting its text. */
+export interface WorkMark {
+  id: string;
+  text: string;
+  kind: 'claim' | 'question' | 'evidence' | 'definition' | 'revisit';
+  date: string;
+}
+
 export interface Draft extends NoesisStageState {
+  marks?: WorkMark[];
   bodyProvenance?: import('./ai-provenance').ProvenanceRef;
   id: string;
   title: string;

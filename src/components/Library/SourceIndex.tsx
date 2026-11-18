@@ -13,6 +13,7 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import type { Draft, Media, MediaStatus, MediaType, Practice, Question, VaultEntry } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_STATUS_LABELS, conceptKey } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { ConceptFilterPicker } from '@/components/shared/ConceptFilterPicker';
 import { useToast } from '@/hooks/use-toast';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
@@ -575,13 +576,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               {statuses.map(s => <SelectItem key={s} value={s} className="font-code text-[10px] uppercase">{MEDIA_STATUS_LABELS[s]}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterConcept} onValueChange={setFilterConcept}>
-            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Concept" /></SelectTrigger>
-            <SelectContent className="max-h-80">
-              <SelectItem value="all" className="font-code text-[10px] uppercase">Concept: All</SelectItem>
-              {visibleConceptFilters.map(c => <SelectItem key={c} value={c} className="font-code text-[10px] uppercase">{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <ConceptFilterPicker value={filterConcept} options={visibleConceptFilters} onChange={setFilterConcept} label="Filter sources by concept" allLabel="Concept: All" className="w-44" />
           <Select value={catalogFilter} onValueChange={(v) => setCatalogFilter(v as CatalogFilter)}>
             <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Catalog Health" /></SelectTrigger>
             <SelectContent>

@@ -26,6 +26,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { iconForNoesisView } from '@/lib/noesis-icons';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
+import { collectAiHistory, NoesisAiHistory } from '@/components/ai/NoesisAiHistory';
+import { History, ScanSearch } from 'lucide-react';
 import type { AiSettings, Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -108,6 +111,19 @@ export function ContextDeskRoutePage({
   onNavigate,
 }: ContextDeskRoutePageProps) {
   const workspaceKey = useContext(NoesisWorkspaceKeyContext);
+  // Noesis AI holds two surfaces: the history of every kept result, and the desk.
+  const [surface, setSurface] = useState<'history' | 'desk'>('desk');
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('noesis:ai-surface');
+      if (saved === 'history' || saved === 'desk') setSurface(saved);
+    } catch { /* View preference is optional. */ }
+  }, []);
+  const chooseSurface = (next: 'history' | 'desk') => {
+    setSurface(next);
+    try { window.localStorage.setItem('noesis:ai-surface', next); } catch { /* View preference is optional. */ }
+  };
+  const aiHistory = useMemo(() => collectAiHistory({ media, concepts, questions, positions, works, practices }), [media, concepts, questions, positions, works, practices]);
   const storageKeys = useMemo(() => workspaceKey ? contextDeskStorageKeys(workspaceKey) : null, [workspaceKey]);
   const conceptNameById = useMemo(() => new Map(concepts.map((concept) => [concept.id, concept.name])), [concepts]);
   const knownSourceIds = useMemo(() => new Set(media.map((source) => source.id)), [media]);
@@ -423,10 +439,24 @@ export function ContextDeskRoutePage({
     <div className="noesis-context-desk min-h-0 flex-1 overflow-y-auto overscroll-contain" data-noesis-scroll-region>
       <div className="noesis-gutter w-full pb-28 pt-[var(--page-top)] lg:pb-12">
       <PageHeader
-        title="Context Desk"
-        description="Choose the records Noesis may consider. Nothing else in your workspace is included, and no result is saved until you review it."
+        title="Noesis AI"
+        description={surface === 'history'
+          ? 'Everything the assistant produced that you chose to keep, gathered from every page.'
+          : 'Choose the records Noesis may consider. Nothing else in your workspace is included, and no result is saved until you review it.'}
+        tabs={(
+          <WorkspaceTabs
+            value={surface}
+            onChange={chooseSurface}
+            label="Noesis AI views"
+            items={[
+              { id: 'history', label: 'History', icon: History, count: aiHistory.length },
+              { id: 'desk', label: 'Context Desk', icon: ScanSearch },
+            ]}
+          />
+        )}
       />
 
+      {surface === 'history' ? <NoesisAiHistory items={aiHistory} onNavigate={onNavigate} /> : (
       <div className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.72fr)]">
         <section aria-labelledby="context-library-heading" className="min-w-0">
           <div className="flex items-end justify-between gap-3">
@@ -645,6 +675,7 @@ export function ContextDeskRoutePage({
           </div>
         </section>
       </div>
+      )}
       </div>
 
       <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>

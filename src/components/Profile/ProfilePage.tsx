@@ -16,6 +16,7 @@ import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { ShapeMyPhilosophy } from '@/components/Profile/ShapeMyPhilosophy';
 import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
 import { LabeledField as Field } from '@/components/shared/LabeledField';
 import { profileEditPatch, profileReviewTarget, type ProfileReviewApproval } from '@/lib/profile-edit';
@@ -75,6 +76,7 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
   const [pendingPublication, setPendingPublication] = useState<{ privacy: ProfilePrivacySettings; snapshot: PublicProfileSnapshot; expectedVersion: { dateUpdated?: string } } | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
   const [philosophyView, setPhilosophyView] = useState<PhilosophyView>('foundation');
+  const [shaping, setShaping] = useState(false);
   const [reflectionView, setReflectionView] = useState<ReflectionView>('patterns');
   const profileBaselineRef = useRef(profile);
   const publishButtonRef = useRef<HTMLButtonElement>(null);
@@ -260,7 +262,34 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
             <SectionCard title="Current Snapshot" description="A compact summary derived from your saved work."><div className="grid gap-3 sm:grid-cols-2"><DerivedField label="Current season" value={derivedIdentity.season} /><DerivedField label="Recurring focus" value={derivedIdentity.focus} /><DerivedField label="Leading position" value={derivedIdentity.leadingPosition?.statement || derivedIdentity.leadingPosition?.title || 'No active position yet.'} wide /></div><p className="mt-4 text-xs leading-5 text-muted-foreground">Based on {derivedIdentity.evidenceLine}. This describes the current record, not a permanent identity.</p></SectionCard>
           </div></TabsContent>
 
-          <TabsContent value="philosophy" className="mt-0"><SectionCard title="Your Philosophy" description="Name the worldview taking shape, then inspect the records that give it substance.">
+          <TabsContent value="philosophy" className="mt-0">
+            {shaping ? (
+              <section className="mb-6 rounded-[var(--card-radius)] border border-border bg-card p-5">
+                <ShapeMyPhilosophy
+                  positions={positions}
+                  concepts={concepts}
+                  inquiries={inquiries}
+                  practices={practices}
+                  links={[]}
+                  initialStatement={profileDraft.philosophyStatement}
+                  onSaveStatement={async (statement) => {
+                    await onSaveProfile({ philosophyStatement: statement });
+                    setProfileDraft((previous) => ({ ...previous, philosophyStatement: statement }));
+                    toast({ title: 'Working statement saved', description: 'Saved exactly as you wrote it.' });
+                  }}
+                  onClose={() => setShaping(false)}
+                />
+              </section>
+            ) : (
+              <section className="noesis-philosophy-launch mb-6" data-stage-tone="integrate">
+                <div className="min-w-0">
+                  <div className="noesis-stage-badge border-l-2 pl-2 font-code text-[10px] font-bold uppercase tracking-[0.16em]">Shape My Philosophy</div>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">A guided process through your workspace: survey, choose, clarify, ladder, examine, then write it in your own words. Noesis asks; you answer. It never writes your philosophy for you.</p>
+                </div>
+                <Button type="button" onClick={() => setShaping(true)} className="rounded-full">Begin</Button>
+              </section>
+            )}
+            <SectionCard title="Your Philosophy" description="Name the worldview taking shape, then inspect the records that give it substance.">
             <div className="space-y-4 rounded-xl border border-border bg-background/50 p-4"><div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end"><Field label="Philosophy name"><Input value={profileDraft.philosophyName || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, philosophyName: event.target.value }))} placeholder="Name it now, or leave it unnamed" /></Field><div><div className="mb-2 font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Naming status</div><div className="flex gap-2"><Button type="button" size="sm" variant={(profileDraft.philosophyNameStatus || 'working') === 'working' ? 'default' : 'outline'} onClick={() => setProfileDraft((previous) => ({ ...previous, philosophyNameStatus: 'working' }))} className="rounded-full">Working name</Button><Button type="button" size="sm" variant={profileDraft.philosophyNameStatus === 'established' ? 'default' : 'outline'} onClick={() => setProfileDraft((previous) => ({ ...previous, philosophyNameStatus: 'established' }))} className="rounded-full">Established</Button></div></div></div><Field label="Working philosophy statement"><Textarea value={profileDraft.philosophyStatement || ''} onChange={(event) => setProfileDraft((previous) => ({ ...previous, philosophyStatement: event.target.value }))} className="min-h-[110px]" placeholder="Describe the central idea that connects your current thinking." /></Field></div>
             {profile.philosophyStatementProvenance && <div className="mt-2">
               <AiProvenanceBadge provenance={profile.philosophyStatementProvenance} target={profileReviewTarget(profile.philosophyStatementProvenance.provenanceId, 'philosophyStatement')} title="Working philosophy statement" />

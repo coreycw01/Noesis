@@ -80,7 +80,9 @@ type ConceptListRow = {
 
 type BoundaryAnswer = 'inside' | 'outside' | 'depends';
 type ConceptTensionDecision = Extract<PhilosophicalLinkType, 'coheres' | 'contradicts' | 'refines'>;
-type ConceptListField = 'aliases' | 'notSameAs' | 'examples' | 'counterexamples';
+type ConceptListField = 'aliases' | 'opposedTo' | 'notSameAs' | 'examples' | 'counterexamples';
+const RELATION_FIELDS: ConceptListField[] = ['aliases', 'opposedTo', 'notSameAs'];
+const RELATION_TONES: Partial<Record<ConceptListField, string>> = { aliases: 'act', opposedTo: 'claim', notSameAs: 'encounter' };
 type ConceptRepairFlag = {
   id: 'define' | 'boundaries' | 'examples' | 'evidence' | 'opposition' | 'practice' | 'drift' | 'duplicate' | 'neglected';
   label: string;
@@ -262,8 +264,11 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [tensionDecisions, setTensionDecisions] = useState<Record<string, ConceptTensionDecision>>({});
   const [isDefinitionEditing, setIsDefinitionEditing] = useState(false);
   const [definitionDraft, setDefinitionDraft] = useState('');
+  const [shelfQuery, setShelfQuery] = useState('');
+  const [dropField, setDropField] = useState<ConceptListField | null>(null);
   const [conceptListDrafts, setConceptListDrafts] = useState<Record<ConceptListField, string>>({
     aliases: '',
+    opposedTo: '',
     notSameAs: '',
     examples: '',
     counterexamples: '',
@@ -587,6 +592,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       });
     };
 
+    const otherConceptNames = Array.from(new Set(concepts.map((item) => item.name).filter((name) => name && conceptKey(name) !== conceptKey(selectedName)))).sort((a, b) => a.localeCompare(b));
+    const shelfConcepts = otherConceptNames.filter((name) => !shelfQuery.trim() || name.toLowerCase().includes(shelfQuery.trim().toLowerCase())).slice(0, 40);
+
     const addConceptListItem = (field: ConceptListField) => {
       const value = conceptListDrafts[field]?.trim();
       if (!concept || !value) return;
@@ -601,8 +609,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     };
 
     const conceptLanguageSections: Array<{ field: ConceptListField; title: string; prompt: string; placeholder: string }> = [
-      { field: 'aliases', title: 'Aliases', prompt: 'Other words or phrases you use for this concept.', placeholder: 'Add alternate wording' },
-      { field: 'notSameAs', title: 'Not The Same As', prompt: 'Neighboring concepts this concept should not collapse into.', placeholder: 'Add distinction' },
+      { field: 'aliases', title: 'Same as', prompt: 'Synonyms and close neighbours: other words you use for this concept.', placeholder: 'Add a synonym' },
+      { field: 'opposedTo', title: 'Opposed to', prompt: 'Opposites and rivals: what this concept stands against.', placeholder: 'Add an opposite' },
+      { field: 'notSameAs', title: 'Not the same as', prompt: 'Easily confused, but different: neighbours this should not collapse into.', placeholder: 'Add a distinction' },
       { field: 'examples', title: 'Examples', prompt: 'Cases that clearly belong inside the concept.', placeholder: 'Add example' },
       { field: 'counterexamples', title: 'Counterexamples', prompt: 'Cases that test or fall outside the boundary.', placeholder: 'Add counterexample' },
     ];
@@ -893,15 +902,53 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             <div className="mt-4 rounded-xl border border-border/40 bg-background/70 p-4">
               <div className="mb-4">
                 <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">Language & Boundaries</div>
-                <p className="mt-1 text-sm text-muted-foreground">Name aliases, distinctions, examples, and counterexamples so this concept keeps its shape across the app.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Name what it is the same as, opposed to, and easily confused with, then its examples and counterexamples, so this concept keeps its shape across the app.</p>
               </div>
+              <div className="noesis-concept-shelf">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-code text-[8px] font-bold uppercase tracking-widest text-foreground/60">Your concepts · drag one into a box below</span>
+                  <Input value={shelfQuery} onChange={(event) => setShelfQuery(event.target.value)} placeholder="Find a concept" aria-label="Find a concept to relate" className="h-7 w-44 rounded-full text-xs" />
+                </div>
+                <div className="noesis-concept-shelf__list" role="list">
+                  {shelfConcepts.map((name) => (
+                    <span
+                      key={name}
+                      role="listitem"
+                      draggable
+                      onDragStart={(event) => { event.dataTransfer.setData('text/plain', name); event.dataTransfer.effectAllowed = 'copy'; }}
+                      className="noesis-concept-shelf__chip"
+                      title={`Drag “${name}” into Same as, Opposed to, or Not the same as`}
+                    >{name}</span>
+                  ))}
+                  {!shelfConcepts.length && <span className="text-xs italic text-muted-foreground">No other concepts match.</span>}
+                </div>
+              </div>
+              <datalist id={`concept-names-${concept?.id || 'new'}`}>
+                {otherConceptNames.map((name) => <option key={name} value={name} />)}
+              </datalist>
               <div className="grid gap-4 lg:grid-cols-2">
                 {conceptLanguageSections.map((section) => {
                   const values = concept?.[section.field] || [];
+                  const isRelation = RELATION_FIELDS.includes(section.field);
                   return (
-                    <div key={section.field} className="rounded-xl border border-border/30 bg-card p-3">
+                    <div
+                      key={section.field}
+                      data-stage-tone={RELATION_TONES[section.field]}
+                      data-drop-active={dropField === section.field || undefined}
+                      onDragOver={isRelation ? (event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDropField(section.field); } : undefined}
+                      onDragLeave={isRelation ? () => setDropField((current) => current === section.field ? null : current) : undefined}
+                      onDrop={isRelation ? (event) => {
+                        event.preventDefault();
+                        setDropField(null);
+                        const name = event.dataTransfer.getData('text/plain').trim();
+                        if (!name || !concept || (concept[section.field] || []).some((item) => item.toLowerCase() === name.toLowerCase())) return;
+                        updateConceptListField(section.field, [...(concept[section.field] || []), name]);
+                        toast({ title: 'Concept boundary updated', description: `${name} was added to ${section.title.toLowerCase()} for ${selectedName}.` });
+                      } : undefined}
+                      className={cn('noesis-concept-zone rounded-xl border border-border/30 bg-card p-3', isRelation && 'noesis-concept-zone--relation', section.field === 'examples' && 'lg:col-start-1')}
+                    >
                       <div className="mb-2">
-                        <div className="font-code text-[8px] uppercase tracking-widest text-foreground/60 font-bold">{section.title}</div>
+                        <div className={cn('font-code text-[8px] uppercase tracking-widest font-bold', isRelation ? 'noesis-concept-zone__title' : 'text-foreground/60')}>{section.title}</div>
                         <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{section.prompt}</p>
                       </div>
                       {values.length ? (
@@ -932,6 +979,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                             }
                           }}
                           placeholder={section.placeholder}
+                          list={isRelation ? `concept-names-${concept?.id || 'new'}` : undefined}
                           className="h-8 rounded-full text-xs"
                         />
                         <Button

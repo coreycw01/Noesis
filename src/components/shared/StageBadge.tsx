@@ -2,12 +2,21 @@ import { Badge } from '@/components/ui/badge';
 import { deriveNoesisStage } from '@/lib/workflow-integrity';
 import type { NoesisStage, PhilosophicalObjectType } from '@/lib/types';
 
+// Display names follow the sidebar's thinking loop; the stored stage keys are unchanged.
 const STAGE_LABELS: Record<NoesisStage, string> = {
   encounter: 'Encounter',
-  question: 'Question',
+  question: 'Examine',
   claim: 'Claim',
-  test: 'Praxis',
-  revise: 'Revise',
+  test: 'Act',
+  revise: 'Integrate',
+};
+
+const STAGE_TONES: Record<NoesisStage, string> = {
+  encounter: 'encounter',
+  question: 'examine',
+  claim: 'claim',
+  test: 'act',
+  revise: 'integrate',
 };
 
 export function StageBadge({
@@ -25,7 +34,8 @@ export function StageBadge({
   return (
     <Badge
       variant="outline"
-      className={`rounded-none border-0 border-l-2 border-accent/60 bg-transparent py-0 pl-1.5 pr-0 font-code text-[8px] font-semibold uppercase tracking-widest text-accent ${className}`}
+      data-stage-tone={STAGE_TONES[resolved]}
+      className={`noesis-stage-badge rounded-none border-0 border-l-2 bg-transparent py-0 pl-1.5 pr-0 font-code text-[8px] font-semibold uppercase tracking-widest ${className}`}
     >
       {STAGE_LABELS[resolved]}
     </Badge>

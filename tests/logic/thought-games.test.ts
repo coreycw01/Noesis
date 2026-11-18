@@ -89,3 +89,27 @@ test('keeps every exercise tied to a real item and never emits a mutation', () =
     assert.equal('mutation' in game, false);
   });
 });
+
+test('new exercise kinds come only from what the user recorded', () => {
+  const games = buildThoughtGames({
+    concepts: [
+      { id: 'c1', name: 'Courage', description: 'Acting well despite fear', examples: ['Speaking up in a meeting'], counterexamples: ['Reckless driving'], notSameAs: ['Recklessness'], links: [], sourceIds: [], dateCreated: '2026-01-01', x: 0, y: 0 },
+    ] as never,
+    inquiries: [{ id: 'q1', text: 'Why do I avoid conflict?', status: 'open', assumptions: [] }] as never,
+    positions: [{ id: 'p1', title: 'Honesty first', statement: 'Honesty matters more than comfort', status: 'active', confidence: 70, evidenceAgainst: ['Kindness sometimes requires restraint'] }] as never,
+    media: [
+      { id: 's1', title: 'Book One', creator: 'A', annotations: [{ id: 'a1', type: 'highlight', text: 'The obstacle in the path becomes the path itself.', date: '2026-01-01' }] },
+      { id: 's2', title: 'Book Two', annotations: [] },
+      { id: 's3', title: 'Book Three', annotations: [] },
+    ] as never,
+    links: [],
+    dayKey: '2026-02-02',
+  });
+  const kinds = new Set(games.map((game) => game.kind));
+  for (const kind of ['steelman', 'boundary_sort', 'whose_words', 'question_assumption', 'not_same_as']) assert.ok(kinds.has(kind as never), kind);
+  const whose = games.find((game) => game.kind === 'whose_words')!;
+  assert.equal(whose.answer, 'Book One');
+  assert.ok(whose.options!.includes('Book One'));
+  const boundary = games.find((game) => game.kind === 'boundary_sort')!;
+  assert.ok(['Speaking up in a meeting', 'Reckless driving'].includes(boundary.prompt));
+});

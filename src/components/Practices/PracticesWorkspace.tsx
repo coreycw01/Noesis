@@ -3,7 +3,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useLocalDay } from '@/hooks/use-local-day';
-import { Activity, CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Plus, Puzzle, Trash2 } from 'lucide-react';
+import { Activity, CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Plus, Trash2, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ import { localDateKey as dateKey } from '@/lib/calendar';
 import { isPracticeConcluded, practiceCalendarDate, practiceCurrentStreak as currentStreak, practiceLogDates, practiceNeedsConsequence, practiceNeedsLog, practiceNeedsOutcome, practiceRecentlyConcluded, practiceScheduleState } from '@/lib/practice-state';
 import { LabeledField } from '@/components/shared/LabeledField';
 import { cn } from '@/lib/utils';
+import { ConceptFilterPicker } from '@/components/shared/ConceptFilterPicker';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
@@ -41,6 +42,7 @@ import { hasPracticeIntellectualBasis, normalizePracticeStatusForSave, practiceD
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { ThoughtGamesPanel } from '@/components/Home/ThoughtGamesPanel';
+import { PraxisDayStrip, PraxisMethodShape, praxisShapeFor } from '@/components/Practices/PraxisMethodShape';
 import type { NoesisView } from '@/lib/noesis-routes';
 
 interface PracticesWorkspaceProps {
@@ -411,7 +413,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             label="Praxis methods"
             className="max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:overflow-hidden max-sm:[&>button]:min-w-0 max-sm:[&>button]:gap-1 max-sm:[&>button]:px-1.5 max-sm:[&>button]:text-xs"
             items={[
-              { id: 'exercises', label: 'Exercises', icon: Puzzle },
+              { id: 'exercises', label: 'Exercises', icon: Brain },
               { id: 'practices', label: 'Practices', icon: PracticeIcon },
               { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
               { id: 'commitments', label: 'Commitments', icon: NOESIS_ICONS.commitment },
@@ -453,7 +455,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           />
           <aside className="h-fit rounded-lg border border-border bg-card p-5">
             <div className="flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
-              <Puzzle className="size-4" aria-hidden="true" />
+              <Brain className="size-4" aria-hidden="true" />
               How exercises work
             </div>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">Short activities draw only from records already in your workspace. They help you recall, distinguish, challenge, and connect your thinking.</p>
@@ -569,13 +571,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             {practiceTypes.filter((type) => type !== 'experiment').map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{simplifiedTypeLabels[type]}</SelectItem>)}
           </SelectContent>
         </Select>}
-        <Select value={conceptFilter} onValueChange={setConceptFilter}>
-          <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-card shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Concepts" /></SelectTrigger>
-          <SelectContent className="max-h-80">
-            <SelectItem value="all" className="font-code text-[9px] uppercase">All Concepts</SelectItem>
-            {conceptFilterOptions.map((concept) => <SelectItem key={concept} value={concept} className="font-code text-[9px] uppercase">{concept}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <ConceptFilterPicker value={conceptFilter} options={conceptFilterOptions} onChange={setConceptFilter} onCreate={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} label="Filter practices by concept" className="w-56" />
       </FilterToolbar>
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
@@ -837,6 +833,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   };
   const setStatus = (status: PracticeStatus) => onUpdatePractice({ ...practice, status, dateUpdated: today() });
   const visibleType = normalizePracticeType(practice.type);
+  const method = praxisShapeFor(practice.type);
   const visibleStatus = normalizePracticeStatus(practice.status);
   const scheduleState = practiceScheduleState(practice);
   const meaningfulStreak = visibleType === 'habit' || visibleType === 'experiment';
@@ -934,7 +931,10 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
               {setupNeed ? 'Needs setup' : scheduleState === 'scheduled' ? 'Scheduled' : scheduleState === 'review' || recentlyConcluded ? 'Review result' : needsLog ? 'Log due' : visibleStatus}
             </Badge>
           </div>
-          <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors text-primary whitespace-normal break-words">{practice.title}</h3>
+          <div className="flex items-start gap-2.5" data-stage-tone={method.tone}>
+            <PraxisMethodShape shape={method.shape} className="mt-1" title={method.intent} />
+            <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors text-primary whitespace-normal break-words">{practice.title}</h3>
+          </div>
           <p className="mt-1 text-[12px] italic leading-5 text-muted-foreground whitespace-normal">
             {practice.action || practice.description || 'No action defined yet.'}
           </p>
@@ -956,6 +956,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
         <span className="min-w-0 max-w-xl truncate italic text-primary/80">{practice.intellectualBasis || firstLinkedPosition?.title || linkedQuestions[0]?.text || 'No linked idea named yet.'}</span>
+        <span data-stage-tone={method.tone}><PraxisDayStrip shape={method.shape} logDates={logDates} days={practice.durationDays} startDate={practice.startDate} /></span>
         <span className="font-code text-[8px] uppercase tracking-widest">{durationText}</span>
         <span className="font-code text-[8px] uppercase tracking-widest">{experimentShape.logCount} {experimentShape.logCount === 1 ? 'log' : 'logs'}</span>
         {meaningfulStreak && <span className="font-code text-[8px] uppercase tracking-widest">{streak}d streak</span>}

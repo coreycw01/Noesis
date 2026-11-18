@@ -3,7 +3,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { sendPasswordResetEmail, signOut } from 'firebase/auth';
-import { Download, LogOut, RefreshCw, Save, Shield, Trash2, Wrench } from 'lucide-react';
+import { Download, LogOut, Network, RefreshCw, Save, Shield, Trash2, Wrench } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { useNavStyle, writeNavStyle } from '@/components/app-shell/LoopDock';
 import { useToast } from '@/hooks/use-toast';
 import { noesisGuide } from '@/lib/noesis-guide';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -91,7 +92,7 @@ interface SettingsPageProps {
   draftCache: React.RefObject<SettingsDraftCache | null>;
   reviewMode: boolean;
   onSaveSection: (section: SettingsSectionKey, value: Partial<SettingsState[SettingsSectionKey]>) => Promise<void>;
-  onExportWorkspace: () => Promise<void>;
+  onExportWorkspace: (format?: 'json' | 'mindmap') => Promise<void>;
   onOpenProfile?: () => void;
   recentDeletedItems?: ThinkingEvent[];
   recentDeletedLoading?: boolean;
@@ -115,16 +116,15 @@ const SETTINGS_SECTION_STORAGE_KEY = 'noesis:settings-section';
 
 const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: string }> = [
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
-  { id: 'appearance', label: 'Appearance', description: 'Theme, typography, collection layout, contrast, and motion.' },
+  { id: 'appearance', label: 'Appearance', description: 'Theme, typography, layout, navigation, and what appears on Today.' },
   { id: 'works', label: 'Work Defaults', description: 'Starting type, status, paper, and editor feel for new Works.' },
-  { id: 'notifications', label: 'Today', description: 'Choose which commitment summary appears on Today.' },
   { id: 'ai', label: 'AI Assistance', description: 'Manual, bounded assistance and context privacy.' },
   { id: 'data', label: 'Data', description: 'Workspace export and demo refresh tools.' },
 ];
 
 const PANEL_SECTION_MAP: Record<SettingsPanelId, SettingsSectionKey[]> = {
   account: [],
-  appearance: ['appearance'],
+  appearance: ['appearance', 'goals'],
   workspace: ['workspace'],
   capture: ['sourceIntake', 'workspace'],
   works: ['works'],
@@ -252,13 +252,13 @@ export function SettingsPage({
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  const exportWorkspace = async () => {
+  const exportWorkspace = async (format: 'json' | 'mindmap' = 'json') => {
     if (exportLock.current) return;
     exportLock.current = true;
     setExporting(true);
     try {
-      await onExportWorkspace();
-      toast({ title: 'Workspace JSON ready', description: 'Check your browser downloads.' });
+      await onExportWorkspace(format);
+      toast({ title: format === 'mindmap' ? 'Mind map ready' : 'Workspace JSON ready', description: format === 'mindmap' ? 'A .mm file for FreeMind, Freeplane, XMind, or MindNode. Check your browser downloads.' : 'Check your browser downloads.' });
     } catch (error) {
       toast({
         title: 'Export not available',
@@ -327,7 +327,9 @@ export function SettingsPage({
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(SETTINGS_SECTION_STORAGE_KEY) as SettingsPanelId | null;
-      if (saved && SETTINGS_PANELS.some((panel) => panel.id === saved)) setActivePanel(saved);
+      // Today settings now live under Appearance.
+      const resolved = saved === 'notifications' ? 'appearance' : saved;
+      if (resolved && SETTINGS_PANELS.some((panel) => panel.id === resolved)) setActivePanel(resolved);
     } catch { /* Section preference is optional. */ }
     setPanelPreferenceLoaded(true);
   }, []);
@@ -563,6 +565,7 @@ export function SettingsPage({
               <div className="mt-5 grid gap-3">
                 <SwitchRow label="Reduced motion" checked={drafts.appearance.reducedMotion} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, reducedMotion: checked } }))} />
                 <SwitchRow label="High contrast mode" checked={drafts.appearance.highContrastMode} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, highContrastMode: checked } }))} />
+                <LoopNavigationRow />
               </div>
               <div className="mt-6 overflow-hidden rounded-2xl border-2 border-border bg-background shadow-sm" aria-label="Live theme preview">
                 <div className="flex min-h-48">
@@ -589,6 +592,10 @@ export function SettingsPage({
                 </div>
               </div>
               <SaveBar {...saveProps('appearance')} onDiscard={discardAppearance} />
+            </SettingsCard>
+            <SettingsCard title="Today" description="What appears on Today. Hiding the commitment summary does not change your saved commitments or progress.">
+              <SwitchRow label="Show commitments on Today" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
+              <SaveBar {...saveProps('goals')} />
             </SettingsCard>
           </div>
         );
@@ -940,12 +947,16 @@ export function SettingsPage({
       case 'data':
         return (
           <div className="space-y-6">
-            <SettingsCard title="Workspace Data" description="Download a private copy of saved records and settings. This JSON file excludes uploaded files and cannot be imported to restore a workspace.">
+            <SettingsCard title="Workspace Data" description="Download a private copy of everything you have saved. The JSON file holds every record and setting (no uploaded files) and cannot be imported to restore a workspace. The mind map lays your concepts out as branches with the positions, inquiries, sources, and practices that use them.">
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-3">
                   <Button variant="outline" onClick={() => void exportWorkspace()} disabled={exporting} className="rounded-full bg-card">
                     <Download className="mr-2 size-4" />
                     {exporting ? 'Preparing export...' : 'Export Workspace JSON'}
+                  </Button>
+                  <Button variant="outline" onClick={() => void exportWorkspace('mindmap')} disabled={exporting} className="rounded-full bg-card">
+                    <Network className="mr-2 size-4" />
+                    Export as Mind Map
                   </Button>
                   {reviewMode && onRefreshDemoWorkspace && (
                     <Button variant="outline" onClick={refreshDemoWorkspace} disabled={refreshingDemoWorkspace || saving === 'refresh-demo'} className="rounded-full bg-card">
@@ -1327,6 +1338,17 @@ function ClassificationCard({ title, body }: { title: string; body: string }) {
       <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">Classification system</div>
       <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{title}</div>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{body}</p>
+    </div>
+  );
+}
+
+/** Navigation style is a per-device choice, so it applies at once instead of waiting for Save. */
+function LoopNavigationRow() {
+  const style = useNavStyle();
+  return (
+    <div className="grid gap-1">
+      <SwitchRow label="Use the Loop dock instead of the sidebar" checked={style === 'loop'} onCheckedChange={(checked) => writeNavStyle(checked ? 'loop' : 'sidebar')} />
+      <p className="px-1 text-xs text-muted-foreground">A floating dock that lays pages out as Encounter, Examine, Claim, Act, Integrate. Desktop only; applies on this device immediately.</p>
     </div>
   );
 }
