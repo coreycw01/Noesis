@@ -667,3 +667,19 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 1100px) { .noesis-loop__stage-name { display: none; } .noesis-loop__stage-button { padding-right: .3rem; } }
 @keyframes noesis-loop-pop { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .noesis-loop__pop { animation: none; } }
+
+/* Positions: calibration gauge (stated confidence against the evidence balance). */
+.noesis-calibration__track { position: relative; display: flex; height: .7rem; margin-top: .6rem; border-radius: 999px; overflow: visible; }
+.noesis-calibration__zone { flex: 1; background: hsl(var(--stage)); }
+.noesis-calibration__zone:first-child { border-radius: 999px 0 0 999px; }
+.noesis-calibration__zone:last-child { border-radius: 0 999px 999px 0; }
+.noesis-calibration__zone + .noesis-calibration__zone { margin-left: 2px; }
+.noesis-calibration__gap { position: absolute; top: 50%; height: 2px; transform: translateY(-50%); background: repeating-linear-gradient(90deg, hsl(var(--foreground) / .7) 0 3px, transparent 3px 6px); }
+.noesis-calibration__stated, .noesis-calibration__earned { position: absolute; top: 50%; width: .95rem; height: .95rem; border-radius: 999px; transform: translate(-50%, -50%); transition: left var(--motion-calm) var(--ease-noesis); }
+.noesis-calibration__stated { background: hsl(var(--stage)); border: 2px solid hsl(var(--card)); box-shadow: 0 0 0 1px hsl(var(--stage)); }
+.noesis-calibration__earned { background: hsl(var(--card)); border: 2px solid hsl(var(--foreground) / .75); }
+.noesis-calibration__labels { display: flex; margin-top: .35rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .5rem; letter-spacing: .06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-calibration__labels span { flex: 1; text-align: center; }
+.noesis-calibration__key { display: inline-block; width: .5rem; height: .5rem; margin-right: .3rem; border-radius: 999px; vertical-align: middle; }
+.noesis-calibration__key--stated { background: hsl(var(--stage)); }
+.noesis-calibration__key--earned { border: 1.5px solid hsl(var(--foreground) / .75); }

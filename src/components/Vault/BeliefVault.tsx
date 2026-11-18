@@ -38,6 +38,7 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { PositionCalibrationGauge, PullEvidenceDialog } from '@/components/Vault/PositionCalibration';
 import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
 import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
 import { positionReviewTarget, type PositionReviewApproval } from '@/lib/position-ai-review';
@@ -447,6 +448,7 @@ function buildStressStages({
 
 export function BeliefVault({ aiSettings, entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled, onOpenEntryRoute }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pullSide, setPullSide] = useState<'for' | 'against' | null>(null);
   const [comparePositionId, setComparePositionId] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [savingEntry, setSavingEntry] = useState(false);
@@ -1089,17 +1091,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               </div>}
             </div>
             <ContextRail title="Position record">
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Confidence</span>
-                <span className="font-headline text-lg font-semibold italic">{confidencePercent(selected.confidence)}%</span>
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${confidencePercent(selected.confidence)}%` }} />
-              </div>
-              <div className="mt-3 flex justify-between font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                <span>{diagnostic.supportCount} support items</span>
-                <span>{diagnostic.challengeCount} challenges</span>
-              </div>
+              <PositionCalibrationGauge confidence={confidencePercent(selected.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} />
               <EntityMeta className="mt-5" items={[
                 { label: 'Type', value: (selected.type || 'belief').replace('_', ' ') },
                 { label: 'Mode', value: (selected.positionKind || 'interpretive').replace(/_/g, ' ') },
@@ -1319,8 +1311,22 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
         {detailTab === 'ground' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <EvidencePanel title="Evidence For" items={selected.evidenceFor || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceFor: [...(selected.evidenceFor || []), text], dateUpdated: today() })} />
-            <EvidencePanel title="Evidence Against" items={selected.evidenceAgainst || []} onAdd={(text) => onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() })} />
+            <EvidencePanel title="Evidence For" items={selected.evidenceFor || []} onPull={() => setPullSide('for')} onAdd={(text) => onUpdateEntry({ ...selected, evidenceFor: [...(selected.evidenceFor || []), text], dateUpdated: today() })} />
+            <EvidencePanel title="Evidence Against" items={selected.evidenceAgainst || []} onPull={() => setPullSide('against')} onAdd={(text) => onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() })} />
+            <PullEvidenceDialog
+              open={pullSide !== null}
+              onOpenChange={(open) => { if (!open) setPullSide(null); }}
+              side={pullSide || 'for'}
+              media={media}
+              concepts={concepts}
+              questions={questions}
+              positions={entries}
+              excludePositionId={selected.id}
+              onPick={(text) => {
+                if (pullSide === 'against') onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() });
+                else onUpdateEntry({ ...selected, evidenceFor: [...(selected.evidenceFor || []), text], dateUpdated: today() });
+              }}
+            />
             <EntityListPanel
               title="Linked Sources"
               empty="No sources linked yet."
@@ -2210,11 +2216,14 @@ function PositionsTable({
   );
 }
 
-function EvidencePanel({ title, items, onAdd }: { title: string; items: string[]; onAdd: (text: string) => void }) {
+function EvidencePanel({ title, items, onAdd, onPull }: { title: string; items: string[]; onAdd: (text: string) => void; onPull?: () => void }) {
   const [text, setText] = useState('');
   return (
     <Card className="noesis-workbench-panel noesis-workbench-panel--sub">
-      <h3 className="noesis-workbench-panel__eyebrow mb-3">{title}</h3>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="noesis-workbench-panel__eyebrow">{title}</h3>
+        {onPull && <Button type="button" variant="outline" size="sm" className="h-7 rounded-full px-3 text-xs" onClick={onPull}>Pull from your records</Button>}
+      </div>
       <div className="space-y-2 mb-3">{items.map((item, index) => <div key={`${item}-${index}`} className="rounded-lg bg-muted/30 p-3 text-sm italic shadow-sm border border-border/10 leading-relaxed text-primary/80">{item}</div>)}</div>
       <div className="flex gap-2"><Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Add evidence..." className="h-9 rounded-full" /><Button onClick={() => { if (text.trim()) { onAdd(text.trim()); setText(''); } }} size="sm" className="h-9 px-4 rounded-full">Add</Button></div>
     </Card>
