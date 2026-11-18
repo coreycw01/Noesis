@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Check, ChevronRight, Puzzle, RotateCcw } from 'lucide-react';
+import { ArrowRight, Brain, Check, ChevronRight, RotateCcw, Shuffle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
-import { buildThoughtGames, thoughtGameDayKey } from '@/lib/thought-games';
+import { buildThoughtGames, THOUGHT_GAME_KIND_LABELS, thoughtGameDayKey, type ThoughtGameKind } from '@/lib/thought-games';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
 import { readBrowserPreference, workspacePreferenceKey, writeBrowserPreference } from '@/lib/browser-preferences';
 
@@ -24,10 +25,13 @@ export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links
   const dayKey = thoughtGameDayKey();
   const workspaceKey = useContext(NoesisWorkspaceKeyContext);
   const completionKey = workspacePreferenceKey(workspaceKey, `thought-games:${dayKey}`);
-  const games = useMemo(
+  const allGames = useMemo(
     () => buildThoughtGames({ concepts, inquiries, positions, media, links, dayKey }),
     [concepts, dayKey, inquiries, links, media, positions]
   );
+  const [kindFilter, setKindFilter] = useState<ThoughtGameKind | 'all'>('all');
+  const availableKinds = useMemo(() => (Object.keys(THOUGHT_GAME_KIND_LABELS) as ThoughtGameKind[]).filter((kind) => allGames.some((item) => item.kind === kind)), [allGames]);
+  const games = useMemo(() => kindFilter === 'all' ? allGames : allGames.filter((item) => item.kind === kindFilter), [allGames, kindFilter]);
   const [gameIndex, setGameIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState('');
   const [response, setResponse] = useState('');
@@ -64,6 +68,14 @@ export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links
     resetResponse();
   };
 
+  const randomGame = () => {
+    if (games.length < 2) return;
+    let next = gameIndex;
+    while (next % games.length === gameIndex % games.length) next = Math.floor(Math.random() * games.length);
+    setGameIndex(next);
+    resetResponse();
+  };
+
   if (!game) return null;
 
   const canReveal = Boolean(selectedOption || response.trim());
@@ -74,14 +86,27 @@ export function ThoughtGamesPanel({ concepts, inquiries, positions, media, links
       <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
-            <Puzzle className="size-4 stroke-[2.4]" aria-hidden="true" />
-            Daily Thought
+            <Brain className="size-4 stroke-[2.4]" aria-hidden="true" />
+            Exercises
           </div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">A short exercise grounded in your own Noesis records.</p>
         </div>
         <div className="shrink-0 text-right font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
           {completedIds.length} completed today
         </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
+        <Select value={kindFilter} onValueChange={(value) => { setKindFilter(value as ThoughtGameKind | 'all'); setGameIndex(0); resetResponse(); }}>
+          <SelectTrigger aria-label="Exercise kind" className="h-9 w-56 rounded-full text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All exercises ({allGames.length})</SelectItem>
+            {availableKinds.map((kind) => <SelectItem key={kind} value={kind}>{THOUGHT_GAME_KIND_LABELS[kind]}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button type="button" size="sm" variant="outline" onClick={randomGame} disabled={games.length < 2} className="h-9 rounded-full">
+          <Shuffle className="mr-1.5 size-4" aria-hidden="true" /> Random
+        </Button>
+        <span className="ml-auto font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{(gameIndex % Math.max(1, games.length)) + 1} of {games.length}</span>
       </div>
 
       <div className="p-5">

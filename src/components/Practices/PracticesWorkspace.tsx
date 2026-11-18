@@ -3,7 +3,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useLocalDay } from '@/hooks/use-local-day';
-import { Activity, CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Plus, Puzzle, Trash2 } from 'lucide-react';
+import { Activity, CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Plus, Trash2, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -412,7 +412,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             label="Praxis methods"
             className="max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:overflow-hidden max-sm:[&>button]:min-w-0 max-sm:[&>button]:gap-1 max-sm:[&>button]:px-1.5 max-sm:[&>button]:text-xs"
             items={[
-              { id: 'exercises', label: 'Exercises', icon: Puzzle },
+              { id: 'exercises', label: 'Exercises', icon: Brain },
               { id: 'practices', label: 'Practices', icon: PracticeIcon },
               { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
               { id: 'commitments', label: 'Commitments', icon: NOESIS_ICONS.commitment },
@@ -454,7 +454,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
           />
           <aside className="h-fit rounded-lg border border-border bg-card p-5">
             <div className="flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
-              <Puzzle className="size-4" aria-hidden="true" />
+              <Brain className="size-4" aria-hidden="true" />
               How exercises work
             </div>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">Short activities draw only from records already in your workspace. They help you recall, distinguish, challenge, and connect your thinking.</p>
