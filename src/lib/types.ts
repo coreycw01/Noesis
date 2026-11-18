@@ -403,6 +403,8 @@ export interface Concept extends NoesisStageState {
   description: string;
   aliases?: string[];
   notSameAs?: string[];
+  /** Concepts this one stands against: opposites and rivals. */
+  opposedTo?: string[];
   examples?: string[];
   counterexamples?: string[];
   boundaryReview?: string;
