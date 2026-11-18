@@ -20,6 +20,7 @@ import type { BeliefProfile, Concept, Draft, Media, PhilosophicalLink, PositionK
 import { normalizeConceptTags, today } from '@/lib/readex';
 import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { cn } from '@/lib/utils';
+import { ConceptFilterPicker } from '@/components/shared/ConceptFilterPicker';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { derivePositionLifecycleStage } from '@/lib/workflow-integrity';
 import { StageBadge } from '@/components/shared/StageBadge';
@@ -1638,7 +1639,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             <SelectValue placeholder="Position View" />
           </SelectTrigger>
           <SelectContent>
-            {PRIMARY_POSITION_VIEW_FILTERS.map((value) => (
+            <SelectItem value="all" className="font-code text-[10px] uppercase">{POSITION_VIEW_LABELS.all}</SelectItem>
+            {PRIMARY_POSITION_VIEW_FILTERS.filter((value) => value !== 'all').map((value) => (
               <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{POSITION_VIEW_LABELS[value]}</SelectItem>
             ))}
           </SelectContent>
@@ -1655,17 +1657,14 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             ))}
           </SelectContent>
         </Select>
-        <Select value={conceptFilter} onValueChange={setConceptFilter}>
-          <SelectTrigger aria-label="Filter positions by concept" className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
-            <SelectValue placeholder="Concept" />
-          </SelectTrigger>
-          <SelectContent className="max-h-80">
-            <SelectItem value="all" className="font-code text-[10px] uppercase">All Concepts</SelectItem>
-            {conceptFilterOptions.map((concept) => (
-              <SelectItem key={concept} value={concept} className="font-code text-[10px] uppercase">{concept}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <ConceptFilterPicker
+          value={conceptFilter}
+          options={conceptFilterOptions}
+          onChange={setConceptFilter}
+          onCreate={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
+          label="Filter positions by concept"
+          className="h-10 w-52"
+        />
       </FilterToolbar>
 
       <div className="mb-5 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">

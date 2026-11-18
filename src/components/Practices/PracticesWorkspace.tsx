@@ -20,6 +20,7 @@ import { localDateKey as dateKey } from '@/lib/calendar';
 import { isPracticeConcluded, practiceCalendarDate, practiceCurrentStreak as currentStreak, practiceLogDates, practiceNeedsConsequence, practiceNeedsLog, practiceNeedsOutcome, practiceRecentlyConcluded, practiceScheduleState } from '@/lib/practice-state';
 import { LabeledField } from '@/components/shared/LabeledField';
 import { cn } from '@/lib/utils';
+import { ConceptFilterPicker } from '@/components/shared/ConceptFilterPicker';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
@@ -569,13 +570,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             {practiceTypes.filter((type) => type !== 'experiment').map((type) => <SelectItem key={type} value={type} className="font-code text-[9px] uppercase">{simplifiedTypeLabels[type]}</SelectItem>)}
           </SelectContent>
         </Select>}
-        <Select value={conceptFilter} onValueChange={setConceptFilter}>
-          <SelectTrigger className="w-56 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-card shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Concepts" /></SelectTrigger>
-          <SelectContent className="max-h-80">
-            <SelectItem value="all" className="font-code text-[9px] uppercase">All Concepts</SelectItem>
-            {conceptFilterOptions.map((concept) => <SelectItem key={concept} value={concept} className="font-code text-[9px] uppercase">{concept}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <ConceptFilterPicker value={conceptFilter} options={conceptFilterOptions} onChange={setConceptFilter} onCreate={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} label="Filter practices by concept" className="w-56" />
       </FilterToolbar>
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
