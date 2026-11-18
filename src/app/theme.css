@@ -700,3 +700,19 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-atlas-timeline__readout b { color: hsl(var(--foreground)); font-weight: 600; }
 [data-noesis-identity="network"] button[data-timeline="new"] { box-shadow: 0 0 0 2px hsl(var(--stage-integrate)), 0 0 22px -4px hsl(var(--stage-integrate) / .7); }
 [data-noesis-identity="network"] button[data-timeline="new"]::after { content: "new"; position: absolute; top: -.55rem; right: .6rem; padding: 0 .4rem; border-radius: 999px; background: hsl(var(--stage-integrate)); color: hsl(var(--background)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .5rem; letter-spacing: .14em; text-transform: uppercase; line-height: 1rem; }
+
+/* Works: a foldable ribbon and a strip naming the tools placed on this page. */
+.noesis-ribbon-row { display: flex; align-items: flex-start; flex-shrink: 0; }
+.noesis-ribbon-row[data-collapsed] { justify-content: flex-end; border-bottom: 1px solid hsl(var(--border) / .5); padding: .3rem 0; }
+.noesis-ribbon-fold__toggle {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: .3rem; margin: .65rem .75rem 0 -.25rem;
+  height: 1.6rem; padding: 0 .45rem; border-radius: 999px; border: 1px solid hsl(var(--border));
+  background: hsl(var(--card)); color: hsl(var(--muted-foreground));
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .55rem; letter-spacing: .14em; text-transform: uppercase;
+}
+.noesis-ribbon-row[data-collapsed] .noesis-ribbon-fold__toggle { margin-top: 0; }
+.noesis-ribbon-fold__toggle:hover { color: hsl(var(--foreground)); border-color: hsl(var(--stage-more) / .6); }
+.noesis-tool-strip { flex-wrap: wrap; align-items: center; gap: .4rem; padding: .35rem 1rem; border-bottom: 1px solid hsl(var(--border) / .45); }
+.noesis-tool-strip__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .55rem; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-right: .2rem; }
+.noesis-tool-strip__chip { height: 1.6rem; padding: 0 .7rem; border-radius: 999px; border: 1px solid hsl(var(--border)); background: transparent; font-size: .75rem; color: hsl(var(--foreground) / .85); }
+.noesis-tool-strip__chip:hover, .noesis-tool-strip__chip[aria-pressed="true"] { border-color: hsl(var(--stage-more)); background: hsl(var(--stage-more) / .12); }

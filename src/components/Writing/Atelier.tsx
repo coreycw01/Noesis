@@ -42,7 +42,10 @@ import {
   Undo2,
   Unlink,
   Video,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -415,6 +418,10 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [writingStrokeSize, setWritingStrokeSize] = useState(3);
   const [writingStrokeOpacity, setWritingStrokeOpacity] = useState(1);
   const [editorRibbon, setEditorRibbon] = useState<'writing' | 'drawing'>('writing');
+  const [ribbonCollapsed, setRibbonCollapsed] = useState(false);
+  useEffect(() => {
+    setRibbonCollapsed(readBrowserPreference('noesis:works-ribbon-collapsed') === '1');
+  }, []);
   const [focusedToolId, setFocusedToolId] = useState<string | null>(null);
   const [drawingRedoByPage, setDrawingRedoByPage] = useState<Record<string, DrawingStroke[]>>({});
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
@@ -1560,7 +1567,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
           <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden">
             {isDocumentSurface ? (
               <>
-                {editorRibbon === 'drawing' ? (
+                <div className="noesis-ribbon-row" data-collapsed={ribbonCollapsed || undefined}>
+                <div className="min-w-0 flex-1">
+                {!ribbonCollapsed && (editorRibbon === 'drawing' ? (
                   <DrawingOverlayToolbar
                     tool={writingTool}
                     color={writingStrokeColor}
@@ -1585,7 +1594,42 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 ) : <FormattingToolbar saveStatus={saveStatus} onOpenDrawing={() => {
                   setEditorRibbon('drawing');
                   updateActive({ activeRibbon: 'drawing' });
-                }} onInsertTool={addDocumentTool} onUploadImage={uploadInlineImage} />}
+                }} onInsertTool={addDocumentTool} onUploadImage={uploadInlineImage} />)}
+                </div>
+                <button
+                    type="button"
+                    className="noesis-ribbon-fold__toggle"
+                    aria-expanded={!ribbonCollapsed}
+                    aria-label={ribbonCollapsed ? 'Show the ribbon' : 'Hide the ribbon'}
+                    title={ribbonCollapsed ? 'Show the ribbon' : 'Hide the ribbon'}
+                    onClick={() => {
+                      const next = !ribbonCollapsed;
+                      setRibbonCollapsed(next);
+                      writeBrowserPreference('noesis:works-ribbon-collapsed', next ? '1' : '0');
+                    }}
+                  >
+                    {ribbonCollapsed ? <><ChevronDown className="size-3.5" aria-hidden="true" /><span>Ribbon</span></> : <ChevronUp className="size-3.5" aria-hidden="true" />}
+                  </button>
+                </div>
+                {pageTools.length > 0 && (
+                  <div className="noesis-tool-strip hidden md:flex" role="toolbar" aria-label="Tools on this page">
+                    <span className="noesis-tool-strip__label">On this page</span>
+                    {pageTools.map((section) => (
+                      <button
+                        key={section.id}
+                        type="button"
+                        className="noesis-tool-strip__chip"
+                        aria-pressed={focusedToolId === section.id}
+                        onClick={() => {
+                          updateToolSectionWindow(section.id, { minimized: false });
+                          setFocusedToolId(section.id);
+                        }}
+                      >
+                        {workToolLabel(section.tool)}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {pageTools.length > 0 && (
                   <div className="shrink-0 border-b border-border/40 px-2 md:hidden">
                     <DropdownMenu>
