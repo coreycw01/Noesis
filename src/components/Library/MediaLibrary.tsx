@@ -36,6 +36,7 @@ import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { nextSourceJourneyStep, sourceJourney } from '@/lib/source-journey';
 import type { ContextualAiAction } from '@/lib/contextual-ai';
 import { sourceReviewTarget, type SourceReviewApproval } from '@/lib/source-ai-review';
 import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
@@ -187,6 +188,8 @@ export function MediaLibrary({
   const { toast } = useToast();
 
   const selected = media.find((item) => item.id === (onOpenSourceRoute ? focusedSourceId : selectedId)) || null;
+  const sourceJourneyState = useMemo(() => selected ? sourceJourney(selected, sourceInfluenceCount(selected, vault, drafts, practices, questions)) : null, [selected, vault, drafts, practices, questions]);
+  const sourceJourneyNext = sourceJourneyState ? nextSourceJourneyStep(sourceJourneyState) : null;
   const selectedRef = useRef<Media | null>(selected);
   selectedRef.current = selected;
   const [captureDraft, setCaptureDraft] = useState<Media['capture'] | null>(null);
@@ -594,11 +597,13 @@ export function MediaLibrary({
             activeId={sourceWorkbenchStep}
             onSelect={(id) => setSourceWorkbenchStep(id as SourceWorkbenchStep)}
             className="mb-5"
+            nextId={sourceJourneyNext}
+            nextHint={sourceJourneyNext ? sourceJourneyState![sourceJourneyNext].next : undefined}
             steps={[
-              { id: 'overview', label: 'Understand', description: 'Identify the source, purpose, and central idea.' },
-              { id: 'capture', label: 'Engage', description: 'Record intent, sessions, and what changed in your thinking.' },
-              { id: 'annotations', label: 'Capture', description: 'Keep quotations, claims, questions, and observations.' },
-              { id: 'connections', label: 'Connect', description: 'Link concepts and follow what this source influenced.' },
+              { id: 'overview', label: 'Understand', description: 'You name why this source matters to you and say its central idea in your own words.', progress: sourceJourneyState?.overview.progress, meta: sourceJourneyState?.overview.meta },
+              { id: 'capture', label: 'Engage', description: 'You set an intention, log each sitting, and record what changed in your thinking afterward.', progress: sourceJourneyState?.capture.progress, meta: sourceJourneyState?.capture.meta },
+              { id: 'annotations', label: 'Capture', description: 'You keep the passages that matter, then develop each one into a question, claim, or connection.', progress: sourceJourneyState?.annotations.progress, meta: sourceJourneyState?.annotations.meta },
+              { id: 'connections', label: 'Connect', description: 'You tie the source to concepts and see which positions, inquiries, works, and practices it now supports.', progress: sourceJourneyState?.connections.progress, meta: sourceJourneyState?.connections.meta },
             ]}
           />
 

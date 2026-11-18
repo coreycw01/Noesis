@@ -683,3 +683,9 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-calibration__key { display: inline-block; width: .5rem; height: .5rem; margin-right: .3rem; border-radius: 999px; vertical-align: middle; }
 .noesis-calibration__key--stated { background: hsl(var(--stage)); }
 .noesis-calibration__key--earned { border: 1.5px solid hsl(var(--foreground) / .75); }
+
+/* Workbench steps with progress (source journey): ring arc and next-step hint. */
+.noesis-step-ring__arc { stroke: hsl(var(--stage, var(--accent))); transition: stroke-dasharray var(--motion-calm) var(--ease-noesis); }
+.noesis-step-ring[data-active] { color: hsl(var(--stage, var(--accent))); }
+.noesis-step-next { color: hsl(var(--stage, var(--accent))); }
+.noesis-source-detail { --stage: var(--stage-encounter); }
