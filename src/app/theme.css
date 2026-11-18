@@ -716,3 +716,10 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-tool-strip__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .55rem; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-right: .2rem; }
 .noesis-tool-strip__chip { height: 1.6rem; padding: 0 .7rem; border-radius: 999px; border: 1px solid hsl(var(--border)); background: transparent; font-size: .75rem; color: hsl(var(--foreground) / .85); }
 .noesis-tool-strip__chip:hover, .noesis-tool-strip__chip[aria-pressed="true"] { border-color: hsl(var(--stage-more)); background: hsl(var(--stage-more) / .12); }
+
+/* Assistance panel: per-action reasoning depth. */
+.noesis-ai-depth { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.noesis-ai-depth__option { display: grid; gap: .15rem; text-align: left; padding: .6rem .75rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--border)); background: hsl(var(--card)); font-size: .9rem; }
+.noesis-ai-depth__option:hover:not(:disabled) { border-color: hsl(var(--stage-more) / .6); }
+.noesis-ai-depth__option[aria-checked="true"] { border-color: hsl(var(--stage-more)); background: hsl(var(--stage-more) / .12); box-shadow: inset 0 0 0 1px hsl(var(--stage-more) / .5); }
+@media (max-width: 520px) { .noesis-ai-depth { grid-template-columns: 1fr; } }
