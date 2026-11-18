@@ -29,6 +29,8 @@ interface FloatingWorkToolWindowProps {
   onPatch: (patch: Partial<ToolWindow>) => void;
   onPlacementChange: (placement: NonNullable<ToolWindow['placement']>) => void;
   onRemove: () => void;
+  /** Lowest and highest layer among the tools on this page. */
+  layerRange?: { min: number; max: number };
   children: ReactNode;
 }
 
@@ -52,7 +54,7 @@ function normalizedWindow(section: WorkToolSection): ToolWindow {
   };
 }
 
-export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, onPatch, onPlacementChange, onRemove, children }: FloatingWorkToolWindowProps) {
+export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, onPatch, onPlacementChange, onRemove, layerRange, children }: FloatingWorkToolWindowProps) {
   const [frame, setFrame] = useState(() => normalizedWindow(section));
   const [confirmRemove, setConfirmRemove] = useState(false);
   const isMobile = useIsMobile();
@@ -162,6 +164,18 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
     : undefined;
   const displayedOpacity = opacity ?? (isMobile ? 100 : 0);
   const customBackground = Boolean(tint || opacity !== undefined);
+  const setLayer = (zIndex: number) => {
+    setFrame((current) => ({ ...current, zIndex, layerLocked: true }));
+    onPatch({ zIndex, layerLocked: true });
+  };
+  const alignTo = (side: 'left' | 'center' | 'right') => {
+    const pageWidth = windowRef.current?.offsetParent instanceof HTMLElement ? windowRef.current.offsetParent.clientWidth : 0;
+    if (!pageWidth) return;
+    const room = Math.max(0, pageWidth - frame.width);
+    const x = side === 'left' ? 0 : side === 'center' ? Math.round(room / 2) : room;
+    setFrame((current) => ({ ...current, x }));
+    onPatch({ x });
+  };
   const updateBackground = (background: NonNullable<ToolWindow['background']>) => {
     setFrame((current) => ({ ...current, background }));
     onPatch({ background });
@@ -210,7 +224,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         '--work-tool-height': `${frame.height}px`,
         '--work-tool-tint': tint,
         '--work-tool-alpha': `${opacity ?? 100}%`,
-        '--work-tool-layer': mobileActive ? 40 : frame.zIndex,
+        '--work-tool-layer': mobileActive && isMobile ? 40 : frame.zIndex,
         display: frame.minimized ? 'none' : undefined,
       } as CSSProperties}
     >
@@ -259,6 +273,25 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
               <span className="flex justify-between gap-2">Background opacity <span aria-hidden="true" className="tabular-nums text-muted-foreground">{displayedOpacity}%</span></span>
               <input type="range" min={0} max={100} step={1} value={displayedOpacity} onChange={(event) => updateBackground({ ...frame.background, opacity: event.target.valueAsNumber })} className="h-8 w-full accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
             </label>
+            <div className="space-y-1.5 border-t border-border/60 pt-3">
+              <span className="text-sm font-semibold">Layer</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <Button type="button" size="sm" variant="outline" onClick={() => setLayer((layerRange?.max ?? frame.zIndex ?? 1) + 1)}>Bring to front</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setLayer((frame.zIndex ?? 1) + 1)}>Bring forward</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setLayer(Math.max(0, (frame.zIndex ?? 1) - 1))}>Send backward</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setLayer(Math.max(0, (layerRange?.min ?? frame.zIndex ?? 1) - 1))}>Send to back</Button>
+              </div>
+            </div>
+            {(frame.placement || 'overlay') === 'overlay' && (
+              <div className="space-y-1.5">
+                <span className="text-sm font-semibold">Align on the page</span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['left', 'center', 'right'] as const).map((side) => (
+                    <Button key={side} type="button" size="sm" variant="outline" className="capitalize" onClick={() => alignTo(side)}>{side}</Button>
+                  ))}
+                </div>
+              </div>
+            )}
           </PopoverContent>
         </Popover>
         <Button type="button" variant="ghost" size="icon" onClick={() => setMinimized(true)} className="size-10 shrink-0 rounded-md md:size-7" aria-label={`Minimize ${label}`}>

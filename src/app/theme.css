@@ -754,3 +754,11 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-recent-strip__label { display: inline-flex; align-items: center; gap: .35rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-right: .2rem; }
 .noesis-recent-strip__item { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; height: 1.75rem; padding: 0 .75rem; border-radius: 999px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); font-size: .78rem; color: hsl(var(--foreground) / .85); }
 .noesis-recent-strip__item:hover { border-color: hsl(var(--stage, var(--accent)) / .6); }
+
+/* Works rail: Studio Reel / Mark tabs, and mark kinds. */
+.noesis-rail-tabs { display: flex; gap: .25rem; padding: .2rem; border-radius: 999px; border: 1px solid hsl(var(--border)); }
+.noesis-rail-tabs button { flex: 1; height: 1.9rem; border-radius: 999px; font-size: .78rem; color: hsl(var(--muted-foreground)); background: transparent; }
+.noesis-rail-tabs button[aria-selected="true"] { background: hsl(var(--stage-more) / .16); color: hsl(var(--foreground)); }
+.noesis-mark-kind { height: 1.7rem; padding: 0 .7rem; border-radius: 999px; border: 1px solid hsl(var(--stage) / .6); color: hsl(var(--stage)); background: transparent; font-size: .75rem; }
+.noesis-mark-kind:hover:not(:disabled) { background: hsl(var(--stage) / .14); }
+.noesis-mark-kind:disabled { opacity: .4; }
