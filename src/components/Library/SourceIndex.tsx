@@ -45,10 +45,11 @@ function SourceIndexCover({ source }: { source: Media }) {
   if (url && failedUrl !== url) {
     return <img src={url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" onError={() => setFailedUrl(url)} />;
   }
+  const hue = Array.from(source.title || '').reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 360, 7);
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 bg-muted/30 p-3 text-center text-muted-foreground">
-      <SourceIcon className="size-7 text-accent/70" aria-hidden="true" />
-      <span className="line-clamp-2 font-headline text-xs font-semibold italic text-foreground/75">{source.title}</span>
+    <div className="noesis-proto-cover" style={{ '--h': hue } as React.CSSProperties}>
+      <span className="line-clamp-4 font-headline text-[.95rem] font-semibold italic leading-tight">{source.title}</span>
+      <span className="font-code text-[8.5px] uppercase tracking-[0.14em] opacity-80">{source.creator || source.type}</span>
     </div>
   );
 }

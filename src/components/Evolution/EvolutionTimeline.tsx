@@ -656,6 +656,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
             <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Turning Points</div>
             <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">The moments that changed the system</h2>
           </div>
+          {turningPoints.length > 0 && <TurningSpine events={turningPoints.map((event) => ({ id: event.id, title: event.title, date: event.date, tone: eventStageTone(event.targetType) }))} />}
           <div className="grid gap-4 md:grid-cols-2">
             {turningPoints.length ? turningPoints.map((event) => {
               const meaning = displayEventMeaning(event);
@@ -837,12 +838,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                         {area.status}
                       </Badge>
                     </div>
-                    <div className="mt-4 grid grid-cols-4 gap-2">
-                      <MiniEvolutionStat label="Gained" value={area.movements.gained} />
-                      <MiniEvolutionStat label="Weakened" value={area.movements.weakened} />
-                      <MiniEvolutionStat label="Fractured" value={area.movements.fractured} />
-                      <MiniEvolutionStat label="Stabilized" value={area.movements.stabilized} />
-                    </div>
+                    <MovementBar movements={area.movements} />
                     <div className="mt-4 rounded-xl border border-white/60 bg-card/50 p-3 dark:border-white/10 dark:bg-black/10">
                       <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Latest Evidence</div>
                       {area.latest ? (
@@ -1242,6 +1238,53 @@ function ScrubberCard({ label, value, items, empty }: { label: string; value: nu
       ) : (
         <p className="mt-3 text-sm italic leading-6 text-muted-foreground">{empty}</p>
       )}
+    </div>
+  );
+}
+
+/** An area's recorded movement as one bar: gained, stabilized, weakened, fractured. */
+function MovementBar({ movements }: { movements: { gained: number; weakened: number; fractured: number; stabilized: number } }) {
+  const parts = [
+    { key: 'gained', label: 'Gained', value: movements.gained, tone: 'act' },
+    { key: 'stabilized', label: 'Stabilized', value: movements.stabilized, tone: 'examine' },
+    { key: 'weakened', label: 'Weakened', value: movements.weakened, tone: 'encounter' },
+    { key: 'fractured', label: 'Fractured', value: movements.fractured, tone: 'claim' },
+  ];
+  const total = parts.reduce((sum, part) => sum + part.value, 0);
+  return (
+    <div className="noesis-movement mt-4">
+      <div className="noesis-movement__bar" role="img" aria-label={parts.map((part) => `${part.label} ${part.value}`).join(', ')}>
+        {total ? parts.map((part) => part.value ? <span key={part.key} data-stage-tone={part.tone} style={{ flexGrow: part.value }} title={`${part.label}: ${part.value}`} /> : null) : <span className="noesis-movement__none" />}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {parts.map((part) => (
+          <span key={part.key} data-stage-tone={part.tone} className="noesis-flowbar__key"><i />{part.label} <b>{part.value}</b></span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Turning points on one time axis: when the system turned, coloured by stage. */
+function TurningSpine({ events }: { events: Array<{ id: string; title: string; date: string; tone: string }> }) {
+  const times = events.map((event) => Date.parse(event.date)).filter(Number.isFinite);
+  if (!times.length) return null;
+  const min = Math.min(...times); const max = Math.max(...times); const span = Math.max(1, max - min);
+  const fmt = (value: number) => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(value));
+  return (
+    <div className="noesis-spine mb-6" role="img" aria-label={`${events.length} turning points from ${fmt(min)} to ${fmt(max)}`}>
+      <span className="noesis-spine__axis" />
+      {events.map((event, index) => {
+        const time = Date.parse(event.date);
+        if (!Number.isFinite(time)) return null;
+        return (
+          <span key={event.id} className="noesis-spine__dot" data-stage-tone={event.tone} style={{ left: `${4 + ((time - min) / span) * 92}%`, top: `${index % 2 ? 58 : 22}%` }} title={`${fmt(time)} · ${event.title}`}>
+            <em>{event.title.length > 34 ? `${event.title.slice(0, 33)}…` : event.title}</em>
+          </span>
+        );
+      })}
+      <span className="noesis-spine__date" style={{ left: '4%' }}>{fmt(min)}</span>
+      <span className="noesis-spine__date" style={{ left: '96%' }}>{fmt(max)}</span>
     </div>
   );
 }

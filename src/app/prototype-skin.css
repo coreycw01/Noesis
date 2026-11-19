@@ -282,3 +282,27 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-gauge__mark--earned em { top: -18px; color: hsl(var(--foreground)); }
 .noesis-gauge__mark--stated { background: hsl(var(--stage-claim)); }
 .noesis-gauge__mark--stated em { top: 34px; color: hsl(var(--stage-claim)); }
+
+/* Annotations: where notes are in their processing, as one stacked bar. */
+.noesis-flowbar { display: grid; gap: .55rem; padding: 16px 18px; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--card)); }
+.noesis-flowbar__bar { display: flex; gap: 3px; height: 14px; }
+.noesis-flowbar__bar span { border-radius: 4px; background: hsl(var(--stage)); min-width: 6px; }
+.noesis-flowbar__key { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; font-size: .85rem; color: hsl(var(--muted-foreground)); padding: 2px 0; }
+.noesis-flowbar__key i { width: 9px; height: 9px; border-radius: 2px; background: hsl(var(--stage)); }
+.noesis-flowbar__key b { color: hsl(var(--foreground)); font-weight: 500; }
+.noesis-flowbar__key[aria-pressed="true"] { color: hsl(var(--foreground)); text-decoration: underline; text-underline-offset: 4px; }
+.noesis-caliper { display: grid; gap: .5rem; margin-bottom: 1rem; padding: 12px; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--background) / .4); }
+.noesis-movement { display: grid; gap: .45rem; }
+.noesis-movement__bar { display: flex; gap: 3px; height: 12px; }
+.noesis-movement__bar span { border-radius: 4px; background: hsl(var(--stage)); min-width: 6px; }
+.noesis-movement__bar .noesis-movement__none { flex: 1; background: hsl(var(--muted)); }
+.noesis-spine { position: relative; height: 150px; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--card)); }
+.noesis-spine__axis { position: absolute; left: 4%; right: 4%; top: 50%; height: 2px; background: hsl(var(--border)); }
+.noesis-spine__dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 999px; background: hsl(var(--stage)); box-shadow: 0 0 0 4px hsl(var(--stage) / .2); }
+.noesis-spine__dot em { position: absolute; left: 50%; transform: translateX(-50%); top: 18px; white-space: nowrap; font-style: italic; font-family: "Playfair Display", Georgia, serif; font-size: .82rem; color: hsl(var(--foreground)); max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.noesis-spine__date { position: absolute; bottom: 8px; transform: translateX(-50%); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-flowbar:has(> .noesis-flowbar__seg) { display: flex; gap: 3px; padding: 4px; }
+.noesis-flowbar__seg { min-width: 72px; flex-basis: 0; height: 34px; border: 0; border-radius: 9px; background: hsl(var(--stage) / .22); color: hsl(var(--foreground)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; overflow: hidden; white-space: nowrap; padding: 0 8px; border-left: 4px solid hsl(var(--stage)); }
+.noesis-flowbar__seg[aria-pressed="true"] { background: hsl(var(--stage) / .5); }
+.noesis-work-roots { display: flex; flex-wrap: wrap; gap: 5px; padding: 14px 16px 0; }
+.noesis-work-roots i { width: 10px; height: 10px; border-radius: 999px; background: hsl(var(--stage)); box-shadow: 0 0 0 3px hsl(var(--stage) / .18); }
