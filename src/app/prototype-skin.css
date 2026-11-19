@@ -97,7 +97,7 @@ main[data-stage-tone="today"] { --accent: var(--proto-amber); --ring: var(--prot
 section[aria-label="Page filters and search"] { position: static !important; padding: 10px 12px !important; border: 1px solid hsl(var(--border)) !important; border-radius: 12px; background: hsl(var(--card)) !important; backdrop-filter: none !important; }
 
 /* Inputs and selects. */
-.noesis-app-main input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), .noesis-app-main textarea, .noesis-app-main [role="combobox"] { background: hsl(var(--background)); border-color: hsl(var(--border)); }
+.noesis-app-main :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), textarea, [role="combobox"]):not(.works-tool-window *) { background: hsl(var(--background)); border-color: hsl(var(--border)); }
 
 /* Tags carry a small dot of their color. */
 .noesis-tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
@@ -253,3 +253,7 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-territory__stats span { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; }
 .noesis-territory__clear { align-self: flex-start; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); background: none; border: 0; }
 @media (max-width: 760px) { .noesis-territory__panel { top: auto; left: 12px; width: auto; max-height: 45%; } }
+
+/* Works Studio Reel: each section a colored stripe, as in the prototype. */
+.noesis-reel-section { display: grid; gap: .45rem; padding: .2rem 0 .2rem .8rem; margin-top: .9rem; border-left: 2px solid hsl(var(--stage)); }
+.noesis-reel-section__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--stage)); }

@@ -406,13 +406,6 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
         ) : <p className="border-t border-border/50 px-3 py-3 text-sm text-muted-foreground">{activityMode === 'opened' ? 'No works opened yet.' : 'No recent edits yet.'}</p>}
       </section>
 
-      {(counts.revision > 0 || externalDocs > 0) && (
-        <div className="mb-5 flex flex-wrap items-center gap-2" aria-label="Work attention filters">
-          <span className="mr-1 font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Needs a look</span>
-          {counts.revision > 0 && <button type="button" onClick={() => setStatus('needs_revision')} className={cn('border px-3 py-1.5 font-code text-[9px] font-bold uppercase tracking-[0.12em] transition-colors', status === 'needs_revision' ? 'border-accent bg-accent text-accent-foreground' : 'border-border/60 bg-card text-muted-foreground hover:border-accent/50 hover:text-foreground')}>Needs revision {counts.revision}</button>}
-          {externalDocs > 0 && <button type="button" onClick={() => setStatus('external_docs')} className={cn('border px-3 py-1.5 font-code text-[9px] font-bold uppercase tracking-[0.12em] transition-colors', status === 'external_docs' ? 'border-accent bg-accent text-accent-foreground' : 'border-border/60 bg-card text-muted-foreground hover:border-accent/50 hover:text-foreground')}>External documents {externalDocs}</button>}
-        </div>
-      )}
 
       <div className="mb-4 flex items-end justify-between gap-4 border-b border-border/60 pb-3">
         <div>
