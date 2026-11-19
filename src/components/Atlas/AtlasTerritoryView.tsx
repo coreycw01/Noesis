@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { ArrowLeft, ArrowRight, BrainCircuit, FlaskConical, HelpCircle, MapPinned, Sparkles, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BrainCircuit, FlaskConical, HelpCircle, Maximize2, MapPinned, Sparkles, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -23,6 +23,7 @@ interface AtlasTerritoryViewProps {
   drafts: Draft[];
   media: Media[];
   onSelectRegion: (regionId: string) => void;
+  onExpandRegion: () => void;
   onBackToRegions: () => void;
   onOpenMap: (regionId: string) => void;
   onOpenPosition?: (id: string) => void;
@@ -52,6 +53,7 @@ export function AtlasTerritoryView({
   drafts,
   media,
   onSelectRegion,
+  onExpandRegion,
   onBackToRegions,
   onOpenMap,
   onOpenPosition,
@@ -59,6 +61,14 @@ export function AtlasTerritoryView({
   onOpenSource,
   onOpenConcept,
 }: AtlasTerritoryViewProps) {
+  const expandButton = React.useRef<HTMLButtonElement>(null);
+  const backButton = React.useRef<HTMLButtonElement>(null);
+  const wasExpanded = React.useRef(false);
+  React.useEffect(() => {
+    if (detailMode) backButton.current?.focus();
+    else if (wasExpanded.current) expandButton.current?.focus();
+    wasExpanded.current = detailMode;
+  }, [detailMode]);
   const selectedRegion = regions.find((region) => region.id === selectedRegionId) || regions[0] || null;
   const regionPositions = positions.filter((item) => selectedRegion?.positionIds.includes(item.id));
   const regionQuestions = questions.filter((item) => selectedRegion?.inquiryIds.includes(item.id));
@@ -200,7 +210,7 @@ export function AtlasTerritoryView({
       <Card className="rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            {detailMode && <Button variant="ghost" size="sm" onClick={onBackToRegions} className="mb-3 -ml-2 rounded-full text-muted-foreground"><ArrowLeft className="mr-2 size-4" />Back to Regions</Button>}
+            {detailMode && <Button ref={backButton} variant="ghost" size="sm" onClick={onBackToRegions} className="mb-3 -ml-2 rounded-full text-muted-foreground"><ArrowLeft className="mr-2 size-4" />Back to Regions</Button>}
             <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">Atlas Regions</Badge>
             <h2 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">{detailMode && selectedRegion ? selectedRegion.name : 'What territories define my current thought-world?'}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
@@ -221,7 +231,10 @@ export function AtlasTerritoryView({
       <div className={detailMode ? 'grid gap-6' : 'grid gap-6 xl:grid-cols-[1.1fr,0.9fr]'}>
         {!detailMode && <div className="grid gap-4 md:grid-cols-2">
           {cards.map((card) => (
-            <button key={card.id} type="button" className={selectedRegion?.id === card.id ? 'self-start text-left' : 'text-left'} aria-current={selectedRegion?.id === card.id ? 'true' : undefined} onClick={() => onSelectRegion(card.id)}>
+            <button key={card.id} type="button" className={selectedRegion?.id === card.id ? 'self-start text-left' : 'text-left'} aria-current={selectedRegion?.id === card.id ? 'true' : undefined} aria-controls="atlas-region-preview" onClick={() => {
+              onSelectRegion(card.id);
+              if (!window.matchMedia('(min-width: 1280px)').matches) requestAnimationFrame(() => expandButton.current?.focus());
+            }}>
               <Card className={`rounded-3xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${selectedRegion?.id === card.id ? 'border-accent/50 bg-accent/5' : 'h-full border-border/60 bg-card/85'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -233,7 +246,7 @@ export function AtlasTerritoryView({
                     )}
                     <div className="font-headline text-2xl font-semibold italic text-foreground">{card.name}</div>
                     {selectedRegion?.id === card.id
-                      ? <p className="mt-2 font-code text-[9px] uppercase tracking-widest text-accent">Open in the panel beside this list</p>
+                      ? <p className="mt-2 font-code text-[9px] uppercase tracking-widest text-accent">Selected for preview</p>
                       : <p className="mt-2 text-sm leading-6 text-muted-foreground">{card.description}</p>}
                   </div>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
@@ -294,9 +307,10 @@ export function AtlasTerritoryView({
           ))}
         </div>}
 
-        <Card className={`rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm ${detailMode ? 'w-full' : ''}`}>
+        <Card id="atlas-region-preview" className={`rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm ${detailMode ? 'w-full' : ''}`}>
           {selectedRegion ? (
             <div className="space-y-5">
+              {!detailMode && <Button ref={expandButton} variant="outline" size="sm" onClick={onExpandRegion} aria-label={`Expand region: ${selectedRegion.name}`}><Maximize2 aria-hidden="true" className="mr-2 size-4" />Expand region</Button>}
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">

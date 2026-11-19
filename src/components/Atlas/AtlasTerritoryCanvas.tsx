@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
- * The Atlas as a folded paper map: regions are landmasses with coastlines,
+ * The Atlas as an archipelago of constellations: regions are landmasses with coastlines,
  * concepts are nodes with contour lines, joined by routes for their links, and
  * the records that use a concept sit around it. Zoom moves through five levels
  * (whole map, regions, concepts, records, inside a concept). Everything drawn
@@ -63,7 +63,7 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
   const loose = concepts.filter((concept) => !regionOf.has(concept.id));
   const allRegions: MapRegion[] = loose.length ? [...regions, { id: 'loose', name: 'Unmapped', conceptIds: loose.map((concept) => concept.id) }] : regions;
   loose.forEach((concept) => regionOf.set(concept.id, allRegions.length - 1));
-  // Regions sit like land on a folded map: a staggered grid with seeded
+  // Regions sit as islands: a staggered grid with seeded
   // jitter, so the layout is irregular but stable between visits.
   const columns = Math.max(1, Math.ceil(Math.sqrt(allRegions.length * 1.6)));
   const rows = Math.ceil(allRegions.length / columns);
@@ -138,51 +138,23 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
     let width = 0; let height = 0; let raf = 0; let alive = true;
     const css = (name: string) => `hsl(${getComputedStyle(canvas).getPropertyValue(name).trim()})`;
     const alpha = (color: string, a: number) => color.replace(/^hsl\((.*)\)$/, `hsl($1 / ${a})`);
-    // The sheet: a folded, crinkled paper map, drawn once per size and theme.
-    let paper: HTMLCanvasElement | null = null;
-    const buildPaper = () => {
-      const ratio = window.devicePixelRatio || 1;
-      const sheet = document.createElement('canvas'); sheet.width = Math.max(1, width * ratio); sheet.height = Math.max(1, height * ratio);
-      const p = sheet.getContext('2d'); if (!p) return null;
-      p.scale(ratio, ratio);
-      const dark = document.documentElement.classList.contains('dark');
-      const ink = dark ? '235, 225, 205' : '60, 45, 25';
-      const shade = dark ? '0, 0, 0' : '70, 50, 20';
-      const light = dark ? '255, 245, 225' : '255, 255, 250';
-      p.fillStyle = dark ? 'hsl(33 20% 20%)' : 'hsl(40 42% 90%)'; p.fillRect(0, 0, width, height);
-      let seed = 7; const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-      for (let i = 0; i < (width * height) / 90; i += 1) { p.fillStyle = `rgba(${ink}, ${0.015 + rand() * 0.03})`; p.fillRect(rand() * width, rand() * height, 1, 1); }
-      for (let i = 0; i < 90; i += 1) {
-        let x = rand() * width; let y = rand() * height; const steps = 4 + Math.floor(rand() * 6);
+    let dark = document.documentElement.classList.contains('dark');
+    let sea: CanvasPattern | null = null;
+    const refreshSea = () => {
+      dark = document.documentElement.classList.contains('dark');
+      const tile = document.createElement('canvas'); tile.width = 256; tile.height = 256;
+      const p = tile.getContext('2d'); if (!p) return;
+      p.fillStyle = dark ? '#112c38' : '#d2e8ea'; p.fillRect(0, 0, 256, 256);
+      p.strokeStyle = dark ? '#224451' : '#badadc'; p.lineWidth = 1;
+      for (const [x, y] of [[32, 40], [148, 104], [62, 174], [198, 222]]) {
         p.beginPath(); p.moveTo(x, y);
-        for (let j = 0; j < steps; j += 1) { x += (rand() - 0.5) * 60; y += (rand() - 0.5) * 60; p.lineTo(x, y); }
-        p.strokeStyle = `rgba(${shade}, ${dark ? 0.22 : 0.08})`; p.lineWidth = 1; p.stroke();
-        p.translate(1, 1); p.strokeStyle = `rgba(${light}, ${dark ? 0.07 : 0.3})`; p.stroke(); p.translate(-1, -1);
+        p.bezierCurveTo(x + 5, y - 3, x + 11, y + 3, x + 18, y); p.stroke();
       }
-      const folds = (count: number, vertical: boolean) => {
-        const span = vertical ? width : height;
-        for (let i = 1; i < count; i += 1) {
-          const at = (span / count) * i; const valley = i % 2 === 1; const w = 70;
-          const g = vertical ? p.createLinearGradient(at - w, 0, at + w, 0) : p.createLinearGradient(0, at - w, 0, at + w);
-          g.addColorStop(0, `rgba(${shade}, 0)`);
-          g.addColorStop(0.5, valley ? `rgba(${shade}, ${dark ? 0.28 : 0.1})` : `rgba(${light}, ${dark ? 0.06 : 0.35})`);
-          g.addColorStop(0.5001, valley ? `rgba(${light}, ${dark ? 0.05 : 0.3})` : `rgba(${shade}, ${dark ? 0.24 : 0.09})`);
-          g.addColorStop(1, `rgba(${shade}, 0)`);
-          p.fillStyle = g;
-          if (vertical) p.fillRect(at - w, 0, w * 2, height); else p.fillRect(0, at - w, width, w * 2);
-          p.strokeStyle = `rgba(${shade}, ${dark ? 0.45 : 0.16})`; p.lineWidth = 1; p.beginPath();
-          if (vertical) { p.moveTo(at, 0); p.lineTo(at, height); } else { p.moveTo(0, at); p.lineTo(width, at); }
-          p.stroke();
-        }
-      };
-      folds(4, true); folds(3, false);
-      const vignette = p.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.35, width / 2, height / 2, Math.max(width, height) * 0.75);
-      vignette.addColorStop(0, `rgba(${shade}, 0)`); vignette.addColorStop(1, `rgba(${shade}, ${dark ? 0.45 : 0.16})`);
-      p.fillStyle = vignette; p.fillRect(0, 0, width, height);
-      return sheet;
+      sea = ctx.createPattern(tile, 'repeat');
     };
-    const size = () => { const ratio = window.devicePixelRatio || 1; width = canvas.clientWidth; height = canvas.clientHeight; canvas.width = width * ratio; canvas.height = height * ratio; ctx.setTransform(ratio, 0, 0, ratio, 0, 0); paper = buildPaper(); };
-    const themeWatch = new MutationObserver(() => { paper = buildPaper(); });
+    const size = () => { const ratio = window.devicePixelRatio || 1; width = canvas.clientWidth; height = canvas.clientHeight; canvas.width = width * ratio; canvas.height = height * ratio; ctx.setTransform(ratio, 0, 0, ratio, 0, 0); };
+    refreshSea();
+    const themeWatch = new MutationObserver(refreshSea);
     themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     size();
     const observer = new ResizeObserver(size); observer.observe(canvas);
@@ -221,10 +193,22 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
       const k = v.k; placed = [];
       const accent = css('--stage-integrate'); const fg = css('--foreground'); const dim = css('--muted-foreground');
       const sA = band(k, 0.02, 0.14, 0.5); const rA = band(k, 0.19, 0.5, 0.4); const cA = band(k, 0.55, 1.3, 0.4); const recA = band(k, 1.45, 2.9, 0.3); const iA = band(k, 3.3, 20, 0.3);
-      if (paper) ctx.drawImage(paper, 0, 0, width, height); else { ctx.fillStyle = css('--card'); ctx.fillRect(0, 0, width, height); }
+      ctx.fillStyle = sea || css('--background');
+      ctx.save();
+      const driftX = -(v.x * k * .18) % 256, driftY = -(v.y * k * .18) % 256;
+      ctx.translate(driftX, driftY); ctx.fillRect(-driftX, -driftY, width, height); ctx.restore();
       const ink = fg;
       const visibleConcepts = world.concepts.filter((concept) => seen(concept.born));
       const regionVisible = (index: number) => visibleConcepts.some((concept) => concept.region === index);
+      for (let index = 0; index < world.regions.length; index++) {
+        if (!regionVisible(index)) continue;
+        const [x, y] = toScreen(world.regionCenters[index].wx, world.regionCenters[index].wy);
+        const r = 264 * k;
+        if (x + r * 1.6 < 0 || x - r * 1.6 > width || y + r * 1.25 < 0 || y - r * 1.25 > height) continue;
+        blob(x, y, r * 1.045, index * 1.3); ctx.fillStyle = dark ? '#244c56' : '#afd6d7'; ctx.fill();
+        blob(x, y, r, index * 1.3); ctx.fillStyle = dark ? '#273d39' : '#ebecda'; ctx.fill();
+        ctx.strokeStyle = dark ? '#678882' : '#83a7a1'; ctx.lineWidth = 1.3; ctx.stroke();
+      }
       if (sA > 0) {
         ctx.globalAlpha = sA;
         world.regions.forEach((region, index) => {
@@ -232,7 +216,6 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           const [cx, cy] = toScreen(world.regionCenters[index].wx, world.regionCenters[index].wy);
           const count = visibleConcepts.filter((concept) => concept.region === index).length;
           const r = Math.max(26, 230 * k);
-          blob(cx, cy, r, index * 1.3); ctx.fillStyle = alpha(accent, 0.16); ctx.fill(); ctx.strokeStyle = alpha(ink, 0.6); ctx.lineWidth = 1.2; ctx.stroke();
           ctx.textAlign = 'center'; ctx.font = 'italic 600 15px "Playfair Display", Georgia, serif'; ctx.fillStyle = ink; ctx.fillText(region.name, cx, cy + r + 20);
           ctx.font = '10px "JetBrains Mono", monospace'; ctx.fillStyle = alpha(ink, 0.6); ctx.fillText(`${count} CONCEPTS`, cx, cy + r + 35);
         });
@@ -243,15 +226,13 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
         world.regions.forEach((region, index) => {
           if (!regionVisible(index)) return;
           const [cx, cy] = toScreen(world.regionCenters[index].wx, world.regionCenters[index].wy);
-          blob(cx, cy, 230 * k * 1.07, index * 1.3); ctx.setLineDash([3, 5]); ctx.strokeStyle = alpha(ink, 0.25); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
-          blob(cx, cy, 230 * k, index * 1.3); ctx.fillStyle = alpha(ink, 0.07); ctx.fill(); ctx.fillStyle = alpha(accent, 0.1); ctx.fill(); ctx.strokeStyle = alpha(ink, 0.65); ctx.lineWidth = 1.6; ctx.stroke();
           if (rA > sA) label(region.name.toUpperCase(), cx, cy - 230 * k * 0.95 - 10, `600 ${Math.max(11, Math.min(16, 40 * k))}px "JetBrains Mono", monospace`, alpha(ink, 0.85));
         });
         ctx.globalAlpha = 1;
       }
       // Concept nodes and their routes show from the regions level up, so the
       // first view is already a map of connected nodes.
-      const conceptLayer = Math.max(cA, recA, iA, rA * 0.85);
+      const conceptLayer = Math.max(cA, recA, iA, rA * 0.85, sA * 0.8);
       const selected = selectionRef.current;
       const selectedId = selected?.kind === 'concept' ? selected.concept.id : null;
       if (conceptLayer > 0) {
@@ -290,10 +271,16 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
             ctx.stroke(); ctx.setLineDash([]);
           }
           if (k > 0.7 && cA > 0.3) { ctx.font = '9px "JetBrains Mono", monospace'; ctx.fillStyle = alpha(ink, 0.75); ctx.textAlign = 'left'; ctx.fillText(`\u25B2 ${elevation}`, x + 9, y - 6); }
-          ctx.beginPath(); ctx.arc(x, y, Math.max(3, Math.min(7, 5 * k)), 0, 7); ctx.fillStyle = ink; ctx.fill();
+          const star = Math.max(2.4, Math.min(8, 6 * k));
+          ctx.beginPath(); ctx.moveTo(x, y - star * 1.3);
+          ctx.lineTo(x + star * .32, y - star * .32); ctx.lineTo(x + star, y);
+          ctx.lineTo(x + star * .32, y + star * .32); ctx.lineTo(x, y + star * 1.3);
+          ctx.lineTo(x - star * .32, y + star * .32); ctx.lineTo(x - star, y);
+          ctx.lineTo(x - star * .32, y - star * .32); ctx.closePath();
+          ctx.fillStyle = dark ? '#ffedbc' : '#624417'; ctx.fill();
           ctx.beginPath(); ctx.arc(x, y, Math.max(5, Math.min(11, 8 * k)), 0, 7); ctx.strokeStyle = alpha(ink, 0.5); ctx.lineWidth = 1; ctx.stroke();
           if (fresh) { ctx.fillStyle = accent; ctx.font = '9px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('NEW', x, y - radius * 0.9 - 4); }
-          label(concept.name, x, iA > 0.3 ? y - radius * 0.85 - 12 : y + Math.max(20, 14 * k), `italic 600 ${Math.max(13, Math.min(20, 15 * k))}px "Playfair Display", Georgia, serif`, fg);
+          if (k >= 0.19) label(concept.name, x, iA > 0.3 ? y - radius * 0.85 - 12 : y + Math.max(20, 14 * k), `italic 600 ${Math.max(13, Math.min(20, 15 * k))}px "Playfair Display", Georgia, serif`, fg);
         });
         ctx.globalAlpha = 1;
       }

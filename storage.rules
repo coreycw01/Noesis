@@ -36,6 +36,11 @@ service firebase.storage {
         && (validImage() || validAudio() || validVideo());
     }
 
+    match /users/{uid}/sourcePhotos/{sourceId}/{fileName} {
+      allow read, delete: if owner(uid);
+      allow create: if owner(uid) && validMetadata(uid, sourceId) && validImage();
+    }
+
     match /users/{uid}/atlasMaps/{mapId}/{fileName} {
       allow read, delete: if owner(uid);
       allow create, update: if owner(uid)

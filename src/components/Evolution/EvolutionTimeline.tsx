@@ -376,7 +376,11 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
 }
 
 export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, thinkingEventsHasMore, loadMoreThinkingEvents, historyLoadingOlder, historyOlderError, unknowns, thinkingPatterns, onSaveSynthesis, positions = [], onOpenPosition }: EvolutionTimelineProps) {
-  const [view, setView] = useState<EvolutionView>('belief_rivers');
+  const [view, setView] = useState<EvolutionView>('timeline');
+  const section = view === 'belief_rivers' ? 'belief_rivers' : view === 'before_after' || view === 'change_map' ? 'compare' : 'timeline';
+  const modes = VIEW_OPTIONS.filter(option => section === 'timeline'
+    ? ['timeline', 'turning_points', 'periods'].includes(option.value)
+    : section === 'compare' && ['before_after', 'change_map'].includes(option.value));
   const [explainedRiver, setExplainedRiver] = useState<string | null>(null);
   const [timelineLayout, setTimelineLayout] = useEntityViewPreference('evolution');
   const [search, setSearch] = useState('');
@@ -642,14 +646,20 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
         description="Trace meaningful changes in positions, concepts, inquiries, practices, unknowns, and thinking patterns over time."
         tabs={(
           <WorkspaceTabs
-            value={view}
-            onChange={setView}
+            value={section}
+            onChange={(next) => { if (section !== next) setView(next === 'compare' ? 'before_after' : next); }}
             label="Evolution views"
-            items={VIEW_OPTIONS.map((option) => ({ id: option.value, label: option.label }))}
+            items={[{ id: 'timeline', label: 'Timeline' }, { id: 'belief_rivers', label: 'Belief River' }, { id: 'compare', label: 'Compare' }]}
           />
         )}
       />
 
+      {modes.length > 0 && <label className="mb-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        {section === 'compare' ? 'Comparison' : 'Show'}
+        <select value={view} onChange={event => setView(event.target.value as EvolutionView)} className="min-h-10 rounded-[var(--button-radius)] border border-border bg-background px-3 text-foreground">
+          {modes.map(mode => <option key={mode.value} value={mode.value}>{mode.value === 'timeline' ? 'All meaningful changes' : mode.label}</option>)}
+        </select>
+      </label>}
       {view !== 'timeline' && olderHistoryControl}
 
       {view === 'turning_points' && (
@@ -685,10 +695,9 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
 
       {view === 'belief_rivers' && (
         <section className="mb-8 border-y border-border/60 py-6">
-          <div className="mb-4 rounded-[14px] border border-border bg-card p-5">
+          <div className="mx-auto max-w-4xl">
             <BeliefRivers positions={positions} thinkingEvents={thinkingEvents} onOpen={(id) => onOpenPosition?.(id)} onExplain={setExplainedRiver} />
           </div>
-          <p className="text-sm text-muted-foreground">Tap a river to open its position or see what moved it.</p>
           {explainedRiver && (() => {
             const position = positions.find((item) => item.id === explainedRiver);
             const river = beliefRivers.find((item) => item.id === explainedRiver);
@@ -1340,16 +1349,16 @@ function BeforeAfterTable({ positions, thinkingEvents, date, onDate, onOpenPosit
           <span role="columnheader" className="text-muted-foreground">Change</span>
         </div>
         {series.map((river) => {
-          const then = [...river.points].reverse().find((point) => point.time <= at && point.time < Date.now() - 1000);
+          const then = [...river.points].reverse().find((point) => point.time <= at);
           const now = Math.round(river.position.confidence || 0);
           const before = then ? Math.round(then.confidence) : null;
           const delta = before === null ? null : now - before;
           return (
             <div role="row" key={river.position.id} className="contents">
               <button role="cell" type="button" className="truncate text-left font-headline italic hover:underline" onClick={() => onOpenPosition?.(river.position.id)} title={river.position.title}>{river.position.title}</button>
-              <span role="cell">{before === null ? <span className="text-muted-foreground">not yet held</span> : `${before}%`}</span>
+              <span role="cell">{before === null ? <span className="text-muted-foreground">not recorded</span> : `${before}%`}</span>
               <span role="cell">{now}%</span>
-              <span role="cell" className={delta === null ? 'text-[hsl(var(--stage-act))]' : delta > 0 ? 'text-[hsl(var(--stage-act))]' : delta < 0 ? 'text-[hsl(var(--stage-claim))]' : 'text-muted-foreground'}>{delta === null ? 'new' : delta === 0 ? '\u2014' : `${delta > 0 ? '+' : ''}${delta}`}</span>
+              <span role="cell" className={delta === null ? 'text-[hsl(var(--stage-act))]' : delta > 0 ? 'text-[hsl(var(--stage-act))]' : delta < 0 ? 'text-[hsl(var(--stage-claim))]' : 'text-muted-foreground'}>{delta === null ? 'Unknown' : delta === 0 ? '\u2014' : `${delta > 0 ? '+' : ''}${delta}`}</span>
             </div>
           );
         })}

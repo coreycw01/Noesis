@@ -14,22 +14,6 @@ export type WorkbenchStep = {
   meta?: string;
 };
 
-function ProgressRing({ value, number, active }: { value: number; number: number; active: boolean }) {
-  const radius = 13;
-  const circumference = 2 * Math.PI * radius;
-  const done = value >= 0.999;
-  return (
-    <span className="noesis-step-ring relative grid size-[34px] shrink-0 place-items-center" data-active={active || undefined} aria-hidden="true">
-      <svg viewBox="0 0 34 34" width="34" height="34" className="absolute inset-0">
-        <circle cx="17" cy="17" r={radius} fill="none" className="stroke-border" strokeWidth="3" />
-        <circle cx="17" cy="17" r={radius} fill="none" className="noesis-step-ring__arc" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${circumference * Math.max(0, Math.min(1, value))} ${circumference}`} transform="rotate(-90 17 17)" />
-        {done && <path d="M11.5 17.5l3.5 3.5 7-8" className="noesis-step-ring__arc" strokeWidth="2.2" fill="none" strokeLinecap="round" />}
-      </svg>
-      {!done && <span className="relative font-code text-[10px] font-bold">{number}</span>}
-    </span>
-  );
-}
-
 export function WorkbenchFlow({
   label,
   steps,
@@ -60,7 +44,7 @@ export function WorkbenchFlow({
           const isNext = step.id === nextId;
           const content = (
             <span className="flex min-h-11 items-center gap-2.5 px-2 py-1 sm:pl-0 sm:pr-4">
-              <ProgressRing value={step.progress ?? 0} number={index + 1} active={active} />
+
               <span className="grid min-w-0">
                 <span className={cn('text-sm font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>{step.label}</span>
                 {step.meta && <span className="truncate font-code text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{step.meta}</span>}

@@ -50,6 +50,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MarkupVoice } from '@/components/shared/MarkupVoice';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
@@ -3241,7 +3242,7 @@ function WorkIntellectualRail({
         </div>
 
         <div className="noesis-rail-tabs" role="tablist" aria-label="Rail views">
-          {([['reel', 'Studio Reel'], ['mark', `Mark${(active.marks || []).length ? ` · ${(active.marks || []).length}` : ''}`], ['linked', 'Linked'], ['versions', 'Versions']] as const).map(([id, label]) => (
+          {([['reel', 'Studio Reel'], ['mark', `Markup${(active.marks || []).length ? ` · ${(active.marks || []).length}` : ''}`], ['linked', 'Linked'], ['versions', 'Versions']] as const).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={railTab === id} onClick={() => setRailTab(id)}>{label}</button>
           ))}
         </div>
@@ -3266,7 +3267,7 @@ function WorkIntellectualRail({
             {onOpenVersions && <Button type="button" variant="outline" size="sm" className="mt-1 justify-self-start rounded-full" onClick={onOpenVersions}>Open version history</Button>}
           </div>
         ) : railTab === 'mark'
-          ? <WorkMarkPanel marks={active.marks || []} onChange={onMarksChange} />
+          ? <WorkMarkPanel key={active.id} marks={active.marks || []} onChange={onMarksChange} />
           : <WorkRailContent sources={sources} positions={positions} inquiries={inquiries} concepts={concepts} annotations={annotations} coherenceSignals={coherenceSignals} hideIntro />}
       </div>
       )}
@@ -3288,6 +3289,7 @@ const MARK_KINDS: Array<{ id: WorkMark['kind']; label: string; tone: string }> =
  */
 function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (marks: WorkMark[]) => void }) {
   const [selection, setSelection] = useState('');
+  const [note, setNote] = useState('');
   useEffect(() => {
     const read = () => {
       const current = window.getSelection();
@@ -3301,8 +3303,8 @@ function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (mark
   }, []);
   const mark = (kind: WorkMark['kind']) => {
     if (!selection) return;
-    onChange([...marks, { id: `mark-${Date.now().toString(36)}`, text: selection, kind, date: new Date().toISOString() }]);
-    setSelection('');
+    onChange([...marks, { id: `mark-${Date.now().toString(36)}`, text: selection, ...(note.trim() ? { note: note.trim() } : {}), kind, date: new Date().toISOString() }]);
+    setSelection(''); setNote('');
   };
   const find = (text: string) => {
     const finder = (window as Window & { find?: (text: string) => boolean }).find;
@@ -3313,6 +3315,8 @@ function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (mark
       <div className="rounded-xl border border-border/60 bg-card/70 p-3">
         <div className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Mark the selection as</div>
         <p className="mt-1 line-clamp-3 text-xs italic leading-5 text-muted-foreground">{selection ? `“${selection}”` : 'Select a passage in the document first.'}</p>
+        <Textarea className="my-2" aria-label="Note about selected passage" placeholder="Your note (optional)" value={note} onChange={event => setNote(event.target.value)} />
+        <MarkupVoice text={selection || note} onTranscript={words => setNote(prev => [prev.trimEnd(), words].filter(Boolean).join(' '))} />
         <div className="mt-2 flex flex-wrap gap-1.5">
           {MARK_KINDS.map((kind) => (
             <button key={kind.id} type="button" data-stage-tone={kind.tone} disabled={!selection} onClick={() => mark(kind.id)} className="noesis-mark-kind">{kind.label}</button>
@@ -3327,7 +3331,7 @@ function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (mark
             <div className="noesis-stage-badge border-l-2 pl-2 font-code text-[9px] font-bold uppercase tracking-[0.16em]">{kind.label} · {group.length}</div>
             {group.map((item) => (
               <div key={item.id} className="group/mark flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/40">
-                <button type="button" onClick={() => find(item.text)} className="min-w-0 flex-1 text-left text-xs leading-5" title="Find in the document">“{item.text}”</button>
+                <button type="button" onClick={() => find(item.text)} className="min-w-0 flex-1 text-left text-xs leading-5" title="Find in the document">“{item.text}”{item.note && <span className="block not-italic text-muted-foreground">{item.note}</span>}</button>
                 <button type="button" onClick={() => onChange(marks.filter((entry) => entry.id !== item.id))} className="text-xs text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/mark:opacity-100 focus-visible:opacity-100" aria-label="Remove mark">×</button>
               </div>
             ))}

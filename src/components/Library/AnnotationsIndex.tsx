@@ -2,7 +2,6 @@
 "use client";
 
 import { aiDepthFor } from '@/lib/ai-depth';
-import { workspaceScrollBehavior } from '@/lib/appearance';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, ArrowLeft, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Plus, Quote, Trash2 } from 'lucide-react';
@@ -25,8 +24,6 @@ import { ToolOption, ToolOptions } from '@/components/shared/WorkbenchPanel';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
-import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
 import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
@@ -69,7 +66,7 @@ interface AnnotationsIndexProps {
 type FlatAnnotation = Annotation & { source: Media };
 type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'has_relationships' | 'unanswered';
 type PreflightMode = 'position' | 'inquiry';
-type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'reference';
+type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'reference' | 'practice' | 'form_position';
 type AnnotationSort = 'newest' | 'oldest' | 'source' | 'type' | 'status';
 
 const ANNOTATION_TYPES: Array<{ id: AnnotationType; label: string }> = [
@@ -163,8 +160,9 @@ export function AnnotationsIndex({
     id: 'legacy-effect-review', action: 'suggest_annotation_effect', title: 'Effect review',
     content: editing.aiEffectReview || '', date: editing.date,
   } : undefined);
-  const [annotationWorkflowStep, setAnnotationWorkflowStep] = useState<'understand' | 'apply' | 'connect' | 'trace'>('understand');
   const [editingMetadata, setEditingMetadata] = useState(false);
+  const [practiceAction, setPracticeAction] = useState('');
+  const creatingPractice = useRef(false);
   const [detailEffect, setDetailEffect] = useState<ConsequenceAction>('reference');
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -548,6 +546,13 @@ export function AnnotationsIndex({
 
   const runConsequenceAction = (annotation: FlatAnnotation, action: ConsequenceAction) => {
     const { source, ...annotationData } = annotation;
+    if (action === 'form_position') { openPreflight(annotation, 'position'); return; }
+    if (action === 'practice' && onAddPractice) {
+      if (creatingPractice.current || !practiceAction.trim()) return;
+      creatingPractice.current = true;
+      void Promise.resolve().then(() => onAddPractice({ title: practiceAction.trim(), description: `From ${annotation.source.title}: “${annotation.text}”`, type: 'habit', status: 'planned', sourceIds: [annotation.source.id], conceptTags: annotation.conceptTags || [] })).then(() => toast({ title: 'Practice created' })).catch(() => toast({ title: 'Practice could not be saved', variant: 'destructive' })).finally(() => { creatingPractice.current = false; });
+      return;
+    }
     if (action === 'clarifies') {
       void persistAnnotation(source.id, { ...annotationData, philosophyStatus: 'connected' });
       toast({ title: 'Annotation applied as conceptual clarification.', description: 'It remains discoverable through its source and concept tags.' });
@@ -603,7 +608,7 @@ export function AnnotationsIndex({
       onOpenAnnotation(annotation.source.id, annotation.id);
       return;
     }
-    setAnnotationWorkflowStep('understand');
+    setPracticeAction('');
     setDetailEffect(selectedEffectForAnnotation(annotation));
     setEditingMetadata(false);
     setEditing(annotation);
@@ -615,7 +620,7 @@ export function AnnotationsIndex({
       setEditing(null);
       return;
     }
-    setAnnotationWorkflowStep('understand');
+    setPracticeAction('');
     setDetailEffect(selectedEffectForAnnotation(focusedAnnotation));
     setEditingMetadata(false);
     setEditing(focusedAnnotation);
@@ -630,7 +635,9 @@ export function AnnotationsIndex({
     if (action === 'raises_question') return linkedInquiriesFor(annotation).length ? 'Open inquiry' : 'Start inquiry';
     if (action === 'supports_claim') return positions.length ? 'Choose a position' : 'Create position draft';
     if (action === 'challenges_claim') return positions.length ? 'Choose a position' : 'Create position draft';
-    if (action === 'clarifies') return 'Select concept';
+    if (action === 'form_position') return 'Draft position';
+    if (action === 'practice') return 'Create planned practice';
+    if (action === 'clarifies') return 'Apply concept';
     return 'Finish';
   };
 
@@ -905,13 +912,13 @@ export function AnnotationsIndex({
         );
       })()}
       {(() => {
-        const unsorted = annotations.filter((annotation) => !annotation.consequenceKind && !annotation.createdInquiryId && !annotation.createdPositionId && !(annotation.linkedPositionIds || []).length && !linkedInquiriesFor(annotation).length && annotationStatus(annotation) !== 'archived' && annotationStatus(annotation) !== 'reference_only').slice(0, 4);
+        const unsorted = annotations.filter((annotation) => !annotation.consequenceKind && !annotation.createdInquiryId && !annotation.createdPositionId && !(annotation.linkedPositionIds || []).length && !linkedInquiriesFor(annotation).length && annotationStatus(annotation) !== 'archived' && annotationStatus(annotation) !== 'reference_only');
         if (!unsorted.length) return null;
         const kinds: Array<[NonNullable<Annotation['consequenceKind']>, string, string]> = [['evidence', 'Evidence', 'act'], ['objection', 'Objection', 'claim'], ['question', 'Question', 'examine'], ['definition', 'Definition', 'outline'], ['claim', 'Claim', 'integrate']];
         return (
-          <section className="noesis-tray mb-6" aria-label="Sorting tray">
-            <div className="noesis-instrument__label">Sorting tray · {unsorted.length} without an effect yet</div>
-            {unsorted.map((annotation) => (
+          <details className="noesis-tray mb-6">
+            <summary className="cursor-pointer py-2 text-sm font-medium">Sorting tray · {unsorted.length} to mark</summary>
+            {unsorted.slice(0, 4).map((annotation) => (
               <div key={`${annotation.source.id}:${annotation.id}`} className="noesis-tray__row">
                 <p className="noesis-tray__text">{annotation.text}</p>
                 <p className="noesis-tray__src">{annotation.source.title}{annotation.date && Number.isFinite(Date.parse(annotation.date)) ? ` · ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(annotation.date))}` : ''}</p>
@@ -925,7 +932,7 @@ export function AnnotationsIndex({
                 </div>
               </div>
             ))}
-          </section>
+          </details>
         );
       })()}
       <section className="mb-8 hidden rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:block">
@@ -1286,48 +1293,7 @@ export function AnnotationsIndex({
           )}
           {editing && (
             <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pt-2 max-sm:pr-1">
-              <SuggestionChain suggestions={[
-                ...(editing.createdInquiryId ? [] : [{
-                  kind: 'inquiry' as const,
-                  title: editing.type === 'question' ? chainTitle(editing.text) : `What does this imply: ${chainTitle(editing.text, 70)}`,
-                  why: 'A note that raises a question becomes an inquiry you can weigh evidence on.',
-                  act: async () => { if (!(await createInquiry(editing))) throw new Error('not created'); },
-                }]),
-                ...(editing.createdPositionId ? [] : [{
-                  kind: 'position' as const,
-                  title: chainTitle(editing.text),
-                  why: 'If this note already says what you think, stand behind it as a position.',
-                  act: async () => { if (!(await createPosition(editing, chainTitle(editing.text, 80)))) throw new Error('not created'); },
-                }]),
-                ...(onAddPractice ? [{
-                  kind: 'practice' as const,
-                  title: `Try: ${chainTitle(editing.text, 70)}`,
-                  why: 'Some notes are instructions. Practise it for a week and see.',
-                  actionLabel: 'Start the practice',
-                  act: () => Promise.resolve(onAddPractice({ title: `Try: ${editing.text.slice(0, 60)}`, description: `A practice from a note in ${editing.source.title}: "${editing.text}"`, type: 'habit', status: 'planned', durationDays: 7, sourceIds: [editing.source.id], conceptTags: editing.conceptTags || [] })),
-                }] : []),
-              ]} />
-              <WorkbenchFlow
-                label="Annotation workbench workflow"
-                activeId={annotationWorkflowStep}
-                onSelect={(id) => {
-                  const step = id as typeof annotationWorkflowStep;
-                  setAnnotationWorkflowStep(step);
-                  window.requestAnimationFrame(() => {
-                    const target = document.getElementById(`annotation-${step}`);
-                    if (target instanceof HTMLDetailsElement) target.open = true;
-                    target?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'nearest' });
-                  });
-                }}
-                steps={[
-                  { id: 'understand', label: 'Understand', description: 'Keep the original annotation in view while you explain what it means in your thinking.' },
-                  { id: 'apply', label: 'Apply', description: 'Decide whether it supports, challenges, clarifies, or raises a question.' },
-                  { id: 'connect', label: 'Connect', description: 'Attach the concepts and objects it actually affects.' },
-                  { id: 'trace', label: 'Trace', description: 'Review where it came from and how it has been used.' },
-                ]}
-              />
-
-              <section id="annotation-understand" className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'understand' && 'hidden')}>
+              <section id="annotation-understand" className="noesis-workbench-panel scroll-mt-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{annotationLabel(annotationType(editing))}</Badge>
@@ -1388,63 +1354,7 @@ export function AnnotationsIndex({
                 </details>
               </section>
 
-              <section className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'understand' && 'hidden')}>
-                <details open={Boolean(editing.consequenceNote || editing.context)}>
-                  <summary className="cursor-pointer list-none">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="noesis-workbench-panel__eyebrow">Your note</div>
-                        <p className="noesis-workbench-panel__description">{editing.consequenceNote || editing.context ? 'Your interpretation and context.' : 'What does this mean to you?'}</p>
-                      </div>
-                      <Badge variant="outline" className="rounded-full text-[9px]">Edit</Badge>
-                    </div>
-                  </summary>
-                  <div className="mt-3 space-y-3">
-                    <Textarea
-                      value={editing.consequenceNote || ''}
-                      onChange={(event) => setEditing((prev) => prev ? { ...prev, consequenceNote: event.target.value } : prev)}
-                      placeholder="Your note, interpretation, limitation, or reminder."
-                      className="min-h-[90px]"
-                    />
-                    <Textarea
-                      value={editing.context || ''}
-                      onChange={(event) => setEditing((prev) => prev ? { ...prev, context: event.target.value } : prev)}
-                      placeholder="Optional surrounding source context."
-                      className="min-h-[80px]"
-                    />
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Checkbox
-                        checked={Boolean(editing.mattersBeyondSource)}
-                        onCheckedChange={(checked) => setEditing((prev) => prev ? { ...prev, mattersBeyondSource: Boolean(checked) } : prev)}
-                      />
-                      This is my interpretation, not the author&apos;s claim.
-                    </label>
-                  </div>
-                </details>
-              </section>
-
-              {annotationWorkflowStep === 'apply' && savedReviews.length > 0 && (
-                <AiAssistedHistory
-                  title="Saved effect reviews"
-                  description="Reviewed assistance for this annotation. Editing or deleting a note does not change its links or status."
-                  entries={savedReviews.map((entry) => ({
-                    ...entry,
-                    originDetails: entry.id.startsWith('ai-review-') ? {
-                      provenance: { provenanceId: entry.id, kind: 'ai-assisted' },
-                      target: annotationEffectTarget(editing.id, entry.id),
-                    } : undefined,
-                  }))}
-                  onChange={async (aiReviewHistory) => {
-                    const saved = annotations.find((item) => item.id === editing.id && item.source.id === editing.source.id);
-                    if (!saved) throw new Error('This annotation is no longer available.');
-                    const { source, ...annotation } = saved;
-                    if (!await persistAnnotation(source.id, { ...annotation, aiReviewHistory })) throw new Error('Review history was not saved.');
-                    setEditing((current) => current ? { ...current, aiReviewHistory } : current);
-                  }}
-                />
-              )}
-
-              <section id="annotation-apply" className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'apply' && 'hidden')}>
+              <section id="annotation-apply" className="noesis-workbench-panel scroll-mt-4">
                 <div className="noesis-workbench-panel__header mb-4">
                   <div className="min-w-0 flex-1">
                     <div className="noesis-workbench-panel__eyebrow">Apply</div>
@@ -1509,11 +1419,14 @@ export function AnnotationsIndex({
                     ['challenges_claim', 'Challenges', 'Weakens or questions a position.'],
                     ['raises_question', 'Raises a question', 'Opens something to investigate.'],
                     ['clarifies', 'Clarifies', 'Sharpens what a concept means.'],
+                    ['form_position', 'Form a position', 'State what you think in your own words.'],
+                    ...(onAddPractice ? [['practice', 'Try a practice', 'Turn this note into an action to try.']] : []),
                     ['reference', 'Reference', 'Keep it on file without acting.'],
                   ] as Array<[ConsequenceAction, string, string]>).map(([action, label, description]) => (
                     <ToolOption key={label} label={label} description={description} active={detailEffect === action} onClick={() => setDetailEffect(action)} />
                   ))}
                 </ToolOptions>
+                {detailEffect === 'practice' && <label className="mt-3 grid gap-1 text-sm">What action will you try?<Input value={practiceAction} onChange={e => setPracticeAction(e.target.value)} maxLength={160} placeholder="One action you can repeat or observe" /></label>}
                 {detailEffect === 'clarifies' && (
                   <div className="mt-3">
                     <Label className="mb-2 block text-xs text-muted-foreground">Which concept does this clarify?</Label>
@@ -1521,14 +1434,70 @@ export function AnnotationsIndex({
                   </div>
                 )}
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <Button type="button" size="sm" onClick={() => runDetailAction(editing, detailEffect)} disabled={detailEffect === 'clarifies' && !(editing.conceptTags || editing.source.tags || []).length} className="h-9 rounded-full px-4">
+                  <Button type="button" size="sm" onClick={() => runDetailAction(editing, detailEffect)} disabled={detailEffect === 'practice' && !practiceAction.trim() || detailEffect === 'clarifies' && !(editing.conceptTags || editing.source.tags || []).length} className="h-9 rounded-full px-4">
                     {nextActionLabelForEffect(editing, detailEffect)}
                   </Button>
-                  <span className="text-xs text-muted-foreground">{detailEffect === 'supports_claim' ? 'Connect this note to a position it supports.' : detailEffect === 'challenges_claim' ? 'Connect it to the position it questions, or create a draft first.' : detailEffect === 'raises_question' ? 'Carry the question into an inquiry with its source context.' : detailEffect === 'clarifies' ? 'Keep the note attached to the concept it explains.' : 'Keep it searchable without creating another object.'}</span>
+                  <span className="text-xs text-muted-foreground">{detailEffect === 'practice' ? 'Creates a planned practice linked to this source.' : detailEffect === 'form_position' ? 'Review the claim before saving it.' : detailEffect === 'supports_claim' ? 'Connect this note to a position it supports.' : detailEffect === 'challenges_claim' ? 'Connect it to the position it questions, or create a draft first.' : detailEffect === 'raises_question' ? 'Carry the question into an inquiry with its source context.' : detailEffect === 'clarifies' ? 'Keep the note attached to the concept it explains.' : 'Keep it searchable without creating another object.'}</span>
                 </div>
               </section>
 
-              <details id="annotation-connect" open className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'connect' && 'hidden')}>
+              <section className="noesis-workbench-panel scroll-mt-4">
+                <details open={Boolean(editing.consequenceNote || editing.context)}>
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="noesis-workbench-panel__eyebrow">Your note</div>
+                        <p className="noesis-workbench-panel__description">{editing.consequenceNote || editing.context ? 'Your interpretation and context.' : 'What does this mean to you?'}</p>
+                      </div>
+                      <Badge variant="outline" className="rounded-full text-[9px]">Edit</Badge>
+                    </div>
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    <Textarea
+                      value={editing.consequenceNote || ''}
+                      onChange={(event) => setEditing((prev) => prev ? { ...prev, consequenceNote: event.target.value } : prev)}
+                      placeholder="Your note, interpretation, limitation, or reminder."
+                      className="min-h-[90px]"
+                    />
+                    <Textarea
+                      value={editing.context || ''}
+                      onChange={(event) => setEditing((prev) => prev ? { ...prev, context: event.target.value } : prev)}
+                      placeholder="Optional surrounding source context."
+                      className="min-h-[80px]"
+                    />
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Checkbox
+                        checked={Boolean(editing.mattersBeyondSource)}
+                        onCheckedChange={(checked) => setEditing((prev) => prev ? { ...prev, mattersBeyondSource: Boolean(checked) } : prev)}
+                      />
+                      This is my interpretation, not the author&apos;s claim.
+                    </label>
+                  </div>
+                </details>
+              </section>
+
+              {savedReviews.length > 0 && (
+                <AiAssistedHistory
+                  title="Saved effect reviews"
+                  description="Reviewed assistance for this annotation. Editing or deleting a note does not change its links or status."
+                  entries={savedReviews.map((entry) => ({
+                    ...entry,
+                    originDetails: entry.id.startsWith('ai-review-') ? {
+                      provenance: { provenanceId: entry.id, kind: 'ai-assisted' },
+                      target: annotationEffectTarget(editing.id, entry.id),
+                    } : undefined,
+                  }))}
+                  onChange={async (aiReviewHistory) => {
+                    const saved = annotations.find((item) => item.id === editing.id && item.source.id === editing.source.id);
+                    if (!saved) throw new Error('This annotation is no longer available.');
+                    const { source, ...annotation } = saved;
+                    if (!await persistAnnotation(source.id, { ...annotation, aiReviewHistory })) throw new Error('Review history was not saved.');
+                    setEditing((current) => current ? { ...current, aiReviewHistory } : current);
+                  }}
+                />
+              )}
+
+              <details id="annotation-connect" className="noesis-workbench-panel scroll-mt-4">
                 <summary className="cursor-pointer list-none">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -1566,9 +1535,9 @@ export function AnnotationsIndex({
                 </div>
               </details>
 
-              <details id="annotation-trace" open className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'trace' && 'hidden')}>
+              <details id="annotation-trace" className="noesis-workbench-panel scroll-mt-4">
                 <summary className="cursor-pointer list-none">
-                  <div className="noesis-workbench-panel__eyebrow">Trace</div>
+                  <div className="noesis-workbench-panel__eyebrow">Source history</div>
                   <h3 className="noesis-workbench-panel__title">Provenance and use</h3>
                 </summary>
                 <div className="noesis-workbench-panel__body space-y-2 text-sm text-muted-foreground">

@@ -50,3 +50,4 @@ firestore-debug.log
 /.next-demo-*/
 /.next-dev-*/
 /.next-build-*/
+/public/ocr/
