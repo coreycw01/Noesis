@@ -33,12 +33,12 @@ test('Act is the user-facing stage for lived action; the page keeps the Praxis n
   assert.equal(NOESIS_PAGE_DEFINITIONS.some((page) => ['Test', 'Praxis'].includes(page.section as string)), false);
 });
 
-test('the sidebar follows the Encounter, Examine, Claim, Act, Integrate loop', () => {
-  assert.deepEqual([...NOESIS_NAV_SECTIONS], ['Today', 'Encounter', 'Examine', 'Claim', 'Act', 'Integrate', 'More']);
+test('the sidebar follows the Encounter, Examine, Claim, Act, Reflect loop', () => {
+  assert.deepEqual([...NOESIS_NAV_SECTIONS], ['Today', 'Encounter', 'Examine', 'Claim', 'Act', 'Reflect', 'More']);
   assert.equal(NOESIS_PAGE_BY_VIEW.concepts.section, 'Examine');
   assert.equal(NOESIS_PAGE_BY_VIEW.questions.section, 'Examine');
-  assert.equal(NOESIS_PAGE_BY_VIEW.evolution.section, 'Integrate');
-  assert.equal(NOESIS_PAGE_BY_VIEW.atlas.section, 'Integrate');
+  assert.equal(NOESIS_PAGE_BY_VIEW.evolution.section, 'Reflect');
+  assert.equal(NOESIS_PAGE_BY_VIEW.atlas.section, 'Reflect');
   for (const page of NOESIS_PAGE_DEFINITIONS) assert.ok(NOESIS_NAV_SECTIONS.includes(page.section), page.view);
 });
 
