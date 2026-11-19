@@ -27,6 +27,7 @@ const ConceptIcon = NOESIS_ICONS.concept;
 import { StageBadge } from '@/components/shared/StageBadge';
 import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
 import type { ClarityLevel } from '@/lib/clarity';
+import { ConceptDiagnosisBars } from '@/components/Concepts/ConceptDiagnosisBars';
 import { useToast } from '@/hooks/use-toast';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -1145,20 +1146,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
             <p className="text-sm font-body text-muted-foreground italic mb-5">{diagnosis.why}</p>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">
-              {([
-                { label: 'Clarity', value: diagnosis.clarity },
-                { label: 'Evidence', value: diagnosis.evidence },
-                { label: 'Tension', value: diagnosis.tension },
-                { label: 'Embodiment', value: diagnosis.embodiment },
-                { label: 'Expression', value: diagnosis.expression },
-              ] as { label: string; value: string }[]).map(({ label, value }) => (
-                <div key={label} className="rounded-lg bg-muted/10 border border-border/20 px-3 py-2">
-                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50 font-bold mb-0.5">{label}</div>
-                  <div className="font-code text-[10px] uppercase tracking-widest font-bold text-foreground/70">{value}</div>
-                </div>
-              ))}
-            </div>
+            <div className="mb-5"><ConceptDiagnosisBars diagnosis={diagnosis} /></div>
 
             {diagnosis.growthAreas.length > 0 && (
               <div className="mb-4">
@@ -1582,8 +1570,11 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 </div>
               )}
 
-              <div className="border-t border-border/30 pt-3 font-code text-[8px] uppercase tracking-wider text-muted-foreground">
-                {related.sources.length} sources · {related.beliefs.length} positions · {related.drafts.length} works
+              <div className="border-t border-border/30 pt-3">
+                <ConceptDiagnosisBars diagnosis={diag} compact />
+                <div className="mt-2 font-code text-[8px] uppercase tracking-wider text-muted-foreground">
+                  {related.sources.length} sources · {related.beliefs.length} positions · {related.drafts.length} works
+                </div>
               </div>
             </Card>
           );

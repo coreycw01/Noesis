@@ -160,3 +160,25 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-heat-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: .6rem; padding: .35rem .5rem; border-radius: 10px; text-align: left; background: none; border: 0; }
 .noesis-heat-row:hover, .noesis-checkin-row:hover { background: hsl(var(--muted) / .6); }
 .noesis-checkin-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: .7rem; padding: .6rem .5rem; border-top: 1px solid hsl(var(--border)); text-align: left; background: none; border-left: 0; border-right: 0; border-bottom: 0; }
+
+/* Concept diagnosis as bars (prototype "what moves each bar"). */
+.noesis-diag { display: grid; gap: .55rem; }
+.noesis-diag__row { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) 6rem; align-items: center; gap: .2rem .8rem; }
+.noesis-diag__track, .noesis-diag-mini span { position: relative; height: 6px; border-radius: 999px; background: hsl(var(--muted)); overflow: hidden; }
+.noesis-diag__track i, .noesis-diag-mini i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: hsl(var(--stage)); }
+.noesis-diag-mini { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.noesis-diag-mini span { height: 4px; }
+
+/* Older call sites use light-only palette utilities; map them to stage tints so
+   they sit correctly in both themes. */
+.noesis-app :is(.bg-amber-50, .bg-amber-100) { background-color: hsl(var(--stage-encounter) / .12) !important; }
+.noesis-app :is(.border-amber-100, .border-amber-200) { border-color: hsl(var(--stage-encounter) / .35) !important; }
+.noesis-app :is(.text-amber-700, .text-amber-800) { color: hsl(var(--stage-encounter)) !important; }
+.noesis-app .bg-emerald-50 { background-color: hsl(var(--stage-act) / .12) !important; }
+.noesis-app .border-emerald-200 { border-color: hsl(var(--stage-act) / .35) !important; }
+.noesis-app :is(.text-emerald-700, .text-emerald-800) { color: hsl(var(--stage-act)) !important; }
+.noesis-app .bg-rose-50 { background-color: hsl(var(--stage-claim) / .12) !important; }
+.noesis-app .border-rose-200 { border-color: hsl(var(--stage-claim) / .35) !important; }
+.noesis-app :is(.text-rose-700, .text-rose-800) { color: hsl(var(--stage-claim)) !important; }
+.noesis-app .border-sky-200 { border-color: hsl(var(--stage-more) / .35) !important; }
+.noesis-app :is(.text-sky-700, .text-blue-800) { color: hsl(var(--stage-more)) !important; }
