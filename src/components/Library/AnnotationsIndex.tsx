@@ -874,6 +874,32 @@ export function AnnotationsIndex({
 
       </FilterToolbar>
 
+      {annotations.length > 0 && (() => {
+        const stages: Array<{ id: AnnotationPhilosophyStatus; label: string; tone: string }> = [
+          { id: 'raw', label: 'Captured', tone: 'encounter' },
+          { id: 'reviewed', label: 'Reviewed', tone: 'examine' },
+          { id: 'used_in_position', label: 'Developed', tone: 'claim' },
+          { id: 'reference_only', label: 'Reference', tone: 'more' },
+          { id: 'archived', label: 'Set aside', tone: 'integrate' },
+        ];
+        const counts = stages.map((stage) => annotations.filter((annotation) => annotationStatus(annotation) === stage.id).length);
+        const total = counts.reduce((sum, count) => sum + count, 0) || 1;
+        return (
+          <section className="noesis-flowbar mb-6" aria-label="Where your notes are">
+            <div className="noesis-instrument__label">Where your notes are · {annotations.length}</div>
+            <div className="noesis-flowbar__bar" role="img" aria-label={stages.map((stage, index) => `${stage.label} ${counts[index]}`).join(', ')}>
+              {stages.map((stage, index) => counts[index] ? <span key={stage.id} data-stage-tone={stage.tone} style={{ flexGrow: counts[index] / total }} title={`${stage.label}: ${counts[index]}`} /> : null)}
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              {stages.map((stage, index) => (
+                <button key={stage.id} type="button" data-stage-tone={stage.tone} className="noesis-flowbar__key" aria-pressed={filterType === stage.id} onClick={() => setFilterType(filterType === stage.id ? 'all' : stage.id as AnnotationFilter)}>
+                  <i />{stage.label} <b>{counts[index]}</b>
+                </button>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
       <section className="mb-8 hidden rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:block">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3 text-left">

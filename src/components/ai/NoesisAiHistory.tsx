@@ -112,6 +112,18 @@ export function NoesisAiHistory({ items, onNavigate }: {
         </div>
         <span className="font-code text-xs text-muted-foreground">{visible.length} of {items.length}</span>
       </div>
+      {items.length > 0 && (
+        <div className="noesis-flowbar mt-4" role="group" aria-label="AI results by page">
+          {presentTypes.map((key) => {
+            const count = items.filter((item) => item.type === key).length;
+            return (
+              <button key={key} type="button" data-stage-tone={TYPE_TONES[key]} aria-pressed={type === key} onClick={() => setType(type === key ? 'all' : key)} className="noesis-flowbar__seg" style={{ flexGrow: count }} title={`${TYPE_LABELS[key]}: ${count}`}>
+                <span>{TYPE_LABELS[key]} · {count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="mt-4 flex flex-wrap gap-2">
         <div className="relative min-w-[14rem] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />

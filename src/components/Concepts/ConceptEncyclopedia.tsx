@@ -28,6 +28,7 @@ import { StageBadge } from '@/components/shared/StageBadge';
 import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
 import type { ClarityLevel } from '@/lib/clarity';
 import { ConceptDiagnosisBars } from '@/components/Concepts/ConceptDiagnosisBars';
+import { ConceptCaliper } from '@/components/Concepts/ConceptCaliper';
 import { useToast } from '@/hooks/use-toast';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -1038,6 +1039,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
             </summary>
             <div className="noesis-workbench-panel__body">
+              {concept && <ConceptCaliper concept={concept} />}
           {/* Boundary Test */}
           <div className="mb-8">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

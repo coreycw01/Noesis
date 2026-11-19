@@ -238,6 +238,17 @@ export function AtlasTerritoryView({
                   </div>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
                 </div>
+                {(() => {
+                  const region = regions.find((item) => item.id === card.id);
+                  if (!region) return null;
+                  const parts: Array<[string, string, number]> = [['Sources', 'encounter', region.sourceIds.length], ['Concepts', 'examine', region.conceptIds.length], ['Inquiries', 'examine', region.inquiryIds.length], ['Positions', 'claim', region.positionIds.length], ['Practices', 'act', region.practiceIds.length], ['Works', 'more', region.workIds.length]];
+                  if (!parts.some((part) => part[2])) return null;
+                  return (
+                    <div className="noesis-flowbar__bar mt-4" role="img" aria-label={parts.map(([label, , count]) => `${label} ${count}`).join(', ')}>
+                      {parts.filter((part) => part[2]).map(([label, tone, count]) => <span key={label} data-stage-tone={tone} style={{ flexGrow: count }} title={`${label}: ${count}`} />)}
+                    </div>
+                  );
+                })()}
                 {/* The selected region is described once, in the detail panel, not twice. */}
                 {selectedRegion?.id !== card.id && <>
                 <div className="mt-4 flex flex-wrap gap-2">
