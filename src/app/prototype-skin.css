@@ -474,3 +474,32 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-praxis-checkin button { padding: 5px 14px; border-radius: 999px; border: 1px solid hsl(var(--stage)); color: hsl(var(--stage)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
 .noesis-praxis-checkin button + button { border-color: hsl(var(--border)); color: hsl(var(--muted-foreground)); }
 .noesis-praxis-checkin button:hover { background: hsl(var(--stage) / .12); }
+
+/* ── Shared item-detail anatomy: Overview → Tools → Workbench → Footer ── */
+.noesis-record-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 22px; padding: 8px 0; border-top: 1px solid hsl(var(--border)); border-bottom: 1px solid hsl(var(--border)); }
+.noesis-record-tools__actions { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.noesis-record-tools__trailing { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.noesis-record-tool { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: var(--button-radius); border: 1px solid hsl(var(--border)); background: transparent; color: hsl(var(--foreground)); font-size: .88rem; }
+.noesis-record-tool:hover:not(:disabled) { background: hsl(var(--muted) / .6); }
+.noesis-record-tool:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-record-tool:disabled { opacity: .5; }
+.noesis-record-tool--primary { border-color: hsl(var(--stage, var(--accent)) / .7); color: hsl(var(--stage, var(--accent))); }
+.noesis-next-move { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-top: 12px; font-size: .9rem; color: hsl(var(--muted-foreground)); }
+.noesis-next-move__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--stage, var(--accent))); }
+.noesis-next-move button { display: inline-flex; align-items: center; gap: 4px; text-align: left; color: hsl(var(--foreground)); text-decoration: underline; text-decoration-color: hsl(var(--border)); text-underline-offset: 4px; }
+.noesis-next-move button:hover { text-decoration-color: currentColor; }
+.noesis-record-footer { display: grid; gap: 0; margin-top: 32px; border-top: 1px solid hsl(var(--border)); }
+.noesis-footer-section { border-bottom: 1px solid hsl(var(--border)); }
+.noesis-footer-section summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-footer-section summary::-webkit-details-marker { display: none; }
+.noesis-footer-section summary::before { content: "▸"; transition: transform .15s ease; }
+.noesis-footer-section[open] summary::before { transform: rotate(90deg); }
+.noesis-footer-section summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-footer-section__count { padding: 0 7px; border-radius: 999px; border: 1px solid hsl(var(--border)); font-size: 9px; }
+.noesis-footer-section__body { padding: 0 0 16px; }
+.noesis-footer-section__body .noesis-through, .noesis-footer-section__body .noesis-history { margin: 0; border: 0; padding: 0; background: none; }
+.noesis-footer-section__body .noesis-through > .noesis-instrument__label, .noesis-footer-section__body .noesis-history > .noesis-instrument__label { display: none; }
+@media (prefers-reduced-motion: reduce) { .noesis-footer-section summary::before { transition: none; } }
+.reduce-motion .noesis-footer-section summary::before { transition: none; }
+.noesis-record-overview { margin-bottom: 18px; }
+.noesis-record-overview .noesis-detail-title { margin-top: 6px; }
