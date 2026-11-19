@@ -71,3 +71,13 @@ test('abandoned and integrated practices do not accumulate review obligations', 
   }
   assert.equal(practiceRecentlyConcluded({ ...practice, status: 'completed', dateUpdated: '2026-12-01' }, now), false);
 });
+
+test('a decompression habit can start and log without an experiment protocol', () => {
+  const habit = { ...practice, type: 'habit' as const, title: 'Decompress after a long day',
+    action: 'Walk for ten minutes after work.', intellectualBasis: '', hypothesis: '', observationMethod: '', expectedOutcome: '' };
+  assert.equal(normalizePracticeStatusForSave(habit), 'active');
+  assert.equal(practiceStartDateForSave(habit, now), '2026-11-06');
+  assert.equal(practiceNeedsLog(habit, now), true);
+  assert.equal(normalizePracticeStatusForSave({ ...habit, action: ' ' }), 'planned');
+  assert.equal(normalizePracticeStatusForSave({ ...habit, type: 'experiment' }), 'planned');
+});

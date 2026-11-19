@@ -32,6 +32,7 @@ import { ConceptDiagnosisBars } from '@/components/Concepts/ConceptDiagnosisBars
 import { ConceptCaliper } from '@/components/Concepts/ConceptCaliper';
 import { ThroughConcept } from '@/components/shared/ThroughConcept';
 import { useToast } from '@/hooks/use-toast';
+import { usePersistentView } from '@/hooks/use-persistent-view';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -254,7 +255,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useEntityViewPreference('concepts');
   // The prototype's list-and-detail split is the default way to browse concepts.
-  const [splitView, setSplitView] = useState(true);
+  const [cardLayout, setCardLayout] = usePersistentView<'split' | 'cards'>('noesis:concepts-card-layout', 'split', ['split', 'cards']);
+  const splitView = cardLayout === 'split';
   const [previewName, setPreviewName] = useState<string | null>(null);
   const [listView, setListView] = useState<ConceptListView>('all');
   const [localSelectedName, setSelectedName] = useState<string | null>(null);
@@ -868,13 +870,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             { label: 'Works', tone: 'more', items: r.drafts.map((draft) => ({ id: draft.id, label: draft.title || 'Untitled', onOpen: () => previewWork(draft) })) },
           ]} />
 
-          <div className="noesis-workbench" data-stage-tone="outline">
-          <header className="noesis-workbench-head">
-            <span className="noesis-workbench-head__eyebrow">Workbench</span>
-            <span className="noesis-workbench-head__title">Concept workbench</span>
-            <span className="noesis-workbench-head__line">Define it, test its boundaries, diagnose it, connect it, and see how it changed.</span>
-          </header>
-          </div>
 
           <WorkbenchFlow
             label="Concept workbench workflow"
@@ -1493,10 +1488,17 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         activeFilterLabels={activeConceptFilterLabels}
         onClear={clearConceptFilters}
         clearDisabled={!conceptFiltersActive}
-        viewControl={<span className="inline-flex items-center gap-1">
-          <button type="button" aria-pressed={splitView && viewMode !== 'table'} onClick={() => { setSplitView(true); setViewMode('cards'); }} className="rounded-full border border-border px-3 py-1 font-code text-[9.5px] uppercase tracking-[0.12em] aria-pressed:bg-muted">Split</button>
-          <ViewModeToggle value={splitView && viewMode !== 'table' ? null : viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => { setSplitView(false); setViewMode(value === 'table' ? 'table' : 'cards'); }} label="Concept view" />
-        </span>}
+        viewControlMobileRow
+        viewControl={<ViewModeToggle
+          label="Concept layout"
+          showLabels
+          value={viewMode === 'table' ? 'list' : splitView ? 'split' : 'grid'}
+          modes={['grid', 'split', 'list']}
+          onChange={value => {
+            if (value !== 'list') setCardLayout(value === 'split' ? 'split' : 'cards');
+            setViewMode(value === 'list' ? 'table' : 'cards');
+          }}
+        />}
         className="mb-6"
       >
         <div className="flex flex-wrap items-center gap-2">

@@ -1,6 +1,8 @@
 
 "use client";
 
+import { markupTone } from '@/lib/markup-kinds';
+import { iconForNoesisView } from '@/lib/noesis-icons';
 import { MarkupVoice } from '@/components/shared/MarkupVoice';
 import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useState, useRef, useId } from 'react';
@@ -46,6 +48,7 @@ import { viewToPath } from '@/lib/noesis-routes';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ConceptDetailDialog } from '@/components/Concepts/ConceptDetailDialog';
 
+const MarkupIcon = iconForNoesisView('annotations');
 const SourcePagePhotos = dynamic(() => import('./SourcePagePhotos').then(m => m.SourcePagePhotos));
 const MediaEditor = dynamic(() => import('./MediaEditor').then((module) => module.MediaEditor), {
   loading: () => <p role="status" className="sr-only">Opening source editor</p>,
@@ -187,7 +190,10 @@ export function MediaLibrary({
   const [savingSource, setSavingSource] = useState(false);
   const sourceSaveRef = useRef(false);
   const [draft, setDraft] = useState<Partial<Media>>({ type: 'book', title: '', creator: '', status: 'Want to Read', tags: [] });
-  const [annotationDraft, setAnnotationDraft] = useState({ type: 'thought' as Annotation['type'], text: '' });
+  const [annotationDraft, setAnnotationDraft] = useState('');
+  const [markupSelection, setMarkupSelection] = useState('');
+  const [savingMark, setSavingMark] = useState(false);
+  const markLock = useRef(false);
   const [insightOpen, setInsightOpen] = useState(false);
   const [claimSaving, setClaimSaving] = useState(false);
   const claimSaveLock = useRef(false);
@@ -457,18 +463,29 @@ export function MediaLibrary({
     onOpenSourceRoute?.(null);
   };
 
-  const addAnnotation = async () => {
-    if (!selected || !annotationDraft.text.trim()) return;
+  useEffect(() => { setAnnotationDraft(''); setMarkupSelection(''); }, [selected?.id]);
+
+  const addAnnotation = async (kind: Annotation['type'] | 'evidence', text: string, clearDraft = false) => {
+    if (!selected || !text.trim() || markLock.current) return;
+    markLock.current = true;
+    setSavingMark(true);
+    try {
+    const type = kind === 'evidence' ? 'excerpt' : kind;
     const annotation: Annotation = {
       id: uid(),
-      type: annotationDraft.type,
-      text: annotationDraft.text.trim(),
+      type,
+      ...(kind === 'evidence' ? { consequenceKind: 'evidence' as const } : {}),
+      text: text.trim(),
       date: today(),
       conceptTags: selected.tags,
-      philosophyStatus: annotationDraft.type === 'question' ? 'questioned' : 'raw',
+      philosophyStatus: type === 'question' ? 'questioned' : 'raw',
     };
     if (!await updateSelected({ annotations: [annotation, ...(selected.annotations || [])] })) return;
-    setAnnotationDraft({ type: 'thought', text: '' });
+    if (selectedRef.current?.id === selected.id) {
+      if (clearDraft) setAnnotationDraft(current => current === text ? '' : current);
+      setMarkupSelection('');
+    }
+    } finally { markLock.current = false; setSavingMark(false); }
   };
 
   const saveClaim = async () => {
@@ -601,7 +618,7 @@ export function MediaLibrary({
 
         <Tabs value={sourceWorkbenchStep} onValueChange={(value) => setSourceWorkbenchStep(value as SourceWorkbenchStep)} className="w-full">
           <TabsList aria-label="Source sections" className="mb-5 flex h-auto w-fit max-w-full flex-wrap">
-            {([['overview', 'Overview'], ['capture', 'Reflection'], ['annotations', 'Markup'], ['connections', 'Connections']] as const).map(([id, label]) => <TabsTrigger key={id} value={id}>{label}</TabsTrigger>)}
+            {([['overview', 'Overview'], ['capture', 'Reflection'], ['annotations', 'Markup'], ['connections', 'Connections']] as const).map(([id, label]) => <TabsTrigger key={id} value={id}>{id === 'annotations' && <MarkupIcon className="mr-1.5 size-4" aria-hidden="true" />}{label}</TabsTrigger>)}
           </TabsList>
 
           <TabsContent value="overview" className="space-y-5 sm:space-y-8">
@@ -909,42 +926,47 @@ export function MediaLibrary({
             </div>
           </TabsContent>
 
-          <TabsContent value="annotations" className="max-w-4xl">
-            <div>
-              <div className="space-y-8">
-                <div>
-                  <h3 className="readex-kicker font-bold text-muted-foreground">MARKUP</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">Save a highlight, your own thought, a question, or a connection. Keep each note to one idea.</p>
-                </div>
+          <TabsContent value="annotations">
+            <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,0.55fr)]">
+              <section className="min-w-0 space-y-4" aria-label="Passage">
                 <SourcePagePhotos key={selected.id} sourceId={selected.id} photos={selected.pagePhotos || []} allowSave={!/^\/(demo|review)(\/|$)/.test(pathname)} onSave={async photo => {
                   const source = selectedRef.current;
                   if (!source || source.id !== selected.id) return false;
                   return Boolean(await updateSelected({ pagePhotos: [...(source.pagePhotos || []), photo] }));
-                }} onText={text => setAnnotationDraft(prev => ({ ...prev, text: [prev.text.trim(), text].filter(Boolean).join('\n\n') }))} />
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <div className="flex flex-wrap gap-2 sm:col-span-full" role="group" aria-label="Markup type">
-                    {(['highlight', 'thought', 'question', 'claim', 'definition', 'objection', 'connection'] as const).map(type =>
-                      <button key={type} type="button" className="noesis-mark-kind min-h-9 capitalize aria-pressed:ring-2 aria-pressed:ring-ring" aria-pressed={annotationDraft.type === type} onClick={() => setAnnotationDraft(prev => ({ ...prev, type }))}>{type}</button>)}
-                  </div>
-                  <Textarea aria-label="Annotation text" value={annotationDraft.text} onChange={(event) => setAnnotationDraft((prev) => ({ ...prev, text: event.target.value }))} placeholder="One passage, observation, or question worth keeping…" className="min-h-28 font-body text-base leading-7" />
-                  <Button onClick={addAnnotation} disabled={!annotationDraft.text.trim()} size="sm" className="h-11 w-full rounded-md px-6 font-bold sm:w-auto sm:rounded-full">Save note</Button>
+                }} onText={text => { setMarkupSelection(''); setAnnotationDraft(prev => [prev.trim(), text].filter(Boolean).join('\n\n')); }} />
+                <div>
+                  <label htmlFor="source-markup-passage" className="mb-2 block text-sm font-medium">Passage or note</label>
+                  <Textarea id="source-markup-passage" value={annotationDraft}
+                    onSelect={event => { const node = event.currentTarget; setMarkupSelection(node.value.slice(node.selectionStart, node.selectionEnd).trim()); }}
+                    onChange={event => { setMarkupSelection(''); setAnnotationDraft(event.target.value); }}
+                    placeholder="Paste a passage, extract text from a photo, or write a note."
+                    className="min-h-52 font-body text-base leading-7" />
                 </div>
-                <MarkupVoice key={selected.id} text={annotationDraft.text} onTranscript={words => setAnnotationDraft(prev => ({ ...prev, text: [prev.text.trimEnd(), words].filter(Boolean).join(' ') }))} />
-                <div className="space-y-5">
-                  {(selected.annotations || []).map((annotation) => (
-                    <Link key={annotation.id} href={viewToPath('annotations', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), annotationSourceId: selected.id, annotationId: annotation.id })} className="group block rounded-[var(--card-radius)] border border-border/50 bg-card p-4 transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold">
-                          {annotation.type}
-                        </Badge>
-                        <time className="font-code text-[9px] text-muted-foreground/50 font-bold uppercase">{new Date(annotation.date).toLocaleDateString()}</time>
-                      </div>
-                      <p className={cn('font-body text-base leading-7 text-foreground', ['highlight', 'excerpt'].includes(annotation.type) && 'border-l-2 border-accent/50 pl-4 italic')}>{annotation.text}</p>
-                      <span className="mt-4 inline-flex text-sm font-medium text-accent group-hover:underline">Develop this note</span>
+                {(selected.description || selected.catalogSummary) && !annotationDraft && <Button variant="outline" size="sm" onClick={() => setAnnotationDraft(selected.description || selected.catalogSummary || '')}>Use source description</Button>}
+                <MarkupVoice key={selected.id} text={markupSelection || annotationDraft} onTranscript={words => { setMarkupSelection(''); setAnnotationDraft(prev => [prev.trimEnd(), words].filter(Boolean).join(' ')); }} />
+                <Button variant="outline" size="sm" onClick={() => void addAnnotation('thought', annotationDraft, true)} disabled={savingMark || !annotationDraft.trim()}>Save as note</Button>
+              </section>
+
+              <aside className="min-w-0 space-y-4 border-t border-border pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0" aria-label="Markup rail">
+                <h3 className="flex items-center gap-2 text-sm font-medium"><MarkupIcon className="size-4" aria-hidden="true" />Marks</h3>
+                {markupSelection && <div className="space-y-2 border-b border-border pb-4">
+                  <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm italic">“{markupSelection}”</p>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Mark the selected passage">
+                    {(['highlight', 'evidence', 'question', 'claim', 'definition', 'objection', 'connection'] as const).map(type => (
+                      <button key={type} type="button" data-stage-tone={markupTone(type)} className="noesis-mark-kind min-h-10 capitalize" disabled={savingMark} onClick={() => void addAnnotation(type, markupSelection)}>{type}</button>
+                    ))}
+                  </div>
+                </div>}
+                <div className="grid gap-2">
+                  {(selected.annotations || []).map(annotation => (
+                    <Link key={annotation.id} data-stage-tone={markupTone(annotation.consequenceKind || annotation.type)} href={viewToPath('annotations', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), annotationSourceId: selected.id, annotationId: annotation.id })}
+                      className="noesis-markup-entry block min-w-0 break-words py-2 pl-3 text-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <span className="noesis-markup-entry__kind block text-xs font-semibold capitalize">{(annotation.consequenceKind || annotation.type).replaceAll('_', ' ')}</span>
+                      <span className="mt-1 block whitespace-pre-wrap">{annotation.text}</span>
                     </Link>
                   ))}
                 </div>
-              </div>
+              </aside>
             </div>
           </TabsContent>
 

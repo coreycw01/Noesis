@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useId, useRef, type CSSProperties } from 'react';
+import { Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { workbenchFocusIndex } from '@/lib/workbench-keyboard';
 
@@ -38,6 +39,10 @@ export function WorkbenchFlow({
 
   return (
     <nav aria-label={label} className={cn('noesis-thought-spine max-sm:sticky max-sm:top-0 max-sm:z-20 [@media(max-height:600px)]:py-1', className)}>
+      <div className="mb-1.5 inline-flex items-center gap-2 px-2 text-sm font-semibold text-foreground sm:px-0">
+        <Wrench className="size-4 shrink-0 text-accent" aria-hidden="true" />
+        <span>Workbench</span>
+      </div>
       <ol className="relative grid grid-cols-2 gap-1 sm:gap-0 lg:grid-cols-[repeat(var(--workbench-steps),minmax(0,1fr))] [@media(max-height:600px)]:flex [@media(max-height:600px)]:overflow-x-auto scrollbar-hide" style={{ '--workbench-steps': steps.length } as CSSProperties}>
         {steps.map((step, index) => {
           const active = step.id === activeStep?.id;

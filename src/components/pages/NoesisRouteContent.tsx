@@ -472,7 +472,7 @@ export function NoesisRouteContent({
     case 'source-index':
       return <SourceIndexRoutePage media={media} vault={vault} drafts={drafts} practices={practices} questions={questions} onNavigate={navigateToView} />;
     case 'exercises':
-      return <ExercisesTable concepts={concepts} inquiries={questions} positions={vault} media={media} links={links} onNavigate={(target) => {
+      return <ExercisesTable concepts={concepts} inquiries={questions} positions={vault} media={media} practices={practices} links={links} onNavigate={(target) => {
         const id = target.targetId || null;
         navigateToView(target.view, { conceptId: target.view === 'concepts' ? id : null, questionId: target.view === 'questions' ? id : null, positionId: target.view === 'vault' ? id : null, sourceId: target.view === 'library' ? id : null, practiceId: target.view === 'labs' ? id : null });
       }} />;
@@ -541,6 +541,7 @@ export function NoesisRouteContent({
     case 'context-desk':
       return (
         <ContextDeskRoutePage
+          savedDeskOwner={!isReviewWorkspace && user?.uid === effectiveUid ? effectiveUid : undefined}
           aiSettings={aiSettings}
           media={media}
           concepts={concepts}
@@ -564,7 +565,11 @@ export function NoesisRouteContent({
     case 'evolution':
       return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} thinkingEventsHasMore={thinkingEventsHasMore} loadMoreThinkingEvents={loadMoreThinkingEvents} historyLoadingOlder={historyLoadingOlder} historyOlderError={historyOlderError} unknowns={unknowns} thinkingPatterns={thinkingPatterns} onSaveSynthesis={addTimelineEvent} positions={vault} onOpenPosition={(id) => navigateToView('vault', { positionId: id })} />;
     case 'labs':
-      return <PracticesRoutePage aiSettings={aiSettings} onAddQuestion={addQuestion} practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} links={links} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
+      return <PracticesRoutePage renderCommitments={onOpenPraxis => <GoalsRoutePage
+        goal={goalState} goalProgress={goalProgress} concepts={concepts} inquiries={questions} sources={media}
+        positions={vault} works={drafts} practices={practices} profile={profile} onSaveGoal={saveGoal}
+        onSaveCheckIn={saveGoalCheckIn} focusedGoalId={null} onOpenCommitment={() => {}} onOpenPraxis={onOpenPraxis}
+      />} aiSettings={aiSettings} onAddQuestion={addQuestion} practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} links={links} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
     case 'settings':
       return (
         <SettingsRoutePage

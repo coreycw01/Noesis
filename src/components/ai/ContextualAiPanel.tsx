@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
+import { MAX_DESK_ITEMS } from '@/lib/saved-context-desks';
 import { addContextDeskSelection, contextDeskStorageKeys, normalizeContextDeskSelection } from '@/lib/context-desk-selection';
 import { navigateWorkspace } from '@/lib/workspace-navigation';
 import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
@@ -427,8 +428,8 @@ export function ContextualAiPanel({
                 const { selection } = contextDeskStorageKeys(workspaceKey);
                 const stored = window.sessionStorage.getItem(selection);
                 let keys: string[] = [];
-                try { keys = normalizeContextDeskSelection(JSON.parse(stored || '[]')); } catch { /* Replace malformed selection. */ }
-                const next = addContextDeskSelection(keys, contextDeskKey);
+                try { keys = normalizeContextDeskSelection(JSON.parse(stored || '[]'), MAX_DESK_ITEMS); } catch { /* Replace malformed selection. */ }
+                const next = addContextDeskSelection(keys, contextDeskKey, MAX_DESK_ITEMS);
                 if (next) window.sessionStorage.setItem(selection, JSON.stringify(next));
                 else toast({ title: 'Context Desk is full', description: 'Remove a selected record before adding this one.' });
               } catch {

@@ -1071,11 +1071,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
       })()}
 
       <div className="noesis-workbench space-y-5" data-stage-tone="examine">
-        <header className="noesis-workbench-head">
-          <span className="noesis-workbench-head__eyebrow">Workbench</span>
-          <span className="noesis-workbench-head__title">Inquiry workbench</span>
-          <span className="noesis-workbench-head__line">Frame the question, investigate it, answer provisionally, then decide.</span>
-        </header>
         <WorkbenchFlow
           label="Inquiry workbench workflow"
           activeId={workflowStep}

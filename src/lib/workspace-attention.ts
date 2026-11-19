@@ -1,6 +1,6 @@
 import type { Annotation, Practice, Question, VaultEntry } from './types';
 import { isPracticeConcluded, practiceNeedsLog } from './practice-state';
-import { hasPracticeIntellectualBasis } from './workflow-integrity';
+import { hasPracticeIntellectualBasis, isRepeatablePractice } from './workflow-integrity';
 import { isInquiryActive } from './inquiry-state';
 import { isLivePosition } from './position-state';
 
@@ -38,7 +38,7 @@ export function deriveWorkspaceAttention<TAnnotation extends AttentionAnnotation
   }
   const untestedPositions = currentPositions.filter((item) => !practicedPositionIds.has(item.id));
   const openInquiries = uniqueRecords(inquiries).filter(isInquiryActive);
-  const unanchoredPractices = practiceRecords.filter((item) => !isPracticeConcluded(item) && !hasPracticeIntellectualBasis(item));
+  const unanchoredPractices = practiceRecords.filter((item) => !isPracticeConcluded(item) && !isRepeatablePractice(item.type) && !hasPracticeIntellectualBasis(item));
   const practicesNeedingLogs = practiceRecords.filter((item) => practiceNeedsLog(item, now));
   // Categories may overlap; the headline counts each record only once.
   const uniqueTotal = new Set([

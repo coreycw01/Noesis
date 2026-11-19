@@ -2890,6 +2890,7 @@ export function ConceptAtlas({
             links={links}
             asOf={timelineWindow?.asOf ?? null}
             from={timelineWindow?.from ?? null}
+            onOpenRegion={openRegion}
             onOpen={(target) => {
               if (target.type === 'position') onOpenPosition?.(target.id);
               else if (target.type === 'inquiry') onOpenQuestion?.(target.id);
