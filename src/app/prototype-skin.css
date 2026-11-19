@@ -25,7 +25,7 @@
   --ring: 33 87% 35%;
   --proto-amber: 33 87% 35%;
   --card-radius: 14px;
-  --button-radius: 999px;
+  --button-radius: 20px;
   --shadow-card: none;
   --page-measure: 77.5rem;
 }
@@ -63,23 +63,31 @@ main[data-stage-tone="more"] { --accent: var(--stage-more); --ring: var(--stage-
 main[data-stage-tone="today"] { --accent: var(--proto-amber); --ring: var(--proto-amber); }
 
 /* Page header: centered, stage eyebrow, large italic title, actions underneath. */
-.noesis-page-header { text-align: center; padding-bottom: 18px !important; margin-bottom: 24px !important; border-bottom: 1px solid hsl(var(--border)); }
+/* Page header: one compact band. Eyebrow, title and a one-line description on
+   the left; actions and sub-view tabs share the right side, so nothing stacks. */
+.noesis-page-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main side" "tabs tabs"; align-items: end; column-gap: 24px; text-align: left; padding: 4px 0 12px !important; margin-bottom: 20px !important; border-bottom: 1px solid hsl(var(--border)); }
 .noesis-page-header::before, .noesis-page-header::after { display: none !important; }
 .noesis-page-header > .noesis-page-header__rule { display: none; }
-.noesis-page-header > div.flex { flex-direction: column !important; align-items: center !important; gap: 12px !important; }
-.noesis-page-header > div.flex > div:first-child { display: grid; justify-items: center; max-width: 70ch; }
+.noesis-page-header > div.flex { grid-area: main; display: contents !important; }
+.noesis-page-header > div.flex > div:first-child { grid-area: main; display: grid; justify-items: start; gap: 2px; max-width: 72ch; min-width: 0; }
+.noesis-page-header > div.flex > div:first-child > div.mb-2 { margin-bottom: 0 !important; }
 .noesis-page-header .noesis-margin-marker { display: none; }
-.noesis-page-header .noesis-route-label { display: inline-flex; align-items: center; gap: 8px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--accent)); }
-.noesis-page-header .noesis-route-label::before { content: ""; width: 2px; height: 14px; background: hsl(var(--accent)); }
+.noesis-page-header .noesis-route-label { display: inline-flex; align-items: center; gap: 8px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--accent)); }
+.noesis-page-header .noesis-route-label::before { content: ""; width: 2px; height: 12px; background: hsl(var(--accent)); }
 .noesis-page-header .noesis-route-label__section { color: inherit; }
 .noesis-page-header .noesis-route-label__divider { width: auto; height: auto; background: none; }
 .noesis-page-header .noesis-route-label__divider::before { content: "·"; }
-.noesis-page-title { font-family: "Playfair Display", Georgia, serif !important; font-style: italic; font-weight: 600 !important; font-size: clamp(2rem, 4vw, 2.9rem) !important; line-height: 1.08 !important; text-align: center; }
-.noesis-page-description { margin-inline: auto; text-align: center; color: hsl(var(--muted-foreground)); }
-.noesis-page-header__meta { justify-content: center; }
-.noesis-page-header-actions { justify-content: center; }
-.noesis-page-header__tabs { display: flex; justify-content: center; }
-.noesis-recent-strip { justify-content: center; }
+.noesis-page-title { font-family: "Playfair Display", Georgia, serif !important; font-style: italic; font-weight: 600 !important; font-size: clamp(1.7rem, 3vw, 2.3rem) !important; line-height: 1.1 !important; text-align: left; }
+.noesis-page-description { margin: 2px 0 0 !important; text-align: left; color: hsl(var(--muted-foreground)); font-size: .92rem !important; line-height: 1.45 !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.noesis-page-header__meta { justify-content: flex-start; }
+.noesis-page-header-actions { grid-area: side; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+.noesis-page-header > div.mt-4 { grid-column: 1 / -1; margin-top: 10px !important; }
+.noesis-page-header__tabs { grid-area: tabs; display: flex; justify-content: flex-start; margin-top: 12px; }
+.noesis-recent-strip { justify-content: flex-start; }
+@media (max-width: 760px) {
+  .noesis-page-header { grid-template-columns: 1fr; grid-template-areas: "main" "side" "tabs"; }
+  .noesis-page-header-actions { justify-content: flex-start; margin-top: 8px; }
+}
 .noesis-page-header[data-stage-tone] .noesis-route-label__section, .noesis-page-header[data-stage-tone] .noesis-route-label { color: hsl(var(--stage)); }
 .noesis-page-header[data-stage-tone] .noesis-route-label::before { background: hsl(var(--stage)); }
 
@@ -314,7 +322,7 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-spine__dot[data-edge="end"] em { left: auto; right: -4px; transform: none; }
 /* The interface shape setting wins over the skin's defaults. */
 :root[data-interface-shape="square"] { --card-radius: 6px; --button-radius: 4px; }
-:root[data-interface-shape="pills"] { --card-radius: 14px; --button-radius: 999px; }
+:root[data-interface-shape="pills"] { --card-radius: 14px; --button-radius: 20px; }
 /* AI assistance, as in the prototype: a dashed dock in the "revise" violet. */
 :root { --revise: 270 30% 43%; }
 .dark { --revise: 276 28% 71%; }
@@ -333,3 +341,8 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-loop [data-stage="outline"] { --nav-stage: var(--sidebar-stage-outline); }
 .noesis-loop__ask { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 8px; border-radius: 999px; border: 1.5px solid hsl(var(--revise)); background: hsl(var(--revise) / .1); color: hsl(var(--revise)); font-size: .9rem; white-space: nowrap; box-shadow: 0 0 0 3px hsl(var(--revise) / .14); }
 .noesis-loop__ask:hover, .noesis-loop__ask[aria-current="page"] { background: hsl(var(--revise) / .2); }
+
+/* Pills stay pills on one line and become rounded rectangles when their text
+   wraps, so nothing is clipped by, or spills past, an oval edge. */
+.noesis-app-main .rounded-full:not(svg):not([class*="size-"]):not([class*="h-2"]):not([class*="h-1"]):not([class*="w-2"]) { border-radius: min(var(--button-radius), 20px) !important; }
+.noesis-tag, [data-slot="badge"], .noesis-stage-badge { white-space: normal; height: auto; min-height: 22px; max-width: 100%; overflow-wrap: anywhere; border-radius: 12px !important; }
