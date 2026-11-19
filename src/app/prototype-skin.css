@@ -199,7 +199,7 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 
 /* Praxis: Say/Do numbers and a 7-day grid of method shapes. */
 .noesis-praxis-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem 1rem; margin-top: .9rem; padding-top: .9rem; border-top: 1px solid hsl(var(--border)); }
-.noesis-praxis-stats > div:not(.noesis-praxis-grid) { display: grid; }
+.noesis-praxis-stats > div:not(.noesis-praxis-grid):not(.noesis-praxis-checkin) { display: grid; }
 .noesis-praxis-stats b { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 500; font-size: 1.9rem; line-height: 1.1; }
 .noesis-praxis-stats > div:first-child b { color: hsl(var(--stage)); }
 .noesis-praxis-stats span { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
@@ -468,3 +468,9 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-connection-card { display: grid; gap: 2px; padding: 10px 12px; text-align: left; border-radius: 10px; border: 1px solid hsl(var(--border)); border-left: 3px solid hsl(var(--stage-outline)); background: hsl(var(--background) / .5); }
 .noesis-connection-card b { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; }
 .noesis-connection-card span { font-size: .8rem; color: hsl(var(--muted-foreground)); }
+.noesis-praxis-grid > span { grid-template-columns: repeat(7, 22px) !important; gap: 10px 16px !important; }
+.noesis-praxis-checkin { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding-top: 10px; }
+.noesis-praxis-checkin span { margin-right: auto; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-praxis-checkin button { padding: 5px 14px; border-radius: 999px; border: 1px solid hsl(var(--stage)); color: hsl(var(--stage)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.noesis-praxis-checkin button + button { border-color: hsl(var(--border)); color: hsl(var(--muted-foreground)); }
+.noesis-praxis-checkin button:hover { background: hsl(var(--stage) / .12); }

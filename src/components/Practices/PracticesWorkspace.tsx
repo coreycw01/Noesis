@@ -842,6 +842,11 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
     setLogDraft({ actionCompleted: true, confidence: 3 });
     setLogOpen(false);
   };
+  // One-tap check-in, as in the prototype: today's log, kept or missed.
+  const quickCheckIn = async (kept: boolean) => {
+    const nextLog: PracticeLog = { id: uid(), date: todayKey, actionCompleted: kept, context: '', outcome: kept ? 'Kept' : 'Missed', observations: '', unexpectedResult: '', confidence: 3, mediaIds: [] };
+    if (await onUpdatePractice(appendPracticeObservation(practice, nextLog, today()))) toast({ title: kept ? 'Checked in: kept' : 'Checked in: missed', description: 'Add an observation any time from the card.' });
+  };
   const saveConclusionReview = async (status: PracticeStatus = 'completed') => {
     if (!reviewDraft.whatHappened.trim()) return;
     if (!await onUpdatePractice({
@@ -910,7 +915,14 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
           <div><b>{sayDoRate === null ? '—' : `${sayDoRate}%`}</b><span>Say / do</span></div>
           <div><b>{streak}</b><span>Current run</span></div>
           <div><b>{logDates.length}</b><span>Logged</span></div>
-          <div className="noesis-praxis-grid"><PraxisDayStrip shape={method.shape} logDates={logDates} days={Math.min(21, practice.durationDays || 21)} startDate={practice.startDate} size={14} /></div>
+          <div className="noesis-praxis-grid"><PraxisDayStrip shape={method.shape} logDates={logDates} missedDates={(practice.logs || []).filter((log) => log.actionCompleted === false).map((log) => log.date)} days={Math.min(21, practice.durationDays || 21)} startDate={practice.startDate} size={20} /></div>
+          {visibleStatus === 'active' && canActivate && !logDates.some((date) => date.slice(0, 10) === todayKey) && (
+            <div className="noesis-praxis-checkin" role="group" aria-label={`Check in on ${practice.title} for today`}>
+              <span>Check in</span>
+              <button type="button" onClick={() => void quickCheckIn(true)}>Kept</button>
+              <button type="button" onClick={() => void quickCheckIn(false)}>Missed</button>
+            </div>
+          )}
         </div>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
