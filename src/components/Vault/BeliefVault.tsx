@@ -1,6 +1,7 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
 import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
@@ -1066,7 +1067,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             <ContextualAiPanel
               enabled={aiSettings.aiAssistanceEnabled}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
-              reasoningDepth={aiSettings.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'positions')}
               actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'compare_selected_positions']}
               buildEnvelope={buildPositionAiEnvelope}
               buttonLabel="Test Position"

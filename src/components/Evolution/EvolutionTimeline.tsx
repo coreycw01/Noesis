@@ -1,5 +1,6 @@
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import { BeliefRivers, beliefRiverSeries } from '@/components/Evolution/BeliefRivers';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -971,7 +972,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
             <ContextualAiPanel
               enabled={selectedPeriodEvents.length > 0}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
-              reasoningDepth={aiSettings.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'evolution')}
               actions={['synthesize_evolution_period']}
               reviewContextKey={evolutionSynthesisReviewKey(periodSample)}
               buttonLabel="Synthesize Period"

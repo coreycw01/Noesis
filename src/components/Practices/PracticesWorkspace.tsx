@@ -1,6 +1,7 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useMemo, useState } from 'react';
 import { useLocalDay } from '@/hooks/use-local-day';
 import { Activity, CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Plus, Trash2 } from 'lucide-react';
@@ -1084,7 +1085,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   && ((draft.logs?.length || 0) > 0 || draft.observedOutcome?.trim())
                 )}
                 showContextBeforeSending={aiSettings.showContextBeforeSending}
-                reasoningDepth={aiSettings.defaultReasoningDepth}
+                reasoningDepth={aiDepthFor(aiSettings, 'praxis')}
                 actions={['synthesize_practice_outcome']}
                 buttonLabel="Outcome review"
                 promptLabel="What should Noesis examine?"

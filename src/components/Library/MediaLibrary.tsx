@@ -1,6 +1,7 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useState, useRef, useId } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -513,7 +514,7 @@ export function MediaLibrary({
               actions={['summarize_source', 'extract_source_claims', 'propose_inquiry_prompts']}
               enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
               showContextBeforeSending={aiSettings?.showContextBeforeSending}
-              reasoningDepth={aiSettings?.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'library')}
               buildEnvelope={(action: ContextualAiAction) => ({
                 action,
                 targetType: 'source',
@@ -840,7 +841,7 @@ export function MediaLibrary({
                     actions={['reflect_on_source']}
                     enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                     showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                    reasoningDepth={aiSettings?.defaultReasoningDepth}
+                    reasoningDepth={aiDepthFor(aiSettings, 'library')}
                     buttonLabel="Reflect on this source"
                     promptLabel="What do you want to understand about your response to this source?"
                     promptPlaceholder="For example: What tension keeps appearing in my notes, and what should I examine next?"

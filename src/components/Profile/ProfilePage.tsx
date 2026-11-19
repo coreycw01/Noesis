@@ -1,5 +1,6 @@
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { signOut } from 'firebase/auth';
@@ -314,7 +315,7 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
                   buildEnvelope={buildPhilosophyEnvelope}
                   enabled={philosophyEvidenceCount >= 3}
                   showContextBeforeSending={aiSettings.showContextBeforeSending}
-                  reasoningDepth={aiSettings.defaultReasoningDepth}
+                  reasoningDepth={aiDepthFor(aiSettings, 'profile')}
                   onAccept={acceptPhilosophySynthesis}
                   buttonLabel="Request synthesis"
                   promptLabel="What should Noesis examine?"

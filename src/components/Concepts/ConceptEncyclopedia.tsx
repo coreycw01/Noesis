@@ -1,6 +1,7 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import { workspaceScrollBehavior } from '@/lib/appearance';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -759,7 +760,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   actions={['refine_concept_definition', 'clarify_concept_boundaries']}
                   enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                   showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                  reasoningDepth={aiSettings?.defaultReasoningDepth}
+                  reasoningDepth={aiDepthFor(aiSettings, 'concepts')}
                   buttonLabel="Concept Assistance"
                   promptLabel="What should Noesis examine about this concept?"
                   promptPlaceholder="For example: Where does my use of this concept conflict with its definition?"

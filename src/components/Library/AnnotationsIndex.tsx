@@ -1,6 +1,7 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import { workspaceScrollBehavior } from '@/lib/appearance';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -1432,7 +1433,7 @@ export function AnnotationsIndex({
                     actions={['suggest_annotation_effect']}
                     enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                     showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                    reasoningDepth={aiSettings?.defaultReasoningDepth}
+                    reasoningDepth={aiDepthFor(aiSettings, 'annotations')}
                     buttonLabel="Review Effect"
                     promptLabel="What do you want to understand about this note?"
                     promptPlaceholder="For example: Does this challenge my linked position, or only qualify it?"

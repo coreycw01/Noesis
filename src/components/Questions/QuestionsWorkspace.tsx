@@ -1,6 +1,7 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, HelpCircle, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -947,7 +948,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             <ContextualAiPanel
               enabled={aiSettings.aiAssistanceEnabled}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
-              reasoningDepth={aiSettings.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'inquiries')}
               actions={['socratic_inquiry_challenge']}
               buildEnvelope={buildAiEnvelope}
               buttonLabel="Socratic Challenge"
