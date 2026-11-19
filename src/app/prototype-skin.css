@@ -192,3 +192,13 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-mini-scale__stated { background: hsl(var(--stage)); }
 .noesis-mini-scale__earned { background: hsl(var(--stage-act)); }
 .noesis-inquiry-card { background: linear-gradient(180deg, hsl(var(--stage-examine) / .07), transparent 55%), hsl(var(--card)) !important; }
+
+/* Praxis: Say/Do numbers and a 7-day grid of method shapes. */
+.noesis-praxis-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem 1rem; margin-top: .9rem; padding-top: .9rem; border-top: 1px solid hsl(var(--border)); }
+.noesis-praxis-stats > div:not(.noesis-praxis-grid) { display: grid; }
+.noesis-praxis-stats b { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 500; font-size: 1.9rem; line-height: 1.1; }
+.noesis-praxis-stats > div:first-child b { color: hsl(var(--stage)); }
+.noesis-praxis-stats span { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-praxis-grid { grid-column: 1 / -1; padding-top: .6rem; border-top: 1px solid hsl(var(--border)); }
+.noesis-praxis-grid > span { display: grid !important; grid-template-columns: repeat(7, 18px); gap: 10px 14px !important; }
+.noesis-praxis-card { border-top: 3px solid hsl(var(--stage)) !important; }

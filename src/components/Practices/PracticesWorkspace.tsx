@@ -773,11 +773,10 @@ function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDel
         <span className="h-px flex-1 bg-border/60" />
         <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{practices.length}</Badge>
       </div>
-      <div className="space-y-2">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {practices.map((practice) => (
           <PracticeCard
             key={`${title}-${practice.id}`}
-            compact
             practice={practice}
             questions={questions}
             positions={positions}
@@ -834,6 +833,11 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   const setStatus = (status: PracticeStatus) => onUpdatePractice({ ...practice, status, dateUpdated: today() });
   const visibleType = normalizePracticeType(practice.type);
   const method = praxisShapeFor(practice.type);
+  const sayDoRate = (() => {
+    const logs = practice.logs || [];
+    if (logs.length) return Math.round((logs.filter((log) => log.actionCompleted !== false).length / logs.length) * 100);
+    return practice.durationDays ? Math.round((Math.min(logDates.length, practice.durationDays) / practice.durationDays) * 100) : null;
+  })();
   const visibleStatus = normalizePracticeStatus(practice.status);
   const scheduleState = practiceScheduleState(practice);
   const meaningfulStreak = visibleType === 'habit' || visibleType === 'experiment';
@@ -912,8 +916,8 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       onEdit();
     }} onKeyDown={(event) => {
       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onEdit(); }
-    }} className={cn("group cursor-pointer transition-all border border-border/60 bg-card/95 rounded-xl shadow-sm hover:border-accent/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", compact ? "p-3" : "p-4")}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    }} className={cn("noesis-praxis-card group cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", compact ? "p-3" : "p-4")} data-stage-tone={method.tone}>
+      <div className={cn("flex flex-col gap-3", compact && "lg:flex-row lg:items-center lg:justify-between")}>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap gap-1.5 mb-1.5">
             <StageBadge type="practice" stage={practice.stage} status={practice.status} />
@@ -954,9 +958,17 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
         </div>
       </div>
       
+      {!compact && (
+        <div className="noesis-praxis-stats" data-stage-tone={method.tone}>
+          <div><b>{sayDoRate === null ? '—' : `${sayDoRate}%`}</b><span>Say / do</span></div>
+          <div><b>{streak}</b><span>Current run</span></div>
+          <div><b>{logDates.length}</b><span>Logged</span></div>
+          <div className="noesis-praxis-grid"><PraxisDayStrip shape={method.shape} logDates={logDates} days={Math.min(21, practice.durationDays || 21)} startDate={practice.startDate} size={14} /></div>
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
         <span className="min-w-0 max-w-xl truncate italic text-primary/80">{practice.intellectualBasis || firstLinkedPosition?.title || linkedQuestions[0]?.text || 'No linked idea named yet.'}</span>
-        <span data-stage-tone={method.tone}><PraxisDayStrip shape={method.shape} logDates={logDates} days={practice.durationDays} startDate={practice.startDate} /></span>
+        {compact && <span data-stage-tone={method.tone}><PraxisDayStrip shape={method.shape} logDates={logDates} days={practice.durationDays} startDate={practice.startDate} /></span>}
         <span className="font-code text-[8px] uppercase tracking-widest">{durationText}</span>
         <span className="font-code text-[8px] uppercase tracking-widest">{experimentShape.logCount} {experimentShape.logCount === 1 ? 'log' : 'logs'}</span>
         {meaningfulStreak && <span className="font-code text-[8px] uppercase tracking-widest">{streak}d streak</span>}
