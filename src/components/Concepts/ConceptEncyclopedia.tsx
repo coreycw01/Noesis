@@ -252,6 +252,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept: persistConcept, onDeleteConcept, onCreateIdea, onCreateLink, focusedConceptId, onOpenConceptRoute, aiSettings } = props;
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useEntityViewPreference('concepts');
+  // The prototype's list-and-detail split is the default way to browse concepts.
+  const [splitView, setSplitView] = useState(true);
+  const [previewName, setPreviewName] = useState<string | null>(null);
   const [listView, setListView] = useState<ConceptListView>('all');
   const [localSelectedName, setSelectedName] = useState<string | null>(null);
   const focusedConcept = concepts.find((concept) => concept.id === focusedConceptId);
@@ -1481,7 +1484,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         activeFilterLabels={activeConceptFilterLabels}
         onClear={clearConceptFilters}
         clearDisabled={!conceptFiltersActive}
-        viewControl={<ViewModeToggle value={viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')} label="Concept view" />}
+        viewControl={<span className="inline-flex items-center gap-1">
+          <button type="button" aria-pressed={splitView && viewMode !== 'table'} onClick={() => { setSplitView(true); setViewMode('cards'); }} className="rounded-full border border-border px-3 py-1 font-code text-[9.5px] uppercase tracking-[0.12em] aria-pressed:bg-muted">Split</button>
+          <ViewModeToggle value={splitView && viewMode !== 'table' ? null : viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => { setSplitView(false); setViewMode(value === 'table' ? 'table' : 'cards'); }} label="Concept view" />
+        </span>}
         className="mb-6"
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -1543,7 +1549,44 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         </section>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
+      {splitView && viewMode !== 'table' && conceptRows.length > 0 && (() => {
+        const maturityName = (label: string) => ({ stable: 'Mature', usable: 'Developing', emerging: 'Emerging', beginning: 'Beginning' } as Record<string, string>)[label] || label;
+        const current = conceptRows.find((row) => row.name === previewName) || conceptRows[0];
+        return (
+          <div className="noesis-concept-split mb-8">
+            <ul className="noesis-concept-split__list" aria-label="Concepts">
+              {conceptRows.map((row) => (
+                <li key={row.name}>
+                  <button type="button" aria-current={row.name === current.name || undefined} onClick={() => setPreviewName(row.name)} onDoubleClick={() => openConceptDetail(row.name, row.concept)}>
+                    <b>{row.name}</b>
+                    <span className="noesis-concept-split__meta"><i data-maturity={row.maturity.label} />{maturityName(row.maturity.label)}{row.concept?.description?.trim() ? '' : ' · no definition'}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="grid min-w-0 content-start gap-4">
+              <article className="noesis-concept-split__card" data-stage-tone="outline">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="rounded-full">{maturityName(current.maturity.label)}</Badge>
+                  <Badge variant="outline" className="rounded-full">{current.connectionCount} links</Badge>
+                  {current.repairFlags.length > 0 && <Badge variant="outline" className="rounded-full" style={{ color: 'hsl(var(--stage-claim))', borderColor: 'hsl(var(--stage-claim) / .5)' }}>{current.repairFlags.length} to repair</Badge>}
+                </div>
+                <h2 className="mt-2 font-headline text-4xl font-semibold italic">{current.name}</h2>
+                {current.concept?.description?.trim()
+                  ? <blockquote className="noesis-concept-split__quote">{current.concept.description}</blockquote>
+                  : <p className="mt-2 text-sm text-muted-foreground">No definition yet. Mark a definition in a source or Works, or open the workbench to write one.</p>}
+                <Button type="button" onClick={() => openConceptDetail(current.name, current.concept)} className="mt-3 rounded-full">Open the workbench</Button>
+              </article>
+              <div className="noesis-instrument-pair">
+                <ConceptDiagnosisBars diagnosis={current.diagnosis} />
+                {current.concept && <ConceptCaliper concept={current.concept} />}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      <div className={cn('grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4', splitView && viewMode !== 'table' && 'hidden')}>
         {viewMode !== 'table' && conceptRows.map(({ name, concept, related, diagnosis: diag, maturity, connectionCount, possibleDuplicates, repairFlags }) => {
 
           return (

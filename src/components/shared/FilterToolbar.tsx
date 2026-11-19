@@ -282,7 +282,8 @@ export function ViewModeToggle({
   modes = ['grid', 'list'],
   label = 'View mode',
 }: {
-  value: StandardViewMode;
+  /** Null when another view (such as a split) is active and none of these is pressed. */
+  value: StandardViewMode | null;
   onChange: (value: StandardViewMode) => void;
   modes?: StandardViewMode[];
   label?: string;

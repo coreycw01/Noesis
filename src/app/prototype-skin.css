@@ -418,3 +418,18 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-tray__src { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
 .noesis-tray__chip { padding: 3px 12px; border-radius: 999px; border: 1px solid hsl(var(--stage) / .6); color: hsl(var(--stage)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
 .noesis-tray__chip:hover { background: hsl(var(--stage) / .14); }
+/* Concepts: the prototype's list and detail, side by side. */
+.noesis-concept-split { display: grid; gap: 20px; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); align-items: start; }
+.noesis-concept-split__list { position: sticky; top: 12px; max-height: 70vh; overflow-y: auto; display: grid; gap: 2px; padding: 8px; border-radius: 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
+.noesis-concept-split__list button { display: grid; width: 100%; gap: 2px; padding: 8px 10px; text-align: left; border-radius: 10px; }
+.noesis-concept-split__list button:hover { background: hsl(var(--muted) / .6); }
+.noesis-concept-split__list button[aria-current] { background: hsl(var(--stage-outline) / .14); box-shadow: inset 3px 0 0 hsl(var(--stage-outline)); }
+.noesis-concept-split__list b { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: 1.02rem; }
+.noesis-concept-split__meta { display: inline-flex; align-items: center; gap: 6px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-concept-split__meta i { width: 7px; height: 7px; border-radius: 999px; background: hsl(var(--stage-more)); }
+.noesis-concept-split__meta i[data-maturity="stable"] { background: hsl(var(--stage-act)); }
+.noesis-concept-split__meta i[data-maturity="usable"] { background: hsl(var(--stage-outline)); }
+.noesis-concept-split__meta i[data-maturity="emerging"] { background: hsl(var(--stage-examine)); }
+.noesis-concept-split__card { padding: 20px 22px; border-radius: 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
+.noesis-concept-split__quote { margin-top: 8px; padding-left: 14px; border-left: 3px solid hsl(var(--stage-outline)); font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 1.2rem; line-height: 1.5; }
+@media (max-width: 760px) { .noesis-concept-split { grid-template-columns: 1fr; } .noesis-concept-split__list { position: static; max-height: 40vh; } }
