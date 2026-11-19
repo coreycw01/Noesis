@@ -39,7 +39,7 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { PositionCalibrationGauge, PositionMiniScale, PullEvidenceDialog } from '@/components/Vault/PositionCalibration';
+import { InteractiveCalibration, PositionCalibrationGauge, PositionMiniScale, PullEvidenceDialog } from '@/components/Vault/PositionCalibration';
 import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
 import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
 import { positionReviewTarget, type PositionReviewApproval } from '@/lib/position-ai-review';
@@ -1102,6 +1102,15 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             </ContextRail>
           </div>
         </section>
+
+        <InteractiveCalibration
+          confidence={confidencePercent(selected.confidence)}
+          evidenceFor={[...(selected.evidenceFor || []), ...linkedSources.map((source) => `${source.title}${source.creator ? ` · ${source.creator}` : ''}`)]}
+          evidenceAgainst={selected.evidenceAgainst || []}
+          onConfidenceCommit={(value) => onUpdateEntry({ ...selected, confidence: value, dateUpdated: today() })}
+          onChallenge={() => { setDetailTab('ground'); setPullSide('against'); }}
+          onRevise={() => setDetailTab('revise')}
+        />
 
         {!formation.fullyFormed && (
           <details className="mb-5 rounded-xl border border-border bg-muted/30 p-4 shadow-sm">

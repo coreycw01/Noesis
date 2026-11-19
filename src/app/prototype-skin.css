@@ -264,3 +264,21 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-balance__row--challenge { border-left-color: hsl(var(--stage-claim)); }
 .noesis-balance__pick { width: 26px; height: 26px; border-radius: 6px; border: 1px solid hsl(var(--border)); background: transparent; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: hsl(var(--muted-foreground)); }
 .noesis-balance__pick[aria-pressed="true"] { background: hsl(var(--stage-encounter)); border-color: hsl(var(--stage-encounter)); color: hsl(var(--background)); }
+
+/* Positions: the interactive calibration gauge. */
+.noesis-gauge { display: grid; gap: 14px; margin-bottom: 20px; padding: 18px; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--card)); }
+.noesis-gauge__slider { display: grid; grid-template-columns: auto minmax(0, 1fr) 2.5rem; align-items: center; gap: 14px; }
+.noesis-gauge__slider input { accent-color: hsl(var(--stage-claim)); width: 100%; }
+.noesis-gauge__slider b { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.noesis-gauge__head { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: hsl(var(--stage)); }
+.noesis-gauge__item { display: flex; align-items: flex-start; gap: 10px; font-size: .95rem; }
+.noesis-gauge__item input { margin-top: 5px; accent-color: hsl(var(--stage)); }
+.noesis-gauge__scale { position: relative; height: 74px; }
+.noesis-gauge__axis { position: absolute; left: 0; right: 0; top: 37px; height: 1px; background: hsl(var(--border)); }
+.noesis-gauge__gap { position: absolute; top: 32px; height: 10px; border-radius: 3px; background: hsl(var(--stage-claim) / .35); transition: left .3s, width .3s; }
+.noesis-gauge__mark { position: absolute; top: 22px; width: 2px; height: 30px; transform: translateX(-50%); transition: left .3s; }
+.noesis-gauge__mark em { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; font-style: normal; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.noesis-gauge__mark--earned { background: hsl(var(--stage-act)); }
+.noesis-gauge__mark--earned em { top: -18px; color: hsl(var(--foreground)); }
+.noesis-gauge__mark--stated { background: hsl(var(--stage-claim)); }
+.noesis-gauge__mark--stated em { top: 34px; color: hsl(var(--stage-claim)); }
