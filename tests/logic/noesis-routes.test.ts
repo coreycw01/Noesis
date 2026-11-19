@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NOESIS_ICONS, NOESIS_VIEW_ICON_KEYS } from '../../src/lib/noesis-icons';
-import { dataRequirementsForNoesisRoute, metadataForNoesisRouteState, NOESIS_NAV_SECTIONS, NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
+import { dataRequirementsForNoesisRoute, metadataForNoesisRouteState, NOESIS_LOOP_STAGES, NOESIS_NAV_SECTIONS, NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
 
 test('Today loads its saved commitment visibility without visiting Settings first', () => {
   assert.ok(dataRequirementsForNoesisRoute(parseNoesisRoute('/home')).includes('goalPreferences'));
@@ -26,19 +26,24 @@ test('Praxis keeps the Labs route compatible for existing practice links', () =>
   assert.equal(viewToPath('labs', { reviewMode: true }), '/demo/labs');
 });
 
-test('Act is the user-facing stage for lived action; the page keeps the Praxis name', () => {
-  assert.equal(NOESIS_PAGE_BY_VIEW.labs.section, 'Act');
+test('Implement is the user-facing stage for lived action; the page keeps the Praxis name', () => {
+  assert.equal(NOESIS_PAGE_BY_VIEW.labs.section, 'Implement');
   assert.equal(NOESIS_PAGE_BY_VIEW.labs.title, 'Praxis');
-  assert.equal(NOESIS_PAGE_BY_VIEW.goals.section, 'Act');
+  assert.equal(NOESIS_PAGE_BY_VIEW.goals.section, 'Implement');
   assert.equal(NOESIS_PAGE_DEFINITIONS.some((page) => ['Test', 'Praxis'].includes(page.section as string)), false);
 });
 
-test('the sidebar follows the Encounter, Examine, Claim, Act, Reflect loop', () => {
-  assert.deepEqual([...NOESIS_NAV_SECTIONS], ['Today', 'Encounter', 'Examine', 'Claim', 'Act', 'Reflect', 'More']);
-  assert.equal(NOESIS_PAGE_BY_VIEW.concepts.section, 'Examine');
+test('the navigation spells NOESIS: Notice, Outline, Examine, Stand, Implement, Survey', () => {
+  assert.deepEqual([...NOESIS_NAV_SECTIONS], ['Today', 'Notice', 'Outline', 'Examine', 'Stand', 'Implement', 'Survey', 'More']);
+  assert.equal(NOESIS_LOOP_STAGES.map((stage) => stage[0]).join(''), 'NOESIS');
+  assert.equal(NOESIS_PAGE_BY_VIEW.library.section, 'Notice');
+  assert.equal(NOESIS_PAGE_BY_VIEW.concepts.section, 'Outline');
   assert.equal(NOESIS_PAGE_BY_VIEW.questions.section, 'Examine');
-  assert.equal(NOESIS_PAGE_BY_VIEW.evolution.section, 'Reflect');
-  assert.equal(NOESIS_PAGE_BY_VIEW.atlas.section, 'Reflect');
+  assert.equal(NOESIS_PAGE_BY_VIEW.vault.section, 'Stand');
+  assert.equal(NOESIS_PAGE_BY_VIEW.writing.section, 'Stand');
+  assert.equal(NOESIS_PAGE_BY_VIEW.labs.section, 'Implement');
+  assert.equal(NOESIS_PAGE_BY_VIEW.evolution.section, 'Survey');
+  assert.equal(NOESIS_PAGE_BY_VIEW.atlas.section, 'Survey');
   for (const page of NOESIS_PAGE_DEFINITIONS) assert.ok(NOESIS_NAV_SECTIONS.includes(page.section), page.view);
 });
 

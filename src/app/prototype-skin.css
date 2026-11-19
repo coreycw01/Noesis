@@ -323,3 +323,13 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-ai-trigger:hover { box-shadow: 0 0 0 5px hsl(var(--revise) / .22); background: hsl(var(--revise) / .18) !important; }
 .noesis-aidock__depth { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--revise)); border: 1px dotted hsl(var(--revise) / .6); border-radius: 999px; padding: 2px 8px; }
 [role="dialog"]:has(.noesis-ai-review), .noesis-ai-dialog { border-color: hsl(var(--revise) / .45) !important; }
+/* Outline: the concept stage, in the prototype's highlight gold. */
+:root { --stage-outline: 44 72% 34%; --sidebar-stage-outline: 46 74% 66%; }
+.dark { --stage-outline: 46 74% 66%; }
+[data-stage-tone="outline"] { --stage: var(--stage-outline); }
+.noesis-nav-section[data-stage="outline"] { --nav-stage: var(--sidebar-stage-outline); }
+.noesis-loop__stage[data-stage="outline"], [data-stage="outline"] { --loop-stage: var(--stage-outline); --stage: var(--stage-outline); }
+.noesis-loop__initial { font-weight: 700; color: hsl(var(--nav-stage, var(--accent))); }
+.noesis-loop [data-stage="outline"] { --nav-stage: var(--sidebar-stage-outline); }
+.noesis-loop__ask { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 8px; border-radius: 999px; border: 1.5px solid hsl(var(--revise)); background: hsl(var(--revise) / .1); color: hsl(var(--revise)); font-size: .9rem; white-space: nowrap; box-shadow: 0 0 0 3px hsl(var(--revise) / .14); }
+.noesis-loop__ask:hover, .noesis-loop__ask[aria-current="page"] { background: hsl(var(--revise) / .2); }
