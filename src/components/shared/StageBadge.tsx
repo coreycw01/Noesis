@@ -8,7 +8,7 @@ const STAGE_LABELS: Record<NoesisStage, string> = {
   question: 'Examine',
   claim: 'Claim',
   test: 'Act',
-  revise: 'Integrate',
+  revise: 'Reflect',
 };
 
 const STAGE_TONES: Record<NoesisStage, string> = {

@@ -39,7 +39,7 @@ export function useNavStyle() {
 
 interface LoopItem { id: string; icon: LucideIcon; count?: number }
 
-const LOOP_STAGES: NoesisNavSection[] = ['Encounter', 'Examine', 'Claim', 'Act', 'Integrate'];
+const LOOP_STAGES: NoesisNavSection[] = ['Encounter', 'Examine', 'Claim', 'Act', 'Reflect'];
 
 /**
  * The Loop: a floating dock that lays navigation out as the thinking cycle.

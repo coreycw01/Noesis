@@ -10,9 +10,9 @@ import type { Metadata } from 'next';
 /**
  * The thinking loop the sidebar is organized around. Stage names are verbs:
  * meet material (Encounter), clarify and investigate it (Examine), commit to a
- * view (Claim), live it (Act), and fold what changed back in (Integrate).
+ * view (Claim), live it (Act), and fold what changed back in (Reflect).
  */
-export const NOESIS_NAV_SECTIONS = ['Today', 'Encounter', 'Examine', 'Claim', 'Act', 'Integrate', 'More'] as const;
+export const NOESIS_NAV_SECTIONS = ['Today', 'Encounter', 'Examine', 'Claim', 'Act', 'Reflect', 'More'] as const;
 export type NoesisNavSection = typeof NOESIS_NAV_SECTIONS[number];
 
 /** Stage color token for each section (defined in theme.css as --stage-*). */
@@ -22,7 +22,7 @@ export const NOESIS_NAV_SECTION_TONE: Record<NoesisNavSection, string> = {
   Examine: 'examine',
   Claim: 'claim',
   Act: 'act',
-  Integrate: 'integrate',
+  Reflect: 'integrate',
   More: 'more',
 };
 
@@ -79,7 +79,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/atlas',
     title: 'Atlas',
     purpose: 'Reveal the territories, tensions, dependencies, and development of the whole thinking system.',
-    section: 'Integrate',
+    section: 'Reflect',
     signatureExperience: 'Region and relationship maps for worldview-level diagnosis.',
     loadingLayout: 'map',
   },
@@ -169,7 +169,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/evolution',
     title: 'Evolution',
     purpose: 'Show meaningful changes in concepts, inquiries, positions, works, and practices over time.',
-    section: 'Integrate',
+    section: 'Reflect',
     signatureExperience: 'A time-lapse of thought driven by thinking events.',
     loadingLayout: 'timeline',
   },
