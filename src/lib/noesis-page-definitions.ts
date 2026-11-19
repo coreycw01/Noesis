@@ -219,7 +219,7 @@ export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDa
   writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences', 'worksSettings'],
   'context-desk': ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'aiSettings'],
   labs: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
-  evolution: ['media', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'aiSettings'],
+  evolution: ['media', 'vault', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'aiSettings'],
   profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs', 'aiSettings'],
   goals: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'goal'],
   settings: ['preferences', 'legacyProfile', 'workspace', 'allSettings'],

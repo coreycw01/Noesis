@@ -1,7 +1,7 @@
 "use client";
 
 import { EvolutionTimeline } from '@/components/Evolution/EvolutionTimeline';
-import type { AiSettings, Media, ThinkingEvent, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
+import type { AiSettings, VaultEntry, Media, ThinkingEvent, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
 
 export interface EvolutionRoutePageProps {
   aiSettings: AiSettings;
@@ -15,6 +15,8 @@ export interface EvolutionRoutePageProps {
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
   onSaveSynthesis: (event: TimelineEvent, result?: import('@/lib/contextual-ai').AiReviewResult, eventIds?: readonly string[]) => void | Promise<void>;
+  positions: VaultEntry[];
+  onOpenPosition: (id: string) => void;
 }
 
 export function EvolutionRoutePage({
@@ -29,6 +31,8 @@ export function EvolutionRoutePage({
   unknowns,
   thinkingPatterns,
   onSaveSynthesis,
+  positions,
+  onOpenPosition,
 }: EvolutionRoutePageProps) {
   return (
     <EvolutionTimeline
@@ -43,6 +47,8 @@ export function EvolutionRoutePage({
       unknowns={unknowns}
       thinkingPatterns={thinkingPatterns}
       onSaveSynthesis={onSaveSynthesis}
+      positions={positions}
+      onOpenPosition={onOpenPosition}
     />
   );
 }
