@@ -182,3 +182,12 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-app :is(.text-rose-700, .text-rose-800) { color: hsl(var(--stage-claim)) !important; }
 .noesis-app .border-sky-200 { border-color: hsl(var(--stage-more) / .35) !important; }
 .noesis-app :is(.text-sky-700, .text-blue-800) { color: hsl(var(--stage-more)) !important; }
+
+/* Positions: ember, mini calibration scale, and a claim-tinted card. */
+.noesis-position-card { background: linear-gradient(180deg, hsl(var(--stage-claim) / .07), transparent 55%), hsl(var(--card)) !important; }
+.noesis-ember { width: 40px; height: 40px; flex: none; border-radius: 999px; background: radial-gradient(circle, hsl(var(--stage)) 0 calc(var(--ember) * 34%), hsl(var(--stage) / .2) calc(var(--ember) * 34% + 1px)); }
+.noesis-mini-scale { position: relative; height: 8px; border-radius: 999px; background: hsl(var(--muted)); }
+.noesis-mini-scale__gap { position: absolute; top: 0; bottom: 0; background: hsl(var(--stage) / .4); }
+.noesis-mini-scale__stated, .noesis-mini-scale__earned { position: absolute; top: -3px; width: 3px; height: 14px; border-radius: 2px; transform: translateX(-50%); }
+.noesis-mini-scale__stated { background: hsl(var(--stage)); }
+.noesis-mini-scale__earned { background: hsl(var(--stage-act)); }

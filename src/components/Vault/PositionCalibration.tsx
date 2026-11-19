@@ -182,3 +182,21 @@ export function PullEvidenceDialog({ open, onOpenChange, side, media, concepts, 
     </Dialog>
   );
 }
+
+/** Compact scale for cards: stated (solid tick) against evidence (hollow tick), gap shaded. */
+export function PositionMiniScale({ confidence, supportCount, challengeCount }: { confidence: number; supportCount: number; challengeCount: number }) {
+  const earned = evidenceBalance(supportCount, challengeCount);
+  const gap = earned === null ? null : confidence - earned;
+  return (
+    <div className="grid gap-1.5" data-stage-tone="claim">
+      <div className="noesis-mini-scale" role="img" aria-label={`Stated ${confidence}%${earned === null ? '' : `, evidence ${earned}%`}`}>
+        {earned !== null && <span className="noesis-mini-scale__gap" style={{ left: `${Math.min(confidence, earned)}%`, width: `${Math.abs(confidence - earned)}%` }} />}
+        {earned !== null && <span className="noesis-mini-scale__earned" style={{ left: `${earned}%` }} />}
+        <span className="noesis-mini-scale__stated" style={{ left: `${confidence}%` }} />
+      </div>
+      <div className="font-code text-[9.5px] uppercase tracking-[0.12em] text-muted-foreground">
+        {confidence} stated · {earned === null ? 'no evidence yet' : `${earned} evidence · ${Math.abs(gap!) <= 5 ? 'calibrated' : `${gap! > 0 ? '+' : ''}${gap}`}`}
+      </div>
+    </div>
+  );
+}
