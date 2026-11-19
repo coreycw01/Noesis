@@ -541,3 +541,5 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-praxis-pair > div { padding: 10px 12px; border-radius: 10px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
 @media (max-width: 640px) { .noesis-praxis-pair { grid-template-columns: 1fr; } }
 .noesis-praxis-instrument .noesis-praxis-checkin { padding-top: 0; }
+.noesis-answers__remove { margin-left: 4px; width: 28px; height: 28px; flex: none; border-radius: 999px; border: 1px solid hsl(var(--border)); color: hsl(var(--muted-foreground)); font-size: 1.1rem; line-height: 1; }
+.noesis-answers__remove:hover:not(:disabled) { border-color: hsl(var(--stage-claim)); color: hsl(var(--stage-claim)); }

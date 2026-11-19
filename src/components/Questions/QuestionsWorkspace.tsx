@@ -1055,6 +1055,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               question={question}
               disabled={saving}
             addAnswerId={`add-answer-${question.id}`}
+            onRemoveAnswer={removeCandidateAnswer}
             workingAnswer={question.answer || ''}
             onEditAnswer={() => openWorkflowStep('answer')}
               onAddAnswer={async (statement) => {

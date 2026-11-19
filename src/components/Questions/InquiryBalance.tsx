@@ -45,7 +45,7 @@ function Pan({ x, y, label, statement, weight, evidence, candidateId, maxLabel =
  * own spring. Every piece of evidence can be placed on an answer from the list.
  */
 /** The prototype's "Possible answers" list: each answer with its net weight, and a way to add one in place. */
-function PossibleAnswers({ question, onAddAnswer, disabled, inputId }: { question: Question; onAddAnswer?: (statement: string) => unknown; disabled?: boolean; inputId?: string }) {
+function PossibleAnswers({ question, onAddAnswer, onRemoveAnswer, disabled, inputId }: { question: Question; onAddAnswer?: (statement: string) => unknown; onRemoveAnswer?: (id: string) => unknown; disabled?: boolean; inputId?: string }) {
   const [draft, setDraft] = useState('');
   const candidates = question.candidateAnswers || [];
   const evidence = question.evidenceRecords || [];
@@ -63,6 +63,7 @@ function PossibleAnswers({ question, onAddAnswer, disabled, inputId }: { questio
               <span className="noesis-answers__letter">{letter(index)}</span>
               <span className="min-w-0 flex-1">{candidate.statement}</span>
               <span className="font-code text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Net {net > 0 ? '+' : ''}{net}</span>
+              {onRemoveAnswer && <button type="button" disabled={disabled} onClick={() => onRemoveAnswer(candidate.id)} aria-label={`Remove answer ${letter(index)}: ${candidate.statement}`} title="Remove this answer" className="noesis-answers__remove">×</button>}
             </li>
           );
         })}
@@ -77,10 +78,11 @@ function PossibleAnswers({ question, onAddAnswer, disabled, inputId }: { questio
   );
 }
 
-export function InquiryBalance({ question, onAssign, onAddAnswer, disabled, addAnswerId, workingAnswer, onEditAnswer }: {
+export function InquiryBalance({ question, onAssign, onAddAnswer, onRemoveAnswer, disabled, addAnswerId, workingAnswer, onEditAnswer }: {
   question: Question;
   onAssign: (evidenceId: string, candidateId: string) => void;
   onAddAnswer?: (statement: string) => unknown;
+  onRemoveAnswer?: (id: string) => unknown;
   disabled?: boolean;
   /** Id for the add-answer field, so a Tools button can focus it. */
   addAnswerId?: string;
@@ -103,7 +105,7 @@ export function InquiryBalance({ question, onAssign, onAddAnswer, disabled, addA
     return (
       <div className="noesis-scale-bench">
         <div className="grid content-start gap-3">
-          <PossibleAnswers question={question} onAddAnswer={onAddAnswer} disabled={disabled} inputId={addAnswerId} />
+          <PossibleAnswers question={question} onAddAnswer={onAddAnswer} onRemoveAnswer={onRemoveAnswer} disabled={disabled} inputId={addAnswerId} />
         </div>
         <div className="grid content-start gap-3">
           <div className="noesis-balance noesis-balance--empty" role="img" aria-label="Empty scale: needs two possible answers">
@@ -157,7 +159,7 @@ export function InquiryBalance({ question, onAssign, onAddAnswer, disabled, addA
   return (
     <div className="noesis-scale-bench">
       <div className="grid content-start gap-3">
-        <PossibleAnswers question={question} onAddAnswer={onAddAnswer} disabled={disabled} inputId={addAnswerId} />
+        <PossibleAnswers question={question} onAddAnswer={onAddAnswer} onRemoveAnswer={onRemoveAnswer} disabled={disabled} inputId={addAnswerId} />
         <section className="noesis-answers" aria-label="Evidence to place">
           <div className="noesis-instrument__label">Evidence · place each on an answer</div>
           <ul className="grid content-start gap-2">
@@ -193,7 +195,6 @@ export function InquiryBalance({ question, onAssign, onAddAnswer, disabled, addA
             ))}
           </ol>
         )}
-          {scale}
           <p className="text-sm text-muted-foreground">{lead >= 2 ? <>Leaning toward <span className="text-foreground">{letter(leader)}</span> by {lead}.</> : 'No clear lean yet.'}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5"><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="hsl(var(--stage-examine))" /></svg>supports: weighs down</span>
