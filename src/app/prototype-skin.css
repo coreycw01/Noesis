@@ -374,3 +374,11 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-method-card__count { font-family: "JetBrains Mono", ui-monospace, monospace; font-style: normal; font-size: .75rem; color: hsl(var(--stage)); }
 .noesis-method-card__line { display: block; margin-top: 2px; font-size: .86rem; line-height: 1.4; color: hsl(var(--muted-foreground)); }
 .noesis-method-card__go { margin-left: auto; color: hsl(var(--stage)); font-size: 1.1rem; }
+/* One workbench, the same on Concepts, Inquiries and Positions: a stage-
+   coloured band naming it, then the step rings, then the active step. */
+.noesis-workbench { border: 0 !important; background: none !important; }
+.noesis-workbench-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 8px 0 12px; padding: 10px 14px; border-radius: 12px; border-left: 4px solid hsl(var(--stage)); background: hsl(var(--stage) / .07); }
+.noesis-workbench-head__eyebrow { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: hsl(var(--stage)); }
+.noesis-workbench-head__title { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: 1.2rem; }
+.noesis-workbench-head__line { flex-basis: 100%; font-size: .86rem; color: hsl(var(--muted-foreground)); }
+.noesis-instrument-pair { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }

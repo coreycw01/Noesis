@@ -848,6 +848,21 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             ))}
           </div>
 
+          {concept && (
+            <div className="noesis-instrument-pair mb-6">
+              <ConceptDiagnosisBars diagnosis={diagnosis} />
+              <ConceptCaliper concept={concept} />
+            </div>
+          )}
+
+          <div className="noesis-workbench" data-stage-tone="outline">
+          <header className="noesis-workbench-head">
+            <span className="noesis-workbench-head__eyebrow">Workbench</span>
+            <span className="noesis-workbench-head__title">Concept workbench</span>
+            <span className="noesis-workbench-head__line">Define it, test its boundaries, diagnose it, connect it, and see how it changed.</span>
+          </header>
+          </div>
+
           <WorkbenchFlow
             label="Concept workbench workflow"
             activeId={conceptWorkflowStep}
@@ -862,11 +877,11 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               });
             }}
             steps={[
-              { id: 'define', label: 'Define', description: 'Write the working meaning and distinguish its use.' },
-              { id: 'boundaries', label: 'Test boundaries', description: 'Classify edge cases and refine where the concept stops.' },
-              { id: 'diagnose', label: 'Diagnose', description: 'Review clarity, evidence, tension, expression, and next needs.' },
-              { id: 'connect', label: 'Connect', description: 'Inspect the sources, notes, inquiries, positions, works, and practices using it.' },
-              { id: 'history', label: 'History', description: 'Review only recorded changes to the concept over time.' },
+              { id: 'define', label: 'Define', description: 'Write the working meaning and distinguish its use.', progress: concept?.description?.trim() ? 1 : 0 },
+              { id: 'boundaries', label: 'Test boundaries', description: 'Classify edge cases and refine where the concept stops.', progress: Math.min(1, ((concept?.examples || []).length + (concept?.counterexamples || []).length + (concept?.notSameAs || []).length) / 4) },
+              { id: 'diagnose', label: 'Diagnose', description: 'Review clarity, evidence, tension, expression, and next needs.', progress: concept?.description?.trim() ? 0.5 : 0 },
+              { id: 'connect', label: 'Connect', description: 'Inspect the sources, notes, inquiries, positions, works, and practices using it.', progress: Math.min(1, (concept?.links || []).length / 4), meta: `${(concept?.links || []).length} links` },
+              { id: 'history', label: 'History', description: 'Review only recorded changes to the concept over time.', progress: 0 },
             ]}
           />
 
@@ -1039,7 +1054,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
             </summary>
             <div className="noesis-workbench-panel__body">
-              {concept && <ConceptCaliper concept={concept} />}
           {/* Boundary Test */}
           <div className="mb-8">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1148,7 +1162,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
             <p className="text-sm font-body text-muted-foreground italic mb-5">{diagnosis.why}</p>
 
-            <div className="mb-5"><ConceptDiagnosisBars diagnosis={diagnosis} /></div>
 
             {diagnosis.growthAreas.length > 0 && (
               <div className="mb-4">

@@ -720,13 +720,16 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       linkedPractices,
     });
     const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
-    const reviewTabs: Array<{ id: 'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'; label: string; description: string }> = [
-      { id: 'state', label: 'State', description: 'Clarify the claim, its scope, conditions, and present confidence.' },
-      { id: 'ground', label: 'Ground', description: 'Record why it seems warranted, its evidence, assumptions, and dependencies.' },
-      { id: 'pressure', label: 'Pressure', description: 'Examine counterpositions, contradictions, missing evidence, and steelman challenges.' },
-      { id: 'test', label: 'Test', description: 'Define a practice, prediction, or observation that could affect confidence.' },
-      { id: 'revise', label: 'Revise', description: 'Retain, update, replace, or retire the position with a recorded reason.' },
-      { id: 'history', label: 'History', description: 'Review only the belief biography and confidence changes over time.' },
+    const supportCount = (selected.evidenceFor || []).length + (selected.sourceIds || []).length;
+    const challengeCount = (selected.evidenceAgainst || []).length;
+    const revisionCount = (selected.versionHistory || []).length;
+    const reviewTabs: Array<{ id: 'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'; label: string; description: string; progress: number; meta?: string }> = [
+      { id: 'state', label: 'State', description: 'Clarify the claim, its scope, conditions, and present confidence.', progress: [selected.statement, selected.rationale || selected.confidenceReasoning].filter((value) => value?.trim()).length / 2 },
+      { id: 'ground', label: 'Ground', description: 'Record why it seems warranted, its evidence, assumptions, and dependencies.', progress: Math.min(1, supportCount / 3), meta: `${supportCount} support` },
+      { id: 'pressure', label: 'Pressure', description: 'Examine counterpositions, contradictions, missing evidence, and steelman challenges.', progress: Math.min(1, challengeCount / 2), meta: `${challengeCount} challenges` },
+      { id: 'test', label: 'Test', description: 'Define a practice, prediction, or observation that could affect confidence.', progress: Math.min(1, linkedPractices.length / 1), meta: `${linkedPractices.length} practices` },
+      { id: 'revise', label: 'Revise', description: 'Retain, update, replace, or retire the position with a recorded reason.', progress: revisionCount ? 1 : 0 },
+      { id: 'history', label: 'History', description: 'Review only the belief biography and confidence changes over time.', progress: revisionCount ? 1 : 0, meta: `${revisionCount} changes` },
     ];
 
     const previewSource = (source: Media) => {
@@ -1112,40 +1115,11 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           onRevise={() => setDetailTab('revise')}
         />
 
-        {!formation.fullyFormed && (
-          <details className="mb-5 rounded-xl border border-border bg-muted/30 p-4 shadow-sm">
-            <summary className="cursor-pointer font-code text-[10px] uppercase tracking-[0.12em] text-foreground font-bold">Position readiness · {formation.missing.length} gaps</summary>
-            <ul className="mt-3 grid gap-2 text-sm leading-6 text-muted-foreground sm:grid-cols-2">
-              {formation.missing.map((item) => <li key={item}>Add {item}</li>)}
-            </ul>
-          </details>
-        )}
-
-        <EditorialSection className="mb-5" eyebrow="Grounding" title="Current reasoning" description="The reason this position currently seems warranted. Evidence and objections are reviewed separately in the workbench.">
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.rationale || selected.confidenceReasoning || 'No reasoning has been recorded yet. Edit this position to explain what presently supports it.'}</p>
-          {!selected.rationale && selected.description && (
-            <p className="mt-2 text-xs italic text-muted-foreground">The position description is kept separate so it does not stand in for your reasoning.</p>
-          )}
-        </EditorialSection>
-
-        <div className="mb-5">
-          <AiAssistedHistory
-            entries={(selected.aiReviewHistory || []).map((entry) => {
-              const target = positionReviewTarget(selected.id, entry.action, entry.id);
-              return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? {
-                provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target,
-              } : undefined };
-            })}
-            onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })}
-          />
-        </div>
-
-        <section className="border-y border-border bg-background/20" aria-label="Position workbench">
-          <header className="px-5 py-4 sm:px-6">
-            <div>
-              <div className="text-sm font-semibold text-foreground">Position workbench</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">State the claim, ground it, pressure it, test it, then decide whether to revise it.</p>
-            </div>
+        <section className="noesis-workbench" data-stage-tone="claim" aria-label="Position workbench">
+          <header className="noesis-workbench-head">
+            <span className="noesis-workbench-head__eyebrow">Workbench</span>
+            <span className="noesis-workbench-head__title">Position workbench</span>
+            <span className="noesis-workbench-head__line">State the claim, ground it, pressure it, test it, then decide whether to revise it.</span>
           </header>
           <div className="border-t border-border p-4 sm:p-5">
 
@@ -1211,6 +1185,39 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           onSelect={(id) => setDetailTab(id as typeof detailTab)}
           className="mb-5"
         />
+
+        {detailTab === 'state' && (
+          <>
+        {!formation.fullyFormed && (
+          <details className="mb-5 rounded-xl border border-border bg-muted/30 p-4 shadow-sm">
+            <summary className="cursor-pointer font-code text-[10px] uppercase tracking-[0.12em] text-foreground font-bold">Position readiness · {formation.missing.length} gaps</summary>
+            <ul className="mt-3 grid gap-2 text-sm leading-6 text-muted-foreground sm:grid-cols-2">
+              {formation.missing.map((item) => <li key={item}>Add {item}</li>)}
+            </ul>
+          </details>
+        )}
+
+        <EditorialSection className="mb-5" eyebrow="Grounding" title="Current reasoning" description="The reason this position currently seems warranted. Evidence and objections are reviewed separately in the workbench.">
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.rationale || selected.confidenceReasoning || 'No reasoning has been recorded yet. Edit this position to explain what presently supports it.'}</p>
+          {!selected.rationale && selected.description && (
+            <p className="mt-2 text-xs italic text-muted-foreground">The position description is kept separate so it does not stand in for your reasoning.</p>
+          )}
+        </EditorialSection>
+
+        <div className="mb-5">
+          <AiAssistedHistory
+            entries={(selected.aiReviewHistory || []).map((entry) => {
+              const target = positionReviewTarget(selected.id, entry.action, entry.id);
+              return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? {
+                provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target,
+              } : undefined };
+            })}
+            onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })}
+          />
+        </div>
+
+          </>
+        )}
 
         {detailTab === 'state' && (
           <>

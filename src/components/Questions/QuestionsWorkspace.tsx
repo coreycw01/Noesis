@@ -1010,16 +1010,33 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
         )}
       </header>
 
-      <div className="space-y-5">
+        <InquiryBalance
+          question={question}
+          disabled={saving}
+          onAssign={(evidenceId, candidateId) => {
+            void onUpdateQuestion({
+              ...question,
+              evidenceRecords: evidenceRecords.map((item) => item.id === evidenceId ? { ...item, candidateId } : item),
+              dateUpdated: today(),
+            });
+          }}
+        />
+
+      <div className="noesis-workbench space-y-5" data-stage-tone="examine">
+        <header className="noesis-workbench-head">
+          <span className="noesis-workbench-head__eyebrow">Workbench</span>
+          <span className="noesis-workbench-head__title">Inquiry workbench</span>
+          <span className="noesis-workbench-head__line">Frame the question, investigate it, answer provisionally, then decide.</span>
+        </header>
         <WorkbenchFlow
           label="Inquiry workbench workflow"
           activeId={workflowStep}
           onSelect={(id) => openWorkflowStep(id as typeof workflowStep)}
           steps={[
-            { id: 'frame', label: 'Frame', description: 'Name why the question matters, your current view, and uncertainty.' },
-            { id: 'investigate', label: 'Investigate', description: 'Clarify, add evidence, compare answers, or test in practice.' },
-            { id: 'answer', label: 'Answer', description: 'Write the best provisional answer you can support now.' },
-            { id: 'decide', label: 'Decide', description: 'Resolve, suspend, transform, archive, or keep the inquiry open.' },
+            { id: 'frame', label: 'Frame', description: 'Name why the question matters, your current view, and uncertainty.', progress: [question.whyItMatters, question.currentIntuition, question.uncertainty].filter((value) => value?.trim()).length / 3 },
+            { id: 'investigate', label: 'Investigate', description: 'Clarify, add evidence, compare answers, or test in practice.', progress: Math.min(1, (evidenceRecords.length + Math.min(2, candidateAnswers.length)) / 5), meta: `${evidenceRecords.length} evidence · ${candidateAnswers.length} answers` },
+            { id: 'answer', label: 'Answer', description: 'Write the best provisional answer you can support now.', progress: question.answer?.trim() ? 1 : 0 },
+            { id: 'decide', label: 'Decide', description: 'Resolve, suspend, transform, archive, or keep the inquiry open.', progress: ['resolved', 'archived', 'transformed'].includes(question.status) ? 1 : 0 },
           ]}
         />
         {workflowStep === 'frame' && <WorkbenchPanel
@@ -1107,19 +1124,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           />
         )}
 
-        {(workflowStep === 'investigate' || workflowStep === 'answer') && (
-          <InquiryBalance
-            question={question}
-            disabled={saving}
-            onAssign={(evidenceId, candidateId) => {
-              void onUpdateQuestion({
-                ...question,
-                evidenceRecords: evidenceRecords.map((item) => item.id === evidenceId ? { ...item, candidateId } : item),
-                dateUpdated: today(),
-              });
-            }}
-          />
-        )}
         {(workflowStep === 'investigate' || workflowStep === 'decide') && <section className="noesis-workbench-panel" aria-label="Inquiry investigation tools">
           <header className="noesis-workbench-panel__header">
             <div className="min-w-0 flex-1">

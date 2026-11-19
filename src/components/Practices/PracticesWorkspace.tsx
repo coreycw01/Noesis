@@ -538,26 +538,6 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         <ConceptFilterPicker value={conceptFilter} options={conceptFilterOptions} onChange={setConceptFilter} onCreate={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} label="Filter practices by concept" className="w-56" />
       </FilterToolbar>
 
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        {[
-          { label: 'Needs setup', value: labStats.needsSetup, filter: 'needs_setup' as PracticeViewFilter },
-          { label: 'Log due', value: labStats.awaitingLog, filter: 'awaiting_log' as PracticeViewFilter },
-          { label: 'Ready for review', value: labStats.readyForReview, filter: 'ready_review' as PracticeViewFilter },
-        ].filter((item) => item.value > 0).map((item) => (
-          <button
-            key={item.filter}
-            type="button"
-            onClick={() => setViewFilter(viewFilter === item.filter ? 'all' : item.filter)}
-            className={cn(
-              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
-              viewFilter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
-            )}
-          >
-            {item.label} {item.value}
-          </button>
-        ))}
-      </div>
-
       <WorkspaceTabs
         value={practiceSection}
         onChange={setPracticeSection}
