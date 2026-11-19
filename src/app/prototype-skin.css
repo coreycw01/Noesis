@@ -202,3 +202,19 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-praxis-grid { grid-column: 1 / -1; padding-top: .6rem; border-top: 1px solid hsl(var(--border)); }
 .noesis-praxis-grid > span { display: grid !important; grid-template-columns: repeat(7, 18px); gap: 10px 14px !important; }
 .noesis-praxis-card { border-top: 3px solid hsl(var(--stage)) !important; }
+
+/* Record pages keep a left-aligned title (only index headers center). */
+.noesis-page-title.noesis-detail-title, .noesis-detail-title { text-align: left !important; }
+.noesis-source-detail > section:first-of-type, .noesis-source-detail section[class*="rounded"]:has(> div img), .noesis-source-detail section:has(.noesis-proto-cover) { border: 0 !important; background: none !important; padding-inline: 0 !important; }
+.noesis-source-detail .noesis-proto-cover { border-radius: 4px 10px 10px 4px; }
+.noesis-source-detail .noesis-detail-label .noesis-page-header__rule { display: none; }
+
+/* Journey steps (source workbench with rings): the prototype's boxed path. */
+.noesis-thought-spine:has(.noesis-step-ring) { padding: 6px; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--card)); }
+.noesis-thought-spine:has(.noesis-step-ring) ol { gap: 10px; }
+.noesis-thought-spine:has(.noesis-step-ring) li > button { padding: 12px 14px; border-radius: 10px; border: 1px solid transparent; }
+.noesis-thought-spine:has(.noesis-step-ring) li > button[aria-current="step"] { background: hsl(var(--stage, var(--accent)) / .1); border-color: hsl(var(--stage, var(--accent)) / .6); }
+.noesis-thought-spine:has(.noesis-step-ring) li:has(.noesis-step-next) > button:not([aria-current="step"]) { border: 1px dashed hsl(var(--stage, var(--accent)) / .6); }
+.noesis-thought-spine:has(.noesis-step-ring) li > button .text-sm.font-semibold { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 1.15rem; color: hsl(var(--foreground)); }
+.noesis-thought-spine:has(.noesis-step-ring) li > button .font-code.text-\[9px\] { font-family: "Spectral", Georgia, serif; font-size: .85rem; letter-spacing: 0; text-transform: none; }
+.noesis-thought-spine:has(.noesis-step-ring) > div:last-child { display: none; }
