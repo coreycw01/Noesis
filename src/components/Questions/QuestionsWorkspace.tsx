@@ -18,7 +18,7 @@ import { allQuestions, conceptKey, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { InquiryLean } from '@/components/Questions/InquiryLean';
 import { InquiryBalance, answerWeight } from '@/components/Questions/InquiryBalance';
-import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
+import { NextMove, RecordTools } from '@/components/shared/RecordDetail';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
@@ -571,7 +571,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const [editingQuestion, setEditingQuestion] = useState(false);
   const [questionDraft, setQuestionDraft] = useState(question.text);
   const [selectedTool, setSelectedTool] = useState<InquiryTool | null>(null);
-  const [workflowStep, setWorkflowStep] = useState<'frame' | 'answer' | 'investigate' | 'decide'>('frame');
+  const [workflowStep, setWorkflowStep] = useState<'scale' | 'frame' | 'answer' | 'investigate' | 'decide'>('scale');
   const [clarificationDraft, setClarificationDraft] = useState('');
   const [existingPracticeId, setExistingPracticeId] = useState('');
   const [existingWorkId, setExistingWorkId] = useState('');
@@ -617,7 +617,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
     setQuestionDraft(question.text);
     setEditingQuestion(false);
     setFrameBase(null);
-    setWorkflowStep(initialSection === 'answer' ? 'answer' : 'frame');
+    setWorkflowStep(initialSection === 'answer' ? 'answer' : 'scale');
     setSelectedTool(null);
     setInvestigationDraft({
       whyItMatters: question.whyItMatters || '',
@@ -639,7 +639,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
   const evidenceRecords = question.evidenceRecords || [];
   const candidateAnswerCount = inquiryCandidateCount(question);
   const recommendedMove = INQUIRY_TOOL_COPY[recommended].description;
-  const openWorkflowStep = (step: 'frame' | 'answer' | 'investigate' | 'decide') => {
+  const openWorkflowStep = (step: 'scale' | 'frame' | 'answer' | 'investigate' | 'decide') => {
     setWorkflowStep(step);
     if (step === 'decide') setSelectedTool('Decide outcome');
     if (step === 'investigate' && (!selectedTool || selectedTool === 'Decide outcome')) {
@@ -945,34 +945,6 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             <ArrowLeft aria-hidden="true" /> Inquiries
           </button>
           <div className="flex items-center gap-2">
-            <ContextualAiPanel
-              enabled={aiSettings.aiAssistanceEnabled}
-              showContextBeforeSending={aiSettings.showContextBeforeSending}
-              reasoningDepth={aiDepthFor(aiSettings, 'inquiries')}
-              actions={['socratic_inquiry_challenge']}
-              buildEnvelope={buildAiEnvelope}
-              buttonLabel="Socratic Challenge"
-              promptLabel="What part of this inquiry should Noesis pressure?"
-              promptPlaceholder="For example: Test whether my current answer actually follows from the evidence."
-              onAccept={(result, content) => onSaveAiReview(question.id, result, content)}
-            />
-            {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="size-9 rounded-full" aria-label="Inquiry actions">
-                    <MoreHorizontal className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => setEditingQuestion(true)}>
-                    <Pencil className="mr-2 size-4" /> Edit inquiry
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setDeleteOpen(true)} className="text-destructive focus:text-destructive">
-                    <Trash2 className="mr-2 size-4" /> Delete inquiry
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </div>
         </div>
         {editingQuestion ? (
@@ -1012,63 +984,58 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
         )}
       </header>
 
-        <InquiryBalance
-          question={question}
-          disabled={saving}
-          onAddAnswer={async (statement) => {
-            await onUpdateQuestion({
-              ...question,
-              candidateAnswers: [...(question.candidateAnswers || []), { id: crypto.randomUUID(), statement, confidence: 3, support: '', objection: '', consequence: '' }],
-              status: question.status === 'open' ? 'comparing_answers' as Question['status'] : question.status,
-              dateUpdated: today(),
-            });
-          }}
-          onAssign={(evidenceId, candidateId) => {
-            void onUpdateQuestion({
-              ...question,
-              evidenceRecords: evidenceRecords.map((item) => item.id === evidenceId ? { ...item, candidateId } : item),
-              dateUpdated: today(),
-            });
-          }}
-        />
-
       {(() => {
         const weights = candidateAnswers.map((candidate) => answerWeight(evidenceRecords, candidate.id));
-        const leadIndex = weights.length ? weights.indexOf(Math.max(...weights)) : -1;
-        const lead = leadIndex >= 0 ? candidateAnswers[leadIndex] : null;
-        const claim = question.answer?.trim() || lead?.statement || '';
-        return (
-          <SuggestionChain suggestions={[
-            ...(beliefs.length ? [{
-              kind: 'position' as const,
-              title: chainTitle(beliefs[0].title, 90),
-              why: 'This inquiry already feeds a position. Carry the answer back to it.',
-              actionLabel: 'Open the position',
-              act: () => onOpenPosition(beliefs[0].id),
-            }] : [{
-              kind: 'position' as const,
-              title: claim ? chainTitle(claim, 90) : `A position answering: ${chainTitle(question.text, 70)}`,
-              why: claim ? (question.answer?.trim() ? 'Your provisional answer is ready to stand as a position.' : 'The evidence currently leans toward this answer.') : 'Write an answer first; Decide turns it into a position.',
-              actionLabel: 'Review in Decide',
-              act: () => openWorkflowStep('decide'),
-            }]),
-            {
-              kind: 'practice' as const,
-              title: `Test: ${chainTitle(claim || question.text, 70)}`,
-              why: 'Some questions only answer themselves in practice. Run a bounded experiment.',
-              act: () => onAddPractice({
-                title: `Test: ${(claim || question.text).slice(0, 60)}`,
-                description: `An experiment for the inquiry: "${question.text}"`,
-                type: 'experiment',
-                status: 'planned',
-                durationDays: 7,
-                questionIds: [question.id],
-                sourceIds: question.sourceIds || [],
-              } as Partial<Practice>).then(() => onAiFeedback('Experiment created', 'Open Praxis to finish its setup.')),
-            },
-          ]} />
-        );
+        const lead = weights.length >= 2 ? candidateAnswers[weights.indexOf(Math.max(...weights))] : null;
+        const next = candidateAnswers.length < 2
+          ? { text: candidateAnswers.length ? 'Add a second possible answer to start weighing' : 'Add two possible answers to weigh', step: 'scale' as const }
+          : evidenceRecords.some((item) => !item.candidateId) ? { text: 'Place your unassigned evidence on an answer', step: 'scale' as const }
+          : !question.answer?.trim() && lead ? { text: `Write a working answer: the scale leans toward “${lead.statement.slice(0, 60)}”`, step: 'answer' as const }
+          : beliefs.length ? { text: `Carry the answer back to “${beliefs[0].title.slice(0, 60)}”`, step: null }
+          : question.answer?.trim() ? { text: 'Decide whether this answer is ready to become a position', step: 'decide' as const } : null;
+        return next ? <div data-stage-tone="examine"><NextMove text={next.text} onClick={() => (next.step ? openWorkflowStep(next.step) : onOpenPosition(beliefs[0].id))} /></div> : null;
       })()}
+
+      <div data-stage-tone="examine">
+        <RecordTools
+          tools={[
+            { label: 'Add answer', onClick: () => { openWorkflowStep('scale'); window.requestAnimationFrame(() => document.getElementById(`add-answer-${question.id}`)?.focus()); } },
+            { label: 'Add evidence', onClick: () => { setWorkflowStep('investigate'); setSelectedTool('Add evidence'); } },
+            { label: 'Test in practice', onClick: () => { setWorkflowStep('investigate'); setSelectedTool('Test in practice'); } },
+            { label: 'Decide', onClick: () => openWorkflowStep('decide') },
+          ]}
+          trailing={<>
+            <ContextualAiPanel
+              enabled={aiSettings.aiAssistanceEnabled}
+              showContextBeforeSending={aiSettings.showContextBeforeSending}
+              reasoningDepth={aiDepthFor(aiSettings, 'inquiries')}
+              actions={['socratic_inquiry_challenge']}
+              buildEnvelope={buildAiEnvelope}
+              buttonLabel="Socratic Challenge"
+              promptLabel="What part of this inquiry should Noesis pressure?"
+              promptPlaceholder="For example: Test whether my current answer actually follows from the evidence."
+              onAccept={(result, content) => onSaveAiReview(question.id, result, content)}
+            />
+            {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="size-9 rounded-full" aria-label="Inquiry actions">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setEditingQuestion(true)}>
+                    <Pencil className="mr-2 size-4" /> Edit inquiry
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setDeleteOpen(true)} className="text-destructive focus:text-destructive">
+                    <Trash2 className="mr-2 size-4" /> Delete inquiry
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>}
+        />
+      </div>
 
       <div className="noesis-workbench space-y-5" data-stage-tone="examine">
         <WorkbenchFlow
@@ -1076,12 +1043,37 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           activeId={workflowStep}
           onSelect={(id) => openWorkflowStep(id as typeof workflowStep)}
           steps={[
+            { id: 'scale', label: 'Scale', description: 'Weigh your possible answers against the evidence you have placed on them.' },
             { id: 'frame', label: 'Frame', description: 'Name why the question matters, your current view, and uncertainty.', progress: [question.whyItMatters, question.currentIntuition, question.uncertainty].filter((value) => value?.trim()).length / 3 },
-            { id: 'investigate', label: 'Investigate', description: 'Clarify, add evidence, compare answers, or test in practice.', progress: Math.min(1, (evidenceRecords.length + Math.min(2, candidateAnswers.length)) / 5), meta: `${evidenceRecords.length} evidence · ${candidateAnswers.length} answers` },
-            { id: 'answer', label: 'Answer', description: 'Write the best provisional answer you can support now.', progress: question.answer?.trim() ? 1 : 0 },
+            { id: 'investigate', label: 'Evidence', description: 'Clarify, add evidence, compare answers, or test in practice.', progress: Math.min(1, (evidenceRecords.length + Math.min(2, candidateAnswers.length)) / 5), meta: `${evidenceRecords.length} evidence · ${candidateAnswers.length} answers` },
+            { id: 'answer', label: 'Working answer', description: 'Write the best provisional answer you can support now.', progress: question.answer?.trim() ? 1 : 0 },
             { id: 'decide', label: 'Decide', description: 'Resolve, suspend, transform, archive, or keep the inquiry open.', progress: ['resolved', 'archived', 'transformed'].includes(question.status) ? 1 : 0 },
           ]}
         />
+        {workflowStep === 'scale' && (
+            <InquiryBalance
+              question={question}
+              disabled={saving}
+            addAnswerId={`add-answer-${question.id}`}
+            workingAnswer={question.answer || ''}
+            onEditAnswer={() => openWorkflowStep('answer')}
+              onAddAnswer={async (statement) => {
+                await onUpdateQuestion({
+                  ...question,
+                  candidateAnswers: [...(question.candidateAnswers || []), { id: crypto.randomUUID(), statement, confidence: 3, support: '', objection: '', consequence: '' }],
+                  status: question.status === 'open' ? 'comparing_answers' as Question['status'] : question.status,
+                  dateUpdated: today(),
+                });
+              }}
+              onAssign={(evidenceId, candidateId) => {
+                void onUpdateQuestion({
+                  ...question,
+                  evidenceRecords: evidenceRecords.map((item) => item.id === evidenceId ? { ...item, candidateId } : item),
+                  dateUpdated: today(),
+                });
+              }}
+            />
+        )}
         {workflowStep === 'frame' && <WorkbenchPanel
           eyebrow="Frame"
           title="Your thinking"
