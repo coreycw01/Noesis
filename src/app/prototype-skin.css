@@ -441,3 +441,27 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
   .noesis-ai-inline, .noesis-ai-inline[data-side="left"] { position: fixed; z-index: 80; top: auto; left: 0; right: 0; bottom: 0; width: 100vw; height: 85dvh; border-radius: 18px 18px 0 0; }
 }
 .noesis-ai-inline[data-side="left"] { right: auto; left: 0; }
+/* Concepts split: the prototype's Relations box. */
+.noesis-relations { display: grid; gap: 8px; padding: 16px 18px; border-radius: 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
+.noesis-relations__zone { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; border: 1px dashed hsl(var(--stage) / .55); }
+.noesis-relations__zone[data-over] { background: hsl(var(--stage) / .14); border-style: solid; }
+.noesis-relations__title { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--stage)); }
+.noesis-relations__hint { font-size: .82rem; color: hsl(var(--muted-foreground)); }
+.noesis-relations__chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px; border: 1px solid hsl(var(--stage) / .6); font-size: .85rem; }
+.noesis-relations__chip button { padding: 0 6px; color: hsl(var(--muted-foreground)); }
+.noesis-relations__pick { padding: 6px 10px; border-radius: 8px; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); font-size: .85rem; }
+.noesis-tag-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; border: 1px solid hsl(var(--stage-outline) / .55); color: hsl(var(--stage-outline)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+.noesis-tag-chip::before { content: ""; width: 5px; height: 5px; border-radius: 999px; background: currentColor; }
+.noesis-answers { display: grid; gap: 10px; padding: 14px 18px; border-radius: 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
+.noesis-answers__row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 10px; border: 1px solid hsl(var(--border) / .8); background: hsl(var(--background) / .5); }
+.noesis-answers__letter { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 999px; background: hsl(var(--stage-encounter)); color: hsl(var(--background)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; font-weight: 700; }
+/* "Through <concept>" and record history, from the prototype's detail pages. */
+.noesis-through, .noesis-history { display: grid; gap: 10px; margin: 18px 0; padding: 16px 18px; border-radius: 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
+.noesis-through__grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.noesis-through__col { display: grid; align-content: start; gap: 6px; }
+.noesis-through__head { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--stage)); }
+.noesis-through__item { padding: 4px 0 4px 10px; text-align: left; border-left: 2px solid hsl(var(--stage) / .6); font-size: .9rem; line-height: 1.35; }
+.noesis-through__item:hover:not(:disabled) { color: hsl(var(--stage)); }
+.noesis-history ol { display: grid; gap: 6px; }
+.noesis-history li { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: baseline; padding-left: 10px; border-left: 2px solid hsl(var(--stage-claim) / .7); }
+.noesis-history__date { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }

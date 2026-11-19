@@ -4,6 +4,7 @@
 import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
+import { RecordHistory, ThroughConcept } from '@/components/shared/ThroughConcept';
 import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -1148,6 +1149,22 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           },
         ]} />
 
+        {(() => {
+          const concept = (selected.tags || [])[0] || '';
+          const key = concept.trim().toLowerCase();
+          const has = (tags?: string[]) => Boolean(key) && (tags || []).some((tag) => tag.trim().toLowerCase() === key);
+          return (
+            <ThroughConcept concept={concept} columns={[
+              { label: 'Sources', tone: 'encounter', items: media.filter((item) => has(item.tags)).map((item) => ({ id: item.id, label: item.title, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined })) },
+              { label: 'Annotations', tone: 'encounter', items: media.flatMap((item) => (item.annotations || []).filter((note) => has(note.conceptTags)).map((note) => ({ id: `${item.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined }))) },
+              { label: 'Inquiries', tone: 'examine', items: questions.filter((item) => (item.beliefIds || []).includes(selected.id) || has((item as typeof item & { conceptTags?: string[] }).conceptTags)).map((item) => ({ id: item.id, label: item.text, onOpen: onOpenQuestion ? () => onOpenQuestion(item.id) : undefined })) },
+              { label: 'Praxis', tone: 'act', items: practices.filter((item) => (item.positionIds || []).includes(selected.id) || has(item.conceptTags)).map((item) => ({ id: item.id, label: item.title, onOpen: onOpenPractice ? () => onOpenPractice(item.id) : undefined })) },
+              { label: 'Works', tone: 'more', items: drafts.filter((item) => (item.beliefIds || []).includes(selected.id) || has(item.conceptTags)).map((item) => ({ id: item.id, label: item.title || 'Untitled', onOpen: onOpenWork ? () => onOpenWork(item.id) : undefined })) },
+            ]} />
+          );
+        })()}
+        <RecordHistory entries={(selected.versionHistory || []).map((version) => ({ date: version.date, text: version.description || version.eventType || '' }))} />
+
         <section className="noesis-workbench" data-stage-tone="claim" aria-label="Position workbench">
           <header className="noesis-workbench-head">
             <span className="noesis-workbench-head__eyebrow">Workbench</span>
@@ -1754,22 +1771,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             >
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex-1 min-w-0">
-                <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                  <span className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                    {TYPE_LABELS[entry.type] || 'Position'}
-                  </span>
-                  <StageBadge type="position" stage={entry.stage} status={entry.status} />
-                  {(entry.tags || []).slice(0, 2).map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setConceptPopupName(tag)}
-                      className="rounded-full border border-border/50 bg-muted/20 px-2 py-0.5 font-code text-[8px] font-bold uppercase tracking-wider text-muted-foreground hover:border-accent/40 hover:text-accent"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                  {(entry.tags || []).length > 2 && <span className="font-code text-[8px] text-muted-foreground">+{(entry.tags || []).length - 2}</span>}
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                  {/* As in the prototype: one type tag, and the challenge count when there is one. */}
+                  <Badge variant="outline" className="rounded-full">{TYPE_LABELS[entry.type] || 'Position'}</Badge>
+                  {diagnostic.challengeCount > 0 && <span className="ml-auto font-code text-[9px] uppercase tracking-[0.14em] text-[hsl(var(--stage-claim))]">{diagnostic.challengeCount} open challenge{diagnostic.challengeCount === 1 ? '' : 's'}</span>}
                 </div>
                 <h2 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors whitespace-normal break-words text-primary">
                   <button type="button" className="text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openEntry(entry.id)}>{entry.title}</button>
@@ -1783,9 +1788,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             </p>
 
             <PositionMiniScale confidence={confidencePercent(entry.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} />
-            {!!diagnostic.flags.length && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {diagnostic.flags.slice(0, 3).map((flag) => <Badge key={flag} className="normal-case">{flag}</Badge>)}
+            {(entry.tags || []).length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <button type="button" onClick={() => setConceptPopupName((entry.tags || [])[0])} className="noesis-tag-chip">{(entry.tags || [])[0]}</button>
+                {diagnostic.flags[0] && <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground" title={diagnostic.flags.join(', ')}>{diagnostic.flags[0]}{diagnostic.flags.length > 1 ? ` +${diagnostic.flags.length - 1}` : ''}</span>}
               </div>
             )}
           </Card>

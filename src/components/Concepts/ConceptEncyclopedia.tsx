@@ -30,6 +30,7 @@ import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
 import type { ClarityLevel } from '@/lib/clarity';
 import { ConceptDiagnosisBars } from '@/components/Concepts/ConceptDiagnosisBars';
 import { ConceptCaliper } from '@/components/Concepts/ConceptCaliper';
+import { ThroughConcept } from '@/components/shared/ThroughConcept';
 import { useToast } from '@/hooks/use-toast';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -859,6 +860,14 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </div>
           )}
 
+          <ThroughConcept concept={selectedName} columns={[
+            { label: 'Sources', tone: 'encounter', items: r.sources.map((source) => ({ id: source.id, label: source.title, onOpen: () => previewSource(source) })) },
+            { label: 'Annotations', tone: 'encounter', items: r.annotations.map((note) => ({ id: `${note.source.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: () => previewSource(note.source) })) },
+            { label: 'Inquiries', tone: 'examine', items: r.questions.map((question) => ({ id: question.id, label: question.text, onOpen: () => previewInquiry(question) })) },
+            { label: 'Positions', tone: 'claim', items: r.beliefs.map((entry) => ({ id: entry.id, label: entry.title, onOpen: () => previewPosition(entry) })) },
+            { label: 'Works', tone: 'more', items: r.drafts.map((draft) => ({ id: draft.id, label: draft.title || 'Untitled', onOpen: () => previewWork(draft) })) },
+          ]} />
+
           <div className="noesis-workbench" data-stage-tone="outline">
           <header className="noesis-workbench-head">
             <span className="noesis-workbench-head__eyebrow">Workbench</span>
@@ -1557,7 +1566,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             <ul className="noesis-concept-split__list" aria-label="Concepts">
               {conceptRows.map((row) => (
                 <li key={row.name}>
-                  <button type="button" aria-current={row.name === current.name || undefined} onClick={() => setPreviewName(row.name)} onDoubleClick={() => openConceptDetail(row.name, row.concept)}>
+                  <button type="button" draggable onDragStart={(event) => { event.dataTransfer.setData('text/x-noesis-concept', row.name); event.dataTransfer.effectAllowed = 'copy'; }} aria-current={row.name === current.name || undefined} onClick={() => setPreviewName(row.name)} onDoubleClick={() => openConceptDetail(row.name, row.concept)}>
                     <b>{row.name}</b>
                     <span className="noesis-concept-split__meta"><i data-maturity={row.maturity.label} />{maturityName(row.maturity.label)}{row.concept?.description?.trim() ? '' : ' · no definition'}</span>
                   </button>
@@ -1579,8 +1588,44 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               </article>
               <div className="noesis-instrument-pair">
                 <ConceptDiagnosisBars diagnosis={current.diagnosis} />
-                {current.concept && <ConceptCaliper concept={current.concept} />}
+                {current.concept && (() => {
+                  const target = current.concept;
+                  const zones: Array<{ field: 'aliases' | 'opposedTo' | 'notSameAs'; title: string; hint: string; tone: string }> = [
+                    { field: 'aliases', title: 'Same as', hint: 'Synonyms and close neighbours', tone: 'act' },
+                    { field: 'opposedTo', title: 'Opposed to', hint: 'Opposites and rivals', tone: 'claim' },
+                    { field: 'notSameAs', title: 'Not the same as', hint: 'Easily confused, but different', tone: 'outline' },
+                  ];
+                  const save = (field: 'aliases' | 'opposedTo' | 'notSameAs', values: string[]) => void onUpdateConcept({ ...target, [field]: Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))), dateUpdated: new Date().toISOString() });
+                  return (
+                    <section className="noesis-relations" aria-label="Relations">
+                      <div className="noesis-instrument__label">Relations · drag concepts from the list</div>
+                      {zones.map((zone) => (
+                        <div key={zone.field} data-stage-tone={zone.tone} className="noesis-relations__zone"
+                          onDragOver={(event) => { if (event.dataTransfer.types.includes('text/x-noesis-concept')) { event.preventDefault(); event.currentTarget.dataset.over = '1'; } }}
+                          onDragLeave={(event) => { delete event.currentTarget.dataset.over; }}
+                          onDrop={(event) => { event.preventDefault(); delete event.currentTarget.dataset.over; const name = event.dataTransfer.getData('text/x-noesis-concept'); if (name && name !== current.name) save(zone.field, [...(target[zone.field] || []), name]); }}>
+                          <span className="noesis-relations__title">{zone.title}</span>
+                          <span className="noesis-relations__hint">{zone.hint}</span>
+                          <span className="flex flex-wrap gap-1.5">
+                            {(target[zone.field] || []).map((value) => (
+                              <span key={value} className="noesis-relations__chip">{value}<button type="button" aria-label={`Remove ${value} from ${zone.title}`} onClick={() => save(zone.field, (target[zone.field] || []).filter((item) => item !== value))}>×</button></span>
+                            ))}
+                          </span>
+                        </div>
+                      ))}
+                      <select aria-label="Add a relation without dragging" className="noesis-relations__pick" value="" onChange={(event) => { const [field, name] = event.target.value.split('::'); if (field && name) save(field as 'aliases' | 'opposedTo' | 'notSameAs', [...(target[field as 'aliases'] || []), name]); }}>
+                        <option value="">Or add without dragging…</option>
+                        {conceptRows.filter((row) => row.name !== current.name).map((row) => (
+                          <optgroup key={row.name} label={row.name}>
+                            {zones.map((zone) => <option key={zone.field} value={`${zone.field}::${row.name}`}>{row.name} · {zone.title.toLowerCase()}</option>)}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </section>
+                  );
+                })()}
               </div>
+              {current.concept && <ConceptCaliper concept={current.concept} />}
             </div>
           </div>
         );

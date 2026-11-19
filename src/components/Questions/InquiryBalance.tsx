@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from 'react';
 import type { InquiryEvidence, Question } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -43,14 +44,50 @@ function Pan({ x, y, label, statement, weight, evidence, candidateId, maxLabel =
  * beam that tips toward the heavier side; with more, each answer hangs on its
  * own spring. Every piece of evidence can be placed on an answer from the list.
  */
-export function InquiryBalance({ question, onAssign, disabled }: { question: Question; onAssign: (evidenceId: string, candidateId: string) => void; disabled?: boolean }) {
+/** The prototype's "Possible answers" list: each answer with its net weight, and a way to add one in place. */
+function PossibleAnswers({ question, onAddAnswer, disabled }: { question: Question; onAddAnswer?: (statement: string) => unknown; disabled?: boolean }) {
+  const [draft, setDraft] = useState('');
+  const candidates = question.candidateAnswers || [];
+  const evidence = question.evidenceRecords || [];
+  return (
+    <section className="noesis-answers" aria-label="Possible answers">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="noesis-instrument__label">Possible answers · {candidates.length}</div>
+        <span className="text-xs text-muted-foreground">Answers worth comparing, not a final conclusion.</span>
+      </div>
+      <ol className="grid gap-1.5">
+        {candidates.map((candidate, index) => {
+          const net = answerWeight(evidence, candidate.id);
+          return (
+            <li key={candidate.id} className="noesis-answers__row">
+              <span className="noesis-answers__letter">{letter(index)}</span>
+              <span className="min-w-0 flex-1">{candidate.statement}</span>
+              <span className="font-code text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Net {net > 0 ? '+' : ''}{net}</span>
+            </li>
+          );
+        })}
+      </ol>
+      {onAddAnswer && (
+        <form className="flex gap-2" onSubmit={async (event) => { event.preventDefault(); if (!draft.trim()) return; await onAddAnswer(draft.trim()); setDraft(''); }}>
+          <input value={draft} disabled={disabled} onChange={(event) => setDraft(event.target.value)} placeholder={candidates.length < 2 ? `Add ${candidates.length ? 'a second' : 'a'} possible answer to start the balance` : 'Add another possible answer'} aria-label="Add a possible answer" className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm" />
+          <button type="submit" disabled={disabled || !draft.trim()} className="rounded-full border border-[hsl(var(--stage-examine))] px-4 text-sm text-[hsl(var(--stage-examine))] disabled:opacity-50">Add</button>
+        </form>
+      )}
+    </section>
+  );
+}
+
+export function InquiryBalance({ question, onAssign, onAddAnswer, disabled }: { question: Question; onAssign: (evidenceId: string, candidateId: string) => void; onAddAnswer?: (statement: string) => unknown; disabled?: boolean }) {
   const candidates = question.candidateAnswers || [];
   const evidence = question.evidenceRecords || [];
   if (candidates.length < 2) {
     return (
-      <div className="noesis-balance noesis-balance--empty">
-        <div className="noesis-instrument__label">Evidence balance</div>
-        <p className="text-sm text-muted-foreground">Add {candidates.length ? 'a second possible answer' : 'two possible answers'} to weigh the evidence between them. {evidence.length} piece{evidence.length === 1 ? '' : 's'} of evidence recorded so far.</p>
+      <div className="grid gap-3">
+        <PossibleAnswers question={question} onAddAnswer={onAddAnswer} disabled={disabled} />
+        <div className="noesis-balance noesis-balance--empty">
+          <div className="noesis-instrument__label">Evidence balance</div>
+          <p className="text-sm text-muted-foreground">With two possible answers, the scale tips toward whichever the evidence supports. {evidence.length} piece{evidence.length === 1 ? '' : 's'} of evidence recorded so far.</p>
+        </div>
       </div>
     );
   }
@@ -89,6 +126,8 @@ export function InquiryBalance({ question, onAssign, disabled }: { question: Que
   const leader = weights.indexOf(Math.max(...weights));
   const lead = weights[leader] - Math.max(...weights.filter((_, index) => index !== leader));
   return (
+    <div className="grid gap-3">
+    <PossibleAnswers question={question} onAddAnswer={onAddAnswer} disabled={disabled} />
     <section className="noesis-balance" aria-label="Evidence balance">
       <div className="noesis-instrument__label">Evidence balance</div>
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
@@ -119,5 +158,6 @@ export function InquiryBalance({ question, onAssign, disabled }: { question: Que
         </div>
       </div>
     </section>
+    </div>
   );
 }

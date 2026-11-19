@@ -1015,6 +1015,14 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
         <InquiryBalance
           question={question}
           disabled={saving}
+          onAddAnswer={async (statement) => {
+            await onUpdateQuestion({
+              ...question,
+              candidateAnswers: [...(question.candidateAnswers || []), { id: crypto.randomUUID(), statement, confidence: 3, support: '', objection: '', consequence: '' }],
+              status: question.status === 'open' ? 'comparing_answers' as Question['status'] : question.status,
+              dateUpdated: today(),
+            });
+          }}
           onAssign={(evidenceId, candidateId) => {
             void onUpdateQuestion({
               ...question,

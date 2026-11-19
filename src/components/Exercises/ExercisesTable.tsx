@@ -86,7 +86,7 @@ export function ExercisesTable({ concepts, inquiries, positions, media, links, o
 
   if (open) {
     return (
-      <div className="noesis-gutter mx-auto w-full max-w-[var(--page-measure)] pb-28">
+      <div className="noesis-page noesis-exercises-page" data-noesis-identity="card-table">
         {header}
         <div className="mb-4 flex items-center justify-between gap-3">
           <Button type="button" variant="ghost" size="sm" onClick={() => { setOpenId(null); setRound(null); }}><ArrowLeft className="mr-1 size-4" aria-hidden="true" />All exercises</Button>
@@ -108,7 +108,7 @@ export function ExercisesTable({ concepts, inquiries, positions, media, links, o
   }
 
   return (
-    <div className="noesis-gutter mx-auto w-full max-w-[var(--page-measure)] pb-28">
+    <div className="noesis-page noesis-exercises-page" data-noesis-identity="card-table">
       {header}
       {(['records', 'general'] as ThoughtGameFamily[]).map((family) => {
         const deck = games.filter((game) => thoughtGameFamily(game.kind) === family);
