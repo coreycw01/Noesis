@@ -42,7 +42,7 @@ export async function uploadPrivateAsset({
   durationSeconds,
 }: {
   uid: string;
-  area: 'works' | 'atlasMaps';
+  area: 'works' | 'atlasMaps' | 'sourcePhotos';
   entityId: string;
   blob: Blob;
   originalName?: string;
@@ -69,9 +69,13 @@ export async function uploadPrivateAsset({
   };
 }
 
-export async function privateAssetObjectUrl(storagePath: string) {
+export async function privateAssetBlob(storagePath: string) {
   const storage = getStorage(initializeFirebase().firebaseApp);
-  const blob = await getBlob(ref(storage, storagePath));
+  return getBlob(ref(storage, storagePath));
+}
+
+export async function privateAssetObjectUrl(storagePath: string) {
+  const blob = await privateAssetBlob(storagePath);
   return URL.createObjectURL(blob);
 }
 

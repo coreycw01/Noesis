@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
+import { MAX_DESK_ITEMS } from '@/lib/saved-context-desks';
 import { addContextDeskSelection, contextDeskStorageKeys, normalizeContextDeskSelection } from '@/lib/context-desk-selection';
 import { navigateWorkspace } from '@/lib/workspace-navigation';
 import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
@@ -129,6 +130,7 @@ export function ContextualAiPanel({
   const promptId = useId();
   const requestRef = useRef<{ controller: AbortController; signature: string } | null>(null);
   const dialogOpener = useRef<HTMLButtonElement | null>(null);
+  const inlinePanel = useRef<HTMLDivElement | null>(null);
   const focusedEditor = useRef<HTMLTextAreaElement>(null);
   const focusedReviewHeading = useRef<HTMLHeadingElement>(null);
   const focusReviewHeading = useRef(false);
@@ -140,6 +142,17 @@ export function ContextualAiPanel({
     pending?.controller.abort();
   }, []);
   const [open, setOpen] = useState(false);
+  // Move focus into the panel when it opens, so keyboard users land in it.
+  useEffect(() => {
+    if (!open) return;
+    window.requestAnimationFrame(() => {
+      const panel = inlinePanel.current; if (!panel) return;
+      // Open toward whichever side has room, so the panel never runs off-screen.
+      const anchor = panel.parentElement?.getBoundingClientRect();
+      if (anchor) panel.dataset.side = anchor.right < Math.min(980, window.innerWidth - 32) ? 'left' : 'right';
+      panel.focus({ preventScroll: true });
+    });
+  }, [open]);
   const [action, setAction] = useState<ContextualAiAction>(actions[0]!);
   const [loading, setLoading] = useState(false);
   const [requestError, setRequestError] = useState('');
@@ -377,10 +390,29 @@ export function ContextualAiPanel({
     );
   };
 
+
+  const changeOpen = (next: boolean) => {
+    if (acceptLock.current) return;
+    setOpen(next);
+    if (!next) {
+      cancelRequest();
+      setRequestError('');
+      setResult(null);
+      setEditedContent('');
+      setEditingResult(false);
+      setReviewItems([]);
+      setFocusedItemId(null);
+      setReviewMode('overview');
+      const opener = dialogOpener.current;
+      dialogOpener.current = null;
+      if (opener?.isConnected && !opener.closest('[inert]')) window.requestAnimationFrame(() => opener.focus({ preventScroll: true }));
+    }
+  };
+
   return (
-    <>
-      <span className="inline-flex items-center gap-1.5">
-        <Button variant="outline" size="sm" className="rounded-full" aria-haspopup="dialog" aria-expanded={open} onClick={(event) => { dialogOpener.current = event.currentTarget; setOpen(true); }}>
+    <span className="noesis-aidock-anchor" data-open={open || undefined}>
+      <span className="noesis-aidock">
+        <Button variant="outline" size="sm" className="noesis-ai-trigger rounded-full" aria-haspopup="dialog" aria-expanded={open} onClick={(event) => { dialogOpener.current = event.currentTarget; setOpen(true); }}>
           <NoesisAiMark className="mr-2 size-5" /> {buttonLabel}
         </Button>
         {contextDeskKey && workspaceKey && (
@@ -396,8 +428,8 @@ export function ContextualAiPanel({
                 const { selection } = contextDeskStorageKeys(workspaceKey);
                 const stored = window.sessionStorage.getItem(selection);
                 let keys: string[] = [];
-                try { keys = normalizeContextDeskSelection(JSON.parse(stored || '[]')); } catch { /* Replace malformed selection. */ }
-                const next = addContextDeskSelection(keys, contextDeskKey);
+                try { keys = normalizeContextDeskSelection(JSON.parse(stored || '[]'), MAX_DESK_ITEMS); } catch { /* Replace malformed selection. */ }
+                const next = addContextDeskSelection(keys, contextDeskKey, MAX_DESK_ITEMS);
                 if (next) window.sessionStorage.setItem(selection, JSON.stringify(next));
                 else toast({ title: 'Context Desk is full', description: 'Remove a selected record before adding this one.' });
               } catch {
@@ -413,26 +445,17 @@ export function ContextualAiPanel({
           </Button>
         )}
       </span>
-      <Dialog open={open} onOpenChange={(next) => {
-        if (acceptLock.current) return;
-        setOpen(next);
-        if (!next) {
-          cancelRequest();
-          setRequestError('');
-          setResult(null);
-          setEditedContent('');
-          setEditingResult(false);
-          setReviewItems([]);
-          setFocusedItemId(null);
-          setReviewMode('overview');
-        }
-      }}>
-        <DialogContent onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          const opener = dialogOpener.current;
-          dialogOpener.current = null;
-          if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
-        }} className="h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border-0 p-0 sm:h-[94dvh] sm:w-[calc(100vw-2rem)] sm:max-w-6xl sm:rounded-lg sm:border">
+      <Dialog open={open} onOpenChange={changeOpen}>
+        {/* Opens in place, anchored under its button, as in the prototype; a bottom sheet on phones. */}
+        {open && <DialogContent
+          inline
+          ref={inlinePanel}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="false"
+          onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); changeOpen(false); } }}
+          className="noesis-ai-inline noesis-ai-dialog overflow-hidden p-0"
+        >
           <div className="flex h-full min-h-0 flex-col bg-background">
             <DialogHeader className="shrink-0 border-b border-border px-4 py-4 pr-12 text-left sm:px-6">
               <div className="flex min-w-0 items-center gap-3">
@@ -448,6 +471,9 @@ export function ContextualAiPanel({
                     {result ? CONTEXTUAL_AI_REVIEW[result.action].guidance : 'Choose a focused action. You can inspect the context before sending it.'}
                   </DialogDescription>
                 </div>
+                <Button type="button" variant="ghost" size="icon" className="ml-auto size-10 shrink-0" aria-label="Close Noesis assistance" onClick={() => changeOpen(false)}>
+                  <X className="size-4" aria-hidden="true" />
+                </Button>
               </div>
             </DialogHeader>
 
@@ -668,8 +694,8 @@ export function ContextualAiPanel({
               </div>
             )}
           </div>
-        </DialogContent>
+        </DialogContent>}
       </Dialog>
-    </>
+    </span>
   );
 }

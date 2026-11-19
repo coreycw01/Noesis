@@ -1,10 +1,10 @@
 
 "use client";
 
-import { workspaceScrollBehavior } from '@/lib/appearance';
+import { aiDepthFor } from '@/lib/ai-depth';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowLeft, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Plus, Quote, Trash2 } from 'lucide-react';
+import { Archive, ArrowLeft, ArrowRight, BookOpen, CheckCircle2, CircleHelp, Flag, Footprints, Lightbulb, MinusCircle, PlusCircle, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Plus, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,12 +20,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { ToolOption, ToolOptions } from '@/components/shared/WorkbenchPanel';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
-import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
+import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
@@ -55,6 +53,7 @@ interface AnnotationsIndexProps {
   onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<Question>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
+  onAddPractice?: (data: Partial<Practice>) => unknown;
   onNavigate?: (view: string, targetId?: string) => void;
   aiSettings?: AiSettings;
   focusedAnnotationSourceId?: string | null;
@@ -66,7 +65,7 @@ interface AnnotationsIndexProps {
 type FlatAnnotation = Annotation & { source: Media };
 type AnnotationFilter = AnnotationType | AnnotationPhilosophyStatus | 'all' | 'has_relationships' | 'unanswered';
 type PreflightMode = 'position' | 'inquiry';
-type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'reference';
+type ConsequenceAction = 'clarifies' | 'raises_question' | 'supports_claim' | 'challenges_claim' | 'reference' | 'practice' | 'form_position';
 type AnnotationSort = 'newest' | 'oldest' | 'source' | 'type' | 'status';
 
 const ANNOTATION_TYPES: Array<{ id: AnnotationType; label: string }> = [
@@ -133,6 +132,7 @@ export function AnnotationsIndex({
   onCreateInquiry,
   onAddConcept,
   onCreateLink,
+  onAddPractice,
   onNavigate,
   aiSettings,
   focusedAnnotationSourceId,
@@ -159,8 +159,12 @@ export function AnnotationsIndex({
     id: 'legacy-effect-review', action: 'suggest_annotation_effect', title: 'Effect review',
     content: editing.aiEffectReview || '', date: editing.date,
   } : undefined);
-  const [annotationWorkflowStep, setAnnotationWorkflowStep] = useState<'understand' | 'apply' | 'connect' | 'trace'>('understand');
-  const [editingMetadata, setEditingMetadata] = useState(false);
+  const [editDraft, setEditDraft] = useState<FlatAnnotation | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const editSaveLock = useRef(false);
+  const annotationMenuTrigger = useRef<HTMLButtonElement>(null);
+  const [practiceAction, setPracticeAction] = useState('');
+  const creatingPractice = useRef(false);
   const [detailEffect, setDetailEffect] = useState<ConsequenceAction>('reference');
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -381,9 +385,9 @@ export function AnnotationsIndex({
     });
   };
 
-  const saveEditing = async () => {
-    if (!editing || !editing.text.trim()) return;
-    const { source, ...annotation } = editing;
+  const saveEditing = async (candidate: FlatAnnotation) => {
+    if (!candidate.text.trim() || editSaveLock.current) return false;
+    const { source, ...annotation } = candidate;
     const next = {
       ...annotation,
       text: annotation.text.trim(),
@@ -391,13 +395,14 @@ export function AnnotationsIndex({
       philosophyStatus: annotation.philosophyStatus || 'reviewed',
       date: annotation.date || today(),
     };
-    if (!await persistAnnotation(source.id, next)) return;
-    if (isFullPageDetail) {
-      setEditing({ ...next, source });
-      toast({ title: 'Annotation saved.' });
-    } else {
-      setEditing(null);
-    }
+    editSaveLock.current = true;
+    setSavingEdit(true);
+    try {
+      if (!await persistAnnotation(source.id, next)) return false;
+      setEditing(current => current?.id === next.id && current.source.id === source.id ? { ...next, source } : current);
+      toast({ title: 'Annotation saved' });
+      return true;
+    } finally { editSaveLock.current = false; setSavingEdit(false); }
   };
 
   const openPreflight = (annotation: FlatAnnotation, mode: PreflightMode) => {
@@ -544,6 +549,13 @@ export function AnnotationsIndex({
 
   const runConsequenceAction = (annotation: FlatAnnotation, action: ConsequenceAction) => {
     const { source, ...annotationData } = annotation;
+    if (action === 'form_position') { openPreflight(annotation, 'position'); return; }
+    if (action === 'practice' && onAddPractice) {
+      if (creatingPractice.current || !practiceAction.trim()) return;
+      creatingPractice.current = true;
+      void Promise.resolve().then(() => onAddPractice({ title: practiceAction.trim(), action: practiceAction.trim(), description: `From ${annotation.source.title}: “${annotation.text}”`, type: 'habit', status: 'planned', sourceIds: [annotation.source.id], conceptTags: annotation.conceptTags || [] })).then(() => toast({ title: 'Practice created' })).catch(() => toast({ title: 'Practice could not be saved', variant: 'destructive' })).finally(() => { creatingPractice.current = false; });
+      return;
+    }
     if (action === 'clarifies') {
       void persistAnnotation(source.id, { ...annotationData, philosophyStatus: 'connected' });
       toast({ title: 'Annotation applied as conceptual clarification.', description: 'It remains discoverable through its source and concept tags.' });
@@ -599,9 +611,9 @@ export function AnnotationsIndex({
       onOpenAnnotation(annotation.source.id, annotation.id);
       return;
     }
-    setAnnotationWorkflowStep('understand');
+    setPracticeAction('');
     setDetailEffect(selectedEffectForAnnotation(annotation));
-    setEditingMetadata(false);
+    setEditDraft(null);
     setEditing(annotation);
   };
 
@@ -611,9 +623,9 @@ export function AnnotationsIndex({
       setEditing(null);
       return;
     }
-    setAnnotationWorkflowStep('understand');
+    setPracticeAction('');
     setDetailEffect(selectedEffectForAnnotation(focusedAnnotation));
-    setEditingMetadata(false);
+    setEditDraft(null);
     setEditing(focusedAnnotation);
   }, [focusedAnnotation, isFullPageDetail]);
 
@@ -626,7 +638,9 @@ export function AnnotationsIndex({
     if (action === 'raises_question') return linkedInquiriesFor(annotation).length ? 'Open inquiry' : 'Start inquiry';
     if (action === 'supports_claim') return positions.length ? 'Choose a position' : 'Create position draft';
     if (action === 'challenges_claim') return positions.length ? 'Choose a position' : 'Create position draft';
-    if (action === 'clarifies') return 'Select concept';
+    if (action === 'form_position') return 'Draft position';
+    if (action === 'practice') return 'Create planned practice';
+    if (action === 'clarifies') return 'Apply concept';
     return 'Finish';
   };
 
@@ -900,6 +914,30 @@ export function AnnotationsIndex({
           </section>
         );
       })()}
+      {(() => {
+        const unsorted = annotations.filter((annotation) => !annotation.consequenceKind && !annotation.createdInquiryId && !annotation.createdPositionId && !(annotation.linkedPositionIds || []).length && !linkedInquiriesFor(annotation).length && annotationStatus(annotation) !== 'archived' && annotationStatus(annotation) !== 'reference_only');
+        if (!unsorted.length) return null;
+        const kinds: Array<[NonNullable<Annotation['consequenceKind']>, string, string]> = [['evidence', 'Evidence', 'act'], ['objection', 'Objection', 'claim'], ['question', 'Question', 'examine'], ['definition', 'Definition', 'outline'], ['claim', 'Claim', 'integrate']];
+        return (
+          <details className="noesis-tray mb-6">
+            <summary className="cursor-pointer py-2 text-sm font-medium">Sorting tray · {unsorted.length} to mark</summary>
+            {unsorted.slice(0, 4).map((annotation) => (
+              <div key={`${annotation.source.id}:${annotation.id}`} className="noesis-tray__row">
+                <p className="noesis-tray__text">{annotation.text}</p>
+                <p className="noesis-tray__src">{annotation.source.title}{annotation.date && Number.isFinite(Date.parse(annotation.date)) ? ` · ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(annotation.date))}` : ''}</p>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label={`What does “${annotation.text.slice(0, 40)}” do?`}>
+                  {kinds.map(([kind, label, tone]) => (
+                    <button key={kind} type="button" data-stage-tone={tone} className="noesis-tray__chip" onClick={() => {
+                      const { source, ...annotationData } = annotation;
+                      void persistAnnotation(source.id, { ...annotationData, consequenceKind: kind });
+                    }}>{label}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </details>
+        );
+      })()}
       <section className="mb-8 hidden rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:block">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3 text-left">
@@ -1026,7 +1064,7 @@ export function AnnotationsIndex({
             ...(annotationType(annotation) === 'definition' && annotationTags(annotation).length ? [`Clarifies ${annotationTags(annotation)[0]}`] : []),
           ];
           return (
-          <Card key={`${annotation.source.id}:${annotation.id}`} role="group" aria-label={`Annotation: ${annotation.text.slice(0, 80)}`} tabIndex={0} onClick={(event) => {
+          <Card key={`${annotation.source.id}:${annotation.id}`} data-note-type={annotation.type} role="group" aria-label={`Annotation: ${annotation.text.slice(0, 80)}`} tabIndex={0} onClick={(event) => {
             if (!isEntitySurfaceClick(event)) return;
             openAnnotationDetail(annotation);
           }} onKeyDown={(event) => {
@@ -1258,41 +1296,21 @@ export function AnnotationsIndex({
           )}
           {editing && (
             <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pt-2 max-sm:pr-1">
-              <WorkbenchFlow
-                label="Annotation workbench workflow"
-                activeId={annotationWorkflowStep}
-                onSelect={(id) => {
-                  const step = id as typeof annotationWorkflowStep;
-                  setAnnotationWorkflowStep(step);
-                  window.requestAnimationFrame(() => {
-                    const target = document.getElementById(`annotation-${step}`);
-                    if (target instanceof HTMLDetailsElement) target.open = true;
-                    target?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'nearest' });
-                  });
-                }}
-                steps={[
-                  { id: 'understand', label: 'Understand', description: 'Keep the original annotation in view while you explain what it means in your thinking.' },
-                  { id: 'apply', label: 'Apply', description: 'Decide whether it supports, challenges, clarifies, or raises a question.' },
-                  { id: 'connect', label: 'Connect', description: 'Attach the concepts and objects it actually affects.' },
-                  { id: 'trace', label: 'Trace', description: 'Review where it came from and how it has been used.' },
-                ]}
-              />
-
-              <section id="annotation-understand" className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'understand' && 'hidden')}>
+              <section aria-label="Annotation passage" className="border-y border-border py-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{annotationLabel(annotationType(editing))}</Badge>
                     <Badge variant="secondary" className="rounded-full bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">{annotationLabel(annotationStatus(editing))}</Badge>
                   </div>
                   <div className="flex items-center gap-1">
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-10 rounded-full" aria-label="Annotation actions">
+                        <Button ref={annotationMenuTrigger} variant="ghost" size="icon" className="size-10 rounded-full" aria-label="Annotation actions">
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => setEditingMetadata(true)}>Edit annotation</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setEditDraft({ ...editing })}><Pencil className="mr-2 size-4" /> Edit annotation</DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => previewSource(editing.source, editing)}><ExternalLink className="mr-2 size-4" /> Open source</DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
@@ -1319,97 +1337,20 @@ export function AnnotationsIndex({
                   <span>·</span>
                   <span>{editing.date && !Number.isNaN(Date.parse(editing.date)) ? new Date(editing.date).toLocaleDateString() : 'Date unknown'}</span>
                 </div>
-                <details open={editingMetadata} onToggle={(event) => setEditingMetadata((event.currentTarget as HTMLDetailsElement).open)} className="mt-4 rounded-xl border border-border/50 bg-background/60 p-3">
-                  <summary className="cursor-pointer list-none font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Edit annotation text and metadata
-                  </summary>
-                  <div className="mt-3 space-y-3">
-                    <Textarea aria-label="Annotation text" value={editing.text} onChange={(event) => setEditing((prev) => prev ? { ...prev, text: event.target.value } : prev)} className="min-h-[120px]" />
-                    <div>
-                      <Select value={annotationType(editing)} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, type: value as AnnotationType } : prev)}>
-                        <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {ANNOTATION_TYPES.map((type) => (
-                            <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </details>
               </section>
 
-              <section className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'understand' && 'hidden')}>
-                <details open={Boolean(editing.consequenceNote || editing.context)}>
-                  <summary className="cursor-pointer list-none">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="noesis-workbench-panel__eyebrow">Your note</div>
-                        <p className="noesis-workbench-panel__description">{editing.consequenceNote || editing.context ? 'Your interpretation and context.' : 'What does this mean to you?'}</p>
-                      </div>
-                      <Badge variant="outline" className="rounded-full text-[9px]">Edit</Badge>
-                    </div>
-                  </summary>
-                  <div className="mt-3 space-y-3">
-                    <Textarea
-                      value={editing.consequenceNote || ''}
-                      onChange={(event) => setEditing((prev) => prev ? { ...prev, consequenceNote: event.target.value } : prev)}
-                      placeholder="Your note, interpretation, limitation, or reminder."
-                      className="min-h-[90px]"
-                    />
-                    <Textarea
-                      value={editing.context || ''}
-                      onChange={(event) => setEditing((prev) => prev ? { ...prev, context: event.target.value } : prev)}
-                      placeholder="Optional surrounding source context."
-                      className="min-h-[80px]"
-                    />
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Checkbox
-                        checked={Boolean(editing.mattersBeyondSource)}
-                        onCheckedChange={(checked) => setEditing((prev) => prev ? { ...prev, mattersBeyondSource: Boolean(checked) } : prev)}
-                      />
-                      This is my interpretation, not the author&apos;s claim.
-                    </label>
-                  </div>
-                </details>
-              </section>
-
-              {annotationWorkflowStep === 'apply' && savedReviews.length > 0 && (
-                <AiAssistedHistory
-                  title="Saved effect reviews"
-                  description="Reviewed assistance for this annotation. Editing or deleting a note does not change its links or status."
-                  entries={savedReviews.map((entry) => ({
-                    ...entry,
-                    originDetails: entry.id.startsWith('ai-review-') ? {
-                      provenance: { provenanceId: entry.id, kind: 'ai-assisted' },
-                      target: annotationEffectTarget(editing.id, entry.id),
-                    } : undefined,
-                  }))}
-                  onChange={async (aiReviewHistory) => {
-                    const saved = annotations.find((item) => item.id === editing.id && item.source.id === editing.source.id);
-                    if (!saved) throw new Error('This annotation is no longer available.');
-                    const { source, ...annotation } = saved;
-                    if (!await persistAnnotation(source.id, { ...annotation, aiReviewHistory })) throw new Error('Review history was not saved.');
-                    setEditing((current) => current ? { ...current, aiReviewHistory } : current);
-                  }}
-                />
-              )}
-
-              <section id="annotation-apply" className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'apply' && 'hidden')}>
+              <section id="annotation-apply" className="py-3" aria-labelledby="annotation-apply-title">
                 <div className="noesis-workbench-panel__header mb-4">
                   <div className="min-w-0 flex-1">
                     <div className="noesis-workbench-panel__eyebrow">Apply</div>
-                    <h3 className="noesis-workbench-panel__title">How does this affect your thinking?</h3>
-                    <p className="noesis-workbench-panel__description">
-                      Choose the effect that best describes this note. Noesis will ask only for the destination needed to apply it.
-                    </p>
+                    <h2 id="annotation-apply-title" className="font-headline text-2xl font-semibold">Where could this lead?</h2>
                   </div>
                   <ContextualAiPanel
                     actions={['suggest_annotation_effect']}
                     enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                     showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                    reasoningDepth={aiSettings?.defaultReasoningDepth}
-                    buttonLabel="Review Effect"
+                    reasoningDepth={aiDepthFor(aiSettings, 'annotations')}
+                    buttonLabel="Ask Noesis"
                     promptLabel="What do you want to understand about this note?"
                     promptPlaceholder="For example: Does this challenge my linked position, or only qualify it?"
                     buildEnvelope={(action, userPrompt) => ({
@@ -1454,17 +1395,25 @@ export function AnnotationsIndex({
                     ].filter(Boolean).join(' and ')}. Open Connections below to see the exact item.
                   </p>
                 )}
-                <ToolOptions label="Annotation effect">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Choose a direction">
                   {([
-                    ['supports_claim', 'Supports', 'Strengthens a position you hold.'],
-                    ['challenges_claim', 'Challenges', 'Weakens or questions a position.'],
-                    ['raises_question', 'Raises a question', 'Opens something to investigate.'],
-                    ['clarifies', 'Clarifies', 'Sharpens what a concept means.'],
-                    ['reference', 'Reference', 'Keep it on file without acting.'],
-                  ] as Array<[ConsequenceAction, string, string]>).map(([action, label, description]) => (
-                    <ToolOption key={label} label={label} description={description} active={detailEffect === action} onClick={() => setDetailEffect(action)} />
+                    ['raises_question', 'Start an inquiry', 'Investigate a question', CircleHelp, 'examine'],
+                    ['form_position', 'Draft a position', 'State your own view', Flag, 'claim'],
+                    ['practice', 'Plan a practice', 'Try a repeatable action', Footprints, 'act'],
+                    ['supports_claim', 'Support a position', 'Add supporting evidence', PlusCircle, 'act'],
+                    ['challenges_claim', 'Challenge a position', 'Add an objection', MinusCircle, 'claim'],
+                    ['clarifies', 'Clarify a concept', 'Sharpen a definition', Lightbulb, 'outline'],
+                    ['reference', 'Keep as reference', 'File without another action', BookOpen, 'encounter'],
+                  ] satisfies Array<[ConsequenceAction, string, string, typeof BookOpen, string]>).filter(([action]) => action !== 'practice' || onAddPractice).map(([action, label, description, Icon, tone]) => (
+                    <button type="button" key={action} data-stage-tone={tone} aria-pressed={detailEffect === action}
+                      onClick={() => setDetailEffect(action)} className="noesis-apply-route flex min-h-[4.25rem] min-w-0 items-center gap-3 rounded-[var(--button-radius)] border border-border p-3 text-left focus-visible:outline focus-visible:outline-ring">
+                      <Icon className="noesis-apply-route__icon size-5 shrink-0" aria-hidden="true" />
+                      <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span><span className="block text-xs text-muted-foreground">{description}</span></span>
+                      {detailEffect === action && <CheckCircle2 className="noesis-apply-route__icon size-4 shrink-0" aria-hidden="true" />}
+                    </button>
                   ))}
-                </ToolOptions>
+                </div>
+                {detailEffect === 'practice' && <label className="mt-3 grid gap-1 text-sm">What action will you try?<Input value={practiceAction} onChange={e => setPracticeAction(e.target.value)} maxLength={160} placeholder="One action you can repeat or observe" /></label>}
                 {detailEffect === 'clarifies' && (
                   <div className="mt-3">
                     <Label className="mb-2 block text-xs text-muted-foreground">Which concept does this clarify?</Label>
@@ -1472,14 +1421,35 @@ export function AnnotationsIndex({
                   </div>
                 )}
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <Button type="button" size="sm" onClick={() => runDetailAction(editing, detailEffect)} disabled={detailEffect === 'clarifies' && !(editing.conceptTags || editing.source.tags || []).length} className="h-9 rounded-full px-4">
-                    {nextActionLabelForEffect(editing, detailEffect)}
+                  <Button type="button" size="sm" onClick={() => runDetailAction(editing, detailEffect)} disabled={detailEffect === 'practice' && !practiceAction.trim() || detailEffect === 'clarifies' && !(editing.conceptTags || editing.source.tags || []).length} className="h-9 rounded-full px-4">
+                    {nextActionLabelForEffect(editing, detailEffect)}<ArrowRight className="size-4" aria-hidden="true" />
                   </Button>
-                  <span className="text-xs text-muted-foreground">{detailEffect === 'supports_claim' ? 'Connect this note to a position it supports.' : detailEffect === 'challenges_claim' ? 'Connect it to the position it questions, or create a draft first.' : detailEffect === 'raises_question' ? 'Carry the question into an inquiry with its source context.' : detailEffect === 'clarifies' ? 'Keep the note attached to the concept it explains.' : 'Keep it searchable without creating another object.'}</span>
+                  <span className="text-xs text-muted-foreground">{detailEffect === 'practice' ? 'Creates a planned practice linked to this source.' : detailEffect === 'form_position' ? 'Review the claim before saving it.' : detailEffect === 'supports_claim' ? 'Connect this note to a position it supports.' : detailEffect === 'challenges_claim' ? 'Connect it to the position it questions, or create a draft first.' : detailEffect === 'raises_question' ? 'Carry the question into an inquiry with its source context.' : detailEffect === 'clarifies' ? 'Keep the note attached to the concept it explains.' : 'Keep it searchable without creating another object.'}</span>
                 </div>
               </section>
 
-              <details id="annotation-connect" open className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'connect' && 'hidden')}>
+              {savedReviews.length > 0 && (
+                <AiAssistedHistory
+                  title="Saved effect reviews"
+                  description="Reviewed assistance for this annotation. Editing or deleting a note does not change its links or status."
+                  entries={savedReviews.map((entry) => ({
+                    ...entry,
+                    originDetails: entry.id.startsWith('ai-review-') ? {
+                      provenance: { provenanceId: entry.id, kind: 'ai-assisted' },
+                      target: annotationEffectTarget(editing.id, entry.id),
+                    } : undefined,
+                  }))}
+                  onChange={async (aiReviewHistory) => {
+                    const saved = annotations.find((item) => item.id === editing.id && item.source.id === editing.source.id);
+                    if (!saved) throw new Error('This annotation is no longer available.');
+                    const { source, ...annotation } = saved;
+                    if (!await persistAnnotation(source.id, { ...annotation, aiReviewHistory })) throw new Error('Review history was not saved.');
+                    setEditing((current) => current ? { ...current, aiReviewHistory } : current);
+                  }}
+                />
+              )}
+
+              <details id="annotation-connect" className="noesis-workbench-panel scroll-mt-4">
                 <summary className="cursor-pointer list-none">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -1514,13 +1484,13 @@ export function AnnotationsIndex({
                     onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
                   />
                 </div>
+                <Button className="mt-3" size="sm" variant="outline" disabled={savingEdit} onClick={() => void saveEditing(editing)}>Save connections</Button>
                 </div>
               </details>
 
-              <details id="annotation-trace" open className={cn('noesis-workbench-panel scroll-mt-4', annotationWorkflowStep !== 'trace' && 'hidden')}>
+              <details id="annotation-trace" className="noesis-workbench-panel scroll-mt-4">
                 <summary className="cursor-pointer list-none">
-                  <div className="noesis-workbench-panel__eyebrow">Trace</div>
-                  <h3 className="noesis-workbench-panel__title">Provenance and use</h3>
+                  <h3 className="noesis-workbench-panel__title">History</h3>
                 </summary>
                 <div className="noesis-workbench-panel__body space-y-2 text-sm text-muted-foreground">
                   <p>Created from {editing.source.title}{editing.date ? ` on ${editing.date}` : ''}.</p>
@@ -1533,10 +1503,40 @@ export function AnnotationsIndex({
               </details>
             </div>
           )}
-          <DialogFooter className="pt-4 max-sm:border-t max-sm:border-border/50">
-            <Button variant="ghost" onClick={closeAnnotationDetail} className="rounded-full">{isFullPageDetail ? 'Back' : 'Cancel'}</Button>
-            <Button onClick={saveEditing} className="rounded-full px-8">Save Annotation</Button>
-          </DialogFooter>
+          {!isFullPageDetail && <DialogFooter className="pt-4"><Button variant="outline" onClick={closeAnnotationDetail}>Close</Button></DialogFooter>}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(editDraft)} onOpenChange={open => { if (!open && !editSaveLock.current) setEditDraft(null); }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto" onCloseAutoFocus={event => {
+          if (!annotationMenuTrigger.current?.isConnected) return;
+          event.preventDefault(); annotationMenuTrigger.current.focus({ preventScroll: true });
+        }}>
+          <DialogHeader>
+            <DialogTitle>Edit annotation</DialogTitle>
+            <DialogDescription>Update the passage and its metadata.</DialogDescription>
+          </DialogHeader>
+          {editDraft && <fieldset disabled={savingEdit} className="grid gap-4">
+            <label className="grid gap-1 text-sm">Annotation text
+              <Textarea value={editDraft.text} onChange={event => setEditDraft({ ...editDraft, text: event.target.value })} className="min-h-28" />
+            </label>
+            <Select disabled={savingEdit} value={annotationType(editDraft)} onValueChange={type => setEditDraft({ ...editDraft, type: type as AnnotationType })}>
+              <SelectTrigger aria-label="Annotation type"><SelectValue /></SelectTrigger>
+              <SelectContent>{!ANNOTATION_TYPES.some(type => type.id === annotationType(editDraft)) && <SelectItem value={annotationType(editDraft)}>{annotationLabel(annotationType(editDraft))}</SelectItem>}{ANNOTATION_TYPES.map(type => <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>)}</SelectContent>
+            </Select>
+            <details className="border-y border-border py-3">
+              <summary className="cursor-pointer text-sm font-medium">Optional context and interpretation</summary>
+              <div className="mt-3 grid gap-3">
+                <label className="grid gap-1 text-sm">Your interpretation<Textarea value={editDraft.consequenceNote || ''} onChange={event => setEditDraft({ ...editDraft, consequenceNote: event.target.value })} /></label>
+                <label className="grid gap-1 text-sm">Surrounding source context<Textarea value={editDraft.context || ''} onChange={event => setEditDraft({ ...editDraft, context: event.target.value })} /></label>
+                <label className="flex items-center gap-2 text-sm"><Checkbox checked={Boolean(editDraft.mattersBeyondSource)} onCheckedChange={checked => setEditDraft({ ...editDraft, mattersBeyondSource: checked === true })} />This is my interpretation, not the author’s claim.</label>
+              </div>
+            </details>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setEditDraft(null)}>Cancel</Button>
+              <Button disabled={!editDraft.text.trim() || savingEdit} onClick={async () => { if (await saveEditing(editDraft)) setEditDraft(null); }}>{savingEdit ? 'Saving…' : 'Save changes'}</Button>
+            </DialogFooter>
+          </fieldset>}
         </DialogContent>
       </Dialog>
 

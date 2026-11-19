@@ -2,15 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
+import type { AtlasRegionViewModel } from './atlas-diagnostics';
 import { conceptKey } from '@/lib/readex';
+import { Maximize, Minimize } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
- * The Atlas as territory, ported from the prototype: regions are landmasses,
- * concepts are ringed islands inside them, and the records that use a concept
- * orbit it. Zoom moves through five levels (constellations, regions, concepts,
- * records, inside a concept). Everything drawn comes from the user's records.
+ * The Atlas as an archipelago of constellations: regions are landmasses with coastlines,
+ * concepts are nodes with contour lines, joined by routes for their links, and
+ * the records that use a concept sit around it. Zoom moves through five levels
+ * (constellations, regions, concepts, records, inside a concept). Everything drawn
+ * comes from the user's records.
  */
 
 type RecordType = 'position' | 'inquiry' | 'source' | 'practice';
@@ -37,6 +40,21 @@ const band = (k: number, lo: number, hi: number, soft: number) => {
   return Math.min(fadeIn, fadeOut);
 };
 
+/** How many records, links and notes rest on each concept. */
+export function conceptInvolvement(world: { concepts: Array<{ id: string }>; records: Array<{ conceptId: string }>; notes: Array<{ conceptId: string }> }, links: PhilosophicalLink[]) {
+  const counts = new Map(world.concepts.map((concept) => [concept.id, 0]));
+  const bump = (id: string) => { if (counts.has(id)) counts.set(id, (counts.get(id) || 0) + 1); };
+  world.records.forEach((record) => bump(record.conceptId));
+  world.notes.forEach((note) => bump(note.conceptId));
+  links.forEach((link) => { if (link.fromType === 'concept') bump(link.fromId); if (link.toType === 'concept') bump(link.toId); });
+  return counts;
+}
+
+/** Elevation in contour rings: one for bare ground, then one per doubling of involvement, up to eight. */
+export function elevationRings(involvement: number) {
+  return Math.min(8, 1 + Math.floor(Math.log2(1 + Math.max(0, involvement))));
+}
+
 export function buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices }: {
   regions: MapRegion[]; concepts: Concept[]; positions: VaultEntry[]; inquiries: Question[]; sources: Media[]; practices: Practice[];
 }) {
@@ -47,11 +65,17 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
   const loose = concepts.filter((concept) => !regionOf.has(concept.id));
   const allRegions: MapRegion[] = loose.length ? [...regions, { id: 'loose', name: 'Unmapped', conceptIds: loose.map((concept) => concept.id) }] : regions;
   loose.forEach((concept) => regionOf.set(concept.id, allRegions.length - 1));
+  // Regions sit as islands: a staggered grid with seeded
+  // jitter, so the layout is irregular but stable between visits.
+  const columns = Math.max(1, Math.ceil(Math.sqrt(allRegions.length * 1.6)));
+  const rows = Math.ceil(allRegions.length / columns);
+  const jitter = (seed: number) => Math.sin(seed * 12.9898) * 43758.5453 % 1;
   const regionCenters = allRegions.map((_, index) => {
-    const angle = (index / Math.max(1, allRegions.length)) * Math.PI * 2 - Math.PI / 2;
-    // Space regions so neighbouring landmasses (about 560 units wide) do not overlap.
-    const radius = allRegions.length === 1 ? 0 : Math.max(640, (allRegions.length * 600) / (Math.PI * 2));
-    return { wx: Math.cos(angle) * radius, wy: Math.sin(angle) * radius * 0.72 };
+    if (allRegions.length === 1) return { wx: 0, wy: 0 };
+    const column = index % columns; const row = Math.floor(index / columns);
+    const wx = (column - (columns - 1) / 2) * 950 + (row % 2 ? 155 : -155) + jitter(index + 1) * 78;
+    const wy = (row - (rows - 1) / 2) * 760 + jitter(index + 7) * 70;
+    return { wx, wy };
   });
   const worldConcepts: WorldConcept[] = [...placed, ...loose].map((concept) => {
     const region = regionOf.get(concept.id) ?? 0;
@@ -93,15 +117,19 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
   return { regions: allRegions, regionCenters, concepts: worldConcepts, records, notes };
 }
 
-export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, sources, practices, links, asOf, from, onOpen }: {
-  regions: MapRegion[]; concepts: Concept[]; positions: VaultEntry[]; inquiries: Question[]; sources: Media[]; practices: Practice[];
+export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, sources, practices, links, asOf, from, onOpen, onOpenRegion, focus, fullScreen, onToggleFullScreen }: {
+  regions: AtlasRegionViewModel[]; concepts: Concept[]; positions: VaultEntry[]; inquiries: Question[]; sources: Media[]; practices: Practice[];
   links: PhilosophicalLink[]; asOf?: number | null; from?: number | null;
+  focus?: { id: string } | null;
+  fullScreen?: boolean;
+  onToggleFullScreen?: () => void;
+  onOpenRegion?: (id: string) => void;
   onOpen: (target: { type: 'concept' | RecordType; id: string }) => void;
 }) {
   const world = useMemo(() => buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices }), [regions, concepts, positions, inquiries, sources, practices]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const view = useRef({ x: 0, y: 0, k: 0.26, tx: 0, ty: 0, tk: 0.26 });
-  const [level, setLevel] = useState(1);
+  const view = useRef({ x: 0, y: 0, k: LEVELS[0][1], tx: 0, ty: 0, tk: LEVELS[0][1] });
+  const [level, setLevel] = useState(0);
   const [selection, setSelection] = useState<AtlasCanvasSelection | null>(null);
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
@@ -116,11 +144,41 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
     let width = 0; let height = 0; let raf = 0; let alive = true;
     const css = (name: string) => `hsl(${getComputedStyle(canvas).getPropertyValue(name).trim()})`;
     const alpha = (color: string, a: number) => color.replace(/^hsl\((.*)\)$/, `hsl($1 / ${a})`);
+    let dark = document.documentElement.classList.contains('dark');
+    let sea: CanvasPattern | null = null;
+    let sky: CanvasPattern | null = null;
+    const stars = document.createElement('canvas');
+    stars.width = 317; stars.height = 277;
+    const starlight = stars.getContext('2d');
+    if (starlight) {
+      starlight.fillStyle = '#111d2b'; starlight.fillRect(0, 0, stars.width, stars.height);
+      let seed = 11;
+      const random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+      for (let i = 0; i < 43; i++) {
+        starlight.fillStyle = `rgba(210, 228, 246, ${0.14 + random() * 0.30})`;
+        starlight.fillRect(random() * stars.width, random() * stars.height, i % 7 === 0 ? 2 : 1, 1);
+      }
+      sky = ctx.createPattern(stars, 'repeat');
+    }
+    const refreshSea = () => {
+      dark = document.documentElement.classList.contains('dark');
+      const tile = document.createElement('canvas'); tile.width = 256; tile.height = 256;
+      const p = tile.getContext('2d'); if (!p) return;
+      p.fillStyle = dark ? '#112c38' : '#d2e8ea'; p.fillRect(0, 0, 256, 256);
+      p.strokeStyle = dark ? '#224451' : '#badadc'; p.lineWidth = 1;
+      for (const [x, y] of [[32, 40], [148, 104], [62, 174], [198, 222]]) {
+        p.beginPath(); p.moveTo(x, y);
+        p.bezierCurveTo(x + 5, y - 3, x + 11, y + 3, x + 18, y); p.stroke();
+      }
+      sea = ctx.createPattern(tile, 'repeat');
+    };
     const size = () => { const ratio = window.devicePixelRatio || 1; width = canvas.clientWidth; height = canvas.clientHeight; canvas.width = width * ratio; canvas.height = height * ratio; ctx.setTransform(ratio, 0, 0, ratio, 0, 0); };
+    refreshSea();
+    const themeWatch = new MutationObserver(refreshSea);
+    themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     size();
     const observer = new ResizeObserver(size); observer.observe(canvas);
     const toScreen = (x: number, y: number) => { const v = view.current; return [(x - v.x) * v.k + width / 2, (y - v.y) * v.k + height / 2] as const; };
-    const stars = Array.from({ length: 180 }, () => [Math.random(), Math.random(), Math.random()]);
     const seen = (born: number) => !timeRef.current.asOf || !born || born <= timeRef.current.asOf + 86399999;
     const isNew = (born: number) => Boolean(timeRef.current.from && born && born >= (timeRef.current.from || 0) && seen(born));
     const blob = (x: number, y: number, r: number, seed: number) => {
@@ -145,6 +203,8 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
     };
     const conceptById = new Map(world.concepts.map((concept) => [concept.id, concept]));
     const conceptLinks = links.filter((link) => link.fromType === 'concept' && link.toType === 'concept' && conceptById.has(link.fromId) && conceptById.has(link.toId));
+    // Elevation: how involved each concept is in the rest of the thinking.
+    const involvement = conceptInvolvement(world, links);
 
     const frame = () => {
       if (!alive) return;
@@ -153,21 +213,38 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
       const k = v.k; placed = [];
       const accent = css('--stage-integrate'); const fg = css('--foreground'); const dim = css('--muted-foreground');
       const sA = band(k, 0.02, 0.14, 0.5); const rA = band(k, 0.19, 0.5, 0.4); const cA = band(k, 0.55, 1.3, 0.4); const recA = band(k, 1.45, 2.9, 0.3); const iA = band(k, 3.3, 20, 0.3);
-      ctx.fillStyle = css('--card'); ctx.fillRect(0, 0, width, height);
+      const land = Math.max(0, Math.min(1, (k - 0.13) / 0.12));
+      ctx.fillStyle = sky || '#111d2b';
+      ctx.fillRect(0, 0, width, height);
+      ctx.save();
+      ctx.globalAlpha = land;
+      ctx.fillStyle = sea || css('--background');
+      const driftX = -(v.x * k * .18) % 256, driftY = -(v.y * k * .18) % 256;
+      ctx.translate(driftX, driftY); ctx.fillRect(-driftX, -driftY, width, height); ctx.restore();
+      const ink = land < 0.6 ? 'hsl(211 51% 94%)' : fg;
       const visibleConcepts = world.concepts.filter((concept) => seen(concept.born));
       const regionVisible = (index: number) => visibleConcepts.some((concept) => concept.region === index);
+      ctx.globalAlpha = land;
+      for (let index = 0; land > 0 && index < world.regions.length; index++) {
+        if (!regionVisible(index)) continue;
+        const [x, y] = toScreen(world.regionCenters[index].wx, world.regionCenters[index].wy);
+        const r = 264 * k;
+        if (x + r * 1.6 < 0 || x - r * 1.6 > width || y + r * 1.25 < 0 || y - r * 1.25 > height) continue;
+        blob(x, y, r * 1.045, index * 1.3); ctx.fillStyle = dark ? '#244c56' : '#afd6d7'; ctx.fill();
+        blob(x, y, r, index * 1.3); ctx.fillStyle = dark ? '#273d39' : '#ebecda'; ctx.fill();
+        const focusedRegion = selectionRef.current?.kind === 'region' && selectionRef.current.index === index;
+        ctx.strokeStyle = focusedRegion ? accent : dark ? '#678882' : '#83a7a1'; ctx.lineWidth = focusedRegion ? 2.5 : 1.3; ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
       if (sA > 0) {
-        ctx.globalAlpha = sA; ctx.fillStyle = 'hsl(240 16% 6%)'; ctx.fillRect(0, 0, width, height);
-        stars.forEach(([x, y, a]) => { ctx.fillStyle = `rgba(255,255,255,${0.12 + a * 0.5})`; ctx.fillRect(x * width, y * height, a > 0.9 ? 1.8 : 1, a > 0.9 ? 1.8 : 1); });
+        ctx.globalAlpha = sA;
         world.regions.forEach((region, index) => {
           if (!regionVisible(index)) return;
           const [cx, cy] = toScreen(world.regionCenters[index].wx, world.regionCenters[index].wy);
           const count = visibleConcepts.filter((concept) => concept.region === index).length;
-          const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 230 * k + 30);
-          glow.addColorStop(0, alpha(accent, Math.min(0.6, 0.2 + count * 0.08))); glow.addColorStop(1, alpha(accent, 0));
-          ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(cx, cy, 230 * k + 30, 0, 7); ctx.fill();
-          ctx.textAlign = 'center'; ctx.font = 'italic 600 15px "Playfair Display", Georgia, serif'; ctx.fillStyle = '#f3efe4'; ctx.fillText(region.name, cx, cy + 230 * k + 46);
-          ctx.font = '10px "JetBrains Mono", monospace'; ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillText(`${count} CONCEPTS`, cx, cy + 230 * k + 61);
+          const r = Math.max(26, 230 * k);
+          ctx.textAlign = 'center'; ctx.font = 'italic 600 15px "Playfair Display", Georgia, serif'; ctx.fillStyle = ink; ctx.fillText(region.name, cx, cy + r + 20);
+          ctx.font = '10px "JetBrains Mono", monospace'; ctx.fillStyle = alpha(ink, 0.6); ctx.fillText(`${count} CONCEPTS`, cx, cy + r + 35);
         });
         ctx.globalAlpha = 1;
       }
@@ -176,12 +253,13 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
         world.regions.forEach((region, index) => {
           if (!regionVisible(index)) return;
           const [cx, cy] = toScreen(world.regionCenters[index].wx, world.regionCenters[index].wy);
-          blob(cx, cy, 230 * k, index * 1.3); ctx.fillStyle = alpha(accent, 0.09); ctx.fill(); ctx.strokeStyle = alpha(accent, 0.55); ctx.lineWidth = 1.5; ctx.stroke();
-          if (rA > sA) label(region.name, cx, cy - 2, `italic 600 ${Math.max(14, Math.min(24, 58 * k))}px "Playfair Display", Georgia, serif`, fg);
+          if (rA > sA) label(region.name.toUpperCase(), cx, cy - 230 * k * 0.95 - 10, `600 ${Math.max(11, Math.min(16, 40 * k))}px "JetBrains Mono", monospace`, alpha(ink, 0.85));
         });
         ctx.globalAlpha = 1;
       }
-      const conceptLayer = Math.max(cA, recA, iA);
+      // Concept nodes and their routes show from the regions level up, so the
+      // first view is already a map of connected nodes.
+      const conceptLayer = Math.max(cA, recA, iA, rA * 0.85, sA);
       const selected = selectionRef.current;
       const selectedId = selected?.kind === 'concept' ? selected.concept.id : null;
       if (conceptLayer > 0) {
@@ -193,12 +271,15 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           ctx.globalAlpha = conceptLayer * (1 - iA * 0.85);
           ctx.strokeStyle = alpha(css(LINK_TONE(link.type)), focus ? 0.95 : selectedId ? 0.16 : 0.55);
           ctx.lineWidth = focus ? 2.6 : 1.3; ctx.beginPath();
-          if (link.type === 'contradicts') {
+          if (land < 0.6) {
+            ctx.strokeStyle = alpha(ink, focus ? 0.95 : selectedId ? 0.2 : 0.72);
+            ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+          } else if (link.type === 'contradicts') {
             ctx.moveTo(x1, y1);
             for (let i = 1; i < 10; i += 1) { const t = i / 10; const x = x1 + (x2 - x1) * t; const y = y1 + (y2 - y1) * t; const o = (i % 2 ? 1 : -1) * 7; const nx = -(y2 - y1); const ny = x2 - x1; const l = Math.hypot(nx, ny) || 1; ctx.lineTo(x + (nx / l) * o, y + (ny / l) * o); }
             ctx.lineTo(x2, y2);
-          } else { ctx.moveTo(x1, y1); ctx.quadraticCurveTo((x1 + x2) / 2, (y1 + y2) / 2 - 26 * Math.min(k, 2), x2, y2); }
-          ctx.stroke();
+          } else { ctx.setLineDash([7, 5]); ctx.moveTo(x1, y1); ctx.quadraticCurveTo((x1 + x2) / 2, (y1 + y2) / 2 - 26 * Math.min(k, 2), x2, y2); }
+          ctx.stroke(); ctx.setLineDash([]);
           if (k > 0.7 && focus) { ctx.fillStyle = css(LINK_TONE(link.type)); ctx.font = '9px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText(link.type.replace(/_/g, ' ').toUpperCase(), (x1 + x2) / 2, (y1 + y2) / 2 - 14 * Math.min(k, 2)); }
         });
         visibleConcepts.forEach((concept, index) => {
@@ -206,16 +287,30 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           if (x < -300 || x > width + 300 || y < -300 || y > height + 300) return;
           const radius = 34 * k * (1 + iA * 0.55); const fresh = isNew(concept.born);
           ctx.globalAlpha = conceptLayer;
-          for (let ring = 0; ring < 4; ring += 1) {
-            blob(x, y, radius * (1 - ring * 0.2), index + ring * 0.3);
-            if (ring === 0) { ctx.fillStyle = alpha(accent, fresh ? 0.25 : 0.1); ctx.fill(); }
-            ctx.strokeStyle = alpha(accent, ring < concept.clarity ? 0.85 - ring * 0.15 : 0.1);
-            ctx.lineWidth = ring ? 1 : concept.id === selectedId ? 2.5 : 1.5;
+          // Contour lines, as on a topographic map: one ring per elevation step,
+          // so a concept that much of your thinking rests on stands tall.
+          const elevation = involvement.get(concept.id) || 0;
+          const rings = elevationRings(elevation);
+          const base = radius * (0.8 + rings * 0.07);
+          blob(x, y, base, index); ctx.fillStyle = alpha(accent, (fresh ? 0.14 : 0.05) + concept.clarity * 0.035); ctx.fill();
+          for (let ring = 0; land >= 0.6 && ring < rings; ring += 1) {
+            blob(x, y, base * (1 - ring / (rings + 0.6)), index + ring * 0.35);
+            ctx.strokeStyle = alpha(ink, Math.min(0.85, 0.3 + ring * 0.08));
+            ctx.lineWidth = ring === 0 ? (concept.id === selectedId ? 2.5 : 1.4) : (ring % 4 === 3 ? 1.3 : 0.8);
             if (ring === 0 && concept.status === 'contested') ctx.setLineDash([6, 4]);
             ctx.stroke(); ctx.setLineDash([]);
           }
+          if (k > 0.7 && cA > 0.3) { ctx.font = '9px "JetBrains Mono", monospace'; ctx.fillStyle = alpha(ink, 0.75); ctx.textAlign = 'left'; ctx.fillText(`\u25B2 ${elevation}`, x + 9, y - 6); }
+          const star = Math.max(2.4, Math.min(8, 6 * k));
+          ctx.beginPath(); ctx.moveTo(x, y - star * 1.3);
+          ctx.lineTo(x + star * .32, y - star * .32); ctx.lineTo(x + star, y);
+          ctx.lineTo(x + star * .32, y + star * .32); ctx.lineTo(x, y + star * 1.3);
+          ctx.lineTo(x - star * .32, y + star * .32); ctx.lineTo(x - star, y);
+          ctx.lineTo(x - star * .32, y - star * .32); ctx.closePath();
+          ctx.fillStyle = dark || land < 0.6 ? '#ffedbc' : '#624417'; ctx.fill();
+          if (land >= 0.6 || concept.id === selectedId) { ctx.beginPath(); ctx.arc(x, y, Math.max(5, Math.min(11, 8 * k)), 0, 7); ctx.strokeStyle = alpha(ink, 0.5); ctx.lineWidth = 1; ctx.stroke(); }
           if (fresh) { ctx.fillStyle = accent; ctx.font = '9px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('NEW', x, y - radius * 0.9 - 4); }
-          label(concept.name, x, iA > 0.3 ? y - radius * 0.85 - 12 : y + 5, `italic 600 ${Math.max(13, Math.min(20, 15 * k))}px "Playfair Display", Georgia, serif`, fg);
+          if (k >= 0.19) label(concept.name, x, iA > 0.3 ? y - radius * 0.85 - 12 : y + Math.max(20, 14 * k), `italic 600 ${Math.max(13, Math.min(20, 15 * k))}px "Playfair Display", Georgia, serif`, fg);
         });
         ctx.globalAlpha = 1;
       }
@@ -270,9 +365,22 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
     const hitConcept = (mx: number, my: number) => world.concepts.find((concept) => { if (!seen(concept.born)) return false; const [x, y] = toScreen(concept.wx, concept.wy); return Math.hypot(x - mx, y - my) < Math.max(22, 38 * view.current.k * (view.current.k > 3 ? 1.5 : 1)); });
     const hitRecord = (mx: number, my: number) => view.current.k > 1.3 ? world.records.find((record) => { const [x, y] = toScreen(record.wx, record.wy); return Math.hypot(x - mx, y - my) < 14; }) : undefined;
     const down = (event: PointerEvent) => { canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, [event.clientX, event.clientY]); moved = false; };
+    const hitRegion = (mx: number, my: number) => {
+      const v = view.current;
+      let nearest = -1;
+      let distance = Infinity;
+      world.regionCenters.forEach((center, index) => {
+        const [x, y] = toScreen(center.wx, center.wy);
+        const radius = Math.max(32, 264 * v.k);
+        const gap = Math.hypot((x - mx) / 1.2, (y - my) / 0.85);
+        if (gap >= radius || gap >= distance || !world.concepts.some(concept => concept.region === index && seen(concept.born))) return;
+        nearest = index; distance = gap;
+      });
+      return nearest;
+    };
     const move = (event: PointerEvent) => {
       const r = canvas.getBoundingClientRect();
-      if (!pointers.has(event.pointerId)) { const mx = event.clientX - r.left; const my = event.clientY - r.top; canvas.style.cursor = hitRecord(mx, my) || hitConcept(mx, my) ? 'pointer' : 'grab'; return; }
+      if (!pointers.has(event.pointerId)) { const mx = event.clientX - r.left; const my = event.clientY - r.top; canvas.style.cursor = hitRecord(mx, my) || hitConcept(mx, my) || hitRegion(mx, my) >= 0 ? 'pointer' : 'grab'; return; }
       const previous = pointers.get(event.pointerId)!; pointers.set(event.pointerId, [event.clientX, event.clientY]);
       const v = view.current;
       if (pointers.size === 1) { const dx = event.clientX - previous[0]; const dy = event.clientY - previous[1]; if (Math.abs(dx) + Math.abs(dy) > 2) moved = true; v.tx -= dx / v.k; v.ty -= dy / v.k; v.x = v.tx; v.y = v.ty; }
@@ -283,18 +391,33 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
       if (!moved && pointers.size === 1) {
         const record = hitRecord(mx, my);
         if (record) setSelection({ kind: 'record', record, conceptName: world.concepts.find((concept) => concept.id === record.conceptId)?.name || '' });
-        else if (v.k < 0.52) {
-          world.regions.forEach((region, index) => { const center = world.regionCenters[index]; const [x, y] = toScreen(center.wx, center.wy); if (Math.hypot(x - mx, y - my) < Math.max(70, 230 * v.k)) { v.tx = center.wx; v.ty = center.wy; v.tk = v.k < 0.19 ? 0.3 : 0.8; setSelection({ kind: 'region', region, index }); } });
-        } else { const concept = hitConcept(mx, my); if (concept) { setSelection({ kind: 'concept', concept }); if (v.k < 3.1) { v.tx = concept.wx; v.ty = concept.wy; v.tk = 3.8; } } }
+        else {
+          const concept = v.k >= 0.52 ? hitConcept(mx, my) : null;
+          if (concept) {
+            setSelection({ kind: 'concept', concept });
+            if (v.k < 3.1) { v.tx = concept.wx; v.ty = concept.wy; v.tk = 3.8; }
+          } else {
+            const index = hitRegion(mx, my);
+            if (index >= 0) setSelection({ kind: 'region', region: world.regions[index], index });
+          }
+        }
       }
       pointers.delete(event.pointerId); if (pointers.size < 2) lastDistance = 0;
     };
     canvas.addEventListener('pointerdown', down); canvas.addEventListener('pointermove', move); canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
     return () => {
-      alive = false; cancelAnimationFrame(raf); observer.disconnect();
+      alive = false; cancelAnimationFrame(raf); observer.disconnect(); themeWatch.disconnect();
       canvas.removeEventListener('wheel', onWheel); canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up); canvas.removeEventListener('pointercancel', up);
     };
   }, [world, links]);
+
+  useEffect(() => {
+    if (!focus) return;
+    const concept = world.concepts.find(item => item.id === focus.id);
+    if (!concept || (asOf && concept.born && concept.born > asOf + 86_399_999)) return;
+    const v = view.current; v.tx = concept.wx; v.ty = concept.wy; v.tk = 0.85;
+    setSelection({ kind: 'concept', concept });
+  }, [focus, world, asOf]);
 
   const goLevel = (index: number) => {
     const v = view.current; v.tk = LEVELS[index][1];
@@ -302,10 +425,11 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
     if (index === 4) { const target = selection?.kind === 'concept' ? selection.concept : world.concepts[0]; if (target) { v.tx = target.wx; v.ty = target.wy; } }
   };
   const zoom = (factor: number) => { const v = view.current; v.tk = Math.max(0.04, Math.min(9, v.tk * factor)); };
-  const regionConcepts = selection?.kind === 'region' ? world.concepts.filter((concept) => concept.region === selection.index) : [];
+  const regionDetail = selection?.kind === 'region' ? regions.find(region => region.id === selection.region.id) : undefined;
+  const regionConcepts = selection?.kind === 'region' ? world.concepts.filter((concept) => concept.region === selection.index && (!asOf || !concept.born || concept.born <= asOf + 86_399_999)) : [];
 
   return (
-    <div className="noesis-territory">
+    <div className={cn("noesis-territory", fullScreen && "noesis-territory--fullscreen")}>
       <canvas ref={canvasRef} className="noesis-territory__canvas" aria-label="Atlas territory map. Scroll or pinch to zoom, drag to pan, select a region, concept, or record." />
       <div className="noesis-territory__levels" role="group" aria-label="Zoom level">
         {LEVELS.map(([name], index) => (
@@ -315,13 +439,33 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
       <div className="noesis-territory__zoom">
         <button type="button" aria-label="Zoom out" onClick={() => zoom(0.7)}>−</button>
         <button type="button" aria-label="Zoom in" onClick={() => zoom(1.4)}>+</button>
+        {onToggleFullScreen && <button type="button" className="grid place-items-center" aria-label={fullScreen ? 'Exit full screen map' : 'Open full screen map'} aria-pressed={!!fullScreen} onClick={onToggleFullScreen}>
+          {fullScreen ? <Minimize size={16} aria-hidden="true" /> : <Maximize size={16} aria-hidden="true" />}
+        </button>}
       </div>
       <aside className="noesis-territory__panel" aria-label="Selection">
         {selection?.kind === 'region' && (
           <div className="noesis-territory__card">
-            <span className="noesis-territory__eyebrow">Region</span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="noesis-territory__eyebrow">Region</span>
+              <Button variant="ghost" size="sm" onClick={() => setSelection(null)}>Close</Button>
+            </div>
             <h2>{selection.region.name}</h2>
+            {!asOf && (regionDetail?.description || regionDetail?.explanation) && <p className="break-words">{regionDetail.description || regionDetail.explanation}</p>}
+            {!asOf && regionDetail && <dl className="my-3 grid grid-cols-2 gap-2 text-xs">
+              <div><dt>Positions</dt><dd className="font-semibold">{regionDetail.positionIds.length}</dd></div>
+              <div><dt>Inquiries</dt><dd className="font-semibold">{regionDetail.inquiryIds.length}</dd></div>
+              <div><dt>Sources</dt><dd className="font-semibold">{regionDetail.sourceIds.length}</dd></div>
+              <div><dt>Practices</dt><dd className="font-semibold">{regionDetail.practiceIds.length}</dd></div>
+            </dl>}
             <p>{regionConcepts.length} concept{regionConcepts.length === 1 ? '' : 's'} on this landmass.</p>
+            <div className="flex flex-wrap gap-2 pb-2">
+              <Button size="sm" variant="outline" onClick={() => {
+                const center = world.regionCenters[selection.index]; if (!center) return;
+                const v = view.current; v.tx = center.wx; v.ty = center.wy; v.tk = 0.7;
+              }}>Zoom to region</Button>
+              {regionDetail && <Button size="sm" variant="ghost" onClick={() => onOpenRegion?.(regionDetail.id)}>Region details</Button>}
+            </div>
             <div className="flex flex-wrap gap-1.5">{regionConcepts.map((concept) => <button key={concept.id} type="button" className="noesis-territory__chip" onClick={() => { setSelection({ kind: 'concept', concept }); const v = view.current; v.tx = concept.wx; v.ty = concept.wy; v.tk = 3.8; }}>{concept.name}</button>)}</div>
           </div>
         )}
@@ -347,6 +491,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           <div className="noesis-territory__card">
             <span className="noesis-territory__eyebrow">Nothing selected</span>
             <p>Tap a region, concept, or record to see it here. Scroll or pinch to zoom, drag to pan, and use the timeline to watch the map change.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Contour rings show elevation: a concept gains a ring each time the records, notes and links resting on it double. \u25B2 is that count.</p>
           </div>
         )}
         <details className="noesis-territory__card">

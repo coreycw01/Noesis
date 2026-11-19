@@ -1,7 +1,10 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FooterSection, NextMove, RecordFooter, RecordTools } from '@/components/shared/RecordDetail';
+import { RecordHistory, ThroughConcept } from '@/components/shared/ThroughConcept';
 import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -32,14 +35,14 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { ToolOption, ToolOptions, WorkbenchPanel } from '@/components/shared/WorkbenchPanel';
-import { ContextRail, EditorialSection, EntityMeta, IntellectualRoleLabel, RevisionEvent } from '@/components/shared/IntellectualStructures';
+import { EditorialSection, EntityMeta, IntellectualRoleLabel, RevisionEvent } from '@/components/shared/IntellectualStructures';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { InteractiveCalibration, PositionCalibrationGauge, PositionMiniScale, PullEvidenceDialog } from '@/components/Vault/PositionCalibration';
+import { InteractiveCalibration, PositionMiniScale, PullEvidenceDialog } from '@/components/Vault/PositionCalibration';
 import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
 import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
 import { positionReviewTarget, type PositionReviewApproval } from '@/lib/position-ai-review';
@@ -720,13 +723,16 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       linkedPractices,
     });
     const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
-    const reviewTabs: Array<{ id: 'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'; label: string; description: string }> = [
-      { id: 'state', label: 'State', description: 'Clarify the claim, its scope, conditions, and present confidence.' },
-      { id: 'ground', label: 'Ground', description: 'Record why it seems warranted, its evidence, assumptions, and dependencies.' },
-      { id: 'pressure', label: 'Pressure', description: 'Examine counterpositions, contradictions, missing evidence, and steelman challenges.' },
-      { id: 'test', label: 'Test', description: 'Define a practice, prediction, or observation that could affect confidence.' },
-      { id: 'revise', label: 'Revise', description: 'Retain, update, replace, or retire the position with a recorded reason.' },
-      { id: 'history', label: 'History', description: 'Review only the belief biography and confidence changes over time.' },
+    const supportCount = (selected.evidenceFor || []).length + (selected.sourceIds || []).length;
+    const challengeCount = (selected.evidenceAgainst || []).length;
+    const revisionCount = (selected.versionHistory || []).length;
+    const reviewTabs: Array<{ id: 'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'; label: string; description: string; progress: number; meta?: string }> = [
+      { id: 'state', label: 'State', description: 'Clarify the claim, its scope, conditions, and present confidence.', progress: [selected.statement, selected.rationale || selected.confidenceReasoning].filter((value) => value?.trim()).length / 2 },
+      { id: 'ground', label: 'Ground', description: 'Record why it seems warranted, its evidence, assumptions, and dependencies.', progress: Math.min(1, supportCount / 3), meta: `${supportCount} support` },
+      { id: 'pressure', label: 'Pressure', description: 'Examine counterpositions, contradictions, missing evidence, and steelman challenges.', progress: Math.min(1, challengeCount / 2), meta: `${challengeCount} challenges` },
+      { id: 'test', label: 'Test', description: 'Define a practice, prediction, or observation that could affect confidence.', progress: Math.min(1, linkedPractices.length / 1), meta: `${linkedPractices.length} practices` },
+      { id: 'revise', label: 'Revise', description: 'Retain, update, replace, or retire the position with a recorded reason.', progress: revisionCount ? 1 : 0 },
+      { id: 'history', label: 'History', description: 'Review only the belief biography and confidence changes over time.', progress: revisionCount ? 1 : 0, meta: `${revisionCount} changes` },
     ];
 
     const previewSource = (source: Media) => {
@@ -1059,10 +1065,49 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 </Select>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Overview: what this position claims. */}
+        <section className="noesis-record-overview" data-stage-tone="claim">
+          <DetailLabel view="vault" kind="Position" status={diagnostic.readinessLabel} />
+          <h1 className="noesis-page-title noesis-detail-title">{selected.title}</h1>
+          {(selected.statement || selected.description || '').trim() !== selected.title.trim() && <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>}
+          <PromotedAnnotationOrigins origins={selected.annotationOrigins} />
+          {!!(selected.tags || []).length && <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2">
+            {(selected.tags || []).map((tag) => (
+              <button key={tag} onClick={() => setConceptPopupName(tag)} className="border-b border-border font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:border-accent hover:text-accent">{tag}</button>
+            ))}
+          </div>}
+          {(() => {
+            const nextTab: typeof detailTab = diagnostic.supportCount < 1 ? 'ground' : diagnostic.challengeCount < 1 ? 'pressure' : linkedPractices.length < 1 ? 'test' : 'revise';
+            return <NextMove text={diagnostic.nextAction} onClick={() => setDetailTab(nextTab)} />;
+          })()}
+        </section>
+
+        {/* Tools: what you can do here. Rare actions live in the menu. */}
+        <RecordTools
+          tools={[
+            { label: 'Add support', onClick: () => { setDetailTab('ground'); setPullSide('for'); } },
+            { label: 'Add challenge', onClick: () => { setDetailTab('ground'); setPullSide('against'); } },
+            { label: 'Test in practice', onClick: () => { void Promise.resolve(onAddPractice({ title: `Test: ${selected.title.slice(0, 60)}`, description: `This practice tests the position: "${selected.statement}"`, type: 'experiment', status: 'planned', durationDays: 7, positionIds: [selected.id], conceptTags: selected.tags || [], sourceIds: selected.sourceIds || [] })).then(() => toast({ title: 'Experiment created', description: 'Open Praxis to finish its setup.' })).catch(() => toast({ title: 'Practice not created', description: 'Please retry. Your position is unchanged.', variant: 'destructive' })); } },
+            { label: 'Open an inquiry', onClick: async () => {
+              if (inquiryCreationLock.current) return;
+              inquiryCreationLock.current = true;
+              try {
+                await onAddQuestion({ text: `What would make me revise: ${selected.title}?`, status: 'open', beliefIds: [selected.id], conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id), sourceIds: selected.sourceIds || [], evidenceIds: [] });
+                toast({ title: 'Inquiry created', description: 'The new question is linked to this position.' });
+              } catch {
+                toast({ title: 'Inquiry not saved', description: 'Your position is unchanged. Please retry.', variant: 'destructive' });
+              } finally { inquiryCreationLock.current = false; }
+            } },
+            { label: 'Record revision', onClick: () => setDetailTab('revise') },
+          ]}
+          trailing={<>
             <ContextualAiPanel
               enabled={aiSettings.aiAssistanceEnabled}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
-              reasoningDepth={aiSettings.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'positions')}
               actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'compare_selected_positions']}
               buildEnvelope={buildPositionAiEnvelope}
               buttonLabel="Test Position"
@@ -1075,43 +1120,33 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <DropdownMenuItem onSelect={() => setDeleteTarget(selected)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete position</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-        </div>
-
-        <section className="mb-8 border-b border-[var(--hairline)] pb-6">
-          <DetailLabel view="vault" kind="Position" status={diagnostic.readinessLabel} />
-          <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_17rem]">
-            <div className="w-full min-w-0 flex-1">
-              <h1 className="noesis-page-title noesis-detail-title">{selected.title}</h1>
-              {(selected.statement || selected.description || '').trim() !== selected.title.trim() && <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>}
-              <PromotedAnnotationOrigins origins={selected.annotationOrigins} />
-              {!!(selected.tags || []).length && <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2">
-                {(selected.tags || []).map((tag) => (
-                  <button key={tag} onClick={() => setConceptPopupName(tag)} className="border-b border-border font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:border-accent hover:text-accent">{tag}</button>
-                ))}
-              </div>}
-            </div>
-            <ContextRail title="Position record">
-              <PositionCalibrationGauge confidence={confidencePercent(selected.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} />
-              <EntityMeta className="mt-5" items={[
-                { label: 'Type', value: (selected.type || 'belief').replace('_', ' ') },
-                { label: 'Mode', value: (selected.positionKind || 'interpretive').replace(/_/g, ' ') },
-                { label: 'Status', value: selected.status },
-                { label: 'Updated', value: safePositionDate(selected.dateUpdated || selected.dateCreated) },
-              ]} />
-            </ContextRail>
-          </div>
-        </section>
-
-        <InteractiveCalibration
-          confidence={confidencePercent(selected.confidence)}
-          evidenceFor={[...(selected.evidenceFor || []), ...linkedSources.map((source) => `${source.title}${source.creator ? ` · ${source.creator}` : ''}`)]}
-          evidenceAgainst={selected.evidenceAgainst || []}
-          onConfidenceCommit={(value) => onUpdateEntry({ ...selected, confidence: value, dateUpdated: today() })}
-          onChallenge={() => { setDetailTab('ground'); setPullSide('against'); }}
-          onRevise={() => setDetailTab('revise')}
+          </>}
         />
 
+        <section className="noesis-workbench" data-stage-tone="claim" aria-label="Position workbench">
+          <div className="border-t border-border p-4 sm:p-5">
+
+        <WorkbenchFlow
+          label="Position workbench workflow"
+          steps={reviewTabs}
+          activeId={detailTab}
+          onSelect={(id) => setDetailTab(id as typeof detailTab)}
+          className="mb-5"
+        />
+
+        {detailTab === 'state' && (
+          <InteractiveCalibration
+            confidence={confidencePercent(selected.confidence)}
+            evidenceFor={[...(selected.evidenceFor || []), ...linkedSources.map((source) => `${source.title}${source.creator ? ` · ${source.creator}` : ''}`)]}
+            evidenceAgainst={selected.evidenceAgainst || []}
+            onConfidenceCommit={(value) => onUpdateEntry({ ...selected, confidence: value, dateUpdated: today() })}
+            onChallenge={() => { setDetailTab('ground'); setPullSide('against'); }}
+            onRevise={() => setDetailTab('revise')}
+          />
+        )}
+
+        {detailTab === 'state' && (
+          <>
         {!formation.fullyFormed && (
           <details className="mb-5 rounded-xl border border-border bg-muted/30 p-4 shadow-sm">
             <summary className="cursor-pointer font-code text-[10px] uppercase tracking-[0.12em] text-foreground font-bold">Position readiness · {formation.missing.length} gaps</summary>
@@ -1140,77 +1175,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           />
         </div>
 
-        <section className="border-y border-border bg-background/20" aria-label="Position workbench">
-          <header className="px-5 py-4 sm:px-6">
-            <div>
-              <div className="text-sm font-semibold text-foreground">Position workbench</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">State the claim, ground it, pressure it, test it, then decide whether to revise it.</p>
-            </div>
-          </header>
-          <div className="border-t border-border p-4 sm:p-5">
-
-        <NextMoveCard
-          className="mb-5"
-          recommended={diagnostic.nextAction}
-          actions={[
-            { label: 'Add support', onClick: () => setDetailTab('ground') },
-            { label: 'Add challenge', onClick: () => setDetailTab('pressure') },
-            { label: 'Clarify terms', onClick: () => openEditor(selected) },
-            {
-              label: 'Test in practice',
-              onClick: () => Promise.resolve(onAddPractice({
-                title: `Test: ${selected.title.slice(0, 60)}`,
-                description: `This practice tests the position: "${selected.statement}"`,
-                type: 'experiment',
-                status: 'planned',
-                durationDays: 7,
-                positionIds: [selected.id],
-                conceptTags: selected.tags || [],
-                sourceIds: selected.sourceIds || [],
-              })).then(() => toast({ title: 'Practice created', description: 'Open Labs to finish its setup.' })).catch(() => toast({ title: 'Practice not created', description: 'Please retry. Your position is unchanged.', variant: 'destructive' })),
-            },
-            {
-              label: 'Connect inquiry',
-              onClick: async () => {
-                if (inquiryCreationLock.current) return;
-                inquiryCreationLock.current = true;
-                try {
-                await onAddQuestion({
-                text: `What would revise: ${selected.title}?`,
-                status: 'open',
-                beliefIds: [selected.id],
-                conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
-                sourceIds: selected.sourceIds || [],
-                evidenceIds: [],
-                });
-                toast({ title: 'Inquiry created', description: 'The new question is linked to this position.' });
-                } catch {
-                  toast({ title: 'Inquiry not saved', description: 'Your position is unchanged. Please retry.', variant: 'destructive' });
-                } finally { inquiryCreationLock.current = false; }
-              },
-            },
-            {
-              label: 'Revise position',
-              onClick: () => onUpdateEntry({
-                ...selected,
-                status: 'revised',
-                versionHistory: [
-                  ...(selected.versionHistory || []),
-                  { date: today(), eventType: 'revised', description: 'Marked as revised after review.' },
-                ],
-                dateUpdated: today(),
-              }),
-            },
-          ]}
-        />
-
-        <WorkbenchFlow
-          label="Position workbench workflow"
-          steps={reviewTabs}
-          activeId={detailTab}
-          onSelect={(id) => setDetailTab(id as typeof detailTab)}
-          className="mb-5"
-        />
+          </>
+        )}
 
         {detailTab === 'state' && (
           <>
@@ -1584,6 +1550,38 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </div>
         </section>
 
+        {/* Footer: record details, related records and history, folded away. */}
+        <RecordFooter>
+          <FooterSection title="Record">
+            <EntityMeta items={[
+              { label: 'Type', value: (selected.type || 'belief').replace('_', ' ') },
+              { label: 'Mode', value: (selected.positionKind || 'interpretive').replace(/_/g, ' ') },
+              { label: 'Status', value: selected.status },
+              { label: 'Created', value: safePositionDate(selected.dateCreated) },
+              { label: 'Updated', value: safePositionDate(selected.dateUpdated || selected.dateCreated) },
+            ]} />
+          </FooterSection>
+          <FooterSection title={`Through ${(selected.tags || [])[0] || 'its concept'}`}>
+          {(() => {
+            const concept = (selected.tags || [])[0] || '';
+            const key = concept.trim().toLowerCase();
+            const has = (tags?: string[]) => Boolean(key) && (tags || []).some((tag) => tag.trim().toLowerCase() === key);
+            return (
+              <ThroughConcept concept={concept} columns={[
+                { label: 'Sources', tone: 'encounter', items: media.filter((item) => has(item.tags)).map((item) => ({ id: item.id, label: item.title, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined })) },
+                { label: 'Annotations', tone: 'encounter', items: media.flatMap((item) => (item.annotations || []).filter((note) => has(note.conceptTags)).map((note) => ({ id: `${item.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined }))) },
+                { label: 'Inquiries', tone: 'examine', items: questions.filter((item) => (item.beliefIds || []).includes(selected.id) || has((item as typeof item & { conceptTags?: string[] }).conceptTags)).map((item) => ({ id: item.id, label: item.text, onOpen: onOpenQuestion ? () => onOpenQuestion(item.id) : undefined })) },
+                { label: 'Praxis', tone: 'act', items: practices.filter((item) => (item.positionIds || []).includes(selected.id) || has(item.conceptTags)).map((item) => ({ id: item.id, label: item.title, onOpen: onOpenPractice ? () => onOpenPractice(item.id) : undefined })) },
+                { label: 'Works', tone: 'more', items: drafts.filter((item) => (item.beliefIds || []).includes(selected.id) || has(item.conceptTags)).map((item) => ({ id: item.id, label: item.title || 'Untitled', onOpen: onOpenWork ? () => onOpenWork(item.id) : undefined })) },
+              ]} />
+            );
+          })()}
+          </FooterSection>
+          <FooterSection title="History" count={(selected.versionHistory || []).length}>
+            <RecordHistory entries={(selected.versionHistory || []).map((version) => ({ date: version.date, text: version.description || version.eventType || '' }))} />
+          </FooterSection>
+        </RecordFooter>
+
         <ConceptDetailDialog 
           name={conceptPopupName} 
           onClose={() => setConceptPopupName(null)}
@@ -1714,22 +1712,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             >
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex-1 min-w-0">
-                <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                  <span className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                    {TYPE_LABELS[entry.type] || 'Position'}
-                  </span>
-                  <StageBadge type="position" stage={entry.stage} status={entry.status} />
-                  {(entry.tags || []).slice(0, 2).map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setConceptPopupName(tag)}
-                      className="rounded-full border border-border/50 bg-muted/20 px-2 py-0.5 font-code text-[8px] font-bold uppercase tracking-wider text-muted-foreground hover:border-accent/40 hover:text-accent"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                  {(entry.tags || []).length > 2 && <span className="font-code text-[8px] text-muted-foreground">+{(entry.tags || []).length - 2}</span>}
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                  {/* As in the prototype: one type tag, and the challenge count when there is one. */}
+                  <Badge variant="outline" className="rounded-full">{TYPE_LABELS[entry.type] || 'Position'}</Badge>
+                  {diagnostic.challengeCount > 0 && <span className="ml-auto font-code text-[9px] uppercase tracking-[0.14em] text-[hsl(var(--stage-claim))]">{diagnostic.challengeCount} open challenge{diagnostic.challengeCount === 1 ? '' : 's'}</span>}
                 </div>
                 <h2 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors whitespace-normal break-words text-primary">
                   <button type="button" className="text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openEntry(entry.id)}>{entry.title}</button>
@@ -1743,9 +1729,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             </p>
 
             <PositionMiniScale confidence={confidencePercent(entry.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} />
-            {!!diagnostic.flags.length && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {diagnostic.flags.slice(0, 3).map((flag) => <Badge key={flag} className="normal-case">{flag}</Badge>)}
+            {(entry.tags || []).length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <button type="button" onClick={() => setConceptPopupName((entry.tags || [])[0])} className="noesis-tag-chip">{(entry.tags || [])[0]}</button>
+                {diagnostic.flags[0] && <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground" title={diagnostic.flags.join(', ')}>{diagnostic.flags[0]}{diagnostic.flags.length > 1 ? ` +${diagnostic.flags.length - 1}` : ''}</span>}
               </div>
             )}
           </Card>
@@ -2265,39 +2252,6 @@ function ConfidenceHistoryChart({ entry }: { entry: VaultEntry }) {
   );
 }
 
-function NextMoveCard({ recommended, actions, className }: { recommended: string; actions: Array<{ label: string; onClick: () => void }>; className?: string }) {
-  const primary = actions.slice(0, 4);
-  const secondary = actions.slice(4);
-  return (
-    <Card className={cn("noesis-recommendation", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="noesis-workbench-panel__eyebrow">Recommended next move</div>
-          <p className="mt-1 text-sm leading-6 text-foreground">{recommended}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {primary.map((action) => (
-            <Button key={action.label} size="sm" variant="outline" onClick={action.onClick} className="h-8 rounded-full bg-card font-code text-[9px] uppercase tracking-widest">
-              {action.label}
-            </Button>
-          ))}
-          {!!secondary.length && (
-            <details className="relative">
-              <summary className="flex h-8 cursor-pointer items-center rounded-full border border-border/60 bg-card px-3 font-code text-[9px] font-medium uppercase tracking-widest text-muted-foreground">More</summary>
-              <div className="absolute right-0 z-20 mt-2 min-w-44 rounded-xl border border-border/60 bg-card p-2 shadow-xl">
-                {secondary.map((action) => (
-                  <button key={action.label} type="button" onClick={action.onClick} className="block w-full rounded-lg px-3 py-2 text-left font-code text-[9px] uppercase tracking-widest text-muted-foreground hover:bg-accent/10 hover:text-accent">
-                    {action.label}
-                  </button>
-                ))}
-              </div>
-            </details>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
-}
 
 function EntityListPanel({
   title,

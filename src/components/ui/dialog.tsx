@@ -45,8 +45,11 @@ const DialogContent = React.forwardRef<
 >(({ className, children, inline = false, onCloseAutoFocus, ...props }, ref) => {
   React.useEffect(() => () => releaseStaleModalInteractionLock(), [])
   if (inline) {
+    // Inline content renders in the page; pass through only plain element props.
+    const { tabIndex, role, onKeyDown, id } = props as React.HTMLAttributes<HTMLDivElement>
+    const ariaModal = (props as Record<string, unknown>)['aria-modal'] as React.AriaAttributes['aria-modal']
     return (
-      <div ref={ref} className={cn("w-full", className)}>
+      <div ref={ref} id={id} tabIndex={tabIndex} role={role} aria-modal={ariaModal} onKeyDown={onKeyDown} className={cn("w-full", className)}>
         {children}
       </div>
     )

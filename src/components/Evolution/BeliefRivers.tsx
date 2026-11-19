@@ -1,68 +1,103 @@
 "use client";
 
-import type { VaultEntry } from '@/lib/types';
+import { useMemo, useState } from 'react';
+import type { ThinkingEvent, VaultEntry } from '@/lib/types';
 
 interface RiverPoint { time: number; confidence: number }
+interface RiverMark { time: number; kind: 'support' | 'challenge' | 'revision' | 'other' }
 
-/** Each live position's confidence over time, from its recorded versions to now. */
-export function beliefRiverSeries(positions: VaultEntry[], now = Date.now()) {
+const time = (value?: string) => { const parsed = Date.parse(value || ''); return Number.isFinite(parsed) ? parsed : NaN; };
+const clamp = (value: number) => Math.max(0, Math.min(100, value));
+
+function markKind(type: string): RiverMark['kind'] {
+  if (/support|evidence_added|strength/.test(type)) return 'support';
+  if (/challeng|contradiction|stress_test|assumption_challenged/.test(type)) return 'challenge';
+  if (/revis|replac|redefin|abandon/.test(type)) return 'revision';
+  return 'other';
+}
+
+/**
+ * Each live position's confidence over time. Recorded numbers come from the
+ * position's versions and from confidence changes in its thinking events;
+ * nothing is interpolated or invented. Other events on the position become
+ * marks along the river.
+ */
+export function beliefRiverSeries(positions: VaultEntry[], thinkingEvents: ThinkingEvent[] = [], now = Date.now()) {
+  const byPosition = new Map<string, ThinkingEvent[]>();
+  for (const event of thinkingEvents) {
+    for (const id of new Set([event.entityId, event.targetId])) {
+      if (!id) continue;
+      const group = byPosition.get(id);
+      if (group) group.push(event); else byPosition.set(id, [event]);
+    }
+  }
   return positions
     .filter((position) => !['abandoned', 'rejected', 'replaced'].includes(position.status))
     .map((position) => {
       const points: RiverPoint[] = (position.versionHistory || [])
-        .filter((version) => typeof version.confidence === 'number' && Number.isFinite(Date.parse(version.date)))
-        .map((version) => ({ time: Date.parse(version.date), confidence: Math.max(0, Math.min(100, version.confidence as number)) }));
-      const start = Date.parse(position.dateCreated || '');
-      if (!points.length && Number.isFinite(start)) points.push({ time: start, confidence: position.confidence });
-      points.push({ time: now, confidence: Math.max(0, Math.min(100, position.confidence || 0)) });
+        .filter((version) => typeof version.confidence === 'number' && Number.isFinite(time(version.date)))
+        .map((version) => ({ time: time(version.date), confidence: clamp(version.confidence as number) }));
+      const events = byPosition.get(position.id) || [];
+      const marks: RiverMark[] = [];
+      for (const event of events) {
+        const at = time(event.createdAt);
+        if (!Number.isFinite(at)) continue;
+        if (typeof event.confidenceBefore === 'number') points.push({ time: at - 1, confidence: clamp(event.confidenceBefore) });
+        if (typeof event.confidenceAfter === 'number') points.push({ time: at, confidence: clamp(event.confidenceAfter) });
+        if (typeof event.confidenceAfter !== 'number') marks.push({ time: at, kind: markKind(event.eventType) });
+      }
+      points.push({ time: now, confidence: clamp(position.confidence || 0) });
       points.sort((a, b) => a.time - b.time);
-      return { position, points, changes: points.length - 1 };
+      const changes = points.filter((point, index) => index > 0 && point.confidence !== points[index - 1].confidence).length;
+      return { position, points, marks, changes, events: events.length };
     })
-    .sort((a, b) => b.changes - a.changes || b.position.confidence - a.position.confidence);
+    .sort((a, b) => (b.changes + b.events) - (a.changes + a.events) || b.position.confidence - a.position.confidence);
 }
 
-/**
- * Belief rivers: one band per position, flowing left to right through time.
- * The band's width is the confidence held at each moment; dots mark the
- * recorded changes, labelled with the confidence after each one.
- */
-export function BeliefRivers({ positions, onOpen, limit = 6 }: { positions: VaultEntry[]; onOpen: (id: string) => void; limit?: number }) {
-  const series = beliefRiverSeries(positions).slice(0, limit);
-  if (!series.length) return <p className="text-sm text-muted-foreground">Rivers appear once you hold positions.</p>;
-  const times = series.flatMap((river) => river.points.map((point) => point.time));
-  const min = Math.min(...times);
-  const max = Math.max(...times);
-  const width = 1000;
-  const lane = 110;
-  const left = 70;
-  const right = 960;
-  const x = (time: number) => max === min ? right : left + ((time - min) / (max - min)) * (right - left);
-  const half = (confidence: number) => 6 + (confidence / 100) * 24;
-  const tones = ['claim', 'integrate', 'examine', 'act', 'encounter', 'more'];
-  return (
-    <div className="noesis-rivers">
-      <div className="noesis-instrument__label">Follow positions through time · width is confidence</div>
-      <svg viewBox={`0 0 ${width} ${series.length * lane + 20}`} className="h-auto w-full" role="img" aria-label="Belief rivers: confidence in each position over time">
-        {series.map((river, index) => {
-          const mid = index * lane + 60;
-          const top = river.points.map((point) => `${x(point.time)},${mid - half(point.confidence)}`);
-          const bottom = [...river.points].reverse().map((point) => `${x(point.time)},${mid + half(point.confidence)}`);
-          const tone = tones[index % tones.length];
-          return (
-            <g key={river.position.id} data-stage-tone={tone} className="cursor-pointer" onClick={() => onOpen(river.position.id)}>
-              <polygon points={[...top, ...bottom].join(' ')} fill="hsl(var(--stage) / .3)" stroke="hsl(var(--stage))" strokeWidth="1.5" strokeLinejoin="round" />
-              {river.points.slice(0, -1).map((point, pointIndex) => (
-                <g key={pointIndex}>
-                  <circle cx={x(point.time)} cy={mid} r="6" fill="hsl(var(--stage))" />
-                  <text x={x(point.time)} y={mid - half(point.confidence) - 7} textAnchor="middle" className="fill-[hsl(var(--stage))] font-code text-[13px]">{Math.round(point.confidence)}</text>
-                </g>
-              ))}
-              <text x={x(river.points[0].time) + 16} y={mid + 6} className="fill-foreground font-headline text-[17px] italic">{river.position.title.length > 46 ? `${river.position.title.slice(0, 45)}…` : river.position.title}</text>
-              <text x={right} y={mid + 5} textAnchor="end" className="fill-muted-foreground font-code text-[12px] uppercase tracking-[0.12em]">{river.changes} change{river.changes === 1 ? '' : 's'}</text>
-            </g>
-          );
-        })}
+export function BeliefRivers({ positions, thinkingEvents, onOpen, onExplain }: {
+  positions: VaultEntry[];
+  thinkingEvents?: ThinkingEvent[];
+  onOpen: (id: string) => void;
+  onExplain?: (id: string | null) => void;
+}) {
+  const [choice, setChoice] = useState('');
+  const all = useMemo(() => beliefRiverSeries(positions, thinkingEvents), [positions, thinkingEvents]);
+  const river = all.find(item => item.position.id === choice) || all[0];
+  if (!river) return <p className="text-sm text-muted-foreground">No current positions to follow yet.</p>;
+  const { position, points, changes } = river;
+  const first = points[0], last = points[points.length - 1];
+  const x = (at: number) => 4 + 992 * (at - first.time) / (last.time - first.time || 1);
+  const half = (confidence: number) => 2 + confidence * 0.4;
+  const edge = (side: number) => points.map((p, i) => {
+    const y = 48 + side * half(p.confidence);
+    return i ? 'H' + x(p.time) + 'V' + y : 'M' + x(p.time) + ',' + y;
+  }).join(' ');
+  const outline = edge(-1) + 'V' + (48 + half(last.confidence)) + [...points].reverse().slice(1).map(p =>
+    'V' + (48 + half(p.confidence)) + 'H' + x(p.time)
+  ).join(' ') + 'Z';
+  const date = (at: number) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return <div className="grid min-w-0 gap-4" data-stage-tone="integrate">
+    <label className="grid min-w-0 gap-1 text-sm font-medium">Follow a position
+      <select className="min-h-11 w-full min-w-0 rounded-[var(--button-radius)] border border-border bg-background px-3 text-foreground" value={position.id}
+        onChange={event => { setChoice(event.target.value); onExplain?.(null); }}>
+        {all.map(item => <option key={item.position.id} value={item.position.id}>{item.position.title}</option>)}
+      </select>
+    </label>
+    <header className="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 className="min-w-0 break-words font-headline text-xl">{position.title}</h2>
+      <span className="whitespace-nowrap text-sm tabular-nums">{Math.round(last.confidence)}% confidence now</span>
+    </header>
+    {points.length > 1 ? <figure>
+      <svg viewBox="0 0 1000 96" preserveAspectRatio="none" className="h-24 w-full text-[hsl(var(--stage))]" role="img" aria-label={`Recorded confidence from ${Math.round(first.confidence)}% to ${Math.round(last.confidence)}%, with ${changes} changes`}>
+        <path d={outline} fill="currentColor" fillOpacity=".22" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        <path d="M4 48H996" stroke="currentColor" strokeOpacity=".45" vectorEffect="non-scaling-stroke" />
       </svg>
+      <figcaption className="grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>{date(first.time)} · {Math.round(first.confidence)}%</span><span className="text-right">Today · {Math.round(last.confidence)}%</span></figcaption>
+      <p className="mt-2 text-xs text-muted-foreground">Width shows recorded confidence · {changes} {changes === 1 ? 'change' : 'changes'}</p>
+    </figure> : <p className="border-y border-border py-4 text-sm text-muted-foreground">Only the current confidence is recorded. A river appears once there is an earlier rating to compare.</p>}
+    <div className="flex flex-wrap gap-4 text-sm font-medium">
+      {onExplain && <button className="min-h-11 underline underline-offset-4" onClick={() => onExplain(position.id)}>What changed?</button>}
+      <button className="min-h-11 underline underline-offset-4" onClick={() => onOpen(position.id)}>Open position</button>
     </div>
-  );
+  </div>;
 }

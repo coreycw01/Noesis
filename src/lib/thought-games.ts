@@ -13,7 +13,26 @@ export type ThoughtGameKind =
   | 'boundary_sort'
   | 'whose_words'
   | 'question_assumption'
-  | 'not_same_as';
+  | 'not_same_as'
+  | 'odd_one_out'
+  | 'bridge'
+  | 'why_chain'
+  | 'fallacy_spotter'
+  | 'who_argued_it'
+  | 'valid_or_not'
+  | 'bias_check'
+  | 'thought_experiment';
+
+/** The two decks on the Exercises table. */
+export type ThoughtGameFamily = 'records' | 'general';
+export const THOUGHT_GAME_FAMILY_LABELS: Record<ThoughtGameFamily, string> = {
+  records: 'From your records',
+  general: 'General knowledge',
+};
+const GENERAL_KINDS: ThoughtGameKind[] = ['fallacy_spotter', 'who_argued_it', 'valid_or_not', 'bias_check', 'thought_experiment'];
+export function thoughtGameFamily(kind: ThoughtGameKind): ThoughtGameFamily {
+  return GENERAL_KINDS.includes(kind) ? 'general' : 'records';
+}
 
 /** Plain names for each exercise kind, in the order they are offered. */
 export const THOUGHT_GAME_KIND_LABELS: Record<ThoughtGameKind, string> = {
@@ -29,6 +48,48 @@ export const THOUGHT_GAME_KIND_LABELS: Record<ThoughtGameKind, string> = {
   whose_words: 'Whose Words?',
   question_assumption: 'Question the Question',
   not_same_as: 'Not the Same As',
+  odd_one_out: 'Odd One Out',
+  bridge: 'Bridge',
+  why_chain: 'Why Chain',
+  fallacy_spotter: 'Fallacy Spotter',
+  who_argued_it: 'Who Argued It',
+  valid_or_not: 'Valid or Not',
+  bias_check: 'Bias Check',
+  thought_experiment: 'Thought Experiment',
+};
+
+export const THOUGHT_GAME_TYPES = {
+  inquiry: { label: 'Question the Question', hint: 'Find the hidden premise in an inquiry.', kinds: ['question_assumption'] },
+  definition: { label: 'Define It', hint: 'Recall definitions and test their boundaries.', kinds: ['define_it', 'boundary_sort', 'counterexample', 'not_same_as', 'odd_one_out', 'bridge'] },
+  position: { label: 'Test a Position', hint: 'Examine the evidence and assumptions behind a view.', kinds: ['confidence_calibration', 'assumption_hunt', 'steelman', 'tension_test', 'why_chain'] },
+  source: { label: 'Source Detective', hint: 'Recall what a source said and where an idea came from.', kinds: ['source_recall', 'whose_words', 'who_argued_it'] },
+  reasoning: { label: 'Reasoning Lab', hint: 'Try a logic puzzle or explore a thought experiment.', kinds: ['valid_or_not', 'fallacy_spotter', 'bias_check', 'statement_type', 'thought_experiment'] },
+} satisfies Record<string, { label: string; hint: string; kinds: ThoughtGameKind[] }>;
+
+export type ThoughtGameType = keyof typeof THOUGHT_GAME_TYPES;
+
+/** One line under each game's name on its card. */
+export const THOUGHT_GAME_KIND_HINTS: Record<ThoughtGameKind, string> = {
+  statement_type: 'Claim, evidence, assumption or definition?',
+  define_it: 'Match the definition to the concept.',
+  assumption_hunt: 'Find the premise doing hidden work.',
+  confidence_calibration: 'Bet your confidence, then see your evidence.',
+  source_recall: 'Which source said this?',
+  counterexample: 'Find the case that breaks it.',
+  tension_test: 'Two of your records pull apart.',
+  steelman: 'Best case against your own position.',
+  boundary_sort: 'Inside the concept or outside it?',
+  whose_words: 'Your words or a source\u2019s?',
+  question_assumption: 'What is the question assuming?',
+  not_same_as: 'Name the neighbour and the difference.',
+  odd_one_out: 'Which concept doesn\u2019t belong?',
+  bridge: 'Connect two distant concepts.',
+  why_chain: 'Ask why three times.',
+  fallacy_spotter: 'Name the reasoning error.',
+  who_argued_it: 'Match the idea to the thinker.',
+  valid_or_not: 'Does the conclusion follow?',
+  bias_check: 'Which bias is at work?',
+  thought_experiment: 'Take a side on a classic puzzle.',
 };
 
 export interface ThoughtGame {
@@ -42,8 +103,32 @@ export interface ThoughtGame {
   answer?: string;
   reveal: string;
   sourceLabel: string;
+  /** The record this exercise is about. An empty targetId opens the page itself. */
   target: { view: NoesisView; targetId: string };
 }
+
+type GeneralCard = { kind: ThoughtGameKind; title: string; prompt: string; options?: string[]; answer?: string; reveal: string; then: NoesisView };
+
+/** The general-knowledge deck: reasoning, fallacies, thinkers and classic puzzles. */
+const GENERAL_DECK: GeneralCard[] = [
+  { kind: 'fallacy_spotter', title: 'Name the reasoning error.', prompt: '\u201cEvery successful writer I know writes in the morning, so writing in the morning makes you successful.\u201d', options: ['Ad hominem', 'Survivorship bias / correlation taken as cause', 'Straw man', 'Slippery slope'], answer: 'Survivorship bias / correlation taken as cause', reveal: 'You only see the writers who succeeded, and morning writing could travel with something else that matters.', then: 'questions' },
+  { kind: 'fallacy_spotter', title: 'Name the reasoning error.', prompt: '\u201cYou can\u2019t trust her view on discipline; she missed her own deadline last week.\u201d', options: ['Ad hominem (tu quoque)', 'False dilemma', 'Appeal to nature', 'Begging the question'], answer: 'Ad hominem (tu quoque)', reveal: 'Whether she keeps deadlines says nothing about whether her argument holds.', then: 'vault' },
+  { kind: 'fallacy_spotter', title: 'Name the reasoning error.', prompt: '\u201cEither you commit fully or you don\u2019t really care.\u201d', options: ['Straw man', 'False dilemma', 'Equivocation', 'Red herring'], answer: 'False dilemma', reveal: 'Partial, provisional and experimental commitment all sit between those two options.', then: 'vault' },
+  { kind: 'fallacy_spotter', title: 'Name the reasoning error.', prompt: '\u201cIf I skip one practice day, I\u2019ll skip them all, and then I\u2019ll have no discipline at all.\u201d', options: ['Slippery slope', 'Hasty generalisation', 'Appeal to authority', 'Circular reasoning'], answer: 'Slippery slope', reveal: 'Each step is assumed to follow inevitably. Your Praxis record is the evidence to test it against.', then: 'labs' },
+  { kind: 'who_argued_it', title: 'Who argued this?', prompt: '\u201cMan is condemned to be free.\u201d', options: ['Aristotle', 'Jean-Paul Sartre', 'David Hume', 'Immanuel Kant'], answer: 'Jean-Paul Sartre', reveal: 'Sartre, in Existentialism Is a Humanism: once we exist, we are responsible for everything we do.', then: 'vault' },
+  { kind: 'who_argued_it', title: 'Who argued this?', prompt: '\u201cWe are what we repeatedly do.\u201d (as the idea is usually summarised)', options: ['Aristotle', 'Epictetus', 'Friedrich Nietzsche', 'John Locke'], answer: 'Aristotle', reveal: 'The line is Will Durant\u2019s summary of Aristotle\u2019s view that virtue is formed by habit (Nicomachean Ethics, Book II).', then: 'labs' },
+  { kind: 'who_argued_it', title: 'Who argued this?', prompt: '\u201cReason is, and ought only to be, the slave of the passions.\u201d', options: ['Ren\u00e9 Descartes', 'David Hume', 'Baruch Spinoza', 'Plato'], answer: 'David Hume', reveal: 'Hume, A Treatise of Human Nature: reason can direct us toward ends, but desire sets them.', then: 'concepts' },
+  { kind: 'who_argued_it', title: 'Who argued this?', prompt: '\u201cSome things are within our power, while others are not.\u201d', options: ['Epictetus', 'Seneca the Younger', 'Kierkegaard', 'Confucius'], answer: 'Epictetus', reveal: 'The opening of Epictetus\u2019 Enchiridion: the Stoic division between what is up to us and what is not.', then: 'concepts' },
+  { kind: 'valid_or_not', title: 'Does the conclusion follow?', prompt: 'All commitments require effort. Writing daily requires effort. So writing daily is a commitment.', options: ['Valid', 'Invalid: undistributed middle'], answer: 'Invalid: undistributed middle', reveal: 'Plenty of things need effort without being commitments. Sharing a property does not make two things the same kind.', then: 'concepts' },
+  { kind: 'valid_or_not', title: 'Does the conclusion follow?', prompt: 'If I practise daily, I improve. I improved. So I practised daily.', options: ['Valid', 'Invalid: affirming the consequent'], answer: 'Invalid: affirming the consequent', reveal: 'Improvement could have another cause. Only the reverse inference (no improvement, so no daily practice) is valid.', then: 'labs' },
+  { kind: 'valid_or_not', title: 'Does the conclusion follow?', prompt: 'If attention is trained by tools, then changing tools changes attention. Attention is trained by tools. So changing tools changes attention.', options: ['Valid (modus ponens)', 'Invalid'], answer: 'Valid (modus ponens)', reveal: 'The form is valid. Whether it is sound depends on the first premise, which is where your evidence belongs.', then: 'vault' },
+  { kind: 'bias_check', title: 'Which bias is at work?', prompt: 'You notice every article saying phones ruin attention, and skim past the ones that don\u2019t.', options: ['Anchoring', 'Confirmation bias', 'Sunk cost', 'Dunning\u2013Kruger'], answer: 'Confirmation bias', reveal: 'Seeking what agrees with you is the quiet way confidence outruns evidence. The calibration gauge on a position shows that gap.', then: 'vault' },
+  { kind: 'bias_check', title: 'Which bias is at work?', prompt: 'You keep a practice you no longer believe in because you have already done it for 90 days.', options: ['Sunk cost', 'Availability', 'Halo effect', 'Hindsight bias'], answer: 'Sunk cost', reveal: 'The 90 days are spent either way. The question is whether the next day is worth it.', then: 'labs' },
+  { kind: 'bias_check', title: 'Which bias is at work?', prompt: 'After a position turns out wrong, you feel you \u201cknew it all along\u201d.', options: ['Hindsight bias', 'Optimism bias', 'Framing effect', 'Status quo bias'], answer: 'Hindsight bias', reveal: 'Your Evolution history records what you actually believed at the time, which is the cure for this one.', then: 'evolution' },
+  { kind: 'thought_experiment', title: 'Ship of Theseus', prompt: 'Every plank of a ship is replaced over the years. Is it the same ship? Are you the same person who held your positions a year ago?', reveal: 'Your Evolution page is one answer: identity through change is what a version history records.', then: 'evolution' },
+  { kind: 'thought_experiment', title: 'The experience machine', prompt: 'A machine could give you any experience you want, indistinguishable from reality, for life. Would you plug in? What does your answer say about what you value?', reveal: 'Nozick used this to argue we value doing and being, not only feeling. If your answer surprised you, it may belong in a position.', then: 'vault' },
+  { kind: 'thought_experiment', title: 'The veil of ignorance', prompt: 'Design the rules of a society without knowing who you will be in it. What rule would you insist on first?', reveal: 'Rawls\u2019 device for fairness. The rule you reached for first often shows a value you have not yet stated.', then: 'vault' },
+];
 
 interface ThoughtGameContext {
   concepts: Concept[];
@@ -78,6 +163,44 @@ function choiceOptions(answer: string, alternatives: string[], seed: string, siz
   return rotate([answer, ...distractors], `${seed}:options`);
 }
 
+export function buildInquiryExercise(inquiry: Question): ThoughtGame {
+  return {
+    id: `question-assumption:${inquiry.id}`,
+    kind: 'question_assumption',
+    label: 'Question the Question',
+    title: 'What is this question already assuming?',
+    instruction: 'Name one premise built into the wording. Nothing is saved to the inquiry.',
+    prompt: inquiry.text,
+    reveal: inquiry.assumptions?.length
+      ? `You previously recorded: ${inquiry.assumptions.join(' • ')}`
+      : 'No assumptions are recorded yet. Open the inquiry if this exercise uncovered one worth keeping.',
+    sourceLabel: inquiry.text,
+    target: { view: 'questions', targetId: inquiry.id },
+  };
+}
+
+function buildDefinitionCard(concept: Concept, concepts: Concept[], dayKey: string): ThoughtGame {
+  const alternatives = distinct(concepts.filter(item => item.id !== concept.id).map(item => item.name)).filter(name => name !== concept.name);
+  return {
+    id: `define-it:${concept.id}`,
+    kind: 'define_it',
+    label: 'Define It',
+    title: 'Which concept matches this definition?',
+    instruction: alternatives.length > 0 ? 'Choose the concept whose saved definition is shown below.' : 'Recall the concept name before turning the card.',
+    prompt: concept.description,
+    options: alternatives.length ? choiceOptions(concept.name, alternatives, `${dayKey}:${concept.id}`) : undefined,
+    answer: alternatives.length ? concept.name : undefined,
+    reveal: `This is your current definition of ${concept.name}. Open the concept if the wording no longer fits how you use it.`,
+    sourceLabel: concept.name,
+    target: { view: 'concepts', targetId: concept.id },
+  };
+}
+
+export function buildDefinitionRound(concepts: Concept[], dayKey: string, regionMembers?: ReadonlySet<string>) {
+  const eligible = concepts.filter(concept => concept.name.trim() && concept.description.trim() && (!regionMembers || regionMembers.has(concept.id)));
+  return rotate(eligible, `${dayKey}:definitions`).slice(0, 5).map(concept => buildDefinitionCard(concept, concepts, dayKey));
+}
+
 export function buildThoughtGames({ concepts, inquiries, positions, media, links, dayKey = new Date().toISOString().slice(0, 10) }: ThoughtGameContext) {
   const games: ThoughtGame[] = [];
   const activePositions = positions.filter((position) => !['abandoned', 'rejected'].includes(position.status));
@@ -105,23 +228,7 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
     });
   });
 
-  rotate(definedConcepts, `${dayKey}:definitions`).slice(0, 2).forEach((concept) => {
-    const alternatives = concepts.filter((item) => item.id !== concept.id).map((item) => item.name);
-    if (alternatives.length < 2) return;
-    games.push({
-      id: `define-it:${concept.id}`,
-      kind: 'define_it',
-      label: 'Define It',
-      title: 'Which concept matches this definition?',
-      instruction: 'Choose the concept whose saved definition is shown below.',
-      prompt: concept.description,
-      options: choiceOptions(concept.name, alternatives, `${dayKey}:${concept.id}`),
-      answer: concept.name,
-      reveal: `This is your current definition of ${concept.name}. Open the Concept if the wording no longer fits how you use it.`,
-      sourceLabel: concept.name,
-      target: { view: 'concepts', targetId: concept.id },
-    });
-  });
+  games.push(...buildDefinitionRound(definedConcepts, dayKey).slice(0, 2));
 
   rotate(activePositions.filter((position) => position.assumptions?.some((item) => item.trim())), `${dayKey}:assumptions`).slice(0, 2).forEach((position) => {
     const assumptions = distinct(position.assumptions || []);
@@ -265,20 +372,8 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
     });
   });
 
-  rotate(inquiries.filter((inquiry) => !['resolved', 'archived'].includes(inquiry.status)), `${dayKey}:question-assumptions`).slice(0, 2).forEach((inquiry) => {
-    games.push({
-      id: `question-assumption:${inquiry.id}`,
-      kind: 'question_assumption',
-      label: 'Question the Question',
-      title: 'What is this question already assuming?',
-      instruction: 'Name one premise built into the wording. Nothing is saved until you choose to work on the Inquiry.',
-      prompt: inquiry.text,
-      reveal: inquiry.assumptions?.length
-        ? `You previously recorded: ${inquiry.assumptions.join(' • ')}`
-        : 'No assumptions are recorded yet. Open the Inquiry if this exercise uncovered one worth keeping.',
-      sourceLabel: inquiry.text,
-      target: { view: 'questions', targetId: inquiry.id },
-    });
+  rotate(inquiries.filter((inquiry) => !['resolved', 'archived', 'abandoned'].includes(inquiry.status)), `${dayKey}:question-assumptions`).slice(0, 2).forEach((inquiry) => {
+    games.push(buildInquiryExercise(inquiry));
   });
 
   rotate(concepts.filter((concept) => (concept.notSameAs || []).some((item) => item.trim())), `${dayKey}:not-same`).slice(0, 2).forEach((concept) => {
@@ -296,8 +391,89 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
     });
   });
 
+  // Odd one out: three linked concepts and one with no link to any of them.
+  const linked = (a: string, b: string) => links.some((link) => (link.fromId === a && link.toId === b) || (link.fromId === b && link.toId === a));
+  for (const seed of rotate(concepts, `${dayKey}:odd`)) {
+    const group = concepts.filter((item) => item.id !== seed.id && linked(seed.id, item.id)).slice(0, 2);
+    if (group.length < 2) continue;
+    const trio = [seed, ...group];
+    const outsider = rotate(concepts.filter((item) => !trio.some((member) => member.id === item.id || linked(member.id, item.id))), `${dayKey}:odd:${seed.id}`)[0];
+    if (!outsider) continue;
+    games.push({
+      id: `odd-one-out:${seed.id}:${outsider.id}`,
+      kind: 'odd_one_out',
+      label: 'Odd One Out',
+      title: 'Which concept doesn\u2019t belong?',
+      instruction: 'Pick the one that does not fit with the others, then see how your Atlas connects them.',
+      prompt: rotate([...trio, outsider].map((item) => item.name), `${dayKey}:odd:prompt`).join(' \u00b7 '),
+      options: rotate([...trio, outsider].map((item) => item.name), `${dayKey}:odd:options`),
+      answer: outsider.name,
+      reveal: `${trio.map((item) => item.name).join(', ')} are linked in your Atlas. ${outsider.name} links to none of them: maybe a gap worth an inquiry, not a mistake.`,
+      sourceLabel: 'Your concepts',
+      target: { view: 'concepts', targetId: outsider.id },
+    });
+    break;
+  }
+
+  // Bridge: two concepts with no direct link.
+  const bridgeOrder = rotate(concepts, `${dayKey}:bridge`);
+  let pair: readonly [Concept, Concept] | undefined;
+  for (let i = 0; i < bridgeOrder.length - 1 && !pair; i++) {
+    const from = bridgeOrder[i];
+    const to = bridgeOrder.find((candidate, j) => j > i && !linked(from.id, candidate.id));
+    if (to) pair = [from, to];
+  }
+  if (pair) {
+    const [from, to] = pair;
+    games.push({
+      id: `bridge:${from.id}:${to.id}`,
+      kind: 'bridge',
+      label: 'Bridge',
+      title: `Connect ${from.name} to ${to.name}.`,
+      instruction: 'Build a path in two or three steps and name each relationship.',
+      prompt: `${from.name} \u2192 ? \u2192 ${to.name}`,
+      reveal: 'If each step names a relationship you could defend, it is worth saving as a link. Your Atlas has no direct path between them yet.',
+      sourceLabel: `${from.name} and ${to.name}`,
+      target: { view: 'concepts', targetId: from.id },
+    });
+  }
+
+  // Why chain: dig under a position three levels.
+  rotate(activePositions, `${dayKey}:why`).slice(0, 1).forEach((position) => {
+    games.push({
+      id: `why-chain:${position.id}`,
+      kind: 'why_chain',
+      label: 'Why Chain',
+      title: 'Ask why three times.',
+      instruction: 'Why do you hold this? And why that? And why that? Write each answer on its own line.',
+      prompt: position.statement || position.title,
+      reveal: 'If the third why is a value, the position rests on it: is it stated anywhere? If it is a fact, it needs evidence.',
+      sourceLabel: position.title || 'Recorded position',
+      target: { view: 'vault', targetId: position.id },
+    });
+  });
+
+  // The general-knowledge deck works from day one: one card of each kind, rotated daily.
+  for (const kind of GENERAL_KINDS) {
+    const card = rotate(GENERAL_DECK.filter((item) => item.kind === kind), `${dayKey}:${kind}`)[0];
+    if (!card) continue;
+    games.push({
+      id: `${kind}:${stableHash(card.prompt)}`,
+      kind,
+      label: THOUGHT_GAME_KIND_LABELS[kind],
+      title: card.title,
+      instruction: card.options ? 'Pick one, then turn the card.' : 'Write your answer, then turn the card.',
+      prompt: card.prompt,
+      options: card.options,
+      answer: card.answer,
+      reveal: card.reveal,
+      sourceLabel: 'General knowledge',
+      target: { view: card.then, targetId: '' },
+    });
+  }
+
   const inquiryFallback = rotate(inquiries.filter((inquiry) => !['resolved', 'archived'].includes(inquiry.status)), `${dayKey}:inquiries`)[0];
-  if (!games.length && inquiryFallback) {
+  if (!games.some((game) => thoughtGameFamily(game.kind) === 'records') && inquiryFallback) {
     games.push({
       id: `assumption-hunt:inquiry:${inquiryFallback.id}`,
       kind: 'assumption_hunt',

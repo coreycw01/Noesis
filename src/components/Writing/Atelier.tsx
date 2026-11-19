@@ -50,6 +50,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { markupTone } from '@/lib/markup-kinds';
+import { iconForNoesisView } from '@/lib/noesis-icons';
+import { MarkupVoice } from '@/components/shared/MarkupVoice';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
@@ -1745,6 +1748,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             collapsed={railCollapsed}
             onCollapsedChange={setRailPreference}
             onMarksChange={(marks) => updateActive({ marks })}
+            onOpenVersions={() => setIsVersionHistoryOpen(true)}
           />}
         </div>
 
@@ -3172,8 +3176,10 @@ function WorkIntellectualRail({
   collapsed,
   onCollapsedChange,
   onMarksChange,
+  onOpenVersions,
 }: {
   onMarksChange: (marks: WorkMark[]) => void;
+  onOpenVersions?: () => void;
   active: Draft;
   sources: Media[];
   positions: VaultEntry[];
@@ -3185,7 +3191,7 @@ function WorkIntellectualRail({
   onCollapsedChange: (collapsed: boolean) => void;
 }) {
   const category = active.workCategory || workCategoryForDraft(active.type);
-  const [railTab, setRailTab] = useState<'reel' | 'mark'>('reel');
+  const [railTab, setRailTab] = useState<'reel' | 'mark' | 'linked' | 'versions'>('reel');
 
   return (
     <aside className={cn(
@@ -3238,12 +3244,32 @@ function WorkIntellectualRail({
         </div>
 
         <div className="noesis-rail-tabs" role="tablist" aria-label="Rail views">
-          {([['reel', 'Studio Reel'], ['mark', `Mark${(active.marks || []).length ? ` · ${(active.marks || []).length}` : ''}`]] as const).map(([id, label]) => (
+          {([['reel', 'Studio Reel'], ['mark', `Markup${(active.marks || []).length ? ` · ${(active.marks || []).length}` : ''}`], ['linked', 'Linked'], ['versions', 'Versions']] as const).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={railTab === id} onClick={() => setRailTab(id)}>{label}</button>
           ))}
         </div>
-        {railTab === 'mark'
-          ? <WorkMarkPanel marks={active.marks || []} onChange={onMarksChange} />
+        {railTab === 'linked' ? (
+          <div className="mt-3 grid gap-3">
+            {([['Sources', 'encounter', sources.map((item) => item.title)], ['Concepts', 'outline', concepts], ['Inquiries', 'examine', inquiries.map((item) => item.text)], ['Positions', 'claim', positions.map((item) => item.title)]] as Array<[string, string, string[]]>).map(([label, tone, items]) => (
+              <div key={label} data-stage-tone={tone} className="grid gap-1">
+                <div className="font-code text-[9px] uppercase tracking-[0.14em] text-[hsl(var(--stage))]">{label} · {items.length}</div>
+                {items.length ? items.map((item) => <p key={item} className="border-l-2 border-[hsl(var(--stage)/.6)] pl-2 text-sm leading-snug">{item}</p>) : <p className="text-sm text-muted-foreground">None linked.</p>}
+              </div>
+            ))}
+          </div>
+        ) : railTab === 'versions' ? (
+          <div className="mt-3 grid gap-2">
+            {[...(active.versionHistory || [])].reverse().slice(0, 12).map((version) => (
+              <div key={version.id} className="grid gap-0.5 border-l-2 border-border pl-2">
+                <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{Number.isFinite(Date.parse(version.createdAt)) ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(version.createdAt)) : version.createdAt}</span>
+                <span className="text-sm">{version.title || 'Untitled'}</span>
+              </div>
+            ))}
+            {!(active.versionHistory || []).length && <p className="text-sm text-muted-foreground">No saved versions yet. Each explicit save keeps one.</p>}
+            {onOpenVersions && <Button type="button" variant="outline" size="sm" className="mt-1 justify-self-start rounded-full" onClick={onOpenVersions}>Open version history</Button>}
+          </div>
+        ) : railTab === 'mark'
+          ? <WorkMarkPanel key={active.id} marks={active.marks || []} onChange={onMarksChange} />
           : <WorkRailContent sources={sources} positions={positions} inquiries={inquiries} concepts={concepts} annotations={annotations} coherenceSignals={coherenceSignals} hideIntro />}
       </div>
       )}
@@ -3251,12 +3277,13 @@ function WorkIntellectualRail({
   );
 }
 
-const MARK_KINDS: Array<{ id: WorkMark['kind']; label: string; tone: string }> = [
-  { id: 'claim', label: 'Claim', tone: 'claim' },
-  { id: 'question', label: 'Question', tone: 'examine' },
-  { id: 'evidence', label: 'Evidence', tone: 'encounter' },
-  { id: 'definition', label: 'Definition', tone: 'examine' },
-  { id: 'revisit', label: 'Revisit', tone: 'more' },
+const MarkupIcon = iconForNoesisView('annotations');
+const MARK_KINDS: Array<{ id: WorkMark['kind']; label: string }> = [
+  { id: 'claim', label: 'Claim' },
+  { id: 'question', label: 'Question' },
+  { id: 'evidence', label: 'Evidence' },
+  { id: 'definition', label: 'Definition' },
+  { id: 'revisit', label: 'Revisit' },
 ];
 
 /**
@@ -3265,6 +3292,7 @@ const MARK_KINDS: Array<{ id: WorkMark['kind']; label: string; tone: string }> =
  */
 function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (marks: WorkMark[]) => void }) {
   const [selection, setSelection] = useState('');
+  const [note, setNote] = useState('');
   useEffect(() => {
     const read = () => {
       const current = window.getSelection();
@@ -3278,8 +3306,8 @@ function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (mark
   }, []);
   const mark = (kind: WorkMark['kind']) => {
     if (!selection) return;
-    onChange([...marks, { id: `mark-${Date.now().toString(36)}`, text: selection, kind, date: new Date().toISOString() }]);
-    setSelection('');
+    onChange([...marks, { id: `mark-${Date.now().toString(36)}`, text: selection, ...(note.trim() ? { note: note.trim() } : {}), kind, date: new Date().toISOString() }]);
+    setSelection(''); setNote('');
   };
   const find = (text: string) => {
     const finder = (window as Window & { find?: (text: string) => boolean }).find;
@@ -3287,31 +3315,34 @@ function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (mark
   };
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border/60 bg-card/70 p-3">
-        <div className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Mark the selection as</div>
-        <p className="mt-1 line-clamp-3 text-xs italic leading-5 text-muted-foreground">{selection ? `“${selection}”` : 'Select a passage in the document first.'}</p>
+      <div className="space-y-2">
+        <h3 className="flex items-center gap-2 text-sm font-medium"><MarkupIcon className="size-4" aria-hidden="true" />Marks</h3>
+        {selection && <div className="space-y-2 border-b border-border pb-3">
+        <p className="mt-1 line-clamp-3 text-xs italic leading-5 text-muted-foreground">{`“${selection}”`}</p>
+        <Textarea className="my-2" aria-label="Note about selected passage" placeholder="Your note (optional)" value={note} onChange={event => setNote(event.target.value)} />
+        <MarkupVoice text={selection || note} onTranscript={words => setNote(prev => [prev.trimEnd(), words].filter(Boolean).join(' '))} />
         <div className="mt-2 flex flex-wrap gap-1.5">
           {MARK_KINDS.map((kind) => (
-            <button key={kind.id} type="button" data-stage-tone={kind.tone} disabled={!selection} onClick={() => mark(kind.id)} className="noesis-mark-kind">{kind.label}</button>
+            <button key={kind.id} type="button" data-stage-tone={markupTone(kind.id)} disabled={!selection} onClick={() => mark(kind.id)} className="noesis-mark-kind min-h-10">{kind.label}</button>
           ))}
         </div>
+        </div>}
       </div>
       {MARK_KINDS.map((kind) => {
         const group = marks.filter((item) => item.kind === kind.id);
         if (!group.length) return null;
         return (
-          <div key={kind.id} data-stage-tone={kind.tone} className="space-y-1.5">
+          <div key={kind.id} data-stage-tone={markupTone(kind.id)} className="space-y-1.5">
             <div className="noesis-stage-badge border-l-2 pl-2 font-code text-[9px] font-bold uppercase tracking-[0.16em]">{kind.label} · {group.length}</div>
             {group.map((item) => (
-              <div key={item.id} className="group/mark flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/40">
-                <button type="button" onClick={() => find(item.text)} className="min-w-0 flex-1 text-left text-xs leading-5" title="Find in the document">“{item.text}”</button>
+              <div key={item.id} className="noesis-markup-entry group/mark flex items-start gap-2 px-2 py-1.5 hover:bg-muted/40">
+                <button type="button" onClick={() => find(item.text)} className="min-w-0 flex-1 text-left text-xs leading-5" title="Find in the document">“{item.text}”{item.note && <span className="block not-italic text-muted-foreground">{item.note}</span>}</button>
                 <button type="button" onClick={() => onChange(marks.filter((entry) => entry.id !== item.id))} className="text-xs text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/mark:opacity-100 focus-visible:opacity-100" aria-label="Remove mark">×</button>
               </div>
             ))}
           </div>
         );
       })}
-      {!marks.length && <p className="text-xs text-muted-foreground">Nothing marked yet. Marks stay beside the page; the text itself is not changed.</p>}
     </div>
   );
 }

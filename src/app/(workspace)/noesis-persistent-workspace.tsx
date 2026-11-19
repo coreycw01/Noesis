@@ -121,6 +121,7 @@ const WORKSPACE_SECTIONS = new Set([
   'evolution',
   'profile',
   'goals',
+  'exercises',
   'settings',
   'demo',
   'review',

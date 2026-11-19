@@ -1,6 +1,6 @@
 import type { Practice } from './types';
 import { localDateKey, previousCalendarDay, recordDateKey } from './calendar';
-import { hasPracticeIntellectualBasis, normalizePracticeStatusForSave, practiceDesignGaps } from './workflow-integrity';
+import { normalizePracticeStatusForSave } from './workflow-integrity';
 
 export function isPracticeConcluded(practice: Partial<Practice>) {
   return ['completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'abandoned'].includes(practice.status || '');
@@ -58,8 +58,7 @@ export function practiceScheduleState(practice: Partial<Practice>, now = new Dat
 
 export function practiceNeedsLog(practice: Practice, now = new Date()) {
   return practiceScheduleState(practice, now) === 'running'
-    && !practiceDesignGaps(practice).length
-    && hasPracticeIntellectualBasis(practice)
+    && normalizePracticeStatusForSave(practice) === 'active'
     && !practiceLogDates(practice).includes(localDateKey(now));
 }
 

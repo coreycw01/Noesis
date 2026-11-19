@@ -24,13 +24,31 @@ export function contextDeskStorageKeys(workspaceKey: string) {
   return { selection: `${prefix}:selected`, exclusions: `${prefix}:excluded` };
 }
 
-export function normalizeContextDeskSelection(value: unknown): string[] {
+export function normalizeContextDeskSelection(value: unknown, limit = MAX_CONTEXT_ITEMS): string[] {
   return Array.isArray(value)
-    ? [...new Set(value.filter((key): key is string => typeof key === 'string' && Boolean(key.trim())))].slice(0, MAX_CONTEXT_ITEMS)
+    ? [...new Set(value.filter((key): key is string => typeof key === 'string' && Boolean(key.trim())))].slice(0, limit)
     : [];
 }
 
-export function addContextDeskSelection(keys: string[], key: string): string[] | null {
+export function addContextDeskSelection(keys: string[], key: string, limit = MAX_CONTEXT_ITEMS): string[] | null {
   if (keys.includes(key)) return keys;
-  return keys.length < MAX_CONTEXT_ITEMS ? [...keys, key] : null;
+  return keys.length < limit ? [...keys, key] : null;
+}
+
+/** Resolve only the membership supplied by the user, in desk priority order. */
+export function resolveDeskSelection<T extends { key: string; type: string; sourceIds: readonly string[] }>(
+  keys: readonly string[],
+  records: ReadonlyMap<string, T>,
+  exclusions: Parameters<typeof contextDeskRecordIsExcluded>[1],
+) {
+  const available: T[] = [];
+  let unavailable = 0;
+  let excluded = 0;
+  for (const key of new Set(keys)) {
+    const item = records.get(key);
+    if (!item) unavailable++;
+    else if (contextDeskRecordIsExcluded(item, exclusions)) excluded++;
+    else available.push(item);
+  }
+  return { available, unavailable, excluded, analysis: available.slice(0, MAX_CONTEXT_ITEMS) };
 }

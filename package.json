@@ -7,7 +7,8 @@
   },
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
-    "prebuild": "node scripts/verify-firebase-sdk.mjs",
+    "predev": "node scripts/prepare-ocr.mjs",
+    "prebuild": "node scripts/prepare-ocr.mjs && node scripts/verify-firebase-sdk.mjs",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint src tests scripts --no-warn-ignored",
@@ -55,6 +56,7 @@
     "@radix-ui/react-tabs": "^1.1.21",
     "@radix-ui/react-toast": "^1.2.23",
     "@radix-ui/react-tooltip": "^1.4.1",
+    "@tesseract.js-data/eng": "^1.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
@@ -73,6 +75,7 @@
     "sanitize-html": "^2.18.1",
     "sharp": "0.35.5",
     "tailwind-merge": "^3.0.1",
+    "tesseract.js": "^7.0.0",
     "undici": "8.12.2",
     "zod": "4.6.7"
   },

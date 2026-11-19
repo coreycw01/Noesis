@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { ScanEye } from 'lucide-react';
 
 interface NoesisAiMarkProps {
   className?: string;
@@ -8,8 +9,9 @@ interface NoesisAiMarkProps {
 
 export function NoesisAiMark({ className }: NoesisAiMarkProps) {
   return (
-    <span
-      className={cn('inline-block shrink-0 bg-contain bg-center bg-no-repeat bg-[url(/noesis-assistance-light.webp)] dark:bg-[url(/noesis-assistance-dark.webp)]', className)}
+    <ScanEye
+      className={cn('inline-block shrink-0 text-[#563795] dark:text-[#d1b9ff]', className)}
+      strokeWidth={2}
       aria-hidden="true"
     />
   );

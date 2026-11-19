@@ -8,21 +8,23 @@ import {
 import type { Metadata } from 'next';
 
 /**
- * The thinking loop the sidebar is organized around. Stage names are verbs:
- * meet material (Encounter), clarify and investigate it (Examine), commit to a
- * view (Claim), live it (Act), and fold what changed back in (Integrate).
+ * The thinking loop the navigation is organized around. Its stages spell the
+ * app's name: Notice material, Outline what it means, Examine the questions it
+ * raises, take a Stand, Implement it in how you live, then Survey the whole.
  */
-export const NOESIS_NAV_SECTIONS = ['Today', 'Encounter', 'Examine', 'Claim', 'Act', 'Integrate', 'More'] as const;
+export const NOESIS_LOOP_STAGES = ['Notice', 'Outline', 'Examine', 'Stand', 'Implement', 'Survey'] as const;
+export const NOESIS_NAV_SECTIONS = ['Today', ...NOESIS_LOOP_STAGES, 'More'] as const;
 export type NoesisNavSection = typeof NOESIS_NAV_SECTIONS[number];
 
 /** Stage color token for each section (defined in theme.css as --stage-*). */
 export const NOESIS_NAV_SECTION_TONE: Record<NoesisNavSection, string> = {
   Today: 'encounter',
-  Encounter: 'encounter',
+  Notice: 'encounter',
+  Outline: 'outline',
   Examine: 'examine',
-  Claim: 'claim',
-  Act: 'act',
-  Integrate: 'integrate',
+  Stand: 'claim',
+  Implement: 'act',
+  Survey: 'integrate',
   More: 'more',
 };
 
@@ -79,7 +81,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/atlas',
     title: 'Atlas',
     purpose: 'Reveal the territories, tensions, dependencies, and development of the whole thinking system.',
-    section: 'Integrate',
+    section: 'Survey',
     signatureExperience: 'Region and relationship maps for worldview-level diagnosis.',
     loadingLayout: 'map',
   },
@@ -88,7 +90,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/concepts',
     title: 'Concepts',
     purpose: 'Clarify the vocabulary that organizes recurring concepts across Noesis.',
-    section: 'Examine',
+    section: 'Outline',
     signatureExperience: 'A concept laboratory for definitions, distinctions, examples, and ambiguity.',
     loadingLayout: 'detail',
   },
@@ -106,7 +108,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/library',
     title: 'Library',
     purpose: 'Process sources through capture, annotations, claims, concepts, connections, and reflection.',
-    section: 'Encounter',
+    section: 'Notice',
     signatureExperience: 'An active reading, listening, and viewing desk.',
     loadingLayout: 'detail',
   },
@@ -115,7 +117,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/sources',
     title: 'Source Index',
     purpose: 'Browse, filter, and manage every source feeding the workspace.',
-    section: 'Encounter',
+    section: 'Notice',
     signatureExperience: 'A high-density source command center.',
     loadingLayout: 'list',
   },
@@ -124,7 +126,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/annotations',
     title: 'Annotations',
     purpose: 'Turn captured highlights, thoughts, questions, and claims into usable thought.',
-    section: 'Encounter',
+    section: 'Notice',
     signatureExperience: 'A distillation inbox with processing states and batch actions.',
     loadingLayout: 'list',
   },
@@ -133,7 +135,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/positions',
     title: 'Positions',
     purpose: 'State, challenge, revise, and test what the user currently believes.',
-    section: 'Claim',
+    section: 'Stand',
     signatureExperience: 'A belief workbench with evidence, counterpositions, stress tests, and biography.',
     loadingLayout: 'detail',
   },
@@ -142,7 +144,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/works',
     title: 'Works',
     purpose: 'Create writing, notes, recordings, drawings, and external-document artifacts.',
-    section: 'More',
+    section: 'Stand',
     signatureExperience: 'A multimodal creation studio for expressed thought.',
     loadingLayout: 'studio',
   },
@@ -160,7 +162,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/labs',
     title: 'Praxis',
     purpose: 'Test ideas, build consistency, and uphold chosen principles through lived action.',
-    section: 'Act',
+    section: 'Implement',
     signatureExperience: 'One lived-action workspace for exercises, experiments, practices, commitments, observations, and outcomes.',
     loadingLayout: 'detail',
   },
@@ -169,7 +171,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/evolution',
     title: 'Evolution',
     purpose: 'Show meaningful changes in concepts, inquiries, positions, works, and practices over time.',
-    section: 'Integrate',
+    section: 'Survey',
     signatureExperience: 'A time-lapse of thought driven by thinking events.',
     loadingLayout: 'timeline',
   },
@@ -187,8 +189,17 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/goals',
     title: 'Commitments',
     purpose: 'Connect what the user says matters to the practices through which it is lived.',
-    section: 'Act',
+    section: 'Implement',
     signatureExperience: 'A Say/Do bridge between held positions and repeated practice.',
+    loadingLayout: 'list',
+  },
+  {
+    view: 'exercises',
+    route: '/exercises',
+    title: 'Exercises',
+    purpose: 'Short exercises that sharpen how the user thinks, from their own records and from general knowledge.',
+    section: 'Implement',
+    signatureExperience: 'A card table with two decks; every card ends with an action on a real record or page.',
     loadingLayout: 'list',
   },
   {
@@ -218,10 +229,11 @@ export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDa
   vault: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns', 'aiSettings'],
   writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences', 'worksSettings'],
   'context-desk': ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'aiSettings'],
-  labs: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
+  labs: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings', 'goal'],
   evolution: ['media', 'vault', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'aiSettings'],
   profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs', 'aiSettings'],
   goals: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'goal'],
+  exercises: ['media', 'concepts', 'questions', 'vault', 'practices', 'links'],
   settings: ['preferences', 'legacyProfile', 'workspace', 'allSettings'],
 };
 

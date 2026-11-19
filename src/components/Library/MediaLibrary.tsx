@@ -1,6 +1,10 @@
 
 "use client";
 
+import { markupTone } from '@/lib/markup-kinds';
+import { iconForNoesisView } from '@/lib/noesis-icons';
+import { MarkupVoice } from '@/components/shared/MarkupVoice';
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useState, useRef, useId } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -15,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
-import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { AiSettings, Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink, ReadingSession } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_STATUS_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, today, uid, conceptKey } from '@/lib/readex';
 import { cn } from '@/lib/utils';
@@ -30,13 +34,11 @@ import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { nextSourceJourneyStep, sourceJourney } from '@/lib/source-journey';
 import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
 import type { ContextualAiAction } from '@/lib/contextual-ai';
 import { sourceReviewTarget, type SourceReviewApproval } from '@/lib/source-ai-review';
@@ -46,6 +48,8 @@ import { viewToPath } from '@/lib/noesis-routes';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ConceptDetailDialog } from '@/components/Concepts/ConceptDetailDialog';
 
+const MarkupIcon = iconForNoesisView('annotations');
+const SourcePagePhotos = dynamic(() => import('./SourcePagePhotos').then(m => m.SourcePagePhotos));
 const MediaEditor = dynamic(() => import('./MediaEditor').then((module) => module.MediaEditor), {
   loading: () => <p role="status" className="sr-only">Opening source editor</p>,
 });
@@ -186,7 +190,10 @@ export function MediaLibrary({
   const [savingSource, setSavingSource] = useState(false);
   const sourceSaveRef = useRef(false);
   const [draft, setDraft] = useState<Partial<Media>>({ type: 'book', title: '', creator: '', status: 'Want to Read', tags: [] });
-  const [annotationDraft, setAnnotationDraft] = useState({ type: 'thought' as Annotation['type'], text: '' });
+  const [annotationDraft, setAnnotationDraft] = useState('');
+  const [markupSelection, setMarkupSelection] = useState('');
+  const [savingMark, setSavingMark] = useState(false);
+  const markLock = useRef(false);
   const [insightOpen, setInsightOpen] = useState(false);
   const [claimSaving, setClaimSaving] = useState(false);
   const claimSaveLock = useRef(false);
@@ -197,8 +204,6 @@ export function MediaLibrary({
   const { toast } = useToast();
 
   const selected = media.find((item) => item.id === (onOpenSourceRoute ? focusedSourceId : selectedId)) || null;
-  const sourceJourneyState = useMemo(() => selected ? sourceJourney(selected, sourceInfluenceCount(selected, vault, drafts, practices, questions)) : null, [selected, vault, drafts, practices, questions]);
-  const sourceJourneyNext = sourceJourneyState ? nextSourceJourneyStep(sourceJourneyState) : null;
   const selectedRef = useRef<Media | null>(selected);
   selectedRef.current = selected;
   const [captureDraft, setCaptureDraft] = useState<Media['capture'] | null>(null);
@@ -329,7 +334,7 @@ export function MediaLibrary({
       ...patch.capture,
       after: { ...authoredAfter, ...(aiSummary !== undefined ? { aiSummary } : {}), ...(aiReflection !== undefined ? { aiReflection } : {}) },
     };
-    return Promise.resolve(onUpdateMedia({ ...current, ...patch, ...(capture ? { capture } : {}), dateUpdated: today() }, capture ? { dateUpdated: current.dateUpdated } : undefined))
+    return Promise.resolve(onUpdateMedia({ ...current, ...patch, ...(capture ? { capture } : {}), dateUpdated: today() }, capture || patch.pagePhotos ? { dateUpdated: current.dateUpdated } : undefined))
       .then(() => true)
       .catch((error) => {
         toast({ title: 'Source not saved', description: noesisUserError(error, 'save this source'), variant: 'destructive' });
@@ -458,18 +463,29 @@ export function MediaLibrary({
     onOpenSourceRoute?.(null);
   };
 
-  const addAnnotation = async () => {
-    if (!selected || !annotationDraft.text.trim()) return;
+  useEffect(() => { setAnnotationDraft(''); setMarkupSelection(''); }, [selected?.id]);
+
+  const addAnnotation = async (kind: Annotation['type'] | 'evidence', text: string, clearDraft = false) => {
+    if (!selected || !text.trim() || markLock.current) return;
+    markLock.current = true;
+    setSavingMark(true);
+    try {
+    const type = kind === 'evidence' ? 'excerpt' : kind;
     const annotation: Annotation = {
       id: uid(),
-      type: annotationDraft.type,
-      text: annotationDraft.text.trim(),
+      type,
+      ...(kind === 'evidence' ? { consequenceKind: 'evidence' as const } : {}),
+      text: text.trim(),
       date: today(),
       conceptTags: selected.tags,
-      philosophyStatus: annotationDraft.type === 'question' ? 'questioned' : 'raw',
+      philosophyStatus: type === 'question' ? 'questioned' : 'raw',
     };
     if (!await updateSelected({ annotations: [annotation, ...(selected.annotations || [])] })) return;
-    setAnnotationDraft({ type: 'thought', text: '' });
+    if (selectedRef.current?.id === selected.id) {
+      if (clearDraft) setAnnotationDraft(current => current === text ? '' : current);
+      setMarkupSelection('');
+    }
+    } finally { markLock.current = false; setSavingMark(false); }
   };
 
   const saveClaim = async () => {
@@ -513,7 +529,7 @@ export function MediaLibrary({
               actions={['summarize_source', 'extract_source_claims', 'propose_inquiry_prompts']}
               enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
               showContextBeforeSending={aiSettings?.showContextBeforeSending}
-              reasoningDepth={aiSettings?.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'library')}
               buildEnvelope={(action: ContextualAiAction) => ({
                 action,
                 targetType: 'source',
@@ -601,20 +617,9 @@ export function MediaLibrary({
         </section>
 
         <Tabs value={sourceWorkbenchStep} onValueChange={(value) => setSourceWorkbenchStep(value as SourceWorkbenchStep)} className="w-full">
-          <WorkbenchFlow
-            label="Source workbench workflow"
-            activeId={sourceWorkbenchStep}
-            onSelect={(id) => setSourceWorkbenchStep(id as SourceWorkbenchStep)}
-            className="mb-5"
-            nextId={sourceJourneyNext}
-            nextHint={sourceJourneyNext ? sourceJourneyState![sourceJourneyNext].next : undefined}
-            steps={[
-              { id: 'overview', label: 'Understand', description: 'You name why this source matters to you and say its central idea in your own words.', progress: sourceJourneyState?.overview.progress, meta: sourceJourneyState?.overview.meta },
-              { id: 'capture', label: 'Engage', description: 'You set an intention, log each sitting, and record what changed in your thinking afterward.', progress: sourceJourneyState?.capture.progress, meta: sourceJourneyState?.capture.meta },
-              { id: 'annotations', label: 'Capture', description: 'You keep the passages that matter, then develop each one into a question, claim, or connection.', progress: sourceJourneyState?.annotations.progress, meta: sourceJourneyState?.annotations.meta },
-              { id: 'connections', label: 'Connect', description: 'You tie the source to concepts and see which positions, inquiries, works, and practices it now supports.', progress: sourceJourneyState?.connections.progress, meta: sourceJourneyState?.connections.meta },
-            ]}
-          />
+          <TabsList aria-label="Source sections" className="mb-5 flex h-auto w-fit max-w-full flex-wrap">
+            {([['overview', 'Overview'], ['capture', 'Reflection'], ['annotations', 'Markup'], ['connections', 'Connections']] as const).map(([id, label]) => <TabsTrigger key={id} value={id}>{id === 'annotations' && <MarkupIcon className="mr-1.5 size-4" aria-hidden="true" />}{label}</TabsTrigger>)}
+          </TabsList>
 
           <TabsContent value="overview" className="space-y-5 sm:space-y-8">
             <AiAssistedHistory
@@ -644,10 +649,36 @@ export function MediaLibrary({
                 </div>}
               </Card>
             )}
+            {(() => {
+              const rows: Array<[string, string | undefined, boolean]> = [
+                ['Came for', capture.before?.openQuestion || capture.before?.reasonForAdding, false],
+                ['Central idea, in your words', capture.after?.coreArgument, true],
+                ['What changed', capture.after?.beliefChange || capture.after?.heldUp, false],
+                ['Still open', capture.after?.remainsUnanswered, false],
+              ];
+              const filled = rows.filter((row) => row[1]?.trim());
+              return (
+                <Card className="noesis-workbench-panel">
+                  <div className="noesis-workbench-panel__eyebrow mb-3">YOUR THINKING ON THIS SOURCE</div>
+                  {filled.length ? (
+                    <dl className="grid gap-3">
+                      {filled.map(([label, value, emphasis]) => (
+                        <div key={label}>
+                          <dt className="font-code text-[8.5px] uppercase tracking-[0.14em] text-muted-foreground">{label}</dt>
+                          <dd className={cn('mt-0.5 text-foreground/90', emphasis && 'font-headline text-lg italic')}>{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Nothing recorded yet. <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Open Reflection</button> to note why you came, the central idea in your words, and what changed.</p>
+                  )}
+                </Card>
+              );
+            })()}
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
                 <Card className="noesis-workbench-panel">
                 <div className="noesis-workbench-panel__eyebrow mb-3">MEDIA SUMMARY</div>
-                <div className="grid gap-3 text-sm">
+                <div className="grid gap-1 text-sm">
                   {[
                     { label: 'Type', value: MEDIA_LABELS[selected.type] },
                     { label: 'Creator', value: selected.creator || selected.creators?.join(', ') || 'Unknown creator' },
@@ -656,9 +687,9 @@ export function MediaLibrary({
                     { label: 'Locator', value: selected.isbn || selected.doi || selected.url || selected.externalIds?.url || selected.externalIds?.doi || 'No locator recorded' },
                     { label: 'Status', value: MEDIA_STATUS_LABELS[selected.status] },
                   ].map((item) => (
-                    <div key={item.label} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-start gap-3 border-b border-border/40 py-3 last:border-b-0 sm:rounded-lg sm:border sm:bg-background/70 sm:px-4">
-                      <span className="font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">{item.label}</span>
-                      <span className="min-w-0 break-words text-right text-foreground/80">{item.value}</span>
+                    <div key={item.label} className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-3 py-0.5">
+                      <span className="font-code text-[8.5px] uppercase tracking-[0.14em] text-muted-foreground">{item.label}</span>
+                      <span className="min-w-0 break-words text-foreground/85">{item.value}</span>
                     </div>
                   ))}
                 </div>
@@ -668,7 +699,7 @@ export function MediaLibrary({
                 <div className="noesis-workbench-panel__eyebrow mb-3">SOURCE PURPOSE</div>
                 <p className="font-headline text-xl italic leading-snug text-primary/90 sm:text-2xl">{sourcePurpose}</p>
                 <p className="mt-4 text-sm leading-6 text-muted-foreground sm:mt-6">
-                  Open <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Engage</button> to record your purpose, sessions, and reflection.
+                  Open <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Reflection</button> to record your purpose, sessions, and reflection.
                 </p>
               </Card>
             </div>
@@ -676,18 +707,25 @@ export function MediaLibrary({
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
               <Card className="noesis-workbench-panel">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="noesis-workbench-panel__eyebrow">KEY CONCEPTS</div>
+                  <div className="noesis-workbench-panel__eyebrow">MOST IMPORTANT CONNECTIONS</div>
                   <span className="text-xs text-muted-foreground">Latest {linkedConcepts.length}</span>
                 </div>
-                <p className="mb-4 text-sm leading-6 text-muted-foreground">The three most recently updated concepts linked to this source.</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {linkedConcepts.map((concept) => {
+                    const key = concept.name.trim().toLowerCase();
+                    const has = (tags?: string[]) => (tags || []).some((tag) => tag.trim().toLowerCase() === key);
+                    const positionsCount = vault.filter((entry) => has(entry.tags)).length;
+                    const inquiriesCount = questions.filter((question) => has((question as typeof question & { conceptTags?: string[] }).conceptTags) || (question.conceptIds || []).includes(concept.id)).length;
+                    const notesHere = (selected.annotations || []).filter((note) => has(note.conceptTags)).length;
                     return (
-                      <button key={concept.id} type="button" onClick={() => setConceptPopupName(concept.name)} className="rounded-full border border-border/50 bg-background/70 px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-accent/40 hover:bg-accent/5 hover:text-accent">
-                        {concept.name}
+                      <button key={concept.id} type="button" onClick={() => setConceptPopupName(concept.name)} className="noesis-connection-card">
+                        <b>{concept.name}</b>
+                        <span>{positionsCount} position{positionsCount === 1 ? '' : 's'} · {inquiriesCount} inquir{inquiriesCount === 1 ? 'y' : 'ies'} · {notesHere} note{notesHere === 1 ? '' : 's'} from here</span>
                       </button>
                     );
                   })}
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={() => setShowSourceConceptPicker((value) => !value)} className="h-8 rounded-full px-3 text-xs"><Plus className="mr-1 size-3.5" /> Add concept</Button>
                 </div>
                 {showSourceConceptPicker && <div className="mt-4 max-w-md"><ConceptTagPicker concepts={concepts} value={selected.tags || []} onChange={(tags) => updateSelected({ tags })} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></div>}
@@ -840,7 +878,7 @@ export function MediaLibrary({
                     actions={['reflect_on_source']}
                     enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                     showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                    reasoningDepth={aiSettings?.defaultReasoningDepth}
+                    reasoningDepth={aiDepthFor(aiSettings, 'library')}
                     buttonLabel="Reflect on this source"
                     promptLabel="What do you want to understand about your response to this source?"
                     promptPlaceholder="For example: What tension keeps appearing in my notes, and what should I examine next?"
@@ -888,41 +926,47 @@ export function MediaLibrary({
             </div>
           </TabsContent>
 
-          <TabsContent value="annotations" className="max-w-4xl">
-            <div>
-              <div className="space-y-8">
+          <TabsContent value="annotations">
+            <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,0.55fr)]">
+              <section className="min-w-0 space-y-4" aria-label="Passage">
+                <SourcePagePhotos key={selected.id} sourceId={selected.id} photos={selected.pagePhotos || []} allowSave={!/^\/(demo|review)(\/|$)/.test(pathname)} onSave={async photo => {
+                  const source = selectedRef.current;
+                  if (!source || source.id !== selected.id) return false;
+                  return Boolean(await updateSelected({ pagePhotos: [...(source.pagePhotos || []), photo] }));
+                }} onText={text => { setMarkupSelection(''); setAnnotationDraft(prev => [prev.trim(), text].filter(Boolean).join('\n\n')); }} />
                 <div>
-                  <h3 className="readex-kicker font-bold text-muted-foreground">NOTES FROM THIS SOURCE</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">Save a highlight, your own thought, a question, or a connection. Keep each note to one idea.</p>
+                  <label htmlFor="source-markup-passage" className="mb-2 block text-sm font-medium">Passage or note</label>
+                  <Textarea id="source-markup-passage" value={annotationDraft}
+                    onSelect={event => { const node = event.currentTarget; setMarkupSelection(node.value.slice(node.selectionStart, node.selectionEnd).trim()); }}
+                    onChange={event => { setMarkupSelection(''); setAnnotationDraft(event.target.value); }}
+                    placeholder="Paste a passage, extract text from a photo, or write a note."
+                    className="min-h-52 font-body text-base leading-7" />
                 </div>
-                <div className="grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto]">
-                  <Select value={annotationDraft.type} onValueChange={(value) => setAnnotationDraft((prev) => ({ ...prev, type: value as Annotation['type'] }))}>
-                    <SelectTrigger className="h-11 w-full rounded-md border-border/60 bg-card font-code text-[10px] font-bold uppercase shadow-sm sm:rounded-full"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="highlight" className="font-code text-[10px] uppercase">Highlight</SelectItem>
-                      <SelectItem value="thought" className="font-code text-[10px] uppercase">Thought</SelectItem>
-                      <SelectItem value="question" className="font-code text-[10px] uppercase">Question</SelectItem>
-                      <SelectItem value="connection" className="font-code text-[10px] uppercase">Connection</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Textarea aria-label="Annotation text" value={annotationDraft.text} onChange={(event) => setAnnotationDraft((prev) => ({ ...prev, text: event.target.value }))} placeholder="One passage, observation, or question worth keeping…" className="min-h-28 font-body text-base leading-7" />
-                  <Button onClick={addAnnotation} disabled={!annotationDraft.text.trim()} size="sm" className="h-11 w-full rounded-md px-6 font-bold sm:w-auto sm:rounded-full">Save note</Button>
-                </div>
-                <div className="space-y-5">
-                  {(selected.annotations || []).map((annotation) => (
-                    <Link key={annotation.id} href={viewToPath('annotations', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), annotationSourceId: selected.id, annotationId: annotation.id })} className="group block rounded-[var(--card-radius)] border border-border/50 bg-card p-4 transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <Badge variant="outline" className="font-code text-[9px] uppercase tracking-widest bg-muted/5 border-border/40 rounded-full font-bold">
-                          {annotation.type}
-                        </Badge>
-                        <time className="font-code text-[9px] text-muted-foreground/50 font-bold uppercase">{new Date(annotation.date).toLocaleDateString()}</time>
-                      </div>
-                      <p className={cn('font-body text-base leading-7 text-foreground', ['highlight', 'excerpt'].includes(annotation.type) && 'border-l-2 border-accent/50 pl-4 italic')}>{annotation.text}</p>
-                      <span className="mt-4 inline-flex text-sm font-medium text-accent group-hover:underline">Develop this note</span>
+                {(selected.description || selected.catalogSummary) && !annotationDraft && <Button variant="outline" size="sm" onClick={() => setAnnotationDraft(selected.description || selected.catalogSummary || '')}>Use source description</Button>}
+                <MarkupVoice key={selected.id} text={markupSelection || annotationDraft} onTranscript={words => { setMarkupSelection(''); setAnnotationDraft(prev => [prev.trimEnd(), words].filter(Boolean).join(' ')); }} />
+                <Button variant="outline" size="sm" onClick={() => void addAnnotation('thought', annotationDraft, true)} disabled={savingMark || !annotationDraft.trim()}>Save as note</Button>
+              </section>
+
+              <aside className="min-w-0 space-y-4 border-t border-border pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0" aria-label="Markup rail">
+                <h3 className="flex items-center gap-2 text-sm font-medium"><MarkupIcon className="size-4" aria-hidden="true" />Marks</h3>
+                {markupSelection && <div className="space-y-2 border-b border-border pb-4">
+                  <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm italic">“{markupSelection}”</p>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Mark the selected passage">
+                    {(['highlight', 'evidence', 'question', 'claim', 'definition', 'objection', 'connection'] as const).map(type => (
+                      <button key={type} type="button" data-stage-tone={markupTone(type)} className="noesis-mark-kind min-h-10 capitalize" disabled={savingMark} onClick={() => void addAnnotation(type, markupSelection)}>{type}</button>
+                    ))}
+                  </div>
+                </div>}
+                <div className="grid gap-2">
+                  {(selected.annotations || []).map(annotation => (
+                    <Link key={annotation.id} data-stage-tone={markupTone(annotation.consequenceKind || annotation.type)} href={viewToPath('annotations', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), annotationSourceId: selected.id, annotationId: annotation.id })}
+                      className="noesis-markup-entry block min-w-0 break-words py-2 pl-3 text-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <span className="noesis-markup-entry__kind block text-xs font-semibold capitalize">{(annotation.consequenceKind || annotation.type).replaceAll('_', ' ')}</span>
+                      <span className="mt-1 block whitespace-pre-wrap">{annotation.text}</span>
                     </Link>
                   ))}
                 </div>
-              </div>
+              </aside>
             </div>
           </TabsContent>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useId, useRef, type CSSProperties } from 'react';
+import { Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { workbenchFocusIndex } from '@/lib/workbench-keyboard';
 
@@ -13,22 +14,6 @@ export type WorkbenchStep = {
   /** Optional one-line status under the label, such as "3 notes · 1 developed". */
   meta?: string;
 };
-
-function ProgressRing({ value, number, active }: { value: number; number: number; active: boolean }) {
-  const radius = 13;
-  const circumference = 2 * Math.PI * radius;
-  const done = value >= 0.999;
-  return (
-    <span className="noesis-step-ring relative grid size-[34px] shrink-0 place-items-center" data-active={active || undefined} aria-hidden="true">
-      <svg viewBox="0 0 34 34" width="34" height="34" className="absolute inset-0">
-        <circle cx="17" cy="17" r={radius} fill="none" className="stroke-border" strokeWidth="3" />
-        <circle cx="17" cy="17" r={radius} fill="none" className="noesis-step-ring__arc" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${circumference * Math.max(0, Math.min(1, value))} ${circumference}`} transform="rotate(-90 17 17)" />
-        {done && <path d="M11.5 17.5l3.5 3.5 7-8" className="noesis-step-ring__arc" strokeWidth="2.2" fill="none" strokeLinecap="round" />}
-      </svg>
-      {!done && <span className="relative font-code text-[10px] font-bold">{number}</span>}
-    </span>
-  );
-}
 
 export function WorkbenchFlow({
   label,
@@ -54,23 +39,22 @@ export function WorkbenchFlow({
 
   return (
     <nav aria-label={label} className={cn('noesis-thought-spine max-sm:sticky max-sm:top-0 max-sm:z-20 [@media(max-height:600px)]:py-1', className)}>
+      <div className="mb-1.5 inline-flex items-center gap-2 px-2 text-sm font-semibold text-foreground sm:px-0">
+        <Wrench className="size-4 shrink-0 text-accent" aria-hidden="true" />
+        <span>Workbench</span>
+      </div>
       <ol className="relative grid grid-cols-2 gap-1 sm:gap-0 lg:grid-cols-[repeat(var(--workbench-steps),minmax(0,1fr))] [@media(max-height:600px)]:flex [@media(max-height:600px)]:overflow-x-auto scrollbar-hide" style={{ '--workbench-steps': steps.length } as CSSProperties}>
         {steps.map((step, index) => {
           const active = step.id === activeStep?.id;
           const isNext = step.id === nextId;
-          const content = typeof step.progress === 'number' ? (
+          const content = (
             <span className="flex min-h-11 items-center gap-2.5 px-2 py-1 sm:pl-0 sm:pr-4">
-              <ProgressRing value={step.progress} number={index + 1} active={active} />
+
               <span className="grid min-w-0">
                 <span className={cn('text-sm font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>{step.label}</span>
                 {step.meta && <span className="truncate font-code text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{step.meta}</span>}
                 {isNext && <span className="noesis-step-next mt-0.5 text-[11px] leading-4">Next{nextHint ? ` · ${nextHint}` : ''}</span>}
               </span>
-            </span>
-          ) : (
-            <span className="flex min-h-11 items-center gap-2 px-2 sm:gap-3 sm:pl-0 sm:pr-4">
-              <span className={cn('relative z-10 size-2.5 shrink-0 rounded-full border bg-background', active ? 'border-accent bg-accent' : 'border-border')} aria-hidden="true" />
-              <span className={cn('text-sm font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>{step.label}</span>
             </span>
           );
 

@@ -762,3 +762,12 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-mark-kind { height: 1.7rem; padding: 0 .7rem; border-radius: 999px; border: 1px solid hsl(var(--stage) / .6); color: hsl(var(--stage)); background: transparent; font-size: .75rem; }
 .noesis-mark-kind:hover:not(:disabled) { background: hsl(var(--stage) / .14); }
 .noesis-mark-kind:disabled { opacity: .4; }
+
+.noesis-markup-entry { border-inline-start: 2px solid hsl(var(--stage)); }
+.noesis-markup-entry__kind { color: hsl(var(--stage)); }
+
+.noesis-apply-route { border-inline-start: 3px solid hsl(var(--stage) / .5); transition: background-color .15s, border-color .15s; }
+.noesis-apply-route:hover { background: hsl(var(--stage) / .06); }
+.noesis-apply-route[aria-pressed="true"] { background: hsl(var(--stage) / .12); border-color: hsl(var(--stage) / .55); }
+.noesis-apply-route__icon { color: hsl(var(--stage)); }
+@media (prefers-reduced-motion: reduce) { .noesis-apply-route { transition: none; } }

@@ -17,6 +17,7 @@ import { noesisGuide } from '@/lib/noesis-guide';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { LabeledField as Field } from '@/components/shared/LabeledField';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
+import { AI_DEPTH_PAGES } from '@/lib/ai-depth';
 import { appearanceSnapshot, applyAppearanceSettings, persistAppearanceSettings } from '@/lib/appearance';
 import { changedSettingsFields, reconcileSettingsDrafts } from '@/lib/settings-drafts';
 import { thinkingHistoryDate } from '@/lib/evolution-history';
@@ -32,6 +33,7 @@ import type {
   AccountSettings,
   AiSettings,
   AppearanceSettings,
+  StageColorKey,
   AtlasSettings,
   DataSettings,
   DeveloperSettings,
@@ -567,6 +569,10 @@ export function SettingsPage({
                 <SwitchRow label="High contrast mode" checked={drafts.appearance.highContrastMode} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, highContrastMode: checked } }))} />
                 <LoopNavigationRow />
               </div>
+              <StageColorPicker
+                value={drafts.appearance.stageColors || {}}
+                onChange={(stageColors) => setDrafts((prev) => ({ ...prev, appearance: { ...prev.appearance, stageColors } }))}
+              />
               <div className="mt-6 overflow-hidden rounded-2xl border-2 border-border bg-background shadow-sm" aria-label="Live theme preview">
                 <div className="flex min-h-48">
                   <div className="w-20 border-r border-sidebar-border bg-sidebar p-3 text-sidebar-foreground">
@@ -890,6 +896,33 @@ export function SettingsPage({
                     </SelectContent>
                   </Select>
                 </Field>
+                <fieldset className="rounded-[var(--card-radius)] border border-border p-4">
+                  <legend className="px-1 font-code text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Depth by page</legend>
+                  <p className="mb-3 text-sm text-muted-foreground">Start some pages lighter or deeper than the default. You can still change the depth for a single request.</p>
+                  <ul className="grid gap-2 sm:grid-cols-2">
+                    {AI_DEPTH_PAGES.map(({ page, label }) => (
+                      <li key={page} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-3 py-2">
+                        <span className="text-sm">{label}</span>
+                        <Select
+                          value={drafts.ai.depthByPage?.[page] || 'default'}
+                          onValueChange={(value) => setDrafts((prev) => {
+                            const depthByPage = { ...(prev.ai.depthByPage || {}) };
+                            if (value === 'default') delete depthByPage[page]; else depthByPage[page] = value as AiSettings['defaultReasoningDepth'];
+                            return { ...prev, ai: { ...prev.ai, depthByPage } };
+                          })}
+                        >
+                          <SelectTrigger className="h-8 w-40" aria-label={`${label} reasoning depth`}><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">Default ({drafts.ai.defaultReasoningDepth})</SelectItem>
+                            <SelectItem value="light">Light</SelectItem>
+                            <SelectItem value="standard">Standard</SelectItem>
+                            <SelectItem value="deep">Deep</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </li>
+                    ))}
+                  </ul>
+                </fieldset>
               </div>
               <div className="mt-4 rounded-xl border border-border bg-background/60 p-4 text-sm leading-6 text-muted-foreground">
                 You start every request. Item assistance uses that item and its linked records; Context Desk uses your selected items, and period reviews use the selected dates. Results remain suggestions until you review and accept them. Accepted material is recorded as AI-assisted.
@@ -1348,7 +1381,7 @@ function LoopNavigationRow() {
   return (
     <div className="grid gap-1">
       <SwitchRow label="Use the Loop dock (turn off for the classic sidebar)" checked={style === 'loop'} onCheckedChange={(checked) => writeNavStyle(checked ? 'loop' : 'sidebar')} />
-      <p className="px-1 text-xs text-muted-foreground">A floating dock that lays pages out as Encounter, Examine, Claim, Act, Integrate. Desktop only; applies on this device immediately.</p>
+      <p className="px-1 text-xs text-muted-foreground">A floating dock that lays pages out as Notice, Outline, Examine, Stand, Implement, Survey: N·O·E·S·I·S. Desktop only; applies on this device immediately.</p>
     </div>
   );
 }
@@ -1400,4 +1433,51 @@ function sectionLabel(section: SettingsSectionKey) {
     default:
       return section.charAt(0).toUpperCase() + section.slice(1);
   }
+}
+
+const STAGE_COLOR_ROWS: Array<{ key: StageColorKey; stage: string; pages: string }> = [
+  { key: 'encounter', stage: 'Notice', pages: 'Library, Sources, Annotations, Today' },
+  { key: 'outline', stage: 'Outline', pages: 'Concepts' },
+  { key: 'examine', stage: 'Examine', pages: 'Inquiries' },
+  { key: 'claim', stage: 'Stand', pages: 'Positions, Works' },
+  { key: 'act', stage: 'Implement', pages: 'Praxis, Exercises, Commitments' },
+  { key: 'integrate', stage: 'Survey', pages: 'Atlas, Evolution' },
+  { key: 'more', stage: 'More', pages: 'Profile, Settings, Noesis AI' },
+];
+
+const PAGE_SWATCHES = [
+  ['Brick', '#b85444'], ['Coral', '#dc795d'], ['Amber', '#bc8632'],
+  ['Olive', '#828843'], ['Fern', '#4b9567'], ['Teal', '#318e88'],
+  ['Lake', '#3686a7'], ['Denim', '#587bac'], ['Iris', '#806abb'],
+  ['Plum', '#a2679c'], ['Rose', '#be6584'], ['Slate', '#768491'],
+] as const;
+
+function StageColorPicker({ value, onChange }: { value: Partial<Record<StageColorKey, string>>; onChange: (next: Partial<Record<StageColorKey, string>>) => void }) {
+  return (
+    <details className="mt-6 rounded-[var(--card-radius)] border border-border px-4">
+      <summary className="cursor-pointer py-3 text-sm font-medium">Page colours</summary>
+      <ul className="divide-y divide-border pb-2">
+        {STAGE_COLOR_ROWS.map(({ key, stage, pages }) => {
+          const current = value[key]?.toLowerCase() || 'theme';
+          return (
+            <li key={key} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <div><span className="text-sm font-medium">{stage}</span><p className="text-xs text-muted-foreground">{pages}</p></div>
+              <Select value={current} onValueChange={(colour) => {
+                const next = { ...value };
+                if (colour === 'theme') delete next[key]; else next[key] = colour;
+                onChange(next);
+              }}>
+                <SelectTrigger aria-label={stage + ' colour'} className="w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="theme">Theme default</SelectItem>
+                  {current !== 'theme' && !PAGE_SWATCHES.some(([, hex]) => hex === current) && <SelectItem value={current}>Previous colour</SelectItem>}
+                  {PAGE_SWATCHES.map(([name, hex]) => <SelectItem key={hex} value={hex}><span className="inline-flex items-center gap-2"><span aria-hidden="true" className="size-3 rounded-full border border-current/20" style={{ backgroundColor: hex }} />{name}</span></SelectItem>)}
+                </SelectContent>
+              </Select>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
 }
