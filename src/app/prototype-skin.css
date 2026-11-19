@@ -532,3 +532,12 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .reduce-motion .noesis-case.is-moved { animation: none; outline: 2px solid hsl(var(--zone)); }
 .noesis-caliper-why { display: grid; gap: 8px; padding: 12px 14px; border-radius: 12px; border-left: 3px solid hsl(var(--stage-outline)); background: hsl(var(--stage-outline) / .08); }
 .noesis-caliper-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Praxis instrument: the action first, then the type's own view. */
+.noesis-praxis-instrument { display: grid; gap: 14px; padding: 16px 18px; border-radius: 14px; border: 1px solid hsl(var(--stage) / .45); background: hsl(var(--stage) / .05); }
+.noesis-praxis-instrument__action { display: grid; gap: 4px; }
+.noesis-praxis-instrument__kind { display: inline-flex; align-items: center; gap: 6px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--stage)); }
+.noesis-praxis-instrument__kind svg { color: hsl(var(--stage)); }
+.noesis-praxis-pair { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+.noesis-praxis-pair > div { padding: 10px 12px; border-radius: 10px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
+@media (max-width: 640px) { .noesis-praxis-pair { grid-template-columns: 1fr; } }
+.noesis-praxis-instrument .noesis-praxis-checkin { padding-top: 0; }

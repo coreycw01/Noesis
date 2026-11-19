@@ -37,7 +37,8 @@ import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { resolvedAiHistory, type AiReviewResult } from '@/lib/contextual-ai';
 import { practiceReviewTarget, type PracticeReviewApproval } from '@/lib/practice-ai-review';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
-import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
+import { NextMove, RecordTools } from '@/components/shared/RecordDetail';
+import { PraxisInstrument } from '@/components/Practices/PraxisInstrument';
 import { hasPracticeIntellectualBasis, isRepeatablePractice, normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
 import { PraxisMethodPicker, type PraxisMethod } from '@/components/Practices/PraxisMethodPicker';
@@ -887,23 +888,32 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
           </DialogHeader>
           {draft.id && (() => {
             const tested = positions.filter((position) => (draft.positionIds || []).includes(position.id));
-            const lastOutcome = [...(draft.logs || [])].reverse().find((log) => log.outcome?.trim())?.outcome || '';
+            const logs = draft.logs || [];
+            const next = !draft.action?.trim() ? { text: 'Name the action in a sentence', go: () => setPracticeWorkflowStep('design') }
+              : practiceScheduleState(draft) === 'review' ? { text: 'The run is over: compare what you expected with what happened', go: () => setPracticeWorkflowStep('review') }
+              : logs.length >= 3 && tested[0] ? { text: `Carry what it shows back to “${tested[0].title.slice(0, 60)}”`, go: () => onOpenPosition?.(tested[0].id) }
+              : null;
+            const checkIn = async (kept: boolean) => {
+              try {
+                await onRecordLog({ id: uid(), date: dateKey(), actionCompleted: kept, outcome: kept ? 'Kept' : 'Missed' });
+                toast({ title: kept ? 'Checked in' : 'Recorded as missed' });
+              } catch {
+                toast({ title: 'Check-in not saved', description: 'Please retry.', variant: 'destructive' });
+              }
+            };
             return (
-              <SuggestionChain suggestions={[
-                ...tested.slice(0, 1).map((position) => ({
-                  kind: 'position' as const,
-                  title: `Revisit “${chainTitle(position.title, 70)}”`,
-                  why: lastOutcome ? `Latest observation: ${chainTitle(lastOutcome, 80)}` : 'This practice tests it. Carry what it shows back to the position.',
-                  actionLabel: 'Open the position',
-                  act: () => onOpenPosition?.(position.id),
-                })),
-                ...(onAddQuestion ? [{
-                  kind: 'inquiry' as const,
-                  title: `What is “${chainTitle(draft.title || 'this practice', 60)}” showing me?`,
-                  why: lastOutcome ? 'Observations are piling up. An inquiry turns them into an answer.' : 'Open a question now so the observations have somewhere to go.',
-                  act: async () => { await onAddQuestion({ text: `What is "${draft.title || 'this practice'}" showing me?`, status: 'open', practiceIds: [draft.id as string], beliefIds: draft.positionIds || [], sourceIds: draft.sourceIds || [], conceptIds: [], evidenceIds: [] }); },
-                }] : []),
-              ]} />
+              <div className="grid gap-3 pb-3">
+                {next && <div data-stage-tone="act"><NextMove text={next.text} onClick={next.go} /></div>}
+                <div data-stage-tone="act">
+                  <RecordTools tools={[
+                    { label: 'Add observation', onClick: () => setPracticeWorkflowStep('run') },
+                    { label: 'Edit design', onClick: () => setPracticeWorkflowStep('design') },
+                    { label: 'Review result', onClick: () => setPracticeWorkflowStep('review') },
+                    ...(onAddQuestion ? [{ label: 'Open an inquiry', onClick: () => { void Promise.resolve(onAddQuestion({ text: `What is "${draft.title || 'this practice'}" showing me?`, status: 'open', practiceIds: [draft.id as string], beliefIds: draft.positionIds || [], sourceIds: draft.sourceIds || [], conceptIds: [], evidenceIds: [] })).then(() => toast({ title: 'Inquiry created' })); } }] : []),
+                  ]} />
+                </div>
+                <PraxisInstrument practice={draft} positions={positions} questions={questions} onCheckIn={schedule === 'running' ? (kept) => void checkIn(kept) : undefined} onOpenPosition={onOpenPosition} />
+              </div>
             );
           })()}
           <div className="pb-4 [@media(max-height:600px)]:pb-2">
