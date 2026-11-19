@@ -312,3 +312,14 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-pattern-meter span { position: absolute; left: 0; bottom: 0; height: 2px; background: hsl(var(--stage-claim)); border-radius: 2px; }
 .noesis-spine__dot[data-edge="start"] em { left: -4px; transform: none; }
 .noesis-spine__dot[data-edge="end"] em { left: auto; right: -4px; transform: none; }
+/* The interface shape setting wins over the skin's defaults. */
+:root[data-interface-shape="square"] { --card-radius: 6px; --button-radius: 4px; }
+:root[data-interface-shape="pills"] { --card-radius: 14px; --button-radius: 999px; }
+/* AI assistance, as in the prototype: a dashed dock in the "revise" violet. */
+:root { --revise: 270 30% 43%; }
+.dark { --revise: 276 28% 71%; }
+.noesis-aidock { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 8px; border: 1px dashed hsl(var(--revise) / .5); border-radius: 12px; background: hsl(var(--revise) / .05); }
+.noesis-ai-trigger { border: 1.5px solid hsl(var(--revise)) !important; box-shadow: 0 0 0 3px hsl(var(--revise) / .15); background: hsl(var(--revise) / .1) !important; color: hsl(var(--revise)) !important; font-weight: 600; }
+.noesis-ai-trigger:hover { box-shadow: 0 0 0 5px hsl(var(--revise) / .22); background: hsl(var(--revise) / .18) !important; }
+.noesis-aidock__depth { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--revise)); border: 1px dotted hsl(var(--revise) / .6); border-radius: 999px; padding: 2px 8px; }
+[role="dialog"]:has(.noesis-ai-review), .noesis-ai-dialog { border-color: hsl(var(--revise) / .45) !important; }

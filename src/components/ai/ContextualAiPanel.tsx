@@ -379,10 +379,11 @@ export function ContextualAiPanel({
 
   return (
     <>
-      <span className="inline-flex items-center gap-1.5">
-        <Button variant="outline" size="sm" className="rounded-full" aria-haspopup="dialog" aria-expanded={open} onClick={(event) => { dialogOpener.current = event.currentTarget; setOpen(true); }}>
+      <span className="noesis-aidock">
+        <Button variant="outline" size="sm" className="noesis-ai-trigger rounded-full" aria-haspopup="dialog" aria-expanded={open} onClick={(event) => { dialogOpener.current = event.currentTarget; setOpen(true); }}>
           <NoesisAiMark className="mr-2 size-5" /> {buttonLabel}
         </Button>
+        <span className="noesis-aidock__depth" title="Reasoning depth for this action">{effectiveDepth}</span>
         {contextDeskKey && workspaceKey && (
           <Button
             type="button"
@@ -432,7 +433,7 @@ export function ContextualAiPanel({
           const opener = dialogOpener.current;
           dialogOpener.current = null;
           if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
-        }} className="h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border-0 p-0 sm:h-[94dvh] sm:w-[calc(100vw-2rem)] sm:max-w-6xl sm:rounded-lg sm:border">
+        }} className="noesis-ai-dialog h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border-0 p-0 sm:h-[94dvh] sm:w-[calc(100vw-2rem)] sm:max-w-6xl sm:rounded-lg sm:border">
           <div className="flex h-full min-h-0 flex-col bg-background">
             <DialogHeader className="shrink-0 border-b border-border px-4 py-4 pr-12 text-left sm:px-6">
               <div className="flex min-w-0 items-center gap-3">

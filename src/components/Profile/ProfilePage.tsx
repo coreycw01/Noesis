@@ -304,7 +304,7 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
             </div>}
             <div className="mt-4 flex flex-col gap-4 noesis-recommendation sm:flex-row sm:items-center sm:justify-between">
               <div className="max-w-2xl">
-                <div className="flex items-center gap-2 font-medium"><NoesisAiMark className="size-6" />Shape My Philosophy</div>
+                <div className="flex items-center gap-2 font-medium"><NoesisAiMark className="size-6" />AI synthesis</div>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">Noesis compares a bounded set of your strongest records, tests their consistency, and proposes language for you to review. It never names or publishes your philosophy automatically.</p>
                 {philosophyEvidenceCount < 3 && <p className="mt-2 text-xs text-muted-foreground">Add or develop at least three concepts, positions, inquiry answers, practices, or works before requesting a synthesis.</p>}
               </div>
@@ -316,7 +316,7 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
                   showContextBeforeSending={aiSettings.showContextBeforeSending}
                   reasoningDepth={aiSettings.defaultReasoningDepth}
                   onAccept={acceptPhilosophySynthesis}
-                  buttonLabel="Shape My Philosophy"
+                  buttonLabel="Request synthesis"
                   promptLabel="What should Noesis examine?"
                   promptPlaceholder="For example: Is my confidence consistent with my evidence and tested practices?"
                 />
