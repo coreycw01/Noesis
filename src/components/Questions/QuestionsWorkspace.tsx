@@ -1159,6 +1159,19 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           />
         )}
 
+        {(workflowStep === 'investigate' || workflowStep === 'answer') && (
+          <InquiryBalance
+            question={question}
+            disabled={saving}
+            onAssign={(evidenceId, candidateId) => {
+              void onUpdateQuestion({
+                ...question,
+                evidenceRecords: evidenceRecords.map((item) => item.id === evidenceId ? { ...item, candidateId } : item),
+                dateUpdated: today(),
+              });
+            }}
+          />
+        )}
         {(workflowStep === 'investigate' || workflowStep === 'decide') && <section className="noesis-workbench-panel" aria-label="Inquiry investigation tools">
           <header className="noesis-workbench-panel__header">
             <div className="min-w-0 flex-1">
