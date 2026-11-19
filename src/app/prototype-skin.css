@@ -391,3 +391,4 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-river-choice button:hover { background: hsl(var(--muted)); }
 .noesis-river-choice button[aria-label="Close"] { margin-left: auto; border: 0; }
 .noesis-river-sheet { position: sticky; bottom: 84px; z-index: 6; margin-top: 16px; padding: 16px 18px; border-radius: 16px; border: 1px solid hsl(var(--stage) / .5); background: hsl(var(--card)); box-shadow: 0 -10px 30px -18px hsl(0 0% 0% / .7); }
+.noesis-ba { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(64px, auto)); gap: 8px 18px; align-items: baseline; padding: 14px 16px; border-radius: 12px; border: 1px solid hsl(var(--border)); }

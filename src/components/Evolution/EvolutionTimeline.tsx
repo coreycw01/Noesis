@@ -1,6 +1,6 @@
 "use client";
 
-import { BeliefRivers } from '@/components/Evolution/BeliefRivers';
+import { BeliefRivers, beliefRiverSeries } from '@/components/Evolution/BeliefRivers';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarRange,
@@ -10,7 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Media, ThinkingEvent, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
+import type { Media, ThinkingEvent, ThinkingPattern, TimelineEvent, Unknown, VaultEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
@@ -784,6 +784,8 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
           />
         </div>
 
+        <BeforeAfterTable positions={positions} thinkingEvents={thinkingEvents} date={scrubberDate} onDate={setScrubberDate} onOpenPosition={onOpenPosition} />
+
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <ScrubberCard
             label="Position Changes"
@@ -1307,6 +1309,50 @@ function TurningSpine({ events }: { events: Array<{ id: string; title: string; d
       })}
       <span className="noesis-spine__date" style={{ left: '4%' }}>{fmt(min)}</span>
       <span className="noesis-spine__date" style={{ left: '96%' }}>{fmt(max)}</span>
+    </div>
+  );
+}
+
+/** The prototype's time scrubber: slide through time and compare each position then and now. */
+function BeforeAfterTable({ positions, thinkingEvents, date, onDate, onOpenPosition }: { positions: VaultEntry[]; thinkingEvents: ThinkingEvent[]; date: string; onDate: (value: string) => void; onOpenPosition?: (id: string) => void }) {
+  const series = beliefRiverSeries(positions, thinkingEvents);
+  const starts = series.map((river) => river.points[0]?.time).filter((value): value is number => Number.isFinite(value));
+  if (!series.length || !starts.length) return null;
+  const day = 86_400_000;
+  const first = Math.floor(Math.min(...starts) / day);
+  const last = Math.floor(Date.now() / day);
+  const selected = Number.isFinite(Date.parse(date)) ? Math.min(last, Math.max(first, Math.floor(Date.parse(date) / day))) : last;
+  const at = (selected + 1) * day - 1;
+  const label = (value: number) => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(value * day));
+  return (
+    <div className="mt-5 grid gap-3">
+      <label className="flex items-center gap-3">
+        <span className="font-code text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{label(first)}</span>
+        <input type="range" min={first} max={last} value={selected} aria-label="Slide through time" onChange={(event) => onDate(new Date(Number(event.target.value) * day).toISOString().slice(0, 10))} className="flex-1 accent-[hsl(var(--stage-integrate))]" />
+        <span className="font-code text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Now</span>
+      </label>
+      <div className="noesis-ba" role="table" aria-label={`Positions on ${label(selected)} compared with now`}>
+        <div role="row" className="contents font-code text-[9px] uppercase tracking-[0.14em]">
+          <span role="columnheader" />
+          <span role="columnheader" className="text-[hsl(var(--stage-integrate))]">{label(selected)}</span>
+          <span role="columnheader" className="text-[hsl(var(--stage-encounter))]">Now</span>
+          <span role="columnheader" className="text-muted-foreground">Change</span>
+        </div>
+        {series.map((river) => {
+          const then = [...river.points].reverse().find((point) => point.time <= at && point.time < Date.now() - 1000);
+          const now = Math.round(river.position.confidence || 0);
+          const before = then ? Math.round(then.confidence) : null;
+          const delta = before === null ? null : now - before;
+          return (
+            <div role="row" key={river.position.id} className="contents">
+              <button role="cell" type="button" className="truncate text-left font-headline italic hover:underline" onClick={() => onOpenPosition?.(river.position.id)} title={river.position.title}>{river.position.title}</button>
+              <span role="cell">{before === null ? <span className="text-muted-foreground">not yet held</span> : `${before}%`}</span>
+              <span role="cell">{now}%</span>
+              <span role="cell" className={delta === null ? 'text-[hsl(var(--stage-act))]' : delta > 0 ? 'text-[hsl(var(--stage-act))]' : delta < 0 ? 'text-[hsl(var(--stage-claim))]' : 'text-muted-foreground'}>{delta === null ? 'new' : delta === 0 ? '\u2014' : `${delta > 0 ? '+' : ''}${delta}`}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
