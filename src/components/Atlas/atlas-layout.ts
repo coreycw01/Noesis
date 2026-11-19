@@ -109,3 +109,33 @@ export function atlasVisibleNodePosition(
     y: fit(position.y, viewport.height, halfHeight + toolbarHeight, halfHeight + gutter),
   };
 }
+
+/**
+ * Territory layout: each region gets its own area of the map (region centers
+ * on a grid), and its concepts sit in a small ring around that center, so a
+ * region reads as an island. Keys with no region share a final area.
+ */
+export function atlasTerritoryPositions(keys: string[], regionOf: Map<string, number>) {
+  const groups = new Map<number, string[]>();
+  keys.forEach((key) => {
+    const region = regionOf.get(key) ?? -1;
+    groups.set(region, [...(groups.get(region) || []), key]);
+  });
+  const ordered = [...groups.entries()].sort((a, b) => (a[0] < 0 ? 1 : b[0] < 0 ? -1 : a[0] - b[0]));
+  const columns = Math.max(1, Math.ceil(Math.sqrt(ordered.length * 1.6)));
+  const rows = Math.max(1, Math.ceil(ordered.length / columns));
+  const positions = new Map<string, { x: number; y: number; region: number }>();
+  ordered.forEach(([region, members], index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const cx = columns === 1 ? 50 : 14 + (column / (columns - 1)) * 72;
+    const cy = rows === 1 ? 50 : 18 + (row / (rows - 1)) * 64;
+    const radiusX = members.length === 1 ? 0 : Math.min(11, 4 + members.length * 1.6);
+    const radiusY = members.length === 1 ? 0 : Math.min(15, 6 + members.length * 2.2);
+    members.forEach((key, memberIndex) => {
+      const angle = (memberIndex / members.length) * Math.PI * 2 - Math.PI / 2;
+      positions.set(key, { x: cx + Math.cos(angle) * radiusX, y: cy + Math.sin(angle) * radiusY, region });
+    });
+  });
+  return positions;
+}
