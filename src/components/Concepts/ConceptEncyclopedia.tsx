@@ -1449,20 +1449,26 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         }
       />
 
-      <div className="mb-6 hidden grid-cols-1 gap-3 md:grid md:grid-cols-3">
-        <Stat value={totalConceptCount} label={conceptFiltersActive ? 'Matching concepts' : 'Concepts'} sub={conceptFiltersActive ? 'Current filters' : 'Vocabulary size'} />
-        <Stat value={wellDevelopedCount} label="Well Developed" sub="Ready for argument" />
-        <button
-          type="button"
-          onClick={() => setListView('needs_attention')}
-          className={cn(
-            "text-left transition-all rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-            listView === 'needs_attention' && "ring-2 ring-accent/40"
-          )}
-        >
-          <Stat value={needsAttentionRows.length} label="Needs Attention" sub="Definition, evidence, or tests" tone="warning" interactive />
-        </button>
-      </div>
+      {conceptRows.length > 0 && (() => {
+        const bands: Array<[string, string, string, number]> = [
+          ['stable', 'Mature', 'act', conceptRows.filter((row) => row.maturity.label === 'stable').length],
+          ['usable', 'Developing', 'outline', conceptRows.filter((row) => row.maturity.label === 'usable').length],
+          ['emerging', 'Emerging', 'examine', conceptRows.filter((row) => row.maturity.label === 'emerging').length],
+          ['beginning', 'Beginning', 'more', conceptRows.filter((row) => row.maturity.label === 'beginning').length],
+        ];
+        return (
+          <section className="noesis-flowbar mb-6" aria-label="How developed your vocabulary is">
+            <div className="noesis-instrument__label">How developed your vocabulary is · {conceptRows.length}</div>
+            <div className="noesis-flowbar__bar" role="img" aria-label={bands.map(([, label, , count]) => `${label} ${count}`).join(', ')}>
+              {bands.filter((band) => band[3]).map(([key, label, tone, count]) => <span key={key} data-stage-tone={tone} style={{ flexGrow: count }} title={`${label}: ${count}`} />)}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {bands.map(([key, label, tone, count]) => <span key={key} data-stage-tone={tone} className="noesis-flowbar__key"><i />{label} {count}</span>)}
+              <button type="button" aria-pressed={listView === 'needs_attention'} onClick={() => setListView(listView === 'needs_attention' ? 'all' : 'needs_attention')} className="ml-auto rounded-full border border-[hsl(var(--stage-claim)/.5)] px-3 py-1 text-sm text-[hsl(var(--stage-claim))]">{needsAttentionRows.length} need attention</button>
+            </div>
+          </section>
+        );
+      })()}
 
       <FilterToolbar
         search={search}
@@ -1625,17 +1631,3 @@ function ConceptPageSection({ title, count, empty, children }: { title: string; 
   );
 }
 
-function Stat({ value, label, sub, tone = 'default', interactive = false }: { value: number | string; label: string; sub: string; tone?: 'default' | 'warning'; interactive?: boolean }) {
-  return (
-    <Card className={cn(
-      "bg-card border shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl relative",
-      interactive && "pr-10 hover:border-amber-300 hover:shadow-md",
-      tone === 'warning' ? "border-amber-200" : "border-accent/10"
-    )}>
-      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">{label}</div>
-      <div className={cn("mt-1 text-2xl font-headline font-bold leading-none", tone === 'warning' ? "text-amber-700" : "text-accent")}>{value}</div>
-      <div className="mt-1 text-[10px] text-muted-foreground/40 truncate font-body">{sub}</div>
-      {interactive && <ArrowRight aria-hidden="true" className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-amber-700" />}
-    </Card>
-  );
-}

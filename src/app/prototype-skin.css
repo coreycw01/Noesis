@@ -404,3 +404,13 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-chain__go { justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 12px; border-radius: 999px; border: 1px solid hsl(var(--stage)); color: hsl(var(--stage)); font-size: .85rem; }
 .noesis-chain__go:hover:not(:disabled) { background: hsl(var(--stage) / .12); }
 .noesis-chain__go:disabled { opacity: .7; }
+/* Works: each written work shows as a page, as in the prototype. */
+.noesis-work-paper { display: grid; align-content: start; gap: 6px; height: 150px; margin: 12px 12px 0; padding: 14px 16px; overflow: hidden; border-radius: 6px; background: hsl(40 40% 96%); color: hsl(30 20% 18%); box-shadow: 0 1px 0 hsl(30 20% 70%), 0 8px 18px -12px hsl(0 0% 0% / .6); -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent); mask-image: linear-gradient(180deg, #000 70%, transparent); }
+.noesis-work-paper__title { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: .95rem; }
+.noesis-work-paper__text { font-family: Spectral, Georgia, serif; font-size: .78rem; line-height: 1.5; }
+/* Annotations: each note carries its kind as a colour edge, as in the prototype. */
+[data-note-type] { --note: var(--stage-encounter); border-left: 4px solid hsl(var(--note)) !important; }
+[data-note-type="question"], [data-note-type="connection"] { --note: var(--stage-examine); }
+[data-note-type="claim"], [data-note-type="objection"] { --note: var(--stage-claim); }
+[data-note-type="definition"], [data-note-type="example"] { --note: var(--stage-outline); }
+[data-note-type="thought"], [data-note-type="personal_reflection"], [data-note-type="observation"] { --note: var(--stage-integrate); }
