@@ -153,3 +153,10 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 
 /* Library covers without an image: the prototype's bound-book cover. */
 .noesis-proto-cover { height: 100%; width: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 16px 14px; color: #f6f1e6; background: linear-gradient(160deg, hsl(var(--h) 38% 32%), hsl(calc(var(--h) + 25) 42% 16%)); box-shadow: inset 6px 0 0 rgba(0,0,0,.25); }
+
+/* Visual instruments (Today and beyond). */
+.noesis-instrument { display: grid; gap: .35rem; }
+.noesis-instrument__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-bottom: .35rem; }
+.noesis-heat-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: .6rem; padding: .35rem .5rem; border-radius: 10px; text-align: left; background: none; border: 0; }
+.noesis-heat-row:hover, .noesis-checkin-row:hover { background: hsl(var(--muted) / .6); }
+.noesis-checkin-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: .7rem; padding: .6rem .5rem; border-top: 1px solid hsl(var(--border)); text-align: left; background: none; border-left: 0; border-right: 0; border-bottom: 0; }

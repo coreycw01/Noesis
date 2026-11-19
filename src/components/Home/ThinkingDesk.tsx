@@ -53,6 +53,7 @@ import { weeklyReviewEvents } from '@/lib/weekly-review';
 import { homeHistoryTarget, recentHomeHistory, type HomeHistoryTarget } from '@/lib/home-history';
 import { thinkingHistoryDate } from '@/lib/evolution-history';
 import { ThoughtGamePreview } from '@/components/Home/ThoughtGamePreview';
+import { PositionsUnderHeat, PraxisCheckIn, positionHeat } from '@/components/Home/TodayInstruments';
 
 type HomeTarget = HomeHistoryTarget;
 
@@ -868,14 +869,17 @@ export function ThinkingDesk({
     );
   }
 
+  const hottest = positionHeat(positions)[0];
   return (
     <div className="noesis-page">
       <div className="noesis-page-inner">
         <PageHeader
           title={`Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, ${firstName(profile)}.`}
-          description={currentThemes.length
-            ? `Your recent thinking is converging around ${currentThemes.join(', ')}.`
-            : 'Home chooses the next useful act from your unfinished thinking.'}
+          description={hottest && Math.abs(hottest.gap) > 5
+            ? `Tension is building around “${hottest.position.title}”: your confidence sits ${Math.abs(hottest.gap)} points ${hottest.gap > 0 ? 'above' : 'below'} your evidence.`
+            : currentThemes.length
+              ? `Your recent thinking is converging around ${currentThemes.join(', ')}.`
+              : 'Home chooses the next useful act from your unfinished thinking.'}
           meta={currentThemes.length ? [
             <span key="focus-label" className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Current focus</span>,
             ...currentThemes.map((theme) => (
@@ -950,6 +954,10 @@ export function ThinkingDesk({
                 )}
               </div>
             </section>
+
+            <div className="rounded-[14px] border border-border bg-card p-5">
+              <PraxisCheckIn practices={practices} onOpen={(id) => onNavigate({ view: 'labs', targetId: id })} />
+            </div>
 
             <section className="rounded-lg border border-border bg-card p-5">
               <div className="mb-4 flex items-center justify-between gap-3">
@@ -1031,37 +1039,9 @@ export function ThinkingDesk({
           </section>
 
         <aside className="overflow-hidden rounded-lg border border-border bg-card">
-          <section className="border-b border-border p-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Thinking Health</div>
-                <p className="mt-1 text-xs text-muted-foreground">Three signals that deserve attention now.</p>
-              </div>
-              <Target className="size-5 stroke-[2.4] text-accent" aria-hidden="true" />
-            </div>
-            <div className="divide-y divide-border/70 border-t border-border/70">
-              {pulseObservations.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => previewOrNavigate({ view: item.view, targetId: item.targetId }, { label: 'Open from pulse', description: item.title, reason: item.evidence })}
-                  className="w-full py-4 text-left outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                >
-                  <div className="flex items-start gap-3">
-                    {item.tone === 'pressure'
-                      ? <AlertTriangle className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-destructive" aria-hidden="true" />
-                      : item.tone === 'movement'
-                        ? <GitBranch className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
-                        : <ClipboardCheck className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-muted-foreground" aria-hidden="true" />}
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-foreground/85">{item.title}</div>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.observation}</p>
-                      <div className="mt-2 font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{item.evidence}</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
+          <div className="border-b border-border p-5">
+            <PositionsUnderHeat positions={positions} onOpen={(id) => onNavigate({ view: 'vault', targetId: id })} />
+          </div>
 
           <section className="border-b border-border p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
