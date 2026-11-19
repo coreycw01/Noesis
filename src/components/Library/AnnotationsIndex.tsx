@@ -904,6 +904,30 @@ export function AnnotationsIndex({
           </section>
         );
       })()}
+      {(() => {
+        const unsorted = annotations.filter((annotation) => !annotation.consequenceKind && !annotation.createdInquiryId && !annotation.createdPositionId && !(annotation.linkedPositionIds || []).length && !linkedInquiriesFor(annotation).length && annotationStatus(annotation) !== 'archived' && annotationStatus(annotation) !== 'reference_only').slice(0, 4);
+        if (!unsorted.length) return null;
+        const kinds: Array<[NonNullable<Annotation['consequenceKind']>, string, string]> = [['evidence', 'Evidence', 'act'], ['objection', 'Objection', 'claim'], ['question', 'Question', 'examine'], ['definition', 'Definition', 'outline'], ['claim', 'Claim', 'integrate']];
+        return (
+          <section className="noesis-tray mb-6" aria-label="Sorting tray">
+            <div className="noesis-instrument__label">Sorting tray · {unsorted.length} without an effect yet</div>
+            {unsorted.map((annotation) => (
+              <div key={`${annotation.source.id}:${annotation.id}`} className="noesis-tray__row">
+                <p className="noesis-tray__text">{annotation.text}</p>
+                <p className="noesis-tray__src">{annotation.source.title}{annotation.date && Number.isFinite(Date.parse(annotation.date)) ? ` · ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(annotation.date))}` : ''}</p>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label={`What does “${annotation.text.slice(0, 40)}” do?`}>
+                  {kinds.map(([kind, label, tone]) => (
+                    <button key={kind} type="button" data-stage-tone={tone} className="noesis-tray__chip" onClick={() => {
+                      const { source, ...annotationData } = annotation;
+                      void persistAnnotation(source.id, { ...annotationData, consequenceKind: kind });
+                    }}>{label}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        );
+      })()}
       <section className="mb-8 hidden rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:block">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3 text-left">
