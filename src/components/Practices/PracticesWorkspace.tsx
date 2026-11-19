@@ -37,6 +37,7 @@ import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { resolvedAiHistory, type AiReviewResult } from '@/lib/contextual-ai';
 import { practiceReviewTarget, type PracticeReviewApproval } from '@/lib/practice-ai-review';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
+import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { hasPracticeIntellectualBasis, normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
@@ -62,6 +63,7 @@ interface PracticesWorkspaceProps {
   focusedPracticeId?: string | null;
   onOpenPracticeRoute?: (id: string | null) => void;
   onNavigateTarget: (target: { view: NoesisView; targetId?: string | null }) => void;
+  onAddQuestion?: (data: Partial<Question>) => unknown;
 }
 
 const practiceTypes: PracticeType[] = ['habit', 'experiment', 'observation', 'reflection'];
@@ -147,7 +149,7 @@ function practiceExperimentShape(practice: Practice, linkedQuestions: Question[]
   return { hypothesis, observation, nextStep, needsOutcome, needsConsequence, designGaps, readinessScore, hasBasis, logCount };
 }
 
-export function PracticesWorkspace({ aiSettings, practices, concepts, media, questions, positions, drafts, links, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute, onNavigateTarget }: PracticesWorkspaceProps) {
+export function PracticesWorkspace({ aiSettings, practices, concepts, media, questions, positions, drafts, links, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute, onNavigateTarget, onAddQuestion }: PracticesWorkspaceProps) {
   const localDay = useLocalDay();
   const { toast } = useToast();
   const savingRef = React.useRef(false);
@@ -645,6 +647,8 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         }}
         draft={draft}
         setDraft={setDraft}
+        onOpenPosition={(id) => { setEditorOpen(false); onNavigateTarget({ view: 'vault', targetId: id }); }}
+        onAddQuestion={onAddQuestion}
         concepts={concepts}
         media={media}
         questions={questionList}
@@ -1013,7 +1017,9 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   );
 }
 
-function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onRecordLog, onSaveAiOutcome, onSaveAiHistory, onSave, busy }: {
+function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onRecordLog, onSaveAiOutcome, onSaveAiHistory, onSave, busy, onOpenPosition, onAddQuestion }: {
+  onOpenPosition?: (id: string) => void;
+  onAddQuestion?: (data: Partial<Question>) => unknown;
   busy: boolean;
   aiSettings: import('@/lib/types').AiSettings;
   open: boolean;
@@ -1125,6 +1131,27 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
               Define the action, evidence, and review conditions that make this practice a useful test of your thinking.
             </DialogDescription>
           </DialogHeader>
+          {draft.id && (() => {
+            const tested = positions.filter((position) => (draft.positionIds || []).includes(position.id));
+            const lastOutcome = [...(draft.logs || [])].reverse().find((log) => log.outcome?.trim())?.outcome || '';
+            return (
+              <SuggestionChain suggestions={[
+                ...tested.slice(0, 1).map((position) => ({
+                  kind: 'position' as const,
+                  title: `Revisit “${chainTitle(position.title, 70)}”`,
+                  why: lastOutcome ? `Latest observation: ${chainTitle(lastOutcome, 80)}` : 'This practice tests it. Carry what it shows back to the position.',
+                  actionLabel: 'Open the position',
+                  act: () => onOpenPosition?.(position.id),
+                })),
+                ...(onAddQuestion ? [{
+                  kind: 'inquiry' as const,
+                  title: `What is “${chainTitle(draft.title || 'this practice', 60)}” showing me?`,
+                  why: lastOutcome ? 'Observations are piling up. An inquiry turns them into an answer.' : 'Open a question now so the observations have somewhere to go.',
+                  act: async () => { await onAddQuestion({ text: `What is "${draft.title || 'this practice'}" showing me?`, status: 'open', practiceIds: [draft.id as string], beliefIds: draft.positionIds || [], sourceIds: draft.sourceIds || [], conceptIds: [], evidenceIds: [] }); },
+                }] : []),
+              ]} />
+            );
+          })()}
           <div className="pb-4 [@media(max-height:600px)]:pb-2">
             <WorkbenchFlow
               label="Practice workbench workflow"

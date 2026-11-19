@@ -25,7 +25,8 @@ import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
-import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
+import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
+import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
@@ -55,6 +56,7 @@ interface AnnotationsIndexProps {
   onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<Question>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
+  onAddPractice?: (data: Partial<Practice>) => unknown;
   onNavigate?: (view: string, targetId?: string) => void;
   aiSettings?: AiSettings;
   focusedAnnotationSourceId?: string | null;
@@ -133,6 +135,7 @@ export function AnnotationsIndex({
   onCreateInquiry,
   onAddConcept,
   onCreateLink,
+  onAddPractice,
   onNavigate,
   aiSettings,
   focusedAnnotationSourceId,
@@ -1258,6 +1261,27 @@ export function AnnotationsIndex({
           )}
           {editing && (
             <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pt-2 max-sm:pr-1">
+              <SuggestionChain suggestions={[
+                ...(editing.createdInquiryId ? [] : [{
+                  kind: 'inquiry' as const,
+                  title: editing.type === 'question' ? chainTitle(editing.text) : `What does this imply: ${chainTitle(editing.text, 70)}`,
+                  why: 'A note that raises a question becomes an inquiry you can weigh evidence on.',
+                  act: async () => { if (!(await createInquiry(editing))) throw new Error('not created'); },
+                }]),
+                ...(editing.createdPositionId ? [] : [{
+                  kind: 'position' as const,
+                  title: chainTitle(editing.text),
+                  why: 'If this note already says what you think, stand behind it as a position.',
+                  act: async () => { if (!(await createPosition(editing, chainTitle(editing.text, 80)))) throw new Error('not created'); },
+                }]),
+                ...(onAddPractice ? [{
+                  kind: 'practice' as const,
+                  title: `Try: ${chainTitle(editing.text, 70)}`,
+                  why: 'Some notes are instructions. Practise it for a week and see.',
+                  actionLabel: 'Start the practice',
+                  act: () => Promise.resolve(onAddPractice({ title: `Try: ${editing.text.slice(0, 60)}`, description: `A practice from a note in ${editing.source.title}: "${editing.text}"`, type: 'habit', status: 'planned', durationDays: 7, sourceIds: [editing.source.id], conceptTags: editing.conceptTags || [] })),
+                }] : []),
+              ]} />
               <WorkbenchFlow
                 label="Annotation workbench workflow"
                 activeId={annotationWorkflowStep}

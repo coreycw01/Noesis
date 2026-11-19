@@ -392,3 +392,15 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-river-choice button[aria-label="Close"] { margin-left: auto; border: 0; }
 .noesis-river-sheet { position: sticky; bottom: 84px; z-index: 6; margin-top: 16px; padding: 16px 18px; border-radius: 16px; border: 1px solid hsl(var(--stage) / .5); background: hsl(var(--card)); box-shadow: 0 -10px 30px -18px hsl(0 0% 0% / .7); }
 .noesis-ba { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(64px, auto)); gap: 8px 18px; align-items: baseline; padding: 14px 16px; border-radius: 12px; border: 1px solid hsl(var(--border)); }
+/* The suggestion chain: next records, one card per kind, joined like the loop. */
+.noesis-chain { margin: 20px 0; }
+.noesis-chain__head { margin-bottom: 8px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-chain__row { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.noesis-chain__card { position: relative; display: grid; align-content: start; gap: 6px; padding: 14px 16px; border-radius: 14px; border: 1px solid hsl(var(--stage) / .4); background: hsl(var(--stage) / .06); }
+.noesis-chain__card + .noesis-chain__card::before { content: ""; position: absolute; left: -22px; top: 50%; width: 22px; border-top: 1.5px dashed hsl(var(--border)); }
+.noesis-chain__kind { display: inline-flex; align-items: center; gap: 6px; color: hsl(var(--stage)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; }
+.noesis-chain__title { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 1.05rem; line-height: 1.3; }
+.noesis-chain__why { font-size: .85rem; color: hsl(var(--muted-foreground)); }
+.noesis-chain__go { justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 12px; border-radius: 999px; border: 1px solid hsl(var(--stage)); color: hsl(var(--stage)); font-size: .85rem; }
+.noesis-chain__go:hover:not(:disabled) { background: hsl(var(--stage) / .12); }
+.noesis-chain__go:disabled { opacity: .7; }

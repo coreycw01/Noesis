@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
 import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -1114,6 +1115,37 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           onChallenge={() => { setDetailTab('ground'); setPullSide('against'); }}
           onRevise={() => setDetailTab('revise')}
         />
+
+        <SuggestionChain suggestions={[
+          {
+            kind: 'inquiry',
+            title: `What would make me revise “${chainTitle(selected.title, 70)}”?`,
+            why: (selected.evidenceAgainst || []).length ? `${(selected.evidenceAgainst || []).length} challenge${(selected.evidenceAgainst || []).length === 1 ? '' : 's'} recorded; an inquiry can weigh them.` : 'No challenge is recorded yet. Ask what would change your mind.',
+            act: () => onAddQuestion({
+              text: `What would make me revise: ${selected.title}?`,
+              status: 'open',
+              beliefIds: [selected.id],
+              conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
+              sourceIds: selected.sourceIds || [],
+              evidenceIds: [],
+            }),
+          },
+          {
+            kind: 'practice',
+            title: `Test: ${chainTitle(selected.title, 70)}`,
+            why: linkedPractices.length ? `${linkedPractices.length} practice${linkedPractices.length === 1 ? '' : 's'} already test it; a bounded experiment adds a prediction.` : 'Nothing tests it in practice yet. A week-long experiment would.',
+            act: () => Promise.resolve(onAddPractice({
+              title: `Test: ${selected.title.slice(0, 60)}`,
+              description: `This practice tests the position: "${selected.statement}"`,
+              type: 'experiment',
+              status: 'planned',
+              durationDays: 7,
+              positionIds: [selected.id],
+              conceptTags: selected.tags || [],
+              sourceIds: selected.sourceIds || [],
+            })).then(() => toast({ title: 'Experiment created', description: 'Open Praxis to finish its setup.' })),
+          },
+        ]} />
 
         <section className="noesis-workbench" data-stage-tone="claim" aria-label="Position workbench">
           <header className="noesis-workbench-head">

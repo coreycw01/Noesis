@@ -16,7 +16,8 @@ import type { Concept, Draft, InquiryEvidence, Media, Practice, Question, VaultE
 import { allQuestions, conceptKey, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { InquiryLean } from '@/components/Questions/InquiryLean';
-import { InquiryBalance } from '@/components/Questions/InquiryBalance';
+import { InquiryBalance, answerWeight } from '@/components/Questions/InquiryBalance';
+import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
@@ -1021,6 +1022,44 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             });
           }}
         />
+
+      {(() => {
+        const weights = candidateAnswers.map((candidate) => answerWeight(evidenceRecords, candidate.id));
+        const leadIndex = weights.length ? weights.indexOf(Math.max(...weights)) : -1;
+        const lead = leadIndex >= 0 ? candidateAnswers[leadIndex] : null;
+        const claim = question.answer?.trim() || lead?.statement || '';
+        return (
+          <SuggestionChain suggestions={[
+            ...(beliefs.length ? [{
+              kind: 'position' as const,
+              title: chainTitle(beliefs[0].title, 90),
+              why: 'This inquiry already feeds a position. Carry the answer back to it.',
+              actionLabel: 'Open the position',
+              act: () => onOpenPosition(beliefs[0].id),
+            }] : [{
+              kind: 'position' as const,
+              title: claim ? chainTitle(claim, 90) : `A position answering: ${chainTitle(question.text, 70)}`,
+              why: claim ? (question.answer?.trim() ? 'Your provisional answer is ready to stand as a position.' : 'The evidence currently leans toward this answer.') : 'Write an answer first; Decide turns it into a position.',
+              actionLabel: 'Review in Decide',
+              act: () => openWorkflowStep('decide'),
+            }]),
+            {
+              kind: 'practice' as const,
+              title: `Test: ${chainTitle(claim || question.text, 70)}`,
+              why: 'Some questions only answer themselves in practice. Run a bounded experiment.',
+              act: () => onAddPractice({
+                title: `Test: ${(claim || question.text).slice(0, 60)}`,
+                description: `An experiment for the inquiry: "${question.text}"`,
+                type: 'experiment',
+                status: 'planned',
+                durationDays: 7,
+                questionIds: [question.id],
+                sourceIds: question.sourceIds || [],
+              } as Partial<Practice>).then(() => onAiFeedback('Experiment created', 'Open Praxis to finish its setup.')),
+            },
+          ]} />
+        );
+      })()}
 
       <div className="noesis-workbench space-y-5" data-stage-tone="examine">
         <header className="noesis-workbench-head">

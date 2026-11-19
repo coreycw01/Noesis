@@ -15,6 +15,7 @@ export interface PracticesRoutePageProps {
   links: PhilosophicalLink[];
   focusedPracticeId?: string | null;
   onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
+  onAddQuestion?: (data: Partial<Question>) => unknown;
   onUpdatePractice: (practice: Practice, approval?: import('@/lib/practice-ai-review').PracticeReviewApproval) => void | Promise<Practice | void>;
   onDeletePractice: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
@@ -33,6 +34,7 @@ export function PracticesRoutePage({
   links,
   focusedPracticeId,
   onAddPractice,
+  onAddQuestion,
   onUpdatePractice,
   onDeletePractice,
   onAddConcept,
@@ -50,6 +52,7 @@ export function PracticesRoutePage({
       drafts={drafts}
       links={links}
       onAddPractice={onAddPractice}
+      onAddQuestion={onAddQuestion}
       onUpdatePractice={onUpdatePractice}
       onDeletePractice={onDeletePractice}
       onAddConcept={onAddConcept}

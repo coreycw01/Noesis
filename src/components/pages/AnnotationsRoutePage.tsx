@@ -1,7 +1,7 @@
 "use client";
 
 import { AnnotationsIndex } from '@/components/Library/AnnotationsIndex';
-import type { AiSettings, Annotation, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
+import type { AiSettings, Annotation, Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface AnnotationsRoutePageProps {
@@ -23,6 +23,7 @@ export interface AnnotationsRoutePageProps {
   onCreateInquiry: (data: { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<Question>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
+  onAddPractice?: (data: Partial<Practice>) => unknown;
   onNavigate: (view: NoesisView, options?: {
     questionId?: string | null;
     sourceId?: string | null;
@@ -46,6 +47,7 @@ export function AnnotationsRoutePage({
   onCreateInquiry,
   onAddConcept,
   onCreateLink,
+  onAddPractice,
   onNavigate,
   aiSettings,
   focusedAnnotationSourceId,
@@ -64,6 +66,7 @@ export function AnnotationsRoutePage({
       onCreateInquiry={onCreateInquiry}
       onAddConcept={onAddConcept}
       onCreateLink={onCreateLink}
+      onAddPractice={onAddPractice}
       focusedAnnotationSourceId={focusedAnnotationSourceId}
       focusedAnnotationId={focusedAnnotationId}
       onOpenAnnotation={(sourceId, annotationId) => onNavigate('annotations', { annotationSourceId: sourceId, annotationId })}
