@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Clock3, Compass, Minus, Plus, Puzzle, Save, Settings2, SkipForward, Target, Trash2 } from 'lucide-react';
+import { PraxisMethodCards } from '@/components/Practices/PraxisMethodCards';
+import { Check, ChevronDown, ChevronRight, Clock3, Compass, Minus, Plus, Save, Settings2, SkipForward, Target, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -50,7 +51,7 @@ interface GoalsPageProps {
   onSaveCheckIn: SaveGoalCheckIn;
   focusedGoalId: string | null;
   onOpenCommitment: (goalId: string | null) => void;
-  onOpenPraxis: (method: 'exercises' | 'practices' | 'experiments') => void;
+  onOpenPraxis: (method: 'practices' | 'experiments') => void;
 }
 
 
@@ -454,21 +455,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
           )}
           tabs={!focusedGoalId && (
             <div className="space-y-2">
-              <WorkspaceTabs<'exercises' | 'practices' | 'experiments' | 'commitments'>
-                activation="manual"
-                value="commitments"
-                onChange={(method) => {
-                  if (method !== 'commitments') onOpenPraxis(method);
-                }}
-                label="Praxis methods"
-                className="max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:overflow-hidden max-sm:[&>button]:min-w-0 max-sm:[&>button]:gap-1 max-sm:[&>button]:px-1.5 max-sm:[&>button]:text-xs"
-                items={[
-                  { id: 'exercises', label: 'Exercises', icon: Puzzle },
-                  { id: 'practices', label: 'Practices', icon: NOESIS_ICONS.practice },
-                  { id: 'experiments', label: 'Experiments', icon: NOESIS_ICONS.lab },
-                  { id: 'commitments', label: 'Commitments', icon: NOESIS_ICONS.commitment },
-                ]}
-              />
+              <PraxisMethodCards active="commitments" counts={{ commitments: activeGoals.length }} onPick={(method) => { if (method !== 'commitments') onOpenPraxis(method); }} />
               <WorkspaceTabs
                 value={activeView}
                 onChange={setActiveView}

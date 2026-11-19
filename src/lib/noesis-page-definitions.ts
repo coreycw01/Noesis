@@ -194,6 +194,15 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     loadingLayout: 'list',
   },
   {
+    view: 'exercises',
+    route: '/exercises',
+    title: 'Exercises',
+    purpose: 'Short exercises that sharpen how the user thinks, from their own records and from general knowledge.',
+    section: 'Implement',
+    signatureExperience: 'A card table with two decks; every card ends with an action on a real record or page.',
+    loadingLayout: 'list',
+  },
+  {
     view: 'settings',
     route: '/settings',
     title: 'Settings',
@@ -224,6 +233,7 @@ export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDa
   evolution: ['media', 'vault', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'aiSettings'],
   profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs', 'aiSettings'],
   goals: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'goal'],
+  exercises: ['media', 'concepts', 'questions', 'vault', 'links'],
   settings: ['preferences', 'legacyProfile', 'workspace', 'allSettings'],
 };
 

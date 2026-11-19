@@ -171,6 +171,7 @@ export const NOESIS_VIEW_ICON_KEYS = {
   'context-desk': 'context',
   labs: 'praxis',
   goals: 'commitment',
+  exercises: 'exercise',
   evolution: 'evolution',
   profile: 'profile',
   settings: 'settings',

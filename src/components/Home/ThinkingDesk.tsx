@@ -989,7 +989,7 @@ export function ThinkingDesk({
               positions={positions}
               media={media}
               links={links}
-              onOpen={() => onNavigate({ view: 'labs' })}
+              onOpen={() => onNavigate({ view: 'exercises' })}
             />
 
             <section className="rounded-lg border border-border bg-card p-5">
