@@ -306,3 +306,9 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-flowbar__seg[aria-pressed="true"] { background: hsl(var(--stage) / .5); }
 .noesis-work-roots { display: flex; flex-wrap: wrap; gap: 5px; padding: 14px 16px 0; }
 .noesis-work-roots i { width: 10px; height: 10px; border-radius: 999px; background: hsl(var(--stage)); box-shadow: 0 0 0 3px hsl(var(--stage) / .18); }
+.noesis-pattern-meter { position: relative; display: flex; gap: 3px; width: 160px; padding-bottom: 6px; }
+.noesis-pattern-meter i { flex: 1; height: 8px; border-radius: 2px; background: hsl(var(--muted)); }
+.noesis-pattern-meter i[data-on] { background: hsl(var(--stage-examine)); }
+.noesis-pattern-meter span { position: absolute; left: 0; bottom: 0; height: 2px; background: hsl(var(--stage-claim)); border-radius: 2px; }
+.noesis-spine__dot[data-edge="start"] em { left: -4px; transform: none; }
+.noesis-spine__dot[data-edge="end"] em { left: auto; right: -4px; transform: none; }
