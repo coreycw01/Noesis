@@ -1041,8 +1041,12 @@ export interface AppearanceSettings {
   defaultCollectionView: 'cards' | 'table';
   reducedMotion: boolean;
   highContrastMode: boolean;
+  /** Optional colour per loop stage (hex), overriding the theme's stage colour on its pages. */
+  stageColors?: Partial<Record<StageColorKey, string>>;
   dateUpdated?: string;
 }
+
+export type StageColorKey = 'encounter' | 'outline' | 'examine' | 'claim' | 'act' | 'integrate' | 'more';
 
 export interface WorkspacePreferenceSettings {
   id?: string;
@@ -1061,11 +1065,15 @@ export interface WorkspacePreferenceSettings {
   dateUpdated?: string;
 }
 
+export type AiDepthPage = 'library' | 'annotations' | 'concepts' | 'inquiries' | 'positions' | 'praxis' | 'evolution' | 'profile' | 'context-desk';
+
 export interface AiSettings {
   id?: string;
   aiAssistanceEnabled: boolean;
   showContextBeforeSending: boolean;
   defaultReasoningDepth: 'light' | 'standard' | 'deep';
+  /** Optional default depth per page; pages without one use defaultReasoningDepth. */
+  depthByPage?: Partial<Record<AiDepthPage, 'light' | 'standard' | 'deep'>>;
   /** Legacy stored preference. Reviewed saves always retain their origin. */
   retainAcceptedAiProvenance: boolean;
   dateUpdated?: string;

@@ -1,5 +1,6 @@
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { signOut } from 'firebase/auth';
@@ -242,6 +243,14 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
             </div>
             <div className="flex flex-wrap gap-2">{derivedIdentity.themes.slice(0, 3).map((theme) => <Badge key={theme} variant="secondary" className="rounded-full">{theme}</Badge>)}<Badge variant="outline" className="rounded-full">{concepts.length} concepts</Badge><Badge variant="outline" className="rounded-full">{activePositions.length} active positions</Badge></div>
           </div>
+          <ThinkingPortrait parts={[
+            { label: 'Sources', tone: 'encounter', count: sources.length },
+            { label: 'Concepts', tone: 'examine', count: concepts.length },
+            { label: 'Inquiries', tone: 'examine', count: inquiries.length },
+            { label: 'Positions', tone: 'claim', count: activePositions.length },
+            { label: 'Practices', tone: 'act', count: practices.length },
+            { label: 'Works', tone: 'more', count: works.length },
+          ]} />
         </Card>
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProfileTab)} className="space-y-5">
@@ -296,7 +305,7 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
             </div>}
             <div className="mt-4 flex flex-col gap-4 noesis-recommendation sm:flex-row sm:items-center sm:justify-between">
               <div className="max-w-2xl">
-                <div className="flex items-center gap-2 font-medium"><NoesisAiMark className="size-6" />Shape My Philosophy</div>
+                <div className="flex items-center gap-2 font-medium"><NoesisAiMark className="size-6" />AI synthesis</div>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">Noesis compares a bounded set of your strongest records, tests their consistency, and proposes language for you to review. It never names or publishes your philosophy automatically.</p>
                 {philosophyEvidenceCount < 3 && <p className="mt-2 text-xs text-muted-foreground">Add or develop at least three concepts, positions, inquiry answers, practices, or works before requesting a synthesis.</p>}
               </div>
@@ -306,9 +315,9 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
                   buildEnvelope={buildPhilosophyEnvelope}
                   enabled={philosophyEvidenceCount >= 3}
                   showContextBeforeSending={aiSettings.showContextBeforeSending}
-                  reasoningDepth={aiSettings.defaultReasoningDepth}
+                  reasoningDepth={aiDepthFor(aiSettings, 'profile')}
                   onAccept={acceptPhilosophySynthesis}
-                  buttonLabel="Shape My Philosophy"
+                  buttonLabel="Request synthesis"
                   promptLabel="What should Noesis examine?"
                   promptPlaceholder="For example: Is my confidence consistent with my evidence and tested practices?"
                 />
@@ -418,7 +427,7 @@ function MiniLink({ label, meta, onClick }: { label: string; meta: string; onCli
 
 function PatternDisclosure({ pattern, responseDraft, onDraftChange, onRespond }: { pattern: ThinkingPattern; responseDraft: string; onDraftChange: (value: string) => void; onRespond: (pattern: ThinkingPattern, response: ThinkingPatternUserResponse, note?: string) => void }) {
   const evidenceLevel = pattern.evidence.length >= 5 && pattern.confidence >= 0.75 ? 'strong' : pattern.evidence.length >= 3 && pattern.confidence >= 0.55 ? 'moderate' : 'limited';
-  return <details className="group rounded-xl border border-border bg-background/50"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><div className="min-w-0"><div className="font-medium">{pattern.label}</div><div className="mt-1 text-xs text-muted-foreground">{evidenceLevel} evidence / {pattern.evidence.length} examples</div></div><ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" /></summary><div className="border-t border-border px-4 py-4"><p className="text-sm leading-6 text-muted-foreground">{pattern.description}</p>{pattern.evidence.length > 0 && <ul className="mt-3 space-y-1 text-xs leading-5 text-muted-foreground">{pattern.evidence.slice(0, 4).map((evidence) => <li key={evidence}>- {evidence}</li>)}</ul>}<div className="mt-4 flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => onRespond(pattern, 'confirmed')}>Agree</Button><Button variant="outline" size="sm" onClick={() => onRespond(pattern, 'partially_agree')}>Partly</Button><Button variant="ghost" size="sm" onClick={() => onRespond(pattern, 'needs_more_evidence')}>Need evidence</Button><Button variant="ghost" size="sm" onClick={() => onRespond(pattern, 'rejected')}>Disagree</Button></div><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"><Input value={responseDraft} onChange={(event) => onDraftChange(event.target.value)} placeholder="Offer another explanation" /><Button variant="outline" disabled={!responseDraft.trim()} onClick={() => onRespond(pattern, 'alternative_explanation', responseDraft)}>Save note</Button></div></div></details>;
+  return <details className="group rounded-xl border border-border bg-background/50"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><div className="min-w-0"><div className="font-medium">{pattern.label}</div><div className="mt-1 text-xs text-muted-foreground">{evidenceLevel} evidence / {pattern.evidence.length} examples</div><div className="noesis-pattern-meter mt-2" role="img" aria-label={`${pattern.evidence.length} examples, ${Math.round(pattern.confidence * 100)}% confidence`}>{Array.from({ length: 6 }, (_, index) => <i key={index} data-on={index < Math.min(6, pattern.evidence.length) || undefined} />)}<span style={{ width: `${Math.round(pattern.confidence * 100)}%` }} /></div></div><ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" /></summary><div className="border-t border-border px-4 py-4"><p className="text-sm leading-6 text-muted-foreground">{pattern.description}</p>{pattern.evidence.length > 0 && <ul className="mt-3 space-y-1 text-xs leading-5 text-muted-foreground">{pattern.evidence.slice(0, 4).map((evidence) => <li key={evidence}>- {evidence}</li>)}</ul>}<div className="mt-4 flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => onRespond(pattern, 'confirmed')}>Agree</Button><Button variant="outline" size="sm" onClick={() => onRespond(pattern, 'partially_agree')}>Partly</Button><Button variant="ghost" size="sm" onClick={() => onRespond(pattern, 'needs_more_evidence')}>Need evidence</Button><Button variant="ghost" size="sm" onClick={() => onRespond(pattern, 'rejected')}>Disagree</Button></div><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"><Input value={responseDraft} onChange={(event) => onDraftChange(event.target.value)} placeholder="Offer another explanation" /><Button variant="outline" disabled={!responseDraft.trim()} onClick={() => onRespond(pattern, 'alternative_explanation', responseDraft)}>Save note</Button></div></div></details>;
 }
 
 function StatusList({ title, items, onResolve, onOpen }: { title: string; items: Unknown[]; onResolve: (item: Unknown) => void; onOpen: () => void }) { return <div className="rounded-xl border border-border bg-background/50 p-4"><div className="flex items-center justify-between gap-2"><div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{title}</div><Button variant="ghost" size="sm" onClick={onOpen}>Open inquiries</Button></div><div className="mt-3 space-y-2">{items.map((item) => <div key={item.unknownId} className="rounded-lg border border-border bg-card p-3"><div className="text-sm font-medium">{item.title}</div><Button variant="ghost" size="sm" className="mt-2 h-8 px-2" onClick={() => onResolve(item)}>Mark resolved</Button></div>)}{!items.length && <EmptyCopy text="No open unknowns." />}</div></div>; }
@@ -490,3 +499,30 @@ function SwitchRow({ label, checked, onCheckedChange }: { label: string; checked
 function PreviewLine({ label, value }: { label: string; value: string }) { return <div className="mt-4 rounded-xl border border-border/60 bg-background/50 p-3"><div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{label}</div><div className="mt-1 text-sm font-medium">{value}</div></div>; }
 function EmptyCopy({ text }: { text: string }) { return <div className="text-sm italic leading-5 text-muted-foreground">{text}</div>; }
 function formatDate(value?: string) { if (!value) return 'Unknown date'; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
+
+/** Where this thinker's work sits on the loop, as one ring: wider arcs hold more records. */
+function ThinkingPortrait({ parts }: { parts: Array<{ label: string; tone: string; count: number }> }) {
+  const total = parts.reduce((sum, part) => sum + part.count, 0);
+  if (!total) return null;
+  const R = 44; const C = 2 * Math.PI * R; let offset = 0;
+  return (
+    <div className="mt-5 flex flex-wrap items-center gap-6 border-t border-border/60 pt-5">
+      <svg viewBox="0 0 120 120" className="size-32 shrink-0 -rotate-90" role="img" aria-label={parts.map((part) => `${part.label} ${part.count}`).join(', ')}>
+        <circle cx="60" cy="60" r={R} fill="none" stroke="hsl(var(--muted))" strokeWidth="14" />
+        {parts.filter((part) => part.count).map((part) => {
+          const length = (part.count / total) * C; const dash = `${Math.max(0, length - 2)} ${C}`; const el = <circle key={part.label} data-stage-tone={part.tone} cx="60" cy="60" r={R} fill="none" stroke="hsl(var(--stage))" strokeWidth="14" strokeDasharray={dash} strokeDashoffset={-offset} />;
+          offset += length; return el;
+        })}
+      </svg>
+      <ul className="grid flex-1 grid-cols-2 gap-x-6 gap-y-1.5 sm:grid-cols-3">
+        {parts.map((part) => (
+          <li key={part.label} data-stage-tone={part.tone} className="flex items-center gap-2 text-sm">
+            <span className="size-2.5 rounded-sm" style={{ background: 'hsl(var(--stage))' }} />
+            <span className="text-muted-foreground">{part.label}</span>
+            <span className="ml-auto font-code text-xs">{part.count}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

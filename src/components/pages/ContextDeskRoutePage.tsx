@@ -1,5 +1,6 @@
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
 import { contextDeskRecordIsExcluded, contextDeskReviewKey, contextDeskSourceIds, contextDeskStorageKeys, MAX_CONTEXT_ITEMS, normalizeContextDeskSelection } from '@/lib/context-desk-selection';
@@ -660,7 +661,7 @@ export function ContextDeskRoutePage({
               actions={['review_selected_context']}
               enabled={aiSettings.aiAssistanceEnabled && selected.length > 0}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
-              reasoningDepth={aiSettings.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'context-desk')}
               reviewContextKey={contextDeskReviewKey(selected)}
               buttonLabel={selected.length ? 'Analyze selected context' : 'Select context first'}
               promptLabel="What should Noesis examine across these records?"

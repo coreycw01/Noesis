@@ -1745,6 +1745,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             collapsed={railCollapsed}
             onCollapsedChange={setRailPreference}
             onMarksChange={(marks) => updateActive({ marks })}
+            onOpenVersions={() => setIsVersionHistoryOpen(true)}
           />}
         </div>
 
@@ -3172,8 +3173,10 @@ function WorkIntellectualRail({
   collapsed,
   onCollapsedChange,
   onMarksChange,
+  onOpenVersions,
 }: {
   onMarksChange: (marks: WorkMark[]) => void;
+  onOpenVersions?: () => void;
   active: Draft;
   sources: Media[];
   positions: VaultEntry[];
@@ -3185,7 +3188,7 @@ function WorkIntellectualRail({
   onCollapsedChange: (collapsed: boolean) => void;
 }) {
   const category = active.workCategory || workCategoryForDraft(active.type);
-  const [railTab, setRailTab] = useState<'reel' | 'mark'>('reel');
+  const [railTab, setRailTab] = useState<'reel' | 'mark' | 'linked' | 'versions'>('reel');
 
   return (
     <aside className={cn(
@@ -3238,11 +3241,31 @@ function WorkIntellectualRail({
         </div>
 
         <div className="noesis-rail-tabs" role="tablist" aria-label="Rail views">
-          {([['reel', 'Studio Reel'], ['mark', `Mark${(active.marks || []).length ? ` · ${(active.marks || []).length}` : ''}`]] as const).map(([id, label]) => (
+          {([['reel', 'Studio Reel'], ['mark', `Mark${(active.marks || []).length ? ` · ${(active.marks || []).length}` : ''}`], ['linked', 'Linked'], ['versions', 'Versions']] as const).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={railTab === id} onClick={() => setRailTab(id)}>{label}</button>
           ))}
         </div>
-        {railTab === 'mark'
+        {railTab === 'linked' ? (
+          <div className="mt-3 grid gap-3">
+            {([['Sources', 'encounter', sources.map((item) => item.title)], ['Concepts', 'outline', concepts], ['Inquiries', 'examine', inquiries.map((item) => item.text)], ['Positions', 'claim', positions.map((item) => item.title)]] as Array<[string, string, string[]]>).map(([label, tone, items]) => (
+              <div key={label} data-stage-tone={tone} className="grid gap-1">
+                <div className="font-code text-[9px] uppercase tracking-[0.14em] text-[hsl(var(--stage))]">{label} · {items.length}</div>
+                {items.length ? items.map((item) => <p key={item} className="border-l-2 border-[hsl(var(--stage)/.6)] pl-2 text-sm leading-snug">{item}</p>) : <p className="text-sm text-muted-foreground">None linked.</p>}
+              </div>
+            ))}
+          </div>
+        ) : railTab === 'versions' ? (
+          <div className="mt-3 grid gap-2">
+            {[...(active.versionHistory || [])].reverse().slice(0, 12).map((version) => (
+              <div key={version.id} className="grid gap-0.5 border-l-2 border-border pl-2">
+                <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{Number.isFinite(Date.parse(version.createdAt)) ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(version.createdAt)) : version.createdAt}</span>
+                <span className="text-sm">{version.title || 'Untitled'}</span>
+              </div>
+            ))}
+            {!(active.versionHistory || []).length && <p className="text-sm text-muted-foreground">No saved versions yet. Each explicit save keeps one.</p>}
+            {onOpenVersions && <Button type="button" variant="outline" size="sm" className="mt-1 justify-self-start rounded-full" onClick={onOpenVersions}>Open version history</Button>}
+          </div>
+        ) : railTab === 'mark'
           ? <WorkMarkPanel marks={active.marks || []} onChange={onMarksChange} />
           : <WorkRailContent sources={sources} positions={positions} inquiries={inquiries} concepts={concepts} annotations={annotations} coherenceSignals={coherenceSignals} hideIntro />}
       </div>

@@ -58,19 +58,14 @@ export function WorkbenchFlow({
         {steps.map((step, index) => {
           const active = step.id === activeStep?.id;
           const isNext = step.id === nextId;
-          const content = typeof step.progress === 'number' ? (
+          const content = (
             <span className="flex min-h-11 items-center gap-2.5 px-2 py-1 sm:pl-0 sm:pr-4">
-              <ProgressRing value={step.progress} number={index + 1} active={active} />
+              <ProgressRing value={step.progress ?? 0} number={index + 1} active={active} />
               <span className="grid min-w-0">
                 <span className={cn('text-sm font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>{step.label}</span>
                 {step.meta && <span className="truncate font-code text-[9px] uppercase tracking-[0.1em] text-muted-foreground">{step.meta}</span>}
                 {isNext && <span className="noesis-step-next mt-0.5 text-[11px] leading-4">Next{nextHint ? ` · ${nextHint}` : ''}</span>}
               </span>
-            </span>
-          ) : (
-            <span className="flex min-h-11 items-center gap-2 px-2 sm:gap-3 sm:pl-0 sm:pr-4">
-              <span className={cn('relative z-10 size-2.5 shrink-0 rounded-full border bg-background', active ? 'border-accent bg-accent' : 'border-border')} aria-hidden="true" />
-              <span className={cn('text-sm font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>{step.label}</span>
             </span>
           );
 

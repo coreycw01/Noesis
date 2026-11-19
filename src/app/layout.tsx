@@ -53,6 +53,17 @@ try {
   document.documentElement.setAttribute('data-font-size', fontSize);
   document.documentElement.setAttribute('data-interface-shape', interfaceShape);
   document.documentElement.setAttribute('data-collection-view', collectionView);
+  var stageColors = saved.stageColors || {};
+  Object.keys(stageColors).forEach(function (key) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(stageColors[key] || ''));
+    if (!m) return;
+    var n = parseInt(m[1], 16), r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min, h = 0, s = 0;
+    if (d) { s = d / (1 - Math.abs(2 * l - 1)); h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; if (h < 0) h += 360; }
+    var v = Math.round(h) + ' ' + Math.round(s * 100) + '% ' + Math.round(l * 100) + '%';
+    document.documentElement.style.setProperty('--stage-' + key, v);
+    document.documentElement.style.setProperty('--sidebar-stage-' + key, v);
+  });
 } catch (error) {
   console.warn('Theme init failed', error);
 }

@@ -13,6 +13,7 @@ export type NoesisView =
   | 'evolution'
   | 'profile'
   | 'goals'
+  | 'exercises'
   | 'settings';
 
 export interface NoesisRouteState {
@@ -107,6 +108,8 @@ export function parseNoesisRoute(pathname: string): NoesisRouteState {
       return { view: 'profile' };
     case 'goals':
       return maybeId ? { view: 'goals', focusedGoalId: maybeId } : { view: 'goals' };
+    case 'exercises':
+      return { view: 'exercises' };
     case 'settings':
       return { view: 'settings' };
     default:
@@ -156,6 +159,8 @@ export function viewToPath(view: NoesisView, options?: {
       return `${prefix}/evolution`;
     case 'profile':
       return `${prefix}/profile`;
+    case 'exercises':
+      return `${prefix}/exercises`;
     case 'goals':
       return options?.goalId ? `${prefix}/goals/${encodeURIComponent(options.goalId)}` : `${prefix}/goals`;
     case 'settings':

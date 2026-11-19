@@ -1,6 +1,7 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useState, useRef, useId } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -513,7 +514,7 @@ export function MediaLibrary({
               actions={['summarize_source', 'extract_source_claims', 'propose_inquiry_prompts']}
               enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
               showContextBeforeSending={aiSettings?.showContextBeforeSending}
-              reasoningDepth={aiSettings?.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'library')}
               buildEnvelope={(action: ContextualAiAction) => ({
                 action,
                 targetType: 'source',
@@ -644,10 +645,36 @@ export function MediaLibrary({
                 </div>}
               </Card>
             )}
+            {(() => {
+              const rows: Array<[string, string | undefined, boolean]> = [
+                ['Came for', capture.before?.openQuestion || capture.before?.reasonForAdding, false],
+                ['Central idea, in your words', capture.after?.coreArgument, true],
+                ['What changed', capture.after?.beliefChange || capture.after?.heldUp, false],
+                ['Still open', capture.after?.remainsUnanswered, false],
+              ];
+              const filled = rows.filter((row) => row[1]?.trim());
+              return (
+                <Card className="noesis-workbench-panel">
+                  <div className="noesis-workbench-panel__eyebrow mb-3">YOUR THINKING ON THIS SOURCE</div>
+                  {filled.length ? (
+                    <dl className="grid gap-3">
+                      {filled.map(([label, value, emphasis]) => (
+                        <div key={label}>
+                          <dt className="font-code text-[8.5px] uppercase tracking-[0.14em] text-muted-foreground">{label}</dt>
+                          <dd className={cn('mt-0.5 text-foreground/90', emphasis && 'font-headline text-lg italic')}>{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Nothing recorded yet. <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Engage</button> with it to note why you came, the central idea in your words, and what changed.</p>
+                  )}
+                </Card>
+              );
+            })()}
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
                 <Card className="noesis-workbench-panel">
                 <div className="noesis-workbench-panel__eyebrow mb-3">MEDIA SUMMARY</div>
-                <div className="grid gap-3 text-sm">
+                <div className="grid gap-1 text-sm">
                   {[
                     { label: 'Type', value: MEDIA_LABELS[selected.type] },
                     { label: 'Creator', value: selected.creator || selected.creators?.join(', ') || 'Unknown creator' },
@@ -656,9 +683,9 @@ export function MediaLibrary({
                     { label: 'Locator', value: selected.isbn || selected.doi || selected.url || selected.externalIds?.url || selected.externalIds?.doi || 'No locator recorded' },
                     { label: 'Status', value: MEDIA_STATUS_LABELS[selected.status] },
                   ].map((item) => (
-                    <div key={item.label} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-start gap-3 border-b border-border/40 py-3 last:border-b-0 sm:rounded-lg sm:border sm:bg-background/70 sm:px-4">
-                      <span className="font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">{item.label}</span>
-                      <span className="min-w-0 break-words text-right text-foreground/80">{item.value}</span>
+                    <div key={item.label} className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-3 py-0.5">
+                      <span className="font-code text-[8.5px] uppercase tracking-[0.14em] text-muted-foreground">{item.label}</span>
+                      <span className="min-w-0 break-words text-foreground/85">{item.value}</span>
                     </div>
                   ))}
                 </div>
@@ -676,18 +703,25 @@ export function MediaLibrary({
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
               <Card className="noesis-workbench-panel">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="noesis-workbench-panel__eyebrow">KEY CONCEPTS</div>
+                  <div className="noesis-workbench-panel__eyebrow">MOST IMPORTANT CONNECTIONS</div>
                   <span className="text-xs text-muted-foreground">Latest {linkedConcepts.length}</span>
                 </div>
-                <p className="mb-4 text-sm leading-6 text-muted-foreground">The three most recently updated concepts linked to this source.</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {linkedConcepts.map((concept) => {
+                    const key = concept.name.trim().toLowerCase();
+                    const has = (tags?: string[]) => (tags || []).some((tag) => tag.trim().toLowerCase() === key);
+                    const positionsCount = vault.filter((entry) => has(entry.tags)).length;
+                    const inquiriesCount = questions.filter((question) => has((question as typeof question & { conceptTags?: string[] }).conceptTags) || (question.conceptIds || []).includes(concept.id)).length;
+                    const notesHere = (selected.annotations || []).filter((note) => has(note.conceptTags)).length;
                     return (
-                      <button key={concept.id} type="button" onClick={() => setConceptPopupName(concept.name)} className="rounded-full border border-border/50 bg-background/70 px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-accent/40 hover:bg-accent/5 hover:text-accent">
-                        {concept.name}
+                      <button key={concept.id} type="button" onClick={() => setConceptPopupName(concept.name)} className="noesis-connection-card">
+                        <b>{concept.name}</b>
+                        <span>{positionsCount} position{positionsCount === 1 ? '' : 's'} · {inquiriesCount} inquir{inquiriesCount === 1 ? 'y' : 'ies'} · {notesHere} note{notesHere === 1 ? '' : 's'} from here</span>
                       </button>
                     );
                   })}
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={() => setShowSourceConceptPicker((value) => !value)} className="h-8 rounded-full px-3 text-xs"><Plus className="mr-1 size-3.5" /> Add concept</Button>
                 </div>
                 {showSourceConceptPicker && <div className="mt-4 max-w-md"><ConceptTagPicker concepts={concepts} value={selected.tags || []} onChange={(tags) => updateSelected({ tags })} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></div>}
@@ -840,7 +874,7 @@ export function MediaLibrary({
                     actions={['reflect_on_source']}
                     enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                     showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                    reasoningDepth={aiSettings?.defaultReasoningDepth}
+                    reasoningDepth={aiDepthFor(aiSettings, 'library')}
                     buttonLabel="Reflect on this source"
                     promptLabel="What do you want to understand about your response to this source?"
                     promptPlaceholder="For example: What tension keeps appearing in my notes, and what should I examine next?"

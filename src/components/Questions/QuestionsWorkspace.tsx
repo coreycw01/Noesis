@@ -1,6 +1,7 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, HelpCircle, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,8 @@ import type { Concept, Draft, InquiryEvidence, Media, Practice, Question, VaultE
 import { allQuestions, conceptKey, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { InquiryLean } from '@/components/Questions/InquiryLean';
+import { InquiryBalance, answerWeight } from '@/components/Questions/InquiryBalance';
+import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
@@ -945,7 +948,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             <ContextualAiPanel
               enabled={aiSettings.aiAssistanceEnabled}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
-              reasoningDepth={aiSettings.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'inquiries')}
               actions={['socratic_inquiry_challenge']}
               buildEnvelope={buildAiEnvelope}
               buttonLabel="Socratic Challenge"
@@ -1009,16 +1012,79 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
         )}
       </header>
 
-      <div className="space-y-5">
+        <InquiryBalance
+          question={question}
+          disabled={saving}
+          onAddAnswer={async (statement) => {
+            await onUpdateQuestion({
+              ...question,
+              candidateAnswers: [...(question.candidateAnswers || []), { id: crypto.randomUUID(), statement, confidence: 3, support: '', objection: '', consequence: '' }],
+              status: question.status === 'open' ? 'comparing_answers' as Question['status'] : question.status,
+              dateUpdated: today(),
+            });
+          }}
+          onAssign={(evidenceId, candidateId) => {
+            void onUpdateQuestion({
+              ...question,
+              evidenceRecords: evidenceRecords.map((item) => item.id === evidenceId ? { ...item, candidateId } : item),
+              dateUpdated: today(),
+            });
+          }}
+        />
+
+      {(() => {
+        const weights = candidateAnswers.map((candidate) => answerWeight(evidenceRecords, candidate.id));
+        const leadIndex = weights.length ? weights.indexOf(Math.max(...weights)) : -1;
+        const lead = leadIndex >= 0 ? candidateAnswers[leadIndex] : null;
+        const claim = question.answer?.trim() || lead?.statement || '';
+        return (
+          <SuggestionChain suggestions={[
+            ...(beliefs.length ? [{
+              kind: 'position' as const,
+              title: chainTitle(beliefs[0].title, 90),
+              why: 'This inquiry already feeds a position. Carry the answer back to it.',
+              actionLabel: 'Open the position',
+              act: () => onOpenPosition(beliefs[0].id),
+            }] : [{
+              kind: 'position' as const,
+              title: claim ? chainTitle(claim, 90) : `A position answering: ${chainTitle(question.text, 70)}`,
+              why: claim ? (question.answer?.trim() ? 'Your provisional answer is ready to stand as a position.' : 'The evidence currently leans toward this answer.') : 'Write an answer first; Decide turns it into a position.',
+              actionLabel: 'Review in Decide',
+              act: () => openWorkflowStep('decide'),
+            }]),
+            {
+              kind: 'practice' as const,
+              title: `Test: ${chainTitle(claim || question.text, 70)}`,
+              why: 'Some questions only answer themselves in practice. Run a bounded experiment.',
+              act: () => onAddPractice({
+                title: `Test: ${(claim || question.text).slice(0, 60)}`,
+                description: `An experiment for the inquiry: "${question.text}"`,
+                type: 'experiment',
+                status: 'planned',
+                durationDays: 7,
+                questionIds: [question.id],
+                sourceIds: question.sourceIds || [],
+              } as Partial<Practice>).then(() => onAiFeedback('Experiment created', 'Open Praxis to finish its setup.')),
+            },
+          ]} />
+        );
+      })()}
+
+      <div className="noesis-workbench space-y-5" data-stage-tone="examine">
+        <header className="noesis-workbench-head">
+          <span className="noesis-workbench-head__eyebrow">Workbench</span>
+          <span className="noesis-workbench-head__title">Inquiry workbench</span>
+          <span className="noesis-workbench-head__line">Frame the question, investigate it, answer provisionally, then decide.</span>
+        </header>
         <WorkbenchFlow
           label="Inquiry workbench workflow"
           activeId={workflowStep}
           onSelect={(id) => openWorkflowStep(id as typeof workflowStep)}
           steps={[
-            { id: 'frame', label: 'Frame', description: 'Name why the question matters, your current view, and uncertainty.' },
-            { id: 'investigate', label: 'Investigate', description: 'Clarify, add evidence, compare answers, or test in practice.' },
-            { id: 'answer', label: 'Answer', description: 'Write the best provisional answer you can support now.' },
-            { id: 'decide', label: 'Decide', description: 'Resolve, suspend, transform, archive, or keep the inquiry open.' },
+            { id: 'frame', label: 'Frame', description: 'Name why the question matters, your current view, and uncertainty.', progress: [question.whyItMatters, question.currentIntuition, question.uncertainty].filter((value) => value?.trim()).length / 3 },
+            { id: 'investigate', label: 'Investigate', description: 'Clarify, add evidence, compare answers, or test in practice.', progress: Math.min(1, (evidenceRecords.length + Math.min(2, candidateAnswers.length)) / 5), meta: `${evidenceRecords.length} evidence · ${candidateAnswers.length} answers` },
+            { id: 'answer', label: 'Answer', description: 'Write the best provisional answer you can support now.', progress: question.answer?.trim() ? 1 : 0 },
+            { id: 'decide', label: 'Decide', description: 'Resolve, suspend, transform, archive, or keep the inquiry open.', progress: ['resolved', 'archived', 'transformed'].includes(question.status) ? 1 : 0 },
           ]}
         />
         {workflowStep === 'frame' && <WorkbenchPanel

@@ -517,6 +517,17 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                       {isRecording && <span className="absolute bottom-3 left-3 rounded-full border border-border/60 bg-background/90 px-2.5 py-1 font-code text-[9px] font-bold uppercase tracking-widest text-foreground">{durationLabel(draft.durationSeconds)}</span>}
                     </div>
                   )}
+                  {view === 'cards' && !hasVisualPreview && (
+                    <div className="noesis-work-paper" aria-hidden="true">
+                      <span className="noesis-work-paper__title">{draft.title || 'Untitled'}</span>
+                      <span className="noesis-work-paper__text">{text ? text.slice(0, 320) : 'A blank page.'}</span>
+                    </div>
+                  )}
+                  {view === 'cards' && !hasVisualPreview && linkCount > 0 && (
+                    <div className="noesis-work-roots" role="img" aria-label={`Draws on ${(draft.sourceIds || []).length} sources, ${(draft.conceptTags || []).length} concepts, ${(draft.questionIds || []).length} inquiries, ${(draft.beliefIds || []).length} positions`}>
+                      {([['encounter', (draft.sourceIds || []).length], ['examine', (draft.conceptTags || []).length + (draft.questionIds || []).length], ['claim', (draft.beliefIds || []).length]] as Array<[string, number]>).flatMap(([tone, count]) => Array.from({ length: Math.min(count, 12) }, (_, index) => <i key={`${tone}${index}`} data-stage-tone={tone} />))}
+                    </div>
+                  )}
                   <div className={cn('min-w-0 flex-1', view === 'cards' ? 'p-4' : 'py-1')}>
                     <div className="flex min-w-0 items-start gap-3">
                       {!hasVisualPreview && <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--card-radius)] border border-border/60 text-accent"><Icon className="size-4" aria-hidden="true" /></div>}

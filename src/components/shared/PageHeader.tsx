@@ -27,7 +27,7 @@ export function PageHeader({ title, description, actions, meta, className, child
     home: 'Today', atlas: 'Map', concepts: 'Vocabulary', questions: 'Investigation', library: 'Encounter',
     'source-index': 'Research index', annotations: 'Marginalia', vault: 'Argument', writing: 'Studio',
     'context-desk': 'Synthesis', labs: 'Praxis', evolution: 'History', profile: 'Portrait',
-    goals: 'Commitment', settings: 'System',
+    goals: 'Commitment', exercises: 'Card table', settings: 'System',
   } satisfies Record<NoesisView, string>)[view];
   const pageSection = NOESIS_PAGE_BY_VIEW[view].section;
   // Index pages for records get a strip of the ones last opened on this device.

@@ -1,7 +1,10 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
+import { RecordHistory, ThroughConcept } from '@/components/shared/ThroughConcept';
 import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -39,7 +42,7 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { PositionCalibrationGauge, PositionMiniScale, PullEvidenceDialog } from '@/components/Vault/PositionCalibration';
+import { InteractiveCalibration, PositionCalibrationGauge, PositionMiniScale, PullEvidenceDialog } from '@/components/Vault/PositionCalibration';
 import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
 import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
 import { positionReviewTarget, type PositionReviewApproval } from '@/lib/position-ai-review';
@@ -720,13 +723,16 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       linkedPractices,
     });
     const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
-    const reviewTabs: Array<{ id: 'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'; label: string; description: string }> = [
-      { id: 'state', label: 'State', description: 'Clarify the claim, its scope, conditions, and present confidence.' },
-      { id: 'ground', label: 'Ground', description: 'Record why it seems warranted, its evidence, assumptions, and dependencies.' },
-      { id: 'pressure', label: 'Pressure', description: 'Examine counterpositions, contradictions, missing evidence, and steelman challenges.' },
-      { id: 'test', label: 'Test', description: 'Define a practice, prediction, or observation that could affect confidence.' },
-      { id: 'revise', label: 'Revise', description: 'Retain, update, replace, or retire the position with a recorded reason.' },
-      { id: 'history', label: 'History', description: 'Review only the belief biography and confidence changes over time.' },
+    const supportCount = (selected.evidenceFor || []).length + (selected.sourceIds || []).length;
+    const challengeCount = (selected.evidenceAgainst || []).length;
+    const revisionCount = (selected.versionHistory || []).length;
+    const reviewTabs: Array<{ id: 'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'; label: string; description: string; progress: number; meta?: string }> = [
+      { id: 'state', label: 'State', description: 'Clarify the claim, its scope, conditions, and present confidence.', progress: [selected.statement, selected.rationale || selected.confidenceReasoning].filter((value) => value?.trim()).length / 2 },
+      { id: 'ground', label: 'Ground', description: 'Record why it seems warranted, its evidence, assumptions, and dependencies.', progress: Math.min(1, supportCount / 3), meta: `${supportCount} support` },
+      { id: 'pressure', label: 'Pressure', description: 'Examine counterpositions, contradictions, missing evidence, and steelman challenges.', progress: Math.min(1, challengeCount / 2), meta: `${challengeCount} challenges` },
+      { id: 'test', label: 'Test', description: 'Define a practice, prediction, or observation that could affect confidence.', progress: Math.min(1, linkedPractices.length / 1), meta: `${linkedPractices.length} practices` },
+      { id: 'revise', label: 'Revise', description: 'Retain, update, replace, or retire the position with a recorded reason.', progress: revisionCount ? 1 : 0 },
+      { id: 'history', label: 'History', description: 'Review only the belief biography and confidence changes over time.', progress: revisionCount ? 1 : 0, meta: `${revisionCount} changes` },
     ];
 
     const previewSource = (source: Media) => {
@@ -1062,7 +1068,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             <ContextualAiPanel
               enabled={aiSettings.aiAssistanceEnabled}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
-              reasoningDepth={aiSettings.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'positions')}
               actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'compare_selected_positions']}
               buildEnvelope={buildPositionAiEnvelope}
               buttonLabel="Test Position"
@@ -1103,40 +1109,67 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           </div>
         </section>
 
-        {!formation.fullyFormed && (
-          <details className="mb-5 rounded-xl border border-border bg-muted/30 p-4 shadow-sm">
-            <summary className="cursor-pointer font-code text-[10px] uppercase tracking-[0.12em] text-foreground font-bold">Position readiness · {formation.missing.length} gaps</summary>
-            <ul className="mt-3 grid gap-2 text-sm leading-6 text-muted-foreground sm:grid-cols-2">
-              {formation.missing.map((item) => <li key={item}>Add {item}</li>)}
-            </ul>
-          </details>
-        )}
+        <InteractiveCalibration
+          confidence={confidencePercent(selected.confidence)}
+          evidenceFor={[...(selected.evidenceFor || []), ...linkedSources.map((source) => `${source.title}${source.creator ? ` · ${source.creator}` : ''}`)]}
+          evidenceAgainst={selected.evidenceAgainst || []}
+          onConfidenceCommit={(value) => onUpdateEntry({ ...selected, confidence: value, dateUpdated: today() })}
+          onChallenge={() => { setDetailTab('ground'); setPullSide('against'); }}
+          onRevise={() => setDetailTab('revise')}
+        />
 
-        <EditorialSection className="mb-5" eyebrow="Grounding" title="Current reasoning" description="The reason this position currently seems warranted. Evidence and objections are reviewed separately in the workbench.">
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.rationale || selected.confidenceReasoning || 'No reasoning has been recorded yet. Edit this position to explain what presently supports it.'}</p>
-          {!selected.rationale && selected.description && (
-            <p className="mt-2 text-xs italic text-muted-foreground">The position description is kept separate so it does not stand in for your reasoning.</p>
-          )}
-        </EditorialSection>
+        <SuggestionChain suggestions={[
+          {
+            kind: 'inquiry',
+            title: `What would make me revise “${chainTitle(selected.title, 70)}”?`,
+            why: (selected.evidenceAgainst || []).length ? `${(selected.evidenceAgainst || []).length} challenge${(selected.evidenceAgainst || []).length === 1 ? '' : 's'} recorded; an inquiry can weigh them.` : 'No challenge is recorded yet. Ask what would change your mind.',
+            act: () => onAddQuestion({
+              text: `What would make me revise: ${selected.title}?`,
+              status: 'open',
+              beliefIds: [selected.id],
+              conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id),
+              sourceIds: selected.sourceIds || [],
+              evidenceIds: [],
+            }),
+          },
+          {
+            kind: 'practice',
+            title: `Test: ${chainTitle(selected.title, 70)}`,
+            why: linkedPractices.length ? `${linkedPractices.length} practice${linkedPractices.length === 1 ? '' : 's'} already test it; a bounded experiment adds a prediction.` : 'Nothing tests it in practice yet. A week-long experiment would.',
+            act: () => Promise.resolve(onAddPractice({
+              title: `Test: ${selected.title.slice(0, 60)}`,
+              description: `This practice tests the position: "${selected.statement}"`,
+              type: 'experiment',
+              status: 'planned',
+              durationDays: 7,
+              positionIds: [selected.id],
+              conceptTags: selected.tags || [],
+              sourceIds: selected.sourceIds || [],
+            })).then(() => toast({ title: 'Experiment created', description: 'Open Praxis to finish its setup.' })),
+          },
+        ]} />
 
-        <div className="mb-5">
-          <AiAssistedHistory
-            entries={(selected.aiReviewHistory || []).map((entry) => {
-              const target = positionReviewTarget(selected.id, entry.action, entry.id);
-              return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? {
-                provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target,
-              } : undefined };
-            })}
-            onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })}
-          />
-        </div>
+        {(() => {
+          const concept = (selected.tags || [])[0] || '';
+          const key = concept.trim().toLowerCase();
+          const has = (tags?: string[]) => Boolean(key) && (tags || []).some((tag) => tag.trim().toLowerCase() === key);
+          return (
+            <ThroughConcept concept={concept} columns={[
+              { label: 'Sources', tone: 'encounter', items: media.filter((item) => has(item.tags)).map((item) => ({ id: item.id, label: item.title, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined })) },
+              { label: 'Annotations', tone: 'encounter', items: media.flatMap((item) => (item.annotations || []).filter((note) => has(note.conceptTags)).map((note) => ({ id: `${item.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined }))) },
+              { label: 'Inquiries', tone: 'examine', items: questions.filter((item) => (item.beliefIds || []).includes(selected.id) || has((item as typeof item & { conceptTags?: string[] }).conceptTags)).map((item) => ({ id: item.id, label: item.text, onOpen: onOpenQuestion ? () => onOpenQuestion(item.id) : undefined })) },
+              { label: 'Praxis', tone: 'act', items: practices.filter((item) => (item.positionIds || []).includes(selected.id) || has(item.conceptTags)).map((item) => ({ id: item.id, label: item.title, onOpen: onOpenPractice ? () => onOpenPractice(item.id) : undefined })) },
+              { label: 'Works', tone: 'more', items: drafts.filter((item) => (item.beliefIds || []).includes(selected.id) || has(item.conceptTags)).map((item) => ({ id: item.id, label: item.title || 'Untitled', onOpen: onOpenWork ? () => onOpenWork(item.id) : undefined })) },
+            ]} />
+          );
+        })()}
+        <RecordHistory entries={(selected.versionHistory || []).map((version) => ({ date: version.date, text: version.description || version.eventType || '' }))} />
 
-        <section className="border-y border-border bg-background/20" aria-label="Position workbench">
-          <header className="px-5 py-4 sm:px-6">
-            <div>
-              <div className="text-sm font-semibold text-foreground">Position workbench</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">State the claim, ground it, pressure it, test it, then decide whether to revise it.</p>
-            </div>
+        <section className="noesis-workbench" data-stage-tone="claim" aria-label="Position workbench">
+          <header className="noesis-workbench-head">
+            <span className="noesis-workbench-head__eyebrow">Workbench</span>
+            <span className="noesis-workbench-head__title">Position workbench</span>
+            <span className="noesis-workbench-head__line">State the claim, ground it, pressure it, test it, then decide whether to revise it.</span>
           </header>
           <div className="border-t border-border p-4 sm:p-5">
 
@@ -1202,6 +1235,39 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           onSelect={(id) => setDetailTab(id as typeof detailTab)}
           className="mb-5"
         />
+
+        {detailTab === 'state' && (
+          <>
+        {!formation.fullyFormed && (
+          <details className="mb-5 rounded-xl border border-border bg-muted/30 p-4 shadow-sm">
+            <summary className="cursor-pointer font-code text-[10px] uppercase tracking-[0.12em] text-foreground font-bold">Position readiness · {formation.missing.length} gaps</summary>
+            <ul className="mt-3 grid gap-2 text-sm leading-6 text-muted-foreground sm:grid-cols-2">
+              {formation.missing.map((item) => <li key={item}>Add {item}</li>)}
+            </ul>
+          </details>
+        )}
+
+        <EditorialSection className="mb-5" eyebrow="Grounding" title="Current reasoning" description="The reason this position currently seems warranted. Evidence and objections are reviewed separately in the workbench.">
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.rationale || selected.confidenceReasoning || 'No reasoning has been recorded yet. Edit this position to explain what presently supports it.'}</p>
+          {!selected.rationale && selected.description && (
+            <p className="mt-2 text-xs italic text-muted-foreground">The position description is kept separate so it does not stand in for your reasoning.</p>
+          )}
+        </EditorialSection>
+
+        <div className="mb-5">
+          <AiAssistedHistory
+            entries={(selected.aiReviewHistory || []).map((entry) => {
+              const target = positionReviewTarget(selected.id, entry.action, entry.id);
+              return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? {
+                provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target,
+              } : undefined };
+            })}
+            onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })}
+          />
+        </div>
+
+          </>
+        )}
 
         {detailTab === 'state' && (
           <>
@@ -1705,22 +1771,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             >
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex-1 min-w-0">
-                <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                  <span className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                    {TYPE_LABELS[entry.type] || 'Position'}
-                  </span>
-                  <StageBadge type="position" stage={entry.stage} status={entry.status} />
-                  {(entry.tags || []).slice(0, 2).map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setConceptPopupName(tag)}
-                      className="rounded-full border border-border/50 bg-muted/20 px-2 py-0.5 font-code text-[8px] font-bold uppercase tracking-wider text-muted-foreground hover:border-accent/40 hover:text-accent"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                  {(entry.tags || []).length > 2 && <span className="font-code text-[8px] text-muted-foreground">+{(entry.tags || []).length - 2}</span>}
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                  {/* As in the prototype: one type tag, and the challenge count when there is one. */}
+                  <Badge variant="outline" className="rounded-full">{TYPE_LABELS[entry.type] || 'Position'}</Badge>
+                  {diagnostic.challengeCount > 0 && <span className="ml-auto font-code text-[9px] uppercase tracking-[0.14em] text-[hsl(var(--stage-claim))]">{diagnostic.challengeCount} open challenge{diagnostic.challengeCount === 1 ? '' : 's'}</span>}
                 </div>
                 <h2 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors whitespace-normal break-words text-primary">
                   <button type="button" className="text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openEntry(entry.id)}>{entry.title}</button>
@@ -1734,9 +1788,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             </p>
 
             <PositionMiniScale confidence={confidencePercent(entry.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} />
-            {!!diagnostic.flags.length && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {diagnostic.flags.slice(0, 3).map((flag) => <Badge key={flag} className="normal-case">{flag}</Badge>)}
+            {(entry.tags || []).length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <button type="button" onClick={() => setConceptPopupName((entry.tags || [])[0])} className="noesis-tag-chip">{(entry.tags || [])[0]}</button>
+                {diagnostic.flags[0] && <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground" title={diagnostic.flags.join(', ')}>{diagnostic.flags[0]}{diagnostic.flags.length > 1 ? ` +${diagnostic.flags.length - 1}` : ''}</span>}
               </div>
             )}
           </Card>

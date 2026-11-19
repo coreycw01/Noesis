@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -198,5 +198,64 @@ export function PositionMiniScale({ confidence, supportCount, challengeCount }: 
         {confidence} stated · {earned === null ? 'no evidence yet' : `${earned} evidence · ${Math.abs(gap!) <= 5 ? 'calibrated' : `${gap! > 0 ? '+' : ''}${gap}`}`}
       </div>
     </div>
+  );
+}
+
+/**
+ * The prototype's interactive calibration gauge, the centre of a position
+ * page. Stated confidence is a slider (saved on release). Each piece of
+ * evidence for and against can be ticked off to see how the evidence marker
+ * would move without it; ticks are a what-if and change nothing saved.
+ */
+export function InteractiveCalibration({ confidence, evidenceFor, evidenceAgainst, onConfidenceCommit, onChallenge, onRevise }: {
+  confidence: number;
+  evidenceFor: string[];
+  evidenceAgainst: string[];
+  onConfidenceCommit: (value: number) => void;
+  onChallenge: () => void;
+  onRevise: () => void;
+}) {
+  const [stated, setStated] = useState(confidence);
+  const [off, setOff] = useState<Set<string>>(new Set());
+  useEffect(() => setStated(confidence), [confidence]);
+  const toggle = (key: string) => setOff((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  const forOn = evidenceFor.filter((_, index) => !off.has(`f${index}`)).length;
+  const againstOn = evidenceAgainst.filter((_, index) => !off.has(`a${index}`)).length;
+  const earned = evidenceBalance(forOn, againstOn);
+  const gap = earned === null ? null : stated - earned;
+  const verdict = earned === null ? { tone: 'muted', head: 'Nothing weighed yet.', body: 'Add evidence for and against to calibrate.' }
+    : Math.abs(gap!) <= 10 ? { tone: 'act', head: 'Well calibrated.', body: `Your stated ${stated} matches the ${earned} your evidence supports.` }
+      : gap! > 0 ? { tone: 'claim', head: 'Running hot.', body: `You state ${stated}, but the evidence supports about ${earned}. Find support or lower your confidence.` }
+        : { tone: 'examine', head: 'Underclaiming.', body: `The evidence supports about ${earned}, more than your stated ${stated}.` };
+  const list = (items: string[], prefix: 'f' | 'a', tone: string) => items.length ? items.map((item, index) => (
+    <label key={`${prefix}${index}`} className="noesis-gauge__item" data-stage-tone={tone}>
+      <input type="checkbox" checked={!off.has(`${prefix}${index}`)} onChange={() => toggle(`${prefix}${index}`)} />
+      <span className={cn(off.has(`${prefix}${index}`) && 'line-through opacity-50')}>{item}</span>
+    </label>
+  )) : <p className="text-sm text-muted-foreground">None recorded.</p>;
+  return (
+    <section className="noesis-gauge" data-stage-tone="claim" aria-label="Calibration gauge">
+      <div className="noesis-instrument__label">Calibration gauge</div>
+      <label className="noesis-gauge__slider">
+        <span>Stated confidence</span>
+        <input type="range" min={0} max={100} value={stated} onChange={(event) => setStated(Number(event.target.value))} onPointerUp={() => stated !== confidence && onConfidenceCommit(stated)} onKeyUp={() => stated !== confidence && onConfidenceCommit(stated)} aria-label="Stated confidence" />
+        <b>{stated}</b>
+      </label>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid content-start gap-1.5"><div className="noesis-gauge__head" data-stage-tone="act">Evidence for</div>{list(evidenceFor, 'f', 'act')}</div>
+        <div className="grid content-start gap-1.5"><div className="noesis-gauge__head" data-stage-tone="claim">Evidence against</div>{list(evidenceAgainst, 'a', 'claim')}</div>
+      </div>
+      <div className="noesis-gauge__scale" role="img" aria-label={`Stated ${stated}, evidence ${earned ?? 'none'}`}>
+        <span className="noesis-gauge__axis" />
+        {earned !== null && <span className="noesis-gauge__gap" style={{ left: `${Math.min(stated, earned)}%`, width: `${Math.abs(stated - earned)}%` }} />}
+        {earned !== null && <span className="noesis-gauge__mark noesis-gauge__mark--earned" style={{ left: `${earned}%` }}><em>Evidence {earned}</em></span>}
+        <span className="noesis-gauge__mark noesis-gauge__mark--stated" style={{ left: `${stated}%` }}><em>Stated {stated}</em></span>
+      </div>
+      <p className="text-[.95rem]"><b data-stage-tone={verdict.tone} style={{ color: verdict.tone === 'muted' ? undefined : 'hsl(var(--stage))' }}>{verdict.head}</b> {verdict.body}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" onClick={onChallenge}>Challenge it</Button>
+        <Button type="button" onClick={onRevise} className="bg-[hsl(var(--stage-integrate))] border-[hsl(var(--stage-integrate))]">Record revision</Button>
+      </div>
+    </section>
   );
 }

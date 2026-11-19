@@ -58,6 +58,7 @@ const ConceptsRoutePage = dynamic(() => import('./ConceptsRoutePage').then((modu
 const LibraryRoutePage = dynamic(() => import('./LibraryRoutePage').then((module) => module.LibraryRoutePage));
 const SourceIndexRoutePage = dynamic(() => import('./SourceIndexRoutePage').then((module) => module.SourceIndexRoutePage));
 const AnnotationsRoutePage = dynamic(() => import('./AnnotationsRoutePage').then((module) => module.AnnotationsRoutePage));
+const ExercisesTable = dynamic(() => import('@/components/Exercises/ExercisesTable').then((module) => module.ExercisesTable));
 const GoalsRoutePage = dynamic(() => import('./GoalsRoutePage').then((module) => module.GoalsRoutePage));
 const ProfileRoutePage = dynamic(() => import('./ProfileRoutePage').then((module) => module.ProfileRoutePage));
 const InquiriesRoutePage = dynamic(() => import('./InquiriesRoutePage').then((module) => module.InquiriesRoutePage));
@@ -459,6 +460,7 @@ export function NoesisRouteContent({
             });
             return { positionId: created.id, insightId: '', title: created.title };
           }}
+          onAddPractice={addPractice}
           onCreateInquiry={addQuestion}
           onAddConcept={addConcept}
           onCreateLink={addPhilosophicalLink}
@@ -469,6 +471,11 @@ export function NoesisRouteContent({
       );
     case 'source-index':
       return <SourceIndexRoutePage media={media} vault={vault} drafts={drafts} practices={practices} questions={questions} onNavigate={navigateToView} />;
+    case 'exercises':
+      return <ExercisesTable concepts={concepts} inquiries={questions} positions={vault} media={media} links={links} onNavigate={(target) => {
+        const id = target.targetId || null;
+        navigateToView(target.view, { conceptId: target.view === 'concepts' ? id : null, questionId: target.view === 'questions' ? id : null, positionId: target.view === 'vault' ? id : null, sourceId: target.view === 'library' ? id : null, practiceId: target.view === 'labs' ? id : null });
+      }} />;
     case 'goals':
       return <GoalsRoutePage goal={goalState} goalProgress={goalProgress} concepts={concepts} inquiries={questions} sources={media} positions={vault} works={drafts} practices={practices} profile={profile} onSaveGoal={saveGoal} onSaveCheckIn={saveGoalCheckIn} focusedGoalId={focusedGoalId} onOpenCommitment={(goalId) => navigateToView('goals', { goalId })} onOpenPraxis={(method) => {
         try { window.localStorage.setItem('noesis:labs-tool', method); } catch { /* Optional view preference. */ }
@@ -557,7 +564,7 @@ export function NoesisRouteContent({
     case 'evolution':
       return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} thinkingEventsHasMore={thinkingEventsHasMore} loadMoreThinkingEvents={loadMoreThinkingEvents} historyLoadingOlder={historyLoadingOlder} historyOlderError={historyOlderError} unknowns={unknowns} thinkingPatterns={thinkingPatterns} onSaveSynthesis={addTimelineEvent} positions={vault} onOpenPosition={(id) => navigateToView('vault', { positionId: id })} />;
     case 'labs':
-      return <PracticesRoutePage aiSettings={aiSettings} practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} links={links} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
+      return <PracticesRoutePage aiSettings={aiSettings} onAddQuestion={addQuestion} practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} links={links} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
     case 'settings':
       return (
         <SettingsRoutePage

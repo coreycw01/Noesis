@@ -1,6 +1,7 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import { workspaceScrollBehavior } from '@/lib/appearance';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -25,7 +26,8 @@ import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
-import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
+import { SuggestionChain, chainTitle } from '@/components/shared/SuggestionChain';
+import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
@@ -55,6 +57,7 @@ interface AnnotationsIndexProps {
   onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<Question>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
+  onAddPractice?: (data: Partial<Practice>) => unknown;
   onNavigate?: (view: string, targetId?: string) => void;
   aiSettings?: AiSettings;
   focusedAnnotationSourceId?: string | null;
@@ -133,6 +136,7 @@ export function AnnotationsIndex({
   onCreateInquiry,
   onAddConcept,
   onCreateLink,
+  onAddPractice,
   onNavigate,
   aiSettings,
   focusedAnnotationSourceId,
@@ -874,6 +878,56 @@ export function AnnotationsIndex({
 
       </FilterToolbar>
 
+      {annotations.length > 0 && (() => {
+        const stages: Array<{ id: AnnotationPhilosophyStatus; label: string; tone: string }> = [
+          { id: 'raw', label: 'Captured', tone: 'encounter' },
+          { id: 'reviewed', label: 'Reviewed', tone: 'examine' },
+          { id: 'used_in_position', label: 'Developed', tone: 'claim' },
+          { id: 'reference_only', label: 'Reference', tone: 'more' },
+          { id: 'archived', label: 'Set aside', tone: 'integrate' },
+        ];
+        const counts = stages.map((stage) => annotations.filter((annotation) => annotationStatus(annotation) === stage.id).length);
+        const total = counts.reduce((sum, count) => sum + count, 0) || 1;
+        return (
+          <section className="noesis-flowbar mb-6" aria-label="Where your notes are">
+            <div className="noesis-instrument__label">Where your notes are · {annotations.length}</div>
+            <div className="noesis-flowbar__bar" role="img" aria-label={stages.map((stage, index) => `${stage.label} ${counts[index]}`).join(', ')}>
+              {stages.map((stage, index) => counts[index] ? <span key={stage.id} data-stage-tone={stage.tone} style={{ flexGrow: counts[index] / total }} title={`${stage.label}: ${counts[index]}`} /> : null)}
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              {stages.map((stage, index) => (
+                <button key={stage.id} type="button" data-stage-tone={stage.tone} className="noesis-flowbar__key" aria-pressed={filterType === stage.id} onClick={() => setFilterType(filterType === stage.id ? 'all' : stage.id as AnnotationFilter)}>
+                  <i />{stage.label} <b>{counts[index]}</b>
+                </button>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
+      {(() => {
+        const unsorted = annotations.filter((annotation) => !annotation.consequenceKind && !annotation.createdInquiryId && !annotation.createdPositionId && !(annotation.linkedPositionIds || []).length && !linkedInquiriesFor(annotation).length && annotationStatus(annotation) !== 'archived' && annotationStatus(annotation) !== 'reference_only').slice(0, 4);
+        if (!unsorted.length) return null;
+        const kinds: Array<[NonNullable<Annotation['consequenceKind']>, string, string]> = [['evidence', 'Evidence', 'act'], ['objection', 'Objection', 'claim'], ['question', 'Question', 'examine'], ['definition', 'Definition', 'outline'], ['claim', 'Claim', 'integrate']];
+        return (
+          <section className="noesis-tray mb-6" aria-label="Sorting tray">
+            <div className="noesis-instrument__label">Sorting tray · {unsorted.length} without an effect yet</div>
+            {unsorted.map((annotation) => (
+              <div key={`${annotation.source.id}:${annotation.id}`} className="noesis-tray__row">
+                <p className="noesis-tray__text">{annotation.text}</p>
+                <p className="noesis-tray__src">{annotation.source.title}{annotation.date && Number.isFinite(Date.parse(annotation.date)) ? ` · ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(annotation.date))}` : ''}</p>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label={`What does “${annotation.text.slice(0, 40)}” do?`}>
+                  {kinds.map(([kind, label, tone]) => (
+                    <button key={kind} type="button" data-stage-tone={tone} className="noesis-tray__chip" onClick={() => {
+                      const { source, ...annotationData } = annotation;
+                      void persistAnnotation(source.id, { ...annotationData, consequenceKind: kind });
+                    }}>{label}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        );
+      })()}
       <section className="mb-8 hidden rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:block">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3 text-left">
@@ -1000,7 +1054,7 @@ export function AnnotationsIndex({
             ...(annotationType(annotation) === 'definition' && annotationTags(annotation).length ? [`Clarifies ${annotationTags(annotation)[0]}`] : []),
           ];
           return (
-          <Card key={`${annotation.source.id}:${annotation.id}`} role="group" aria-label={`Annotation: ${annotation.text.slice(0, 80)}`} tabIndex={0} onClick={(event) => {
+          <Card key={`${annotation.source.id}:${annotation.id}`} data-note-type={annotation.type} role="group" aria-label={`Annotation: ${annotation.text.slice(0, 80)}`} tabIndex={0} onClick={(event) => {
             if (!isEntitySurfaceClick(event)) return;
             openAnnotationDetail(annotation);
           }} onKeyDown={(event) => {
@@ -1232,6 +1286,27 @@ export function AnnotationsIndex({
           )}
           {editing && (
             <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pt-2 max-sm:pr-1">
+              <SuggestionChain suggestions={[
+                ...(editing.createdInquiryId ? [] : [{
+                  kind: 'inquiry' as const,
+                  title: editing.type === 'question' ? chainTitle(editing.text) : `What does this imply: ${chainTitle(editing.text, 70)}`,
+                  why: 'A note that raises a question becomes an inquiry you can weigh evidence on.',
+                  act: async () => { if (!(await createInquiry(editing))) throw new Error('not created'); },
+                }]),
+                ...(editing.createdPositionId ? [] : [{
+                  kind: 'position' as const,
+                  title: chainTitle(editing.text),
+                  why: 'If this note already says what you think, stand behind it as a position.',
+                  act: async () => { if (!(await createPosition(editing, chainTitle(editing.text, 80)))) throw new Error('not created'); },
+                }]),
+                ...(onAddPractice ? [{
+                  kind: 'practice' as const,
+                  title: `Try: ${chainTitle(editing.text, 70)}`,
+                  why: 'Some notes are instructions. Practise it for a week and see.',
+                  actionLabel: 'Start the practice',
+                  act: () => Promise.resolve(onAddPractice({ title: `Try: ${editing.text.slice(0, 60)}`, description: `A practice from a note in ${editing.source.title}: "${editing.text}"`, type: 'habit', status: 'planned', durationDays: 7, sourceIds: [editing.source.id], conceptTags: editing.conceptTags || [] })),
+                }] : []),
+              ]} />
               <WorkbenchFlow
                 label="Annotation workbench workflow"
                 activeId={annotationWorkflowStep}
@@ -1382,7 +1457,7 @@ export function AnnotationsIndex({
                     actions={['suggest_annotation_effect']}
                     enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                     showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                    reasoningDepth={aiSettings?.defaultReasoningDepth}
+                    reasoningDepth={aiDepthFor(aiSettings, 'annotations')}
                     buttonLabel="Review Effect"
                     promptLabel="What do you want to understand about this note?"
                     promptPlaceholder="For example: Does this challenge my linked position, or only qualify it?"

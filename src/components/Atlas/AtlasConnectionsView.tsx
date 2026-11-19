@@ -85,7 +85,7 @@ export function AtlasConnectionsView({
             <div className="min-w-0">
               <div className="grid gap-2" aria-label="Connection endpoints">
                 <div className="flex min-w-0 items-start gap-2">
-                  <Link2 className="mt-0.5 size-4 shrink-0 text-accent" />
+                  <svg width="16" height="40" viewBox="0 0 16 40" className="mt-0.5 shrink-0" aria-hidden="true" data-stage-tone={/contradict|tension|oppos|challeng/.test(link.type || '') ? 'claim' : /support|ground|evidence/.test(link.type || '') ? 'act' : 'examine'}><circle cx="8" cy="5" r="4" fill="hsl(var(--stage))" /><line x1="8" y1="9" x2="8" y2="31" stroke="hsl(var(--stage))" strokeWidth="2" strokeDasharray={/contradict|tension|oppos|challeng/.test(link.type || '') ? '3 3' : undefined} /><circle cx="8" cy="35" r="4" fill="none" stroke="hsl(var(--stage))" strokeWidth="2" /></svg>
                   <div className="min-w-0">
                     <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">From</div>
                     <div className="break-words font-medium leading-5 text-foreground">{from}</div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { BeliefRivers } from '@/components/Evolution/BeliefRivers';
+import { aiDepthFor } from '@/lib/ai-depth';
+import { BeliefRivers, beliefRiverSeries } from '@/components/Evolution/BeliefRivers';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarRange,
@@ -10,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Media, ThinkingEvent, ThinkingPattern, TimelineEvent, Unknown } from '@/lib/types';
+import type { Media, ThinkingEvent, ThinkingPattern, TimelineEvent, Unknown, VaultEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
@@ -376,6 +377,7 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
 
 export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, thinkingEventsHasMore, loadMoreThinkingEvents, historyLoadingOlder, historyOlderError, unknowns, thinkingPatterns, onSaveSynthesis, positions = [], onOpenPosition }: EvolutionTimelineProps) {
   const [view, setView] = useState<EvolutionView>('belief_rivers');
+  const [explainedRiver, setExplainedRiver] = useState<string | null>(null);
   const [timelineLayout, setTimelineLayout] = useEntityViewPreference('evolution');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
@@ -656,6 +658,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
             <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Turning Points</div>
             <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">The moments that changed the system</h2>
           </div>
+          {turningPoints.length > 0 && <TurningSpine events={turningPoints.map((event) => ({ id: event.id, title: event.title, date: event.date, tone: eventStageTone(event.targetType) }))} />}
           <div className="grid gap-4 md:grid-cols-2">
             {turningPoints.length ? turningPoints.map((event) => {
               const meaning = displayEventMeaning(event);
@@ -682,36 +685,50 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
 
       {view === 'belief_rivers' && (
         <section className="mb-8 border-y border-border/60 py-6">
-          <div className="mb-8 rounded-[14px] border border-border bg-card p-5">
-            <BeliefRivers positions={positions} onOpen={(id) => onOpenPosition?.(id)} />
+          <div className="mb-4 rounded-[14px] border border-border bg-card p-5">
+            <BeliefRivers positions={positions} thinkingEvents={thinkingEvents} onOpen={(id) => onOpenPosition?.(id)} onExplain={setExplainedRiver} />
           </div>
-          <div className="mb-5 font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">What moved each river</div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            {beliefRivers.length ? beliefRivers.map((river) => (
-              <article key={river.id} className="border-t border-border/60 py-4 first:border-t-0">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="font-headline text-xl font-bold italic text-primary">{river.title}</h3>
-                  <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{river.events.length} events</Badge>
+          <p className="text-sm text-muted-foreground">Tap a river to open its position or see what moved it.</p>
+          {explainedRiver && (() => {
+            const position = positions.find((item) => item.id === explainedRiver);
+            const river = beliefRivers.find((item) => item.id === explainedRiver);
+            const events = river?.events || [];
+            return (
+              <div className="noesis-river-sheet" data-stage-tone="claim" role="region" aria-label={`What moved ${position?.title || 'this river'}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-[hsl(var(--stage))]">What moved this river</div>
+                    <h3 className="mt-1 font-headline text-xl font-semibold italic">{position?.title || river?.title || 'Position'}</h3>
+                  </div>
+                  <div className="flex gap-2">
+                    {position && <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => onOpenPosition?.(position.id)}>Open the position</Button>}
+                    <Button type="button" size="sm" variant="ghost" aria-label="Close" onClick={() => setExplainedRiver(null)}>×</Button>
+                  </div>
                 </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-4">
-                  <MiniEvolutionStat label="Origin" value={river.origin ? evolutionDisplayDate(river.origin.date).toLocaleDateString() : 'None'} />
-                  <MiniEvolutionStat label="Revisions" value={river.revisions.length} />
-                  <MiniEvolutionStat label="Challenges" value={river.challenges.length} />
-                  <MiniEvolutionStat label="Confidence" value={river.confidenceMoves.length} />
-                </div>
-                <div className="mt-4 space-y-2">
-                  {river.events.slice(-4).map((event) => (
-                    <div key={event.id} className="border-l border-border px-3 py-1">
-                      <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">{event.chips[0]}</div>
-                      <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{event.title}</p>
+                {river && (() => {
+                  const parts: Array<[string, string, number]> = [['Confidence changes', 'act', river.confidenceMoves.length], ['Challenges', 'claim', river.challenges.length], ['Revisions', 'integrate', river.revisions.length], ['Other events', 'more', Math.max(0, events.length - river.confidenceMoves.length - river.challenges.length - river.revisions.length)]];
+                  return (
+                    <div className="mt-3 grid gap-2">
+                      <div className="noesis-flowbar__bar" role="img" aria-label={parts.map(([label, , count]) => `${label} ${count}`).join(', ')}>
+                        {parts.filter((part) => part[2]).map(([label, tone, count]) => <span key={label} data-stage-tone={tone} style={{ flexGrow: count }} />)}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 text-xs text-muted-foreground">{parts.map(([label, tone, count]) => <span key={label} data-stage-tone={tone} className="inline-flex items-center gap-1.5"><i className="size-2 rounded-sm" style={{ background: 'hsl(var(--stage))' }} />{label} {count}</span>)}</div>
                     </div>
-                  ))}
-                </div>
-              </article>
-            )) : (
-              <PageEmptyState icon={History} title="No belief rivers yet" description="Create, revise, challenge, or abandon positions to build a visible belief biography." />
-            )}
-          </div>
+                  );
+                })()}
+                {events.length ? (
+                  <ol className="mt-3 grid max-h-[40vh] gap-2 overflow-y-auto">
+                    {[...events].reverse().map((event) => (
+                      <li key={event.id} className="border-l-2 border-[hsl(var(--stage)/.5)] py-1 pl-3">
+                        <div className="font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{evolutionDisplayDate(event.date).toLocaleDateString()} · {event.chips[0]}</div>
+                        <p className="mt-0.5 text-sm">{event.title}</p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : <p className="mt-3 text-sm text-muted-foreground">No recorded events moved this river yet. Challenge, revise or test the position and they will appear here.</p>}
+              </div>
+            );
+          })()}
         </section>
       )}
 
@@ -727,11 +744,17 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
               <div key={period.label} className="rounded-2xl border border-border/50 bg-background p-4">
                 <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{period.label}</div>
                 <h3 className="mt-2 font-headline text-xl font-bold italic text-primary">{period.tone}</h3>
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <MiniEvolutionStat label="Revision" value={period.revisionCount} />
-                  <MiniEvolutionStat label="Inquiry" value={period.uncertaintyCount} />
-                  <MiniEvolutionStat label="Structure" value={period.structureCount} />
-                </div>
+                {(() => {
+                  const parts: Array<[string, string, number]> = [['Revision', 'claim', period.revisionCount], ['Inquiry', 'examine', period.uncertaintyCount], ['Structure', 'act', period.structureCount]];
+                  return (
+                    <div className="mt-4 grid gap-2">
+                      <div className="noesis-flowbar__bar" role="img" aria-label={parts.map(([label, , count]) => `${label} ${count}`).join(', ')}>
+                        {parts.some((part) => part[2]) ? parts.filter((part) => part[2]).map(([label, tone, count]) => <span key={label} data-stage-tone={tone} style={{ flexGrow: count }} />) : <span style={{ flexGrow: 1, background: 'hsl(var(--muted))' }} />}
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{parts.map(([label, tone, count]) => <span key={label} data-stage-tone={tone} className="inline-flex items-center gap-1"><i className="size-2 rounded-sm" style={{ background: 'hsl(var(--stage))' }} />{label} {count}</span>)}</div>
+                    </div>
+                  );
+                })()}
                 <div className="mt-4 space-y-2">
                   {period.items.slice(0, 3).map((event) => (
                     <p key={event.id} className="line-clamp-2 rounded-xl bg-muted/10 px-3 py-2 text-sm italic text-muted-foreground">{event.title}</p>
@@ -761,6 +784,8 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
             className="h-10 rounded-full border border-border/60 bg-background px-4 font-code text-[10px] uppercase tracking-widest text-foreground shadow-sm"
           />
         </div>
+
+        <BeforeAfterTable positions={positions} thinkingEvents={thinkingEvents} date={scrubberDate} onDate={setScrubberDate} onOpenPosition={onOpenPosition} />
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <ScrubberCard
@@ -837,12 +862,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                         {area.status}
                       </Badge>
                     </div>
-                    <div className="mt-4 grid grid-cols-4 gap-2">
-                      <MiniEvolutionStat label="Gained" value={area.movements.gained} />
-                      <MiniEvolutionStat label="Weakened" value={area.movements.weakened} />
-                      <MiniEvolutionStat label="Fractured" value={area.movements.fractured} />
-                      <MiniEvolutionStat label="Stabilized" value={area.movements.stabilized} />
-                    </div>
+                    <MovementBar movements={area.movements} />
                     <div className="mt-4 rounded-xl border border-white/60 bg-card/50 p-3 dark:border-white/10 dark:bg-black/10">
                       <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Latest Evidence</div>
                       {area.latest ? (
@@ -952,7 +972,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
             <ContextualAiPanel
               enabled={selectedPeriodEvents.length > 0}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
-              reasoningDepth={aiSettings.defaultReasoningDepth}
+              reasoningDepth={aiDepthFor(aiSettings, 'evolution')}
               actions={['synthesize_evolution_period']}
               reviewContextKey={evolutionSynthesisReviewKey(periodSample)}
               buttonLabel="Synthesize Period"
@@ -1242,6 +1262,98 @@ function ScrubberCard({ label, value, items, empty }: { label: string; value: nu
       ) : (
         <p className="mt-3 text-sm italic leading-6 text-muted-foreground">{empty}</p>
       )}
+    </div>
+  );
+}
+
+/** An area's recorded movement as one bar: gained, stabilized, weakened, fractured. */
+function MovementBar({ movements }: { movements: { gained: number; weakened: number; fractured: number; stabilized: number } }) {
+  const parts = [
+    { key: 'gained', label: 'Gained', value: movements.gained, tone: 'act' },
+    { key: 'stabilized', label: 'Stabilized', value: movements.stabilized, tone: 'examine' },
+    { key: 'weakened', label: 'Weakened', value: movements.weakened, tone: 'encounter' },
+    { key: 'fractured', label: 'Fractured', value: movements.fractured, tone: 'claim' },
+  ];
+  const total = parts.reduce((sum, part) => sum + part.value, 0);
+  return (
+    <div className="noesis-movement mt-4">
+      <div className="noesis-movement__bar" role="img" aria-label={parts.map((part) => `${part.label} ${part.value}`).join(', ')}>
+        {total ? parts.map((part) => part.value ? <span key={part.key} data-stage-tone={part.tone} style={{ flexGrow: part.value }} title={`${part.label}: ${part.value}`} /> : null) : <span className="noesis-movement__none" />}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {parts.map((part) => (
+          <span key={part.key} data-stage-tone={part.tone} className="noesis-flowbar__key"><i />{part.label} <b>{part.value}</b></span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Turning points on one time axis: when the system turned, coloured by stage. */
+function TurningSpine({ events }: { events: Array<{ id: string; title: string; date: string; tone: string }> }) {
+  const times = events.map((event) => Date.parse(event.date)).filter(Number.isFinite);
+  if (!times.length) return null;
+  const min = Math.min(...times); const max = Math.max(...times); const span = Math.max(1, max - min);
+  const fmt = (value: number) => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(value));
+  return (
+    <div className="noesis-spine mb-6" role="img" aria-label={`${events.length} turning points from ${fmt(min)} to ${fmt(max)}`}>
+      <span className="noesis-spine__axis" />
+      {events.map((event, index) => {
+        const time = Date.parse(event.date);
+        if (!Number.isFinite(time)) return null;
+        const at = (time - min) / span;
+        return (
+          <span key={event.id} data-edge={at < 0.15 ? 'start' : at > 0.85 ? 'end' : undefined} className="noesis-spine__dot" data-stage-tone={event.tone} style={{ left: `${4 + ((time - min) / span) * 92}%`, top: `${index % 2 ? 58 : 22}%` }} title={`${fmt(time)} · ${event.title}`}>
+            <em>{event.title.length > 34 ? `${event.title.slice(0, 33)}…` : event.title}</em>
+          </span>
+        );
+      })}
+      <span className="noesis-spine__date" style={{ left: '4%' }}>{fmt(min)}</span>
+      <span className="noesis-spine__date" style={{ left: '96%' }}>{fmt(max)}</span>
+    </div>
+  );
+}
+
+/** The prototype's time scrubber: slide through time and compare each position then and now. */
+function BeforeAfterTable({ positions, thinkingEvents, date, onDate, onOpenPosition }: { positions: VaultEntry[]; thinkingEvents: ThinkingEvent[]; date: string; onDate: (value: string) => void; onOpenPosition?: (id: string) => void }) {
+  const series = beliefRiverSeries(positions, thinkingEvents);
+  const starts = series.map((river) => river.points[0]?.time).filter((value): value is number => Number.isFinite(value));
+  if (!series.length || !starts.length) return null;
+  const day = 86_400_000;
+  const first = Math.floor(Math.min(...starts) / day);
+  const last = Math.floor(Date.now() / day);
+  const selected = Number.isFinite(Date.parse(date)) ? Math.min(last, Math.max(first, Math.floor(Date.parse(date) / day))) : last;
+  const at = (selected + 1) * day - 1;
+  const label = (value: number) => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(value * day));
+  return (
+    <div className="mt-5 grid gap-3">
+      <label className="flex items-center gap-3">
+        <span className="font-code text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{label(first)}</span>
+        <input type="range" min={first} max={last} value={selected} aria-label="Slide through time" onChange={(event) => onDate(new Date(Number(event.target.value) * day).toISOString().slice(0, 10))} className="flex-1 accent-[hsl(var(--stage-integrate))]" />
+        <span className="font-code text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Now</span>
+      </label>
+      <div className="noesis-ba" role="table" aria-label={`Positions on ${label(selected)} compared with now`}>
+        <div role="row" className="contents font-code text-[9px] uppercase tracking-[0.14em]">
+          <span role="columnheader" />
+          <span role="columnheader" className="text-[hsl(var(--stage-integrate))]">{label(selected)}</span>
+          <span role="columnheader" className="text-[hsl(var(--stage-encounter))]">Now</span>
+          <span role="columnheader" className="text-muted-foreground">Change</span>
+        </div>
+        {series.map((river) => {
+          const then = [...river.points].reverse().find((point) => point.time <= at && point.time < Date.now() - 1000);
+          const now = Math.round(river.position.confidence || 0);
+          const before = then ? Math.round(then.confidence) : null;
+          const delta = before === null ? null : now - before;
+          return (
+            <div role="row" key={river.position.id} className="contents">
+              <button role="cell" type="button" className="truncate text-left font-headline italic hover:underline" onClick={() => onOpenPosition?.(river.position.id)} title={river.position.title}>{river.position.title}</button>
+              <span role="cell">{before === null ? <span className="text-muted-foreground">not yet held</span> : `${before}%`}</span>
+              <span role="cell">{now}%</span>
+              <span role="cell" className={delta === null ? 'text-[hsl(var(--stage-act))]' : delta > 0 ? 'text-[hsl(var(--stage-act))]' : delta < 0 ? 'text-[hsl(var(--stage-claim))]' : 'text-muted-foreground'}>{delta === null ? 'new' : delta === 0 ? '\u2014' : `${delta > 0 ? '+' : ''}${delta}`}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

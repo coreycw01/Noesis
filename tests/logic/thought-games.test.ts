@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildThoughtGames } from '../../src/lib/thought-games';
+import { buildThoughtGames, thoughtGameFamily } from '../../src/lib/thought-games';
 import type { Concept, Media, VaultEntry } from '../../src/lib/types';
 
 const concept = (id: string, name: string, description: string): Concept => ({
@@ -84,7 +84,7 @@ test('keeps every exercise tied to a real item and never emits a mutation', () =
 
   assert.ok(games.length >= 4);
   games.forEach((game) => {
-    assert.ok(game.target.targetId);
+    if (thoughtGameFamily(game.kind) === 'records') assert.ok(game.target.targetId, game.id);
     assert.ok(game.target.view);
     assert.equal('mutation' in game, false);
   });
@@ -112,4 +112,11 @@ test('new exercise kinds come only from what the user recorded', () => {
   assert.ok(whose.options!.includes('Book One'));
   const boundary = games.find((game) => game.kind === 'boundary_sort')!;
   assert.ok(['Speaking up in a meeting', 'Reckless driving'].includes(boundary.prompt));
+});
+
+test('the general-knowledge deck works from an empty workspace, one card per kind', () => {
+  const games = buildThoughtGames({ dayKey: '2026-10-29', concepts: [], inquiries: [], positions: [], media: [], links: [] });
+  const kinds = games.map((game) => game.kind).sort();
+  assert.deepEqual(kinds, ['bias_check', 'fallacy_spotter', 'thought_experiment', 'valid_or_not', 'who_argued_it']);
+  games.forEach((game) => { if (game.options) assert.ok(game.answer && game.options.includes(game.answer), game.id); });
 });

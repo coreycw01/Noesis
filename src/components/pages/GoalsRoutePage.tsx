@@ -18,7 +18,7 @@ export interface GoalsRoutePageProps {
   onSaveCheckIn: SaveGoalCheckIn;
   focusedGoalId: string | null;
   onOpenCommitment: (goalId: string | null) => void;
-  onOpenPraxis: (method: 'exercises' | 'practices' | 'experiments') => void;
+  onOpenPraxis: (method: 'practices' | 'experiments') => void;
 }
 
 export function GoalsRoutePage(props: GoalsRoutePageProps) {

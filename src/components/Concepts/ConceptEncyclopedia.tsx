@@ -1,6 +1,7 @@
 
 "use client";
 
+import { aiDepthFor } from '@/lib/ai-depth';
 import { workspaceScrollBehavior } from '@/lib/appearance';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -28,6 +29,8 @@ import { StageBadge } from '@/components/shared/StageBadge';
 import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
 import type { ClarityLevel } from '@/lib/clarity';
 import { ConceptDiagnosisBars } from '@/components/Concepts/ConceptDiagnosisBars';
+import { ConceptCaliper } from '@/components/Concepts/ConceptCaliper';
+import { ThroughConcept } from '@/components/shared/ThroughConcept';
 import { useToast } from '@/hooks/use-toast';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -250,6 +253,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const { concepts, media, insights, vault, drafts, practices = [], questions, timeline, onAddConcept, onUpdateConcept: persistConcept, onDeleteConcept, onCreateIdea, onCreateLink, focusedConceptId, onOpenConceptRoute, aiSettings } = props;
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useEntityViewPreference('concepts');
+  // The prototype's list-and-detail split is the default way to browse concepts.
+  const [splitView, setSplitView] = useState(true);
+  const [previewName, setPreviewName] = useState<string | null>(null);
   const [listView, setListView] = useState<ConceptListView>('all');
   const [localSelectedName, setSelectedName] = useState<string | null>(null);
   const focusedConcept = concepts.find((concept) => concept.id === focusedConceptId);
@@ -758,7 +764,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   actions={['refine_concept_definition', 'clarify_concept_boundaries']}
                   enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                   showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                  reasoningDepth={aiSettings?.defaultReasoningDepth}
+                  reasoningDepth={aiDepthFor(aiSettings, 'concepts')}
                   buttonLabel="Concept Assistance"
                   promptLabel="What should Noesis examine about this concept?"
                   promptPlaceholder="For example: Where does my use of this concept conflict with its definition?"
@@ -847,6 +853,29 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             ))}
           </div>
 
+          {concept && (
+            <div className="noesis-instrument-pair mb-6">
+              <ConceptDiagnosisBars diagnosis={diagnosis} />
+              <ConceptCaliper concept={concept} />
+            </div>
+          )}
+
+          <ThroughConcept concept={selectedName} columns={[
+            { label: 'Sources', tone: 'encounter', items: r.sources.map((source) => ({ id: source.id, label: source.title, onOpen: () => previewSource(source) })) },
+            { label: 'Annotations', tone: 'encounter', items: r.annotations.map((note) => ({ id: `${note.source.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: () => previewSource(note.source) })) },
+            { label: 'Inquiries', tone: 'examine', items: r.questions.map((question) => ({ id: question.id, label: question.text, onOpen: () => previewInquiry(question) })) },
+            { label: 'Positions', tone: 'claim', items: r.beliefs.map((entry) => ({ id: entry.id, label: entry.title, onOpen: () => previewPosition(entry) })) },
+            { label: 'Works', tone: 'more', items: r.drafts.map((draft) => ({ id: draft.id, label: draft.title || 'Untitled', onOpen: () => previewWork(draft) })) },
+          ]} />
+
+          <div className="noesis-workbench" data-stage-tone="outline">
+          <header className="noesis-workbench-head">
+            <span className="noesis-workbench-head__eyebrow">Workbench</span>
+            <span className="noesis-workbench-head__title">Concept workbench</span>
+            <span className="noesis-workbench-head__line">Define it, test its boundaries, diagnose it, connect it, and see how it changed.</span>
+          </header>
+          </div>
+
           <WorkbenchFlow
             label="Concept workbench workflow"
             activeId={conceptWorkflowStep}
@@ -861,11 +890,11 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               });
             }}
             steps={[
-              { id: 'define', label: 'Define', description: 'Write the working meaning and distinguish its use.' },
-              { id: 'boundaries', label: 'Test boundaries', description: 'Classify edge cases and refine where the concept stops.' },
-              { id: 'diagnose', label: 'Diagnose', description: 'Review clarity, evidence, tension, expression, and next needs.' },
-              { id: 'connect', label: 'Connect', description: 'Inspect the sources, notes, inquiries, positions, works, and practices using it.' },
-              { id: 'history', label: 'History', description: 'Review only recorded changes to the concept over time.' },
+              { id: 'define', label: 'Define', description: 'Write the working meaning and distinguish its use.', progress: concept?.description?.trim() ? 1 : 0 },
+              { id: 'boundaries', label: 'Test boundaries', description: 'Classify edge cases and refine where the concept stops.', progress: Math.min(1, ((concept?.examples || []).length + (concept?.counterexamples || []).length + (concept?.notSameAs || []).length) / 4) },
+              { id: 'diagnose', label: 'Diagnose', description: 'Review clarity, evidence, tension, expression, and next needs.', progress: concept?.description?.trim() ? 0.5 : 0 },
+              { id: 'connect', label: 'Connect', description: 'Inspect the sources, notes, inquiries, positions, works, and practices using it.', progress: Math.min(1, (concept?.links || []).length / 4), meta: `${(concept?.links || []).length} links` },
+              { id: 'history', label: 'History', description: 'Review only recorded changes to the concept over time.', progress: 0 },
             ]}
           />
 
@@ -1146,7 +1175,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
             <p className="text-sm font-body text-muted-foreground italic mb-5">{diagnosis.why}</p>
 
-            <div className="mb-5"><ConceptDiagnosisBars diagnosis={diagnosis} /></div>
 
             {diagnosis.growthAreas.length > 0 && (
               <div className="mb-4">
@@ -1433,20 +1461,26 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         }
       />
 
-      <div className="mb-6 hidden grid-cols-1 gap-3 md:grid md:grid-cols-3">
-        <Stat value={totalConceptCount} label={conceptFiltersActive ? 'Matching concepts' : 'Concepts'} sub={conceptFiltersActive ? 'Current filters' : 'Vocabulary size'} />
-        <Stat value={wellDevelopedCount} label="Well Developed" sub="Ready for argument" />
-        <button
-          type="button"
-          onClick={() => setListView('needs_attention')}
-          className={cn(
-            "text-left transition-all rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-            listView === 'needs_attention' && "ring-2 ring-accent/40"
-          )}
-        >
-          <Stat value={needsAttentionRows.length} label="Needs Attention" sub="Definition, evidence, or tests" tone="warning" interactive />
-        </button>
-      </div>
+      {conceptRows.length > 0 && (() => {
+        const bands: Array<[string, string, string, number]> = [
+          ['stable', 'Mature', 'act', conceptRows.filter((row) => row.maturity.label === 'stable').length],
+          ['usable', 'Developing', 'outline', conceptRows.filter((row) => row.maturity.label === 'usable').length],
+          ['emerging', 'Emerging', 'examine', conceptRows.filter((row) => row.maturity.label === 'emerging').length],
+          ['beginning', 'Beginning', 'more', conceptRows.filter((row) => row.maturity.label === 'beginning').length],
+        ];
+        return (
+          <section className="noesis-flowbar mb-6" aria-label="How developed your vocabulary is">
+            <div className="noesis-instrument__label">How developed your vocabulary is · {conceptRows.length}</div>
+            <div className="noesis-flowbar__bar" role="img" aria-label={bands.map(([, label, , count]) => `${label} ${count}`).join(', ')}>
+              {bands.filter((band) => band[3]).map(([key, label, tone, count]) => <span key={key} data-stage-tone={tone} style={{ flexGrow: count }} title={`${label}: ${count}`} />)}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {bands.map(([key, label, tone, count]) => <span key={key} data-stage-tone={tone} className="noesis-flowbar__key"><i />{label} {count}</span>)}
+              <button type="button" aria-pressed={listView === 'needs_attention'} onClick={() => setListView(listView === 'needs_attention' ? 'all' : 'needs_attention')} className="ml-auto rounded-full border border-[hsl(var(--stage-claim)/.5)] px-3 py-1 text-sm text-[hsl(var(--stage-claim))]">{needsAttentionRows.length} need attention</button>
+            </div>
+          </section>
+        );
+      })()}
 
       <FilterToolbar
         search={search}
@@ -1459,7 +1493,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         activeFilterLabels={activeConceptFilterLabels}
         onClear={clearConceptFilters}
         clearDisabled={!conceptFiltersActive}
-        viewControl={<ViewModeToggle value={viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')} label="Concept view" />}
+        viewControl={<span className="inline-flex items-center gap-1">
+          <button type="button" aria-pressed={splitView && viewMode !== 'table'} onClick={() => { setSplitView(true); setViewMode('cards'); }} className="rounded-full border border-border px-3 py-1 font-code text-[9.5px] uppercase tracking-[0.12em] aria-pressed:bg-muted">Split</button>
+          <ViewModeToggle value={splitView && viewMode !== 'table' ? null : viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => { setSplitView(false); setViewMode(value === 'table' ? 'table' : 'cards'); }} label="Concept view" />
+        </span>}
         className="mb-6"
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -1521,7 +1558,80 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         </section>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
+      {splitView && viewMode !== 'table' && conceptRows.length > 0 && (() => {
+        const maturityName = (label: string) => ({ stable: 'Mature', usable: 'Developing', emerging: 'Emerging', beginning: 'Beginning' } as Record<string, string>)[label] || label;
+        const current = conceptRows.find((row) => row.name === previewName) || conceptRows[0];
+        return (
+          <div className="noesis-concept-split mb-8">
+            <ul className="noesis-concept-split__list" aria-label="Concepts">
+              {conceptRows.map((row) => (
+                <li key={row.name}>
+                  <button type="button" draggable onDragStart={(event) => { event.dataTransfer.setData('text/x-noesis-concept', row.name); event.dataTransfer.effectAllowed = 'copy'; }} aria-current={row.name === current.name || undefined} onClick={() => setPreviewName(row.name)} onDoubleClick={() => openConceptDetail(row.name, row.concept)}>
+                    <b>{row.name}</b>
+                    <span className="noesis-concept-split__meta"><i data-maturity={row.maturity.label} />{maturityName(row.maturity.label)}{row.concept?.description?.trim() ? '' : ' · no definition'}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="grid min-w-0 content-start gap-4">
+              <article className="noesis-concept-split__card" data-stage-tone="outline">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="rounded-full">{maturityName(current.maturity.label)}</Badge>
+                  <Badge variant="outline" className="rounded-full">{current.connectionCount} links</Badge>
+                  {current.repairFlags.length > 0 && <Badge variant="outline" className="rounded-full" style={{ color: 'hsl(var(--stage-claim))', borderColor: 'hsl(var(--stage-claim) / .5)' }}>{current.repairFlags.length} to repair</Badge>}
+                </div>
+                <h2 className="mt-2 font-headline text-4xl font-semibold italic">{current.name}</h2>
+                {current.concept?.description?.trim()
+                  ? <blockquote className="noesis-concept-split__quote">{current.concept.description}</blockquote>
+                  : <p className="mt-2 text-sm text-muted-foreground">No definition yet. Mark a definition in a source or Works, or open the workbench to write one.</p>}
+                <Button type="button" onClick={() => openConceptDetail(current.name, current.concept)} className="mt-3 rounded-full">Open the workbench</Button>
+              </article>
+              <div className="noesis-instrument-pair">
+                <ConceptDiagnosisBars diagnosis={current.diagnosis} />
+                {current.concept && (() => {
+                  const target = current.concept;
+                  const zones: Array<{ field: 'aliases' | 'opposedTo' | 'notSameAs'; title: string; hint: string; tone: string }> = [
+                    { field: 'aliases', title: 'Same as', hint: 'Synonyms and close neighbours', tone: 'act' },
+                    { field: 'opposedTo', title: 'Opposed to', hint: 'Opposites and rivals', tone: 'claim' },
+                    { field: 'notSameAs', title: 'Not the same as', hint: 'Easily confused, but different', tone: 'outline' },
+                  ];
+                  const save = (field: 'aliases' | 'opposedTo' | 'notSameAs', values: string[]) => void onUpdateConcept({ ...target, [field]: Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))), dateUpdated: new Date().toISOString() });
+                  return (
+                    <section className="noesis-relations" aria-label="Relations">
+                      <div className="noesis-instrument__label">Relations · drag concepts from the list</div>
+                      {zones.map((zone) => (
+                        <div key={zone.field} data-stage-tone={zone.tone} className="noesis-relations__zone"
+                          onDragOver={(event) => { if (event.dataTransfer.types.includes('text/x-noesis-concept')) { event.preventDefault(); event.currentTarget.dataset.over = '1'; } }}
+                          onDragLeave={(event) => { delete event.currentTarget.dataset.over; }}
+                          onDrop={(event) => { event.preventDefault(); delete event.currentTarget.dataset.over; const name = event.dataTransfer.getData('text/x-noesis-concept'); if (name && name !== current.name) save(zone.field, [...(target[zone.field] || []), name]); }}>
+                          <span className="noesis-relations__title">{zone.title}</span>
+                          <span className="noesis-relations__hint">{zone.hint}</span>
+                          <span className="flex flex-wrap gap-1.5">
+                            {(target[zone.field] || []).map((value) => (
+                              <span key={value} className="noesis-relations__chip">{value}<button type="button" aria-label={`Remove ${value} from ${zone.title}`} onClick={() => save(zone.field, (target[zone.field] || []).filter((item) => item !== value))}>×</button></span>
+                            ))}
+                          </span>
+                        </div>
+                      ))}
+                      <select aria-label="Add a relation without dragging" className="noesis-relations__pick" value="" onChange={(event) => { const [field, name] = event.target.value.split('::'); if (field && name) save(field as 'aliases' | 'opposedTo' | 'notSameAs', [...(target[field as 'aliases'] || []), name]); }}>
+                        <option value="">Or add without dragging…</option>
+                        {conceptRows.filter((row) => row.name !== current.name).map((row) => (
+                          <optgroup key={row.name} label={row.name}>
+                            {zones.map((zone) => <option key={zone.field} value={`${zone.field}::${row.name}`}>{row.name} · {zone.title.toLowerCase()}</option>)}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </section>
+                  );
+                })()}
+              </div>
+              {current.concept && <ConceptCaliper concept={current.concept} />}
+            </div>
+          </div>
+        );
+      })()}
+
+      <div className={cn('grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4', splitView && viewMode !== 'table' && 'hidden')}>
         {viewMode !== 'table' && conceptRows.map(({ name, concept, related, diagnosis: diag, maturity, connectionCount, possibleDuplicates, repairFlags }) => {
 
           return (
@@ -1609,17 +1719,3 @@ function ConceptPageSection({ title, count, empty, children }: { title: string; 
   );
 }
 
-function Stat({ value, label, sub, tone = 'default', interactive = false }: { value: number | string; label: string; sub: string; tone?: 'default' | 'warning'; interactive?: boolean }) {
-  return (
-    <Card className={cn(
-      "bg-card border shadow-sm p-4 h-20 flex flex-col justify-center rounded-xl relative",
-      interactive && "pr-10 hover:border-amber-300 hover:shadow-md",
-      tone === 'warning' ? "border-amber-200" : "border-accent/10"
-    )}>
-      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">{label}</div>
-      <div className={cn("mt-1 text-2xl font-headline font-bold leading-none", tone === 'warning' ? "text-amber-700" : "text-accent")}>{value}</div>
-      <div className="mt-1 text-[10px] text-muted-foreground/40 truncate font-body">{sub}</div>
-      {interactive && <ArrowRight aria-hidden="true" className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-amber-700" />}
-    </Card>
-  );
-}
