@@ -191,3 +191,4 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-mini-scale__stated, .noesis-mini-scale__earned { position: absolute; top: -3px; width: 3px; height: 14px; border-radius: 2px; transform: translateX(-50%); }
 .noesis-mini-scale__stated { background: hsl(var(--stage)); }
 .noesis-mini-scale__earned { background: hsl(var(--stage-act)); }
+.noesis-inquiry-card { background: linear-gradient(180deg, hsl(var(--stage-examine) / .07), transparent 55%), hsl(var(--card)) !important; }

@@ -15,6 +15,7 @@ import { SourceLinker } from '@/components/SourceLinker';
 import type { Concept, Draft, InquiryEvidence, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { allQuestions, conceptKey, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
+import { InquiryLean } from '@/components/Questions/InquiryLean';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
@@ -372,7 +373,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
           const closed = isInquiryClosed(question);
 
           return (
-            <Card key={question.id} className="border border-accent/15 bg-card/95 p-4 rounded-xl shadow-sm">
+            <Card key={question.id} className="noesis-inquiry-card p-4">
               <StageBadge type="inquiry" stage={question.stage} status={question.status} className="mb-2" />
               <h2 className="mb-3 font-headline text-xl font-bold italic leading-snug text-primary">
                 <button type="button" className="w-full text-left transition-colors hover:text-accent" onClick={() => openQuestion(question.id)}>{question.text}</button>
@@ -386,9 +387,8 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
                 )}
               </div>
 
-              <div className="mb-4 border-l-2 border-accent bg-accent/5 px-3 py-2">
-                <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">Next investigation step</div>
-                <p className="mt-1 text-sm leading-5 text-muted-foreground">{nextStep}</p>
+              <div className="mb-4" title={nextStep}>
+                <InquiryLean question={question} />
               </div>
 
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/50 pt-3">
