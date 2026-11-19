@@ -952,6 +952,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           id="noesis-main-content"
           tabIndex={-1}
           className={cn("noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-32 pt-14 md:pb-0 md:pt-0", loopNav && "noesis-app-main--loop")}
+          data-stage-tone={activePage.section === 'Today' ? 'today' : NOESIS_NAV_SECTION_TONE[activePage.section]}
           aria-busy={Boolean(pendingPath)}
           onTouchStart={handleMobileTouchStart}
           onTouchMove={handleMobileTouchMove}
@@ -976,6 +977,12 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             </div>
           )}
           {children}
+          {loopNav && (
+            <div className="noesis-proto-topbar">
+              <button type="button" className="noesis-proto-brand" onClick={() => handleNavChange('home')} aria-label="Noesis, go to Today">Noesis.</button>
+              <button type="button" className="noesis-proto-profile" onClick={onOpenProfile || (() => handleNavChange('profile'))}>Profile</button>
+            </div>
+          )}
           {loopNav && (
             <LoopDock
               items={navItems}

@@ -4,26 +4,27 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+// Prototype skin: monospace uppercase pills that take the page's stage color (--accent).
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--button-radius)] font-interface text-[12.5px] font-medium tracking-[0.005em] ring-offset-background transition-[color,background-color,border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-code text-[10.5px] font-medium uppercase tracking-[0.08em] ring-offset-background transition-[color,background-color,border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "border-[length:var(--border-strength)] border-accent bg-accent text-accent-foreground hover:bg-accent/90",
+        default: "border border-accent bg-accent text-background hover:bg-accent/90",
         destructive:
-          "border-[length:var(--border-strength)] border-destructive/30 bg-transparent text-destructive hover:bg-destructive/10",
+          "border border-destructive/50 bg-transparent text-destructive hover:bg-destructive/10",
         outline:
-          "border-[length:var(--border-strength)] border-border bg-surface text-foreground hover:border-accent-border hover:bg-accent-muted/60 hover:text-foreground",
+          "border border-accent bg-transparent text-accent hover:bg-accent/15",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-muted text-muted-foreground hover:text-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+          "border border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted",
+        ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
+        link: "text-accent underline-offset-4 hover:underline normal-case tracking-normal font-body text-sm",
       },
       size: {
-        default: "h-9 px-3.5 py-1.5",
-        sm: "h-8 px-3 text-xs",
-        lg: "h-10 px-6",
-        icon: "h-9 w-9",
+        default: "h-8 px-3.5",
+        sm: "h-7 px-3",
+        lg: "h-9 px-5",
+        icon: "h-8 w-8",
       },
     },
     defaultVariants: {

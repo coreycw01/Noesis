@@ -1347,7 +1347,7 @@ function LoopNavigationRow() {
   const style = useNavStyle();
   return (
     <div className="grid gap-1">
-      <SwitchRow label="Use the Loop dock instead of the sidebar" checked={style === 'loop'} onCheckedChange={(checked) => writeNavStyle(checked ? 'loop' : 'sidebar')} />
+      <SwitchRow label="Use the Loop dock (turn off for the classic sidebar)" checked={style === 'loop'} onCheckedChange={(checked) => writeNavStyle(checked ? 'loop' : 'sidebar')} />
       <p className="px-1 text-xs text-muted-foreground">A floating dock that lays pages out as Encounter, Examine, Claim, Act, Integrate. Desktop only; applies on this device immediately.</p>
     </div>
   );
