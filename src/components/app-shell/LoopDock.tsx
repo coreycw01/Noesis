@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { ChevronDown, ChevronUp, MoreHorizontal, Search, UserCircle2 } from 'lucide-react';
+import { MoveHorizontal, ChevronDown, ChevronUp, MoreHorizontal, Search, UserCircle2 } from 'lucide-react';
 import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 import { cn } from '@/lib/utils';
 import { NOESIS_LOOP_STAGES, NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW, type NoesisNavSection } from '@/lib/noesis-page-definitions';
@@ -58,9 +58,11 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
 }) {
   const [open, setOpen] = useState<NoesisNavSection | null>(null);
   const [folded, setFolded] = useState(false);
+  const [anchor, setAnchor] = useState('center');
   const dock = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setAnchor(readBrowserPreference('noesis:loop-anchor') || 'center');
     setFolded(readBrowserPreference('noesis:loop-folded') === '1');
   }, []);
 
@@ -94,12 +96,13 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
   if (folded) {
     const ActiveIcon = items.find((item) => item.id === activeView)?.icon;
     return (
-      <div className="noesis-loop noesis-loop--folded" data-stage={activeSection ? NOESIS_NAV_SECTION_TONE[activeSection] : 'more'}>
+      <div className="noesis-loop noesis-loop--folded" style={anchor === 'left' ? { left: '1rem', transform: 'none' } : anchor === 'right' ? { right: '1rem', left: 'auto', transform: 'none' } : undefined} data-stage={activeSection ? NOESIS_NAV_SECTION_TONE[activeSection] : 'more'}>
         <button type="button" className="noesis-loop__pill" onClick={() => fold(false)} aria-label="Show the Loop navigation">
           {ActiveIcon && <ActiveIcon className="size-4" aria-hidden="true" />}
           <span>{NOESIS_PAGE_BY_VIEW[activeView as keyof typeof NOESIS_PAGE_BY_VIEW]?.title || 'Noesis'}</span>
           <ChevronUp className="size-3.5 opacity-70" aria-hidden="true" />
         </button>
+        <button type="button" className="grid size-11 place-items-center" aria-label={`Move navigation to ${anchor === 'center' ? 'right' : anchor === 'right' ? 'left' : 'center'}`} title="Move navigation" onClick={() => { const next = anchor === 'center' ? 'right' : anchor === 'right' ? 'left' : 'center'; setAnchor(next); writeBrowserPreference('noesis:loop-anchor', next); }}><MoveHorizontal className="size-4" /></button>
       </div>
     );
   }
@@ -116,7 +119,7 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
           aria-expanded={open === section}
           aria-haspopup="true"
           aria-current={isActive ? 'true' : undefined}
-          onClick={() => (group.length === 1 && section !== 'More' ? go(group[0].id) : setOpen(open === section ? null : section))}
+          onClick={() => setOpen(open === section ? null : section)}
           className="noesis-loop__stage-button"
         >
           <span className="noesis-loop__ring" aria-hidden="true">

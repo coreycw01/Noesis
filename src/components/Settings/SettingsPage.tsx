@@ -1445,46 +1445,39 @@ const STAGE_COLOR_ROWS: Array<{ key: StageColorKey; stage: string; pages: string
   { key: 'more', stage: 'More', pages: 'Profile, Settings, Noesis AI' },
 ];
 
-function hslTripletToHex(triplet: string) {
-  const match = /([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/.exec(triplet);
-  if (!match) return '#888888';
-  const h = Number(match[1]); const s = Number(match[2]) / 100; const l = Number(match[3]) / 100;
-  const k = (n: number) => (n + h / 30) % 12; const a = s * Math.min(l, 1 - l);
-  const f = (n: number) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0');
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
+const PAGE_SWATCHES = [
+  ['Brick', '#b85444'], ['Coral', '#dc795d'], ['Amber', '#bc8632'],
+  ['Olive', '#828843'], ['Fern', '#4b9567'], ['Teal', '#318e88'],
+  ['Lake', '#3686a7'], ['Denim', '#587bac'], ['Iris', '#806abb'],
+  ['Plum', '#a2679c'], ['Rose', '#be6584'], ['Slate', '#768491'],
+] as const;
 
-/** Choose the colour of each stage; every page in that stage takes it. */
 function StageColorPicker({ value, onChange }: { value: Partial<Record<StageColorKey, string>>; onChange: (next: Partial<Record<StageColorKey, string>>) => void }) {
-  const themeColor = (key: StageColorKey) => {
-    if (typeof document === 'undefined') return '#888888';
-    const root = document.documentElement;
-    const inline = root.style.getPropertyValue(`--stage-${key}`);
-    root.style.removeProperty(`--stage-${key}`);
-    const computed = getComputedStyle(root).getPropertyValue(`--stage-${key}`).trim();
-    if (inline) root.style.setProperty(`--stage-${key}`, inline);
-    return hslTripletToHex(computed);
-  };
   return (
-    <fieldset className="mt-6 rounded-[var(--card-radius)] border border-border p-4">
-      <legend className="px-1 font-code text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Page colours</legend>
-      <p className="mb-3 text-sm text-muted-foreground">Each stage colours its pages, the dock and its records. Pick your own, or reset to the theme.</p>
-      <ul className="grid gap-2 sm:grid-cols-2">
-        {STAGE_COLOR_ROWS.map((row) => {
-          const custom = value[row.key];
-          const shown = custom || themeColor(row.key);
+    <details className="mt-6 rounded-[var(--card-radius)] border border-border px-4">
+      <summary className="cursor-pointer py-3 text-sm font-medium">Page colours</summary>
+      <ul className="divide-y divide-border pb-2">
+        {STAGE_COLOR_ROWS.map(({ key, stage, pages }) => {
+          const current = value[key]?.toLowerCase() || 'theme';
           return (
-            <li key={row.key} className="flex items-center gap-3 rounded-lg border border-border/60 px-3 py-2">
-              <input type="color" value={shown} aria-label={`${row.stage} colour`} onChange={(event) => onChange({ ...value, [row.key]: event.target.value })} className="size-9 shrink-0 cursor-pointer rounded-md border border-border bg-transparent p-0.5" />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium" style={{ color: shown }}>{row.stage}</span>
-                <span className="block truncate text-xs text-muted-foreground">{row.pages}</span>
-              </span>
-              {custom && <Button type="button" size="sm" variant="ghost" onClick={() => { const next = { ...value }; delete next[row.key]; onChange(next); }}>Reset</Button>}
+            <li key={key} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <div><span className="text-sm font-medium">{stage}</span><p className="text-xs text-muted-foreground">{pages}</p></div>
+              <Select value={current} onValueChange={(colour) => {
+                const next = { ...value };
+                if (colour === 'theme') delete next[key]; else next[key] = colour;
+                onChange(next);
+              }}>
+                <SelectTrigger aria-label={stage + ' colour'} className="w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="theme">Theme default</SelectItem>
+                  {current !== 'theme' && !PAGE_SWATCHES.some(([, hex]) => hex === current) && <SelectItem value={current}>Previous colour</SelectItem>}
+                  {PAGE_SWATCHES.map(([name, hex]) => <SelectItem key={hex} value={hex}><span className="inline-flex items-center gap-2"><span aria-hidden="true" className="size-3 rounded-full border border-current/20" style={{ backgroundColor: hex }} />{name}</span></SelectItem>)}
+                </SelectContent>
+              </Select>
             </li>
           );
         })}
       </ul>
-    </fieldset>
+    </details>
   );
 }

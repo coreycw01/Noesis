@@ -467,7 +467,7 @@ export function ConceptAtlas({
   }, [uid]);
   const openRegion = useCallback((regionId: string) => {
     setSelectedRegionId(regionId);
-    setRegionDetailOpen(true);
+    setRegionDetailOpen(false);
     setAtlasSection('territory');
     markRegionSeen(regionId);
   }, [markRegionSeen]);
@@ -2833,6 +2833,7 @@ export function ConceptAtlas({
               drafts={drafts}
               media={media}
               onSelectRegion={openRegion}
+              onExpandRegion={() => setRegionDetailOpen(true)}
               onBackToRegions={() => setRegionDetailOpen(false)}
               onOpenMap={openRegionInMap}
               onOpenPosition={onOpenPosition}

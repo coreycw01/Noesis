@@ -6,6 +6,7 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   // Firebase Auth's Google API loader fetches its iframe module from this path.
   `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ''} https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://apis.google.com/js/api.js https://apis.google.com/_/scs/abc-static/_/js/`,
+  "worker-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
@@ -75,6 +76,9 @@ const nextConfig: NextConfig = {
         { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
         ...(!isDevelopment ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }] : []),
       ],
+    }, {
+      source: '/ocr/worker.min.js',
+      headers: [{ key: 'Content-Security-Policy', value: "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' data:" }],
     }, publicProfileCacheRule, {
       source: '/api/contextual-ai',
       headers: [{ key: 'Cache-Control', value: 'private, no-store' }],

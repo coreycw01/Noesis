@@ -278,6 +278,7 @@ export interface MediaCapture {
 }
 
 export interface Media extends NoesisStageState {
+  pagePhotos?: StoredAsset[];
   summaryProvenance?: import('./ai-provenance').ProvenanceRef;
   reflectionProvenance?: import('./ai-provenance').ProvenanceRef;
   id: string;
@@ -491,6 +492,7 @@ export interface TimelineEvent {
 
 /** A passage the writer marked in a Work, distinct from highlighting its text. */
 export interface WorkMark {
+  note?: string;
   id: string;
   text: string;
   kind: 'claim' | 'question' | 'evidence' | 'definition' | 'revisit';

@@ -303,6 +303,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     { id: 'vault', icon: iconForNoesisView('vault'), count: counts.vault },
     { id: 'writing', icon: iconForNoesisView('writing'), count: counts.drafts },
     { id: 'context-desk', icon: iconForNoesisView('context-desk') },
+    { id: 'exercises', icon: iconForNoesisView('exercises') },
     { id: 'labs', icon: iconForNoesisView('labs'), count: counts.practices },
     { id: 'evolution', icon: iconForNoesisView('evolution'), count: counts.timeline },
     { id: 'atlas', icon: iconForNoesisView('atlas') },
@@ -396,12 +397,6 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     writeBrowserPreference('noesis:sidebar-collapsed', String(next));
   };
   const handleNavChange = (view: string) => {
-    if (view === activeView && !pendingPath) {
-      setMobileNavOpen(false);
-      setMobileMoreOpen(false);
-      setCommandOpen(false);
-      return;
-    }
     onViewChange(view);
     setMobileNavOpen(false);
     setMobileMoreOpen(false);

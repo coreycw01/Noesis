@@ -1,6 +1,7 @@
 
 "use client";
 
+import { MarkupVoice } from '@/components/shared/MarkupVoice';
 import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useState, useRef, useId } from 'react';
 import dynamic from 'next/dynamic';
@@ -16,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
-import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { AiSettings, Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink, ReadingSession } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_STATUS_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, today, uid, conceptKey } from '@/lib/readex';
 import { cn } from '@/lib/utils';
@@ -31,13 +32,11 @@ import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { nextSourceJourneyStep, sourceJourney } from '@/lib/source-journey';
 import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
 import type { ContextualAiAction } from '@/lib/contextual-ai';
 import { sourceReviewTarget, type SourceReviewApproval } from '@/lib/source-ai-review';
@@ -47,6 +46,7 @@ import { viewToPath } from '@/lib/noesis-routes';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ConceptDetailDialog } from '@/components/Concepts/ConceptDetailDialog';
 
+const SourcePagePhotos = dynamic(() => import('./SourcePagePhotos').then(m => m.SourcePagePhotos));
 const MediaEditor = dynamic(() => import('./MediaEditor').then((module) => module.MediaEditor), {
   loading: () => <p role="status" className="sr-only">Opening source editor</p>,
 });
@@ -198,8 +198,6 @@ export function MediaLibrary({
   const { toast } = useToast();
 
   const selected = media.find((item) => item.id === (onOpenSourceRoute ? focusedSourceId : selectedId)) || null;
-  const sourceJourneyState = useMemo(() => selected ? sourceJourney(selected, sourceInfluenceCount(selected, vault, drafts, practices, questions)) : null, [selected, vault, drafts, practices, questions]);
-  const sourceJourneyNext = sourceJourneyState ? nextSourceJourneyStep(sourceJourneyState) : null;
   const selectedRef = useRef<Media | null>(selected);
   selectedRef.current = selected;
   const [captureDraft, setCaptureDraft] = useState<Media['capture'] | null>(null);
@@ -330,7 +328,7 @@ export function MediaLibrary({
       ...patch.capture,
       after: { ...authoredAfter, ...(aiSummary !== undefined ? { aiSummary } : {}), ...(aiReflection !== undefined ? { aiReflection } : {}) },
     };
-    return Promise.resolve(onUpdateMedia({ ...current, ...patch, ...(capture ? { capture } : {}), dateUpdated: today() }, capture ? { dateUpdated: current.dateUpdated } : undefined))
+    return Promise.resolve(onUpdateMedia({ ...current, ...patch, ...(capture ? { capture } : {}), dateUpdated: today() }, capture || patch.pagePhotos ? { dateUpdated: current.dateUpdated } : undefined))
       .then(() => true)
       .catch((error) => {
         toast({ title: 'Source not saved', description: noesisUserError(error, 'save this source'), variant: 'destructive' });
@@ -602,20 +600,9 @@ export function MediaLibrary({
         </section>
 
         <Tabs value={sourceWorkbenchStep} onValueChange={(value) => setSourceWorkbenchStep(value as SourceWorkbenchStep)} className="w-full">
-          <WorkbenchFlow
-            label="Source workbench workflow"
-            activeId={sourceWorkbenchStep}
-            onSelect={(id) => setSourceWorkbenchStep(id as SourceWorkbenchStep)}
-            className="mb-5"
-            nextId={sourceJourneyNext}
-            nextHint={sourceJourneyNext ? sourceJourneyState![sourceJourneyNext].next : undefined}
-            steps={[
-              { id: 'overview', label: 'Understand', description: 'You name why this source matters to you and say its central idea in your own words.', progress: sourceJourneyState?.overview.progress, meta: sourceJourneyState?.overview.meta },
-              { id: 'capture', label: 'Engage', description: 'You set an intention, log each sitting, and record what changed in your thinking afterward.', progress: sourceJourneyState?.capture.progress, meta: sourceJourneyState?.capture.meta },
-              { id: 'annotations', label: 'Capture', description: 'You keep the passages that matter, then develop each one into a question, claim, or connection.', progress: sourceJourneyState?.annotations.progress, meta: sourceJourneyState?.annotations.meta },
-              { id: 'connections', label: 'Connect', description: 'You tie the source to concepts and see which positions, inquiries, works, and practices it now supports.', progress: sourceJourneyState?.connections.progress, meta: sourceJourneyState?.connections.meta },
-            ]}
-          />
+          <TabsList aria-label="Source sections" className="mb-5 flex h-auto w-fit max-w-full flex-wrap">
+            {([['overview', 'Overview'], ['capture', 'Reflection'], ['annotations', 'Markup'], ['connections', 'Connections']] as const).map(([id, label]) => <TabsTrigger key={id} value={id}>{label}</TabsTrigger>)}
+          </TabsList>
 
           <TabsContent value="overview" className="space-y-5 sm:space-y-8">
             <AiAssistedHistory
@@ -666,7 +653,7 @@ export function MediaLibrary({
                       ))}
                     </dl>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Nothing recorded yet. <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Engage</button> with it to note why you came, the central idea in your words, and what changed.</p>
+                    <p className="text-sm text-muted-foreground">Nothing recorded yet. <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Open Reflection</button> to note why you came, the central idea in your words, and what changed.</p>
                   )}
                 </Card>
               );
@@ -695,7 +682,7 @@ export function MediaLibrary({
                 <div className="noesis-workbench-panel__eyebrow mb-3">SOURCE PURPOSE</div>
                 <p className="font-headline text-xl italic leading-snug text-primary/90 sm:text-2xl">{sourcePurpose}</p>
                 <p className="mt-4 text-sm leading-6 text-muted-foreground sm:mt-6">
-                  Open <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Engage</button> to record your purpose, sessions, and reflection.
+                  Open <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Reflection</button> to record your purpose, sessions, and reflection.
                 </p>
               </Card>
             </div>
@@ -926,22 +913,23 @@ export function MediaLibrary({
             <div>
               <div className="space-y-8">
                 <div>
-                  <h3 className="readex-kicker font-bold text-muted-foreground">NOTES FROM THIS SOURCE</h3>
+                  <h3 className="readex-kicker font-bold text-muted-foreground">MARKUP</h3>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">Save a highlight, your own thought, a question, or a connection. Keep each note to one idea.</p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto]">
-                  <Select value={annotationDraft.type} onValueChange={(value) => setAnnotationDraft((prev) => ({ ...prev, type: value as Annotation['type'] }))}>
-                    <SelectTrigger className="h-11 w-full rounded-md border-border/60 bg-card font-code text-[10px] font-bold uppercase shadow-sm sm:rounded-full"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="highlight" className="font-code text-[10px] uppercase">Highlight</SelectItem>
-                      <SelectItem value="thought" className="font-code text-[10px] uppercase">Thought</SelectItem>
-                      <SelectItem value="question" className="font-code text-[10px] uppercase">Question</SelectItem>
-                      <SelectItem value="connection" className="font-code text-[10px] uppercase">Connection</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <SourcePagePhotos key={selected.id} sourceId={selected.id} photos={selected.pagePhotos || []} allowSave={!/^\/(demo|review)(\/|$)/.test(pathname)} onSave={async photo => {
+                  const source = selectedRef.current;
+                  if (!source || source.id !== selected.id) return false;
+                  return Boolean(await updateSelected({ pagePhotos: [...(source.pagePhotos || []), photo] }));
+                }} onText={text => setAnnotationDraft(prev => ({ ...prev, text: [prev.text.trim(), text].filter(Boolean).join('\n\n') }))} />
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <div className="flex flex-wrap gap-2 sm:col-span-full" role="group" aria-label="Markup type">
+                    {(['highlight', 'thought', 'question', 'claim', 'definition', 'objection', 'connection'] as const).map(type =>
+                      <button key={type} type="button" className="noesis-mark-kind min-h-9 capitalize aria-pressed:ring-2 aria-pressed:ring-ring" aria-pressed={annotationDraft.type === type} onClick={() => setAnnotationDraft(prev => ({ ...prev, type }))}>{type}</button>)}
+                  </div>
                   <Textarea aria-label="Annotation text" value={annotationDraft.text} onChange={(event) => setAnnotationDraft((prev) => ({ ...prev, text: event.target.value }))} placeholder="One passage, observation, or question worth keeping…" className="min-h-28 font-body text-base leading-7" />
                   <Button onClick={addAnnotation} disabled={!annotationDraft.text.trim()} size="sm" className="h-11 w-full rounded-md px-6 font-bold sm:w-auto sm:rounded-full">Save note</Button>
                 </div>
+                <MarkupVoice key={selected.id} text={annotationDraft.text} onTranscript={words => setAnnotationDraft(prev => ({ ...prev, text: [prev.text.trimEnd(), words].filter(Boolean).join(' ') }))} />
                 <div className="space-y-5">
                   {(selected.annotations || []).map((annotation) => (
                     <Link key={annotation.id} href={viewToPath('annotations', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), annotationSourceId: selected.id, annotationId: annotation.id })} className="group block rounded-[var(--card-radius)] border border-border/50 bg-card p-4 transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-6">

@@ -8,6 +8,7 @@ import {
   MapPinned,
   Network,
   Repeat2,
+  ScanEye,
   Target,
   UserCircle2,
 } from 'lucide-react';
@@ -28,7 +29,7 @@ ThoughtBubble.displayName = 'ThoughtBubble';
  * Library, a grid of rows for the Source Index, an ink trail for Annotations,
  * a question mark for Inquiries, a planted flag for Positions, a target with
  * an outbound arrow for Praxis, three advancing chevrons for Evolution, a
- * ringed three-node chain for the Atlas, and a brain for Exercises.
+ * folded map with linked nodes for the Atlas, and a brain for Exercises.
  */
 type GlyphPart = [tag: 'path' | 'circle' | 'rect', attrs: Record<string, string | number>];
 
@@ -97,14 +98,12 @@ const PraxisTarget = glyph('praxis', [
 const EvolutionChevrons = glyph('evolution', [
   ['path', { d: 'M1.5 3.5 L4.5 7 L1.5 10.5 M5.5 3.5 L8.5 7 L5.5 10.5 M9.5 3.5 L12.5 7 L9.5 10.5', strokeWidth: 1.6 }],
 ]);
-const AtlasChain = glyph('atlas', [
-  ['circle', { cx: 7, cy: 7, r: 6, strokeWidth: 1.2 }],
-  ['path', { d: 'M4.2 8.6 7 5 9.8 8.6', strokeWidth: 1.1 }],
-  ['circle', { cx: 4.2, cy: 8.6, r: 1.4, ...FILL }],
-  ['circle', { cx: 7, cy: 5, r: 1.4, ...FILL }],
-  ['circle', { cx: 9.8, cy: 8.6, r: 1.4, ...FILL }],
+const AtlasMap = glyph('atlas', [
+  ['path', { d: 'M1 3.2 5 1.5 9 3.1 13 1.5v9.3l-4 1.7-4-1.6-4 1.6Z', strokeWidth: 1.15 }],
+  ['path', { d: 'M5 1.8v3M5 8.8v1.8M9 3.5v1M9 8.2v3.8', strokeWidth: 0.75, opacity: 0.6 }],
+  ['path', { d: 'm3.1 8.1 3.4-2.8 4.2 1.6', strokeWidth: 1.05 }],
+  ...[[3.1, 8.1], [6.5, 5.3], [10.7, 6.9]].map(([cx, cy]): GlyphPart => ['circle', { cx, cy, r: 0.95, ...FILL }]),
 ]);
-const AiSpark = glyph('ai', [['path', { d: 'M7 1.5 8.4 5.6 12.5 7 8.4 8.4 7 12.5 5.6 8.4 1.5 7 5.6 5.6Z', ...FILL }]]);
 const WorkSheet = glyph('work', [['path', { d: 'M3 2h6l2 2v8H3Z', strokeWidth: 1.3 }]]);
 const SettingsDial = glyph('settings', [
   ['circle', { cx: 7, cy: 7, r: 2.2, strokeWidth: 1.4 }],
@@ -136,7 +135,7 @@ export type NoesisIconKey =
 
 export const NOESIS_ICONS: Record<NoesisIconKey, LucideIcon> = {
   home: TodaySun,
-  atlas: AtlasChain,
+  atlas: AtlasMap,
   region: MapPinned,
   connection: Network,
   concept: ThoughtBubble as LucideIcon,
@@ -147,7 +146,7 @@ export const NOESIS_ICONS: Record<NoesisIconKey, LucideIcon> = {
   annotation: InkTrail,
   position: PlantedFlag,
   work: WorkSheet,
-  context: AiSpark,
+  context: ScanEye,
   lab: FlaskConical,
   praxis: PraxisTarget,
   practice: Repeat2,

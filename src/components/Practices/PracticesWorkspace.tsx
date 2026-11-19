@@ -43,7 +43,6 @@ import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { hasPracticeIntellectualBasis, normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
-import { PraxisMethodCards } from '@/components/Practices/PraxisMethodCards';
 import { PraxisDayStrip, PraxisMethodShape, praxisShapeFor } from '@/components/Practices/PraxisMethodShape';
 import type { NoesisView } from '@/lib/noesis-routes';
 
@@ -236,27 +235,6 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
   });
   const todayLoops = visibleActiveLoops.filter((practice) => practiceState.get(practice.id)?.needsLog);
   const ongoingLoops = visibleActiveLoops.filter((practice) => !needsAttentionLoops.some((item) => item.id === practice.id) && !todayLoops.some((item) => item.id === practice.id));
-  const practiceStats = useMemo(() => ({
-    total: practices.length,
-    active: practices.filter((practice) => normalizePracticeStatus(practice.status) === 'active').length,
-    planned: practices.filter((practice) => normalizePracticeStatus(practice.status) === 'planned').length,
-    readyForReview: practices.filter((practice) => {
-      const state = practiceState.get(practice.id);
-      return state?.needsOutcome || state?.needsConsequence || state?.recentlyConcluded || state?.scheduleReview;
-    }).length,
-    needsSetup: practices.filter((practice) => {
-      const state = practiceState.get(practice.id);
-      return !isPracticeConcluded(practice) && (!state?.hasBasis || state?.needsDesign);
-    }).length,
-    awaitingLog: practices.filter((practice) => practiceState.get(practice.id)?.needsLog).length,
-    needsDesign: practices.filter((practice) => practiceDesignGaps(practice).length > 0).length,
-    needsOutcome: practices.filter((practice) => practiceNeedsOutcome(practice)).length,
-    needsConsequence: practices.filter((practice) => practiceNeedsConsequence(practice)).length,
-    needsBasis: practices.filter((practice) => {
-      const state = practiceState.get(practice.id);
-      return state ? !state.hasBasis : !hasPracticeBasis(practice);
-    }).length,
-  }), [practices, practiceState]);
   const labStats = useMemo(() => ({
     total: labRecords.length,
     active: labRecords.filter((practice) => normalizePracticeStatus(practice.status) === 'active').length,
@@ -396,21 +374,11 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
       <PageHeader
         title="Praxis"
         description="Test an idea, build consistency, or uphold a principle—then carry what happens back into your thinking."
-        meta={
-          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
-            {practiceStats.total} Praxis records · {practiceStats.active} active · {practiceStats.needsSetup} need setup · {practiceStats.readyForReview} ready for review
-          </span>
-        }
         tabs={(
-          <PraxisMethodCards
-            active={labTool}
-            counts={{ practices: practices.filter((item) => normalizePracticeType(item.type) !== 'experiment').length, experiments: practices.filter((item) => normalizePracticeType(item.type) === 'experiment').length }}
-            onPick={(method) => {
-              if (method === 'commitments') { onNavigateTarget({ view: 'goals' }); return; }
-              setLabTool(method);
-              setTypeFilter('all');
-            }}
-          />
+          <Select value={labTool} onValueChange={(method) => { if (method === 'commitments') onNavigateTarget({ view: 'goals' }); else { setLabTool(method === 'experiments' ? 'experiments' : 'practices'); setTypeFilter('all'); } }}>
+            <SelectTrigger aria-label="Praxis method" className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="practices">Practices</SelectItem><SelectItem value="experiments">Experiments</SelectItem><SelectItem value="commitments">Commitments</SelectItem></SelectContent>
+          </Select>
         )}
         actions={(
           <DropdownMenu modal={false}>
@@ -435,14 +403,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
         )}
       />
 
-      <section className="relative mb-5 overflow-hidden border-y border-border/70 bg-card/45" aria-label={`${labTool === 'experiments' ? 'Experiment' : 'Practice'} cycle`}>
-        <div className="flex flex-col gap-1 border-b border-border/60 px-4 py-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-          <div>
-            <p className="font-code text-[9px] font-semibold uppercase tracking-[0.18em] text-accent">{labTool === 'experiments' ? 'Experiment cycle' : 'Practice cycle'}</p>
-            <h2 className="mt-1 text-base font-semibold text-foreground">{labTool === 'experiments' ? 'Move a claim through contact with reality' : 'Move an intention into repeatable evidence'}</h2>
-          </div>
-          <p className="text-xs leading-5 text-muted-foreground">Select a stage to focus the workspace.</p>
-        </div>
+      <details className="mb-3 border-b border-border"><summary className="cursor-pointer py-2 text-sm text-muted-foreground">Filter by stage</summary>
         <div className="grid grid-cols-2 sm:grid-cols-4">
           {[
             {
@@ -502,8 +463,7 @@ export function PracticesWorkspace({ aiSettings, practices, concepts, media, que
             </button>
           ))}
         </div>
-      </section>
-
+      </details>
 
       <FilterToolbar
         search={search}

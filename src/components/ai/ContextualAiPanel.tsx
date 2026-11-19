@@ -414,7 +414,6 @@ export function ContextualAiPanel({
         <Button variant="outline" size="sm" className="noesis-ai-trigger rounded-full" aria-haspopup="dialog" aria-expanded={open} onClick={(event) => { dialogOpener.current = event.currentTarget; setOpen(true); }}>
           <NoesisAiMark className="mr-2 size-5" /> {buttonLabel}
         </Button>
-        <span className="noesis-aidock__depth" title="Reasoning depth for this action">{effectiveDepth}</span>
         {contextDeskKey && workspaceKey && (
           <Button
             type="button"
