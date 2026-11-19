@@ -382,3 +382,12 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-workbench-head__title { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: 1.2rem; }
 .noesis-workbench-head__line { flex-basis: 100%; font-size: .86rem; color: hsl(var(--muted-foreground)); }
 .noesis-instrument-pair { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+/* Belief rivers: hover lifts a river; a choice appears where you tapped. */
+.noesis-river:hover polygon, .noesis-river:focus-visible polygon, .noesis-river[data-selected] polygon { fill: hsl(var(--stage) / .45); }
+.noesis-river:focus-visible { outline: none; }
+.noesis-river-choice { position: absolute; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: min(560px, 92%); padding: 10px 12px; border-radius: 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); box-shadow: 0 12px 30px -14px hsl(0 0% 0% / .6); }
+.noesis-river-choice__title { flex-basis: 100%; font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: .98rem; }
+.noesis-river-choice button { padding: 6px 12px; border-radius: 999px; border: 1px solid hsl(var(--border)); font-size: .85rem; }
+.noesis-river-choice button:hover { background: hsl(var(--muted)); }
+.noesis-river-choice button[aria-label="Close"] { margin-left: auto; border: 0; }
+.noesis-river-sheet { position: sticky; bottom: 84px; z-index: 6; margin-top: 16px; padding: 16px 18px; border-radius: 16px; border: 1px solid hsl(var(--stage) / .5); background: hsl(var(--card)); box-shadow: 0 -10px 30px -18px hsl(0 0% 0% / .7); }

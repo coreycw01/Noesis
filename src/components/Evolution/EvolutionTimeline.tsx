@@ -376,6 +376,7 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
 
 export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, thinkingEventsHasMore, loadMoreThinkingEvents, historyLoadingOlder, historyOlderError, unknowns, thinkingPatterns, onSaveSynthesis, positions = [], onOpenPosition }: EvolutionTimelineProps) {
   const [view, setView] = useState<EvolutionView>('belief_rivers');
+  const [explainedRiver, setExplainedRiver] = useState<string | null>(null);
   const [timelineLayout, setTimelineLayout] = useEntityViewPreference('evolution');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
@@ -683,36 +684,50 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
 
       {view === 'belief_rivers' && (
         <section className="mb-8 border-y border-border/60 py-6">
-          <div className="mb-8 rounded-[14px] border border-border bg-card p-5">
-            <BeliefRivers positions={positions} onOpen={(id) => onOpenPosition?.(id)} />
+          <div className="mb-4 rounded-[14px] border border-border bg-card p-5">
+            <BeliefRivers positions={positions} thinkingEvents={thinkingEvents} onOpen={(id) => onOpenPosition?.(id)} onExplain={setExplainedRiver} />
           </div>
-          <div className="mb-5 font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">What moved each river</div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            {beliefRivers.length ? beliefRivers.map((river) => (
-              <article key={river.id} className="border-t border-border/60 py-4 first:border-t-0">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="font-headline text-xl font-bold italic text-primary">{river.title}</h3>
-                  <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{river.events.length} events</Badge>
+          <p className="text-sm text-muted-foreground">Tap a river to open its position or see what moved it.</p>
+          {explainedRiver && (() => {
+            const position = positions.find((item) => item.id === explainedRiver);
+            const river = beliefRivers.find((item) => item.id === explainedRiver);
+            const events = river?.events || [];
+            return (
+              <div className="noesis-river-sheet" data-stage-tone="claim" role="region" aria-label={`What moved ${position?.title || 'this river'}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-[hsl(var(--stage))]">What moved this river</div>
+                    <h3 className="mt-1 font-headline text-xl font-semibold italic">{position?.title || river?.title || 'Position'}</h3>
+                  </div>
+                  <div className="flex gap-2">
+                    {position && <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => onOpenPosition?.(position.id)}>Open the position</Button>}
+                    <Button type="button" size="sm" variant="ghost" aria-label="Close" onClick={() => setExplainedRiver(null)}>×</Button>
+                  </div>
                 </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-4">
-                  <MiniEvolutionStat label="Origin" value={river.origin ? evolutionDisplayDate(river.origin.date).toLocaleDateString() : 'None'} />
-                  <MiniEvolutionStat label="Revisions" value={river.revisions.length} />
-                  <MiniEvolutionStat label="Challenges" value={river.challenges.length} />
-                  <MiniEvolutionStat label="Confidence" value={river.confidenceMoves.length} />
-                </div>
-                <div className="mt-4 space-y-2">
-                  {river.events.slice(-4).map((event) => (
-                    <div key={event.id} className="border-l border-border px-3 py-1">
-                      <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">{event.chips[0]}</div>
-                      <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{event.title}</p>
+                {river && (() => {
+                  const parts: Array<[string, string, number]> = [['Confidence changes', 'act', river.confidenceMoves.length], ['Challenges', 'claim', river.challenges.length], ['Revisions', 'integrate', river.revisions.length], ['Other events', 'more', Math.max(0, events.length - river.confidenceMoves.length - river.challenges.length - river.revisions.length)]];
+                  return (
+                    <div className="mt-3 grid gap-2">
+                      <div className="noesis-flowbar__bar" role="img" aria-label={parts.map(([label, , count]) => `${label} ${count}`).join(', ')}>
+                        {parts.filter((part) => part[2]).map(([label, tone, count]) => <span key={label} data-stage-tone={tone} style={{ flexGrow: count }} />)}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 text-xs text-muted-foreground">{parts.map(([label, tone, count]) => <span key={label} data-stage-tone={tone} className="inline-flex items-center gap-1.5"><i className="size-2 rounded-sm" style={{ background: 'hsl(var(--stage))' }} />{label} {count}</span>)}</div>
                     </div>
-                  ))}
-                </div>
-              </article>
-            )) : (
-              <PageEmptyState icon={History} title="No belief rivers yet" description="Create, revise, challenge, or abandon positions to build a visible belief biography." />
-            )}
-          </div>
+                  );
+                })()}
+                {events.length ? (
+                  <ol className="mt-3 grid max-h-[40vh] gap-2 overflow-y-auto">
+                    {[...events].reverse().map((event) => (
+                      <li key={event.id} className="border-l-2 border-[hsl(var(--stage)/.5)] py-1 pl-3">
+                        <div className="font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{evolutionDisplayDate(event.date).toLocaleDateString()} · {event.chips[0]}</div>
+                        <p className="mt-0.5 text-sm">{event.title}</p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : <p className="mt-3 text-sm text-muted-foreground">No recorded events moved this river yet. Challenge, revise or test the position and they will appear here.</p>}
+              </div>
+            );
+          })()}
         </section>
       )}
 
