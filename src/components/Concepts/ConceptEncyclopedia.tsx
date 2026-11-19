@@ -31,6 +31,8 @@ import type { ClarityLevel } from '@/lib/clarity';
 import { ConceptDiagnosisBars } from '@/components/Concepts/ConceptDiagnosisBars';
 import { ConceptCaliper } from '@/components/Concepts/ConceptCaliper';
 import { ThroughConcept } from '@/components/shared/ThroughConcept';
+import { FooterSection, NextMove, RecordFooter, RecordTools } from '@/components/shared/RecordDetail';
+import { ConceptBoundaryBench } from '@/components/Concepts/ConceptBoundaryBench';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
@@ -262,7 +264,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [localSelectedName, setSelectedName] = useState<string | null>(null);
   const focusedConcept = concepts.find((concept) => concept.id === focusedConceptId);
   const selectedName = onOpenConceptRoute ? focusedConcept?.name ?? null : localSelectedName;
-  const [conceptWorkflowStep, setConceptWorkflowStep] = useState<'define' | 'boundaries' | 'diagnose' | 'connect' | 'history'>('define');
+  const [conceptWorkflowStep, setConceptWorkflowStep] = useState<'define' | 'boundaries' | 'diagnose' | 'connect' | 'history'>('boundaries');
   const [editing, setEditing] = useState<Concept | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [savingConcept, setSavingConcept] = useState(false);
@@ -760,48 +762,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             <ArrowLeft aria-hidden="true" /> Concepts
           </button>
           <div className="flex gap-2">
-            {concept && (
-              <>
-                <ContextualAiPanel
-                  actions={['refine_concept_definition', 'clarify_concept_boundaries']}
-                  enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
-                  showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                  reasoningDepth={aiDepthFor(aiSettings, 'concepts')}
-                  buttonLabel="Concept Assistance"
-                  promptLabel="What should Noesis examine about this concept?"
-                  promptPlaceholder="For example: Where does my use of this concept conflict with its definition?"
-                  buildEnvelope={(action: ContextualAiAction, userPrompt) => ({
-                    action,
-                    targetType: 'concept',
-                    targetId: concept.id,
-                    scope: 'linked_items',
-                    itemMemory: [
-                      `Concept: ${concept.name}`,
-                      `Working definition: ${concept.description || 'Not defined.'}`,
-                      `Aliases: ${(concept.aliases || []).join('; ') || 'None recorded.'}`,
-                      `Not the same as: ${(concept.notSameAs || []).join('; ') || 'None recorded.'}`,
-                      `Examples: ${(concept.examples || []).join('; ') || 'None recorded.'}`,
-                      `Counterexamples: ${(concept.counterexamples || []).join('; ') || 'None recorded.'}`,
-                    ],
-                    linkedMemory: [
-                      ...r.annotations.slice(0, 8).map((item) => `Annotation (${item.type}): ${item.text}`),
-                      ...r.beliefs.slice(0, 6).map((item) => `Position (${item.confidence}% confidence): ${item.statement || item.title}`),
-                      ...r.questions.slice(0, 4).map((item) => `Inquiry: ${item.text}`),
-                      ...linkedConceptNames.slice(0, 6).map((name) => `Neighboring concept: ${name}`),
-                    ],
-                    userPrompt,
-                  })}
-                  onAccept={(result, text) => persistConcept(concept, { result, text, baseline: concept })}
-                />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Concept actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => openEditor(concept)}><Edit className="mr-2 size-4" /> Edit concept</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setDeleteTarget(concept)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete concept</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            )}
           </div>
           </div>
         </div>
@@ -841,35 +801,68 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             )}
           </div>
 
-          {/* Stats pills */}
-          <div className="flex flex-wrap gap-2 mb-10">
-            {[
-              { label: 'Sources', n: r.sources.length },
-              { label: 'Inquiries', n: r.questions.length },
-              { label: 'Positions', n: r.beliefs.length },
-            ].map(({ label, n }) => (
-              <div key={label} className="flex items-center gap-1.5 rounded-full border border-border/40 bg-card/80 px-3 py-1 shadow-sm">
-                <span className="font-headline text-base font-bold text-accent">{n}</span>
-                <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">{label}</span>
-              </div>
-            ))}
-          </div>
+          {concept && (() => {
+            const cases = (concept?.examples || []).length + (concept?.edgeCases || []).length + (concept?.counterexamples || []).length;
+            const next = !concept.description?.trim()
+              ? { text: 'Write a working definition', go: startDefinitionEdit }
+              : cases < 2 ? { text: 'Test the boundary with a case or two', go: () => setConceptWorkflowStep('boundaries') }
+              : !(concept.edgeCases || []).length ? { text: 'Find an edge case: something that could go either way', go: () => setConceptWorkflowStep('boundaries') }
+              : !((concept.aliases || []).length + (concept.opposedTo || []).length + (concept.notSameAs || []).length) ? { text: 'Relate it to a neighbouring concept', go: () => setConceptWorkflowStep('define') }
+              : null;
+            return next ? <div data-stage-tone="outline"><NextMove text={next.text} onClick={next.go} /></div> : null;
+          })()}
 
           {concept && (
-            <div className="noesis-instrument-pair mb-6">
-              <ConceptDiagnosisBars diagnosis={diagnosis} />
-              <ConceptCaliper concept={concept} />
+            <div data-stage-tone="outline" className="mt-5">
+              <RecordTools
+                tools={[
+                  { label: 'Add a case', onClick: () => { setConceptWorkflowStep('boundaries'); window.requestAnimationFrame(() => document.getElementById(`add-case-${concept.id}`)?.focus()); } },
+                  { label: 'Edit definition', onClick: startDefinitionEdit },
+                  { label: 'Relate a concept', onClick: () => setConceptWorkflowStep('define') },
+                ]}
+                trailing={<>
+                <ContextualAiPanel
+                  actions={['refine_concept_definition', 'clarify_concept_boundaries']}
+                  enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
+                  showContextBeforeSending={aiSettings?.showContextBeforeSending}
+                  reasoningDepth={aiDepthFor(aiSettings, 'concepts')}
+                  buttonLabel="Concept Assistance"
+                  promptLabel="What should Noesis examine about this concept?"
+                  promptPlaceholder="For example: Where does my use of this concept conflict with its definition?"
+                  buildEnvelope={(action: ContextualAiAction, userPrompt) => ({
+                    action,
+                    targetType: 'concept',
+                    targetId: concept.id,
+                    scope: 'linked_items',
+                    itemMemory: [
+                      `Concept: ${concept.name}`,
+                      `Working definition: ${concept.description || 'Not defined.'}`,
+                      `Aliases: ${(concept.aliases || []).join('; ') || 'None recorded.'}`,
+                      `Not the same as: ${(concept.notSameAs || []).join('; ') || 'None recorded.'}`,
+                      `Examples: ${(concept.examples || []).join('; ') || 'None recorded.'}`,
+                      `Counterexamples: ${(concept.counterexamples || []).join('; ') || 'None recorded.'}`,
+                    ],
+                    linkedMemory: [
+                      ...r.annotations.slice(0, 8).map((item) => `Annotation (${item.type}): ${item.text}`),
+                      ...r.beliefs.slice(0, 6).map((item) => `Position (${item.confidence}% confidence): ${item.statement || item.title}`),
+                      ...r.questions.slice(0, 4).map((item) => `Inquiry: ${item.text}`),
+                      ...linkedConceptNames.slice(0, 6).map((name) => `Neighboring concept: ${name}`),
+                    ],
+                    userPrompt,
+                  })}
+                  onAccept={(result, text) => persistConcept(concept, { result, text, baseline: concept })}
+                />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Concept actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => openEditor(concept)}><Edit className="mr-2 size-4" /> Edit concept</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setDeleteTarget(concept)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete concept</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                </>}
+              />
             </div>
           )}
-
-          <ThroughConcept concept={selectedName} columns={[
-            { label: 'Sources', tone: 'encounter', items: r.sources.map((source) => ({ id: source.id, label: source.title, onOpen: () => previewSource(source) })) },
-            { label: 'Annotations', tone: 'encounter', items: r.annotations.map((note) => ({ id: `${note.source.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: () => previewSource(note.source) })) },
-            { label: 'Inquiries', tone: 'examine', items: r.questions.map((question) => ({ id: question.id, label: question.text, onOpen: () => previewInquiry(question) })) },
-            { label: 'Positions', tone: 'claim', items: r.beliefs.map((entry) => ({ id: entry.id, label: entry.title, onOpen: () => previewPosition(entry) })) },
-            { label: 'Works', tone: 'more', items: r.drafts.map((draft) => ({ id: draft.id, label: draft.title || 'Untitled', onOpen: () => previewWork(draft) })) },
-          ]} />
-
 
           <WorkbenchFlow
             label="Concept workbench workflow"
@@ -885,8 +878,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               });
             }}
             steps={[
-              { id: 'define', label: 'Define', description: 'Write the working meaning and distinguish its use.', progress: concept?.description?.trim() ? 1 : 0 },
-              { id: 'boundaries', label: 'Test boundaries', description: 'Classify edge cases and refine where the concept stops.', progress: Math.min(1, ((concept?.examples || []).length + (concept?.counterexamples || []).length + (concept?.notSameAs || []).length) / 4) },
+              { id: 'boundaries', label: 'Boundary', description: 'Classify edge cases and refine where the concept stops.', progress: Math.min(1, ((concept?.examples || []).length + (concept?.counterexamples || []).length + (concept?.notSameAs || []).length) / 4) },
+              { id: 'define', label: 'Definition & relations', description: 'Write the working meaning and distinguish its use.', progress: concept?.description?.trim() ? 1 : 0 },
               { id: 'diagnose', label: 'Diagnose', description: 'Review clarity, evidence, tension, expression, and next needs.', progress: concept?.description?.trim() ? 0.5 : 0 },
               { id: 'connect', label: 'Connect', description: 'Inspect the sources, notes, inquiries, positions, works, and practices using it.', progress: Math.min(1, (concept?.links || []).length / 4), meta: `${(concept?.links || []).length} links` },
               { id: 'history', label: 'History', description: 'Review only recorded changes to the concept over time.', progress: 0 },
@@ -1062,60 +1055,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
             </summary>
             <div className="noesis-workbench-panel__body">
-          {/* Boundary Test */}
-          <div className="mb-8">
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Boundary Test</h2>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Classify edge cases so this concept becomes clearer while keeping the definition under your control.
-                </p>
-              </div>
-              <Badge variant="outline" className="w-fit rounded-full">
-                {answeredBoundaryCount}/{boundaryCases.length} classified
-              </Badge>
-            </div>
-
-            <div className="grid gap-3">
-              {boundaryCases.map((boundaryCase, index) => {
-                const key = boundaryKey(boundaryCase);
-                const selected = boundaryAnswers[key];
-                return (
-                  <div key={boundaryCase} className="rounded-xl border border-border/40 bg-background/70 p-4">
-                    <div className="flex gap-3">
-                      <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/10 font-code text-[10px] font-bold text-accent">
-                        {index + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm leading-6 text-foreground/80">{boundaryCase}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {([
-                            ['inside', 'Inside'],
-                            ['outside', 'Outside'],
-                            ['depends', 'Depends'],
-                          ] as Array<[BoundaryAnswer, string]>).map(([value, label]) => (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() => setBoundaryAnswers((prev) => ({ ...prev, [key]: value }))}
-                              className={cn(
-                                'rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-widest transition-colors',
-                                selected === value
-                                  ? 'border-accent bg-accent text-accent-foreground'
-                                  : 'border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground'
-                              )}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
+          {concept && <ConceptBoundaryBench concept={concept} onSave={(next) => onUpdateConcept(next)} />}
+          <details className="noesis-footer-section mt-4">
+            <summary>Put the boundary into words</summary>
+            <div className="noesis-footer-section__body">
             <div className="mt-5 noesis-recommendation">
               <div className="font-code text-[9px] uppercase tracking-widest text-accent font-bold">Refinement Prompt</div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{boundarySuggestion}</p>
@@ -1136,8 +1079,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 </div>
               </div>
             </div>
-          </div>
-
+            </div>
+          </details>
             </div>
           </details>
 
@@ -1150,6 +1093,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
             </summary>
             <div className="noesis-workbench-panel__body">
+            <div className="mb-5"><ConceptDiagnosisBars diagnosis={diagnosis} /></div>
           {/* Growth Diagnosis */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -1434,6 +1378,21 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           )}
             </div>
           </details>
+
+          <RecordFooter>
+            <FooterSection title="Record">
+              <p className="text-sm text-muted-foreground">{r.sources.length} sources · {r.annotations.length} annotations · {r.questions.length} inquiries · {r.beliefs.length} positions · {r.drafts.length} works{concept?.dateCreated ? ` · created ${new Date(concept.dateCreated).toLocaleDateString()}` : ''}</p>
+            </FooterSection>
+            <FooterSection title={`Through ${selectedName}`}>
+              <ThroughConcept concept={selectedName} columns={[
+                { label: 'Sources', tone: 'encounter', items: r.sources.map((source) => ({ id: source.id, label: source.title, onOpen: () => previewSource(source) })) },
+                { label: 'Annotations', tone: 'encounter', items: r.annotations.map((note) => ({ id: `${note.source.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: () => previewSource(note.source) })) },
+                { label: 'Inquiries', tone: 'examine', items: r.questions.map((question) => ({ id: question.id, label: question.text, onOpen: () => previewInquiry(question) })) },
+                { label: 'Positions', tone: 'claim', items: r.beliefs.map((entry) => ({ id: entry.id, label: entry.title, onOpen: () => previewPosition(entry) })) },
+                { label: 'Works', tone: 'more', items: r.drafts.map((draft) => ({ id: draft.id, label: draft.title || 'Untitled', onOpen: () => previewWork(draft) })) },
+              ]} />
+            </FooterSection>
+          </RecordFooter>
         </div>
 
         {conceptEditorDialog}

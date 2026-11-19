@@ -410,6 +410,10 @@ export interface Concept extends NoesisStageState {
   opposedTo?: string[];
   examples?: string[];
   counterexamples?: string[];
+  /** Cases at the edge of the concept: neither clearly in nor clearly out. */
+  edgeCases?: string[];
+  /** Why a case was moved into or out of "fits", keyed by the case text. */
+  caseReasons?: Record<string, string>;
   boundaryReview?: string;
   links: string[];
   sourceIds: string[];
