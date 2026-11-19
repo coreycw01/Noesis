@@ -465,3 +465,6 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-history ol { display: grid; gap: 6px; }
 .noesis-history li { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: baseline; padding-left: 10px; border-left: 2px solid hsl(var(--stage-claim) / .7); }
 .noesis-history__date { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-connection-card { display: grid; gap: 2px; padding: 10px 12px; text-align: left; border-radius: 10px; border: 1px solid hsl(var(--border)); border-left: 3px solid hsl(var(--stage-outline)); background: hsl(var(--background) / .5); }
+.noesis-connection-card b { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; }
+.noesis-connection-card span { font-size: .8rem; color: hsl(var(--muted-foreground)); }
