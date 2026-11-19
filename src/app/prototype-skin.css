@@ -257,3 +257,10 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 /* Works Studio Reel: each section a colored stripe, as in the prototype. */
 .noesis-reel-section { display: grid; gap: .45rem; padding: .2rem 0 .2rem .8rem; margin-top: .9rem; border-left: 2px solid hsl(var(--stage)); }
 .noesis-reel-section__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--stage)); }
+
+/* Inquiry evidence balance. */
+.noesis-balance { display: grid; gap: .6rem; padding: 18px; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--card)); }
+.noesis-balance__row { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; padding: .65rem .8rem; border-radius: 10px; border-left: 3px solid hsl(var(--stage-examine)); background: hsl(var(--muted) / .45); }
+.noesis-balance__row--challenge { border-left-color: hsl(var(--stage-claim)); }
+.noesis-balance__pick { width: 26px; height: 26px; border-radius: 6px; border: 1px solid hsl(var(--border)); background: transparent; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: hsl(var(--muted-foreground)); }
+.noesis-balance__pick[aria-pressed="true"] { background: hsl(var(--stage-encounter)); border-color: hsl(var(--stage-encounter)); color: hsl(var(--background)); }
