@@ -728,11 +728,17 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
               <div key={period.label} className="rounded-2xl border border-border/50 bg-background p-4">
                 <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{period.label}</div>
                 <h3 className="mt-2 font-headline text-xl font-bold italic text-primary">{period.tone}</h3>
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <MiniEvolutionStat label="Revision" value={period.revisionCount} />
-                  <MiniEvolutionStat label="Inquiry" value={period.uncertaintyCount} />
-                  <MiniEvolutionStat label="Structure" value={period.structureCount} />
-                </div>
+                {(() => {
+                  const parts: Array<[string, string, number]> = [['Revision', 'claim', period.revisionCount], ['Inquiry', 'examine', period.uncertaintyCount], ['Structure', 'act', period.structureCount]];
+                  return (
+                    <div className="mt-4 grid gap-2">
+                      <div className="noesis-flowbar__bar" role="img" aria-label={parts.map(([label, , count]) => `${label} ${count}`).join(', ')}>
+                        {parts.some((part) => part[2]) ? parts.filter((part) => part[2]).map(([label, tone, count]) => <span key={label} data-stage-tone={tone} style={{ flexGrow: count }} />) : <span style={{ flexGrow: 1, background: 'hsl(var(--muted))' }} />}
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{parts.map(([label, tone, count]) => <span key={label} data-stage-tone={tone} className="inline-flex items-center gap-1"><i className="size-2 rounded-sm" style={{ background: 'hsl(var(--stage))' }} />{label} {count}</span>)}</div>
+                    </div>
+                  );
+                })()}
                 <div className="mt-4 space-y-2">
                   {period.items.slice(0, 3).map((event) => (
                     <p key={event.id} className="line-clamp-2 rounded-xl bg-muted/10 px-3 py-2 text-sm italic text-muted-foreground">{event.title}</p>
@@ -1277,8 +1283,9 @@ function TurningSpine({ events }: { events: Array<{ id: string; title: string; d
       {events.map((event, index) => {
         const time = Date.parse(event.date);
         if (!Number.isFinite(time)) return null;
+        const at = (time - min) / span;
         return (
-          <span key={event.id} className="noesis-spine__dot" data-stage-tone={event.tone} style={{ left: `${4 + ((time - min) / span) * 92}%`, top: `${index % 2 ? 58 : 22}%` }} title={`${fmt(time)} · ${event.title}`}>
+          <span key={event.id} data-edge={at < 0.15 ? 'start' : at > 0.85 ? 'end' : undefined} className="noesis-spine__dot" data-stage-tone={event.tone} style={{ left: `${4 + ((time - min) / span) * 92}%`, top: `${index % 2 ? 58 : 22}%` }} title={`${fmt(time)} · ${event.title}`}>
             <em>{event.title.length > 34 ? `${event.title.slice(0, 33)}…` : event.title}</em>
           </span>
         );
