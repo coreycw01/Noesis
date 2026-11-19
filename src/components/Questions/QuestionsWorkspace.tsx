@@ -16,6 +16,7 @@ import type { Concept, Draft, InquiryEvidence, Media, Practice, Question, VaultE
 import { allQuestions, conceptKey, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { InquiryLean } from '@/components/Questions/InquiryLean';
+import { InquiryBalance } from '@/components/Questions/InquiryBalance';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
@@ -1106,6 +1107,19 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
           />
         )}
 
+        {(workflowStep === 'investigate' || workflowStep === 'answer') && (
+          <InquiryBalance
+            question={question}
+            disabled={saving}
+            onAssign={(evidenceId, candidateId) => {
+              void onUpdateQuestion({
+                ...question,
+                evidenceRecords: evidenceRecords.map((item) => item.id === evidenceId ? { ...item, candidateId } : item),
+                dateUpdated: today(),
+              });
+            }}
+          />
+        )}
         {(workflowStep === 'investigate' || workflowStep === 'decide') && <section className="noesis-workbench-panel" aria-label="Inquiry investigation tools">
           <header className="noesis-workbench-panel__header">
             <div className="min-w-0 flex-1">
