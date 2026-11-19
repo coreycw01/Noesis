@@ -1166,11 +1166,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         <RecordHistory entries={(selected.versionHistory || []).map((version) => ({ date: version.date, text: version.description || version.eventType || '' }))} />
 
         <section className="noesis-workbench" data-stage-tone="claim" aria-label="Position workbench">
-          <header className="noesis-workbench-head">
-            <span className="noesis-workbench-head__eyebrow">Workbench</span>
-            <span className="noesis-workbench-head__title">Position workbench</span>
-            <span className="noesis-workbench-head__line">State the claim, ground it, pressure it, test it, then decide whether to revise it.</span>
-          </header>
           <div className="border-t border-border p-4 sm:p-5">
 
         <NextMoveCard

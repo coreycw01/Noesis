@@ -4,7 +4,7 @@
 import { aiDepthFor } from '@/lib/ai-depth';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowLeft, BookOpen, CheckCircle2, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Plus, Quote, Trash2 } from 'lucide-react';
+import { Archive, ArrowLeft, ArrowRight, BookOpen, CheckCircle2, CircleHelp, Flag, Footprints, Lightbulb, MinusCircle, PlusCircle, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Plus, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { ToolOption, ToolOptions } from '@/components/shared/WorkbenchPanel';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
@@ -160,7 +159,10 @@ export function AnnotationsIndex({
     id: 'legacy-effect-review', action: 'suggest_annotation_effect', title: 'Effect review',
     content: editing.aiEffectReview || '', date: editing.date,
   } : undefined);
-  const [editingMetadata, setEditingMetadata] = useState(false);
+  const [editDraft, setEditDraft] = useState<FlatAnnotation | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const editSaveLock = useRef(false);
+  const annotationMenuTrigger = useRef<HTMLButtonElement>(null);
   const [practiceAction, setPracticeAction] = useState('');
   const creatingPractice = useRef(false);
   const [detailEffect, setDetailEffect] = useState<ConsequenceAction>('reference');
@@ -383,9 +385,9 @@ export function AnnotationsIndex({
     });
   };
 
-  const saveEditing = async () => {
-    if (!editing || !editing.text.trim()) return;
-    const { source, ...annotation } = editing;
+  const saveEditing = async (candidate: FlatAnnotation) => {
+    if (!candidate.text.trim() || editSaveLock.current) return false;
+    const { source, ...annotation } = candidate;
     const next = {
       ...annotation,
       text: annotation.text.trim(),
@@ -393,13 +395,14 @@ export function AnnotationsIndex({
       philosophyStatus: annotation.philosophyStatus || 'reviewed',
       date: annotation.date || today(),
     };
-    if (!await persistAnnotation(source.id, next)) return;
-    if (isFullPageDetail) {
-      setEditing({ ...next, source });
-      toast({ title: 'Annotation saved.' });
-    } else {
-      setEditing(null);
-    }
+    editSaveLock.current = true;
+    setSavingEdit(true);
+    try {
+      if (!await persistAnnotation(source.id, next)) return false;
+      setEditing(current => current?.id === next.id && current.source.id === source.id ? { ...next, source } : current);
+      toast({ title: 'Annotation saved' });
+      return true;
+    } finally { editSaveLock.current = false; setSavingEdit(false); }
   };
 
   const openPreflight = (annotation: FlatAnnotation, mode: PreflightMode) => {
@@ -550,7 +553,7 @@ export function AnnotationsIndex({
     if (action === 'practice' && onAddPractice) {
       if (creatingPractice.current || !practiceAction.trim()) return;
       creatingPractice.current = true;
-      void Promise.resolve().then(() => onAddPractice({ title: practiceAction.trim(), description: `From ${annotation.source.title}: “${annotation.text}”`, type: 'habit', status: 'planned', sourceIds: [annotation.source.id], conceptTags: annotation.conceptTags || [] })).then(() => toast({ title: 'Practice created' })).catch(() => toast({ title: 'Practice could not be saved', variant: 'destructive' })).finally(() => { creatingPractice.current = false; });
+      void Promise.resolve().then(() => onAddPractice({ title: practiceAction.trim(), action: practiceAction.trim(), description: `From ${annotation.source.title}: “${annotation.text}”`, type: 'habit', status: 'planned', sourceIds: [annotation.source.id], conceptTags: annotation.conceptTags || [] })).then(() => toast({ title: 'Practice created' })).catch(() => toast({ title: 'Practice could not be saved', variant: 'destructive' })).finally(() => { creatingPractice.current = false; });
       return;
     }
     if (action === 'clarifies') {
@@ -610,7 +613,7 @@ export function AnnotationsIndex({
     }
     setPracticeAction('');
     setDetailEffect(selectedEffectForAnnotation(annotation));
-    setEditingMetadata(false);
+    setEditDraft(null);
     setEditing(annotation);
   };
 
@@ -622,7 +625,7 @@ export function AnnotationsIndex({
     }
     setPracticeAction('');
     setDetailEffect(selectedEffectForAnnotation(focusedAnnotation));
-    setEditingMetadata(false);
+    setEditDraft(null);
     setEditing(focusedAnnotation);
   }, [focusedAnnotation, isFullPageDetail]);
 
@@ -1293,21 +1296,21 @@ export function AnnotationsIndex({
           )}
           {editing && (
             <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pt-2 max-sm:pr-1">
-              <section id="annotation-understand" className="noesis-workbench-panel scroll-mt-4">
+              <section aria-label="Annotation passage" className="border-y border-border py-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{annotationLabel(annotationType(editing))}</Badge>
                     <Badge variant="secondary" className="rounded-full bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">{annotationLabel(annotationStatus(editing))}</Badge>
                   </div>
                   <div className="flex items-center gap-1">
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-10 rounded-full" aria-label="Annotation actions">
+                        <Button ref={annotationMenuTrigger} variant="ghost" size="icon" className="size-10 rounded-full" aria-label="Annotation actions">
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => setEditingMetadata(true)}>Edit annotation</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setEditDraft({ ...editing })}><Pencil className="mr-2 size-4" /> Edit annotation</DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => previewSource(editing.source, editing)}><ExternalLink className="mr-2 size-4" /> Open source</DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
@@ -1334,41 +1337,20 @@ export function AnnotationsIndex({
                   <span>·</span>
                   <span>{editing.date && !Number.isNaN(Date.parse(editing.date)) ? new Date(editing.date).toLocaleDateString() : 'Date unknown'}</span>
                 </div>
-                <details open={editingMetadata} onToggle={(event) => setEditingMetadata((event.currentTarget as HTMLDetailsElement).open)} className="mt-4 rounded-xl border border-border/50 bg-background/60 p-3">
-                  <summary className="cursor-pointer list-none font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Edit annotation text and metadata
-                  </summary>
-                  <div className="mt-3 space-y-3">
-                    <Textarea aria-label="Annotation text" value={editing.text} onChange={(event) => setEditing((prev) => prev ? { ...prev, text: event.target.value } : prev)} className="min-h-[120px]" />
-                    <div>
-                      <Select value={annotationType(editing)} onValueChange={(value) => setEditing((prev) => prev ? { ...prev, type: value as AnnotationType } : prev)}>
-                        <SelectTrigger className="rounded-full"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {ANNOTATION_TYPES.map((type) => (
-                            <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </details>
               </section>
 
-              <section id="annotation-apply" className="noesis-workbench-panel scroll-mt-4">
+              <section id="annotation-apply" className="py-3" aria-labelledby="annotation-apply-title">
                 <div className="noesis-workbench-panel__header mb-4">
                   <div className="min-w-0 flex-1">
                     <div className="noesis-workbench-panel__eyebrow">Apply</div>
-                    <h3 className="noesis-workbench-panel__title">How does this affect your thinking?</h3>
-                    <p className="noesis-workbench-panel__description">
-                      Choose the effect that best describes this note. Noesis will ask only for the destination needed to apply it.
-                    </p>
+                    <h2 id="annotation-apply-title" className="font-headline text-2xl font-semibold">Where could this lead?</h2>
                   </div>
                   <ContextualAiPanel
                     actions={['suggest_annotation_effect']}
                     enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                     showContextBeforeSending={aiSettings?.showContextBeforeSending}
                     reasoningDepth={aiDepthFor(aiSettings, 'annotations')}
-                    buttonLabel="Review Effect"
+                    buttonLabel="Ask Noesis"
                     promptLabel="What do you want to understand about this note?"
                     promptPlaceholder="For example: Does this challenge my linked position, or only qualify it?"
                     buildEnvelope={(action, userPrompt) => ({
@@ -1413,19 +1395,24 @@ export function AnnotationsIndex({
                     ].filter(Boolean).join(' and ')}. Open Connections below to see the exact item.
                   </p>
                 )}
-                <ToolOptions label="Annotation effect">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Choose a direction">
                   {([
-                    ['supports_claim', 'Supports', 'Strengthens a position you hold.'],
-                    ['challenges_claim', 'Challenges', 'Weakens or questions a position.'],
-                    ['raises_question', 'Raises a question', 'Opens something to investigate.'],
-                    ['clarifies', 'Clarifies', 'Sharpens what a concept means.'],
-                    ['form_position', 'Form a position', 'State what you think in your own words.'],
-                    ...(onAddPractice ? [['practice', 'Try a practice', 'Turn this note into an action to try.']] : []),
-                    ['reference', 'Reference', 'Keep it on file without acting.'],
-                  ] as Array<[ConsequenceAction, string, string]>).map(([action, label, description]) => (
-                    <ToolOption key={label} label={label} description={description} active={detailEffect === action} onClick={() => setDetailEffect(action)} />
+                    ['raises_question', 'Start an inquiry', 'Investigate a question', CircleHelp, 'examine'],
+                    ['form_position', 'Draft a position', 'State your own view', Flag, 'claim'],
+                    ['practice', 'Plan a practice', 'Try a repeatable action', Footprints, 'act'],
+                    ['supports_claim', 'Support a position', 'Add supporting evidence', PlusCircle, 'act'],
+                    ['challenges_claim', 'Challenge a position', 'Add an objection', MinusCircle, 'claim'],
+                    ['clarifies', 'Clarify a concept', 'Sharpen a definition', Lightbulb, 'outline'],
+                    ['reference', 'Keep as reference', 'File without another action', BookOpen, 'encounter'],
+                  ] satisfies Array<[ConsequenceAction, string, string, typeof BookOpen, string]>).filter(([action]) => action !== 'practice' || onAddPractice).map(([action, label, description, Icon, tone]) => (
+                    <button type="button" key={action} data-stage-tone={tone} aria-pressed={detailEffect === action}
+                      onClick={() => setDetailEffect(action)} className="noesis-apply-route flex min-h-[4.25rem] min-w-0 items-center gap-3 rounded-[var(--button-radius)] border border-border p-3 text-left focus-visible:outline focus-visible:outline-ring">
+                      <Icon className="noesis-apply-route__icon size-5 shrink-0" aria-hidden="true" />
+                      <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span><span className="block text-xs text-muted-foreground">{description}</span></span>
+                      {detailEffect === action && <CheckCircle2 className="noesis-apply-route__icon size-4 shrink-0" aria-hidden="true" />}
+                    </button>
                   ))}
-                </ToolOptions>
+                </div>
                 {detailEffect === 'practice' && <label className="mt-3 grid gap-1 text-sm">What action will you try?<Input value={practiceAction} onChange={e => setPracticeAction(e.target.value)} maxLength={160} placeholder="One action you can repeat or observe" /></label>}
                 {detailEffect === 'clarifies' && (
                   <div className="mt-3">
@@ -1435,45 +1422,10 @@ export function AnnotationsIndex({
                 )}
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <Button type="button" size="sm" onClick={() => runDetailAction(editing, detailEffect)} disabled={detailEffect === 'practice' && !practiceAction.trim() || detailEffect === 'clarifies' && !(editing.conceptTags || editing.source.tags || []).length} className="h-9 rounded-full px-4">
-                    {nextActionLabelForEffect(editing, detailEffect)}
+                    {nextActionLabelForEffect(editing, detailEffect)}<ArrowRight className="size-4" aria-hidden="true" />
                   </Button>
                   <span className="text-xs text-muted-foreground">{detailEffect === 'practice' ? 'Creates a planned practice linked to this source.' : detailEffect === 'form_position' ? 'Review the claim before saving it.' : detailEffect === 'supports_claim' ? 'Connect this note to a position it supports.' : detailEffect === 'challenges_claim' ? 'Connect it to the position it questions, or create a draft first.' : detailEffect === 'raises_question' ? 'Carry the question into an inquiry with its source context.' : detailEffect === 'clarifies' ? 'Keep the note attached to the concept it explains.' : 'Keep it searchable without creating another object.'}</span>
                 </div>
-              </section>
-
-              <section className="noesis-workbench-panel scroll-mt-4">
-                <details open={Boolean(editing.consequenceNote || editing.context)}>
-                  <summary className="cursor-pointer list-none">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="noesis-workbench-panel__eyebrow">Your note</div>
-                        <p className="noesis-workbench-panel__description">{editing.consequenceNote || editing.context ? 'Your interpretation and context.' : 'What does this mean to you?'}</p>
-                      </div>
-                      <Badge variant="outline" className="rounded-full text-[9px]">Edit</Badge>
-                    </div>
-                  </summary>
-                  <div className="mt-3 space-y-3">
-                    <Textarea
-                      value={editing.consequenceNote || ''}
-                      onChange={(event) => setEditing((prev) => prev ? { ...prev, consequenceNote: event.target.value } : prev)}
-                      placeholder="Your note, interpretation, limitation, or reminder."
-                      className="min-h-[90px]"
-                    />
-                    <Textarea
-                      value={editing.context || ''}
-                      onChange={(event) => setEditing((prev) => prev ? { ...prev, context: event.target.value } : prev)}
-                      placeholder="Optional surrounding source context."
-                      className="min-h-[80px]"
-                    />
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Checkbox
-                        checked={Boolean(editing.mattersBeyondSource)}
-                        onCheckedChange={(checked) => setEditing((prev) => prev ? { ...prev, mattersBeyondSource: Boolean(checked) } : prev)}
-                      />
-                      This is my interpretation, not the author&apos;s claim.
-                    </label>
-                  </div>
-                </details>
               </section>
 
               {savedReviews.length > 0 && (
@@ -1532,13 +1484,13 @@ export function AnnotationsIndex({
                     onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
                   />
                 </div>
+                <Button className="mt-3" size="sm" variant="outline" disabled={savingEdit} onClick={() => void saveEditing(editing)}>Save connections</Button>
                 </div>
               </details>
 
               <details id="annotation-trace" className="noesis-workbench-panel scroll-mt-4">
                 <summary className="cursor-pointer list-none">
-                  <div className="noesis-workbench-panel__eyebrow">Source history</div>
-                  <h3 className="noesis-workbench-panel__title">Provenance and use</h3>
+                  <h3 className="noesis-workbench-panel__title">History</h3>
                 </summary>
                 <div className="noesis-workbench-panel__body space-y-2 text-sm text-muted-foreground">
                   <p>Created from {editing.source.title}{editing.date ? ` on ${editing.date}` : ''}.</p>
@@ -1551,10 +1503,40 @@ export function AnnotationsIndex({
               </details>
             </div>
           )}
-          <DialogFooter className="pt-4 max-sm:border-t max-sm:border-border/50">
-            <Button variant="ghost" onClick={closeAnnotationDetail} className="rounded-full">{isFullPageDetail ? 'Back' : 'Cancel'}</Button>
-            <Button onClick={saveEditing} className="rounded-full px-8">Save Annotation</Button>
-          </DialogFooter>
+          {!isFullPageDetail && <DialogFooter className="pt-4"><Button variant="outline" onClick={closeAnnotationDetail}>Close</Button></DialogFooter>}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(editDraft)} onOpenChange={open => { if (!open && !editSaveLock.current) setEditDraft(null); }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto" onCloseAutoFocus={event => {
+          if (!annotationMenuTrigger.current?.isConnected) return;
+          event.preventDefault(); annotationMenuTrigger.current.focus({ preventScroll: true });
+        }}>
+          <DialogHeader>
+            <DialogTitle>Edit annotation</DialogTitle>
+            <DialogDescription>Update the passage and its metadata.</DialogDescription>
+          </DialogHeader>
+          {editDraft && <fieldset disabled={savingEdit} className="grid gap-4">
+            <label className="grid gap-1 text-sm">Annotation text
+              <Textarea value={editDraft.text} onChange={event => setEditDraft({ ...editDraft, text: event.target.value })} className="min-h-28" />
+            </label>
+            <Select disabled={savingEdit} value={annotationType(editDraft)} onValueChange={type => setEditDraft({ ...editDraft, type: type as AnnotationType })}>
+              <SelectTrigger aria-label="Annotation type"><SelectValue /></SelectTrigger>
+              <SelectContent>{!ANNOTATION_TYPES.some(type => type.id === annotationType(editDraft)) && <SelectItem value={annotationType(editDraft)}>{annotationLabel(annotationType(editDraft))}</SelectItem>}{ANNOTATION_TYPES.map(type => <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>)}</SelectContent>
+            </Select>
+            <details className="border-y border-border py-3">
+              <summary className="cursor-pointer text-sm font-medium">Optional context and interpretation</summary>
+              <div className="mt-3 grid gap-3">
+                <label className="grid gap-1 text-sm">Your interpretation<Textarea value={editDraft.consequenceNote || ''} onChange={event => setEditDraft({ ...editDraft, consequenceNote: event.target.value })} /></label>
+                <label className="grid gap-1 text-sm">Surrounding source context<Textarea value={editDraft.context || ''} onChange={event => setEditDraft({ ...editDraft, context: event.target.value })} /></label>
+                <label className="flex items-center gap-2 text-sm"><Checkbox checked={Boolean(editDraft.mattersBeyondSource)} onCheckedChange={checked => setEditDraft({ ...editDraft, mattersBeyondSource: checked === true })} />This is my interpretation, not the author’s claim.</label>
+              </div>
+            </details>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setEditDraft(null)}>Cancel</Button>
+              <Button disabled={!editDraft.text.trim() || savingEdit} onClick={async () => { if (await saveEditing(editDraft)) setEditDraft(null); }}>{savingEdit ? 'Saving…' : 'Save changes'}</Button>
+            </DialogFooter>
+          </fieldset>}
         </DialogContent>
       </Dialog>
 

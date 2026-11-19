@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Check, Grid2X2, LibraryBig, List, Search, SlidersHorizontal, Table2, X } from 'lucide-react';
+import { Check, LayoutGrid, LayoutPanelLeft, LibraryBig, List, Search, SlidersHorizontal, TableProperties, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -32,6 +32,7 @@ interface FilterToolbarProps {
   relatedLookups?: RelatedLookupGroup[];
   relatedLookupLabel?: string;
   viewControl?: React.ReactNode;
+  viewControlMobileRow?: boolean;
   className?: string;
 }
 
@@ -52,6 +53,7 @@ export function FilterToolbar({
   relatedLookups = [],
   relatedLookupLabel = 'Find related sources or concepts',
   viewControl,
+  viewControlMobileRow = false,
   className,
 }: FilterToolbarProps) {
   const [localSearch, setLocalSearch] = React.useState(search || '');
@@ -104,7 +106,7 @@ export function FilterToolbar({
     : activeFilterLabels.map((label) => ({ id: label, label }));
   return (
     <section aria-label="Page filters and search" className={cn('sticky top-0 z-20 mb-5 border-b border-border/30 bg-background/95 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:mb-7', className)}>
-      <div className="flex min-h-10 flex-nowrap items-center gap-2 sm:flex-wrap">
+      <div className={cn('flex min-h-10 items-center gap-2 sm:flex-wrap', viewControlMobileRow ? 'flex-wrap' : 'flex-nowrap')}>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {typeof search === 'string' && onSearchChange && (
           <div className="relative min-w-0 flex-1 md:max-w-xl">
@@ -237,7 +239,7 @@ export function FilterToolbar({
             </PopoverContent>
           </Popover>
         )}
-        {viewControl}
+        {viewControlMobileRow ? <div className="basis-full sm:basis-auto">{viewControl}</div> : viewControl}
         <div className="ml-auto hidden shrink-0 flex-wrap items-center justify-end gap-2 sm:flex">
           {typeof resultCount === 'number' && (
             <span className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
@@ -274,28 +276,37 @@ export function FilterToolbar({
   );
 }
 
-export type StandardViewMode = 'grid' | 'list' | 'table';
+export type StandardViewMode = 'grid' | 'split' | 'list' | 'table';
 
 export function ViewModeToggle({
   value,
   onChange,
   modes = ['grid', 'list'],
   label = 'View mode',
+  showLabels = false,
 }: {
   /** Null when another view (such as a split) is active and none of these is pressed. */
   value: StandardViewMode | null;
   onChange: (value: StandardViewMode) => void;
   modes?: StandardViewMode[];
   label?: string;
+  showLabels?: boolean;
 }) {
-  const icons = { grid: Grid2X2, list: List, table: Table2 };
+  const icons = { grid: LayoutGrid, split: LayoutPanelLeft, list: List, table: TableProperties };
+  const names = { grid: 'Cards', split: 'Split', list: 'List', table: 'Table' };
   return (
-    <div role="group" className="flex shrink-0 items-center gap-0.5 rounded-[var(--button-radius)] border border-border/50 bg-card p-1" aria-label={label}>
+    <div role="group" className={cn('inline-flex max-w-full shrink-0 items-center border border-border bg-muted/30 p-0.5', showLabels ? 'rounded-full' : 'rounded-[var(--button-radius)]')} aria-label={label}>
       {modes.map((mode) => {
         const Icon = icons[mode];
         return (
-          <Button key={mode} type="button" variant={value === mode ? 'secondary' : 'ghost'} size="icon" className="size-7" onClick={() => onChange(mode)} aria-pressed={value === mode} aria-label={`${mode} view`} title={`${mode} view`}>
-            <Icon className="size-3.5" />
+          <Button key={mode} type="button" variant="ghost" size={showLabels ? 'default' : 'icon'} onClick={() => onChange(mode)}
+            className={cn('relative min-h-11 min-w-11 shrink-0 gap-1.5 border border-transparent focus-visible:z-10',
+              showLabels && 'rounded-full px-2.5 font-body text-sm normal-case tracking-normal sm:px-3',
+              value === mode && 'border-border bg-foreground font-semibold text-background hover:bg-foreground hover:text-background')}
+            aria-pressed={value === mode} aria-label={showLabels ? `${names[mode]} view` : `${mode} view`}
+            title={`${names[mode]} view`}>
+            <Icon className="size-4 shrink-0" aria-hidden="true" />
+            {showLabels && <span>{names[mode]}</span>}
           </Button>
         );
       })}

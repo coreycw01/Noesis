@@ -58,6 +58,16 @@ export const THOUGHT_GAME_KIND_LABELS: Record<ThoughtGameKind, string> = {
   thought_experiment: 'Thought Experiment',
 };
 
+export const THOUGHT_GAME_TYPES = {
+  inquiry: { label: 'Question the Question', hint: 'Find the hidden premise in an inquiry.', kinds: ['question_assumption'] },
+  definition: { label: 'Define It', hint: 'Recall definitions and test their boundaries.', kinds: ['define_it', 'boundary_sort', 'counterexample', 'not_same_as', 'odd_one_out', 'bridge'] },
+  position: { label: 'Test a Position', hint: 'Examine the evidence and assumptions behind a view.', kinds: ['confidence_calibration', 'assumption_hunt', 'steelman', 'tension_test', 'why_chain'] },
+  source: { label: 'Source Detective', hint: 'Recall what a source said and where an idea came from.', kinds: ['source_recall', 'whose_words', 'who_argued_it'] },
+  reasoning: { label: 'Reasoning Lab', hint: 'Try a logic puzzle or explore a thought experiment.', kinds: ['valid_or_not', 'fallacy_spotter', 'bias_check', 'statement_type', 'thought_experiment'] },
+} satisfies Record<string, { label: string; hint: string; kinds: ThoughtGameKind[] }>;
+
+export type ThoughtGameType = keyof typeof THOUGHT_GAME_TYPES;
+
 /** One line under each game's name on its card. */
 export const THOUGHT_GAME_KIND_HINTS: Record<ThoughtGameKind, string> = {
   statement_type: 'Claim, evidence, assumption or definition?',
@@ -153,6 +163,44 @@ function choiceOptions(answer: string, alternatives: string[], seed: string, siz
   return rotate([answer, ...distractors], `${seed}:options`);
 }
 
+export function buildInquiryExercise(inquiry: Question): ThoughtGame {
+  return {
+    id: `question-assumption:${inquiry.id}`,
+    kind: 'question_assumption',
+    label: 'Question the Question',
+    title: 'What is this question already assuming?',
+    instruction: 'Name one premise built into the wording. Nothing is saved to the inquiry.',
+    prompt: inquiry.text,
+    reveal: inquiry.assumptions?.length
+      ? `You previously recorded: ${inquiry.assumptions.join(' • ')}`
+      : 'No assumptions are recorded yet. Open the inquiry if this exercise uncovered one worth keeping.',
+    sourceLabel: inquiry.text,
+    target: { view: 'questions', targetId: inquiry.id },
+  };
+}
+
+function buildDefinitionCard(concept: Concept, concepts: Concept[], dayKey: string): ThoughtGame {
+  const alternatives = distinct(concepts.filter(item => item.id !== concept.id).map(item => item.name)).filter(name => name !== concept.name);
+  return {
+    id: `define-it:${concept.id}`,
+    kind: 'define_it',
+    label: 'Define It',
+    title: 'Which concept matches this definition?',
+    instruction: alternatives.length > 0 ? 'Choose the concept whose saved definition is shown below.' : 'Recall the concept name before turning the card.',
+    prompt: concept.description,
+    options: alternatives.length ? choiceOptions(concept.name, alternatives, `${dayKey}:${concept.id}`) : undefined,
+    answer: alternatives.length ? concept.name : undefined,
+    reveal: `This is your current definition of ${concept.name}. Open the concept if the wording no longer fits how you use it.`,
+    sourceLabel: concept.name,
+    target: { view: 'concepts', targetId: concept.id },
+  };
+}
+
+export function buildDefinitionRound(concepts: Concept[], dayKey: string, regionMembers?: ReadonlySet<string>) {
+  const eligible = concepts.filter(concept => concept.name.trim() && concept.description.trim() && (!regionMembers || regionMembers.has(concept.id)));
+  return rotate(eligible, `${dayKey}:definitions`).slice(0, 5).map(concept => buildDefinitionCard(concept, concepts, dayKey));
+}
+
 export function buildThoughtGames({ concepts, inquiries, positions, media, links, dayKey = new Date().toISOString().slice(0, 10) }: ThoughtGameContext) {
   const games: ThoughtGame[] = [];
   const activePositions = positions.filter((position) => !['abandoned', 'rejected'].includes(position.status));
@@ -180,23 +228,7 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
     });
   });
 
-  rotate(definedConcepts, `${dayKey}:definitions`).slice(0, 2).forEach((concept) => {
-    const alternatives = concepts.filter((item) => item.id !== concept.id).map((item) => item.name);
-    if (alternatives.length < 2) return;
-    games.push({
-      id: `define-it:${concept.id}`,
-      kind: 'define_it',
-      label: 'Define It',
-      title: 'Which concept matches this definition?',
-      instruction: 'Choose the concept whose saved definition is shown below.',
-      prompt: concept.description,
-      options: choiceOptions(concept.name, alternatives, `${dayKey}:${concept.id}`),
-      answer: concept.name,
-      reveal: `This is your current definition of ${concept.name}. Open the Concept if the wording no longer fits how you use it.`,
-      sourceLabel: concept.name,
-      target: { view: 'concepts', targetId: concept.id },
-    });
-  });
+  games.push(...buildDefinitionRound(definedConcepts, dayKey).slice(0, 2));
 
   rotate(activePositions.filter((position) => position.assumptions?.some((item) => item.trim())), `${dayKey}:assumptions`).slice(0, 2).forEach((position) => {
     const assumptions = distinct(position.assumptions || []);
@@ -340,20 +372,8 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
     });
   });
 
-  rotate(inquiries.filter((inquiry) => !['resolved', 'archived'].includes(inquiry.status)), `${dayKey}:question-assumptions`).slice(0, 2).forEach((inquiry) => {
-    games.push({
-      id: `question-assumption:${inquiry.id}`,
-      kind: 'question_assumption',
-      label: 'Question the Question',
-      title: 'What is this question already assuming?',
-      instruction: 'Name one premise built into the wording. Nothing is saved until you choose to work on the Inquiry.',
-      prompt: inquiry.text,
-      reveal: inquiry.assumptions?.length
-        ? `You previously recorded: ${inquiry.assumptions.join(' • ')}`
-        : 'No assumptions are recorded yet. Open the Inquiry if this exercise uncovered one worth keeping.',
-      sourceLabel: inquiry.text,
-      target: { view: 'questions', targetId: inquiry.id },
-    });
+  rotate(inquiries.filter((inquiry) => !['resolved', 'archived', 'abandoned'].includes(inquiry.status)), `${dayKey}:question-assumptions`).slice(0, 2).forEach((inquiry) => {
+    games.push(buildInquiryExercise(inquiry));
   });
 
   rotate(concepts.filter((concept) => (concept.notSameAs || []).some((item) => item.trim())), `${dayKey}:not-same`).slice(0, 2).forEach((concept) => {
@@ -396,9 +416,15 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
   }
 
   // Bridge: two concepts with no direct link.
-  const unlinked = rotate(concepts, `${dayKey}:bridge`).flatMap((a, index, all) => all.slice(index + 1).filter((b) => !linked(a.id, b.id)).map((b) => [a, b] as const));
-  if (unlinked[0]) {
-    const [from, to] = unlinked[0];
+  const bridgeOrder = rotate(concepts, `${dayKey}:bridge`);
+  let pair: readonly [Concept, Concept] | undefined;
+  for (let i = 0; i < bridgeOrder.length - 1 && !pair; i++) {
+    const from = bridgeOrder[i];
+    const to = bridgeOrder.find((candidate, j) => j > i && !linked(from.id, candidate.id));
+    if (to) pair = [from, to];
+  }
+  if (pair) {
+    const [from, to] = pair;
     games.push({
       id: `bridge:${from.id}:${to.id}`,
       kind: 'bridge',

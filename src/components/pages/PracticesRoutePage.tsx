@@ -1,11 +1,15 @@
 "use client";
 
-import { PracticesWorkspace } from '@/components/Practices/PracticesWorkspace';
+import type { ReactNode } from 'react';
+import { usePersistentView } from '@/hooks/use-persistent-view';
+import type { PraxisMethod } from '@/components/Practices/PraxisMethodPicker';
+import { PracticesWorkspace, practicePraxisMethod } from '@/components/Practices/PracticesWorkspace';
 import type { AiSettings, Concept, Draft, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
 export interface PracticesRoutePageProps {
   aiSettings: AiSettings;
+  renderCommitments: (pick: (method: 'practices' | 'experiments') => void) => ReactNode;
   practices: Practice[];
   concepts: Concept[];
   media: Media[];
@@ -25,6 +29,7 @@ export interface PracticesRoutePageProps {
 
 export function PracticesRoutePage({
   aiSettings,
+  renderCommitments,
   practices,
   concepts,
   media,
@@ -41,8 +46,14 @@ export function PracticesRoutePage({
   onCreateLink,
   onNavigate,
 }: PracticesRoutePageProps) {
+  const [method, setMethod] = usePersistentView<PraxisMethod>('noesis:labs-tool', 'practices', ['practices', 'experiments', 'commitments']);
+  const focused = focusedPracticeId ? practices.find(item => item.id === focusedPracticeId) : undefined;
+  const active = focused ? practicePraxisMethod(focused.type) : method;
+  if (active === 'commitments') return <>{renderCommitments(setMethod)}</>;
   return (
     <PracticesWorkspace
+      labTool={active}
+      onPickMethod={next => { setMethod(next); if (focusedPracticeId) onNavigate('labs'); }}
       aiSettings={aiSettings}
       practices={practices}
       concepts={concepts}

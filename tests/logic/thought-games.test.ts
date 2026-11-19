@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildThoughtGames, thoughtGameFamily } from '../../src/lib/thought-games';
+import { buildDefinitionRound, buildInquiryExercise, buildThoughtGames, THOUGHT_GAME_TYPES, THOUGHT_GAME_KIND_LABELS, thoughtGameFamily } from '../../src/lib/thought-games';
 import type { Concept, Media, VaultEntry } from '../../src/lib/types';
 
 const concept = (id: string, name: string, description: string): Concept => ({
@@ -119,4 +119,31 @@ test('the general-knowledge deck works from an empty workspace, one card per kin
   const kinds = games.map((game) => game.kind).sort();
   assert.deepEqual(kinds, ['bias_check', 'fallacy_spotter', 'thought_experiment', 'valid_or_not', 'who_argued_it']);
   games.forEach((game) => { if (game.options) assert.ok(game.answer && game.options.includes(game.answer), game.id); });
+});
+
+test('five exercise types each contain distinct round kinds', () => {
+  const types = Object.values(THOUGHT_GAME_TYPES);
+  const kinds = types.flatMap(type => type.kinds);
+  assert.equal(types.length, 5);
+  assert.deepEqual(kinds.sort(), Object.keys(THOUGHT_GAME_KIND_LABELS).sort());
+});
+
+test('definition rounds only ask about concepts from the selected region', () => {
+  const concepts = [
+    concept('courage', 'Courage', 'Acting well despite fear.'),
+    concept('identity', 'Identity', 'The pattern through which a person recognizes a self.'),
+    concept('empty', 'Unwritten', ''),
+  ];
+  const round = buildDefinitionRound(concepts, '2026-10-29', new Set(['courage', 'empty']));
+  assert.deepEqual(round.map(card => card.target.targetId), ['courage']);
+  assert.deepEqual(buildDefinitionRound(concepts, '2026-10-29', new Set(['empty'])), []);
+  assert.equal(round[0].answer, 'Courage');
+});
+
+test('a specifically chosen inquiry works outside the daily sample', () => {
+  const chosen = { id: 'specific', text: 'What is a good reason to change a commitment?', assumptions: ['Commitments can be revised.'] } as Parameters<typeof buildInquiryExercise>[0];
+  const card = buildInquiryExercise(chosen);
+  assert.deepEqual(card.target, { view: 'questions', targetId: 'specific' });
+  assert.equal(card.prompt, chosen.text);
+  assert.match(card.reveal, /Commitments can be revised/);
 });

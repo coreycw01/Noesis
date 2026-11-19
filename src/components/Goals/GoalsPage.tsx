@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PraxisMethodCards } from '@/components/Practices/PraxisMethodCards';
+import { PraxisMethodPicker } from '@/components/Practices/PraxisMethodPicker';
 import { Check, ChevronDown, ChevronRight, Clock3, Compass, Minus, Plus, Save, Settings2, SkipForward, Target, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -302,12 +302,15 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
     const typeId = activeGoalTypes[0]?.id || goalTypes[0]?.id;
     if (!typeId) return;
     const now = today();
+    const id = uid();
+    setPlanningGoalId(id);
+    setActiveView('active');
     setDraft((prev) => ({
       ...prev,
       goals: [
         ...(prev.goals || []),
         {
-          id: uid(),
+          id,
           title: activeGoalTypes.find((type) => type.id === typeId)?.name || 'New Goal Category',
           typeId,
           currentProgress: 0,
@@ -447,15 +450,8 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
           description={focusedGoalId
             ? focusedGoal ? `${focusedGoal.currentProgress} of ${focusedGoal.targetProgress} toward this commitment` : 'This commitment may have been removed.'
             : 'Commitments help you uphold a chosen principle and compare what you say matters with what you repeatedly do.'}
-          meta={!focusedGoalId && (
-            <>
-              <GoalStat label="Active" value={activeGoals.length} />
-              <GoalStat label="Completed" value={savedGoals.filter((item) => item.status === 'completed').length} />
-            </>
-          )}
           tabs={!focusedGoalId && (
             <div className="space-y-2">
-              <PraxisMethodCards active="commitments" counts={{ commitments: activeGoals.length }} onPick={(method) => { if (method !== 'commitments') onOpenPraxis(method); }} />
               <WorkspaceTabs
                 value={activeView}
                 onChange={setActiveView}
@@ -469,14 +465,17 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             </div>
           )}
           actions={(
-            <>
+            <div className="flex flex-wrap items-center gap-2">
+            {!focusedGoalId && <PraxisMethodPicker method="commitments" onChange={method => {
+              if (method !== 'commitments' && !saving && (draft === savedDraftRef.current || window.confirm('Leave without saving the commitment changes?'))) onOpenPraxis(method);
+            }} />}
             {focusedGoalId ? <Button variant="outline" onClick={() => onOpenCommitment(null)}>All commitments</Button> : <Button variant="outline" onClick={addGoal} className="rounded-full bg-card">
-              <Plus className="mr-2 size-4" /> Add Commitment
+              <Plus className="mr-2 size-4" /> New commitment
             </Button>}
-            {(!focusedGoalId || focusedGoal) && <Button onClick={saveGoals} disabled={saving} className="rounded-full px-7 font-bold shadow-md shadow-accent/20">
-              <Save className="mr-2 size-4" /> {saving ? 'Saving' : 'Save Commitments'}
+            {(!focusedGoalId || focusedGoal) && <Button onClick={saveGoals} disabled={saving || draft === savedDraftRef.current} className="rounded-full px-7 font-bold shadow-md shadow-accent/20">
+              <Save className="mr-2 size-4" /> {saving ? 'Saving' : 'Save changes'}
             </Button>}
-            </>
+            </div>
           )}
         />
         {saveError && (
@@ -880,15 +879,6 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-function GoalStat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-full border border-border bg-card px-3 py-1.5">
-      <span className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
-      <span className="ml-2 font-headline text-sm font-semibold italic text-foreground">{value}</span>
     </div>
   );
 }

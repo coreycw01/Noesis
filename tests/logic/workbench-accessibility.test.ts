@@ -65,3 +65,16 @@ test('a registered sheet opener exposes its dialog state to assistive technology
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /aria-controls="[^"]+"/);
 });
+
+test('labeled concept modes render in Cards, Split, List order with one selected', () => {
+  const html = renderToStaticMarkup(createElement(ViewModeToggle, {
+    label: 'Concept layout', showLabels: true, value: 'split',
+    modes: ['grid', 'split', 'list'], onChange: () => undefined,
+  }));
+  assert.match(html, /aria-label="Concept layout"/);
+  const choices = [...html.matchAll(/aria-pressed="(true|false)" aria-label="([^"]+)"/g)].map(match => [match[2], match[1]]);
+  assert.deepEqual(choices, [['Cards view', 'false'], ['Split view', 'true'], ['List view', 'false']]);
+  assert.match(html, /<span>Cards<\/span>/);
+  assert.match(html, /<span>Split<\/span>/);
+  assert.match(html, /<span>List<\/span>/);
+});

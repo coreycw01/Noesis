@@ -229,11 +229,11 @@ export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDa
   vault: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'beliefProfiles', 'unknowns', 'aiSettings'],
   writing: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'preferences', 'worksSettings'],
   'context-desk': ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'aiSettings'],
-  labs: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],
+  labs: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings', 'goal'],
   evolution: ['media', 'vault', 'timeline', 'thinkingEvents', 'unknowns', 'thinkingPatterns', 'aiSettings'],
   profile: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'thinkingEvents', 'beliefProfiles', 'unknowns', 'thinkingPatterns', 'thinkingMetrics', 'legacyProfile', 'workspace', 'profileDocs', 'aiSettings'],
   goals: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'goal'],
-  exercises: ['media', 'concepts', 'questions', 'vault', 'links'],
+  exercises: ['media', 'concepts', 'questions', 'vault', 'practices', 'links'],
   settings: ['preferences', 'legacyProfile', 'workspace', 'allSettings'],
 };
 

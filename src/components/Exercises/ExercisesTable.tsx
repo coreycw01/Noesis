@@ -1,41 +1,39 @@
 "use client";
 
 import { useContext, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, RotateCcw, Shuffle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, CircleHelp, Flag, Lightbulb, Puzzle, RotateCcw } from 'lucide-react';
+import { deriveAtlasRegions } from '@/components/Atlas/atlas-diagnostics';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import type { Concept, Media, PhilosophicalLink, Question, VaultEntry } from '@/lib/types';
+import type { Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
 import {
   buildThoughtGames,
-  THOUGHT_GAME_FAMILY_LABELS,
-  THOUGHT_GAME_KIND_HINTS,
+  buildDefinitionRound,
+  buildInquiryExercise,
+  THOUGHT_GAME_KIND_LABELS,
+  THOUGHT_GAME_TYPES,
   thoughtGameDayKey,
   thoughtGameFamily,
   type ThoughtGame,
-  type ThoughtGameFamily,
+  type ThoughtGameKind,
+  type ThoughtGameType,
 } from '@/lib/thought-games';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
 import { readBrowserPreference, workspacePreferenceKey, writeBrowserPreference } from '@/lib/browser-preferences';
 
-const FAMILY_NOTE: Record<ThoughtGameFamily, string> = {
-  records: 'Built from your concepts, positions and sources. They get sharper as your workspace grows.',
-  general: 'Reasoning, fallacies, thinkers and classic puzzles. They work from day one.',
-};
+const GAME_ICONS = { inquiry: CircleHelp, definition: Lightbulb, position: Flag, source: BookOpen, reasoning: Puzzle };
+const selectClass = 'min-h-11 w-full min-w-0 rounded-[var(--button-radius)] border border-border bg-background px-3 text-foreground';
 
-/**
- * Exercises, as in the prototype: a card table with two decks. Pick any card,
- * or deal a round of five that mixes both decks. Answers stay private; every
- * card ends by pointing at the record or page it could change.
- */
-export function ExercisesTable({ concepts, inquiries, positions, media, links, onNavigate }: {
+export function ExercisesTable({ concepts, inquiries, positions, media, practices, links, onNavigate }: {
   concepts: Concept[];
   inquiries: Question[];
   positions: VaultEntry[];
   media: Media[];
+  practices: Practice[];
   links: PhilosophicalLink[];
   onNavigate: (target: { view: NoesisView; targetId?: string | null }) => void;
 }) {
@@ -43,9 +41,21 @@ export function ExercisesTable({ concepts, inquiries, positions, media, links, o
   const workspaceKey = useContext(NoesisWorkspaceKeyContext);
   const completionKey = workspacePreferenceKey(workspaceKey, `thought-games:${dayKey}`);
   const games = useMemo(() => buildThoughtGames({ concepts, inquiries, positions, media, links, dayKey }), [concepts, dayKey, inquiries, links, media, positions]);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [round, setRound] = useState<string[] | null>(null);
+  const [gameType, setGameType] = useState<ThoughtGameType | null>(null);
+  const [kind, setKind] = useState<ThoughtGameKind | null>(null);
+  const [inquiryId, setInquiryId] = useState('');
+  const [regionId, setRegionId] = useState('');
+  const [round, setRound] = useState<ThoughtGame[]>([]);
+  const [roundIndex, setRoundIndex] = useState(0);
   const [done, setDone] = useState<string[]>([]);
+  const category = gameType && THOUGHT_GAME_TYPES[gameType];
+  const open = round[roundIndex];
+  const inquiryChoices = useMemo(() => inquiries.filter(item => !['resolved', 'archived', 'abandoned'].includes(item.status)), [inquiries]);
+
+  const definitionRegions = useMemo(() => gameType === 'definition'
+    ? deriveAtlasRegions({ concepts, media, vault: positions, questions: inquiries, links, drafts: [], practices, timeline: [], thinkingEvents: [] })
+      .filter(region => region.status === 'active' && region.conceptIds.some(id => concepts.some(item => item.id === id && item.description.trim())))
+    : [], [gameType, concepts, media, positions, inquiries, practices, links]);
 
   useEffect(() => {
     try {
@@ -61,81 +71,61 @@ export function ExercisesTable({ concepts, inquiries, positions, media, links, o
     if (completionKey) writeBrowserPreference(completionKey, JSON.stringify(next));
   };
 
-  const deal = () => {
-    const pool = [...games].sort(() => Math.random() - 0.5).slice(0, 5).map((game) => game.id);
-    if (!pool.length) return;
-    setRound(pool);
-    setOpenId(pool[0]);
+  const availableKinds = category ? category.kinds.filter(candidate => candidate === 'question_assumption' ? inquiryChoices.length > 0 : games.some(game => game.kind === candidate)) : [];
+  const selectedKind = kind && availableKinds.includes(kind) ? kind : availableKinds[0];
+  const region = definitionRegions.find(item => item.id === regionId);
+  const chosenInquiry = inquiryChoices.find(item => item.id === inquiryId);
+  const start = () => {
+    const cards = gameType === 'inquiry' && chosenInquiry ? [buildInquiryExercise(chosenInquiry)]
+      : selectedKind === 'define_it' ? buildDefinitionRound(concepts, dayKey, region ? new Set(region.conceptIds) : undefined)
+      : games.filter(game => game.kind === selectedKind && (gameType !== 'inquiry' || inquiryChoices.some(item => item.id === game.target.targetId)));
+    setRound(cards); setRoundIndex(0);
   };
-
-  const open = games.find((game) => game.id === openId) || null;
-  const roundIndex = open && round ? round.indexOf(open.id) : -1;
-  const next = () => {
-    if (round && roundIndex >= 0 && roundIndex < round.length - 1) setOpenId(round[roundIndex + 1]);
-    else { setRound(null); setOpenId(null); }
-  };
-
-  const header = (
-    <PageHeader
-      title="Exercises"
-      description="Short exercises that sharpen how you think. Answers stay private; each card ends with what it could change."
-      meta={<span className="font-code text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{done.length} of {games.length} played today</span>}
-      actions={<Button type="button" onClick={deal} disabled={!games.length} className="rounded-full"><Shuffle className="mr-1.5 size-4" aria-hidden="true" />Deal a round of five</Button>}
-    />
-  );
-
-  if (open) {
-    return (
-      <div className="noesis-page noesis-exercises-page" data-noesis-identity="card-table">
-        {header}
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <Button type="button" variant="ghost" size="sm" onClick={() => { setOpenId(null); setRound(null); }}><ArrowLeft className="mr-1 size-4" aria-hidden="true" />All exercises</Button>
-          {roundIndex >= 0 && round && <span className="font-code text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Round · card {roundIndex + 1} of {round.length}</span>}
-        </div>
-        <div className="noesis-gtable">
-          <ExerciseCard
-            key={open.id}
-            game={open}
-            completed={done.includes(open.id)}
-            onComplete={() => markDone(open.id)}
-            onFollow={() => onNavigate({ view: open.target.view, targetId: open.target.targetId || null })}
-            onNext={next}
-            nextLabel={round && roundIndex >= 0 ? (roundIndex < round.length - 1 ? 'Next card' : 'Finish the round') : 'Back to the table'}
-          />
-        </div>
-      </div>
-    );
-  }
+  const leaveRound = () => { setRound([]); setRoundIndex(0); };
+  const next = () => { if (roundIndex + 1 < round.length) setRoundIndex(roundIndex + 1); else leaveRound(); };
 
   return (
     <div className="noesis-page noesis-exercises-page" data-noesis-identity="card-table">
-      {header}
-      {(['records', 'general'] as ThoughtGameFamily[]).map((family) => {
-        const deck = games.filter((game) => thoughtGameFamily(game.kind) === family);
-        return (
-          <section key={family} className="mb-8" aria-labelledby={`deck-${family}`}>
-            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id={`deck-${family}`} className="font-headline text-2xl font-semibold italic">{THOUGHT_GAME_FAMILY_LABELS[family]}</h2>
-              <span className="text-sm text-muted-foreground">{FAMILY_NOTE[family]}</span>
-            </div>
-            {deck.length ? (
-              <div className="noesis-gdeck">
-                {deck.map((game, index) => (
-                  <button key={game.id} type="button" onClick={() => setOpenId(game.id)} className="noesis-gcard" data-family={family} style={{ ['--tilt' as string]: `${((index % 5) - 2) * 0.6}deg` }}>
-                    <span className="noesis-gcard__suit" aria-hidden="true">{family === 'records' ? '◆' : '♣'}</span>
-                    <span className="noesis-gcard__name">{game.label}</span>
-                    <span className="noesis-gcard__hint">{THOUGHT_GAME_KIND_HINTS[game.kind]}</span>
-                    <span className="noesis-gcard__src">{game.sourceLabel}</span>
-                    {done.includes(game.id) && <span className="noesis-gcard__done"><Check className="size-3.5" aria-hidden="true" />Played</span>}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-[var(--card-radius)] border border-dashed border-border p-5 text-sm text-muted-foreground">Add a few concepts and positions and this deck deals itself.</p>
-            )}
-          </section>
-        );
-      })}
+      <PageHeader title={category ? category.label : 'Exercises'} description={category ? category.hint : 'Choose what you want to practice.'} />
+      {category && <Button type="button" variant="ghost" className="mb-4 min-h-11" onClick={() => { if (open) leaveRound(); else setGameType(null); }}>
+        <ArrowLeft className="size-4" aria-hidden="true" />{open ? 'Back to setup' : 'All exercises'}
+      </Button>}
+      {open ? <div className="noesis-gtable">
+        {round.length > 1 && <p className="mb-2 text-sm text-muted-foreground">Card {roundIndex + 1} of {round.length}</p>}
+        <ExerciseCard key={open.id} game={open} completed={done.includes(open.id)} onComplete={() => markDone(open.id)}
+          onFollow={() => onNavigate({ view: open.target.view, targetId: open.target.targetId || null })}
+          onNext={next} nextLabel={roundIndex + 1 < round.length ? 'Next card' : 'Back to setup'} />
+      </div> : category ? <div className="max-w-xl space-y-4 border-y border-border py-4">
+        {availableKinds.length > 1 && <label className="grid gap-1.5 text-sm font-medium">Round
+          <select className={selectClass} value={selectedKind} onChange={event => setKind(event.target.value as ThoughtGameKind)}>
+            {availableKinds.map(value => <option key={value} value={value}>{THOUGHT_GAME_KIND_LABELS[value]}</option>)}
+          </select>
+        </label>}
+        {gameType === 'inquiry' && inquiryChoices.length > 0 && <label className="grid gap-1.5 text-sm font-medium">Inquiry
+          <select className={selectClass} value={chosenInquiry?.id || ''} onChange={event => setInquiryId(event.target.value)}>
+            <option value="">Suggested inquiries</option>
+            {inquiryChoices.map(item => <option key={item.id} value={item.id}>{item.text}</option>)}
+          </select>
+        </label>}
+        {selectedKind === 'define_it' && definitionRegions.length > 0 && <label className="grid gap-1.5 text-sm font-medium">Atlas region
+          <select className={selectClass} value={region?.id || ''} onChange={event => setRegionId(event.target.value)}>
+            <option value="">All regions and unmapped concepts</option>
+            {definitionRegions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>}
+        {selectedKind ? <Button className="min-h-11" onClick={start}>Start round <ArrowRight className="size-4" aria-hidden="true" /></Button> :
+          <p className="text-sm text-muted-foreground">{gameType === 'inquiry' ? 'Add an open inquiry to play.' : gameType === 'definition' ? 'Save a concept definition to play.' : gameType === 'position' ? 'Add a position to play.' : 'Add a source and its main idea to unlock source recall.'}</p>}
+      </div> : <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Exercise types">
+        {(Object.keys(THOUGHT_GAME_TYPES) as ThoughtGameType[]).map(type => {
+          const definition = THOUGHT_GAME_TYPES[type];
+          const Icon = GAME_ICONS[type];
+          return <button key={type} type="button" onClick={() => { setGameType(type); setKind(null); setInquiryId(''); setRegionId(''); }}
+            className="min-h-28 min-w-0 rounded-[var(--card-radius)] border border-border bg-card p-4 text-left hover:border-accent focus-visible:outline focus-visible:outline-ring">
+            <span className="flex items-center gap-2 text-base font-semibold"><Icon className="size-5 shrink-0 text-accent" aria-hidden="true" />{definition.label}<ArrowRight className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden="true" /></span>
+            <span className="mt-2 block text-sm text-muted-foreground">{definition.hint}</span>
+          </button>;
+        })}
+      </section>}
     </div>
   );
 }
@@ -156,12 +146,13 @@ function ExerciseCard({ game, completed, onComplete, onFollow, onNext, nextLabel
   const isBet = game.kind === 'confidence_calibration' && !game.options?.length;
   const canTurn = isBet || Boolean(choice || text.trim());
   const turn = () => { setRevealed(true); onComplete(); };
+  const maskSource = ['define_it', 'whose_words'].includes(game.kind) && !revealed;
   const followLabel = game.target.targetId ? 'Open the record' : NOESIS_PAGE_BY_VIEW[game.target.view]?.title || 'Open';
 
   return (
     <article className="noesis-gcard noesis-gcard--big" data-family={family}>
       <span className="noesis-gcard__suit" aria-hidden="true">{family === 'records' ? '◆' : '♣'}</span>
-      <div className="font-code text-[10px] uppercase tracking-[0.14em] text-[hsl(var(--deck))]">{game.label} · {game.sourceLabel}</div>
+      <div className="font-code text-[10px] uppercase tracking-[0.14em] text-[hsl(var(--deck))]">{game.label}{!maskSource && ` · ${game.sourceLabel}`}</div>
       <h2 className="mt-2 font-headline text-2xl font-semibold italic leading-tight">{game.title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{game.instruction}</p>
       <blockquote className="noesis-gcard__prompt">{game.prompt}</blockquote>
@@ -170,7 +161,7 @@ function ExerciseCard({ game, completed, onComplete, onFollow, onNext, nextLabel
         <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Answer choices">
           {game.options.map((option) => {
             const right = revealed && option === game.answer;
-            const wrong = revealed && option === choice && option !== game.answer;
+            const wrong = Boolean(game.answer && revealed && option === choice && option !== game.answer);
             return (
               <button key={option} type="button" disabled={revealed} aria-pressed={choice === option} onClick={() => setChoice(option)} className={cn('noesis-gopt', right && 'noesis-gopt--right', wrong && 'noesis-gopt--wrong')}>
                 {option}

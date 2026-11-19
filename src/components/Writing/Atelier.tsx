@@ -50,6 +50,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { markupTone } from '@/lib/markup-kinds';
+import { iconForNoesisView } from '@/lib/noesis-icons';
 import { MarkupVoice } from '@/components/shared/MarkupVoice';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -3275,12 +3277,13 @@ function WorkIntellectualRail({
   );
 }
 
-const MARK_KINDS: Array<{ id: WorkMark['kind']; label: string; tone: string }> = [
-  { id: 'claim', label: 'Claim', tone: 'claim' },
-  { id: 'question', label: 'Question', tone: 'examine' },
-  { id: 'evidence', label: 'Evidence', tone: 'encounter' },
-  { id: 'definition', label: 'Definition', tone: 'examine' },
-  { id: 'revisit', label: 'Revisit', tone: 'more' },
+const MarkupIcon = iconForNoesisView('annotations');
+const MARK_KINDS: Array<{ id: WorkMark['kind']; label: string }> = [
+  { id: 'claim', label: 'Claim' },
+  { id: 'question', label: 'Question' },
+  { id: 'evidence', label: 'Evidence' },
+  { id: 'definition', label: 'Definition' },
+  { id: 'revisit', label: 'Revisit' },
 ];
 
 /**
@@ -3312,25 +3315,27 @@ function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (mark
   };
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border/60 bg-card/70 p-3">
-        <div className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Mark the selection as</div>
-        <p className="mt-1 line-clamp-3 text-xs italic leading-5 text-muted-foreground">{selection ? `“${selection}”` : 'Select a passage in the document first.'}</p>
+      <div className="space-y-2">
+        <h3 className="flex items-center gap-2 text-sm font-medium"><MarkupIcon className="size-4" aria-hidden="true" />Marks</h3>
+        {selection && <div className="space-y-2 border-b border-border pb-3">
+        <p className="mt-1 line-clamp-3 text-xs italic leading-5 text-muted-foreground">{`“${selection}”`}</p>
         <Textarea className="my-2" aria-label="Note about selected passage" placeholder="Your note (optional)" value={note} onChange={event => setNote(event.target.value)} />
         <MarkupVoice text={selection || note} onTranscript={words => setNote(prev => [prev.trimEnd(), words].filter(Boolean).join(' '))} />
         <div className="mt-2 flex flex-wrap gap-1.5">
           {MARK_KINDS.map((kind) => (
-            <button key={kind.id} type="button" data-stage-tone={kind.tone} disabled={!selection} onClick={() => mark(kind.id)} className="noesis-mark-kind">{kind.label}</button>
+            <button key={kind.id} type="button" data-stage-tone={markupTone(kind.id)} disabled={!selection} onClick={() => mark(kind.id)} className="noesis-mark-kind min-h-10">{kind.label}</button>
           ))}
         </div>
+        </div>}
       </div>
       {MARK_KINDS.map((kind) => {
         const group = marks.filter((item) => item.kind === kind.id);
         if (!group.length) return null;
         return (
-          <div key={kind.id} data-stage-tone={kind.tone} className="space-y-1.5">
+          <div key={kind.id} data-stage-tone={markupTone(kind.id)} className="space-y-1.5">
             <div className="noesis-stage-badge border-l-2 pl-2 font-code text-[9px] font-bold uppercase tracking-[0.16em]">{kind.label} · {group.length}</div>
             {group.map((item) => (
-              <div key={item.id} className="group/mark flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/40">
+              <div key={item.id} className="noesis-markup-entry group/mark flex items-start gap-2 px-2 py-1.5 hover:bg-muted/40">
                 <button type="button" onClick={() => find(item.text)} className="min-w-0 flex-1 text-left text-xs leading-5" title="Find in the document">“{item.text}”{item.note && <span className="block not-italic text-muted-foreground">{item.note}</span>}</button>
                 <button type="button" onClick={() => onChange(marks.filter((entry) => entry.id !== item.id))} className="text-xs text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/mark:opacity-100 focus-visible:opacity-100" aria-label="Remove mark">×</button>
               </div>
@@ -3338,7 +3343,6 @@ function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (mark
           </div>
         );
       })}
-      {!marks.length && <p className="text-xs text-muted-foreground">Nothing marked yet. Marks stay beside the page; the text itself is not changed.</p>}
     </div>
   );
 }

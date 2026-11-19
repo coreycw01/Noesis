@@ -3,6 +3,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
+import { NoesisExperienceSetup } from '@/components/Settings/NoesisExperienceSetup';
+import { isInitialSignIn } from '@/lib/noesis-experience';
 import { sameWorkVersion, type WorkVersion } from '@/lib/work-recovery';
 import { contextDeskReviewWorkId, contextDeskWorkProvenance, isContextDeskReviewRetry, type ContextDeskWorkOrigin } from '@/lib/context-desk-work';
 import { workContentLength, workHistorySnapshot } from '@/lib/thinkingEvents/work-history';
@@ -3638,7 +3640,19 @@ export function ReadexWorkspace({
         className="contents"
         data-noesis-ready-path={!reviewDataLoading || slowPageLoad ? workspaceScrollRoute(pathname).path : undefined}
       >
-        {renderRouteContent()}
+        {user && !isReviewWorkspace && effectiveUid === user.uid ? (
+          <NoesisExperienceSetup
+            key={effectiveUid}
+            db={db}
+            uid={effectiveUid}
+            initialSignIn={isInitialSignIn(user.metadata.creationTime, user.metadata.lastSignInTime)}
+            emptyHome={activeView === 'home' && !reviewDataLoading && Object.values(resolvedWorkspaceCounts).every(count => count === 0)}
+            showSettings={activeView === 'settings'}
+            navigate={navigateToView}
+          >
+            {renderRouteContent()}
+          </NoesisExperienceSetup>
+        ) : renderRouteContent()}
       </div>
       </NoesisShell>
   );

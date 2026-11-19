@@ -11,7 +11,12 @@ export function normalizePositionConfidence(value?: number, fallback = 60, scale
   return Math.max(0, Math.min(100, Math.round(percent)));
 }
 
+export function isRepeatablePractice(type?: Practice['type']) {
+  return type === 'habit' || type === 'discipline' || type === 'ritual';
+}
+
 export function practiceDesignGaps(practice: Partial<Practice>) {
+  if (isRepeatablePractice(practice.type)) return practice.action?.trim() ? [] : ['action'];
   const gaps: string[] = [];
   if (!practice.hypothesis?.trim()) gaps.push('hypothesis');
   if (!practice.action?.trim()) gaps.push('action');
@@ -33,7 +38,7 @@ export function hasPracticeIntellectualBasis(practice: Partial<Practice>) {
 export function normalizePracticeStatusForSave(practice: Partial<Practice>): PracticeStatus {
   const requested = practice.status || 'planned';
   if (!ACTIVE_PRACTICE_STATUSES.has(requested)) return requested;
-  if (practiceDesignGaps(practice).length || !hasPracticeIntellectualBasis(practice)) return 'planned';
+  if (practiceDesignGaps(practice).length || (!isRepeatablePractice(practice.type) && !hasPracticeIntellectualBasis(practice))) return 'planned';
   return requested;
 }
 
