@@ -38,6 +38,21 @@ const band = (k: number, lo: number, hi: number, soft: number) => {
   return Math.min(fadeIn, fadeOut);
 };
 
+/** How many records, links and notes rest on each concept. */
+export function conceptInvolvement(world: { concepts: Array<{ id: string }>; records: Array<{ conceptId: string }>; notes: Array<{ conceptId: string }> }, links: PhilosophicalLink[]) {
+  const counts = new Map(world.concepts.map((concept) => [concept.id, 0]));
+  const bump = (id: string) => { if (counts.has(id)) counts.set(id, (counts.get(id) || 0) + 1); };
+  world.records.forEach((record) => bump(record.conceptId));
+  world.notes.forEach((note) => bump(note.conceptId));
+  links.forEach((link) => { if (link.fromType === 'concept') bump(link.fromId); if (link.toType === 'concept') bump(link.toId); });
+  return counts;
+}
+
+/** Elevation in contour rings: one for bare ground, then one per doubling of involvement, up to eight. */
+export function elevationRings(involvement: number) {
+  return Math.min(8, 1 + Math.floor(Math.log2(1 + Math.max(0, involvement))));
+}
+
 export function buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices }: {
   regions: MapRegion[]; concepts: Concept[]; positions: VaultEntry[]; inquiries: Question[]; sources: Media[]; practices: Practice[];
 }) {
@@ -196,6 +211,8 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
     };
     const conceptById = new Map(world.concepts.map((concept) => [concept.id, concept]));
     const conceptLinks = links.filter((link) => link.fromType === 'concept' && link.toType === 'concept' && conceptById.has(link.fromId) && conceptById.has(link.toId));
+    // Elevation: how involved each concept is in the rest of the thinking.
+    const involvement = conceptInvolvement(world, links);
 
     const frame = () => {
       if (!alive) return;
@@ -259,14 +276,20 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           if (x < -300 || x > width + 300 || y < -300 || y > height + 300) return;
           const radius = 34 * k * (1 + iA * 0.55); const fresh = isNew(concept.born);
           ctx.globalAlpha = conceptLayer;
-          for (let ring = 0; ring < 4; ring += 1) {
-            blob(x, y, radius * (1 - ring * 0.2), index + ring * 0.3);
-            if (ring === 0) { ctx.fillStyle = alpha(accent, fresh ? 0.25 : 0.1); ctx.fill(); }
-            ctx.strokeStyle = alpha(accent, ring < concept.clarity ? 0.85 - ring * 0.15 : 0.1);
-            ctx.lineWidth = ring ? 1 : concept.id === selectedId ? 2.5 : 1.5;
+          // Contour lines, as on a topographic map: one ring per elevation step,
+          // so a concept that much of your thinking rests on stands tall.
+          const elevation = involvement.get(concept.id) || 0;
+          const rings = elevationRings(elevation);
+          const base = radius * (0.8 + rings * 0.07);
+          blob(x, y, base, index); ctx.fillStyle = alpha(accent, (fresh ? 0.14 : 0.05) + concept.clarity * 0.035); ctx.fill();
+          for (let ring = 0; ring < rings; ring += 1) {
+            blob(x, y, base * (1 - ring / (rings + 0.6)), index + ring * 0.35);
+            ctx.strokeStyle = alpha(ink, Math.min(0.85, 0.3 + ring * 0.08));
+            ctx.lineWidth = ring === 0 ? (concept.id === selectedId ? 2.5 : 1.4) : (ring % 4 === 3 ? 1.3 : 0.8);
             if (ring === 0 && concept.status === 'contested') ctx.setLineDash([6, 4]);
             ctx.stroke(); ctx.setLineDash([]);
           }
+          if (k > 0.7 && cA > 0.3) { ctx.font = '9px "JetBrains Mono", monospace'; ctx.fillStyle = alpha(ink, 0.75); ctx.textAlign = 'left'; ctx.fillText(`\u25B2 ${elevation}`, x + 9, y - 6); }
           ctx.beginPath(); ctx.arc(x, y, Math.max(3, Math.min(7, 5 * k)), 0, 7); ctx.fillStyle = ink; ctx.fill();
           ctx.beginPath(); ctx.arc(x, y, Math.max(5, Math.min(11, 8 * k)), 0, 7); ctx.strokeStyle = alpha(ink, 0.5); ctx.lineWidth = 1; ctx.stroke();
           if (fresh) { ctx.fillStyle = accent; ctx.font = '9px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('NEW', x, y - radius * 0.9 - 4); }
@@ -402,6 +425,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           <div className="noesis-territory__card">
             <span className="noesis-territory__eyebrow">Nothing selected</span>
             <p>Tap a region, concept, or record to see it here. Scroll or pinch to zoom, drag to pan, and use the timeline to watch the map change.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Contour rings show elevation: a concept gains a ring each time the records, notes and links resting on it double. \u25B2 is that count.</p>
           </div>
         )}
         <details className="noesis-territory__card">
