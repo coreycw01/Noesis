@@ -555,7 +555,7 @@ export function NoesisRouteContent({
         />
       );
     case 'evolution':
-      return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} thinkingEventsHasMore={thinkingEventsHasMore} loadMoreThinkingEvents={loadMoreThinkingEvents} historyLoadingOlder={historyLoadingOlder} historyOlderError={historyOlderError} unknowns={unknowns} thinkingPatterns={thinkingPatterns} onSaveSynthesis={addTimelineEvent} />;
+      return <EvolutionRoutePage aiSettings={aiSettings} events={timeline} media={media} thinkingEvents={thinkingEvents} thinkingEventsHasMore={thinkingEventsHasMore} loadMoreThinkingEvents={loadMoreThinkingEvents} historyLoadingOlder={historyLoadingOlder} historyOlderError={historyOlderError} unknowns={unknowns} thinkingPatterns={thinkingPatterns} onSaveSynthesis={addTimelineEvent} positions={vault} onOpenPosition={(id) => navigateToView('vault', { positionId: id })} />;
     case 'labs':
       return <PracticesRoutePage aiSettings={aiSettings} practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} links={links} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
     case 'settings':

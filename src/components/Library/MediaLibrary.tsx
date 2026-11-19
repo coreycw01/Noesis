@@ -1262,13 +1262,12 @@ function SourceCover({ item, eager = false }: { item: Media; eager?: boolean }) 
     return <img src={url} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" className="h-full w-full object-cover" onError={() => setFailedUrl(url)} />;
   }
 
+  // Prototype cover: a cloth-bound spine in a hue taken from the title.
+  const hue = Array.from(item.title || '').reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 360, 7);
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center bg-muted/30 p-5 text-center">
-      <div className="flex size-12 items-center justify-center rounded-lg border border-border/50 bg-background/80 shadow-sm">
-        {React.createElement(MEDIA_ICONS_COMP[item.type], { className: 'size-7 text-accent/70' })}
-      </div>
-      <div className="mt-4 line-clamp-3 font-headline text-sm font-semibold italic leading-5 text-foreground/80">{item.title}</div>
-      <div className="mt-2 font-code text-[8px] uppercase tracking-widest text-muted-foreground">{MEDIA_LABELS[item.type]}</div>
+    <div className="noesis-proto-cover" style={{ '--h': hue } as React.CSSProperties}>
+      <div className="line-clamp-4 font-headline text-[1.05rem] font-semibold italic leading-tight">{item.title}</div>
+      <div className="font-code text-[9px] uppercase tracking-[0.14em] opacity-80">{item.creator || MEDIA_LABELS[item.type]}</div>
     </div>
   );
 }

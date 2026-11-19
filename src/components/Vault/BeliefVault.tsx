@@ -39,7 +39,7 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { PositionCalibrationGauge, PullEvidenceDialog } from '@/components/Vault/PositionCalibration';
+import { PositionCalibrationGauge, PositionMiniScale, PullEvidenceDialog } from '@/components/Vault/PositionCalibration';
 import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
 import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
 import { positionReviewTarget, type PositionReviewApproval } from '@/lib/position-ai-review';
@@ -1700,7 +1700,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           return (
             <Card 
               key={entry.id} 
-              className="group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border border-accent/20 bg-card p-4 rounded-xl shadow-md md:p-5"
+              className="noesis-position-card group cursor-pointer transition-all hover:-translate-y-0.5 p-4 md:p-5"
               onClick={(event) => { if (isEntitySurfaceClick(event)) openEntry(entry.id); }}
             >
             <div className="flex items-start justify-between gap-4 mb-4">
@@ -1726,48 +1726,19 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   <button type="button" className="text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openEntry(entry.id)}>{entry.title}</button>
                 </h2>
               </div>
-              <div className="size-10 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/50 shadow-sm">
-                <Triangle className="size-4 fill-current rotate-180" />
-              </div>
+              <span className="noesis-ember" data-stage-tone="claim" aria-hidden="true" style={{ '--ember': `${0.45 + confidencePercent(entry.confidence) / 180}` } as React.CSSProperties} />
             </div>
-            
+
             <p className="text-[13px] leading-relaxed text-muted-foreground font-body whitespace-normal break-words italic mb-4">
               {entry.statement || entry.description}
             </p>
 
-            <div className="mb-4 hidden rounded-xl border border-border/40 bg-muted/10 p-3 md:block">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{diagnostic.label}</Badge>
-                <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{diagnostic.daysSinceUpdate}d since review</span>
+            <PositionMiniScale confidence={confidencePercent(entry.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} />
+            {!!diagnostic.flags.length && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {diagnostic.flags.slice(0, 3).map((flag) => <Badge key={flag} className="normal-case">{flag}</Badge>)}
               </div>
-              <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Next move</div>
-              <p className="line-clamp-2 text-xs italic leading-5 text-muted-foreground">{diagnostic.nextAction}</p>
-              {!!diagnostic.flags.length && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {diagnostic.flags.slice(0, 3).map((flag) => (
-                    <span key={flag} className="rounded-full bg-accent/10 px-2 py-0.5 font-code text-[8px] uppercase tracking-widest text-accent">{flag}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-4 border-t border-border/30 pt-4">
-              <div className="w-28">
-                <div className="mb-1 flex items-center justify-between font-code text-[8px] uppercase tracking-widest text-muted-foreground">
-                  <span>Confidence</span>
-                  <span>{confidencePercent(entry.confidence)}%</span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-accent" style={{ width: `${confidencePercent(entry.confidence)}%` }} />
-                </div>
-              </div>
-              <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 bg-muted text-foreground border-border rounded-full font-bold">
-                {entry.status}
-              </Badge>
-              <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest px-2 py-0.5 rounded-full font-bold">
-                Evidence & testing {diagnostic.assessmentScore}/100
-              </Badge>
-            </div>
+            )}
           </Card>
           );
         })}

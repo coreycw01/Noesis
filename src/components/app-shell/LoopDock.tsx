@@ -11,8 +11,9 @@ export const NOESIS_NAV_STYLE_KEY = 'noesis:nav-style';
 export const NOESIS_NAV_STYLE_EVENT = 'noesis:nav-style';
 export type NoesisNavStyle = 'sidebar' | 'loop';
 
+/** The Loop is the default, as in the prototype; the sidebar is opt-in from Settings. */
 export function readNavStyle(): NoesisNavStyle {
-  return readBrowserPreference(NOESIS_NAV_STYLE_KEY) === 'loop' ? 'loop' : 'sidebar';
+  return readBrowserPreference(NOESIS_NAV_STYLE_KEY) === 'sidebar' ? 'sidebar' : 'loop';
 }
 
 export function writeNavStyle(style: NoesisNavStyle) {
@@ -22,7 +23,7 @@ export function writeNavStyle(style: NoesisNavStyle) {
 
 /** Follows the saved navigation style, including changes made in Settings. */
 export function useNavStyle() {
-  const [style, setStyle] = useState<NoesisNavStyle>('sidebar');
+  const [style, setStyle] = useState<NoesisNavStyle>('loop');
   useEffect(() => {
     setStyle(readNavStyle());
     const update = () => setStyle(readNavStyle());

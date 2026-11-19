@@ -40,7 +40,7 @@ export function PraxisMethodShape({ shape, state = 'kept', size = 18, className,
  * the start date (or the first log) (or covers the last fortnight when nothing is logged yet) and
  * spans the planned duration, so the strip and "n of m days" always agree.
  */
-export function PraxisDayStrip({ shape, logDates, days, startDate, today = new Date() }: { shape: PraxisShape; logDates: string[]; days?: number; startDate?: string; today?: Date }) {
+export function PraxisDayStrip({ shape, logDates, days, startDate, today = new Date(), size = 10 }: { shape: PraxisShape; logDates: string[]; days?: number; startDate?: string; today?: Date; size?: number }) {
   const logged = new Set(logDates.map((date) => date.slice(0, 10)));
   const sorted = [...logged].sort();
   const span = Math.max(1, Math.min(days || 14, 30));
@@ -50,7 +50,7 @@ export function PraxisDayStrip({ shape, logDates, days, startDate, today = new D
   const count = cells.filter((date) => logged.has(date)).length;
   return (
     <span className="inline-flex items-center gap-[3px]" role="img" aria-label={`Logged ${count} of ${span} days`}>
-      {cells.map((date) => <PraxisMethodShape key={date} shape={shape} state={logged.has(date) ? 'kept' : 'empty'} size={10} />)}
+      {cells.map((date) => <PraxisMethodShape key={date} shape={shape} state={logged.has(date) ? 'kept' : 'empty'} size={size} />)}
     </span>
   );
 }

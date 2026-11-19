@@ -104,8 +104,8 @@ export function computeConceptDiagnosis(conceptName: string, related: RelatedDat
 }
 
 export const CLARITY_BG: Record<ClarityLevel, string> = {
-  beginning: 'bg-slate-100 text-slate-600 border-slate-200',
-  developing: 'bg-amber-50 text-amber-700 border-amber-200',
-  strong: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  integrated: 'bg-accent/10 text-accent border-accent/20',
+  beginning: 'bg-muted-foreground/10 text-muted-foreground border-muted-foreground/30',
+  developing: 'bg-[hsl(var(--stage-encounter)/0.12)] text-[hsl(var(--stage-encounter))] border-[hsl(var(--stage-encounter)/0.35)]',
+  strong: 'bg-[hsl(var(--stage-act)/0.12)] text-[hsl(var(--stage-act))] border-[hsl(var(--stage-act)/0.35)]',
+  integrated: 'bg-accent/10 text-accent border-accent/30',
 };

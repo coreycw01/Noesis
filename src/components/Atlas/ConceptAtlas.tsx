@@ -71,8 +71,11 @@ import {
   deriveAtlasTerritoryView,
   reconcileAtlasRegionNotices,
 } from './atlas-diagnostics';
-import { ATLAS_NODE_BOUNDS, atlasAutoNodePosition, atlasCanDrag, atlasCompactNodes, atlasMapScope, atlasMapTerms, atlasStoredZoom, atlasVisibleNodePosition, atlasZoomPlane } from './atlas-layout';
+import { ATLAS_NODE_BOUNDS, atlasAutoNodePosition, atlasTerritoryPositions, atlasCanDrag, atlasCompactNodes, atlasMapScope, atlasMapTerms, atlasStoredZoom, atlasVisibleNodePosition, atlasZoomPlane } from './atlas-layout';
 import { shouldTraceAtlasConnection, type AtlasConnectionTrace } from './atlas-connection-trace';
+import { AtlasTerritoryCanvas } from './AtlasTerritoryCanvas';
+import { navigateWorkspace } from '@/lib/workspace-navigation';
+import { viewToPath } from '@/lib/noesis-routes';
 import { atlasNodeTimelineState, atlasTimelineBounds, atlasTimelineDayValue, formatAtlasTimelineDate, type AtlasTimelineWindow } from './atlas-timeline';
 
 interface ConceptAtlasProps {
@@ -306,6 +309,8 @@ export function ConceptAtlas({
   const [zoom, setZoom] = useState(ATLAS_BASE_ZOOM);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [search, setSearch] = useState('');
+  // The map shows every region unless one was opened from the Regions tab.
+  const [mapRegionFocus, setMapRegionFocus] = useState(false);
   // Timeline replay: null shows the map as it stands now.
   const [timelineWindow, setTimelineWindow] = useState<AtlasTimelineWindow | null>(null);
   const [atlasSection, setAtlasSection] = useState<AtlasSection>('map');
@@ -322,7 +327,7 @@ export function ConceptAtlas({
   const [regionDetailOpen, setRegionDetailOpen] = useState(false);
   const [newRegionIds, setNewRegionIds] = useState<string[]>([]);
   const [linkSearch, setLinkSearch] = useState('');
-  const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('strong');
+  const [autoConnectionFocus, setAutoConnectionFocus] = useState<'strong' | 'moderate' | 'all'>('all');
   const [viewMode, setViewMode] = useState<AtlasViewMode>('core');
   const [relationshipFilterMode, setRelationshipFilterMode] = useState<AtlasRelationshipFilterMode>('recommended');
   const [customRelationshipTypes, setCustomRelationshipTypes] = useState<PhilosophicalLinkType[]>([]);
@@ -605,13 +610,13 @@ export function ConceptAtlas({
 
   const visibleTerms = useMemo(() => {
     if (mode === 'custom') return atlasMapTerms({ terms, customTerms: activeMap?.nodeNames.map(conceptKey) ?? [] });
-    if (atlasSection !== 'map' || !selectedRegion) return terms;
+    if (atlasSection !== 'map' || !selectedRegion || !mapRegionFocus) return terms;
     const regionNames = new Set(selectedRegion.conceptIds
       .map((id) => concepts.find((concept) => concept.id === id)?.name)
       .filter((name): name is string => Boolean(name))
       .map(conceptKey));
     return atlasMapTerms({ terms, regionTerms: regionNames, focusedTerm: selectedName ? conceptKey(selectedName) : undefined });
-  }, [activeMap, atlasSection, concepts, mode, selectedName, selectedRegion, terms]);
+  }, [activeMap, atlasSection, concepts, mapRegionFocus, mode, selectedName, selectedRegion, terms]);
 
   const timelineBounds = useMemo(() => atlasTimelineBounds(concepts.map((concept) => concept.dateCreated)), [concepts]);
   const timelineNewCount = useMemo(() => timelineWindow
@@ -625,6 +630,16 @@ export function ConceptAtlas({
     ...drafts.map((item) => item.conceptTags),
     ...practices.map((item) => item.conceptTags),
   ]), [drafts, insights, media, practices, vault]);
+
+  // Each concept's first region: where it sits on the territory map.
+  const primaryRegionOf = useMemo(() => {
+    const regionOf = new Map<string, number>();
+    atlasRegions.forEach((region, index) => region.conceptIds.forEach((id) => {
+      const key = conceptKey(concepts.find((concept) => concept.id === id)?.name || '');
+      if (key && !regionOf.has(key)) regionOf.set(key, index);
+    }));
+    return regionOf;
+  }, [atlasRegions, concepts]);
 
   const displayedNodes = useMemo(() => {
     const conceptsByName = new Map<string, Concept>();
@@ -646,8 +661,11 @@ export function ConceptAtlas({
   }, [concepts, isMobile, mode, search, selectedName, tagCounts, timelineWindow, visibleTerms]);
 
   const nodes = useMemo<MapNode[]>(() => {
+    const territory = mode === 'auto' && !isMobile && !mapRegionFocus && !search.trim()
+      ? atlasTerritoryPositions(displayedNodes.map((node) => node.key), primaryRegionOf)
+      : null;
     return displayedNodes.map(({ name, key, concept, count }, index) => {
-      const autoPosition = atlasAutoNodePosition(index, displayedNodes.length, isMobile);
+      const autoPosition = territory?.get(key) ?? atlasAutoNodePosition(index, displayedNodes.length, isMobile);
       const customPosition = activeMap?.nodePositions?.[key];
       const preview = nodePreview?.scope === mapScope && nodePreview.key === key ? nodePreview : null;
       return {
@@ -660,7 +678,7 @@ export function ConceptAtlas({
           ?? (mode === 'auto' ? autoPosition.y : customPosition?.y ?? concept?.y ?? autoPosition.y),
       };
     });
-  }, [activeMap, displayedNodes, draftPositions, isMobile, mapScope, mode, nodePreview]);
+  }, [activeMap, displayedNodes, draftPositions, isMobile, mapRegionFocus, mapScope, mode, nodePreview, primaryRegionOf, search]);
 
   const relatedByNode = useMemo(() => {
     return new Map(displayedNodes.map((node) => [
@@ -1122,7 +1140,7 @@ export function ConceptAtlas({
   }, [activeMapStyle.showWeakLinks, activeRelationshipTypes, autoConnectionFocus, edges, mode, selectedName, viewMode]);
 
   const renderedNodes = useMemo(() => {
-    if (mode === 'custom' || selectedName || selectedRegion || search.trim()) return nodes;
+    if (mode === 'custom' || selectedName || (selectedRegion && mapRegionFocus) || search.trim()) return nodes;
     const keys = new Set<string>();
     for (const edge of visibleEdges) {
       if (keys.size >= 12 && (!keys.has(conceptKey(edge.from)) || !keys.has(conceptKey(edge.to)))) continue;
@@ -1163,6 +1181,27 @@ export function ConceptAtlas({
     ...node,
     ...atlasVisibleNodePosition(node, mapSize, nodeSizes[node.name] ?? { width: 152, height: 72 }, mapZoomPlane.scale),
   })), [renderedNodes, mapSize, nodeSizes, mapZoomPlane.scale]);
+  const regionIslands = useMemo(() => {
+    if (mode !== 'auto' || mapRegionFocus) return [];
+    return atlasRegions.flatMap((region, index) => {
+      const members = positionedNodes.filter((node) => primaryRegionOf.get(conceptKey(node.name)) === index);
+      if (members.length < 2) return [];
+      const xs = members.map((node) => node.x);
+      const ys = members.map((node) => node.y);
+      const pad = 8;
+      const left = Math.max(0, Math.min(...xs) - pad);
+      const top = Math.max(0, Math.min(...ys) - pad - 4);
+      return [{
+        id: region.id,
+        name: region.name,
+        left,
+        top,
+        width: Math.min(100 - left, Math.max(...xs) - Math.min(...xs) + pad * 2),
+        height: Math.min(100 - top, Math.max(...ys) - Math.min(...ys) + pad * 2 + 4),
+        hue: (index * 67 + 30) % 360,
+      }];
+    });
+  }, [atlasRegions, mapRegionFocus, mode, positionedNodes, primaryRegionOf]);
   const positionedNodeByKey = useMemo(() => new Map(positionedNodes.map((node) => [conceptKey(node.name), node])), [positionedNodes]);
   const renderedEdges = useMemo(
     () => visibleEdges.filter((edge) => renderedNodeKeys.has(conceptKey(edge.from)) && renderedNodeKeys.has(conceptKey(edge.to))),
@@ -1229,6 +1268,7 @@ export function ConceptAtlas({
     setSelectedName(null);
     setIsPanelOpen(false);
     setSelectedRegionId(regionId);
+    setMapRegionFocus(true);
     setRegionDetailOpen(false);
     setAtlasSection('map');
   };
@@ -2498,7 +2538,7 @@ export function ConceptAtlas({
 
 
   return (
-    <div data-noesis-identity="network" data-noesis-scroll-region onKeyDown={(event) => {
+    <div data-noesis-identity="network" data-atlas-section={atlasSection} data-noesis-scroll-region onKeyDown={(event) => {
       if (event.key !== 'Escape' || event.defaultPrevented || !event.currentTarget.contains(event.target as Node)) return;
       if (quickLinkSource) clearQuickLinkMode();
       else if (isPanelOpen) closeNodeInspector();
@@ -2555,7 +2595,7 @@ export function ConceptAtlas({
             <Button variant={mode === 'custom' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('custom')} className="h-8 rounded-full">Custom Maps</Button>
           </div>
 
-          <div className="hidden gap-2 overflow-x-auto pb-1 md:flex md:flex-wrap md:justify-end md:overflow-visible md:pb-0">
+          <div className={cn("hidden gap-2 overflow-x-auto pb-1 md:flex md:flex-wrap md:justify-end md:overflow-visible md:pb-0", mode === 'auto' && "md:hidden")}>
             <Select value={viewMode} onValueChange={(value) => setViewMode(value as AtlasViewMode)}>
               <SelectTrigger aria-label="Map view" className="h-8 w-36 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
                 <SelectValue placeholder="View Mode" />
@@ -2702,7 +2742,7 @@ export function ConceptAtlas({
           )}
         </div>
 
-        <div className="hidden flex-col gap-2 pb-1 md:flex lg:flex-row lg:items-center lg:justify-between lg:gap-3">
+        <div className="noesis-atlas-stats hidden flex-col gap-2 pb-1 md:flex lg:flex-row lg:items-center lg:justify-between lg:gap-3">
           <div className="flex flex-wrap gap-2">
             <Stat value={renderedNodes.length} label="Nodes" />
             <Stat value={renderedEdges.length} label="Visible Links" />
@@ -2837,8 +2877,34 @@ export function ConceptAtlas({
         </div>
       )}
 
+      {atlasSection === 'map' && mode === 'auto' && (
+        <div className="noesis-gutter pb-4">
+          <AtlasTerritoryCanvas
+            regions={atlasRegions}
+            concepts={concepts}
+            positions={vault}
+            inquiries={questions}
+            sources={media}
+            practices={practices}
+            links={links}
+            asOf={timelineWindow?.asOf ?? null}
+            from={timelineWindow?.from ?? null}
+            onOpen={(target) => {
+              if (target.type === 'position') onOpenPosition?.(target.id);
+              else if (target.type === 'inquiry') onOpenQuestion?.(target.id);
+              else if (target.type === 'source') onOpenSource?.(target.id);
+              else if (target.type === 'practice') onOpenPractices?.();
+              else {
+                const reviewMode = /^\/(demo|review)(\/|$)/.test(window.location.pathname);
+                navigateWorkspace(window.history, viewToPath('concepts', { conceptId: target.id, reviewMode }));
+              }
+            }}
+          />
+        </div>
+      )}
       {atlasSection === 'map' && (
       <div className={cn(
+        mode === 'auto' && "hidden",
         "relative flex min-h-0 flex-1 gap-4",
         // Keep room for the map to breathe when the controls wrap onto extra rows.
         !isFullScreen && "md:min-h-[30rem]",
@@ -3041,6 +3107,12 @@ export function ConceptAtlas({
               );
             })()}
 
+            {/* Territory islands: each region's concepts sit on a soft landmass. */}
+            {regionIslands.map((island) => (
+              <div key={island.id} className="noesis-atlas-island" aria-hidden="true" style={{ left: `${island.left}%`, top: `${island.top}%`, width: `${island.width}%`, height: `${island.height}%`, '--island-hue': island.hue } as React.CSSProperties}>
+                <span>{island.name}</span>
+              </div>
+            ))}
             {positionedNodes.map((node) => (
               <button
                 key={node.name}

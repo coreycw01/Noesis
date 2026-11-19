@@ -426,7 +426,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [focusedToolId, setFocusedToolId] = useState<string | null>(null);
   const [drawingRedoByPage, setDrawingRedoByPage] = useState<Record<string, DrawingStroke[]>>({});
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
-  const [railCollapsed, setRailCollapsed] = useState(true);
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const [writingFocus, setWritingFocus] = useState(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -456,7 +456,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const isDocumentSurface = activeCategory === 'writing' || active?.type === 'drawing' || active?.type === 'drawing_note';
 
   useEffect(() => {
-    setWritingFocus(isDocumentSurface);
+    // Documents open beside the Studio Reel, as in the prototype; focus is one tap away.
+    setWritingFocus(false);
   }, [active?.id, isDocumentSurface]);
   // Older drawing records predate document formats. They must remain freeform
   // visual documents instead of inheriting whatever structured format is now
@@ -490,7 +491,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
   useEffect(() => {
     try {
-      setRailCollapsed(window.localStorage.getItem('noesis-works-rail-collapsed') !== 'false');
+      setRailCollapsed(window.localStorage.getItem('noesis-works-rail-collapsed') === 'true');
     } catch {
       setRailCollapsed(true);
     }
@@ -3344,12 +3345,12 @@ function WorkRailContent({
   const unresolvedInquiries = inquiries.filter((question) => !['resolved', 'archived'].includes(question.status)).slice(0, 4).map((question) => question.text);
   return (
     <div className={cn('space-y-4', !hideIntro && 'pb-safe')}>
-      <RailSection title="Claims Expressed" empty="No linked positions yet." items={relatedClaims} />
-      <RailSection title="Supporting Material" empty="No linked sources or supporting evidence yet." items={supportingMaterial} />
-      <RailSection title="Unresolved Objections" empty="No objections are attached to linked positions." items={objections} tone="warning" />
-      <RailSection title="Relevant Concepts" empty="No concepts linked yet." items={concepts} compact />
-      <RailSection title="Open Inquiries" empty="No inquiries are linked to this work." items={unresolvedInquiries} />
-      <RailSection title="Nearby Annotations" empty="No nearby annotations found." items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)} />
+      <RailSection stage="integrate" title="Claims Expressed" empty="No linked positions yet." items={relatedClaims} />
+      <RailSection stage="act" title="Supporting Material" empty="No linked sources or supporting evidence yet." items={supportingMaterial} />
+      <RailSection stage="claim" title="Unresolved Objections" empty="No objections are attached to linked positions." items={objections} tone="warning" />
+      <RailSection stage="examine" title="Relevant Concepts" empty="No concepts linked yet." items={concepts} compact />
+      <RailSection stage="examine" title="Open Inquiries" empty="No inquiries are linked to this work." items={unresolvedInquiries} />
+      <RailSection stage="encounter" title="Nearby Annotations" empty="No nearby annotations found." items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)} />
       <section className="border-t border-border/60 pt-4">
         <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Coherence Review</div>
         <div className="mt-3 space-y-3">
@@ -3371,7 +3372,9 @@ function RailSection({
   empty,
   tone = 'neutral',
   compact,
+  stage = 'more',
 }: {
+  stage?: string;
   title: string;
   items: string[];
   empty: string;
@@ -3379,11 +3382,8 @@ function RailSection({
   compact?: boolean;
 }) {
   return (
-    <section className="border-t border-border/60 pt-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-        <Badge variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-widest">{items.length}</Badge>
-      </div>
+    <section className="noesis-reel-section" data-stage-tone={stage}>
+      <div className="noesis-reel-section__label">{title} · {items.length}</div>
       {items.length ? (
         <div className={cn('mt-3', compact ? 'flex flex-wrap gap-2' : 'space-y-2')}>
           {items.map((item, index) => compact ? (
@@ -3394,8 +3394,8 @@ function RailSection({
             <div
               key={`${item}:${index}`}
               className={cn(
-                'border-l-2 px-3 py-2 text-sm leading-5',
-                tone === 'warning' ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-border/50 bg-muted/10 text-foreground'
+                'text-sm leading-5 text-foreground',
+                tone === 'warning' && 'text-foreground'
               )}
             >
               {item}

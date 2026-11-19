@@ -1,5 +1,6 @@
 "use client";
 
+import { BeliefRivers } from '@/components/Evolution/BeliefRivers';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarRange,
@@ -34,6 +35,8 @@ interface EvolutionTimelineProps {
   unknowns: Unknown[];
   thinkingPatterns: ThinkingPattern[];
   onSaveSynthesis: (event: TimelineEvent, result?: import('@/lib/contextual-ai').AiReviewResult, eventIds?: readonly string[]) => void | Promise<void>;
+  positions?: import('@/lib/types').VaultEntry[];
+  onOpenPosition?: (id: string) => void;
 }
 type EvolutionFilter =
   | 'all'
@@ -371,8 +374,8 @@ function changeMovementForEvent(event: DisplayEvent): 'gained' | 'weakened' | 'f
   return 'gained';
 }
 
-export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, thinkingEventsHasMore, loadMoreThinkingEvents, historyLoadingOlder, historyOlderError, unknowns, thinkingPatterns, onSaveSynthesis }: EvolutionTimelineProps) {
-  const [view, setView] = useState<EvolutionView>('timeline');
+export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, thinkingEventsHasMore, loadMoreThinkingEvents, historyLoadingOlder, historyOlderError, unknowns, thinkingPatterns, onSaveSynthesis, positions = [], onOpenPosition }: EvolutionTimelineProps) {
+  const [view, setView] = useState<EvolutionView>('belief_rivers');
   const [timelineLayout, setTimelineLayout] = useEntityViewPreference('evolution');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
@@ -679,10 +682,10 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
 
       {view === 'belief_rivers' && (
         <section className="mb-8 border-y border-border/60 py-6">
-          <div className="mb-5">
-            <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Belief Rivers</div>
-            <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Follow positions through time</h2>
+          <div className="mb-8 rounded-[14px] border border-border bg-card p-5">
+            <BeliefRivers positions={positions} onOpen={(id) => onOpenPosition?.(id)} />
           </div>
+          <div className="mb-5 font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">What moved each river</div>
           <div className="grid gap-4 xl:grid-cols-2">
             {beliefRivers.length ? beliefRivers.map((river) => (
               <article key={river.id} className="border-t border-border/60 py-4 first:border-t-0">
