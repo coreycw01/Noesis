@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { WorkbenchFlow } from '../../src/components/shared/WorkbenchFlow';
+import { RecordPath } from '../../src/components/shared/record/RecordPage';
 import { FilterToolbar, ViewModeToggle } from '../../src/components/shared/FilterToolbar';
 import { AlertDialogFooter } from '../../src/components/ui/alert-dialog';
 import { DialogFooter } from '../../src/components/ui/dialog';
@@ -19,19 +19,26 @@ test('arrow keys and Home/End move focus without treating activation keys as nav
   assert.equal(workbenchFocusIndex('End', 0, 0), null);
 });
 
-test('workbench steps expose the current step and connect buttons to descriptions', () => {
-  const html = renderToStaticMarkup(createElement(WorkbenchFlow, {
-    label: 'Inquiry workflow',
-    activeId: 'answer',
-    onSelect: () => undefined,
-    steps: [
-      { id: 'frame', label: 'Frame', description: 'Clarify the question' },
-      { id: 'answer', label: 'Answer', description: 'Record an answer' },
+test('the record path marks exactly one stop as current and names where you are', () => {
+  const html = renderToStaticMarkup(createElement(RecordPath, {
+    label: 'Where you are in this inquiry',
+    hereId: 'weigh',
+    guide: 'Place your remaining evidence on an answer.',
+    stops: [
+      { id: 'frame', label: 'Frame' },
+      { id: 'answers', label: 'Answers' },
+      { id: 'weigh', label: 'Weigh' },
+      { id: 'conclude', label: 'Conclude' },
     ],
   }));
   assert.equal((html.match(/aria-current="step"/g) || []).length, 1);
-  for (const [, id] of html.matchAll(/aria-describedby="([^"]+)"/g)) assert.ok(html.includes(`id="${id}"`));
-  assert.equal((html.match(/aria-describedby=/g) || []).length, 2);
+  assert.equal((html.match(/<button/g) || []).length, 4);
+  assert.match(html, /aria-label="Where you are in this inquiry"/);
+  assert.match(html, /You are here/);
+  assert.match(html, /Place your remaining evidence on an answer\./);
+  // Stops carry names, never numbers or a completion percentage.
+  assert.doesNotMatch(html, /\d+%/);
+  assert.equal((html.match(/data-state="seen"/g) || []).length, 2);
 });
 
 test('shared dialog footers keep cancel before confirmation in DOM and mobile layout', () => {
