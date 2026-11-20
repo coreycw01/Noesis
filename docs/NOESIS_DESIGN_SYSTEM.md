@@ -125,22 +125,38 @@ Workflow grammar (same on every page): **Add** opens an inline form inside the s
 
 Updated at the end of each phase. ✓ = on the system, ◐ = partly, ✗ = not yet.
 
-| Screen | P1 tokens | P2–3 anatomy | P4 chrome | P5 sweep |
+| Screen | Tokens | Record anatomy | Labels, colour, chips | Audited (phone, zoom, contrast, motion) |
 | --- | --- | --- | --- | --- |
-| Home / desk | ✓ | – | ✗ | ✗ |
-| Library index / Source detail | ✓ | ✗ | ✗ | ✗ |
-| Annotations index / detail | ✓ | ✓ | ✗ | ✗ |
-| Works index / editor | ✓ | ✗ | ✗ | ✗ |
-| Concepts index / detail | ✓ | ✓ | ✗ | ✗ |
-| Inquiries index / detail | ✓ | ✓ | ✗ | ✗ |
-| Positions index / detail | ✓ | ✓ | ✗ | ✗ |
-| Praxis index / detail (+goals) | ✓ | ◐ (detail done; Commitments not folded) | ✗ | ✗ |
-| Exercises | ✓ | – | ✗ | ✗ |
-| Atlas | ✓ | – | ✗ | ✗ |
-| Evolution | ✓ | – | ✗ | ✗ |
-| Context desk | ✓ | – | ✗ | ✗ |
-| Profile / Settings | ✓ | – | ✗ | ✗ |
-| Shell / nav / Loop dock | ✓ | – | ✗ | ✗ |
+| Home / desk | ✓ | – | ✓ | ✓ |
+| Library index / Source detail | ✓ | ✗ header only | ✓ | ✓ |
+| Annotations index / detail | ✓ | ✓ | ✓ | ✓ |
+| Works index / editor | ✓ | ✗ editor keeps its own chrome | ✓ | ✓ |
+| Concepts index / detail | ✓ | ✓ | ✓ | ✓ |
+| Inquiries index / detail | ✓ | ✓ | ✓ | ✓ |
+| Positions index / detail | ✓ | ✓ | ✓ | ✓ |
+| Praxis index / detail | ✓ | ✓ | ✓ | ✓ |
+| Commitments (`/goals`) | ✓ | ✗ | ✓ | ✓ |
+| Exercises | ✓ | – | ✓ | ✓ |
+| Atlas | ✓ | – | ✓ | ✓ |
+| Evolution | ✓ | – | ✓ | ✓ |
+| Context desk | ✓ | – | ✓ | ✓ |
+| Profile / Settings | ✓ | – | ✓ | ✓ |
+| Shell / nav / Loop dock | ✓ | – | ✓ | ✓ |
+
+### What is deliberately still open
+
+1. **Source and Work details** keep their own chrome. A source is read and
+   annotated and a work is written in, so neither is a record with a path of
+   stops; folding them into the record anatomy would cost more than it buys.
+   Their headers and controls are on the system.
+2. **Commitments stays its own page.** The handoff asked for it to fold into
+   Praxis. It already sits under Implement in the nav and shares the Praxis
+   method picker, but the Say/Do bridge is a distinct surface, and moving it
+   would change where a person's data lives — a decision to take with the
+   user, not for them.
+3. **188 raw `<button>`s remain.** They are table rows, canvas handles and
+   list items: things that are pressable but are not buttons in the design
+   sense. A primitive for them would be a wrapper, not a control.
 
 ### Counts, rechecked after phase 5
 
