@@ -7,6 +7,7 @@ import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, Reco
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfidenceEmber } from '@/components/Vault/ConfidenceEmber';
+import { CalibrationBar } from '@/components/Vault/CalibrationBar';
 import { RecordHistory, ThroughConcept } from '@/components/shared/ThroughConcept';
 import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
@@ -1152,23 +1153,22 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             onPick={(text) => { if (pullSide === 'against') onUpdateEntry({ ...selected, evidenceAgainst: [...challengeItems, text], dateUpdated: today() }); else onUpdateEntry({ ...selected, evidenceFor: [...supportItems, text], dateUpdated: today() }); }} />
         </RecordSection>
 
-        <RecordSection id="pos-calibrate" title="Calibrate" description="Your stated confidence beside what the grounds support. Your number never moves unless you move it." here={hereId === 'pos-calibrate'}>
-          <div className="noesis-ggauge" aria-hidden="true">
-            <div className="noesis-ggauge__bar" />
-            {grounds !== null && <><div className="noesis-ggauge__mark" style={{ left: `${grounds}%` }} /><div className="noesis-ggauge__label" style={{ left: `${grounds}%` }}>Grounds {grounds}</div></>}
-          </div>
-          <label className="grid gap-1">
-            <Eyebrow as="span">Stated confidence · {statedPercent}%</Eyebrow>
-            <input type="range" min={0} max={100} defaultValue={statedPercent} key={`${selected.id}-${statedPercent}`} className="noesis-range" aria-label="Stated confidence" onChange={(event) => { const big = event.currentTarget.closest('section')?.querySelector('[data-live-confidence]'); if (big) big.textContent = `${event.currentTarget.value}%`; }} onPointerUp={(event) => { const value = Number(event.currentTarget.value); if (value !== statedPercent) onUpdateEntry({ ...selected, confidence: value, dateUpdated: today() }); }} onKeyUp={(event) => { const value = Number(event.currentTarget.value); if (value !== statedPercent) onUpdateEntry({ ...selected, confidence: value, dateUpdated: today() }); }} />
-          </label>
-          <p className="noesis-lean">
-            {grounds === null ? <>Nothing weighed yet. Add support and a challenge to calibrate.</>
-              : Math.abs(gap!) <= 10 ? <><b>Well calibrated.</b> Your {statedPercent}% sits close to the {grounds} the grounds support.</>
-                : gap! > 0 ? <>You state {statedPercent}%, which is <b>{gap} above</b> what the grounds support ({grounds}). Add support, or consider revising.</>
-                  : <>You state {statedPercent}%, which is <b>{-gap!} below</b> what the grounds support ({grounds}).</>}
-            <span className="sr-only" data-live-confidence>{statedPercent}%</span>
-          </p>
-          <p className="text-xs text-muted-foreground">Grounds: the share of recorded items that support the claim ({supportCount} for · {challengeCount} against).</p>
+        <RecordSection id="pos-calibrate" title="Calibrate" description="Your stated confidence beside what your grounds support, on one bar." here={hereId === 'pos-calibrate'}>
+          <CalibrationBar
+            stated={statedPercent}
+            grounds={grounds}
+            supportCount={supportCount}
+            challengeCount={challengeCount}
+            onCommit={async (value, reason) => {
+              await onUpdateEntry({
+                ...selected,
+                confidence: value,
+                versionHistory: [...(selected.versionHistory || []), { date: today(), eventType: 'refined', description: reason, confidence: value }],
+                dateUpdated: today(),
+              });
+              toast({ title: `Confidence moved to ${value}%`, description: 'The reason is now part of the belief biography.' });
+            }}
+          />
         </RecordSection>
 
         <RecordSection id="pos-revise" title="Revise" description="If your thinking changed, record it with a reason. Skip this if it didn't." here={hereId === 'pos-revise'}>

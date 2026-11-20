@@ -186,3 +186,19 @@
 .noesis-game__bin { display: grid; gap: 6px; align-content: start; min-height: 140px; padding: 10px; border: 1.5px dashed hsl(var(--tone)); border-radius: var(--radius-lg); background: hsl(var(--tone) / .05); }
 .noesis-game__step { display: flex; align-items: center; gap: var(--space-3); padding: 12px 14px; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); background: hsl(var(--background) / .6); color: hsl(var(--foreground)); font-size: 1.02rem; }
 .noesis-game__claim { margin: 0; font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 1.15rem; border-left: 3px solid hsl(var(--kind-position)); padding-left: 14px; }
+
+/* ---------- Calibration: one bar, two marks ----------
+   The grounds marker is placed by the record and moves on its own; the
+   handle is the number you state. Both live on the same track so the gap
+   between them is the thing you read. */
+.noesis-calbar { display: grid; gap: var(--space-3); }
+.noesis-calbar__track { position: relative; height: 58px; padding-top: 22px; }
+.noesis-calbar__range { position: relative; z-index: 2; width: 100%; margin: 0; accent-color: hsl(var(--tone)); background: transparent; }
+.noesis-calbar__track::before { content: ""; position: absolute; left: 0; right: 0; top: 36px; height: 8px; border-radius: 99px; background: linear-gradient(90deg, hsl(var(--tone) / .18), hsl(var(--tone) / .55)); }
+.noesis-calbar__gap { position: absolute; top: 36px; height: 8px; border-radius: 99px; background: repeating-linear-gradient(90deg, hsl(var(--foreground) / .45) 0 3px, transparent 3px 7px); }
+.noesis-calbar__grounds { position: absolute; top: 26px; width: 0; height: 28px; border-left: 2px dashed hsl(var(--foreground)); transform: translateX(-50%); z-index: 3; }
+.noesis-calbar__grounds-label,
+.noesis-calbar__stated-label { position: absolute; transform: translateX(-50%); white-space: nowrap; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .1em; text-transform: uppercase; }
+.noesis-calbar__grounds-label { top: 0; color: hsl(var(--foreground)); }
+.noesis-calbar__stated-label { bottom: 0; color: hsl(var(--tone)); }
+.noesis-calbar__why { display: grid; gap: var(--space-2); padding: var(--space-3); border-left: 3px solid hsl(var(--tone)); border-radius: var(--radius-md); background: hsl(var(--tone) / .08); }
