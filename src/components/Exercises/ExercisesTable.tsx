@@ -4,6 +4,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, CircleHelp, Flag, Lightbulb, Puzzle, RotateCcw } from 'lucide-react';
 import { deriveAtlasRegions } from '@/components/Atlas/atlas-diagnostics';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { ExerciseGames } from '@/components/Exercises/ExerciseGames';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -86,7 +87,9 @@ export function ExercisesTable({ concepts, inquiries, positions, media, practice
 
   return (
     <div className="noesis-page noesis-exercises-page" data-noesis-identity="card-table">
-      <PageHeader title={category ? category.label : 'Exercises'} description={category ? category.hint : 'Choose what you want to practice.'} />
+      <PageHeader title={category ? category.label : 'Exercises'} description={category ? category.hint : 'Play with what you have recorded. Every answer is one your workspace already knows.'} />
+      {!category && <ExerciseGames concepts={concepts} inquiries={inquiries} positions={positions} practices={practices} seed={dayKey} />}
+      {!category && <h2 className="mt-8 font-headline text-xl italic">More practice</h2>}
       {category && <Button type="button" variant="ghost" className="mb-4 min-h-11" onClick={() => { if (open) leaveRound(); else setGameType(null); }}>
         <ArrowLeft className="size-4" aria-hidden="true" />{open ? 'Back to setup' : 'All exercises'}
       </Button>}
