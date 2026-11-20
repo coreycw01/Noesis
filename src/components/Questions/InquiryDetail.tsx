@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { Check, Compass, Hammer, MoreHorizontal, Pencil, Scale, Swords, Trash2, X } from 'lucide-react';
+import { Check, MoreHorizontal, Pencil, Scale, Swords, Trash2, X } from 'lucide-react';
 import { aiDepthFor } from '@/lib/ai-depth';
 import { Button, IconButton } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { EntityMeta } from '@/components/shared/IntellectualStructures';
 import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, Row, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { BenchBand, Connections, History, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
 import { InquiryScale, answerWeight, inquiryLead, letter } from '@/components/Questions/InquiryScale';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
@@ -389,45 +390,30 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
       <RecordPath label="Where you are in this inquiry" stops={STOPS} hereId={hereId} guide={guide} />
 
       {/* ---------- Thinking tools: you, alone, with the record ---------- */}
-      <section className="noesis-tools" aria-labelledby="inq-tools-title">
-        <div className="noesis-tools__head">
-          <Eyebrow as="h2" id="inq-tools-title"><Compass className="size-3.5" aria-hidden="true" /> Thinking tools</Eyebrow>
-          <p>For you, not for Noesis. Nothing here is sent anywhere; what you write is saved to this inquiry.</p>
-        </div>
-        <div className="noesis-tools__row">
-          <details className="noesis-tool">
-            <summary><Button asChild variant="secondary" size="sm"><span><Scale className="size-3.5" aria-hidden="true" /> What would change my mind</span></Button></summary>
-            <div className="noesis-fold__body">
-              <p className="noesis-fold__hint">{lead && lead.margin > 0 ? `You lean to ${letter(lead.index)}. What would you have to see to stop leaning that way?` : 'The scale is level. What would have to be true for one answer to win?'}</p>
-              <Dictation label="Dictate what would change your mind">
-                <Textarea value={changeMind} onChange={(event) => setChangeMind(event.target.value)} placeholder="One observation, result, or argument that would move you" className="min-h-[72px]" aria-label="What would change your mind" maxLength={600} />
-              </Dictation>
-              <Button variant="primary" size="sm" disabled={saving || !changeMind.trim()} onClick={() => void saveChangeMind()}>Save to this inquiry</Button>
-            </div>
-          </details>
-          <details className="noesis-tool">
-            <summary><Button asChild variant="secondary" size="sm" disabled={answers.length < 2}><span><Swords className="size-3.5" aria-hidden="true" /> Steelman another answer</span></Button></summary>
-            <div className="noesis-fold__body">
-              <p className="noesis-fold__hint">Write the strongest case for an answer you do not hold. It is saved as support on that answer, so the scale feels it.</p>
-              <div className="noesis-fieldrow">
-                <label><span>Answer</span><select value={steelmanId} onChange={(event) => setSteelmanId(event.target.value)} aria-label="Answer to steelman">
-                  <option value="">Choose an answer</option>
-                  {answers.map((answer, index) => <option key={answer.id} value={answer.id}>{letter(index)} · {answer.statement.slice(0, 48)}</option>)}
-                </select></label>
-              </div>
-              <Dictation label="Dictate the strongest case">
-                <Textarea value={steelman} onChange={(event) => setSteelman(event.target.value)} placeholder="The best case for that answer, stated fairly" className="min-h-[72px]" aria-label="The strongest case for that answer" maxLength={600} />
-              </Dictation>
-              <Button variant="primary" size="sm" disabled={saving || !steelman.trim() || !steelmanId} onClick={() => void saveSteelman()}>Add as support</Button>
-            </div>
-          </details>
-        </div>
-      </section>
+      <ToolsBand note="For you, not for Noesis. Nothing here is sent anywhere; what you write is saved to this inquiry.">
+        <Tool label="What would change my mind" icon={Scale}>
+          <p className="noesis-fold__hint">{lead && lead.margin > 0 ? `You lean to ${letter(lead.index)}. What would you have to see to stop leaning that way?` : 'The scale is level. What would have to be true for one answer to win?'}</p>
+          <Dictation label="Dictate what would change your mind">
+            <Textarea value={changeMind} onChange={(event) => setChangeMind(event.target.value)} placeholder="One observation, result, or argument that would move you" className="min-h-[72px]" aria-label="What would change your mind" maxLength={600} />
+          </Dictation>
+          <Button variant="primary" size="sm" disabled={saving || !changeMind.trim()} onClick={() => void saveChangeMind()}>Save to this inquiry</Button>
+        </Tool>
+        <Tool label="Steelman another answer" icon={Swords} disabled={answers.length < 2}>
+          <p className="noesis-fold__hint">Write the strongest case for an answer you do not hold. It is saved as support on that answer, so the scale feels it.</p>
+          <div className="noesis-fieldrow">
+            <label><span>Answer</span><select value={steelmanId} onChange={(event) => setSteelmanId(event.target.value)} aria-label="Answer to steelman">
+              <option value="">Choose an answer</option>
+              {answers.map((answer, index) => <option key={answer.id} value={answer.id}>{letter(index)} · {answer.statement.slice(0, 48)}</option>)}
+            </select></label>
+          </div>
+          <Dictation label="Dictate the strongest case">
+            <Textarea value={steelman} onChange={(event) => setSteelman(event.target.value)} placeholder="The best case for that answer, stated fairly" className="min-h-[72px]" aria-label="The strongest case for that answer" maxLength={600} />
+          </Dictation>
+          <Button variant="primary" size="sm" disabled={saving || !steelman.trim() || !steelmanId} onClick={() => void saveSteelman()}>Add as support</Button>
+        </Tool>
+      </ToolsBand>
 
-      <div className="noesis-bench">
-        <Eyebrow as="h2"><Hammer className="size-3.5" aria-hidden="true" /> Workbench</Eyebrow>
-        <p>Where you write the inquiry out, and where Noesis can read over your shoulder if you ask it to.</p>
-      </div>
+      <BenchBand note="Where you write the inquiry out, and where Noesis can read over your shoulder if you ask it to." />
 
       {/* ---------- Frame ---------- */}
       <RecordSection id="inq-frame" title="Frame" description="Why the question matters, before any answer." here={hereId === 'inq-frame'}
@@ -611,39 +597,50 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
       </RecordSection>
 
       <RecordFooter>
-        <FooterSection title="Record">
-          <EntityMeta items={[{ label: 'Status', value: question.status.replace(/_/g, ' ') }, { label: 'Created', value: question.dateCreated?.slice(0, 10) || '—' }, { label: 'Sources', value: sources.length }, { label: 'Evidence', value: evidence.length }]} />
-          {sources.length > 0 && <ul className="mt-2 grid gap-1 text-sm">{sources.map((source) => <li key={source.id}>{source.title}{source.creator ? <span className="text-muted-foreground"> · {source.creator}</span> : null}</li>)}</ul>}
+        <FooterSection title="Connections" count={sources.length + beliefs.length + drafts.length + practices.length} defaultOpen>
+          <Connections groups={[
+            { type: 'Sources', tone: 'source', items: sources.map((source) => ({ id: source.id, label: source.title, meta: source.creator || undefined })) },
+            { type: 'Positions', tone: 'position', items: beliefs.map((belief) => ({ id: belief.id, label: belief.title, meta: `${belief.confidence}% confidence`, onOpen: () => onOpenPosition(belief.id) })) },
+            { type: 'Works', tone: 'work', items: drafts.map((work) => ({ id: work.id, label: work.title || 'Untitled', onOpen: () => onOpenWork(work.id) })),
+              action: (
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <Button variant="secondary" size="sm" onClick={() => void createWork()} disabled={saving}>Write about it in Works</Button>
+                  <Select value={existingWorkId} onValueChange={setExistingWorkId} disabled={saving}><SelectTrigger aria-label="Choose an existing work to link" className="flex-1"><SelectValue placeholder="Or choose a work to link" /></SelectTrigger><SelectContent>{availableDrafts.filter((item) => !(question.draftIds?.includes(item.id) && item.questionIds?.includes(question.id))).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select>
+                  <Button variant="outline" size="sm" onClick={() => void link('work', existingWorkId)} disabled={saving || !existingWorkId}>Link</Button>
+                </div>
+              ) },
+            { type: 'Praxis', tone: 'practice', items: practices.map((practice) => ({ id: practice.id, label: practice.title, meta: practice.status.replace(/_/g, ' '), onOpen: () => onOpenPractice(practice.id) })),
+              action: (
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <Textarea value={testDraft.tested} onChange={(event) => setTestDraft((prev) => ({ ...prev, tested: event.target.value }))} placeholder="What are you trying to learn?" aria-label="What are you trying to learn" className="min-h-[72px]" />
+                  <Textarea value={testDraft.method} onChange={(event) => setTestDraft((prev) => ({ ...prev, method: event.target.value }))} placeholder="What will you do or observe?" aria-label="What will you do or observe" className="min-h-[72px]" />
+                  <div className="flex flex-col gap-2 sm:flex-row md:col-span-2">
+                    <Button variant="secondary" size="sm" disabled={saving || !testDraft.tested.trim() || !testDraft.method.trim()} onClick={() => void draftPractice(testDraft.tested.trim(), testDraft.method.trim(), `Test for: ${question.text.slice(0, 60)}`)}>Design a test</Button>
+                    <Select value={existingPracticeId} onValueChange={setExistingPracticeId} disabled={saving}><SelectTrigger aria-label="Choose a practice to link" className="flex-1"><SelectValue placeholder="Or choose a practice to link" /></SelectTrigger><SelectContent>{availablePractices.filter((item) => !(question.practiceIds?.includes(item.id) && item.questionIds?.includes(question.id))).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select>
+                    <Button variant="outline" size="sm" onClick={() => void link('practice', existingPracticeId)} disabled={saving || !existingPracticeId}>Link</Button>
+                  </div>
+                </div>
+              ) },
+            { type: 'Concepts', tone: 'concept', items: conceptNames.map((name) => ({ id: name, label: name })) },
+          ]} />
         </FooterSection>
-        <FooterSection title="Works" count={drafts.length}>
-          {drafts.length > 0 && <ul className="grid gap-1 text-sm">{drafts.map((work) => <li key={work.id}><Button variant="link" size="sm" onClick={() => onOpenWork(work.id)}>{work.title || 'Untitled'}</Button></li>)}</ul>}
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <Button variant="secondary" onClick={() => void createWork()} disabled={saving}>Write about it in Works</Button>
-            <Select value={existingWorkId} onValueChange={setExistingWorkId} disabled={saving}><SelectTrigger aria-label="Choose an existing work to link" className="flex-1"><SelectValue placeholder="Or choose a work to link" /></SelectTrigger><SelectContent>{availableDrafts.filter((item) => !(question.draftIds?.includes(item.id) && item.questionIds?.includes(question.id))).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select>
-            <Button variant="outline" onClick={() => void link('work', existingWorkId)} disabled={saving || !existingWorkId}>Link</Button>
-          </div>
-        </FooterSection>
-        <FooterSection title="Praxis" count={practices.length}>
-          {practices.length > 0 && <ul className="grid gap-1 text-sm">{practices.map((practice) => <li key={practice.id}><Button variant="link" size="sm" onClick={() => onOpenPractice(practice.id)}>{practice.title}</Button> <span className="text-muted-foreground">· {practice.status.replace(/_/g, ' ')}</span></li>)}</ul>}
-          <div className="mt-2 grid gap-2 md:grid-cols-2">
-            <Textarea value={testDraft.tested} onChange={(event) => setTestDraft((prev) => ({ ...prev, tested: event.target.value }))} placeholder="What are you trying to learn?" aria-label="What are you trying to learn" className="min-h-[72px]" />
-            <Textarea value={testDraft.method} onChange={(event) => setTestDraft((prev) => ({ ...prev, method: event.target.value }))} placeholder="What will you do or observe?" aria-label="What will you do or observe" className="min-h-[72px]" />
-            <div className="flex flex-col gap-2 sm:flex-row md:col-span-2">
-              <Button variant="secondary" disabled={saving || !testDraft.tested.trim() || !testDraft.method.trim()} onClick={() => void draftPractice(testDraft.tested.trim(), testDraft.method.trim(), `Test for: ${question.text.slice(0, 60)}`)}>Design a test</Button>
-              <Select value={existingPracticeId} onValueChange={setExistingPracticeId} disabled={saving}><SelectTrigger aria-label="Choose a practice to link" className="flex-1"><SelectValue placeholder="Or choose a practice to link" /></SelectTrigger><SelectContent>{availablePractices.filter((item) => !(question.practiceIds?.includes(item.id) && item.questionIds?.includes(question.id))).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select>
-              <Button variant="outline" onClick={() => void link('practice', existingPracticeId)} disabled={saving || !existingPracticeId}>Link</Button>
-            </div>
-          </div>
-        </FooterSection>
-        {!!question.investigationNotes?.some((note) => note.origin === 'ai-assisted') && (
-          <FooterSection title="Noesis notes" count={(question.investigationNotes || []).filter((note) => note.origin === 'ai-assisted').length}>
+
+        <FooterSection title="History" count={(question.investigationNotes || []).length}>
+          <History entries={(question.investigationNotes || []).map((note) => ({ id: note.id, date: note.date, title: note.title || (note.origin === 'ai-assisted' ? 'Noesis note' : 'Note'), text: note.text }))}
+            empty="Nothing recorded yet. Notes you write with a thinking tool land here." />
+          {!!question.investigationNotes?.some((note) => note.origin === 'ai-assisted') && (
             <AiAssistedHistory title="Reviewed challenge notes" entries={(question.investigationNotes || []).filter((note) => note.origin === 'ai-assisted').map((note) => ({ id: note.id, action: 'socratic_inquiry_challenge', title: note.title || 'Socratic challenge', content: note.text, date: note.date, originDetails: note.provenance ? { provenance: note.provenance, target: { type: 'inquiry', id: question.id, fieldPath: 'investigationNotes.text', subrecordId: note.id } } : undefined }))}
               onChange={async (entries) => {
                 const userNotes = (question.investigationNotes || []).filter((note) => note.origin !== 'ai-assisted');
                 if (!await onUpdateQuestion({ ...question, investigationNotes: [...userNotes, ...entries.map((entry) => ({ ...question.investigationNotes?.find((note) => note.id === entry.id && note.origin === 'ai-assisted'), id: entry.id, title: entry.title, text: entry.content, origin: 'ai-assisted' as const, date: entry.date }))], dateUpdated: today() })) throw new Error('The challenge-note history was not saved.');
               }} />
-          </FooterSection>
-        )}
+          )}
+        </FooterSection>
+
+        <FooterSection title="Record">
+          <EntityMeta items={[{ label: 'Status', value: question.status.replace(/_/g, ' ') }, { label: 'Created', value: question.dateCreated?.slice(0, 10) || '—' }, { label: 'Sources', value: sources.length }, { label: 'Evidence', value: evidence.length }]} />
+        </FooterSection>
+
         <FooterSection title="Danger zone">
           <Button variant="destructive" onClick={() => setDeleteOpen(true)}><Trash2 /> Delete this inquiry</Button>
         </FooterSection>

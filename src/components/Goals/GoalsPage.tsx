@@ -13,7 +13,9 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { RecordHeader, RecordPath } from '@/components/shared/record/RecordPage';
+import { FooterSection, RecordFooter, RecordHeader, RecordPath } from '@/components/shared/record/RecordPage';
+import { Connections, History } from '@/components/shared/record/RecordParts';
+import { EntityMeta } from '@/components/shared/IntellectualStructures';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalDay } from '@/hooks/use-local-day';
@@ -912,6 +914,31 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               );
             })()}
             {focusedGoalId && progressSettings}
+            {focusedGoal && (
+              <RecordFooter>
+                <FooterSection title="Connections" count={(focusedGoal.relatedObjectIds?.positionIds?.length || 0) + (focusedGoal.relatedObjectIds?.inquiryIds?.length || 0) + (focusedGoal.relatedObjectIds?.practiceIds?.length || 0) + (focusedGoal.relatedObjectIds?.workIds?.length || 0)}>
+                  <Connections groups={[
+                    { type: 'Positions', tone: 'position', items: positions.filter((item) => (focusedGoal.relatedObjectIds?.positionIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title || item.statement, meta: `${item.confidence}% confidence` })) },
+                    { type: 'Inquiries', tone: 'inquiry', items: inquiries.filter((item) => (focusedGoal.relatedObjectIds?.inquiryIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.text, meta: item.status.replace(/_/g, ' ') })) },
+                    { type: 'Praxis', tone: 'practice', items: practices.filter((item) => (focusedGoal.relatedObjectIds?.practiceIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title, meta: item.status.replace(/_/g, ' '), onOpen: () => onOpenPraxis(item.type === 'experiment' ? 'experiments' : 'practices') })) },
+                    { type: 'Works', tone: 'work', items: works.filter((item) => (focusedGoal.relatedObjectIds?.workIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title || 'Untitled' })) },
+                  ]} />
+                  <p className="mt-2 text-sm text-muted-foreground">Choose what this commitment counts under Commit, above.</p>
+                </FooterSection>
+                <FooterSection title="History" count={(focusedGoal.commitmentCheckIns || []).length}>
+                  <History entries={[...(focusedGoal.commitmentCheckIns || [])].reverse().map((checkIn) => ({ id: checkIn.id, date: checkIn.date, title: checkIn.status === 'skipped' ? 'Skipped' : 'Kept', text: checkIn.note }))}
+                    empty="No check-ins yet. Each one you record lands here." />
+                </FooterSection>
+                <FooterSection title="Record">
+                  <EntityMeta items={[
+                    { label: 'Counts', value: questTypeForGoal(focusedGoal, focusedGoal.type) },
+                    { label: 'Status', value: focusedGoal.status.replace(/_/g, ' ') },
+                    { label: 'Progress', value: `${focusedGoal.currentProgress} of ${focusedGoal.targetProgress}` },
+                    { label: 'Review', value: focusedGoal.commitmentReviewDate?.slice(0, 10) || '—' },
+                  ]} />
+                </FooterSection>
+              </RecordFooter>
+            )}
           </>
         )}
       </div>

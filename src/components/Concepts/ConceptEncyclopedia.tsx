@@ -7,7 +7,7 @@ import { workspaceScrollBehavior } from '@/lib/appearance';
 import React, { useEffect, useMemo, useState } from 'react';
 import { persistedConceptRecords } from '@/lib/workspace-counts';
 import { LabeledField } from '@/components/shared/LabeledField';
-import { AlertTriangle, ArrowLeft, ArrowRight, BookOpen, ChevronDown, Edit, Plus, Trash2, MoreHorizontal } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, BookOpen, ChevronDown, Edit, Plus, Scale, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button, IconButton } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -32,6 +32,7 @@ import { ConceptDiagnosisBars } from '@/components/Concepts/ConceptDiagnosisBars
 import { ConceptCaliper } from '@/components/Concepts/ConceptCaliper';
 import { ThroughConcept } from '@/components/shared/ThroughConcept';
 import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection } from '@/components/shared/record/RecordPage';
+import { BenchBand, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Pill, PillRow } from '@/components/ui/pill';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
@@ -813,6 +814,85 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         <RecordPath label="Where you are with this concept" hereId={conceptHereId} guide={conceptGuide}
           stops={[{ id: 'con-define', label: 'Definition' }, { id: 'con-boundary', label: 'Boundary' }, { id: 'con-relations', label: 'Relations' }, { id: 'con-stands', label: 'Where it stands' }]} />
 
+        {/* ---------- Thinking tools: comparisons you make yourself ---------- */}
+        <ToolsBand note="For you, not for Noesis. Comparing what this concept holds up, and where it strains.">
+          <Tool label="Compare positions using this concept" icon={Scale} disabled={r.beliefs.length < 2}>
+            {/* Tensions & Conflicts */}
+            {r.beliefs.length >= 2 && (
+              <section className="mb-10">
+                <div className="flex items-center gap-2 mb-5">
+                  <AlertTriangle className="size-4 text-caution" />
+                  <h2 className="noesis-eyebrow text-foreground/60 font-bold">Tensions & Conflicts</h2>
+                </div>
+                <div className="rounded-xl border border-caution/35 bg-caution/10 p-5">
+                  <p className="text-xs text-caution font-body mb-4 italic">
+                    These positions all orbit <span className="font-bold">{selectedName}</span>. Do they cohere, contradict, or refine each other?
+                  </p>
+                  <div className="space-y-4">
+                    {r.beliefs.slice(0, 4).map((a, ai) =>
+                      r.beliefs.slice(ai + 1, ai + 2).map((b) => (
+                        <div key={`${a.id}-${b.id}`} className="rounded-lg bg-card/80 border border-caution/25 p-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">Position A</p>
+                              <p className="text-sm font-headline font-bold italic text-primary">{a.title}</p>
+                              <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{a.statement}&quot;</p>
+                            </div>
+                            <div>
+                              <p className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">Position B</p>
+                              <p className="text-sm font-headline font-bold italic text-primary">{b.title}</p>
+                              <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{b.statement}&quot;</p>
+                            </div>
+                          </div>
+                          <div className="mt-4 border-t border-caution/25 pt-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <p className="noesis-eyebrow noesis-eyebrow--sm text-caution font-bold">Resolve Relationship</p>
+                              {tensionDecisions[`${a.id}-${b.id}`] && (
+                                <span className="rounded-full border border-caution/40 bg-caution/15 px-2 py-0.5 noesis-eyebrow noesis-eyebrow--sm text-foreground">
+                                  {tensionDecisions[`${a.id}-${b.id}`].replace(/_/g, ' ')}
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              {CONCEPT_TENSION_DECISIONS.map((decision) => {
+                                const selected = tensionDecisions[`${a.id}-${b.id}`] === decision.id;
+                                return (
+                                  <Button
+                                    key={decision.id}
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => resolveConceptTension(selectedName, a, b, decision.id)}
+                                    className={cn(
+                                      'h-auto justify-start rounded-lg px-3 py-2 text-left whitespace-normal border-caution/25 bg-card text-foreground hover:bg-caution/10',
+                                      selected && 'border-caution bg-caution/20 text-foreground'
+                                    )}
+                                  >
+                                    <span className="block">
+                                      <span className="block noesis-eyebrow noesis-eyebrow--sm font-bold">{decision.label}</span>
+                                      <span className="mt-0.5 block text-[11px] normal-case tracking-normal text-muted-foreground">{decision.description}</span>
+                                    </span>
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                            <p className="mt-2 text-[11px] text-caution">
+                              Choosing one creates a typed link, so Atlas and Positions can remember how these claims relate.
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+          </Tool>
+        </ToolsBand>
+
+        <BenchBand note="Where you write the concept out, and where Noesis can read over your shoulder if you ask it to." />
+
         <RecordSection id="con-define" title="Definition" description="The working meaning, in your own words. It can change." here={conceptHereId === 'con-define'}
           aside={!isDefinitionEditing && concept ? <Button variant="tertiary" size="sm" onClick={startDefinitionEdit}><Edit className="size-3.5" /> {concept.description ? 'Edit definition' : 'Write a definition'}</Button> : undefined}>
           {isDefinitionEditing ? (
@@ -940,7 +1020,19 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         </RecordSection>
 
           <RecordFooter>
-            <FooterSection title="Where this concept appears">
+            <FooterSection title="Connections">
+            <details className="noesis-fold">
+              <summary><Button asChild variant="tertiary" size="sm"><span>Also through {selectedName}</span></Button></summary>
+              <div className="noesis-fold__body">
+              <ThroughConcept concept={selectedName} columns={[
+                { label: 'Sources', tone: 'encounter', items: r.sources.map((source) => ({ id: source.id, label: source.title, onOpen: () => previewSource(source) })) },
+                { label: 'Annotations', tone: 'encounter', items: r.annotations.map((note) => ({ id: `${note.source.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: () => previewSource(note.source) })) },
+                { label: 'Inquiries', tone: 'examine', items: r.questions.map((question) => ({ id: question.id, label: question.text, onOpen: () => previewInquiry(question) })) },
+                { label: 'Positions', tone: 'claim', items: r.beliefs.map((entry) => ({ id: entry.id, label: entry.title, onOpen: () => previewPosition(entry) })) },
+                { label: 'Works', tone: 'more', items: r.drafts.map((draft) => ({ id: draft.id, label: draft.title || 'Untitled', onOpen: () => previewWork(draft) })) },
+              ]} />
+              </div>
+            </details>
             {/* Sources + Annotations */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
               <ConceptPageSection title="Related Sources" count={r.sources.length} empty="No sources tagged with this concept yet.">
@@ -1049,81 +1141,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
             </FooterSection>
 
-            <FooterSection title="Compare positions using this concept">
-            {/* Tensions & Conflicts */}
-            {r.beliefs.length >= 2 && (
-              <section className="mb-10">
-                <div className="flex items-center gap-2 mb-5">
-                  <AlertTriangle className="size-4 text-caution" />
-                  <h2 className="noesis-eyebrow text-foreground/60 font-bold">Tensions & Conflicts</h2>
-                </div>
-                <div className="rounded-xl border border-caution/35 bg-caution/10 p-5">
-                  <p className="text-xs text-caution font-body mb-4 italic">
-                    These positions all orbit <span className="font-bold">{selectedName}</span>. Do they cohere, contradict, or refine each other?
-                  </p>
-                  <div className="space-y-4">
-                    {r.beliefs.slice(0, 4).map((a, ai) =>
-                      r.beliefs.slice(ai + 1, ai + 2).map((b) => (
-                        <div key={`${a.id}-${b.id}`} className="rounded-lg bg-card/80 border border-caution/25 p-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <p className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">Position A</p>
-                              <p className="text-sm font-headline font-bold italic text-primary">{a.title}</p>
-                              <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{a.statement}&quot;</p>
-                            </div>
-                            <div>
-                              <p className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">Position B</p>
-                              <p className="text-sm font-headline font-bold italic text-primary">{b.title}</p>
-                              <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{b.statement}&quot;</p>
-                            </div>
-                          </div>
-                          <div className="mt-4 border-t border-caution/25 pt-3">
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                              <p className="noesis-eyebrow noesis-eyebrow--sm text-caution font-bold">Resolve Relationship</p>
-                              {tensionDecisions[`${a.id}-${b.id}`] && (
-                                <span className="rounded-full border border-caution/40 bg-caution/15 px-2 py-0.5 noesis-eyebrow noesis-eyebrow--sm text-foreground">
-                                  {tensionDecisions[`${a.id}-${b.id}`].replace(/_/g, ' ')}
-                                </span>
-                              )}
-                            </div>
-                            <div className="grid gap-2 sm:grid-cols-3">
-                              {CONCEPT_TENSION_DECISIONS.map((decision) => {
-                                const selected = tensionDecisions[`${a.id}-${b.id}`] === decision.id;
-                                return (
-                                  <Button
-                                    key={decision.id}
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => resolveConceptTension(selectedName, a, b, decision.id)}
-                                    className={cn(
-                                      'h-auto justify-start rounded-lg px-3 py-2 text-left whitespace-normal border-caution/25 bg-card text-foreground hover:bg-caution/10',
-                                      selected && 'border-caution bg-caution/20 text-foreground'
-                                    )}
-                                  >
-                                    <span className="block">
-                                      <span className="block noesis-eyebrow noesis-eyebrow--sm font-bold">{decision.label}</span>
-                                      <span className="mt-0.5 block text-[11px] normal-case tracking-normal text-muted-foreground">{decision.description}</span>
-                                    </span>
-                                  </Button>
-                                );
-                              })}
-                            </div>
-                            <p className="mt-2 text-[11px] text-caution">
-                              Choosing one creates a typed link, so Atlas and Positions can remember how these claims relate.
-                            </p>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </section>
-            )}
 
-            </FooterSection>
-
-            <FooterSection title="Definition history">
+            <FooterSection title="History">
             {/* Evolution over time */}
             {sortedEvents.length > 0 && (
               <section className="mb-10">
@@ -1145,15 +1164,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </FooterSection>
             <FooterSection title="Record">
               <p className="text-sm text-muted-foreground">{r.sources.length} sources · {r.annotations.length} annotations · {r.questions.length} inquiries · {r.beliefs.length} positions · {r.drafts.length} works{concept?.dateCreated ? ` · created ${new Date(concept.dateCreated).toLocaleDateString()}` : ''}</p>
-            </FooterSection>
-            <FooterSection title={`Through ${selectedName}`}>
-              <ThroughConcept concept={selectedName} columns={[
-                { label: 'Sources', tone: 'encounter', items: r.sources.map((source) => ({ id: source.id, label: source.title, onOpen: () => previewSource(source) })) },
-                { label: 'Annotations', tone: 'encounter', items: r.annotations.map((note) => ({ id: `${note.source.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: () => previewSource(note.source) })) },
-                { label: 'Inquiries', tone: 'examine', items: r.questions.map((question) => ({ id: question.id, label: question.text, onOpen: () => previewInquiry(question) })) },
-                { label: 'Positions', tone: 'claim', items: r.beliefs.map((entry) => ({ id: entry.id, label: entry.title, onOpen: () => previewPosition(entry) })) },
-                { label: 'Works', tone: 'more', items: r.drafts.map((draft) => ({ id: draft.id, label: draft.title || 'Untitled', onOpen: () => previewWork(draft) })) },
-              ]} />
             </FooterSection>
           </RecordFooter>
         {conceptEditorDialog}

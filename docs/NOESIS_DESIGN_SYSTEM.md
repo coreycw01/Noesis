@@ -94,12 +94,34 @@ RecordPage                                  max-width 72rem, gutter --page-gutte
 │   ├─ title  (.noesis-page-title, one size recipe)
 │   └─ primary tools (RecordTools: 1 primary + ≤3 secondary, overflow in menu)
 ├─ RecordPath  (sticky; named stops; "You are here" from state; no numbers)
+│   └─ sliding underline: follows the section you are READING (scroll), while the
+│      dots keep saying where the WORK stands (record state). Two different facts,
+│      two different marks; the guide sentence always follows the record state.
+├─ ToolsBand   (thinking tools: instruments you use on your own. Nothing is sent
+│   └─ Tool × n   anywhere; each writes its result back into the record.)
+├─ BenchBand   (the label that says the writing starts here, and that Noesis may
+│               be asked in — every "Ask Noesis" control lives below this line)
 ├─ RecordSection × n   (title, optional Label, body; tools live INSIDE the section they act on)
 │   └─ instrument where the record has one
 ├─ SuggestionCard × 0–2  (only when the app has a specific suggestion)
-└─ RecordFooter
-    └─ FooterSection (Relations, History, Provenance, Danger zone) — collapsed
+└─ RecordFooter — the same four names on every record, in this order
+    ├─ Connections  (one disclosure per kind: Sources · Inquiries · Positions ·
+    │                Praxis · Works · Concepts, each with its own colour and count)
+    ├─ History      (what happened to this record, newest first, one row shape)
+    ├─ Record       (meta, provenance, reasoning)
+    └─ Danger zone  (only where the record can be deleted from its page)
 ```
+
+Connections in the footer are **read-only links**: choosing what a record is attached
+to belongs to the section where that choice is part of the work (Praxis "Carry
+forward", a commitment's "Commit"). The footer is where you go to see what exists,
+not to rewire it — except for the two cases where the footer *is* the only home for
+the editor (an annotation's concept tags, an inquiry's Works/Praxis linking).
+
+Thinking tools, by record: Inquiry — *what would change my mind*, *steelman another
+answer*; Position — *stress test*, *pressure*, *tensions*; Concept — *compare
+positions using this concept*. These used to be footer dropdowns, which put the
+instruments of self-criticism in the same drawer as provenance metadata.
 
 Stops per record (from the approved prototype):
 - Inquiry: Question → Answers → Evidence → Scale → Working answer

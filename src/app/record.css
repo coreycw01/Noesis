@@ -258,3 +258,22 @@
 .noesis-bench .noesis-eyebrow { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: hsl(var(--tone)); }
 .noesis-bench p { margin: 0; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
 .noesis-tool .noesis-fold__body > button { justify-self: start; }
+
+/* Connections and history: one shape, every record. */
+.noesis-connections { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.noesis-connections__group { flex: 0 1 auto; min-width: 0; border: var(--hair); border-radius: var(--radius-pill); background: hsl(var(--background)); }
+.noesis-connections__group[open] { flex-basis: 100%; border-radius: var(--radius-lg); }
+.noesis-connections__group > summary { display: flex; align-items: center; gap: 8px; min-height: var(--touch-min); padding: 0 var(--space-3); cursor: pointer; list-style: none; }
+.noesis-connections__group > summary::-webkit-details-marker { display: none; }
+.noesis-connections__group > summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-connections__count { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); color: hsl(var(--muted-foreground)); }
+.noesis-connections__body { padding: 0 var(--space-3) var(--space-3); }
+.noesis-connections__body ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.noesis-connections__body li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.noesis-connections__body li small { font-size: var(--text-xs); color: hsl(var(--muted-foreground)); }
+.noesis-connections__empty { margin: 0; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+.noesis-history-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.noesis-history-list li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--space-3); font-size: var(--text-sm); }
+.noesis-history-list time { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); color: hsl(var(--muted-foreground)); }
+.noesis-history-list b { display: block; font-weight: 600; }
+@media (max-width: 640px) { .noesis-history-list li { grid-template-columns: 1fr; gap: 2px; } }

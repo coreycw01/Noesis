@@ -4,12 +4,13 @@
 import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, Row, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { BenchBand, Connections, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfidenceEmber } from '@/components/Vault/ConfidenceEmber';
 import { CalibrationBar } from '@/components/Vault/CalibrationBar';
 import { RecordHistory, ThroughConcept } from '@/components/shared/ThroughConcept';
-import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Gauge, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal, Wind, Zap } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { Button, IconButton } from '@/components/ui/button';
@@ -1114,6 +1115,37 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
         <RecordPath label="Where you are with this position" hereId={hereId} guide={guide} stops={[{ id: 'pos-claim', label: 'Claim' }, { id: 'pos-grounds', label: 'Grounds' }, { id: 'pos-calibrate', label: 'Calibrate' }, { id: 'pos-revise', label: 'Revise' }]} />
 
+
+        {/* ---------- Thinking tools: pressure you apply yourself ---------- */}
+        <ToolsBand note="For you, not for Noesis. Each one writes what you find back into this position.">
+          <Tool label="Stress test" icon={Gauge}>
+            <div className="noesis-fieldrow mb-2">{stressStages.map((stage, index) => <Pill key={stage.title} pressed={stressStageIndex === index} onClick={() => setStressStageIndex(index)}>{stage.title}</Pill>)}</div>
+            <p className="text-[.95rem] font-medium leading-6">{selectedStressStage.prompt}</p>
+            <p className="mt-1 text-sm italic text-muted-foreground">{selectedStressStage.signal}</p>
+            <Textarea value={stressAnswer} onChange={(event) => setStressAnswer(event.target.value)} className="mt-2 min-h-[96px]" placeholder="Record the pressure, the evidence that would matter, and what this should do to confidence or wording." aria-label="Answer this stage" />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" onClick={saveStressAnswer} disabled={!stressAnswer.trim()}>Record stage answer</Button>
+              {stressStageIndex === stressStages.length - 1 && <><Button size="sm" variant="outline" onClick={() => onUpdateEntry({ ...selected, status: 'challenged', dateUpdated: today() })}>Mark challenged</Button><Button size="sm" variant="outline" onClick={() => onUpdateEntry({ ...selected, status: 'revised', versionHistory: [...(selected.versionHistory || []), { date: today(), eventType: 'revised', description: 'Marked revised after stress-test outcome review.' }], dateUpdated: today() })}>Mark revised</Button></>}
+            </div>
+          </Tool>
+          <Tool label="Pressure" icon={Wind}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <InfoPanel title="Counterposition" items={[counterposition]} empty="No counterposition recorded yet." />
+              <InfoPanel title="Hidden assumptions to pressure" items={positionAssumptions} empty="No assumptions have been written yet." />
+              <InfoPanel title="Alternative explanations" items={['Could the same evidence support a weaker, narrower, or opposite claim?', linkedSources.length ? `Review ${linkedSources.length} linked source(s) for disagreement, not just support.` : 'Add a source that disagrees before raising confidence.']} empty="No alternative explanation path yet." />
+              <InfoPanel title="Evidence still needed" items={selected.missingEvidence || []} empty="No missing-evidence review has been saved yet." />
+              <EntityListPanel title="Contradictory or challenging positions" empty="No typed challenge or contradiction links yet." items={relatedPositions.filter((entry) => typedLinks.some((link) => ['challenges', 'contradicts', 'weakens'].includes(link.type) && ((link.fromId === entry.id && link.toId === selected.id) || (link.toId === entry.id && link.fromId === selected.id)))).map((entry) => ({ id: entry.id, title: entry.title, meta: 'challenge pressure', onClick: () => openEntry(entry.id) }))} />
+            </div>
+          </Tool>
+          {tensionLinks.length > 0 && (
+            <Tool label={`Tensions · ${tensionLinks.length}`} icon={Zap}>
+              <TensionResolutionPanel selected={selected} tensionLinks={tensionLinks} onUpdateEntry={onUpdateEntry} onUpdateLink={onUpdateLink} />
+            </Tool>
+          )}
+        </ToolsBand>
+
+        <BenchBand note="Where you write the position out, and where Noesis can read over your shoulder if you ask it to." />
+
         <RecordSection id="pos-claim" title="Claim" description="What you hold, and how sure you are." here={hereId === 'pos-claim'}>
           <div className="noesis-ba">
             <div className="noesis-confbox">
@@ -1189,41 +1221,18 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         </RecordSection>
 
         <RecordFooter>
-          <FooterSection title="Record">
-            <EntityMeta items={[
-              { label: 'Type', value: (selected.type || 'belief').replace('_', ' ') },
-              { label: 'Mode', value: (selected.positionKind || 'interpretive').replace(/_/g, ' ') },
-              { label: 'Status', value: selected.status },
-              { label: 'Created', value: safePositionDate(selected.dateCreated) },
-              { label: 'Updated', value: safePositionDate(selected.dateUpdated || selected.dateCreated) },
+          <FooterSection title="Connections" count={linkedSources.length + linkedQuestions.length + linkedDrafts.length + linkedPractices.length + relatedPositions.length}>
+            <Connections groups={[
+              { type: 'Sources', tone: 'source', items: linkedSources.map((item) => ({ id: item.id, label: item.title, meta: `${item.type}${item.creator ? ` · ${item.creator}` : ''}`, onOpen: () => previewSource(item) })) },
+              { type: 'Inquiries', tone: 'inquiry', items: linkedQuestions.map((item) => ({ id: item.id, label: item.text, meta: item.status.replace(/_/g, ' '), onOpen: () => previewInquiry(item) })) },
+              { type: 'Positions', tone: 'position', items: relatedPositions.map((entry) => ({ id: entry.id, label: entry.title, meta: typedLinks.filter((link) => (link.fromId === entry.id && link.toId === selected.id) || (link.toId === entry.id && link.fromId === selected.id)).map((link) => link.type.replace(/_/g, ' ')).join(', '), onOpen: () => openEntry(entry.id) })) },
+              { type: 'Praxis', tone: 'practice', items: linkedPractices.map((item) => ({ id: item.id, label: item.title, meta: `${item.type.replace(/_/g, ' ')} · ${item.status}`, onOpen: () => previewPractice(item) })) },
+              { type: 'Works', tone: 'work', items: linkedDrafts.map((item) => ({ id: item.id, label: item.title, meta: `${item.type.replace(/_/g, ' ')} · ${item.status}`, onOpen: () => previewWork(item) })) },
+              { type: 'Concepts', tone: 'concept', items: (selected.tags || []).map((tag) => ({ id: tag, label: tag })) },
             ]} />
-            {selected.confidenceReasoning && <p className="mt-2 text-sm"><Eyebrow size="sm">Confidence reasoning</Eyebrow><br />{selected.confidenceReasoning}</p>}
-          </FooterSection>
-          <FooterSection title="Stress test" count={selected.testingCount || 0}>
-            <div className="noesis-fieldrow mb-2">{stressStages.map((stage, index) => <Pill key={stage.title} pressed={stressStageIndex === index} onClick={() => setStressStageIndex(index)}>{stage.title}</Pill>)}</div>
-            <p className="text-[.95rem] font-medium leading-6">{selectedStressStage.prompt}</p>
-            <p className="mt-1 text-sm italic text-muted-foreground">{selectedStressStage.signal}</p>
-            <Textarea value={stressAnswer} onChange={(event) => setStressAnswer(event.target.value)} className="mt-2 min-h-[96px]" placeholder="Record the pressure, the evidence that would matter, and what this should do to confidence or wording." aria-label="Answer this stage" />
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button variant="secondary" size="sm" onClick={saveStressAnswer} disabled={!stressAnswer.trim()}>Record stage answer</Button>
-              {stressStageIndex === stressStages.length - 1 && <><Button size="sm" variant="outline" onClick={() => onUpdateEntry({ ...selected, status: 'challenged', dateUpdated: today() })}>Mark challenged</Button><Button size="sm" variant="outline" onClick={() => onUpdateEntry({ ...selected, status: 'revised', versionHistory: [...(selected.versionHistory || []), { date: today(), eventType: 'revised', description: 'Marked revised after stress-test outcome review.' }], dateUpdated: today() })}>Mark revised</Button></>}
-            </div>
-          </FooterSection>
-          {tensionLinks.length > 0 && (
-            <FooterSection title="Tensions" count={tensionLinks.length}>
-              <TensionResolutionPanel selected={selected} tensionLinks={tensionLinks} onUpdateEntry={onUpdateEntry} onUpdateLink={onUpdateLink} />
-            </FooterSection>
-          )}
-          <FooterSection title="Pressure">
-            <div className="grid gap-4 md:grid-cols-2">
-              <InfoPanel title="Counterposition" items={[counterposition]} empty="No counterposition recorded yet." />
-              <InfoPanel title="Hidden assumptions to pressure" items={positionAssumptions} empty="No assumptions have been written yet." />
-              <InfoPanel title="Alternative explanations" items={['Could the same evidence support a weaker, narrower, or opposite claim?', linkedSources.length ? `Review ${linkedSources.length} linked source(s) for disagreement, not just support.` : 'Add a source that disagrees before raising confidence.']} empty="No alternative explanation path yet." />
-              <InfoPanel title="Evidence still needed" items={selected.missingEvidence || []} empty="No missing-evidence review has been saved yet." />
-              <EntityListPanel title="Contradictory or challenging positions" empty="No typed challenge or contradiction links yet." items={relatedPositions.filter((entry) => typedLinks.some((link) => ['challenges', 'contradicts', 'weakens'].includes(link.type) && ((link.fromId === entry.id && link.toId === selected.id) || (link.toId === entry.id && link.fromId === selected.id)))).map((entry) => ({ id: entry.id, title: entry.title, meta: 'challenge pressure', onClick: () => openEntry(entry.id) }))} />
-            </div>
-          </FooterSection>
-          <FooterSection title={`Through ${(selected.tags || [])[0] || 'its concept'}`}>
+            <details className="noesis-fold mt-3">
+              <summary><Button asChild variant="tertiary" size="sm"><span>Through {(selected.tags || [])[0] || 'its concept'}</span></Button></summary>
+              <div className="noesis-fold__body">
           {(() => {
             const concept = (selected.tags || [])[0] || '';
             const key = concept.trim().toLowerCase();
@@ -1238,23 +1247,17 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               ]} />
             );
           })()}
-          </FooterSection>
-          <FooterSection title="Related" count={linkedSources.length + linkedQuestions.length + linkedDrafts.length + linkedPractices.length + relatedPositions.length}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <EntityListPanel title="Linked sources" empty="No sources linked yet." items={linkedSources.map((item) => ({ id: item.id, title: item.title, meta: `${item.type} ${item.creator ? `• ${item.creator}` : ''}`.trim(), onClick: () => previewSource(item) }))} />
-              <EntityListPanel title="Related positions" empty="No typed relations to other positions yet." items={relatedPositions.map((entry) => ({ id: entry.id, title: entry.title, meta: typedLinks.filter((link) => (link.fromId === entry.id && link.toId === selected.id) || (link.toId === entry.id && link.fromId === selected.id)).map((link) => link.type.replace(/_/g, ' ')).join(', '), onClick: () => openEntry(entry.id) }))} />
-              <EntityListPanel title="Linked inquiries" empty="No inquiries are linked to this position yet." items={linkedQuestions.map((item) => ({ id: item.id, title: item.text, meta: item.status, onClick: () => previewInquiry(item) }))} />
-              <EntityListPanel title="Works expressing it" empty="No works are carrying this position yet." items={linkedDrafts.map((item) => ({ id: item.id, title: item.title, meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`, onClick: () => previewWork(item) }))} />
-              <EntityListPanel title="Practices testing it" empty="No practices are testing this belief yet." items={linkedPractices.map((item) => ({ id: item.id, title: item.title, meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`, onClick: () => previewPractice(item) }))} />
+              </div>
+            </details>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
               <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
               <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
               <InfoPanel title="Consequences" items={consequenceItems} empty="No consequences have been written yet." />
               <InfoPanel title="Linked unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />
-              <InfoPanel title="Typed relationships" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed relationships recorded yet." />
-              <InfoPanel title="Saved position comparisons" items={(selected.comparisonReviews || []).map((review) => `${review.positionTitle} · ${safePositionDate(review.date)}\n${review.content}`)} empty="No reviewed position comparison has been saved yet." />
             </div>
           </FooterSection>
-          <FooterSection title="Belief biography" count={revisionCount}>
+
+          <FooterSection title="History" count={revisionCount}>
             <div className="grid gap-3 md:grid-cols-2">
               <ConfidenceHistoryChart entry={selected} />
               <InfoPanel title="Created from" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
@@ -1267,12 +1270,26 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 )) : <p className="noesis-inline-empty">No revisions recorded yet.</p>}
               </div>
             </div>
+            {(selected.aiReviewHistory || []).length > 0 && (
+              <div className="mt-3">
+                <AiAssistedHistory entries={(selected.aiReviewHistory || []).map((entry) => { const target = positionReviewTarget(selected.id, entry.action, entry.id); return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? { provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target } : undefined }; })} onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })} />
+              </div>
+            )}
           </FooterSection>
-          {(selected.aiReviewHistory || []).length > 0 && (
-            <FooterSection title="Noesis notes" count={(selected.aiReviewHistory || []).length}>
-              <AiAssistedHistory entries={(selected.aiReviewHistory || []).map((entry) => { const target = positionReviewTarget(selected.id, entry.action, entry.id); return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? { provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target } : undefined }; })} onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })} />
-            </FooterSection>
-          )}
+
+          <FooterSection title="Record">
+            <EntityMeta items={[
+              { label: 'Type', value: (selected.type || 'belief').replace('_', ' ') },
+              { label: 'Mode', value: (selected.positionKind || 'interpretive').replace(/_/g, ' ') },
+              { label: 'Status', value: selected.status },
+              { label: 'Created', value: safePositionDate(selected.dateCreated) },
+              { label: 'Updated', value: safePositionDate(selected.dateUpdated || selected.dateCreated) },
+            ]} />
+            {selected.confidenceReasoning && <p className="mt-2 text-sm"><Eyebrow size="sm">Confidence reasoning</Eyebrow><br />{selected.confidenceReasoning}</p>}
+            <div className="mt-3 grid gap-3"><InfoPanel title="Typed relationships" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed relationships recorded yet." />
+            <InfoPanel title="Saved position comparisons" items={(selected.comparisonReviews || []).map((review) => `${review.positionTitle} · ${safePositionDate(review.date)}\n${review.content}`)} empty="No reviewed position comparison has been saved yet." /></div>
+          </FooterSection>
+
           <FooterSection title="Danger zone">
             <Button variant="destructive" onClick={() => setDeleteTarget(selected)}><Trash2 /> Delete this position</Button>
           </FooterSection>

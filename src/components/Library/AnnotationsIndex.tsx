@@ -28,7 +28,8 @@ import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today, uid } from '@/lib/readex';
 import { MarkupSurface, markKind, shapeMarkText } from '@/components/shared/MarkupSurface';
 import { Dictation } from '@/components/shared/Dictation';
-import { RecordHeader, RecordPage, RecordSection } from '@/components/shared/record/RecordPage';
+import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordSection } from '@/components/shared/record/RecordPage';
+import { Connections, History } from '@/components/shared/record/RecordParts';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import type { AnnotationMark, AnnotationMarkKind } from '@/lib/types';
@@ -1454,58 +1455,35 @@ export function AnnotationsIndex({
                   />
                 )}
 
-                <details id="annotation-connect" className="noesis-workbench-panel scroll-mt-4">
-                  <summary className="cursor-pointer list-none">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="noesis-workbench-panel__eyebrow">Connect</div>
-                      <h3 className="noesis-workbench-panel__title">Connections</h3>
-                      <p className="noesis-workbench-panel__description">Concept tags and the objects this annotation currently touches.</p>
+                <RecordFooter>
+                  <FooterSection title="Connections" count={connectionsForAnnotation(editing).reduce((total, group) => total + group.items.length, 0)} defaultOpen>
+                    <Connections groups={connectionsForAnnotation(editing).map((group) => ({
+                      type: group.label,
+                      tone: (group.label === 'Positions' ? 'position' : group.label === 'Inquiries' ? 'inquiry' : group.label === 'Concepts' ? 'concept' : 'source') as BadgeTone,
+                      items: group.items.map((item) => ({ id: item.id, label: item.label, onOpen: item.open })),
+                    }))} />
+                    <div className="mt-3">
+                      <Label className="mb-2 block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Concept tags</Label>
+                      <ConceptTagPicker
+                        concepts={concepts}
+                        value={editing.conceptTags || editing.source.tags || []}
+                        onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)}
+                        onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
+                      />
                     </div>
-                    <Badge variant="outline" className="rounded-full">{Math.max(0, connectionsForAnnotation(editing).reduce((total, group) => total + group.items.length, 0) - 1)} related items</Badge>
-                  </div>
-                  </summary>
-                  <div className="noesis-workbench-panel__body">
-                  <div className="space-y-2">
-                    {connectionsForAnnotation(editing).map((group) => (
-                      <div key={group.label} className="grid gap-2 rounded-xl border border-border/40 bg-background/70 p-3 sm:grid-cols-[120px_1fr]">
-                        <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{group.label}</div>
-                        <div className="flex flex-wrap gap-2">
-                          {group.items.map((item) => item.open ? (
-                            <Button key={item.id} type="button" variant="outline" onClick={item.open} className="h-auto min-h-11 max-w-full whitespace-normal break-words text-left">{item.label}</Button>
-                          ) : (
-                            <Badge key={item.id} variant="secondary" className="rounded-full text-xs">{item.label}</Badge>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3">
-                    <Label className="mb-2 block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Concept tags</Label>
-                    <ConceptTagPicker
-                      concepts={concepts}
-                      value={editing.conceptTags || editing.source.tags || []}
-                      onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)}
-                      onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
-                    />
-                  </div>
-                  <Button className="mt-3" size="sm" variant="outline" disabled={savingEdit} onClick={() => void saveEditing(editing)}>Save connections</Button>
-                  </div>
-                </details>
-
-                <details id="annotation-trace" className="noesis-workbench-panel scroll-mt-4">
-                  <summary className="cursor-pointer list-none">
-                    <h3 className="noesis-workbench-panel__title">History</h3>
-                  </summary>
-                  <div className="noesis-workbench-panel__body space-y-2 text-sm text-muted-foreground">
-                    <p>Created from {editing.source.title}{editing.date ? ` on ${editing.date}` : ''}.</p>
-                    {editing.createdInquiryId && <p>Used to create an inquiry.</p>}
-                    {editing.createdPositionId && <p>Used to form a position.</p>}
-                    {(editing.linkedPositionIds || []).length > 0 && <p>Linked to {(editing.linkedPositionIds || []).length} position{(editing.linkedPositionIds || []).length === 1 ? '' : 's'}.</p>}
-                    {annotationStatus(editing) === 'reference_only' && <p>Saved as reference.</p>}
-                    {annotationStatus(editing) === 'archived' && <p>Archived.</p>}
-                  </div>
-                </details>
+                    <Button className="mt-3" size="sm" variant="outline" disabled={savingEdit} onClick={() => void saveEditing(editing)}>Save connections</Button>
+                  </FooterSection>
+                  <FooterSection title="History" count={(editing.marks || []).length}>
+                    <History entries={[
+                      { id: 'created', date: editing.date, title: 'Captured', text: `From ${editing.source.title}` },
+                      ...(editing.marks || []).map((mark) => ({ id: mark.id, date: mark.date, title: `Marked as ${mark.kind}`, text: mark.text })),
+                      ...(editing.createdInquiryId ? [{ id: 'inq', title: 'Became an inquiry' }] : []),
+                      ...(editing.createdPositionId ? [{ id: 'pos', title: 'Formed a position' }] : []),
+                      ...(annotationStatus(editing) === 'reference_only' ? [{ id: 'ref', title: 'Kept as reference' }] : []),
+                      ...(annotationStatus(editing) === 'archived' ? [{ id: 'arc', title: 'Archived' }] : []),
+                    ]} />
+                  </FooterSection>
+                </RecordFooter>
         </RecordPage>
       ) : (
       <Dialog open={!!editing} onOpenChange={(open) => !open && closeAnnotationDetail()}>

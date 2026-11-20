@@ -36,7 +36,9 @@ import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { resolvedAiHistory, type AiReviewResult } from '@/lib/contextual-ai';
 import { practiceReviewTarget, type PracticeReviewApproval } from '@/lib/practice-ai-review';
-import { RecordHeader, RecordPage, RecordPath, RecordSection, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { Connections, History } from '@/components/shared/record/RecordParts';
+import { EntityMeta } from '@/components/shared/IntellectualStructures';
 import { Dictation } from '@/components/shared/Dictation';
 import { PraxisInstrument } from '@/components/Practices/PraxisInstrument';
 import { hasPracticeIntellectualBasis, isRepeatablePractice, normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
@@ -1050,6 +1052,30 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
         <fieldset disabled={busy} className="min-w-0 border-0 p-0">
           {sections}
         </fieldset>
+        <RecordFooter>
+          <FooterSection title="Connections" count={(draft.sourceIds?.length || 0) + (draft.questionIds?.length || 0) + (draft.positionIds?.length || 0) + (draft.draftIds?.length || 0)}>
+            <Connections groups={[
+              { type: 'Sources', tone: 'source', items: media.filter((item) => (draft.sourceIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title, meta: item.creator || undefined })) },
+              { type: 'Inquiries', tone: 'inquiry', items: questions.filter((item) => (draft.questionIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.text, meta: item.status.replace(/_/g, ' ') })) },
+              { type: 'Positions', tone: 'position', items: positions.filter((item) => (draft.positionIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title, meta: `${item.confidence}% confidence`, onOpen: onOpenPosition ? () => onOpenPosition(item.id) : undefined })) },
+              { type: 'Works', tone: 'work', items: drafts.filter((item) => (draft.draftIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title || 'Untitled', onOpen: onOpenWorks })) },
+              { type: 'Concepts', tone: 'concept', items: (draft.conceptTags || []).map((tag) => ({ id: tag, label: tag })) },
+            ]} />
+            <p className="mt-2 text-sm text-muted-foreground">Choose what to link in Carry forward, above.</p>
+          </FooterSection>
+          <FooterSection title="History" count={(draft.logs || []).length}>
+            <History entries={[...(draft.logs || [])].reverse().map((log) => ({ id: log.id, date: log.date, title: log.actionCompleted ? 'Done' : 'Missed', text: [log.outcome, log.observations, log.unexpectedResult && `Unexpected: ${log.unexpectedResult}`].filter(Boolean).join(' · ') }))}
+              empty="No runs logged yet. Each check-in lands here." />
+          </FooterSection>
+          <FooterSection title="Record">
+            <EntityMeta items={[
+              { label: 'Kind', value: (draft.type || 'experiment').replace(/_/g, ' ') },
+              { label: 'Status', value: (draft.status || 'planned').replace(/_/g, ' ') },
+              { label: 'Started', value: draft.startDate?.slice(0, 10) || '—' },
+              { label: 'Logs', value: (draft.logs || []).length },
+            ]} />
+          </FooterSection>
+        </RecordFooter>
       </RecordPage>
     );
   }
