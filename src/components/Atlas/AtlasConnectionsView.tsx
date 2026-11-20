@@ -75,7 +75,7 @@ export function AtlasConnectionsView({
           <SelectContent><SelectItem value="either">Either direction</SelectItem><SelectItem value="outgoing">From this concept</SelectItem><SelectItem value="incoming">To this concept</SelectItem></SelectContent>
         </Select>
       </div>
-      <div className="mt-4 space-y-2">
+      <div className="noesis-scrollbox noesis-rowlist mt-4 space-y-2">
         {filteredLinks.slice(0, visibleCount).map((link) => {
           const from = endpointLabel(link.fromId, link.fromType, link.fromLabel);
           const to = endpointLabel(link.toId, link.toType, link.toLabel);
@@ -88,21 +88,21 @@ export function AtlasConnectionsView({
                   <svg width="16" height="40" viewBox="0 0 16 40" className="mt-0.5 shrink-0" aria-hidden="true" data-stage-tone={/contradict|tension|oppos|challeng/.test(link.type || '') ? 'claim' : /support|ground|evidence/.test(link.type || '') ? 'act' : 'examine'}><circle cx="8" cy="5" r="4" fill="hsl(var(--stage))" /><line x1="8" y1="9" x2="8" y2="31" stroke="hsl(var(--stage))" strokeWidth="2" strokeDasharray={/contradict|tension|oppos|challeng/.test(link.type || '') ? '3 3' : undefined} /><circle cx="8" cy="35" r="4" fill="none" stroke="hsl(var(--stage))" strokeWidth="2" /></svg>
                   <div className="min-w-0">
                     <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">From</div>
-                    <div className="break-words font-medium leading-5 text-foreground">{from}</div>
+                    <div className="noesis-clamp-2 font-medium leading-5 text-foreground">{from}</div>
                   </div>
                 </div>
                 <div className="flex min-w-0 items-start gap-2 pl-6">
                   <span className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true">→</span>
                   <div className="min-w-0">
                     <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">To</div>
-                    <div className="break-words font-medium leading-5 text-foreground">{to}</div>
+                    <div className="noesis-clamp-2 font-medium leading-5 text-foreground">{to}</div>
                   </div>
                 </div>
               </div>
-              <p className="mt-2 break-words text-xs leading-5 text-muted-foreground">{link.note || 'No supporting note recorded.'}</p>
+              <p className="noesis-clamp-2 mt-2 text-xs leading-5 text-muted-foreground">{link.note || 'No supporting note recorded.'}</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                <Badge variant="outline" className="rounded-full text-[9px] uppercase">{link.createdFrom}</Badge>
-                {link.createdFrom === 'suggestion' && <Badge variant="outline" className="rounded-full text-[9px] uppercase">{link.acceptedByUser ? 'confirmed' : 'needs review'}</Badge>}
+                <Badge>{link.createdFrom}</Badge>
+                {link.createdFrom === 'suggestion' && <Badge tone={link.acceptedByUser ? 'ok' : 'caution'}>{link.acceptedByUser ? 'confirmed' : 'needs review'}</Badge>}
               </div>
             </div>
             <Select value={link.type} disabled={!onUpdateLink} onValueChange={(type) => onUpdateLink?.({ ...link, type: type as PhilosophicalLinkType })}>
@@ -117,7 +117,7 @@ export function AtlasConnectionsView({
           );
         })}
         {!filteredLinks.length && <div className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">No relationships match these filters. Try another concept or show all connections.</div>}
-        {filteredLinks.length > visibleCount && <Button variant="outline" onClick={() => setVisibleCount((count) => count + 25)}>Show more relationships</Button>}
+        {filteredLinks.length > visibleCount && <Button variant="outline" onClick={() => setVisibleCount(filteredLinks.length)}>View all {filteredLinks.length} relationships</Button>}
       </div>
     </Card>
   );

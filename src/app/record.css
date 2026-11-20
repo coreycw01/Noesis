@@ -220,3 +220,15 @@
 .noesis-page-header .noesis-page-description { margin-left: 0 !important; margin-right: 0 !important; text-align: left !important; }
 .noesis-page-header .noesis-page-header__meta { justify-content: flex-start !important; }
 .noesis-page-header .noesis-page-header__title-row .noesis-route-label { align-self: center; }
+
+/* ---------- A box that cannot outgrow its page ----------
+   Lists that can run long get a bounded height and scroll inside it, so a
+   card stays the size it looks like and the page keeps its shape. */
+.noesis-scrollbox { max-height: min(60vh, 32rem); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.noesis-scrollbox::-webkit-scrollbar { width: 10px; }
+.noesis-scrollbox::-webkit-scrollbar-thumb { border-radius: 999px; background: hsl(var(--muted-foreground) / .35); border: 3px solid transparent; background-clip: content-box; }
+.noesis-scrollbox::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / .55); background-clip: content-box; }
+/* Rows in such a list are the same height, so the list reads as a column
+   rather than a ragged stack. */
+.noesis-rowlist > * { min-height: 92px; }
+.noesis-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }

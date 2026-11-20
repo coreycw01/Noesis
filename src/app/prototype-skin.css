@@ -501,7 +501,7 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-footer-section[open] summary::before { transform: rotate(90deg); }
 .noesis-footer-section summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .noesis-footer-section__count { padding: 0 7px; border-radius: 999px; border: 1px solid hsl(var(--border)); font-size: 9px; }
-.noesis-footer-section__body { padding: 0 0 16px; }
+.noesis-footer-section__body { padding: 0 0 16px; max-height: min(50vh, 26rem); overflow-y: auto; overscroll-behavior: contain; }
 .noesis-footer-section__body .noesis-through, .noesis-footer-section__body .noesis-history { margin: 0; border: 0; padding: 0; background: none; }
 .noesis-footer-section__body .noesis-through > .noesis-instrument__label, .noesis-footer-section__body .noesis-history > .noesis-instrument__label { display: none; }
 @media (prefers-reduced-motion: reduce) { .noesis-footer-section summary::before { transition: none; } }

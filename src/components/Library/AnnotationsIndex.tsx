@@ -1169,10 +1169,11 @@ export function AnnotationsIndex({
                     {annotationLabel(annotationStatus(annotation))}
                   </Badge>
                   {missingSourceContext(annotation) && (
-                    <Badge variant="outline" className="noesis-eyebrow noesis-eyebrow--sm rounded-full border-accent/25 bg-accent/5 text-foreground font-bold">
-                      add context
-                    </Badge>
+                    <Badge tone="caution">add context</Badge>
                   )}
+                  {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).slice(0, 3).map((tag) => (
+                    <Badge key={tag} tone="concept">{tag}</Badge>
+                  ))}
                 </div>
               </div>
               <DropdownMenu>
@@ -1194,21 +1195,11 @@ export function AnnotationsIndex({
               {annotation.context?.trim() && <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{annotation.context}</p>}
             </button>
 
-            <div className="flex flex-wrap gap-1.5 px-4 pb-3">
-              {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).map((tag) => (
-                <Badge key={tag} tone="concept">{tag}</Badge>
+            <div className="flex flex-wrap items-center gap-2 border-t border-border/30 px-4 py-3">
+              {relationLabels.map((relation) => (
+                <Badge key={relation.label} tone={relation.tone}>{relation.label}</Badge>
               ))}
-            </div>
-
-            {relationLabels.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 border-t border-border/30 px-4 py-3">
-                {relationLabels.map((relation) => (
-                  <Badge key={relation.label} tone={relation.tone}>{relation.label}</Badge>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 px-4 pb-3">
+              <span className="flex-1" />
               <Button
                 type="button"
                 variant={relatedInquiry || annotation.createdPositionId ? 'secondary' : 'outline'}
