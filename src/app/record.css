@@ -133,3 +133,20 @@
 .noesis-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .noesis-pair > * { border: var(--hair); border-radius: var(--radius-md); padding: var(--space-3); }
 @media (max-width: 640px) { .noesis-pair { grid-template-columns: 1fr; } }
+
+/* Inside a dialog the path is a plain header, not a pinned bar. */
+[role="dialog"] .noesis-path { position: static; padding-top: 0; }
+
+/* Markup: the passage stays whole and marks are drawn on it. The innermost
+   mark tints the words; outer marks stack as underlines beneath them. */
+.noesis-markup { display: grid; gap: var(--space-3); }
+.noesis-markup__text { margin: 0; font-size: 1.15rem; line-height: 2; }
+.noesis-markup__text span { border-radius: 3px; padding: 1px 0; }
+.noesis-markup__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+.noesis-markup__sentence { width: 100%; text-align: left; padding: 8px 10px; border: var(--hair); border-radius: 10px; font-size: var(--text-sm); color: hsl(var(--foreground)); }
+.noesis-markup__sentence[aria-pressed="true"] { border-color: hsl(var(--tone, var(--accent))); background: hsl(var(--tone, var(--accent)) / .1); }
+.noesis-markup__sentence:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-mark-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; margin-bottom: 8px; padding: 10px 12px; border: var(--hair); border-left: 4px solid hsl(var(--tone)); border-radius: var(--radius-md); }
+.noesis-mark-row__text { font-style: italic; min-width: 0; overflow-wrap: anywhere; }
+.noesis-mark-row__actions { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+@media (max-width: 640px) { .noesis-mark-row { grid-template-columns: 1fr; } }

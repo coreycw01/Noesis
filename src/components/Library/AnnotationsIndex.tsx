@@ -4,8 +4,8 @@
 import { aiDepthFor } from '@/lib/ai-depth';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowLeft, ArrowRight, BookOpen, CheckCircle2, CircleHelp, Flag, Footprints, Lightbulb, MinusCircle, PlusCircle, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Plus, Quote, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Archive, ArrowLeft, ArrowRight, BookOpen, CheckCircle2, CircleHelp, Flag, Footprints, Lightbulb, MinusCircle, PlusCircle, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Plus, Quote, Trash2 , X } from 'lucide-react';
+import { Button, IconButton } from '@/components/ui/button';
 import { Pill } from '@/components/ui/pill';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,12 @@ import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
-import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today } from '@/lib/readex';
+import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today, uid } from '@/lib/readex';
+import { MarkupSurface, markKind, shapeMarkText } from '@/components/shared/MarkupSurface';
+import { RecordHeader, RecordSection } from '@/components/shared/record/RecordPage';
+import { Eyebrow } from '@/components/ui/eyebrow';
+import { SectionEmpty } from '@/components/shared/SectionEmpty';
+import type { AnnotationMark, AnnotationMarkKind } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { StageBadge } from '@/components/shared/StageBadge';
@@ -168,6 +173,9 @@ export function AnnotationsIndex({
   const creatingPractice = useRef(false);
   const [detailEffect, setDetailEffect] = useState<ConsequenceAction>('reference');
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
+  const [movingMark, setMovingMark] = useState<string | null>(null);
+  const [moveText, setMoveText] = useState('');
+  const markSendLock = useRef(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const positionCreationLock = useRef(false);
   const inquiryCreationLock = useRef(false);
@@ -668,6 +676,75 @@ export function AnnotationsIndex({
         items: [{ id: annotation.source.id, label: annotation.source.title, open: onNavigate ? () => onNavigate('library', annotation.source.id) : undefined }],
       },
     ].filter((group) => group.items.length > 0);
+  };
+
+  // A mark's kind is its destination, so marking is the whole decision: the
+  // list below only shapes the words and confirms. The annotation never moves.
+  const addMark = async (annotation: FlatAnnotation, kind: AnnotationMarkKind, start: number, end: number, marked: string) => {
+    const { source, ...data } = annotation;
+    const mark: AnnotationMark = { id: uid(), start, end, kind, text: marked, date: today() };
+    const marks = [...(annotation.marks || []), mark];
+    if (!await persistAnnotation(source.id, { ...data, marks })) return;
+    setEditing((current) => current && current.id === annotation.id ? { ...current, marks } : current);
+    toast({ title: `Marked as ${markKind(kind).label.toLowerCase()}`, description: kind === 'reference' ? 'It stays in this passage.' : `Send it to ${markKind(kind).destination} when you are ready.` });
+  };
+  const removeMark = async (annotation: FlatAnnotation, markId: string) => {
+    const { source, ...data } = annotation;
+    const marks = (annotation.marks || []).filter((mark) => mark.id !== markId);
+    if (!await persistAnnotation(source.id, { ...data, marks })) return;
+    setEditing((current) => current && current.id === annotation.id ? { ...current, marks } : current);
+    if (movingMark === markId) setMovingMark(null);
+  };
+  const recordMoved = async (annotation: FlatAnnotation, markId: string, movedTo: NonNullable<AnnotationMark['movedTo']>, movedId: string, movedText: string) => {
+    const { source, ...data } = annotation;
+    const marks = (annotation.marks || []).map((mark) => mark.id === markId ? { ...mark, movedTo, movedId, movedText } : mark);
+    await persistAnnotation(source.id, { ...data, marks });
+    setEditing((current) => current && current.id === annotation.id ? { ...current, marks } : current);
+    setMovingMark(null);
+  };
+  const sendMark = async (annotation: FlatAnnotation, mark: AnnotationMark) => {
+    const text = moveText.trim();
+    if (!text || markSendLock.current) return;
+    markSendLock.current = true;
+    const tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags);
+    const sourceLabel = `${annotation.source.title}${annotation.source.creator ? ` by ${annotation.source.creator}` : ''}`;
+    const provenance = `Marked as a ${mark.kind} in an annotation from ${sourceLabel}:\n“${mark.text}”`;
+    try {
+      if (mark.kind === 'claim') {
+        const created = await onCreatePosition({
+          title: text.slice(0, 90), body: `${text}\n\n${provenance}`, tags, sourceIds: [annotation.source.id], sourceAnnotationId: annotation.id,
+          annotationRefs: [{ sourceId: annotation.source.id, annotationId: annotation.id }],
+          position: { title: text.slice(0, 90), statement: text, description: provenance, confidence: 55 },
+        });
+        await recordMoved(annotation, mark.id, 'position', created.positionId, text);
+        toast({ title: 'Claim sent to Positions', description: created.title });
+        onNavigate?.('vault', created.positionId);
+      } else if (mark.kind === 'question') {
+        const created = await onCreateInquiry({
+          text, whyItMatters: provenance, currentIntuition: annotation.answer || annotation.context || '',
+          conceptIds: concepts.filter((concept) => tags.map(conceptKey).includes(conceptKey(concept.name))).map((concept) => concept.id),
+          sourceIds: [annotation.source.id], evidenceIds: [annotation.id], type: 'annotation', sourceAnnotationId: annotation.id,
+          annotationRefs: [{ sourceId: annotation.source.id, annotationId: annotation.id }],
+        });
+        await recordMoved(annotation, mark.id, 'inquiry', created.id, text);
+        toast({ title: 'Question sent to Inquiries' });
+        onNavigate?.('questions', created.id);
+      } else if (mark.kind === 'action' && onAddPractice) {
+        await Promise.resolve(onAddPractice({
+          title: text.slice(0, 90), action: text, description: provenance, type: 'experiment', status: 'proposed',
+          conceptTags: tags, sourceIds: [annotation.source.id], durationMode: 'repeated', durationDays: 7,
+        }));
+        await recordMoved(annotation, mark.id, 'practice', '', text);
+        toast({ title: 'Action sent to Praxis', description: 'Open Praxis to finish its setup.' });
+      } else if (mark.kind === 'definition') {
+        const { source, ...data } = annotation;
+        await persistAnnotation(source.id, { ...data, conceptTags: normalizeConceptTags(annotation.conceptTags || annotation.source.tags), philosophyStatus: 'connected' });
+        await recordMoved(annotation, mark.id, 'concept', tags[0] || '', text);
+        toast({ title: 'Definition tied to the concept', description: tags[0] ? `Attached to ${tags[0]}.` : 'Attached to this annotation’s concepts.' });
+      }
+    } catch {
+      toast({ title: 'Not sent', description: 'The mark is still here. Please try again.', variant: 'destructive' });
+    } finally { markSendLock.current = false; }
   };
 
   const runDetailAction = (annotation: FlatAnnotation, action: ConsequenceAction) => {
@@ -1281,15 +1358,17 @@ export function AnnotationsIndex({
           }}
         >
           {isFullPageDetail && editing ? (
-            <PageHeader
-              title="Annotation"
-              description={`${editing.source.title}${editing.source.creator ? ` · ${editing.source.creator}` : ''}`}
-              actions={(
-                <Button variant="outline" onClick={closeAnnotationDetail}>
-                  <ArrowLeft className="mr-2 size-4" />Back to annotations
-                </Button>
-              )}
-            />
+            <RecordHeader backLabel="Annotations" onBack={closeAnnotationDetail} view="annotations" kind="Annotation"
+              status={annotationLabel(annotationStatus(editing))} extra={`${editing.source.title}${editing.source.creator ? ` · ${editing.source.creator}` : ''}`}
+              title={editing.text} tags={editing.conceptTags || []}
+              trailing={<DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild><IconButton label="Annotation actions" variant="outline"><MoreHorizontal className="size-4" /></IconButton></DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setEditDraft({ ...editing })}><Pencil className="mr-2 size-4" /> Edit the passage</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => previewSource(editing.source, editing)}><ExternalLink className="mr-2 size-4" /> Open source</DropdownMenuItem>
+                  <DropdownMenuItem className="text-problem focus:text-problem" onSelect={() => setDeleteTarget(editing)}><Trash2 className="mr-2 size-4" /> Delete annotation</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>} />
           ) : (
             <DialogHeader>
               <DialogTitle className="font-headline text-2xl italic">Annotation Detail</DialogTitle>
@@ -1340,13 +1419,8 @@ export function AnnotationsIndex({
                 </div>
               </section>
 
-              <section id="annotation-apply" className="py-3" aria-labelledby="annotation-apply-title">
-                <div className="noesis-workbench-panel__header mb-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="noesis-workbench-panel__eyebrow">Apply</div>
-                    <h2 id="annotation-apply-title" className="font-headline text-2xl font-semibold">Where could this lead?</h2>
-                  </div>
-                  <ContextualAiPanel
+              <RecordSection id="ann-markup" title="Markup" description="Mark any part of the passage. What you mark it as is where it goes." headingLevel="h2"
+                aside={<ContextualAiPanel
                     actions={['suggest_annotation_effect']}
                     enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                     showContextBeforeSending={aiSettings?.showContextBeforeSending}
@@ -1366,6 +1440,7 @@ export function AnnotationsIndex({
                         `Source description: ${editing.source.description || 'Not recorded.'}`,
                         editing.context ? `Surrounding context: ${editing.context}` : 'No surrounding context supplied.',
                         editing.consequenceNote ? `User note: ${editing.consequenceNote}` : 'No user interpretation supplied.',
+                        ...(editing.marks || []).map((mark) => `Marked as ${mark.kind}: ${mark.text}`),
                       ],
                       linkedMemory: [
                         ...(editing.conceptTags || []).map((tag) => `Concept: ${tag}`),
@@ -1386,48 +1461,49 @@ export function AnnotationsIndex({
                         ...current, aiEffectReview: next.aiEffectReview, aiReviewHistory: next.aiReviewHistory, effectProvenance: next.effectProvenance,
                       } : current);
                     }}
-                  />
-                </div>
-                {(linkedInquiriesFor(editing).length > 0 || editing.createdPositionId || (editing.linkedPositionIds || []).length > 0) && (
-                  <p className="mb-3 text-xs text-muted-foreground">
-                    Linked to {[
-                      linkedInquiriesFor(editing).length ? 'an inquiry' : '',
-                      editing.createdPositionId || (editing.linkedPositionIds || []).length ? 'a position' : '',
-                    ].filter(Boolean).join(' and ')}. Open Connections below to see the exact item.
-                  </p>
-                )}
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Choose a direction">
-                  {([
-                    ['raises_question', 'Start an inquiry', 'Investigate a question', CircleHelp, 'examine'],
-                    ['form_position', 'Draft a position', 'State your own view', Flag, 'claim'],
-                    ['practice', 'Plan a practice', 'Try a repeatable action', Footprints, 'act'],
-                    ['supports_claim', 'Support a position', 'Add supporting evidence', PlusCircle, 'act'],
-                    ['challenges_claim', 'Challenge a position', 'Add an objection', MinusCircle, 'claim'],
-                    ['clarifies', 'Clarify a concept', 'Sharpen a definition', Lightbulb, 'outline'],
-                    ['reference', 'Keep as reference', 'File without another action', BookOpen, 'encounter'],
-                  ] satisfies Array<[ConsequenceAction, string, string, typeof BookOpen, string]>).filter(([action]) => action !== 'practice' || onAddPractice).map(([action, label, description, Icon, tone]) => (
-                    <button type="button" key={action} data-stage-tone={tone} aria-pressed={detailEffect === action}
-                      onClick={() => setDetailEffect(action)} className="noesis-apply-route flex min-h-[4.25rem] min-w-0 items-center gap-3 rounded-[var(--button-radius)] border border-border p-3 text-left focus-visible:outline focus-visible:outline-ring">
-                      <Icon className="noesis-apply-route__icon size-5 shrink-0" aria-hidden="true" />
-                      <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span><span className="block text-xs text-muted-foreground">{description}</span></span>
-                      {detailEffect === action && <CheckCircle2 className="noesis-apply-route__icon size-4 shrink-0" aria-hidden="true" />}
-                    </button>
-                  ))}
-                </div>
-                {detailEffect === 'practice' && <label className="mt-3 grid gap-1 text-sm">What action will you try?<Input value={practiceAction} onChange={e => setPracticeAction(e.target.value)} maxLength={160} placeholder="One action you can repeat or observe" /></label>}
-                {detailEffect === 'clarifies' && (
-                  <div className="mt-3">
-                    <Label className="mb-2 block text-xs text-muted-foreground">Which concept does this clarify?</Label>
-                    <ConceptTagPicker concepts={concepts} value={editing.conceptTags || editing.source.tags || []} onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)} />
-                  </div>
-                )}
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <Button type="button" size="sm" onClick={() => runDetailAction(editing, detailEffect)} disabled={detailEffect === 'practice' && !practiceAction.trim() || detailEffect === 'clarifies' && !(editing.conceptTags || editing.source.tags || []).length} className="h-9 rounded-full px-4">
-                    {nextActionLabelForEffect(editing, detailEffect)}<ArrowRight className="size-4" aria-hidden="true" />
-                  </Button>
-                  <span className="text-xs text-muted-foreground">{detailEffect === 'practice' ? 'Creates a planned practice linked to this source.' : detailEffect === 'form_position' ? 'Review the claim before saving it.' : detailEffect === 'supports_claim' ? 'Connect this note to a position it supports.' : detailEffect === 'challenges_claim' ? 'Connect it to the position it questions, or create a draft first.' : detailEffect === 'raises_question' ? 'Carry the question into an inquiry with its source context.' : detailEffect === 'clarifies' ? 'Keep the note attached to the concept it explains.' : 'Keep it searchable without creating another object.'}</span>
-                </div>
-              </section>
+                  />}>
+                <MarkupSurface text={editing.text} marks={editing.marks || []} onAddMark={(kind, start, end, marked) => void addMark(editing, kind, start, end, marked)} />
+              </RecordSection>
+
+              <RecordSection id="ann-marks" title="Marks" description="Every mark is saved here. Send one down its pipeline when you are ready; the annotation stays where it is." headingLevel="h2"
+                aside={<Eyebrow size="sm">{(editing.marks || []).length} mark{(editing.marks || []).length === 1 ? '' : 's'}</Eyebrow>}>
+                {(editing.marks || []).length ? (editing.marks || []).map((mark) => {
+                  const kind = markKind(mark.kind);
+                  const Icon = kind.icon;
+                  const open = movingMark === mark.id;
+                  return (
+                    <div key={mark.id} className="noesis-mark-row" data-tone={kind.tone}>
+                      <Eyebrow tone={kind.tone}><Icon className="size-3.5" aria-hidden="true" /> {kind.label}</Eyebrow>
+                      <span className="noesis-mark-row__text">“{mark.text}”</span>
+                      <span className="noesis-mark-row__actions">
+                        {mark.movedTo
+                          ? <Eyebrow size="sm">Sent to {markKind(mark.kind).destination}</Eyebrow>
+                          : mark.kind === 'reference'
+                            ? <Eyebrow size="sm">Stays here</Eyebrow>
+                            : <Button variant="secondary" size="sm" tone={kind.tone} onClick={() => { setMovingMark(open ? null : mark.id); setMoveText(shapeMarkText(mark.kind, mark.text)); }}>{open ? 'Close' : `Send to ${kind.destination}`}</Button>}
+                        <IconButton label={`Remove the ${kind.label.toLowerCase()} mark`} size="sm" onClick={() => void removeMark(editing, mark.id)}><X className="size-3.5" /></IconButton>
+                      </span>
+                      {open && (
+                        <div className="col-span-full grid gap-2 border-t border-border pt-3">
+                          <Eyebrow size="sm">{kind.prompt}</Eyebrow>
+                          <Textarea value={moveText} onChange={(event) => setMoveText(event.target.value)} className="min-h-[72px]" aria-label={`What goes to ${kind.destination}`} />
+                          {mark.kind === 'definition' && (
+                            <div>
+                              <Label className="mb-1.5 block text-xs text-muted-foreground">Which concept does this define?</Label>
+                              <ConceptTagPicker concepts={concepts} value={editing.conceptTags || editing.source.tags || []} onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)} />
+                            </div>
+                          )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button variant="primary" size="sm" tone={kind.tone} disabled={!moveText.trim() || (mark.kind === 'definition' && !(editing.conceptTags || editing.source.tags || []).length)} onClick={() => void sendMark(editing, mark)}>Send to {kind.destination}</Button>
+                            <Button variant="ghost" size="sm" onClick={() => setMovingMark(null)}>Cancel</Button>
+                            <span className="text-xs text-muted-foreground">The annotation stays in {editing.source.title ? 'Library' : 'its collection'}; only the mark travels.</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }) : <SectionEmpty title="No marks yet." hint="Mark part of the passage above and it appears here." />}
+              </RecordSection>
 
               {savedReviews.length > 0 && (
                 <AiAssistedHistory
