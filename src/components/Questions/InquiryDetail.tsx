@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { SearchField } from '@/components/shared/SearchField';
+import { Dictation } from '@/components/shared/Dictation';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { EntityMeta } from '@/components/shared/IntellectualStructures';
@@ -461,7 +462,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
 
             <details className="noesis-fold" open={writeOpen} onToggle={(event) => setWriteOpen((event.target as HTMLDetailsElement).open)}>
               <summary><Button asChild variant="secondary" size="sm"><span>＋ {editingEvidenceId ? 'Edit evidence' : 'Write new evidence'}</span></Button></summary>
-              <div className="noesis-fold__body">
+              <Dictation className="noesis-fold__body" label="Dictate the evidence">
                 <p className="noesis-fold__hint">Not in your workspace yet? Write it here, tag it, and choose whether to keep it as a note.</p>
                 <Textarea ref={evidenceInput} value={evidenceDraft.claim} onChange={(event) => setEvidenceDraft((prev) => ({ ...prev, claim: event.target.value }))} placeholder="What does it say? (a claim, an observation, an excerpt)" aria-label="What does the evidence say?" maxLength={1000} className="min-h-[64px]" />
                 <div className="noesis-fieldrow">
@@ -480,7 +481,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
                   <Button variant="primary" onClick={() => void saveWritten()} disabled={saving || !evidenceDraft.claim.trim()}>{editingEvidenceId ? 'Save changes' : 'Add evidence'}</Button>
                   {editingEvidenceId && <Button variant="ghost" onClick={() => { setEditingEvidenceId(null); setEvidenceDraft(EMPTY_EVIDENCE); }}>Cancel edit</Button>}
                 </div>
-              </div>
+              </Dictation>
             </details>
           </div>
           <div><InquiryScale answers={answers} evidence={evidence} /></div>
@@ -489,6 +490,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
 
       {/* ---------- Conclude ---------- */}
       <RecordSection id="inq-conclude" title="Conclude" description="Your best answer for now. You can reopen it any time." here={hereId === 'inq-conclude'}>
+        <Dictation label="Dictate your answer">
         <Textarea aria-label="Working answer" value={working} disabled={saving || closed} onChange={(event) => { const value = event.target.value; setWorkingDraft((draft) => ({ value, base: draft?.base ?? savedAnswer })); }} className="min-h-[120px] text-base leading-7" placeholder="Write your working answer in your own words" />
         {workingConflict && <p role="status" className="mt-2 text-sm text-muted-foreground">The saved answer changed while you were writing. <Button variant="link" size="sm" onClick={() => setWorkingDraft(null)}>Load the saved answer</Button></p>}
         {!closed && (
@@ -497,6 +499,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
             {answered && <Button variant="outline" onClick={() => void keepInvestigating()} disabled={saving}>Keep investigating</Button>}
           </div>
         )}
+        </Dictation>
         {closed && <p className="mt-3 text-sm text-muted-foreground">This inquiry is {question.status.replace(/_/g, ' ')}. <Button variant="link" size="sm" onClick={() => void onUpdateQuestion({ ...question, status: 'reopened', dateUpdated: today() })}>Reopen it</Button></p>}
 
         {!closed && working.trim() && (

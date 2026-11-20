@@ -37,6 +37,7 @@ import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { resolvedAiHistory, type AiReviewResult } from '@/lib/contextual-ai';
 import { practiceReviewTarget, type PracticeReviewApproval } from '@/lib/practice-ai-review';
 import { RecordPath, RecordSection, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { Dictation } from '@/components/shared/Dictation';
 import { PraxisInstrument } from '@/components/Practices/PraxisInstrument';
 import { hasPracticeIntellectualBasis, isRepeatablePractice, normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
@@ -976,7 +977,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
               </section>
             </RecordSection>
             <RecordSection id="prx-review" title="Review" description="What you expected, beside what happened. Kept apart so the two can be compared." headingLevel="h3">
-              <div>
+              <Dictation label="Dictate the review" hint="Dictates into the box you last typed in: what you expected, or what happened.">
                 <div className="noesis-pair">
                   <Field label="WHAT YOU EXPECTED"><Textarea value={draft.expectedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, expectedOutcome: event.target.value }))} className="min-h-[110px] italic text-base" placeholder="Before you began: what did you think would happen?" /></Field>
                   <Field label="WHAT HAPPENED"><Textarea value={draft.observedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observedOutcome: event.target.value }))} className="min-h-[110px] italic text-base" placeholder="What actually happened?" /></Field>
@@ -1001,7 +1002,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                     />
                   </div>
                 )}
-              </div>
+              </Dictation>
             </RecordSection>
             <RecordSection id="prx-carry" title="Carry forward" description="Where this result should land: the sources, inquiries, positions, and works it bears on." headingLevel="h3">
               {draft.id && <PraxisCarryCards draft={draft} positions={positions} onOpenPosition={onOpenPosition} onAddQuestion={onAddQuestion} onOpenWorks={onOpenWorks} />}

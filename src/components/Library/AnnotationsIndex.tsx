@@ -27,6 +27,7 @@ import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today, uid } from '@/lib/readex';
 import { MarkupSurface, markKind, shapeMarkText } from '@/components/shared/MarkupSurface';
+import { Dictation } from '@/components/shared/Dictation';
 import { RecordHeader, RecordSection } from '@/components/shared/record/RecordPage';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
@@ -1484,7 +1485,7 @@ export function AnnotationsIndex({
                         <IconButton label={`Remove the ${kind.label.toLowerCase()} mark`} size="sm" onClick={() => void removeMark(editing, mark.id)}><X className="size-3.5" /></IconButton>
                       </span>
                       {open && (
-                        <div className="col-span-full grid gap-2 border-t border-border pt-3">
+                        <Dictation className="col-span-full grid gap-2 border-t border-border pt-3" label="Dictate it">
                           <Eyebrow size="sm">{kind.prompt}</Eyebrow>
                           <Textarea value={moveText} onChange={(event) => setMoveText(event.target.value)} className="min-h-[72px]" aria-label={`What goes to ${kind.destination}`} />
                           {mark.kind === 'definition' && (
@@ -1498,7 +1499,7 @@ export function AnnotationsIndex({
                             <Button variant="ghost" size="sm" onClick={() => setMovingMark(null)}>Cancel</Button>
                             <span className="text-xs text-muted-foreground">The annotation stays in {editing.source.title ? 'Library' : 'its collection'}; only the mark travels.</span>
                           </div>
-                        </div>
+                        </Dictation>
                       )}
                     </div>
                   );
