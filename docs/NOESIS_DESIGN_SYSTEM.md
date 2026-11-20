@@ -153,11 +153,12 @@ Updated at the end of each phase. ✓ = on the system, ◐ = partly, ✗ = not y
 | Library index / Source detail | ✓ | ✗ header only | ✓ | ✓ |
 | Annotations index / detail | ✓ | ✓ | ✓ | ✓ |
 | Works index / editor | ✓ | ✗ editor keeps its own chrome | ✓ | ✓ |
+| Exercises round setup | ✓ | – | ✓ | ✓ |
 | Concepts index / detail | ✓ | ✓ | ✓ | ✓ |
 | Inquiries index / detail | ✓ | ✓ | ✓ | ✓ |
 | Positions index / detail | ✓ | ✓ | ✓ | ✓ |
 | Praxis index / detail | ✓ | ✓ | ✓ | ✓ |
-| Commitments (`/goals`) | ✓ | ✗ | ✓ | ✓ |
+| Commitments (`/goals`) | ✓ | ✓ one commitment opens as a record | ✓ | ✓ |
 | Exercises | ✓ | – | ✓ | ✓ |
 | Atlas | ✓ | – | ✓ | ✓ |
 | Evolution | ✓ | – | ✓ | ✓ |
@@ -173,9 +174,14 @@ Updated at the end of each phase. ✓ = on the system, ◐ = partly, ✗ = not y
    Their headers and controls are on the system.
 2. **Commitments stays its own page.** The handoff asked for it to fold into
    Praxis. It already sits under Implement in the nav and shares the Praxis
-   method picker, but the Say/Do bridge is a distinct surface, and moving it
-   would change where a person's data lives — a decision to take with the
-   user, not for them.
+   method picker, and one open commitment now reads as a record — back link,
+   kind and status, a path of named stops — but the Say/Do bridge is a
+   distinct surface, and moving the data would change where a person's
+   commitments live: a decision to take with the user, not for them.
+4. **Praxis and commitments have no thinking-tools band.** Inquiry, position
+   and concept each had instruments filed in their footer; a practice has
+   none to promote, and inventing some to fill the shape would be decoration.
+   The band appears where there is a real tool for it.
 3. **188 raw `<button>`s remain.** They are table rows, canvas handles and
    list items: things that are pressable but are not buttons in the design
    sense. A primitive for them would be a wrapper, not a control.
