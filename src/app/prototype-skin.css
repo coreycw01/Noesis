@@ -68,9 +68,6 @@ main[data-stage-tone="today"] { --accent: var(--proto-amber); --ring: var(--prot
 .noesis-page-header { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 2px 0 12px !important; margin-bottom: 20px !important; border-bottom: 1px solid hsl(var(--border)); }
 .noesis-page-header::before, .noesis-page-header::after { display: none !important; }
 .noesis-page-header > .noesis-page-header__rule { display: none; }
-.noesis-page-header > div.flex { display: contents !important; }
-.noesis-page-header > div.flex > div:first-child { display: grid; justify-items: center; gap: 2px; max-width: 72ch; min-width: 0; }
-.noesis-page-header > div.flex > div:first-child > div.mb-2 { margin-bottom: 0 !important; }
 .noesis-page-header .noesis-margin-marker { display: none; }
 .noesis-page-header .noesis-route-label { display: inline-flex; align-items: center; gap: 8px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--accent)); }
 .noesis-page-header .noesis-route-label::before { content: ""; width: 2px; height: 12px; background: hsl(var(--accent)); }
@@ -80,10 +77,10 @@ main[data-stage-tone="today"] { --accent: var(--proto-amber); --ring: var(--prot
 .noesis-page-title { font-family: "Playfair Display", Georgia, serif !important; font-style: italic; font-weight: 600 !important; font-size: clamp(1.8rem, 3.2vw, 2.5rem) !important; line-height: 1.1 !important; text-align: center; }
 .noesis-page-description { margin: 2px auto 0 !important; text-align: center; color: hsl(var(--muted-foreground)); font-size: .92rem !important; line-height: 1.45 !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .noesis-page-header__meta { justify-content: center; }
-.noesis-page-header-actions { order: 3; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; }
-.noesis-page-header > div.mt-4 { order: 4; width: 100%; margin-top: 10px !important; }
-.noesis-page-header__tabs { order: 3; display: flex; justify-content: center; margin-top: 10px; }
-.noesis-recent-strip { justify-content: center; }
+.noesis-page-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.noesis-page-header > div.mt-4 { width: 100%; margin-top: 10px !important; }
+.noesis-page-header__tabs { display: flex; justify-content: center; margin-top: 10px; }
+.noesis-recent-strip { justify-content: flex-start; }
 .noesis-page-header[data-stage-tone] .noesis-route-label__section, .noesis-page-header[data-stage-tone] .noesis-route-label { color: hsl(var(--stage)); }
 .noesis-page-header[data-stage-tone] .noesis-route-label::before { background: hsl(var(--stage)); }
 
@@ -416,6 +413,14 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-work-paper__title { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: .95rem; }
 .noesis-work-paper__text { font-family: Spectral, Georgia, serif; font-size: .78rem; line-height: 1.5; }
 /* Annotations: each note carries its kind as a colour edge, as in the prototype. */
+/* A note's edge is where it sits in the flow, in the same colours the
+   "where your notes are" legend uses: captured, reviewed, developed,
+   reference, set aside. The legend and the cards can never disagree. */
+[data-note-stage] { --note: var(--stage-encounter); border-left: 4px solid hsl(var(--note)) !important; }
+[data-note-stage="reviewed"] { --note: var(--stage-examine); }
+[data-note-stage="used_in_position"] { --note: var(--stage-claim); }
+[data-note-stage="reference_only"] { --note: var(--stage-more); }
+[data-note-stage="archived"] { --note: var(--stage-integrate); }
 [data-note-type] { --note: var(--stage-encounter); border-left: 4px solid hsl(var(--note)) !important; }
 [data-note-type="question"], [data-note-type="connection"] { --note: var(--stage-examine); }
 [data-note-type="claim"], [data-note-type="objection"] { --note: var(--stage-claim); }
@@ -496,7 +501,7 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-footer-section[open] summary::before { transform: rotate(90deg); }
 .noesis-footer-section summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .noesis-footer-section__count { padding: 0 7px; border-radius: 999px; border: 1px solid hsl(var(--border)); font-size: 9px; }
-.noesis-footer-section__body { padding: 0 0 16px; }
+.noesis-footer-section__body { padding: 0 0 16px; max-height: min(50vh, 26rem); overflow-y: auto; overscroll-behavior: contain; }
 .noesis-footer-section__body .noesis-through, .noesis-footer-section__body .noesis-history { margin: 0; border: 0; padding: 0; background: none; }
 .noesis-footer-section__body .noesis-through > .noesis-instrument__label, .noesis-footer-section__body .noesis-history > .noesis-instrument__label { display: none; }
 @media (prefers-reduced-motion: reduce) { .noesis-footer-section summary::before { transition: none; } }

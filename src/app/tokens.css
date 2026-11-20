@@ -173,22 +173,20 @@
 
 /* Badge: read-only. Tells you a status or a kind. Never pressable. */
 .noesis-badge {
-  --tone: var(--neutral);
   display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
   padding: 2px 9px; border-radius: var(--radius-pill);
-  border: 1px solid hsl(var(--tone) / .45); background: hsl(var(--tone) / .1); color: hsl(var(--tone));
+  border: 1px solid hsl(var(--tone, var(--neutral)) / .45); background: hsl(var(--tone, var(--neutral)) / .1); color: hsl(var(--tone, var(--neutral)));
   font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .1em; text-transform: uppercase; line-height: 1.5;
   white-space: nowrap;
 }
 .noesis-badge--dot { border-color: transparent; background: transparent; padding-left: 0; }
-.noesis-badge--dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: hsl(var(--tone)); flex: none; }
-.noesis-badge--rule { border: 0; border-left: 2px solid hsl(var(--tone)); border-radius: 0; background: transparent; padding: 0 0 0 6px; }
+.noesis-badge--dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: hsl(var(--tone, var(--neutral))); flex: none; }
+.noesis-badge--rule { border: 0; border-left: 2px solid hsl(var(--tone, var(--neutral))); border-radius: 0; background: transparent; padding: 0 0 0 6px; }
 .noesis-badge--count { font-family: inherit; letter-spacing: 0; text-transform: none; padding: 0 7px; min-width: 20px; justify-content: center; }
 .noesis-badge__icon { width: 11px; height: 11px; flex: none; }
 
 /* Pill: pressable. Filters, toggles, choices. */
 .noesis-pill {
-  --tone: var(--accent);
   display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
   min-height: var(--control-h-sm); padding: 2px 12px; border-radius: var(--radius-pill);
   border: 1px solid hsl(var(--border)); background: transparent; color: hsl(var(--foreground));
@@ -200,9 +198,9 @@
 .noesis-pill:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .noesis-pill:disabled { opacity: .5; cursor: default; }
 .noesis-pill[aria-pressed="true"], .noesis-pill[aria-selected="true"], .noesis-pill[aria-current] {
-  border-color: hsl(var(--tone) / .7); background: hsl(var(--tone) / .12); color: hsl(var(--tone));
+  border-color: hsl(var(--tone, var(--accent)) / .7); background: hsl(var(--tone, var(--accent)) / .12); color: hsl(var(--tone, var(--accent)));
 }
-.noesis-pill--tone { border-color: hsl(var(--tone) / .5); color: hsl(var(--tone)); }
+.noesis-pill--tone { border-color: hsl(var(--tone, var(--accent)) / .5); color: hsl(var(--tone, var(--accent))); }
 .noesis-pill--mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); letter-spacing: .1em; text-transform: uppercase; }
 .noesis-pill--italic { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: var(--text-base); padding: 4px 16px; }
 .noesis-pill--lg { min-height: var(--control-h); padding: 4px 16px; font-size: var(--text-base); }

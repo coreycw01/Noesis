@@ -29,9 +29,24 @@ interface FloatingWorkToolWindowProps {
   onPatch: (patch: Partial<ToolWindow>) => void;
   onPlacementChange: (placement: NonNullable<ToolWindow['placement']>) => void;
   onRemove: () => void;
+  /**
+   * Drop the tool on another page of the document. The geometry is already
+   * relative to that page, so the tool keeps the spot you dropped it on.
+   */
+  onMoveToPage?: (pageId: string, geometry: { x: number; y: number }) => void;
   /** Lowest and highest layer among the tools on this page. */
   layerRange?: { min: number; max: number };
   children: ReactNode;
+}
+
+/** The page under the pointer, ignoring the tool being dragged. */
+function pageUnder(x: number, y: number, dragged: HTMLElement | null) {
+  for (const element of document.elementsFromPoint(x, y)) {
+    if (dragged && dragged.contains(element)) continue;
+    const page = element.closest<HTMLElement>('[data-work-page-id]');
+    if (page) return page;
+  }
+  return null;
 }
 
 type Interaction = {
@@ -54,9 +69,12 @@ function normalizedWindow(section: WorkToolSection): ToolWindow {
   };
 }
 
-export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, onPatch, onPlacementChange, onRemove, layerRange, children }: FloatingWorkToolWindowProps) {
+export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, onPatch, onPlacementChange, onRemove, onMoveToPage, layerRange, children }: FloatingWorkToolWindowProps) {
   const [frame, setFrame] = useState(() => normalizedWindow(section));
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const onMoveToPageRef = useRef(onMoveToPage);
+  const frameRef = useRef(frame);
   const isMobile = useIsMobile();
   const interactionRef = useRef<Interaction | null>(null);
   const windowRef = useRef<HTMLElement | null>(null);
@@ -64,7 +82,10 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
 
   useEffect(() => {
     onPatchRef.current = onPatch;
-  }, [onPatch]);
+    onMoveToPageRef.current = onMoveToPage;
+  }, [onPatch, onMoveToPage]);
+
+  useEffect(() => { frameRef.current = frame; }, [frame]);
 
   useEffect(() => {
     if (interactionRef.current) return;
@@ -83,6 +104,13 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
       const availableWidth = Math.max(360, bounds?.width || 850);
       const availableHeight = Math.max(420, bounds?.height || 1030);
       if (interaction.kind === 'move') {
+        // Mark the page under the pointer, so dragging across a page break
+        // shows where the tool would land instead of silently snapping back.
+        const over = pageUnder(event.clientX, event.clientY, windowRef.current);
+        for (const page of document.querySelectorAll<HTMLElement>('[data-work-page-id]')) {
+          if (page === over && page !== windowRef.current?.closest('[data-work-page-id]')) page.dataset.toolDrop = 'true';
+          else delete page.dataset.toolDrop;
+        }
         const geometry = {
           width: current.width,
           height: current.height,
@@ -112,14 +140,36 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
       const interaction = interactionRef.current;
       if (!interaction || interaction.pointerId !== event.pointerId) return;
       interactionRef.current = null;
+      setDragging(false);
       document.body.style.userSelect = interaction.previousUserSelect;
+      for (const page of document.querySelectorAll<HTMLElement>('[data-work-page-id]')) delete page.dataset.toolDrop;
+      if (interaction.kind === 'move') {
+        const from = windowRef.current?.closest<HTMLElement>('[data-work-page-id]');
+        const to = pageUnder(event.clientX, event.clientY, windowRef.current);
+        const pageId = to?.dataset.workPageId;
+        if (to && from && to !== from && pageId && onMoveToPageRef.current) {
+          // Keep the spot under the pointer: the tool lands where it was
+          // dropped, grabbed at the same point on its header.
+          const bounds = to.getBoundingClientRect();
+          const size = interaction.geometry || interaction.frame;
+          const grabX = interaction.startX - (from.getBoundingClientRect().left + interaction.frame.x);
+          const grabY = interaction.startY - (from.getBoundingClientRect().top + interaction.frame.y);
+          onMoveToPageRef.current(pageId, {
+            x: Math.max(0, Math.min(Math.max(0, bounds.width - size.width), event.clientX - bounds.left - grabX)),
+            y: Math.max(0, Math.min(Math.max(0, bounds.height - size.height), event.clientY - bounds.top - grabY)),
+          });
+          return;
+        }
+      }
       if (interaction.geometry) onPatchRef.current(interaction.geometry);
     };
     const cancel = (event: Event) => {
       const interaction = interactionRef.current;
       if (!interaction || ('pointerId' in event && interaction.pointerId !== event.pointerId)) return;
       interactionRef.current = null;
+      setDragging(false);
       document.body.style.userSelect = interaction.previousUserSelect;
+      for (const page of document.querySelectorAll<HTMLElement>('[data-work-page-id]')) delete page.dataset.toolDrop;
       setFrame(interaction.frame);
     };
     window.addEventListener('pointermove', move);
@@ -147,7 +197,31 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
       previousUserSelect: document.body.style.userSelect,
     };
     document.body.style.userSelect = 'none';
+    if (kind === 'move') setDragging(true);
   };
+
+  // A page can get narrower — a smaller window, a different page size. Pull
+  // the tool back inside instead of leaving it hanging off the paper.
+  useEffect(() => {
+    const page = windowRef.current?.parentElement;
+    if (!page || typeof ResizeObserver === 'undefined') return;
+    const watcher = new ResizeObserver(() => {
+      if (interactionRef.current) return;
+      const bounds = page.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+      const current = frameRef.current;
+      if (current.placement && current.placement !== 'overlay') return;
+      const width = Math.min(current.width, Math.max(320, bounds.width));
+      const height = Math.min(current.height, Math.max(260, bounds.height - 48));
+      const x = Math.max(0, Math.min(current.x, Math.max(0, bounds.width - width)));
+      const y = Math.max(0, Math.min(current.y, Math.max(0, bounds.height - height)));
+      if (width === current.width && height === current.height && x === current.x && y === current.y) return;
+      setFrame((previous) => ({ ...previous, width, height, x, y }));
+      onPatchRef.current({ width, height, x, y });
+    });
+    watcher.observe(page);
+    return () => watcher.disconnect();
+  }, []);
 
   const setMinimized = (minimized: boolean) => {
     const next = { ...frame, minimized };
@@ -203,6 +277,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
       id={`work-tool-${section.id}`}
       aria-label={`${label} tool window`}
       data-minimized={frame.minimized ? 'true' : undefined}
+      data-dragging={dragging ? 'true' : undefined}
       data-custom-background={customBackground ? 'true' : undefined}
       inert={frame.minimized}
       onPointerDown={(event) => {

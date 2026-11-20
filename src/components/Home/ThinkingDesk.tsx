@@ -1049,7 +1049,7 @@ export function ThinkingDesk({
                 <div className="noesis-eyebrow text-muted-foreground">Since you last visited</div>
                 <p className="mt-1 text-xs text-muted-foreground">Real changes and saved reflections worth returning to.</p>
               </div>
-              <History className="size-5 shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
+              <History className="size-5 shrink-0 stroke-[2.4] text-stage-integrate" aria-hidden="true" />
             </div>
             {returnMoments.length ? (
               <div className="divide-y divide-border/70 border-y border-border/70">
@@ -1062,10 +1062,10 @@ export function ThinkingDesk({
                   >
                     <div className="flex items-start gap-3">
                       {item.kind === 'reflection'
-                        ? <Lightbulb className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
+                        ? <Lightbulb className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-kind-work" aria-hidden="true" />
                         : item.kind === 'practice'
-                          ? <Repeat className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
-                          : <GitBranch className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-muted-foreground" aria-hidden="true" />}
+                          ? <Repeat className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-kind-practice" aria-hidden="true" />
+                          : <GitBranch className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-stage-integrate" aria-hidden="true" />}
                       <span className="min-w-0">
                         <span className="block text-sm font-medium leading-5 text-foreground/85">{item.label}</span>
                         <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.detail}</span>

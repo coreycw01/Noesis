@@ -16,7 +16,11 @@
 
 /* Path: named stops, no numbers. Sticky under the app's top bar. */
 .noesis-path { position: sticky; top: calc(-1 * var(--page-top)); z-index: 10; margin: 0 0 var(--space-5); padding: calc(var(--page-top) + var(--space-2)) 0 var(--space-2); background: hsl(var(--background)); border-bottom: var(--hair); }
-.noesis-path ol { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; list-style: none; margin: 0; padding: 0; }
+.noesis-path ol { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; list-style: none; margin: 0; padding: 0 0 6px; }
+/* The underline follows the section you are reading; the dots say where
+   the work stands. It slides, so the move itself shows you where you went. */
+.noesis-path__slide { position: absolute; left: 0; bottom: 0; height: 2px; width: var(--path-w, 0); border-radius: 2px; background: hsl(var(--tone)); transform: translateX(var(--path-x, 0)); transition: transform .3s cubic-bezier(.4,0,.2,1), width .3s cubic-bezier(.4,0,.2,1); }
+@media (prefers-reduced-motion: reduce) { .noesis-path__slide { transition: none; } }
 .noesis-path li { position: relative; }
 .noesis-path li::before { content: ""; position: absolute; top: 11px; left: -50%; width: 100%; border-top: 2px solid hsl(var(--border)); }
 .noesis-path li:first-child::before { display: none; }
@@ -186,3 +190,106 @@
 .noesis-game__bin { display: grid; gap: 6px; align-content: start; min-height: 140px; padding: 10px; border: 1.5px dashed hsl(var(--tone)); border-radius: var(--radius-lg); background: hsl(var(--tone) / .05); }
 .noesis-game__step { display: flex; align-items: center; gap: var(--space-3); padding: 12px 14px; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); background: hsl(var(--background) / .6); color: hsl(var(--foreground)); font-size: 1.02rem; }
 .noesis-game__claim { margin: 0; font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 1.15rem; border-left: 3px solid hsl(var(--kind-position)); padding-left: 14px; }
+
+/* ---------- Calibration: one bar, two marks ----------
+   The grounds marker is placed by the record and moves on its own; the
+   handle is the number you state. Both live on the same track so the gap
+   between them is the thing you read. */
+.noesis-calbar { display: grid; gap: var(--space-3); }
+.noesis-calbar__track { position: relative; height: 58px; padding-top: 22px; }
+.noesis-calbar__range { position: relative; z-index: 2; width: 100%; margin: 0; accent-color: hsl(var(--tone)); background: transparent; }
+.noesis-calbar__track::before { content: ""; position: absolute; left: 0; right: 0; top: 36px; height: 8px; border-radius: 99px; background: linear-gradient(90deg, hsl(var(--tone) / .18), hsl(var(--tone) / .55)); }
+.noesis-calbar__gap { position: absolute; top: 36px; height: 8px; border-radius: 99px; background: repeating-linear-gradient(90deg, hsl(var(--foreground) / .45) 0 3px, transparent 3px 7px); }
+.noesis-calbar__grounds { position: absolute; top: 26px; width: 0; height: 28px; border-left: 2px dashed hsl(var(--foreground)); transform: translateX(-50%); z-index: 3; }
+.noesis-calbar__grounds-label,
+.noesis-calbar__stated-label { position: absolute; transform: translateX(-50%); white-space: nowrap; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .1em; text-transform: uppercase; }
+.noesis-calbar__grounds-label { top: 0; color: hsl(var(--foreground)); }
+.noesis-calbar__stated-label { bottom: 0; color: hsl(var(--tone)); }
+.noesis-calbar__why { display: grid; gap: var(--space-2); padding: var(--space-3); border-left: 3px solid hsl(var(--tone)); border-radius: var(--radius-md); background: hsl(var(--tone) / .08); }
+.noesis-markup__passage { padding: var(--space-4); border: var(--hair); border-radius: var(--radius-lg); background: hsl(var(--background) / .5); display: grid; gap: var(--space-2); }
+
+/* A record opened inside an index page must not become a second scroller:
+   one page, one scrollbar, and the wheel works anywhere on it. */
+.noesis-page .noesis-record { overflow: visible; height: auto; }
+
+/* ---------- Index header: one shape on every page ---------- */
+.noesis-page-header__title-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
+.noesis-page-header__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); margin-top: var(--space-3); }
+.noesis-page-header__bar .noesis-recent-strip { margin: 0; }
+.noesis-page-header__bar .noesis-page-header-actions { margin: 0; flex: none; }
+/* The header is a stack of rows: title line, description, then the bar that
+   carries what you had open and the one action that starts something new. */
+.noesis-page-header { align-items: stretch !important; text-align: left !important; }
+.noesis-page-header .noesis-page-title { text-align: left !important; margin: 0 !important; }
+.noesis-page-header .noesis-page-description { margin-left: 0 !important; margin-right: 0 !important; text-align: left !important; }
+.noesis-page-header .noesis-page-header__meta { justify-content: flex-start !important; }
+.noesis-page-header .noesis-page-header__title-row .noesis-route-label { align-self: center; }
+
+/* ---------- A box that cannot outgrow its page ----------
+   Lists that can run long get a bounded height and scroll inside it, so a
+   card stays the size it looks like and the page keeps its shape. */
+.noesis-scrollbox { max-height: min(60vh, 32rem); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.noesis-scrollbox::-webkit-scrollbar { width: 10px; }
+.noesis-scrollbox::-webkit-scrollbar-thumb { border-radius: 999px; background: hsl(var(--muted-foreground) / .35); border: 3px solid transparent; background-clip: content-box; }
+.noesis-scrollbox::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / .55); background-clip: content-box; }
+/* Rows in such a list are the same height, so the list reads as a column
+   rather than a ragged stack. */
+.noesis-rowlist > * { min-height: 92px; }
+.noesis-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+
+/* Deciding is tied to the scale: the balance is restated where you write the
+   answer, so the conclusion is read against the evidence, not apart from it. */
+.noesis-decide { display: grid; gap: var(--space-2); justify-items: start; margin-bottom: var(--space-3); padding: var(--space-3); border: 1px solid hsl(var(--tone, var(--neutral)) / .45); border-radius: var(--radius-lg); background: hsl(var(--tone, var(--neutral)) / .08); }
+.noesis-decide .noesis-eyebrow { color: hsl(var(--tone, var(--neutral))); }
+.noesis-decide__line { margin: 0; font-size: var(--text-sm); line-height: 1.55; }
+
+/* Two different places on a record page. The tools are yours alone; the
+   workbench is where the writing happens and where Noesis may be asked in. */
+.noesis-tools { margin-bottom: var(--space-4); padding: var(--space-4); border: var(--hair); border-left: 3px solid hsl(var(--tone)); border-radius: var(--radius-lg); background: hsl(var(--muted) / .25); }
+.noesis-tools__head { display: grid; gap: 4px; margin-bottom: var(--space-3); }
+.noesis-tools__head .noesis-eyebrow { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: hsl(var(--tone)); }
+.noesis-tools__head p { margin: 0; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+.noesis-tools__row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.noesis-tool { flex: 0 1 auto; min-width: 0; }
+.noesis-tool > summary { list-style: none; cursor: pointer; }
+.noesis-tool > summary::-webkit-details-marker { display: none; }
+.noesis-tool[open] { flex-basis: 100%; }
+.noesis-bench { display: grid; gap: 4px; margin: var(--space-5) 0 var(--space-3); }
+.noesis-bench .noesis-eyebrow { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: hsl(var(--tone)); }
+.noesis-bench p { margin: 0; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+.noesis-tool .noesis-fold__body > button { justify-self: start; }
+
+/* Connections and history: one shape, every record. */
+.noesis-connections { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.noesis-connections__group { flex: 0 1 auto; min-width: 0; border: var(--hair); border-radius: var(--radius-pill); background: hsl(var(--background)); }
+.noesis-connections__group[open] { flex-basis: 100%; border-radius: var(--radius-lg); }
+.noesis-connections__group > summary { display: flex; align-items: center; gap: 8px; min-height: var(--touch-min); padding: 0 var(--space-3); cursor: pointer; list-style: none; }
+.noesis-connections__group > summary::-webkit-details-marker { display: none; }
+.noesis-connections__group > summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-connections__count { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); color: hsl(var(--muted-foreground)); }
+.noesis-connections__body { padding: 0 var(--space-3) var(--space-3); }
+.noesis-connections__body ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.noesis-connections__body li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.noesis-connections__body li small { font-size: var(--text-xs); color: hsl(var(--muted-foreground)); }
+.noesis-connections__empty { margin: 0; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+.noesis-history-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.noesis-history-list li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--space-3); font-size: var(--text-sm); }
+.noesis-history-list time { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); color: hsl(var(--muted-foreground)); }
+.noesis-history-list b { display: block; font-weight: 600; }
+@media (max-width: 640px) { .noesis-history-list li { grid-template-columns: 1fr; gap: 2px; } }
+
+/* Setting up a round: the choices on the left, the deck you are about to
+   play fanned out beside them, so the page shows what it is dealing. */
+.noesis-setup { display: grid; gap: var(--space-4); align-items: start; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); }
+@media (max-width: 860px) { .noesis-setup { grid-template-columns: 1fr; } }
+.noesis-setup__grid { display: grid; gap: var(--space-3); }
+.noesis-setup__go { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-4); padding-top: var(--space-3); border-top: var(--hair); }
+.noesis-setup__count { margin: 0; flex: 1 1 200px; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+.noesis-setup__count b { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-base); color: hsl(var(--foreground)); }
+.noesis-setup__deck > ul { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.noesis-setup__card { padding: var(--space-3); border: var(--hair); border-radius: var(--radius-lg); background: hsl(var(--card)); transform: rotate(calc((var(--i) - 2) * .25deg)); }
+.noesis-setup__card .noesis-eyebrow { color: hsl(var(--tone, var(--accent))); }
+.noesis-setup__card p { margin: 4px 0 0; font-family: var(--font-headline, inherit); font-style: italic; line-height: 1.4; }
+.noesis-setup__card small { display: block; margin-top: 4px; font-size: var(--text-xs); color: hsl(var(--muted-foreground)); }
+.noesis-setup__more { margin: var(--space-2) 0 0; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+@media (prefers-reduced-motion: reduce) { .noesis-setup__card { transform: none; } }

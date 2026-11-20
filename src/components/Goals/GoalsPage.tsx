@@ -13,6 +13,9 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { FooterSection, RecordFooter, RecordHeader, RecordPath } from '@/components/shared/record/RecordPage';
+import { Connections, History } from '@/components/shared/record/RecordParts';
+import { EntityMeta } from '@/components/shared/IntellectualStructures';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalDay } from '@/hooks/use-local-day';
@@ -444,13 +447,87 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
     }
   };
 
+  const progressSettings = (
+    <section id="cmt-keep" className="mb-6" aria-label="Basic goal settings">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="font-headline text-xl font-bold italic">{focusedGoalId ? 'Progress settings' : 'Your commitments'}</h3>
+          {!focusedGoalId && <p className="mt-1 text-sm text-muted-foreground">Open one commitment to define its action, grounding, rhythm, and evidence.</p>}
+        </div>
+        {!focusedGoalId && <span className="text-sm text-muted-foreground">
+          {enrichedGoals.length} commitment{enrichedGoals.length === 1 ? '' : 's'}{enrichedGoals.length !== savedGoals.length ? ' in draft' : ''}
+        </span>}
+      </div>
+      <p id="goal-manual-rule" className="mb-3 text-sm text-muted-foreground">Progress uses the highest of your manual count, matching activity, and completed check-ins. The counts are not added together.</p>
+      <div className="divide-y divide-border border-y border-border">
+        {enrichedGoals.filter((row) => !focusedGoalId || row.id === focusedGoalId).map((row) => (
+          <article key={row.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(220px,1.3fr)_minmax(150px,.7fr)_minmax(170px,.8fr)_auto] lg:items-end">
+            <div>
+              <Label htmlFor={`goal-title-${row.id}`} className="readex-kicker flex items-center gap-1.5">{React.createElement(goalIconForKind(questKindForGoal(row, row.type)), { className: 'size-3.5 text-accent', 'aria-hidden': true })} Commitment</Label>
+              <Input id={`goal-title-${row.id}`} value={row.title} onChange={(event) => updateGoal(row.id, { title: event.target.value })} className="mt-2 h-10 font-medium" placeholder="What are you working toward?" />
+            </div>
+            <div>
+              <Label htmlFor={`goal-category-${row.id}`} className="readex-kicker">Progress comes from</Label>
+              <Select value={row.typeId} onValueChange={(value) => {
+                const category = activeGoalTypes.find((type) => type.id === value);
+                if (category) updateGoal(row.id, goalCategoryChange(row, row.type, category));
+              }}>
+                <SelectTrigger id={`goal-category-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>{activeGoalTypes.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor={`goal-manual-${row.id}`} className="readex-kicker">Manual count / target</Label>
+              <div className="mt-2 flex items-center gap-2">
+                <Button variant="outline" size="icon" onClick={() => updateGoal(row.id, { currentProgress: Math.max(0, row.manualProgress - 1) })} aria-label={`Decrease ${row.title} manual count`}><Minus className="size-3.5" /></Button>
+                <Input id={`goal-manual-${row.id}`} type="number" min={0} value={row.manualProgress} onChange={(event) => updateGoal(row.id, { currentProgress: Math.max(0, Number(event.target.value) || 0) })} className="h-10 min-w-0 text-center" aria-label={`${row.title} manual count`} aria-describedby="goal-manual-rule" />
+                <span className="text-muted-foreground">/</span>
+                <Input type="number" min={1} value={row.targetProgress} onChange={(event) => updateGoal(row.id, { targetProgress: Math.max(1, Number(event.target.value) || 1) })} className="h-10 min-w-0 text-center" aria-label={`${row.title} target progress`} />
+                <Button variant="outline" size="icon" onClick={() => updateGoal(row.id, { currentProgress: row.manualProgress + 1 })} aria-label={`Increase ${row.title} manual count`}><Plus className="size-3.5" /></Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 lg:justify-end">
+              <span className="text-xs text-muted-foreground">{row.currentProgress} total progress</span>
+              {!focusedGoalId && <Button variant="outline" size="sm" onClick={() => setPlanningGoalId((current) => current === row.id ? null : row.id)} className="min-h-10 rounded-full px-3">
+                {planningGoalId === row.id ? 'Close details' : 'Refine goal'}
+              </Button>}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+
   return (
-    <div className="noesis-page noesis-commitments-page" data-noesis-identity="commitment-ledger">
+    <div className="noesis-page noesis-commitments-page" data-noesis-identity="commitment-ledger" data-stage-tone={focusedGoal ? 'act' : undefined}>
       <div className="noesis-page-inner">
-        <PageHeader
-          title={focusedGoalId ? focusedGoal?.title || 'Commitment unavailable' : 'Praxis'}
+        {focusedGoal ? (
+          <>
+            <RecordHeader
+              backLabel="Back to commitments"
+              onBack={() => onOpenCommitment(null)}
+              view="Praxis"
+              kind="commitment"
+              status={<Badge tone={focusedGoal.status === 'active' ? 'practice' : commitmentReviewDue(focusedGoal) ? 'caution' : 'neutral'}>{commitmentReviewDue(focusedGoal) ? 'review due' : focusedGoal.status.replace('_', ' ')}</Badge>}
+              title={focusedGoal.title}
+              subtitle={`${focusedGoal.currentProgress} of ${focusedGoal.targetProgress} toward this commitment`}
+              trailing={<Button onClick={saveGoals} disabled={saving || draft === savedDraftRef.current}><Save className="mr-2 size-4" /> {saving ? 'Saving' : 'Save changes'}</Button>}
+            />
+            <RecordPath
+              label="Where you are with this commitment"
+              hereId={!focusedGoal.commitmentAction?.trim() ? 'cmt-commit' : commitmentReviewDue(focusedGoal) ? 'cmt-review' : 'cmt-keep'}
+              guide={!focusedGoal.commitmentAction?.trim()
+                ? 'Name the one action that would show you lived this.'
+                : commitmentReviewDue(focusedGoal)
+                  ? 'The review date has passed: say what happened and whether this still fits.'
+                  : 'Keep the action and record each time you do it.'}
+              stops={[{ id: 'cmt-commit', label: 'Commit' }, { id: 'cmt-keep', label: 'Keep' }, { id: 'cmt-review', label: 'Review' }]}
+            />
+          </>
+        ) : <PageHeader
+          title={focusedGoalId ? 'Commitment unavailable' : 'Praxis'}
           description={focusedGoalId
-            ? focusedGoal ? `${focusedGoal.currentProgress} of ${focusedGoal.targetProgress} toward this commitment` : 'This commitment may have been removed.'
+            ? 'This commitment may have been removed.'
             : 'Commitments help you uphold a chosen principle and compare what you say matters with what you repeatedly do.'}
           tabs={!focusedGoalId && (
             <div className="space-y-2">
@@ -482,7 +559,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             </Button>}
             </div>
           )}
-        />
+        />}
         {saveError && (
           <div className="mb-4 flex flex-wrap items-center gap-3 border border-destructive/50 p-3">
             <p role="alert" className="flex-1 text-sm text-destructive">{saveError}</p>
@@ -667,54 +744,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               </ol>
             </section>}
 
-            <section className="mb-6" aria-label="Basic goal settings">
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <h3 className="font-headline text-xl font-bold italic">{focusedGoalId ? 'Progress settings' : 'Your commitments'}</h3>
-                  {!focusedGoalId && <p className="mt-1 text-sm text-muted-foreground">Open one commitment to define its action, grounding, rhythm, and evidence.</p>}
-                </div>
-                {!focusedGoalId && <span className="text-sm text-muted-foreground">
-                  {enrichedGoals.length} commitment{enrichedGoals.length === 1 ? '' : 's'}{enrichedGoals.length !== savedGoals.length ? ' in draft' : ''}
-                </span>}
-              </div>
-              <p id="goal-manual-rule" className="mb-3 text-sm text-muted-foreground">Progress uses the highest of your manual count, matching activity, and completed check-ins. The counts are not added together.</p>
-              <div className="divide-y divide-border border-y border-border">
-                {enrichedGoals.filter((row) => !focusedGoalId || row.id === focusedGoalId).map((row) => (
-                  <article key={row.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(220px,1.3fr)_minmax(150px,.7fr)_minmax(170px,.8fr)_auto] lg:items-end">
-                    <div>
-                      <Label htmlFor={`goal-title-${row.id}`} className="readex-kicker flex items-center gap-1.5">{React.createElement(goalIconForKind(questKindForGoal(row, row.type)), { className: 'size-3.5 text-accent', 'aria-hidden': true })} Commitment</Label>
-                      <Input id={`goal-title-${row.id}`} value={row.title} onChange={(event) => updateGoal(row.id, { title: event.target.value })} className="mt-2 h-10 font-medium" placeholder="What are you working toward?" />
-                    </div>
-                    <div>
-                      <Label htmlFor={`goal-category-${row.id}`} className="readex-kicker">Progress comes from</Label>
-                      <Select value={row.typeId} onValueChange={(value) => {
-                        const category = activeGoalTypes.find((type) => type.id === value);
-                        if (category) updateGoal(row.id, goalCategoryChange(row, row.type, category));
-                      }}>
-                        <SelectTrigger id={`goal-category-${row.id}`} className="mt-2 h-10"><SelectValue /></SelectTrigger>
-                        <SelectContent>{activeGoalTypes.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor={`goal-manual-${row.id}`} className="readex-kicker">Manual count / target</Label>
-                      <div className="mt-2 flex items-center gap-2">
-                        <Button variant="outline" size="icon" onClick={() => updateGoal(row.id, { currentProgress: Math.max(0, row.manualProgress - 1) })} aria-label={`Decrease ${row.title} manual count`}><Minus className="size-3.5" /></Button>
-                        <Input id={`goal-manual-${row.id}`} type="number" min={0} value={row.manualProgress} onChange={(event) => updateGoal(row.id, { currentProgress: Math.max(0, Number(event.target.value) || 0) })} className="h-10 min-w-0 text-center" aria-label={`${row.title} manual count`} aria-describedby="goal-manual-rule" />
-                        <span className="text-muted-foreground">/</span>
-                        <Input type="number" min={1} value={row.targetProgress} onChange={(event) => updateGoal(row.id, { targetProgress: Math.max(1, Number(event.target.value) || 1) })} className="h-10 min-w-0 text-center" aria-label={`${row.title} target progress`} />
-                        <Button variant="outline" size="icon" onClick={() => updateGoal(row.id, { currentProgress: row.manualProgress + 1 })} aria-label={`Increase ${row.title} manual count`}><Plus className="size-3.5" /></Button>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 lg:justify-end">
-                      <span className="text-xs text-muted-foreground">{row.currentProgress} total progress</span>
-                      {!focusedGoalId && <Button variant="outline" size="sm" onClick={() => setPlanningGoalId((current) => current === row.id ? null : row.id)} className="min-h-10 rounded-full px-3">
-                        {planningGoalId === row.id ? 'Close details' : 'Refine goal'}
-                      </Button>}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
+            {!focusedGoalId && progressSettings}
 
             {planningGoalId && (() => {
               const planningGoal = enrichedGoals.find((item) => item.id === planningGoalId);
@@ -724,9 +754,11 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               <section className="border-y border-border py-5" aria-label={`Plan ${planningGoal.title}`}>
                 <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="noesis-eyebrow font-bold text-accent">Goal details</div>
-                    <h2 className="mt-1 font-headline text-2xl font-bold italic">{planningGoal.title}</h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Choose exactly what Noesis should count. You can still add progress manually from the goal list.</p>
+                    {!focusedGoalId && <>
+                      <div className="noesis-eyebrow font-bold text-accent">Goal details</div>
+                      <h2 className="mt-1 font-headline text-2xl font-bold italic">{planningGoal.title}</h2>
+                    </>}
+                    <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Choose exactly what Noesis should count. You can still add progress manually from the goal list.</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Select value={planningGoal.status} onValueChange={(value) => updateGoal(planningGoal.id, { status: value as IntellectualGoalStatus })}>
@@ -739,14 +771,14 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                         <SelectItem value="abandoned">Abandoned</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button variant="ghost" size="sm" onClick={() => deleteGoal(planningGoal.id)} className="min-h-10 rounded-full text-destructive hover:text-destructive">Delete goal</Button>
+                    <Button variant="ghost" size="sm" tone="problem" onClick={() => deleteGoal(planningGoal.id)} className="min-h-10 rounded-full">Delete commitment</Button>
                     {!focusedGoalId && <Button variant="ghost" size="sm" onClick={() => setPlanningGoalId(null)} className="min-h-10 rounded-full">Close details</Button>}
                   </div>
                 </div>
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,.7fr)]">
           {enrichedGoals.filter((row) => row.id === planningGoalId).map((row) => (
             <React.Fragment key={`simple-plan:${row.id}`}>
-              <section className="border border-border bg-card p-4 md:p-5" aria-labelledby={`goal-intention-${row.id}`}>
+              <section id="cmt-commit" className="border border-border bg-card p-4 md:p-5" aria-labelledby={`goal-intention-${row.id}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">Commitment setup</div>
@@ -843,7 +875,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                 </div>}
               </aside>
 
-              <section className="border-y border-border py-4 lg:col-span-2">
+              <section id="cmt-review" className="border-y border-border py-4 lg:col-span-2">
                 <details className="group">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-foreground">
                     <span>Reflection</span>
@@ -881,6 +913,32 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               </section>
               );
             })()}
+            {focusedGoalId && progressSettings}
+            {focusedGoal && (
+              <RecordFooter>
+                <FooterSection title="Connections" count={(focusedGoal.relatedObjectIds?.positionIds?.length || 0) + (focusedGoal.relatedObjectIds?.inquiryIds?.length || 0) + (focusedGoal.relatedObjectIds?.practiceIds?.length || 0) + (focusedGoal.relatedObjectIds?.workIds?.length || 0)}>
+                  <Connections groups={[
+                    { type: 'Positions', tone: 'position', items: positions.filter((item) => (focusedGoal.relatedObjectIds?.positionIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title || item.statement, meta: `${item.confidence}% confidence` })) },
+                    { type: 'Inquiries', tone: 'inquiry', items: inquiries.filter((item) => (focusedGoal.relatedObjectIds?.inquiryIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.text, meta: item.status.replace(/_/g, ' ') })) },
+                    { type: 'Praxis', tone: 'practice', items: practices.filter((item) => (focusedGoal.relatedObjectIds?.practiceIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title, meta: item.status.replace(/_/g, ' '), onOpen: () => onOpenPraxis(item.type === 'experiment' ? 'experiments' : 'practices') })) },
+                    { type: 'Works', tone: 'work', items: works.filter((item) => (focusedGoal.relatedObjectIds?.workIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title || 'Untitled' })) },
+                  ]} />
+                  <p className="mt-2 text-sm text-muted-foreground">Choose what this commitment counts under Commit, above.</p>
+                </FooterSection>
+                <FooterSection title="History" count={(focusedGoal.commitmentCheckIns || []).length}>
+                  <History entries={[...(focusedGoal.commitmentCheckIns || [])].reverse().map((checkIn) => ({ id: checkIn.id, date: checkIn.date, title: checkIn.status === 'skipped' ? 'Skipped' : 'Kept', text: checkIn.note }))}
+                    empty="No check-ins yet. Each one you record lands here." />
+                </FooterSection>
+                <FooterSection title="Record">
+                  <EntityMeta items={[
+                    { label: 'Counts', value: questTypeForGoal(focusedGoal, focusedGoal.type) },
+                    { label: 'Status', value: focusedGoal.status.replace(/_/g, ' ') },
+                    { label: 'Progress', value: `${focusedGoal.currentProgress} of ${focusedGoal.targetProgress}` },
+                    { label: 'Review', value: focusedGoal.commitmentReviewDate?.slice(0, 10) || '—' },
+                  ]} />
+                </FooterSection>
+              </RecordFooter>
+            )}
           </>
         )}
       </div>

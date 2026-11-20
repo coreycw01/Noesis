@@ -1301,6 +1301,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         onRemove={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))}
         onPatch={(patch) => updateToolSectionWindow(section.id, patch)}
         onPlacementChange={(placement) => updateToolSectionPlacement(section.id, placement)}
+        onMoveToPage={(pageId, geometry) => updateToolSections(activeToolSections.map((item) => item.id === section.id
+          ? { ...item, pageId, window: { width: 600, height: 430, ...(item.window || {}), ...geometry } }
+          : item))}
       >
         <BufferedStructuredWorkSurface
           embedded

@@ -36,7 +36,9 @@ import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { resolvedAiHistory, type AiReviewResult } from '@/lib/contextual-ai';
 import { practiceReviewTarget, type PracticeReviewApproval } from '@/lib/practice-ai-review';
-import { RecordPath, RecordSection, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { Connections, History } from '@/components/shared/record/RecordParts';
+import { EntityMeta } from '@/components/shared/IntellectualStructures';
 import { Dictation } from '@/components/shared/Dictation';
 import { PraxisInstrument } from '@/components/Practices/PraxisInstrument';
 import { hasPracticeIntellectualBasis, isRepeatablePractice, normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
@@ -285,8 +287,14 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
     }
   };
 
+  // An existing practice opens as its own page, so the index steps aside;
+  // a new one is still a dialog over the index.
+  const editorShown = editorOpen && (!onOpenPracticeRoute || (draft.id || null) === (focusedPracticeId || null));
+  const practiceIsOpen = editorShown && Boolean(draft.id);
+
   return (
     <div className="noesis-page noesis-labs-page" data-noesis-identity="experiment-log">
+      {!practiceIsOpen && (<>
       <PageHeader
         title="Praxis"
         description={isExperiment ? 'Make a prediction, record what happens, and review the result.' : 'Choose a repeatable action and check in when you do it.'}
@@ -391,10 +399,11 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
         description={practiceFiltersActive ? 'Try a different search or status.' : isExperiment ? 'Start with a question and one observation that could help answer it.' : 'Start with one repeatable action, such as taking ten quiet minutes after work.'}
         action={practiceFiltersActive ? <Button variant="outline" onClick={clearPracticeFilters}>Clear filters</Button> : <Button onClick={() => openEditor()}>New {noun}</Button>}
       />}
+      </>)}
       <PracticeEditor
         busy={savingPractice}
         aiSettings={aiSettings}
-        open={editorOpen && (!onOpenPracticeRoute || (draft.id || null) === (focusedPracticeId || null))}
+        open={editorShown}
         onOpenChange={(open) => {
           setEditorOpen(open);
           if (!open && focusedPracticeId) onOpenPracticeRoute?.(null);
@@ -824,201 +833,271 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
       setLogging(false);
     }
   };
+  // The practice itself is a record, so an existing one opens as a page with
+  // its own path (Action · Run · Review · Carry forward). Only a brand-new
+  // practice is a dialog, the same as adding an inquiry or a position.
+  const asPage = Boolean(draft.id);
+  const noun = isRepeatablePractice(draft.type) ? 'practice' : 'experiment';
+  const aiPanel = (
+    <ContextualAiPanel
+      enabled={Boolean(
+        aiSettings.aiAssistanceEnabled
+        && draft.id
+        && isPracticeConcluded(draft as Practice)
+        && ((draft.logs?.length || 0) > 0 || draft.observedOutcome?.trim())
+      )}
+      showContextBeforeSending={aiSettings.showContextBeforeSending}
+      reasoningDepth={aiDepthFor(aiSettings, 'praxis')}
+      actions={['synthesize_practice_outcome']}
+      buttonLabel="Outcome review"
+      promptLabel="What should Noesis examine?"
+      promptPlaceholder="For example: Did the logs support my hypothesis, or is there a better explanation?"
+      buildEnvelope={() => ({
+        action: 'synthesize_practice_outcome',
+        scope: 'linked_items',
+        targetType: 'practice',
+        targetId: draft.id || '',
+        itemMemory: [
+          `Practice: ${draft.title || 'Untitled'}`,
+          `Status: ${draft.status || 'planned'}; type: ${draft.type || 'experiment'}; duration: ${draft.durationDays || 0} days`,
+          draft.intellectualBasis ? `Intellectual basis: ${draft.intellectualBasis}` : '',
+          draft.hypothesis ? `Hypothesis: ${draft.hypothesis}` : '',
+          draft.action ? `Action performed: ${draft.action}` : '',
+          draft.context ? `Planned context: ${draft.context}` : '',
+          draft.observationMethod ? `Observation method: ${draft.observationMethod}` : '',
+          draft.expectedOutcome ? `Expected: ${draft.expectedOutcome}` : '',
+          draft.observedOutcome ? `Observed: ${draft.observedOutcome}` : '',
+          draft.interpretation ? `Interpretation: ${draft.interpretation}` : '',
+          draft.alternativeExplanation ? `User's alternative explanation: ${draft.alternativeExplanation}` : '',
+          draft.effectOnPosition ? `Recorded intellectual effect: ${draft.effectOnPosition}` : '',
+          ...(draft.logs || []).slice(-10).map((log) => [
+            `Log ${log.date}`,
+            `performed: ${log.actionCompleted ? 'yes' : 'no'}`,
+            log.context ? `context: ${log.context}` : '',
+            log.observations ? `observations: ${log.observations}` : '',
+            log.outcome ? `outcome: ${log.outcome}` : '',
+            log.unexpectedResult ? `unexpected: ${log.unexpectedResult}` : '',
+            log.confidence != null ? `confidence: ${log.confidence}/5` : '',
+          ].filter(Boolean).join('; ')),
+        ].filter(Boolean),
+        linkedMemory: [
+          ...positions.filter((position) => (draft.positionIds || []).includes(position.id)).slice(0, 4).map((position) => `Position: ${position.statement || position.title}; confidence ${position.confidence}%; support ${position.evidenceFor?.length || 0}; challenges ${position.evidenceAgainst?.length || 0}`),
+          ...questions.filter((question) => (draft.questionIds || []).includes(question.id)).slice(0, 4).map((question) => `Inquiry: ${question.text}; status ${question.status}; current answer ${question.answer || 'none'}; uncertainty ${question.uncertainty || 'not recorded'}`),
+          ...media.filter((source) => (draft.sourceIds || []).includes(source.id)).slice(0, 3).map((source) => `Source: ${source.title}${source.creator ? ` by ${source.creator}` : ''}; engagement ${(source.capture?.after?.coreArgument || source.capture?.after?.lasting || source.description || 'none recorded').slice(0, 400)}`),
+          ...drafts.filter((work) => (draft.draftIds || []).includes(work.id)).slice(0, 3).map((work) => `Work: ${work.title}; status ${work.status || 'not recorded'}; excerpt ${(work.body || work.draftContent || '').slice(0, 300) || 'none recorded'}`),
+        ],
+      })}
+      onAccept={onSaveAiOutcome}
+    />
+  );
+  const path = (
+    <>
+      {draft.id && (() => {
+        const checkIn = async (kept: boolean) => {
+          try {
+            await onRecordLog({ id: uid(), date: dateKey(), actionCompleted: kept, outcome: kept ? 'Kept' : 'Missed' });
+            toast({ title: kept ? 'Checked in' : 'Recorded as missed' });
+          } catch {
+            toast({ title: 'Check-in not saved', description: 'Please retry.', variant: 'destructive' });
+          }
+        };
+        return (
+          <div className="grid gap-3 pb-3">
+            <PraxisInstrument practice={draft} positions={positions} questions={questions} onCheckIn={schedule === 'running' ? (kept) => void checkIn(kept) : undefined} onOpenPosition={onOpenPosition} />
+          </div>
+        );
+      })()}
+      {draft.id && (() => {
+        const logs = draft.logs || [];
+        const reviewed = Boolean(draft.observedOutcome?.trim());
+        const here = !draft.action?.trim() ? 'prx-action'
+          : practiceScheduleState(draft) === 'review' || reviewed ? 'prx-review'
+            : logs.length ? 'prx-run'
+              : 'prx-run';
+        const guide = !draft.action?.trim() ? 'Name the action in a sentence.'
+          : practiceScheduleState(draft) === 'review' && !reviewed ? 'The run is over: say what you expected and what happened.'
+            : reviewed ? 'Reviewed. Carry what it shows back to a position, or write about it in Works.'
+              : logs.length ? `${logs.length} log${logs.length === 1 ? '' : 's'} recorded. Keep going, then review.`
+                : 'Do the action, then log what happened.';
+        return <RecordPath label="Where you are with this practice" hereId={here} guide={guide}
+          stops={[{ id: 'prx-action', label: 'Action' }, { id: 'prx-run', label: 'Run' }, { id: 'prx-review', label: 'Review' }, { id: 'prx-carry', label: 'Carry forward' }]} />;
+      })()}
+    </>
+  );
+  const sections = (
+    <div className="space-y-6">
+      <RecordSection id="prx-action" title="Action" description="What you will actually do, and why it is worth doing." headingLevel="h3">
+      <Field label="PRACTICE TITLE"><Input value={draft.title || ''} onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))} className="italic text-base rounded-full" /></Field>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <Field label="WHAT YOU WILL DO"><Textarea value={draft.action || ''} onChange={(event) => setDraft((prev) => ({ ...prev, action: event.target.value }))} className="min-h-[100px] italic text-base" placeholder={isRepeatablePractice(draft.type) ? "For example: Take a ten-minute walk after work without my phone." : "What will you do or observe?"} /></Field>
+        <Field label={isRepeatablePractice(draft.type) ? "REASON (OPTIONAL)" : "LINKED IDEA / REASON"}><Textarea value={draft.intellectualBasis || ''} onChange={(event) => setDraft((prev) => ({ ...prev, intellectualBasis: event.target.value }))} className="min-h-[100px] italic text-base" placeholder={isRepeatablePractice(draft.type) ? "What would make this action worthwhile?" : "What idea or question is this testing?"} /></Field>
+      </div>
+      <Field label="WHY THIS EXISTS (OPTIONAL)"><Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[72px] italic text-base" placeholder="Add context only if the action and linked idea do not explain the purpose." /></Field>
+      <details className="rounded-2xl border border-border/50 bg-muted/10 p-4">
+        <summary className="cursor-pointer noesis-eyebrow font-bold text-muted-foreground">Schedule and setup</summary>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Field label="PRACTICE TYPE">
+            <Select value={draft.type || 'experiment'} onValueChange={(value) => setDraft((prev) => ({ ...prev, type: value as PracticeType }))}>
+              <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm noesis-eyebrow h-11"><SelectValue /></SelectTrigger>
+              <SelectContent>{practiceTypes.map((type) => <SelectItem key={type} value={type} className="noesis-eyebrow">{PRACTICE_LABELS[type]}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="STATUS">
+            <Select value={draft.status || 'planned'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as PracticeStatus }))}>
+              <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm noesis-eyebrow h-11"><SelectValue /></SelectTrigger>
+              <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="noesis-eyebrow">{status}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="DURATION MODE">
+            <Select value={draft.durationMode || 'repeated'} onValueChange={(value) => setDraft((prev) => ({ ...prev, durationMode: value as Practice['durationMode'] }))}>
+              <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm noesis-eyebrow h-11"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="one_time">One time</SelectItem><SelectItem value="repeated">Repeated</SelectItem><SelectItem value="open_ended">Open ended</SelectItem></SelectContent>
+            </Select>
+          </Field>
+          <Field label="DURATION (DAYS)"><Input type="number" min={0} value={draft.durationDays || 0} onChange={(event) => setDraft((prev) => ({ ...prev, durationDays: Math.max(0, Number(event.target.value) || 0) }))} className="font-code rounded-full" /></Field>
+          <Field label="START DATE"><Input type="date" value={practiceCalendarDate(draft.startDate)} onChange={(event) => setDraft((prev) => ({ ...prev, startDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
+          <Field label="END DATE (EXPECTED)"><Input type="date" value={practiceCalendarDate(draft.endDate)} onChange={(event) => setDraft((prev) => ({ ...prev, endDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
+          <Field label="HYPOTHESIS"><Textarea value={draft.hypothesis || ''} onChange={(event) => setDraft((prev) => ({ ...prev, hypothesis: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="If I do this, what do I expect to happen or discover?" /></Field>
+          <Field label="CONTEXT"><Textarea value={draft.context || ''} onChange={(event) => setDraft((prev) => ({ ...prev, context: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="When, where, with whom, and under what conditions?" /></Field>
+          <Field label="OBSERVATION METHOD"><Textarea value={draft.observationMethod || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observationMethod: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="How will you know what happened without overstating the evidence?" /></Field>
+          <Field label="EXPECTED OUTCOME"><Textarea value={draft.expectedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, expectedOutcome: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What would support, weaken, or complicate the hypothesis?" /></Field>
+          <Field label="GENERAL NOTES"><Textarea value={draft.notes || ''} onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="Optional working notes." /></Field>
+          <Field label="CONCEPTS TESTED"><ConceptTagPicker concepts={concepts} value={draft.conceptTags || []} onChange={(conceptTags) => setDraft((prev) => ({ ...prev, conceptTags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></Field>
+        </div>
+      </details>
+      </RecordSection>
+      <RecordSection id="prx-run" title="Run and log" description="Do it, then record what happened while it is fresh." headingLevel="h3">
+        <section>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Current action</div>
+          <p className="mt-2 text-base leading-7 text-foreground">{draft.action || 'Define the action in Design before beginning this practice.'}</p>
+          <dl className="mt-4 grid grid-cols-3 gap-3 border-y border-border/50 py-3">
+            <div><dt className="text-xs text-muted-foreground">Status</dt><dd className="mt-1 text-sm font-semibold capitalize">{draft.status || 'planned'}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Logs</dt><dd className="mt-1 text-sm font-semibold">{draft.logs?.length || 0}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Schedule</dt><dd className="mt-1 text-sm font-semibold">{draft.durationMode === 'one_time' ? 'One time' : draft.durationMode === 'open_ended' ? 'Open ended' : `${draft.durationDays || 0} days`}</dd></div>
+          </dl>
+          {readyToLog ? <div className="mt-5 space-y-4 border-t border-border/50 pt-4">
+            <Field label="WHAT HAPPENED?"><Textarea value={observation} onChange={(event) => setObservation(event.target.value)} placeholder="What did you do or notice? An unexpected result is useful too." className="min-h-28 text-base leading-7" /></Field>
+            <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={completed} onChange={(event) => setCompleted(event.target.checked)} className="size-5 accent-accent" />I completed the action</label>
+            <Button type="button" onClick={recordObservation} disabled={logging || !observation.trim()} className="min-h-11">{logging ? 'Saving…' : 'Save observation'}</Button>
+            {(draft.logs || []).slice(-3).reverse().map((log) => <div key={log.id} className="border-t border-border/40 pt-3"><div className="text-xs text-muted-foreground">{new Date(`${log.date.slice(0, 10)}T12:00:00`).toLocaleDateString()} · {log.actionCompleted ? 'Completed' : 'Not completed'}</div><p className="mt-1 text-sm leading-6">{log.outcome || log.observations}</p></div>)}
+          </div> : <div className="mt-4"><p className="text-sm text-muted-foreground">{schedule === 'review' ? 'The scheduled period has ended. Review the result or adjust the schedule.' : schedule === 'scheduled' ? `This practice starts on ${draft.startDate}.` : draft.id && draft.status !== 'active' ? 'Complete setup and save this practice as active before logging.' : isRepeatablePractice(draft.type) ? 'Save the action as active before logging.' : 'Save the action, hypothesis, observation method, and success signal before logging.'}</p></div>}
+        </section>
+      </RecordSection>
+      <RecordSection id="prx-review" title="Review" description="What you expected, beside what happened. Kept apart so the two can be compared." headingLevel="h3">
+        <Dictation label="Dictate the review" hint="Dictates into the box you last typed in: what you expected, or what happened.">
+          <div className="noesis-pair">
+            <Field label="WHAT YOU EXPECTED"><Textarea value={draft.expectedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, expectedOutcome: event.target.value }))} className="min-h-[110px] italic text-base" placeholder="Before you began: what did you think would happen?" /></Field>
+            <Field label="WHAT HAPPENED"><Textarea value={draft.observedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observedOutcome: event.target.value }))} className="min-h-[110px] italic text-base" placeholder="What actually happened?" /></Field>
+          </div>
+          <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+            <Field label="INTERPRETATION"><Textarea value={draft.interpretation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, interpretation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What do you think the result means?" /></Field>
+            <Field label="ALTERNATIVE EXPLANATION"><Textarea value={draft.alternativeExplanation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What else could explain the result?" /></Field>
+            <Field label="EFFECT ON POSITION"><Textarea value={draft.effectOnPosition || ''} onChange={(event) => setDraft((prev) => ({ ...prev, effectOnPosition: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What position, inquiry, or concept should change because of this?" /></Field>
+          </div>
+          {savedReviews.length > 0 && (
+            <div className="mt-5">
+              <AiAssistedHistory
+                title="Saved outcome reviews"
+                entries={savedReviews.map((entry) => ({
+                  ...entry,
+                  originDetails: draft.id && entry.id.startsWith('ai-review-') ? {
+                    provenance: { provenanceId: entry.id, kind: 'ai-assisted' },
+                    target: practiceReviewTarget(draft.id, entry.id),
+                  } : undefined,
+                }))}
+                onChange={onSaveAiHistory}
+              />
+            </div>
+          )}
+        </Dictation>
+      </RecordSection>
+      <RecordSection id="prx-carry" title="Carry forward" description="Where this result should land: the sources, inquiries, positions, and works it bears on." headingLevel="h3">
+        {draft.id && <PraxisCarryCards draft={draft} positions={positions} onOpenPosition={onOpenPosition} onAddQuestion={onAddQuestion} onOpenWorks={onOpenWorks} />}
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
+          <LinkGrid title="Linked Sources" items={media.map((item) => ({ id: item.id, label: item.title }))} selected={draft.sourceIds || []} onChange={(sourceIds) => setDraft((prev) => ({ ...prev, sourceIds }))} />
+          <LinkGrid title="Linked Inquiries" items={questions.map((item) => ({ id: item.id, label: item.text }))} selected={draft.questionIds || []} onChange={(questionIds) => setDraft((prev) => ({ ...prev, questionIds }))} />
+          <LinkGrid title="Linked Positions" items={positions.map((item) => ({ id: item.id, label: item.title }))} selected={draft.positionIds || []} onChange={(positionIds) => setDraft((prev) => ({ ...prev, positionIds }))} />
+          <LinkGrid title="Linked Works" items={drafts.map((item) => ({ id: item.id, label: item.title }))} selected={draft.draftIds || []} onChange={(draftIds) => setDraft((prev) => ({ ...prev, draftIds }))} />
+        </div>
+      </RecordSection>
+    </div>
+  );
+  const saveBar = (
+    <div className="flex shrink-0 justify-end gap-3 border-t bg-muted/10 p-4 sm:px-8 [@media(max-height:600px)]:py-2">
+      <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 px-8 rounded-full font-bold text-muted-foreground hover:bg-transparent">Cancel</Button>
+      <Button onClick={onSave} disabled={busy || !draft.title?.trim()}>{busy ? 'Saving…' : draft.id ? 'Save practice' : 'Create practice'}</Button>
+    </div>
+  );
+
+  if (asPage) {
+    if (!open) return null;
+    return (
+      <RecordPage tone="act" identity={noun} className="noesis-page">
+        <RecordHeader
+          backLabel={`Back to ${noun}s`}
+          onBack={() => onOpenChange(false)}
+          view="Praxis"
+          kind={noun}
+          status={<Badge tone={schedule === 'review' ? 'caution' : schedule === 'running' ? 'practice' : 'neutral'}>{schedule === 'review' ? 'ready to review' : schedule}</Badge>}
+          title={draft.title?.trim() || `Untitled ${noun}`}
+          subtitle={draft.action?.trim() || undefined}
+          trailing={(
+            <div className="flex flex-wrap items-center gap-2">
+              {aiPanel}
+              <Button onClick={onSave} disabled={busy || !draft.title?.trim()}>{busy ? 'Saving…' : `Save ${noun}`}</Button>
+            </div>
+          )}
+        />
+        {path}
+        <fieldset disabled={busy} className="min-w-0 border-0 p-0">
+          {sections}
+        </fieldset>
+        <RecordFooter>
+          <FooterSection title="Connections" count={(draft.sourceIds?.length || 0) + (draft.questionIds?.length || 0) + (draft.positionIds?.length || 0) + (draft.draftIds?.length || 0)}>
+            <Connections groups={[
+              { type: 'Sources', tone: 'source', items: media.filter((item) => (draft.sourceIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title, meta: item.creator || undefined })) },
+              { type: 'Inquiries', tone: 'inquiry', items: questions.filter((item) => (draft.questionIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.text, meta: item.status.replace(/_/g, ' ') })) },
+              { type: 'Positions', tone: 'position', items: positions.filter((item) => (draft.positionIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title, meta: `${item.confidence}% confidence`, onOpen: onOpenPosition ? () => onOpenPosition(item.id) : undefined })) },
+              { type: 'Works', tone: 'work', items: drafts.filter((item) => (draft.draftIds || []).includes(item.id)).map((item) => ({ id: item.id, label: item.title || 'Untitled', onOpen: onOpenWorks })) },
+              { type: 'Concepts', tone: 'concept', items: (draft.conceptTags || []).map((tag) => ({ id: tag, label: tag })) },
+            ]} />
+            <p className="mt-2 text-sm text-muted-foreground">Choose what to link in Carry forward, above.</p>
+          </FooterSection>
+          <FooterSection title="History" count={(draft.logs || []).length}>
+            <History entries={[...(draft.logs || [])].reverse().map((log) => ({ id: log.id, date: log.date, title: log.actionCompleted ? 'Done' : 'Missed', text: [log.outcome, log.observations, log.unexpectedResult && `Unexpected: ${log.unexpectedResult}`].filter(Boolean).join(' · ') }))}
+              empty="No runs logged yet. Each check-in lands here." />
+          </FooterSection>
+          <FooterSection title="Record">
+            <EntityMeta items={[
+              { label: 'Kind', value: (draft.type || 'experiment').replace(/_/g, ' ') },
+              { label: 'Status', value: (draft.status || 'planned').replace(/_/g, ' ') },
+              { label: 'Started', value: draft.startDate?.slice(0, 10) || '—' },
+              { label: 'Logs', value: (draft.logs || []).length },
+            ]} />
+          </FooterSection>
+        </RecordFooter>
+      </RecordPage>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="grid h-[min(88dvh,56rem)] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden bg-card border-none shadow-2xl rounded-2xl p-0 sm:p-0 max-sm:h-[calc(100dvh-1rem)] max-sm:w-[calc(100vw-1rem)] max-sm:max-w-none [@media(max-height:600px)]:h-[calc(100dvh-1rem)]">
         <div className="border-b px-4 pt-4 sm:px-8 sm:pt-6 [@media(max-height:600px)]:pt-2">
           <DialogHeader className="mb-3 text-left [@media(max-height:600px)]:mb-1">
             <div className="flex flex-wrap items-center justify-between gap-3 pr-8">
-              <DialogTitle className="font-headline text-2xl italic sm:text-3xl [@media(max-height:600px)]:text-xl">{draft.id ? 'Edit practice' : 'New practice'}</DialogTitle>
-              <ContextualAiPanel
-                enabled={Boolean(
-                  aiSettings.aiAssistanceEnabled
-                  && draft.id
-                  && isPracticeConcluded(draft as Practice)
-                  && ((draft.logs?.length || 0) > 0 || draft.observedOutcome?.trim())
-                )}
-                showContextBeforeSending={aiSettings.showContextBeforeSending}
-                reasoningDepth={aiDepthFor(aiSettings, 'praxis')}
-                actions={['synthesize_practice_outcome']}
-                buttonLabel="Outcome review"
-                promptLabel="What should Noesis examine?"
-                promptPlaceholder="For example: Did the logs support my hypothesis, or is there a better explanation?"
-                buildEnvelope={() => ({
-                  action: 'synthesize_practice_outcome',
-                  scope: 'linked_items',
-                  targetType: 'practice',
-                  targetId: draft.id || '',
-                  itemMemory: [
-                    `Practice: ${draft.title || 'Untitled'}`,
-                    `Status: ${draft.status || 'planned'}; type: ${draft.type || 'experiment'}; duration: ${draft.durationDays || 0} days`,
-                    draft.intellectualBasis ? `Intellectual basis: ${draft.intellectualBasis}` : '',
-                    draft.hypothesis ? `Hypothesis: ${draft.hypothesis}` : '',
-                    draft.action ? `Action performed: ${draft.action}` : '',
-                    draft.context ? `Planned context: ${draft.context}` : '',
-                    draft.observationMethod ? `Observation method: ${draft.observationMethod}` : '',
-                    draft.expectedOutcome ? `Expected: ${draft.expectedOutcome}` : '',
-                    draft.observedOutcome ? `Observed: ${draft.observedOutcome}` : '',
-                    draft.interpretation ? `Interpretation: ${draft.interpretation}` : '',
-                    draft.alternativeExplanation ? `User's alternative explanation: ${draft.alternativeExplanation}` : '',
-                    draft.effectOnPosition ? `Recorded intellectual effect: ${draft.effectOnPosition}` : '',
-                    ...(draft.logs || []).slice(-10).map((log) => [
-                      `Log ${log.date}`,
-                      `performed: ${log.actionCompleted ? 'yes' : 'no'}`,
-                      log.context ? `context: ${log.context}` : '',
-                      log.observations ? `observations: ${log.observations}` : '',
-                      log.outcome ? `outcome: ${log.outcome}` : '',
-                      log.unexpectedResult ? `unexpected: ${log.unexpectedResult}` : '',
-                      log.confidence != null ? `confidence: ${log.confidence}/5` : '',
-                    ].filter(Boolean).join('; ')),
-                  ].filter(Boolean),
-                  linkedMemory: [
-                    ...positions.filter((position) => (draft.positionIds || []).includes(position.id)).slice(0, 4).map((position) => `Position: ${position.statement || position.title}; confidence ${position.confidence}%; support ${position.evidenceFor?.length || 0}; challenges ${position.evidenceAgainst?.length || 0}`),
-                    ...questions.filter((question) => (draft.questionIds || []).includes(question.id)).slice(0, 4).map((question) => `Inquiry: ${question.text}; status ${question.status}; current answer ${question.answer || 'none'}; uncertainty ${question.uncertainty || 'not recorded'}`),
-                    ...media.filter((source) => (draft.sourceIds || []).includes(source.id)).slice(0, 3).map((source) => `Source: ${source.title}${source.creator ? ` by ${source.creator}` : ''}; engagement ${(source.capture?.after?.coreArgument || source.capture?.after?.lasting || source.description || 'none recorded').slice(0, 400)}`),
-                    ...drafts.filter((work) => (draft.draftIds || []).includes(work.id)).slice(0, 3).map((work) => `Work: ${work.title}; status ${work.status || 'not recorded'}; excerpt ${(work.body || work.draftContent || '').slice(0, 300) || 'none recorded'}`),
-                  ],
-                })}
-                onAccept={onSaveAiOutcome}
-              />
+              <DialogTitle className="font-headline text-2xl italic sm:text-3xl [@media(max-height:600px)]:text-xl">New {noun}</DialogTitle>
+              {aiPanel}
             </div>
             <DialogDescription className="[@media(max-height:600px)]:hidden">
-              Define the action, evidence, and review conditions that make this practice a useful test of your thinking.
+              Define the action, evidence, and review conditions that make this {noun} a useful test of your thinking.
             </DialogDescription>
           </DialogHeader>
-          {draft.id && (() => {
-            const checkIn = async (kept: boolean) => {
-              try {
-                await onRecordLog({ id: uid(), date: dateKey(), actionCompleted: kept, outcome: kept ? 'Kept' : 'Missed' });
-                toast({ title: kept ? 'Checked in' : 'Recorded as missed' });
-              } catch {
-                toast({ title: 'Check-in not saved', description: 'Please retry.', variant: 'destructive' });
-              }
-            };
-            return (
-              <div className="grid gap-3 pb-3">
-                <PraxisInstrument practice={draft} positions={positions} questions={questions} onCheckIn={schedule === 'running' ? (kept) => void checkIn(kept) : undefined} onOpenPosition={onOpenPosition} />
-              </div>
-            );
-          })()}
-          {draft.id && (() => {
-            const logs = draft.logs || [];
-            const reviewed = Boolean(draft.observedOutcome?.trim());
-            const here = !draft.action?.trim() ? 'prx-action'
-              : practiceScheduleState(draft) === 'review' || reviewed ? 'prx-review'
-                : logs.length ? 'prx-run'
-                  : 'prx-run';
-            const guide = !draft.action?.trim() ? 'Name the action in a sentence.'
-              : practiceScheduleState(draft) === 'review' && !reviewed ? 'The run is over: say what you expected and what happened.'
-                : reviewed ? 'Reviewed. Carry what it shows back to a position, or write about it in Works.'
-                  : logs.length ? `${logs.length} log${logs.length === 1 ? '' : 's'} recorded. Keep going, then review.`
-                    : 'Do the action, then log what happened.';
-            return <div className="px-4 pb-2 sm:px-8"><RecordPath label="Where you are with this practice" hereId={here} guide={guide}
-              stops={[{ id: 'prx-action', label: 'Action' }, { id: 'prx-run', label: 'Run' }, { id: 'prx-review', label: 'Review' }, { id: 'prx-carry', label: 'Carry forward' }]} /></div>;
-          })()}
         </div>
         <fieldset disabled={busy} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain p-4 sm:px-8 sm:py-5">
-          <div className="space-y-6">
-            <RecordSection id="prx-action" title="Action" description="What you will actually do, and why it is worth doing." headingLevel="h3">
-            <Field label="PRACTICE TITLE"><Input value={draft.title || ''} onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))} className="italic text-base rounded-full" /></Field>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <Field label="WHAT YOU WILL DO"><Textarea value={draft.action || ''} onChange={(event) => setDraft((prev) => ({ ...prev, action: event.target.value }))} className="min-h-[100px] italic text-base" placeholder={isRepeatablePractice(draft.type) ? "For example: Take a ten-minute walk after work without my phone." : "What will you do or observe?"} /></Field>
-              <Field label={isRepeatablePractice(draft.type) ? "REASON (OPTIONAL)" : "LINKED IDEA / REASON"}><Textarea value={draft.intellectualBasis || ''} onChange={(event) => setDraft((prev) => ({ ...prev, intellectualBasis: event.target.value }))} className="min-h-[100px] italic text-base" placeholder={isRepeatablePractice(draft.type) ? "What would make this action worthwhile?" : "What idea or question is this testing?"} /></Field>
-            </div>
-            <Field label="WHY THIS EXISTS (OPTIONAL)"><Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[72px] italic text-base" placeholder="Add context only if the action and linked idea do not explain the purpose." /></Field>
-            <details className="rounded-2xl border border-border/50 bg-muted/10 p-4">
-              <summary className="cursor-pointer noesis-eyebrow font-bold text-muted-foreground">Schedule and setup</summary>
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Field label="PRACTICE TYPE">
-                  <Select value={draft.type || 'experiment'} onValueChange={(value) => setDraft((prev) => ({ ...prev, type: value as PracticeType }))}>
-                    <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm noesis-eyebrow h-11"><SelectValue /></SelectTrigger>
-                    <SelectContent>{practiceTypes.map((type) => <SelectItem key={type} value={type} className="noesis-eyebrow">{PRACTICE_LABELS[type]}</SelectItem>)}</SelectContent>
-                  </Select>
-                </Field>
-                <Field label="STATUS">
-                  <Select value={draft.status || 'planned'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as PracticeStatus }))}>
-                    <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm noesis-eyebrow h-11"><SelectValue /></SelectTrigger>
-                    <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="noesis-eyebrow">{status}</SelectItem>)}</SelectContent>
-                  </Select>
-                </Field>
-                <Field label="DURATION MODE">
-                  <Select value={draft.durationMode || 'repeated'} onValueChange={(value) => setDraft((prev) => ({ ...prev, durationMode: value as Practice['durationMode'] }))}>
-                    <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm noesis-eyebrow h-11"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="one_time">One time</SelectItem><SelectItem value="repeated">Repeated</SelectItem><SelectItem value="open_ended">Open ended</SelectItem></SelectContent>
-                  </Select>
-                </Field>
-                <Field label="DURATION (DAYS)"><Input type="number" min={0} value={draft.durationDays || 0} onChange={(event) => setDraft((prev) => ({ ...prev, durationDays: Math.max(0, Number(event.target.value) || 0) }))} className="font-code rounded-full" /></Field>
-                <Field label="START DATE"><Input type="date" value={practiceCalendarDate(draft.startDate)} onChange={(event) => setDraft((prev) => ({ ...prev, startDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
-                <Field label="END DATE (EXPECTED)"><Input type="date" value={practiceCalendarDate(draft.endDate)} onChange={(event) => setDraft((prev) => ({ ...prev, endDate: event.target.value }))} className="h-11 font-code rounded-full" /></Field>
-                <Field label="HYPOTHESIS"><Textarea value={draft.hypothesis || ''} onChange={(event) => setDraft((prev) => ({ ...prev, hypothesis: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="If I do this, what do I expect to happen or discover?" /></Field>
-                <Field label="CONTEXT"><Textarea value={draft.context || ''} onChange={(event) => setDraft((prev) => ({ ...prev, context: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="When, where, with whom, and under what conditions?" /></Field>
-                <Field label="OBSERVATION METHOD"><Textarea value={draft.observationMethod || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observationMethod: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="How will you know what happened without overstating the evidence?" /></Field>
-                <Field label="EXPECTED OUTCOME"><Textarea value={draft.expectedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, expectedOutcome: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What would support, weaken, or complicate the hypothesis?" /></Field>
-                <Field label="GENERAL NOTES"><Textarea value={draft.notes || ''} onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="Optional working notes." /></Field>
-                <Field label="CONCEPTS TESTED"><ConceptTagPicker concepts={concepts} value={draft.conceptTags || []} onChange={(conceptTags) => setDraft((prev) => ({ ...prev, conceptTags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></Field>
-              </div>
-            </details>
-            </RecordSection>
-            <RecordSection id="prx-run" title="Run and log" description="Do it, then record what happened while it is fresh." headingLevel="h3">
-              <section>
-                <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Current action</div>
-                <p className="mt-2 text-base leading-7 text-foreground">{draft.action || 'Define the action in Design before beginning this practice.'}</p>
-                <dl className="mt-4 grid grid-cols-3 gap-3 border-y border-border/50 py-3">
-                  <div><dt className="text-xs text-muted-foreground">Status</dt><dd className="mt-1 text-sm font-semibold capitalize">{draft.status || 'planned'}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Logs</dt><dd className="mt-1 text-sm font-semibold">{draft.logs?.length || 0}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Schedule</dt><dd className="mt-1 text-sm font-semibold">{draft.durationMode === 'one_time' ? 'One time' : draft.durationMode === 'open_ended' ? 'Open ended' : `${draft.durationDays || 0} days`}</dd></div>
-                </dl>
-                {readyToLog ? <div className="mt-5 space-y-4 border-t border-border/50 pt-4">
-                  <Field label="WHAT HAPPENED?"><Textarea value={observation} onChange={(event) => setObservation(event.target.value)} placeholder="What did you do or notice? An unexpected result is useful too." className="min-h-28 text-base leading-7" /></Field>
-                  <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={completed} onChange={(event) => setCompleted(event.target.checked)} className="size-5 accent-accent" />I completed the action</label>
-                  <Button type="button" onClick={recordObservation} disabled={logging || !observation.trim()} className="min-h-11">{logging ? 'Saving…' : 'Save observation'}</Button>
-                  {(draft.logs || []).slice(-3).reverse().map((log) => <div key={log.id} className="border-t border-border/40 pt-3"><div className="text-xs text-muted-foreground">{new Date(`${log.date.slice(0, 10)}T12:00:00`).toLocaleDateString()} · {log.actionCompleted ? 'Completed' : 'Not completed'}</div><p className="mt-1 text-sm leading-6">{log.outcome || log.observations}</p></div>)}
-                </div> : <div className="mt-4"><p className="text-sm text-muted-foreground">{schedule === 'review' ? 'The scheduled period has ended. Review the result or adjust the schedule.' : schedule === 'scheduled' ? `This practice starts on ${draft.startDate}.` : draft.id && draft.status !== 'active' ? 'Complete setup and save this practice as active before logging.' : isRepeatablePractice(draft.type) ? 'Save the action as active before logging.' : 'Save the action, hypothesis, observation method, and success signal before logging.'}</p></div>}
-              </section>
-            </RecordSection>
-            <RecordSection id="prx-review" title="Review" description="What you expected, beside what happened. Kept apart so the two can be compared." headingLevel="h3">
-              <Dictation label="Dictate the review" hint="Dictates into the box you last typed in: what you expected, or what happened.">
-                <div className="noesis-pair">
-                  <Field label="WHAT YOU EXPECTED"><Textarea value={draft.expectedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, expectedOutcome: event.target.value }))} className="min-h-[110px] italic text-base" placeholder="Before you began: what did you think would happen?" /></Field>
-                  <Field label="WHAT HAPPENED"><Textarea value={draft.observedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observedOutcome: event.target.value }))} className="min-h-[110px] italic text-base" placeholder="What actually happened?" /></Field>
-                </div>
-                <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <Field label="INTERPRETATION"><Textarea value={draft.interpretation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, interpretation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What do you think the result means?" /></Field>
-                  <Field label="ALTERNATIVE EXPLANATION"><Textarea value={draft.alternativeExplanation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What else could explain the result?" /></Field>
-                  <Field label="EFFECT ON POSITION"><Textarea value={draft.effectOnPosition || ''} onChange={(event) => setDraft((prev) => ({ ...prev, effectOnPosition: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What position, inquiry, or concept should change because of this?" /></Field>
-                </div>
-                {savedReviews.length > 0 && (
-                  <div className="mt-5">
-                    <AiAssistedHistory
-                      title="Saved outcome reviews"
-                      entries={savedReviews.map((entry) => ({
-                        ...entry,
-                        originDetails: draft.id && entry.id.startsWith('ai-review-') ? {
-                          provenance: { provenanceId: entry.id, kind: 'ai-assisted' },
-                          target: practiceReviewTarget(draft.id, entry.id),
-                        } : undefined,
-                      }))}
-                      onChange={onSaveAiHistory}
-                    />
-                  </div>
-                )}
-              </Dictation>
-            </RecordSection>
-            <RecordSection id="prx-carry" title="Carry forward" description="Where this result should land: the sources, inquiries, positions, and works it bears on." headingLevel="h3">
-              {draft.id && <PraxisCarryCards draft={draft} positions={positions} onOpenPosition={onOpenPosition} onAddQuestion={onAddQuestion} onOpenWorks={onOpenWorks} />}
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <LinkGrid title="Linked Sources" items={media.map((item) => ({ id: item.id, label: item.title }))} selected={draft.sourceIds || []} onChange={(sourceIds) => setDraft((prev) => ({ ...prev, sourceIds }))} />
-                <LinkGrid title="Linked Inquiries" items={questions.map((item) => ({ id: item.id, label: item.text }))} selected={draft.questionIds || []} onChange={(questionIds) => setDraft((prev) => ({ ...prev, questionIds }))} />
-                <LinkGrid title="Linked Positions" items={positions.map((item) => ({ id: item.id, label: item.title }))} selected={draft.positionIds || []} onChange={(positionIds) => setDraft((prev) => ({ ...prev, positionIds }))} />
-                <LinkGrid title="Linked Works" items={drafts.map((item) => ({ id: item.id, label: item.title }))} selected={draft.draftIds || []} onChange={(draftIds) => setDraft((prev) => ({ ...prev, draftIds }))} />
-              </div>
-            </RecordSection>
-          </div>
+          {sections}
         </fieldset>
-        <div className="flex shrink-0 justify-end gap-3 border-t bg-muted/10 p-4 sm:px-8 [@media(max-height:600px)]:py-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 px-8 rounded-full font-bold text-muted-foreground hover:bg-transparent">Cancel</Button>
-          <Button onClick={onSave} disabled={busy || !draft.title?.trim()}>{busy ? 'Saving…' : draft.id ? 'Save practice' : 'Create practice'}</Button>
-        </div>
+        {saveBar}
       </DialogContent>
     </Dialog>
   );
