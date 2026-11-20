@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { atlasFocusPan } from './atlas-keyboard-focus';
 import { CalendarRange, FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Pill } from '@/components/ui/pill';
 import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -1852,24 +1853,12 @@ export function ConceptAtlas({
                 <h4 className="mb-3 noesis-eyebrow text-muted-foreground">Evidence And Outputs</h4>
                 {related ? (
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => setRelatedDialogType('sources')} disabled={!related.sources.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.sources.length} sources</Badge>
-                    </button>
-                    <button onClick={() => setIsPositionsOpen(true)} disabled={!related.beliefs.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.beliefs.length} positions</Badge>
-                    </button>
-                    <button onClick={() => setRelatedDialogType('works')} disabled={!related.drafts.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.drafts.length} works</Badge>
-                    </button>
-                    <button onClick={() => setRelatedDialogType('practices')} disabled={!related.practices.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.practices.length} practices</Badge>
-                    </button>
-                    <button onClick={() => setRelatedDialogType('inquiries')} disabled={!related.questions.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.questions.length} inquiries</Badge>
-                    </button>
-                    <button onClick={() => setRelatedDialogType('unknowns')} disabled={!relatedUnknowns.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{relatedUnknowns.length} unknowns</Badge>
-                    </button>
+                    <Pill look="mono" onClick={() => setRelatedDialogType('sources')} disabled={!related.sources.length}>{related.sources.length} sources</Pill>
+                    <Pill look="mono" onClick={() => setIsPositionsOpen(true)} disabled={!related.beliefs.length}>{related.beliefs.length} positions</Pill>
+                    <Pill look="mono" onClick={() => setRelatedDialogType('works')} disabled={!related.drafts.length}>{related.drafts.length} works</Pill>
+                    <Pill look="mono" onClick={() => setRelatedDialogType('practices')} disabled={!related.practices.length}>{related.practices.length} practices</Pill>
+                    <Pill look="mono" onClick={() => setRelatedDialogType('inquiries')} disabled={!related.questions.length}>{related.questions.length} inquiries</Pill>
+                    <Pill look="mono" onClick={() => setRelatedDialogType('unknowns')} disabled={!relatedUnknowns.length}>{relatedUnknowns.length} unknowns</Pill>
                   </div>
                 ) : (
                   <p className="text-xs italic text-muted-foreground font-body">Gathering links...</p>

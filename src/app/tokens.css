@@ -89,19 +89,49 @@
   --neutral: 40 8% 62%;
 }
 
-.high-contrast {
-  --ok: 122 60% 28%;
-  --caution: 40 100% 26%;
-  --problem: 0 85% 38%;
-  --info: 220 80% 36%;
-  --neutral: 0 0% 25%;
+/* High contrast. The prototype skin sets its palette through
+   `:root[data-theme]`, which outranks a plain `.high-contrast`, so these
+   restate the contrast surfaces at a specificity that wins. */
+:root.high-contrast, :root[data-theme].high-contrast {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+  --surface: 0 0% 100%;
+  --muted: 0 0% 92%;
+  --muted-foreground: 0 0% 25%;
+  --secondary: 0 0% 94%;
+  --border: 0 0% 18%;
+  --input: 0 0% 18%;
+  --ok: 122 60% 25%;
+  --caution: 40 100% 24%;
+  --problem: 0 85% 35%;
+  --info: 220 80% 32%;
+  --neutral: 0 0% 20%;
+  --hair: 1px solid hsl(var(--border));
+  --hair-dashed: 1.5px dashed hsl(var(--border));
+  --shadow-card: none;
 }
-.dark.high-contrast {
+:root.dark.high-contrast, :root.dark[data-theme].high-contrast {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+  --card: 0 0% 4%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 4%;
+  --popover-foreground: 0 0% 100%;
+  --surface: 0 0% 4%;
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 82%;
+  --secondary: 0 0% 10%;
+  --border: 0 0% 72%;
+  --input: 0 0% 72%;
   --ok: 122 70% 72%;
   --caution: 48 100% 72%;
   --problem: 4 90% 74%;
   --info: 220 90% 80%;
-  --neutral: 0 0% 80%;
+  --neutral: 0 0% 85%;
 }
 
 /* A status tone, on any element: sets --tone for children to use. */
@@ -214,4 +244,17 @@
 
 @media (prefers-reduced-motion: reduce) {
   .noesis-pill, .noesis-panel--interactive { transition: none; }
+}
+
+/* ---------- Touch and pointer targets ----------
+   WCAG 2.5.8 asks for 24px in any direction; phones get the full 44px for
+   anything that is not inline text. The skip link stays visually hidden
+   until it is focused, so it is exempt. */
+.noesis-app :is(button, [role="button"], [role="checkbox"], [role="switch"], select):not(.sr-only):not([hidden]) { min-height: 24px; min-width: 24px; }
+.noesis-app :is(input[type="checkbox"], input[type="radio"]) { width: 20px; height: 20px; }
+@media (max-width: 639px) {
+  .noesis-app :is(button, [role="button"], [role="checkbox"], [role="switch"], select):not(.sr-only):not([hidden]):not(:where(p, li, span, label) > button) { min-height: var(--touch-min); }
+  .noesis-app :is(input[type="checkbox"], input[type="radio"]) { width: 24px; height: 24px; }
+  /* A checkbox in a row gets a comfortable tap area from its label. */
+  .noesis-app label:has(> input[type="checkbox"]) { min-height: var(--touch-min); display: inline-flex; align-items: center; gap: var(--space-2); }
 }

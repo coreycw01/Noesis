@@ -4,6 +4,7 @@ import React from 'react';
 import { ArrowLeft, ArrowRight, BrainCircuit, FlaskConical, HelpCircle, Maximize2, MapPinned, Sparkles, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Pill } from '@/components/ui/pill';
 import { Card } from '@/components/ui/card';
 import type { AtlasRegionLabel, AtlasRegionViewModel, AtlasTerritoryCard } from './atlas-diagnostics';
 import { regionActionDisplay, regionLabelDisplay } from './atlas-diagnostics';
@@ -348,9 +349,7 @@ export function AtlasTerritoryView({
                   <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Dominant concepts</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {selectedRegion.dominantConcepts.length ? selectedRegion.dominantConcepts.map((name) => (
-                      <button key={name} type="button" onClick={() => previewConcept(name)} className="rounded-full border border-border/60 bg-card px-3 py-1 noesis-eyebrow text-foreground transition-colors hover:border-accent hover:text-accent">
-                        {name}
-                      </button>
+                      <Pill key={name} look="mono" tone="concept" onClick={() => previewConcept(name)}>{name}</Pill>
                     )) : <span className="text-sm italic text-muted-foreground">No dominant concepts yet.</span>}
                   </div>
                 </div>
