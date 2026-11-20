@@ -1,0 +1,129 @@
+/*
+ * Record anatomy: the one layout every item detail shares.
+ *   RecordPage > RecordHeader > RecordPath (sticky) > RecordSection × n
+ *   > SuggestionCards (optional) > RecordFooter
+ * Styles use tokens only. The page's stage colour arrives as --accent via
+ * data-stage-tone on <main>; --tone is the same thing for anything nested.
+ */
+.noesis-record { --tone: var(--accent); max-width: 68rem; margin-inline: auto; }
+
+/* Header */
+.noesis-record__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: var(--space-2) 0 var(--space-3); }
+.noesis-record__top-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+.noesis-record__title { margin: 6px 0 0; font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: var(--text-title); line-height: 1.12; text-align: left; overflow-wrap: anywhere; }
+.noesis-record__subtitle { margin: var(--space-2) 0 0; max-width: 60ch; font-style: italic; color: hsl(var(--muted-foreground)); line-height: 1.55; }
+.noesis-record__tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+
+/* Path: named stops, no numbers. Sticky under the app's top bar. */
+.noesis-path { position: sticky; top: calc(-1 * var(--page-top)); z-index: 10; margin: 0 0 var(--space-5); padding: calc(var(--page-top) + var(--space-2)) 0 var(--space-2); background: hsl(var(--background)); border-bottom: var(--hair); }
+.noesis-path ol { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; list-style: none; margin: 0; padding: 0; }
+.noesis-path li { position: relative; }
+.noesis-path li::before { content: ""; position: absolute; top: 11px; left: -50%; width: 100%; border-top: 2px solid hsl(var(--border)); }
+.noesis-path li:first-child::before { display: none; }
+.noesis-path li[data-state="seen"]::before, .noesis-path li[data-state="here"]::before { border-top-color: hsl(var(--tone)); }
+.noesis-path__stop { position: relative; display: grid; justify-items: center; gap: 6px; width: 100%; min-height: var(--touch-min); padding: 0 4px; text-align: center; border-radius: var(--radius-sm); }
+.noesis-path__stop:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-path__dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid hsl(var(--border)); background: hsl(var(--background)); z-index: 1; }
+[data-state="seen"] .noesis-path__dot { background: hsl(var(--tone)); border-color: hsl(var(--tone)); }
+[data-state="here"] .noesis-path__dot { border-color: hsl(var(--tone)); box-shadow: 0 0 0 5px hsl(var(--tone) / .25); }
+.noesis-path__name { font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+[data-state="here"] .noesis-path__name { color: hsl(var(--foreground)); font-weight: 700; }
+.noesis-path__tag { min-height: 11px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--tone)); }
+.noesis-path__guide { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); margin-top: var(--space-2); font-size: var(--text-sm); }
+.noesis-path__guide .noesis-eyebrow { color: hsl(var(--tone)); }
+@media (max-width: 640px) { .noesis-path__name { font-size: var(--text-xs); } }
+
+/* Sections: one sheet per stop. */
+.noesis-step { margin-bottom: var(--space-4); padding: var(--space-4) var(--space-5); border: var(--hair); border-radius: var(--radius-lg); background: hsl(var(--card)); scroll-margin-top: 150px; }
+.noesis-step[data-here="true"] { border-color: hsl(var(--tone) / .6); }
+.noesis-step__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-3); }
+.noesis-step__title { margin: 0; font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: var(--text-xl); line-height: 1.2; }
+.noesis-step__desc { margin: 0; flex-basis: 100%; color: hsl(var(--muted-foreground)); font-size: var(--text-sm); }
+.noesis-step__aside { margin-left: auto; display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.noesis-step__cols { display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start; }
+.noesis-step__cols--even { grid-template-columns: 1fr 1fr; }
+@media (max-width: 820px) { .noesis-step__cols, .noesis-step__cols--even { grid-template-columns: 1fr; } .noesis-step { padding: var(--space-4); } }
+
+/* Rows inside sections: an item with its tools at the end. */
+.noesis-row { display: flex; align-items: center; gap: var(--space-3); margin-bottom: 6px; padding: 8px 10px; border: var(--hair); border-radius: 10px; background: hsl(var(--background) / .5); }
+.noesis-row--top { align-items: flex-start; }
+.noesis-row--lead { border-left: 3px solid hsl(var(--tone)); }
+.noesis-row__text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.noesis-row__meta { display: block; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .1em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-row__x { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border: var(--hair); border-radius: 50%; color: hsl(var(--muted-foreground)); }
+.noesis-row__x:hover:not(:disabled) { border-color: hsl(var(--problem)); color: hsl(var(--problem)); }
+.noesis-row__x:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-row__x:disabled { opacity: .5; }
+@media (max-width: 640px) { .noesis-row__x { width: 36px; height: 36px; } }
+.noesis-letter { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: hsl(var(--kind-source)); color: hsl(var(--background)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; font-weight: 700; }
+.noesis-pick { display: flex; gap: 4px; flex: none; }
+.noesis-pick button { width: 26px; height: 26px; border: var(--hair); border-radius: 50%; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: hsl(var(--foreground)); }
+.noesis-pick button[aria-pressed="true"] { background: hsl(var(--kind-source)); border-color: hsl(var(--kind-source)); color: hsl(var(--background)); }
+.noesis-pick button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+@media (max-width: 640px) { .noesis-pick button { width: 34px; height: 34px; } }
+.noesis-add { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+.noesis-add > :first-child { flex: 1; min-width: 0; }
+.noesis-lean { margin: 6px 0 0; color: hsl(var(--muted-foreground)); font-size: var(--text-sm); }
+.noesis-lean b { color: hsl(var(--foreground)); }
+.noesis-legend { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: 6px; font-size: var(--text-xs); color: hsl(var(--muted-foreground)); }
+.noesis-legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Disclosures inside a section: "Pull from your workspace", "Write new evidence". */
+.noesis-fold { margin-top: var(--space-3); }
+.noesis-fold > summary { list-style: none; cursor: pointer; display: inline-flex; }
+.noesis-fold > summary::-webkit-details-marker { display: none; }
+.noesis-fold > summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: var(--radius-pill); }
+.noesis-fold__body { display: grid; gap: var(--space-2); margin-top: var(--space-2); padding: var(--space-3); border: var(--hair-dashed); border-radius: var(--radius-md); }
+.noesis-fold__hint { margin: 0; color: hsl(var(--muted-foreground)); font-size: var(--text-sm); }
+.noesis-fieldrow { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.noesis-fieldrow label { display: grid; gap: 2px; }
+.noesis-fieldrow label > span:first-child { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .1em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-fieldrow select, .noesis-select { min-height: var(--control-h-sm); padding: 2px 10px; border: var(--hair); border-radius: var(--radius-pill); background: hsl(var(--background)); color: hsl(var(--foreground)); font: inherit; font-size: var(--text-sm); }
+.noesis-fieldrow select:focus-visible, .noesis-select:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-pull-list { display: grid; gap: 6px; max-height: 320px; overflow: auto; }
+.noesis-pull-item { display: flex; gap: var(--space-2); align-items: center; padding: 8px 10px; border: var(--hair); border-left: 3px solid hsl(var(--kind-inquiry)); border-radius: 10px; }
+.noesis-pull-item--challenge { border-left-color: hsl(var(--kind-position)); }
+.noesis-pull-item__text { flex: 1; min-width: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.noesis-mini { min-height: 26px; padding: 2px 10px; border: var(--hair); border-radius: var(--radius-pill); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: hsl(var(--foreground)); }
+.noesis-mini:hover { border-color: hsl(var(--tone)); color: hsl(var(--tone)); }
+.noesis-mini:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-check { display: flex; gap: var(--space-2); align-items: center; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+.noesis-check input { accent-color: hsl(var(--tone)); width: 16px; height: 16px; }
+
+/* Suggestion cards: only when the app has something specific to say. */
+.noesis-suggest { margin-top: var(--space-4); }
+.noesis-suggest__grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: var(--space-2); }
+.noesis-suggest__card { display: grid; gap: 6px; align-content: start; padding: 14px 16px; border: var(--hair-dashed); border-radius: var(--radius-md); }
+.noesis-suggest__card h3 { margin: 0; font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: 1.05rem; }
+.noesis-suggest__card p { margin: 0; color: hsl(var(--muted-foreground)); font-size: var(--text-sm); }
+.noesis-suggest__card q, .noesis-suggest__card .noesis-suggest__quote { color: hsl(var(--foreground)); font-style: italic; quotes: "“" "”"; }
+
+/* Ember: stated confidence as a glowing core that dims toward the edge. */
+.noesis-ember-lg { width: 84px; height: 84px; flex: none; border-radius: 50%; }
+.noesis-confbox { display: flex; align-items: center; gap: var(--space-4); }
+.noesis-confbox__big { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 2rem; line-height: 1; }
+.noesis-ba { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.noesis-ba > div { border: var(--hair); border-radius: var(--radius-md); padding: 10px 12px; }
+@media (max-width: 640px) { .noesis-ba { grid-template-columns: 1fr; } }
+
+/* Grounds gauge (position): the bar, the grounds marker, the slider. */
+.noesis-ggauge { position: relative; height: 46px; margin: var(--space-3) 0 6px; }
+.noesis-ggauge__bar { position: absolute; left: 0; right: 0; top: 20px; height: 8px; border-radius: 99px; background: linear-gradient(90deg, hsl(var(--tone) / .18), hsl(var(--tone) / .6)); }
+.noesis-ggauge__mark { position: absolute; top: 8px; width: 0; height: 32px; border-left: 2px dashed hsl(var(--foreground)); transform: translateX(-50%); }
+.noesis-ggauge__label { position: absolute; top: -6px; transform: translateX(-50%); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .1em; text-transform: uppercase; color: hsl(var(--foreground)); white-space: nowrap; }
+.noesis-range { width: 100%; accent-color: hsl(var(--tone)); }
+.noesis-hist { margin: var(--space-3) 0 0; padding: 0; list-style: none; }
+.noesis-hist li { margin: 0 0 6px; padding-left: 10px; border-left: 2px solid hsl(var(--tone)); color: hsl(var(--muted-foreground)); font-size: var(--text-sm); }
+
+/* Springs (3–4 answers) */
+.noesis-springs { display: grid; gap: 6px; }
+.noesis-spring { display: grid; gap: 4px; min-width: 0; justify-items: center; text-align: center; }
+.noesis-spring__cap { display: grid; gap: 3px; justify-items: center; font-size: var(--text-xs); line-height: 1.25; min-width: 0; }
+.noesis-spring__name { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.noesis-meter { display: grid; gap: 6px; }
+.noesis-meter__bar { width: 90px; height: 8px; border-radius: 9px; background: hsl(var(--muted)); overflow: hidden; flex: none; }
+.noesis-meter__bar i { display: block; height: 100%; background: hsl(var(--kind-inquiry)); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .noesis-step { transition: border-color var(--motion-calm) var(--ease-noesis); }
+}

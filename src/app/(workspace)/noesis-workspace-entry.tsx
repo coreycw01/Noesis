@@ -12,6 +12,7 @@ import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-pre
 import '../globals.css';
 import '../prototype-skin.css';
 import '../tokens.css';
+import '../record.css';
 
 const localDemoPreference = 'noesis:open-local-demo';
 let workspaceModule: Promise<typeof import('./noesis-home-page')> | undefined;

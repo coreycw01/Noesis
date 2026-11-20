@@ -3,6 +3,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import type { BadgeTone } from "@/components/ui/badge"
 
 /**
  * The button hierarchy. One primary per view; secondary for the other real
@@ -35,7 +36,7 @@ const buttonVariants = cva(
         icon: "h-9 w-9 p-0",
         "icon-sm": "h-7 w-7 p-0",
       },
-      label: {
+      voice: {
         mono: "font-code text-[10.5px] font-medium uppercase tracking-[0.08em]",
         text: "",
       },
@@ -43,7 +44,7 @@ const buttonVariants = cva(
     defaultVariants: {
       variant: "primary",
       size: "default",
-      label: "text",
+      voice: "text",
     },
   }
 )
@@ -53,17 +54,17 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {
   asChild?: boolean
   /** Semantic tone instead of the page's stage colour. */
-  tone?: "ok" | "caution" | "problem" | "info" | "neutral" | "stage" | "accent" | "source" | "annotation" | "concept" | "inquiry" | "position" | "practice" | "work"
+  tone?: BadgeTone
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, label, tone, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, voice, tone, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button"
     const iconOnly = size === "icon" || size === "icon-sm"
     return (
       <Comp
         className={cn(
-          buttonVariants({ variant, size, label, className }),
+          buttonVariants({ variant, size, voice, className }),
           iconOnly ? "max-sm:min-h-11 max-sm:min-w-11" : variant === "link" ? "" : "max-sm:min-h-11",
         )}
         ref={ref}
