@@ -142,16 +142,32 @@ Updated at the end of each phase. ✓ = on the system, ◐ = partly, ✗ = not y
 | Profile / Settings | ✓ | – | ✗ | ✗ |
 | Shell / nav / Loop dock | ✓ | – | ✗ | ✗ |
 
-### Counts, rechecked after phase 3
+### Counts, rechecked after phase 5
 
 | Measure | At audit | Now | Target |
 | --- | --- | --- | --- |
-| raw `<button>` | 200 | 189 | only inside primitives |
-| hex literals in TSX | 80 | 62 | the 62 are colour-picker values and export backgrounds (see below) |
-| Tailwind palette classes | 66 | 0 | 0 ✓ |
-| distinct eyebrow recipes | 12 recipes / 350+ uses | 32 distinct strings remain | one `Eyebrow` |
-| tab implementations | 4 | 2 (`WorkspaceTabs`, `ui/tabs`) | 2, by purpose |
-| `WorkbenchFlow` (numbered rings) | 4 pages | 0 pages (component retired from use) | removed in phase 4 |
+| Tailwind palette classes | 66 | **0** | 0 ✓ |
+| hand-written label recipes | 12 recipes, 563 uses | **0** (902 uses of `.noesis-eyebrow`, 44 of `.noesis-figure`) | one label, one figure ✓ |
+| hex literals in TSX | 80 | 62 | all are picker values, paper or export backgrounds (below) ✓ |
+| `window.confirm` | 3 | **0** | every confirmation is `ConfirmActionDialog` ✓ |
+| `WorkbenchFlow` (numbered rings) | 4 pages | **0** (deleted) | ✓ |
+| tab implementations | 4 | 2 (`WorkspaceTabs` for views, `ui/tabs`) | 2, by purpose ✓ |
+| raw `<button>` | 200 | 188 | the rest are table rows, canvas handles and list items, not controls a primitive covers |
+| targets below 24px | several (16px checkboxes, 22px row links) | **0** | 24px everywhere, 44px on phones ✓ |
+
+### Accessibility pass
+
+Checked on every index page and on the Inquiry, Position, Concept and
+Annotation details:
+
+- **Phone (390px):** no sideways scroll anywhere; no pressable target under
+  24px, and buttons, selects and checkboxes reach 44px.
+- **200% zoom (700px viewport):** no sideways scroll, no clipped controls.
+- **Reduced motion:** all transitions collapse to zero.
+- **High contrast:** was silently broken — the prototype skin sets its palette
+  through `:root[data-theme]`, which outranks `.high-contrast`, so the
+  contrast surfaces never applied. Restated at a winning specificity for both
+  light and dark, with stronger borders and darker status colours.
 
 **The hex that stays, and why.** Three kinds of literal colour are not design
 tokens and should not become them:

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { PraxisMethodPicker } from '@/components/Practices/PraxisMethodPicker';
 import { Check, ChevronDown, ChevronRight, Clock3, Compass, Minus, Plus, Save, Settings2, SkipForward, Target, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -184,6 +185,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
   const [skipGoalId, setSkipGoalId] = useState<string | null>(null);
   const [skipReasons, setSkipReasons] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  const [leavingTo, setLeavingTo] = useState<'practices' | 'experiments' | null>(null);
   const savedDraftRef = useRef(goal);
   const [saveError, setSaveError] = useState('');
 
@@ -467,7 +469,10 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
           actions={(
             <div className="flex flex-wrap items-center gap-2">
             {!focusedGoalId && <PraxisMethodPicker method="commitments" onChange={method => {
-              if (method !== 'commitments' && !saving && (draft === savedDraftRef.current || window.confirm('Leave without saving the commitment changes?'))) onOpenPraxis(method);
+              if (method === 'commitments' || saving) return;
+              // Unsaved work is confirmed in the app's own dialog, like every
+              // other confirmation; a clean draft just leaves.
+              if (draft === savedDraftRef.current) onOpenPraxis(method as 'practices' | 'experiments'); else setLeavingTo(method as 'practices' | 'experiments');
             }} />}
             {focusedGoalId ? <Button variant="outline" onClick={() => onOpenCommitment(null)}>All commitments</Button> : <Button variant="outline" onClick={addGoal}>
               <Plus className="mr-2 size-4" /> New commitment
@@ -879,6 +884,15 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
           </>
         )}
       </div>
-    </div>
+      <ConfirmActionDialog
+        open={leavingTo !== null}
+        onOpenChange={(next) => { if (!next) setLeavingTo(null); }}
+        title="Leave without saving?"
+        description="Your commitment changes have not been saved. Leaving now discards them."
+        confirmLabel="Leave without saving"
+        destructive
+        onConfirm={() => { const target = leavingTo; setLeavingTo(null); if (target) onOpenPraxis(target); }}
+      />
+      </div>
   );
 }
