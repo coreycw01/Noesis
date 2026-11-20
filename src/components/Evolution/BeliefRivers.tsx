@@ -66,15 +66,26 @@ export function BeliefRivers({ positions, thinkingEvents, onOpen, onExplain }: {
   if (!river) return <p className="text-sm text-muted-foreground">No current positions to follow yet.</p>;
   const { position, points, changes } = river;
   const first = points[0], last = points[points.length - 1];
-  const x = (at: number) => 4 + 992 * (at - first.time) / (last.time - first.time || 1);
+  // A recorded before/after pair is a millisecond apart, so on an axis spanning
+  // months both ends land on the same pixel and the river draws as a flat
+  // rectangle. Keep the time order, but give every recorded point room to be
+  // seen, so a change in confidence reads as the river narrowing or widening.
+  const span = last.time - first.time || 1;
+  const minGap = 1 / Math.max(points.length + 1, 8);
+  const spread = points.reduce<number[]>((out, point, index) => {
+    const at = (point.time - first.time) / span;
+    out.push(index ? Math.max(at, out[index - 1] + minGap) : 0);
+    return out;
+  }, []);
+  const full = spread[spread.length - 1] || 1;
+  const x = (index: number) => 4 + 992 * (spread[index] / full);
   const half = (confidence: number) => 2 + confidence * 0.4;
-  const edge = (side: number) => points.map((p, i) => {
-    const y = 48 + side * half(p.confidence);
-    return i ? 'H' + x(p.time) + 'V' + y : 'M' + x(p.time) + ',' + y;
-  }).join(' ');
-  const outline = edge(-1) + 'V' + (48 + half(last.confidence)) + [...points].reverse().slice(1).map(p =>
-    'V' + (48 + half(p.confidence)) + 'H' + x(p.time)
-  ).join(' ') + 'Z';
+  // Straight runs between points, so the taper between two confidences is
+  // visible rather than a step hidden at one edge.
+  const edge = (side: number) => points.map((point, index) =>
+    `${index ? 'L' : 'M'}${x(index)},${48 + side * half(point.confidence)}`).join(' ');
+  const outline = edge(-1) + ' ' + [...points].reverse().map((point, index) =>
+    `L${x(points.length - 1 - index)},${48 + half(point.confidence)}`).join(' ') + ' Z';
   const date = (at: number) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   return <div className="grid min-w-0 gap-4" data-stage-tone="integrate">
     <label className="grid min-w-0 gap-1 text-sm font-medium">Follow a position
@@ -93,7 +104,7 @@ export function BeliefRivers({ positions, thinkingEvents, onOpen, onExplain }: {
         <path d="M4 48H996" stroke="currentColor" strokeOpacity=".45" vectorEffect="non-scaling-stroke" />
       </svg>
       <figcaption className="grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>{date(first.time)} · {Math.round(first.confidence)}%</span><span className="text-right">Today · {Math.round(last.confidence)}%</span></figcaption>
-      <p className="mt-2 text-xs text-muted-foreground">Width shows recorded confidence · {changes} {changes === 1 ? 'change' : 'changes'}</p>
+      <p className="mt-2 text-xs text-muted-foreground">Width is the confidence you recorded, in the order you recorded it · {changes} {changes === 1 ? 'change' : 'changes'}</p>
     </figure> : <p className="border-y border-border py-4 text-sm text-muted-foreground">Only the current confidence is recorded. A river appears once there is an earlier rating to compare.</p>}
     <div className="flex flex-wrap gap-4 text-sm font-medium">
       {onExplain && <button className="min-h-11 underline underline-offset-4" onClick={() => onExplain(position.id)}>What changed?</button>}
