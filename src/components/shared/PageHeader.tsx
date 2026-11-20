@@ -39,24 +39,26 @@ export function PageHeader({ title, description, actions, meta, className, child
   return (
     <header data-noesis-route={view} data-stage-tone={NOESIS_NAV_SECTION_TONE[pageSection]} className={cn('noesis-page-header', tabs && 'noesis-page-header--with-tabs', className)}>
       <div className="noesis-page-header__rule" aria-hidden="true" />
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
-        <div className="min-w-0 max-w-4xl">
-          <div className="mb-2 flex items-center gap-2.5">
-            <span className="noesis-margin-marker"><PageIcon className="size-3.5" strokeWidth={2.2} aria-hidden="true" /></span>
-            <span className="noesis-route-label">
-              {stage && <><span className="noesis-route-label__section">{stage}</span><span className="noesis-route-label__divider" aria-hidden="true" /></>}
-              {section}
-            </span>
-          </div>
-          <div>
-            <h1 className="noesis-page-title min-w-0 text-[30px] md:text-[38px] lg:text-[42px]">{title}</h1>
-          </div>
-          <p className="noesis-page-description mt-2 max-w-3xl text-sm leading-6 md:mt-3 md:text-base md:leading-7">{description}</p>
-          {meta && <div className="noesis-page-header__meta">{meta}</div>}
-          {recentType && <RecentlyOpenedStrip type={recentType} reviewMode={reviewMode} />}
-        </div>
-        {actions && <div className="noesis-page-header-actions">{actions}</div>}
+      {/* The title line: where the page sits in the flow reads beside the name
+          rather than above it, so the header costs one row instead of two. */}
+      <div className="noesis-page-header__title-row">
+        <span className="noesis-margin-marker"><PageIcon className="size-3.5" strokeWidth={2.2} aria-hidden="true" /></span>
+        <h1 className="noesis-page-title min-w-0 text-[30px] md:text-[38px] lg:text-[42px]">{title}</h1>
+        <span className="noesis-route-label">
+          {stage && <><span className="noesis-route-label__section">{stage}</span><span className="noesis-route-label__divider" aria-hidden="true" /></>}
+          {section}
+        </span>
       </div>
+      <p className="noesis-page-description mt-2 max-w-3xl text-sm leading-6 md:text-base md:leading-7">{description}</p>
+      {meta && <div className="noesis-page-header__meta">{meta}</div>}
+      {/* One shape on every index page: what you had open on the left, the
+          one action that starts something new on the right. */}
+      {(recentType || actions) && (
+        <div className="noesis-page-header__bar">
+          <div className="min-w-0 flex-1">{recentType && <RecentlyOpenedStrip type={recentType} reviewMode={reviewMode} limit={3} />}</div>
+          {actions && <div className="noesis-page-header-actions">{actions}</div>}
+        </div>
+      )}
       {children && <div className="mt-4 md:mt-5">{children}</div>}
       {tabs && <div className="noesis-page-header__tabs">{tabs}</div>}
     </header>

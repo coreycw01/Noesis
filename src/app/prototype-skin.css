@@ -68,9 +68,6 @@ main[data-stage-tone="today"] { --accent: var(--proto-amber); --ring: var(--prot
 .noesis-page-header { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 2px 0 12px !important; margin-bottom: 20px !important; border-bottom: 1px solid hsl(var(--border)); }
 .noesis-page-header::before, .noesis-page-header::after { display: none !important; }
 .noesis-page-header > .noesis-page-header__rule { display: none; }
-.noesis-page-header > div.flex { display: contents !important; }
-.noesis-page-header > div.flex > div:first-child { display: grid; justify-items: center; gap: 2px; max-width: 72ch; min-width: 0; }
-.noesis-page-header > div.flex > div:first-child > div.mb-2 { margin-bottom: 0 !important; }
 .noesis-page-header .noesis-margin-marker { display: none; }
 .noesis-page-header .noesis-route-label { display: inline-flex; align-items: center; gap: 8px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--accent)); }
 .noesis-page-header .noesis-route-label::before { content: ""; width: 2px; height: 12px; background: hsl(var(--accent)); }
@@ -80,10 +77,10 @@ main[data-stage-tone="today"] { --accent: var(--proto-amber); --ring: var(--prot
 .noesis-page-title { font-family: "Playfair Display", Georgia, serif !important; font-style: italic; font-weight: 600 !important; font-size: clamp(1.8rem, 3.2vw, 2.5rem) !important; line-height: 1.1 !important; text-align: center; }
 .noesis-page-description { margin: 2px auto 0 !important; text-align: center; color: hsl(var(--muted-foreground)); font-size: .92rem !important; line-height: 1.45 !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .noesis-page-header__meta { justify-content: center; }
-.noesis-page-header-actions { order: 3; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; }
-.noesis-page-header > div.mt-4 { order: 4; width: 100%; margin-top: 10px !important; }
-.noesis-page-header__tabs { order: 3; display: flex; justify-content: center; margin-top: 10px; }
-.noesis-recent-strip { justify-content: center; }
+.noesis-page-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.noesis-page-header > div.mt-4 { width: 100%; margin-top: 10px !important; }
+.noesis-page-header__tabs { display: flex; justify-content: center; margin-top: 10px; }
+.noesis-recent-strip { justify-content: flex-start; }
 .noesis-page-header[data-stage-tone] .noesis-route-label__section, .noesis-page-header[data-stage-tone] .noesis-route-label { color: hsl(var(--stage)); }
 .noesis-page-header[data-stage-tone] .noesis-route-label::before { background: hsl(var(--stage)); }
 

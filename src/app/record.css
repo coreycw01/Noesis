@@ -207,3 +207,16 @@
 /* A record opened inside an index page must not become a second scroller:
    one page, one scrollbar, and the wheel works anywhere on it. */
 .noesis-page .noesis-record { overflow: visible; height: auto; }
+
+/* ---------- Index header: one shape on every page ---------- */
+.noesis-page-header__title-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
+.noesis-page-header__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); margin-top: var(--space-3); }
+.noesis-page-header__bar .noesis-recent-strip { margin: 0; }
+.noesis-page-header__bar .noesis-page-header-actions { margin: 0; flex: none; }
+/* The header is a stack of rows: title line, description, then the bar that
+   carries what you had open and the one action that starts something new. */
+.noesis-page-header { align-items: stretch !important; text-align: left !important; }
+.noesis-page-header .noesis-page-title { text-align: left !important; margin: 0 !important; }
+.noesis-page-header .noesis-page-description { margin-left: 0 !important; margin-right: 0 !important; text-align: left !important; }
+.noesis-page-header .noesis-page-header__meta { justify-content: flex-start !important; }
+.noesis-page-header .noesis-page-header__title-row .noesis-route-label { align-self: center; }

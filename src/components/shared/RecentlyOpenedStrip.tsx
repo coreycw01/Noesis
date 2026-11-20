@@ -12,15 +12,15 @@ const TYPE_VIEW: Record<NoesisRouteTargetType, NoesisView> = {
 };
 
 /** Quick links back to the records last opened on this page, newest first. */
-export function RecentlyOpenedStrip({ type, reviewMode }: { type: NoesisRouteTargetType; reviewMode: boolean }) {
+export function RecentlyOpenedStrip({ type, reviewMode, limit = 6 }: { type: NoesisRouteTargetType; reviewMode: boolean; limit?: number }) {
   const workspaceKey = useContext(NoesisWorkspaceKeyContext);
   const [items, setItems] = useState<RecentlyOpenedItem[]>([]);
   useEffect(() => {
-    const load = () => setItems(readRecentlyOpened(workspaceKey).filter((item) => item.type === type).slice(0, 6));
+    const load = () => setItems(readRecentlyOpened(workspaceKey).filter((item) => item.type === type).slice(0, limit));
     load();
     window.addEventListener(RECENTLY_OPENED_EVENT, load);
     return () => window.removeEventListener(RECENTLY_OPENED_EVENT, load);
-  }, [type, workspaceKey]);
+  }, [limit, type, workspaceKey]);
   if (!items.length) return null;
   return (
     <nav aria-label="Recently opened" className="noesis-recent-strip">
