@@ -25,7 +25,7 @@ export const MARK_KINDS: Array<{
   { kind: 'claim', label: 'Claim', destination: 'Positions', tone: 'position', icon: Flag, prompt: 'The claim, in your own words. This becomes the position’s statement.' },
   { kind: 'question', label: 'Question', destination: 'Inquiries', tone: 'inquiry', icon: CircleHelp, prompt: 'The question this raises. This becomes the inquiry.' },
   { kind: 'definition', label: 'Definition', destination: 'Concepts', tone: 'concept', icon: Lightbulb, prompt: 'The meaning this gives. It is attached to the concept you name.' },
-  { kind: 'action', label: 'Try it', destination: 'Praxis', tone: 'practice', icon: Footprints, prompt: 'The action you would repeat or observe. This becomes the practice.' },
+  { kind: 'action', label: 'Action', destination: 'Praxis', tone: 'practice', icon: Footprints, prompt: 'The action you would repeat or observe. This becomes the practice.' },
   { kind: 'reference', label: 'Reference', destination: 'Stays here', tone: 'annotation', icon: BookOpen, prompt: 'Kept as a reference inside this passage.' },
 ];
 
@@ -120,18 +120,36 @@ export function MarkupSurface({ text, marks, onAddMark, onSelect, disabled, labe
 
   return (
     <div className="noesis-markup">
+      <div className="noesis-markup__passage">
       <Eyebrow as="h3">{label} · select any part to mark it</Eyebrow>
       <p ref={passage} className="noesis-markup__text">
         {segments(text, marks).map((segment) => {
           const inner = segment.kinds[segment.kinds.length - 1];
           const style: React.CSSProperties = {};
-          if (inner) style.background = `hsl(var(--kind-${markKind(inner).tone}) / .22)`;
+          if (inner) style.background = `hsl(var(--kind-${markKind(inner).tone}) / .2)`;
           if (segment.kinds.length) {
-            style.boxShadow = segment.kinds.map((kind, depth) => `inset 0 ${-1 - depth * 3}px 0 -${depth * 3}px hsl(var(--kind-${markKind(kind).tone}))`).join(', ');
+            // One rule per mark, stacked downward, so overlapping marks are
+            // countable instead of blending into a single thick line.
+            style.paddingBottom = `${segment.kinds.length * 4}px`;
+            style.backgroundImage = [
+              ...(inner ? [`linear-gradient(hsl(var(--kind-${markKind(inner).tone}) / .2), hsl(var(--kind-${markKind(inner).tone}) / .2))`] : []),
+              ...segment.kinds.map((kind) => `linear-gradient(hsl(var(--kind-${markKind(kind).tone})), hsl(var(--kind-${markKind(kind).tone})))`),
+            ].join(', ');
+            style.backgroundRepeat = 'no-repeat';
+            style.backgroundSize = [
+              ...(inner ? ['100% 100%'] : []),
+              ...segment.kinds.map(() => '100% 2px'),
+            ].join(', ');
+            style.backgroundPosition = [
+              ...(inner ? ['0 0'] : []),
+              ...segment.kinds.map((_, depth) => `0 calc(100% - ${depth * 4}px)`),
+            ].join(', ');
+            style.background = undefined;
           }
-          return <span key={`${segment.start}-${segment.end}`} style={style}>{text.slice(segment.start, segment.end)}</span>;
+          return <span key={`${segment.start}-${segment.end}`} style={style} title={segment.kinds.length > 1 ? `${segment.kinds.length} marks: ${segment.kinds.map((kind) => markKind(kind).label).join(', ')}` : undefined}>{text.slice(segment.start, segment.end)}</span>;
         })}
       </p>
+      </div>
 
       <div className="noesis-markup__bar">
         <span className="text-sm text-muted-foreground">{activeText ? `Marking “${activeText.length > 48 ? `${activeText.slice(0, 47)}…` : activeText}”` : 'Select words above, or pick a sentence below.'}</span>

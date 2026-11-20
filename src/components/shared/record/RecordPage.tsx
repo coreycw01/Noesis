@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Pill } from '@/components/ui/pill';
 import { DetailLabel } from '@/components/shared/PageHeader';
-import type { BadgeTone } from '@/components/ui/badge';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 export { RecordFooter, FooterSection } from '@/components/shared/RecordDetail';
@@ -53,7 +53,7 @@ export function RecordHeader({ backLabel, onBack, view, kind, status, extra, tit
         <div className="noesis-record__tags">
           {tags.map((tag) => onTag
             ? <Pill key={tag} look="mono" tone="concept" onClick={() => onTag(tag)}>{tag}</Pill>
-            : <Eyebrow key={tag} tone="concept">{tag}</Eyebrow>)}
+            : <Badge key={tag} tone="concept">{tag}</Badge>)}
         </div>
       )}
       {children}

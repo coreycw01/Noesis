@@ -202,3 +202,8 @@
 .noesis-calbar__grounds-label { top: 0; color: hsl(var(--foreground)); }
 .noesis-calbar__stated-label { bottom: 0; color: hsl(var(--tone)); }
 .noesis-calbar__why { display: grid; gap: var(--space-2); padding: var(--space-3); border-left: 3px solid hsl(var(--tone)); border-radius: var(--radius-md); background: hsl(var(--tone) / .08); }
+.noesis-markup__passage { padding: var(--space-4); border: var(--hair); border-radius: var(--radius-lg); background: hsl(var(--background) / .5); display: grid; gap: var(--space-2); }
+
+/* A record opened inside an index page must not become a second scroller:
+   one page, one scrollbar, and the wheel works anywhere on it. */
+.noesis-page .noesis-record { overflow: visible; height: auto; }
