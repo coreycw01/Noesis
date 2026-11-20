@@ -8,6 +8,7 @@ import { useDoc } from '@/firebase/firestore/use-doc';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { MAX_SAVED_DESKS, readDeskMembership, readSavedDesks, replaceSavedDesk, type DeskMembership, type SavedContextDesk } from '@/lib/saved-context-desks';
 
 export function SavedContextDesks({ uid, membership, onOpen }: { uid: string; membership: DeskMembership; onOpen: (membership: DeskMembership) => void }) {
@@ -20,21 +21,29 @@ export function SavedContextDesks({ uid, membership, onOpen }: { uid: string; me
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const lock = useRef(false);
+  // Both confirmations go through the app's own dialog, so they look, read and
+  // behave like every other confirmation.
+  const [confirming, setConfirming] = useState<'open' | 'delete' | null>(null);
   const normalized = readDeskMembership(membership);
   const dirty = opened
     ? name.trim() !== opened.name || JSON.stringify(normalized) !== JSON.stringify(readDeskMembership(opened))
     : Boolean(name.trim() || normalized.selected.length || normalized.keys.length || normalized.sourceIds.length || normalized.types.length);
 
-  function open() {
+  function openDesk() {
     const desk = desks.find(item => item.id === pick);
-    if (!desk || (dirty && !window.confirm('Open this desk and replace the unsaved selection and exclusions?'))) return;
+    if (!desk) return;
     onOpen(readDeskMembership(desk)); setOpened(desk); setName(desk.name); setMessage('Desk opened.');
+  }
+  function open() {
+    if (!desks.some(item => item.id === pick)) return;
+    if (dirty) { setConfirming('open'); return; }
+    openDesk();
   }
 
   async function change(mode: 'save' | 'copy' | 'delete') {
     if (lock.current) return;
     const prior = mode === 'copy' ? null : opened;
-    if (mode === 'delete' && (!prior || !window.confirm('Delete this saved desk? Its source records will not be deleted.'))) return;
+    if (mode === 'delete' && !prior) return;
     if (mode !== 'delete' && !name.trim()) return;
     lock.current = true; setBusy(true); setMessage('');
     try {
@@ -66,8 +75,19 @@ export function SavedContextDesks({ uid, membership, onOpen }: { uid: string; me
     {desks.length > 0 && <div className="flex flex-wrap items-center gap-2">
       <Select value={pick} onValueChange={setPick}><SelectTrigger aria-label="Saved desks" className="min-w-0 flex-1 basis-44"><SelectValue placeholder="Choose a saved desk" /></SelectTrigger><SelectContent>{desks.map(desk => <SelectItem value={desk.id} key={desk.id}>{desk.name}</SelectItem>)}</SelectContent></Select>
       <Button variant="outline" disabled={busy || !pick} onClick={open}><FolderOpen size={16} />Open</Button>
-      {opened && <Button variant="ghost" onClick={() => void change('delete')} disabled={busy || !!error}>Delete saved desk</Button>}
+      {opened && <Button variant="destructive" onClick={() => setConfirming('delete')} disabled={busy || !!error}>Delete saved desk</Button>}
     </div>}
+    <ConfirmActionDialog
+      open={confirming !== null}
+      onOpenChange={(next) => { if (!next) setConfirming(null); }}
+      title={confirming === 'delete' ? 'Delete this saved desk?' : 'Replace your unsaved selection?'}
+      description={confirming === 'delete'
+        ? 'The desk is removed from your account. Its source records are not deleted.'
+        : 'Opening this desk replaces the selection and exclusions you have not saved.'}
+      confirmLabel={confirming === 'delete' ? 'Delete saved desk' : 'Open the desk'}
+      destructive={confirming === 'delete'}
+      onConfirm={async () => { if (confirming === 'delete') await change('delete'); else openDesk(); setConfirming(null); }}
+    />
     <p role="status" className="text-xs text-muted-foreground">{loading ? 'Loading saved desks…' : error ? 'Saved desks are unavailable. You can still use this session’s selection.' : message || (dirty && opened ? 'Unsaved desk changes.' : desks.length >= MAX_SAVED_DESKS ? 'Saved desk limit reached.' : '')}</p>
   </section>;
 }

@@ -126,7 +126,7 @@ export function NoesisShell({
                   This preview uses a local deterministic dataset. Sign in with <span className="font-code">{REVIEW_ACCOUNT_EMAIL}</span> to reseed the Firestore review workspace.
                 </p>
               )}
-              <div className="mt-1 flex flex-wrap gap-2 font-code text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="mt-1 flex flex-wrap gap-2 noesis-eyebrow text-muted-foreground">
                 <span>{counts.media} sources</span>
                 <span>{counts.annotations} annotations</span>
                 <span>{counts.questions} inquiries</span>
@@ -141,7 +141,7 @@ export function NoesisShell({
                 <FlaskConical className="mr-1.5 size-3.5" />
                 {isSeedingReview ? 'Refreshing Demo Data' : 'Refresh Demo Workspace'}
               </Button>
-              <Button onClick={exportReviewArchitecture} className="h-8 rounded-full px-3 text-xs">
+              <Button onClick={exportReviewArchitecture} className="text-xs">
                 <Download className="mr-1.5 size-3.5" /> Export Architecture
               </Button>
             </div>

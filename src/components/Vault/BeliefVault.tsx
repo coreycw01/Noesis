@@ -3,12 +3,16 @@
 
 import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FooterSection, NextMove, RecordFooter, RecordTools } from '@/components/shared/RecordDetail';
+import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, Row, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { Eyebrow } from '@/components/ui/eyebrow';
+import { SectionEmpty } from '@/components/shared/SectionEmpty';
+import { ConfidenceEmber } from '@/components/Vault/ConfidenceEmber';
 import { RecordHistory, ThroughConcept } from '@/components/shared/ThroughConcept';
 import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
-import { Button } from '@/components/ui/button';
+import { Button, IconButton } from '@/components/ui/button';
+import { Pill } from '@/components/ui/pill';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -33,7 +37,6 @@ import { DetailLabel, PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { ToolOption, ToolOptions, WorkbenchPanel } from '@/components/shared/WorkbenchPanel';
 import { EditorialSection, EntityMeta, IntellectualRoleLabel, RevisionEvent } from '@/components/shared/IntellectualStructures';
 import { noesisUserError } from '@/lib/user-facing-errors';
@@ -42,7 +45,7 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { InteractiveCalibration, PositionMiniScale, PullEvidenceDialog } from '@/components/Vault/PositionCalibration';
+import { PositionMiniScale, PullEvidenceDialog, evidenceBalance, zoneLabel } from '@/components/Vault/PositionCalibration';
 import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
 import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
 import { positionReviewTarget, type PositionReviewApproval } from '@/lib/position-ai-review';
@@ -462,7 +465,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [conceptFilter, setConceptFilter] = useState('all');
   const [viewFilter, setViewFilter] = usePersistentView<PositionViewFilter>('noesis:positions-filter', 'all', Object.keys(POSITION_VIEW_LABELS) as PositionViewFilter[]);
   const [viewMode, setViewMode] = useEntityViewPreference('positions');
-  const [detailTab, setDetailTab] = useState<'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'>('state');
   const [draftEntry, setDraftEntry] = useState<Partial<VaultEntry>>({ type: 'belief', title: '', statement: '', description: '', rationale: '', confidence: 60, status: 'active', tags: [] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VaultEntry | null>(null);
@@ -596,7 +598,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     }
     if (safeEntries.some((entry) => entry.id === focusedEntryId)) {
       if (!routeControlsSelection) setSelectedId(focusedEntryId);
-      setDetailTab('state');
       onFocusedEntryHandled?.();
     }
   }, [safeEntries, focusedEntryId, onFocusedEntryHandled, routeControlsSelection]);
@@ -629,7 +630,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
   const openEntry = (id: string) => {
     setSelectedId(id);
-    setDetailTab('state');
     onOpenEntryRoute?.(id);
   };
 
@@ -726,14 +726,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     const supportCount = (selected.evidenceFor || []).length + (selected.sourceIds || []).length;
     const challengeCount = (selected.evidenceAgainst || []).length;
     const revisionCount = (selected.versionHistory || []).length;
-    const reviewTabs: Array<{ id: 'state' | 'ground' | 'pressure' | 'test' | 'revise' | 'history'; label: string; description: string; progress: number; meta?: string }> = [
-      { id: 'state', label: 'State', description: 'Clarify the claim, its scope, conditions, and present confidence.', progress: [selected.statement, selected.rationale || selected.confidenceReasoning].filter((value) => value?.trim()).length / 2 },
-      { id: 'ground', label: 'Ground', description: 'Record why it seems warranted, its evidence, assumptions, and dependencies.', progress: Math.min(1, supportCount / 3), meta: `${supportCount} support` },
-      { id: 'pressure', label: 'Pressure', description: 'Examine counterpositions, contradictions, missing evidence, and steelman challenges.', progress: Math.min(1, challengeCount / 2), meta: `${challengeCount} challenges` },
-      { id: 'test', label: 'Test', description: 'Define a practice, prediction, or observation that could affect confidence.', progress: Math.min(1, linkedPractices.length / 1), meta: `${linkedPractices.length} practices` },
-      { id: 'revise', label: 'Revise', description: 'Retain, update, replace, or retire the position with a recorded reason.', progress: revisionCount ? 1 : 0 },
-      { id: 'history', label: 'History', description: 'Review only the belief biography and confidence changes over time.', progress: revisionCount ? 1 : 0, meta: `${revisionCount} changes` },
-    ];
 
     const previewSource = (source: Media) => {
       openNoesisObjectPreview({
@@ -1050,507 +1042,152 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       await onUpdateEntry(selected, { result, text: content, comparisonId: result.action === 'compare_selected_positions' ? comparisonTarget?.id : undefined });
     };
 
+    const statedPercent = confidencePercent(selected.confidence);
+    const grounds = evidenceBalance(supportCount, challengeCount);
+    const gap = grounds === null ? null : statedPercent - grounds;
+    const supportItems = selected.evidenceFor || [];
+    const challengeItems = selected.evidenceAgainst || [];
+    let hereId: string; let guide: string;
+    if (!supportItems.length || !challengeItems.length) { hereId = 'pos-grounds'; guide = !supportItems.length ? 'Add what supports it.' : 'Add at least one challenge: what would count against it?'; }
+    else if (gap !== null && Math.abs(gap) > 10) { hereId = 'pos-calibrate'; guide = 'Your confidence and the grounds disagree. Move the slider if you mean to, or add grounds.'; }
+    else if (revisionCount > 1) { hereId = 'pos-revise'; guide = 'Revision recorded. Test it in practice or open an inquiry when a suggestion fits.'; }
+    else { hereId = 'pos-revise'; guide = 'Calibrated. If your thinking changed, record a revision. Otherwise you are done.'; }
+    const positionSuggestions: Suggestion[] = [];
+    challengeItems.slice(0, 2).forEach((challenge, index) => positionSuggestions.push({
+      id: `question-${index}`, tone: 'inquiry', title: 'A question worth asking',
+      quote: `Does “${challenge}” undermine the claim, or only limit where it applies?`,
+      because: 'From your challenge, which isn\'t yet answered.', actionLabel: 'Open as an inquiry',
+      onAction: async () => {
+        if (inquiryCreationLock.current) return;
+        inquiryCreationLock.current = true;
+        try {
+          await onAddQuestion({ text: `Does “${challenge}” undermine “${selected.title}”, or only limit where it applies?`, status: 'open', beliefIds: [selected.id], conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id), sourceIds: selected.sourceIds || [], evidenceIds: [] });
+          toast({ title: 'Inquiry opened', description: 'The new question is linked to this position.' });
+        } catch { toast({ title: 'Inquiry not saved', description: 'Your position is unchanged. Please retry.', variant: 'destructive' }); }
+        finally { inquiryCreationLock.current = false; }
+      },
+    }));
+    if (supportItems[0]) {
+      const support = supportItems[0];
+      const action = `For a week, ${support.charAt(0).toLowerCase()}${support.slice(1)}: log each day whether it held.`;
+      positionSuggestions.push({
+        id: 'practice', tone: 'practice', title: 'A way to put it into practice', quote: action, because: 'Built from your strongest support.', actionLabel: 'Draft the practice',
+        onAction: () => { void Promise.resolve(onAddPractice({ title: `Test: ${selected.title.slice(0, 60)}`, description: `This practice tests the position: "${selected.statement}"`, type: 'experiment', status: 'planned', durationDays: 7, durationMode: 'repeated', hypothesis: support, action, intellectualBasis: selected.rationale || selected.description, positionIds: [selected.id], conceptTags: selected.tags || [], sourceIds: selected.sourceIds || [] })).then(() => toast({ title: 'Practice drafted', description: 'Open Praxis to finish its setup.' })).catch(() => toast({ title: 'Practice not created', description: 'Please retry. Your position is unchanged.', variant: 'destructive' })); },
+      });
+    }
+    const groundRow = (text: string, side: 'for' | 'against', index: number) => (
+      <Row key={`${side}-${index}`} onRemove={() => onUpdateEntry({ ...selected, [side === 'for' ? 'evidenceFor' : 'evidenceAgainst']: (side === 'for' ? supportItems : challengeItems).filter((_, i) => i !== index), dateUpdated: today() })} removeLabel="Remove">{text}</Row>
+    );
+    const addGround = (side: 'for' | 'against') => (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const input = event.currentTarget.querySelector('input'); const text = input?.value.trim();
+      if (!text) return;
+      void onUpdateEntry({ ...selected, [side === 'for' ? 'evidenceFor' : 'evidenceAgainst']: [...(side === 'for' ? supportItems : challengeItems), text], dateUpdated: today() });
+      if (input) input.value = '';
+    };
+    const revisionDecisions = [['active', 'Retain'], ['revised', 'Revise'], ['replaced', 'Replace'], ['suspended', 'Suspend'], ['abandoned', 'Retire']] as const;
+
     return (
-      <div className="noesis-position-detail noesis-gutter flex-1 w-full overflow-y-auto pb-8 pt-[var(--page-top)] font-body" data-noesis-scroll-region data-noesis-identity="examination">
-        <div className="noesis-detail-toolbar">
-          <button type="button" onClick={closeEntry} className="noesis-back-link"><ArrowLeft aria-hidden="true" /> Positions</button>
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
-            {aiSettings.aiAssistanceEnabled && (
-              <div className="basis-full sm:basis-auto">
-                <Select value={comparePositionId} onValueChange={setComparePositionId}>
-                  <SelectTrigger aria-label="Position to compare" className="h-9 w-full rounded-full sm:w-48"><SelectValue placeholder="Compare position" /></SelectTrigger>
-                  <SelectContent>
-                    {safeEntries.filter((entry) => entry.id !== selected.id).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.title}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Overview: what this position claims. */}
-        <section className="noesis-record-overview" data-stage-tone="claim">
-          <DetailLabel view="vault" kind="Position" status={diagnostic.readinessLabel} />
-          <h1 className="noesis-page-title noesis-detail-title">{selected.title}</h1>
-          {(selected.statement || selected.description || '').trim() !== selected.title.trim() && <p className="mt-3 max-w-4xl font-body text-base italic leading-7 text-primary/80">{selected.statement || selected.description}</p>}
-          <PromotedAnnotationOrigins origins={selected.annotationOrigins} />
-          {!!(selected.tags || []).length && <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2">
-            {(selected.tags || []).map((tag) => (
-              <button key={tag} onClick={() => setConceptPopupName(tag)} className="border-b border-border font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:border-accent hover:text-accent">{tag}</button>
-            ))}
-          </div>}
-          {(() => {
-            const nextTab: typeof detailTab = diagnostic.supportCount < 1 ? 'ground' : diagnostic.challengeCount < 1 ? 'pressure' : linkedPractices.length < 1 ? 'test' : 'revise';
-            return <NextMove text={diagnostic.nextAction} onClick={() => setDetailTab(nextTab)} />;
-          })()}
-        </section>
-
-        {/* Tools: what you can do here. Rare actions live in the menu. */}
-        <RecordTools
-          tools={[
-            { label: 'Add support', onClick: () => { setDetailTab('ground'); setPullSide('for'); } },
-            { label: 'Add challenge', onClick: () => { setDetailTab('ground'); setPullSide('against'); } },
-            { label: 'Test in practice', onClick: () => { void Promise.resolve(onAddPractice({ title: `Test: ${selected.title.slice(0, 60)}`, description: `This practice tests the position: "${selected.statement}"`, type: 'experiment', status: 'planned', durationDays: 7, positionIds: [selected.id], conceptTags: selected.tags || [], sourceIds: selected.sourceIds || [] })).then(() => toast({ title: 'Experiment created', description: 'Open Praxis to finish its setup.' })).catch(() => toast({ title: 'Practice not created', description: 'Please retry. Your position is unchanged.', variant: 'destructive' })); } },
-            { label: 'Open an inquiry', onClick: async () => {
-              if (inquiryCreationLock.current) return;
-              inquiryCreationLock.current = true;
-              try {
-                await onAddQuestion({ text: `What would make me revise: ${selected.title}?`, status: 'open', beliefIds: [selected.id], conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id), sourceIds: selected.sourceIds || [], evidenceIds: [] });
-                toast({ title: 'Inquiry created', description: 'The new question is linked to this position.' });
-              } catch {
-                toast({ title: 'Inquiry not saved', description: 'Your position is unchanged. Please retry.', variant: 'destructive' });
-              } finally { inquiryCreationLock.current = false; }
-            } },
-            { label: 'Record revision', onClick: () => setDetailTab('revise') },
-          ]}
+      <RecordPage tone="claim" identity="examination">
+        <RecordHeader backLabel="Positions" onBack={closeEntry} view="vault" kind="Position" status={diagnostic.readinessLabel} title={selected.title}
+          subtitle={(selected.statement || selected.description || '').trim() !== selected.title.trim() ? (selected.statement || selected.description) : undefined}
+          tags={selected.tags || []} onTag={(tag) => setConceptPopupName(tag)}
           trailing={<>
-            <ContextualAiPanel
-              enabled={aiSettings.aiAssistanceEnabled}
-              showContextBeforeSending={aiSettings.showContextBeforeSending}
-              reasoningDepth={aiDepthFor(aiSettings, 'positions')}
-              actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'compare_selected_positions']}
-              buildEnvelope={buildPositionAiEnvelope}
-              buttonLabel="Test Position"
-              onAccept={acceptPositionAiResult}
-            />
+            {aiSettings.aiAssistanceEnabled && (
+              <Select value={comparePositionId} onValueChange={setComparePositionId}>
+                <SelectTrigger aria-label="Position to compare" className="h-9 w-44 rounded-[var(--button-radius)]"><SelectValue placeholder="Compare with…" /></SelectTrigger>
+                <SelectContent>{safeEntries.filter((entry) => entry.id !== selected.id).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.title}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
+            <ContextualAiPanel enabled={aiSettings.aiAssistanceEnabled} showContextBeforeSending={aiSettings.showContextBeforeSending} reasoningDepth={aiDepthFor(aiSettings, 'positions')} actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'compare_selected_positions']} buildEnvelope={buildPositionAiEnvelope} buttonLabel="Ask Noesis" onAccept={acceptPositionAiResult} />
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Position actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><IconButton label="Position actions" variant="outline"><MoreHorizontal className="size-4" /></IconButton></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => openEditor(selected)}><Pencil className="mr-2 size-4" /> Edit position</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setDeleteTarget(selected)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete position</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setDeleteTarget(selected)} className="text-problem focus:text-problem"><Trash2 className="mr-2 size-4" /> Delete position</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </>}
-        />
+          </>}>
+          <PromotedAnnotationOrigins origins={selected.annotationOrigins} />
+        </RecordHeader>
 
-        <section className="noesis-workbench" data-stage-tone="claim" aria-label="Position workbench">
-          <div className="border-t border-border p-4 sm:p-5">
+        <RecordPath label="Where you are with this position" hereId={hereId} guide={guide} stops={[{ id: 'pos-claim', label: 'Claim' }, { id: 'pos-grounds', label: 'Grounds' }, { id: 'pos-calibrate', label: 'Calibrate' }, { id: 'pos-revise', label: 'Revise' }]} />
 
-        <WorkbenchFlow
-          label="Position workbench workflow"
-          steps={reviewTabs}
-          activeId={detailTab}
-          onSelect={(id) => setDetailTab(id as typeof detailTab)}
-          className="mb-5"
-        />
+        <RecordSection id="pos-claim" title="Claim" description="What you hold, and how sure you are." here={hereId === 'pos-claim'}>
+          <div className="noesis-ba">
+            <div className="noesis-confbox">
+              <ConfidenceEmber confidence={statedPercent} />
+              <div>
+                <Eyebrow>Stated confidence</Eyebrow>
+                <div className="noesis-confbox__big">{statedPercent}%</div>
+                <div className="text-xs text-muted-foreground">{zoneLabel(statedPercent).toLowerCase()}</div>
+              </div>
+            </div>
+            <div>
+              <Eyebrow>Why you hold it</Eyebrow>
+              <p className="mt-1 whitespace-pre-wrap text-[.95rem] leading-6">{selected.rationale || selected.confidenceReasoning || <span className="text-muted-foreground">No reasoning recorded yet. Edit the position to say what presently supports it.</span>}</p>
+              {selected.falsification && <p className="mt-2 text-sm text-muted-foreground"><Eyebrow size="sm">Would change my mind</Eyebrow><br />{selected.falsification}</p>}
+            </div>
+          </div>
+          {!formation.fullyFormed && <p className="mt-3 text-sm text-muted-foreground">Still missing: {formation.missing.join(', ')}.</p>}
+        </RecordSection>
 
-        {detailTab === 'state' && (
-          <InteractiveCalibration
-            confidence={confidencePercent(selected.confidence)}
-            evidenceFor={[...(selected.evidenceFor || []), ...linkedSources.map((source) => `${source.title}${source.creator ? ` · ${source.creator}` : ''}`)]}
-            evidenceAgainst={selected.evidenceAgainst || []}
-            onConfidenceCommit={(value) => onUpdateEntry({ ...selected, confidence: value, dateUpdated: today() })}
-            onChallenge={() => { setDetailTab('ground'); setPullSide('against'); }}
-            onRevise={() => setDetailTab('revise')}
-          />
-        )}
+        <RecordSection id="pos-grounds" title="Grounds" description="What supports it, and what pushes against it. Add as you find them." here={hereId === 'pos-grounds'}>
+          <div className="noesis-step__cols noesis-step__cols--even">
+            <div data-tone="practice">
+              <Eyebrow tone="practice">Support</Eyebrow>
+              <div className="mt-1.5">{supportItems.length ? supportItems.map((text, index) => groundRow(text, 'for', index)) : <SectionEmpty title="None yet." />}</div>
+              {linkedSources.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Also grounded in {linkedSources.length} linked source{linkedSources.length === 1 ? '' : 's'}: {linkedSources.map((source) => source.title).join(', ')}.</p>}
+              <form className="noesis-add" onSubmit={addGround('for')}><Input placeholder="Add support" aria-label="Add support" className="h-9" /><Button type="submit" variant="secondary" tone="practice">Add</Button></form>
+              <Button variant="link" size="sm" onClick={() => setPullSide('for')}>⇣ Pull from your workspace</Button>
+            </div>
+            <div data-tone="position">
+              <Eyebrow tone="position">Challenges</Eyebrow>
+              <div className="mt-1.5">{challengeItems.length ? challengeItems.map((text, index) => groundRow(text, 'against', index)) : <SectionEmpty title="None yet." hint="Name what would count against it." />}</div>
+              <form className="noesis-add" onSubmit={addGround('against')}><Input placeholder="Add a challenge" aria-label="Add a challenge" className="h-9" /><Button type="submit" variant="secondary" tone="position">Add</Button></form>
+              <Button variant="link" size="sm" onClick={() => setPullSide('against')}>⇣ Pull from your workspace</Button>
+            </div>
+          </div>
+          <PullEvidenceDialog open={pullSide !== null} onOpenChange={(open) => { if (!open) setPullSide(null); }} side={pullSide || 'for'} media={media} concepts={concepts} questions={questions} positions={entries} excludePositionId={selected.id}
+            onPick={(text) => { if (pullSide === 'against') onUpdateEntry({ ...selected, evidenceAgainst: [...challengeItems, text], dateUpdated: today() }); else onUpdateEntry({ ...selected, evidenceFor: [...supportItems, text], dateUpdated: today() }); }} />
+        </RecordSection>
 
-        {detailTab === 'state' && (
-          <>
-        {!formation.fullyFormed && (
-          <details className="mb-5 rounded-xl border border-border bg-muted/30 p-4 shadow-sm">
-            <summary className="cursor-pointer font-code text-[10px] uppercase tracking-[0.12em] text-foreground font-bold">Position readiness · {formation.missing.length} gaps</summary>
-            <ul className="mt-3 grid gap-2 text-sm leading-6 text-muted-foreground sm:grid-cols-2">
-              {formation.missing.map((item) => <li key={item}>Add {item}</li>)}
-            </ul>
-          </details>
-        )}
+        <RecordSection id="pos-calibrate" title="Calibrate" description="Your stated confidence beside what the grounds support. Your number never moves unless you move it." here={hereId === 'pos-calibrate'}>
+          <div className="noesis-ggauge" aria-hidden="true">
+            <div className="noesis-ggauge__bar" />
+            {grounds !== null && <><div className="noesis-ggauge__mark" style={{ left: `${grounds}%` }} /><div className="noesis-ggauge__label" style={{ left: `${grounds}%` }}>Grounds {grounds}</div></>}
+          </div>
+          <label className="grid gap-1">
+            <Eyebrow as="span">Stated confidence · {statedPercent}%</Eyebrow>
+            <input type="range" min={0} max={100} defaultValue={statedPercent} key={`${selected.id}-${statedPercent}`} className="noesis-range" aria-label="Stated confidence" onChange={(event) => { const big = event.currentTarget.closest('section')?.querySelector('[data-live-confidence]'); if (big) big.textContent = `${event.currentTarget.value}%`; }} onPointerUp={(event) => { const value = Number(event.currentTarget.value); if (value !== statedPercent) onUpdateEntry({ ...selected, confidence: value, dateUpdated: today() }); }} onKeyUp={(event) => { const value = Number(event.currentTarget.value); if (value !== statedPercent) onUpdateEntry({ ...selected, confidence: value, dateUpdated: today() }); }} />
+          </label>
+          <p className="noesis-lean">
+            {grounds === null ? <>Nothing weighed yet. Add support and a challenge to calibrate.</>
+              : Math.abs(gap!) <= 10 ? <><b>Well calibrated.</b> Your {statedPercent}% sits close to the {grounds} the grounds support.</>
+                : gap! > 0 ? <>You state {statedPercent}%, which is <b>{gap} above</b> what the grounds support ({grounds}). Add support, or consider revising.</>
+                  : <>You state {statedPercent}%, which is <b>{-gap!} below</b> what the grounds support ({grounds}).</>}
+            <span className="sr-only" data-live-confidence>{statedPercent}%</span>
+          </p>
+          <p className="text-xs text-muted-foreground">Grounds: the share of recorded items that support the claim ({supportCount} for · {challengeCount} against).</p>
+        </RecordSection>
 
-        <EditorialSection className="mb-5" eyebrow="Grounding" title="Current reasoning" description="The reason this position currently seems warranted. Evidence and objections are reviewed separately in the workbench.">
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.rationale || selected.confidenceReasoning || 'No reasoning has been recorded yet. Edit this position to explain what presently supports it.'}</p>
-          {!selected.rationale && selected.description && (
-            <p className="mt-2 text-xs italic text-muted-foreground">The position description is kept separate so it does not stand in for your reasoning.</p>
+        <RecordSection id="pos-revise" title="Revise" description="If your thinking changed, record it with a reason. Skip this if it didn't." here={hereId === 'pos-revise'}>
+          <Textarea id="position-revision-reason" value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)} placeholder="What changed your mind? (becomes the reason)" aria-label="Reason for the revision" className="min-h-[72px]" />
+          <div className="mt-3 flex flex-wrap gap-2">
+            {revisionDecisions.map(([status, label]) => (
+              <Button key={status} type="button" variant={status === 'revised' ? 'primary' : 'outline'} disabled={!revisionReason.trim()} onClick={async () => {
+                await onUpdateEntry({ ...selected, status, versionHistory: [...(selected.versionHistory || []), { date: today(), eventType: status === 'active' ? 'refined' : status === 'abandoned' ? 'abandoned' : status === 'suspended' ? 'challenged' : 'revised', description: revisionReason.trim(), confidence: selected.confidence }], lastRevisedAt: today(), dateUpdated: today() });
+                setRevisionReason('');
+                toast({ title: `${label} recorded`, description: 'The reason is now part of the belief biography.' });
+              }}>{label}</Button>
+            ))}
+          </div>
+          {(selected.versionHistory || []).length > 0 && (
+            <ul className="noesis-hist">{[...(selected.versionHistory || [])].reverse().slice(0, 5).map((version, index) => <li key={`${version.date}-${index}`}><Eyebrow size="sm">{safePositionDate(version.date)}</Eyebrow> {version.description || version.eventType}{typeof version.confidence === 'number' ? ` · ${confidencePercent(version.confidence)}%` : ''}</li>)}</ul>
           )}
-        </EditorialSection>
+          <SuggestionCards suggestions={positionSuggestions} />
+        </RecordSection>
 
-        <div className="mb-5">
-          <AiAssistedHistory
-            entries={(selected.aiReviewHistory || []).map((entry) => {
-              const target = positionReviewTarget(selected.id, entry.action, entry.id);
-              return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? {
-                provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target,
-              } : undefined };
-            })}
-            onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })}
-          />
-        </div>
-
-          </>
-        )}
-
-        {detailTab === 'state' && (
-          <>
-            <WorkbenchPanel
-              collapsible
-              eyebrow="State · Development snapshot"
-              title="What needs attention now"
-              description="Review confidence, missing requirements, testing posture, and the condition for revision."
-              actions={<Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{selected.status}</Badge>}
-            >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <InfoPanel title="Confidence Reasoning" items={selected.confidenceReasoning ? [selected.confidenceReasoning] : []} empty="Explain why the current confidence level fits the available support and challenges." />
-                  <InfoPanel title="Missing Requirements" items={formation.missing} empty="This position has the core elements needed for review." />
-                  <InfoPanel title="Testing Posture" items={[
-                    linkedPractices.length ? `${linkedPractices.length} practice(s) linked` : 'No practices linked yet.',
-                    `${selected.testingCount || 0} stress test answer(s) recorded`,
-                  ]} empty="No testing activity yet." />
-                  <InfoPanel title="Revision Condition" items={selected.falsification ? [selected.falsification] : []} empty="Record what evidence or experience would change your mind." />
-                </div>
-            </WorkbenchPanel>
-          </>
-        )}
-
-        {detailTab === 'pressure' && (
-            <Card className="noesis-workbench-panel mb-6">
-              <div className="noesis-workbench-panel__header">
-                <div className="min-w-0 flex-1">
-                  <div className="noesis-workbench-panel__eyebrow">Pressure · Stress test</div>
-                  <h3 className="noesis-workbench-panel__title">Pressure-test the claim before revising it</h3>
-                  <p className="noesis-workbench-panel__description">
-                    Move through the stages in order and decide whether this position survives, weakens, changes, or should be abandoned.
-                  </p>
-                </div>
-                <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
-                  Stage {Math.min(stressStageIndex + 1, stressStages.length)} / {stressStages.length}
-                </Badge>
-              </div>
-
-              <ToolOptions label="Stress-test stages" compact className="mt-4 border-t border-[var(--hairline)] pt-4">
-                {stressStages.map((stage, index) => (
-                  <ToolOption
-                    key={stage.title}
-                    kicker={`Step ${index + 1}`}
-                    label={stage.title}
-                    active={stressStageIndex === index}
-                    onClick={() => setStressStageIndex(index)}
-                  />
-                ))}
-              </ToolOptions>
-
-              <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-                <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
-                  <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Current Prompt</div>
-                  <p className="mt-2 text-base font-medium leading-7 text-foreground">{selectedStressStage.prompt}</p>
-                  <div className="mt-4 rounded-lg border border-border/50 bg-card p-3">
-                    <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">Existing Signal</div>
-                    <p className="mt-1 text-sm italic leading-6 text-muted-foreground">{selectedStressStage.signal}</p>
-                  </div>
-                  {stressStageIndex === stressStages.length - 1 && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-full"
-                        onClick={() => onUpdateEntry({ ...selected, status: 'challenged', dateUpdated: today() })}
-                      >
-                        Mark Challenged
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-full"
-                        onClick={() => onUpdateEntry({
-                          ...selected,
-                          status: 'revised',
-                          versionHistory: [
-                            ...(selected.versionHistory || []),
-                            { date: today(), eventType: 'revised', description: 'Marked revised after stress-test outcome review.' },
-                          ],
-                          dateUpdated: today(),
-                        })}
-                      >
-                        Mark Revised
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <div className="rounded-xl border border-border/60 bg-card p-4">
-                  <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">
-                    Answer this stage
-                  </Label>
-                  <Textarea
-                    value={stressAnswer}
-                    onChange={(event) => setStressAnswer(event.target.value)}
-                    className="mt-2 min-h-[150px]"
-                    placeholder="Record the pressure, the evidence that would matter, and what this should do to confidence or wording."
-                  />
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs italic text-muted-foreground">
-                      Saved answers are added to the belief biography as a challenge event.
-                    </p>
-                    <Button size="sm" className="rounded-full" onClick={saveStressAnswer}>Record Stage Answer</Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
-        )}
-
-        {detailTab === 'ground' && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <EvidencePanel title="Evidence For" items={selected.evidenceFor || []} onPull={() => setPullSide('for')} onAdd={(text) => onUpdateEntry({ ...selected, evidenceFor: [...(selected.evidenceFor || []), text], dateUpdated: today() })} />
-            <EvidencePanel title="Evidence Against" items={selected.evidenceAgainst || []} onPull={() => setPullSide('against')} onAdd={(text) => onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() })} />
-            <PullEvidenceDialog
-              open={pullSide !== null}
-              onOpenChange={(open) => { if (!open) setPullSide(null); }}
-              side={pullSide || 'for'}
-              media={media}
-              concepts={concepts}
-              questions={questions}
-              positions={entries}
-              excludePositionId={selected.id}
-              onPick={(text) => {
-                if (pullSide === 'against') onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() });
-                else onUpdateEntry({ ...selected, evidenceFor: [...(selected.evidenceFor || []), text], dateUpdated: today() });
-              }}
-            />
-            <EntityListPanel
-              title="Linked Sources"
-              empty="No sources linked yet."
-              items={linkedSources.map((item) => ({
-                id: item.id,
-                title: item.title,
-                meta: `${item.type} ${item.creator ? `• ${item.creator}` : ''}`.trim(),
-                onClick: () => previewSource(item),
-              }))}
-            />
-            <InfoPanel
-              title="Evidence Ledger"
-              items={[
-                `${(selected.evidenceFor || []).length} supporting note(s) recorded`,
-                `${(selected.evidenceAgainst || []).length} challenging note(s) recorded`,
-                `${linkedSources.length} source link(s) attached`,
-                `Current evidence quality: ${beliefProfile?.evidenceQuality || selected.evidenceQuality || 'not assessed'}`,
-              ]}
-              empty="No ledger data yet."
-            />
-            <InfoPanel title="Evidence Still Needed" items={selected.missingEvidence || []} empty="No missing-evidence review has been saved yet." />
-          </div>
-        )}
-
-        {detailTab === 'pressure' && (
-          <div className="space-y-6">
-            <TensionResolutionPanel
-              selected={selected}
-              tensionLinks={tensionLinks}
-              onUpdateEntry={onUpdateEntry}
-              onUpdateLink={onUpdateLink}
-            />
-
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <EvidencePanel
-                title="Objections and Counterevidence"
-                items={selected.evidenceAgainst || []}
-                onAdd={(text) => onUpdateEntry({ ...selected, evidenceAgainst: [...(selected.evidenceAgainst || []), text], dateUpdated: today() })}
-              />
-              <InfoPanel title="Counterposition" items={[counterposition]} empty="No counterposition recorded yet." />
-              <InfoPanel title="Alternative Explanations" items={[
-                'Could the same evidence support a weaker, narrower, or opposite claim?',
-                linkedSources.length ? `Review ${linkedSources.length} linked source(s) for disagreement, not just support.` : 'Add a source that disagrees before raising confidence.',
-              ]} empty="No alternative explanation path yet." />
-              <InfoPanel title="Hidden Assumptions To Pressure" items={positionAssumptions} empty="No assumptions have been written yet." />
-              <InfoPanel title="Falsification Condition" items={selected.falsification ? [selected.falsification] : []} empty="Write what evidence, experience, or result would weaken or overturn this claim." />
-              <EntityListPanel
-                title="Contradictory or Challenging Positions"
-                empty="No typed challenge or contradiction links yet."
-                items={relatedPositions
-                  .filter((entry) => typedLinks.some((link) =>
-                    ['challenges', 'contradicts', 'weakens'].includes(link.type) &&
-                    ((link.fromId === entry.id && link.toId === selected.id) || (link.toId === entry.id && link.fromId === selected.id))
-                  ))
-                  .map((entry) => ({
-                    id: entry.id,
-                    title: entry.title,
-                    meta: 'challenge pressure',
-                    onClick: () => openEntry(entry.id),
-                  }))}
-              />
-            </div>
-          </div>
-        )}
-
-        {detailTab === 'ground' && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
-            <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
-            <InfoPanel title="Consequences" items={consequenceItems} empty="No consequences have been written yet." />
-            <EntityListPanel
-              title="Related Positions"
-              empty="No typed relations to other positions yet."
-              items={relatedPositions.map((entry) => ({
-                id: entry.id,
-                title: entry.title,
-                meta: typedLinks
-                  .filter((link) =>
-                    (link.fromId === entry.id && link.toId === selected.id) ||
-                    (link.toId === entry.id && link.fromId === selected.id)
-                  )
-                  .map((link) => link.type.replace(/_/g, ' '))
-                  .join(', '),
-                onClick: () => openEntry(entry.id),
-              }))}
-            />
-            <InfoPanel
-              title="Saved Position Comparisons"
-              items={(selected.comparisonReviews || []).map((review) => `${review.positionTitle} · ${safePositionDate(review.date)}\n${review.content}`)}
-              empty="No reviewed position comparison has been saved yet."
-            />
-            <EntityListPanel
-              title="Linked Inquiries"
-              empty="No inquiries are linked to this position yet."
-              items={linkedQuestions.map((item) => ({
-                id: item.id,
-                title: item.text,
-                meta: item.status,
-                onClick: () => previewInquiry(item),
-              }))}
-            />
-            <EntityListPanel
-              title="Works Expressing It"
-              empty="No works are carrying this position yet."
-              items={linkedDrafts.map((item) => ({
-                id: item.id,
-                title: item.title,
-                meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`,
-                onClick: () => previewWork(item),
-              }))}
-            />
-            <EntityListPanel
-              title="Practices Testing It"
-              empty="No practices are testing this belief yet."
-              items={linkedPractices.map((item) => ({
-                id: item.id,
-                title: item.title,
-                meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`,
-                onClick: () => previewPractice(item),
-              }))}
-            />
-            <InfoPanel title="Linked Unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />
-            <InfoPanel title="Typed Relationships" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed relationships recorded yet." />
-          </div>
-        )}
-
-        {detailTab === 'test' && (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.72fr)]">
-            <Card className="noesis-workbench-panel">
-              <div className="noesis-workbench-panel__eyebrow">Test · A test that could matter</div>
-              <h3 className="noesis-workbench-panel__title">What observation would change your confidence?</h3>
-              <p className="noesis-workbench-panel__description">Create a bounded experiment in Labs. Finish its hypothesis, action, and success signal there before it can begin.</p>
-              <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 p-4">
-                <p className="text-sm font-medium text-foreground">Current revision condition</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">{selected.falsification || 'No revision condition is recorded. Add one in Edit position so the test has a clear standard.'}</p>
-              </div>
-              <Button
-                className="mt-4 min-h-11"
-                onClick={() => Promise.resolve(onAddPractice({
-                  title: `Test: ${selected.title.slice(0, 60)}`,
-                  description: `A bounded test of the position: “${selected.statement}”`,
-                  type: 'experiment',
-                  status: 'planned',
-                  durationMode: 'one_time',
-                  durationDays: 7,
-                  intellectualBasis: selected.rationale || selected.description,
-                  hypothesis: selected.falsification ? `If this position is mistaken, I expect: ${selected.falsification}` : '',
-                  positionIds: [selected.id],
-                  conceptTags: selected.tags || [],
-                  sourceIds: selected.sourceIds || [],
-                })).then(() => toast({ title: 'Experiment created', description: 'Open Labs to finish the protocol before running it.' })).catch(() => toast({ title: 'Experiment not created', description: 'Please retry. Your position is unchanged.', variant: 'destructive' }))}
-              >
-                Create bounded experiment
-              </Button>
-            </Card>
-            <EntityListPanel
-              title="Tests of this position"
-              empty="No practice or experiment is linked yet."
-              items={linkedPractices.map((item) => ({
-                id: item.id,
-                title: item.title,
-                meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`,
-                onClick: () => previewPractice(item),
-              }))}
-            />
-          </div>
-        )}
-
-        {detailTab === 'revise' && (
-          <Card className="noesis-workbench-panel">
-            <div className="noesis-workbench-panel__eyebrow">Revise · Decision after review</div>
-            <h3 className="noesis-workbench-panel__title">What should happen to this position now?</h3>
-            <p className="noesis-workbench-panel__description">Record the reason first. The choice updates status and adds a dated entry to the belief biography; it does not erase earlier versions.</p>
-            <Label htmlFor="position-revision-reason" className="mt-5 block text-sm font-medium">Reason for this decision</Label>
-            <Textarea
-              id="position-revision-reason"
-              value={revisionReason}
-              onChange={(event) => setRevisionReason(event.target.value)}
-              placeholder="What evidence, contradiction, experience, or clarification justifies this decision?"
-              className="mt-2 min-h-28"
-            />
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              {([
-                ['active', 'Retain'],
-                ['revised', 'Revise'],
-                ['replaced', 'Replace'],
-                ['suspended', 'Suspend'],
-                ['abandoned', 'Retire'],
-              ] as const).map(([status, label]) => (
-                <Button
-                  key={status}
-                  type="button"
-                  variant={status === 'revised' ? 'default' : 'outline'}
-                  className="min-h-11"
-                  disabled={!revisionReason.trim()}
-                  onClick={async () => {
-                    await onUpdateEntry({
-                      ...selected,
-                      status,
-                      versionHistory: [
-                        ...(selected.versionHistory || []),
-                        {
-                          date: today(),
-                          eventType: status === 'active' ? 'refined' : status === 'abandoned' ? 'abandoned' : status === 'suspended' ? 'challenged' : 'revised',
-                          description: revisionReason.trim(),
-                          confidence: selected.confidence,
-                        },
-                      ],
-                      lastRevisedAt: today(),
-                      dateUpdated: today(),
-                    });
-                    setRevisionReason('');
-                    toast({ title: `Position ${label.toLowerCase()} decision saved`, description: 'The reason is now part of the belief biography.' });
-                  }}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {detailTab === 'history' && (
-          <div>
-            <WorkbenchPanel eyebrow="Belief biography" title="How this position has changed" description="Confidence, challenges, and revisions recorded across the life of this position.">
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">{beliefProfile?.reviewStatus || 'current'}</span>
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <ConfidenceHistoryChart entry={selected} />
-                <InfoPanel title="Created From" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
-                <InfoPanel title="Strengthened By" items={beliefProfile?.strengthenedBy || []} empty="No supporting developments recorded yet." />
-                <InfoPanel title="Challenged By" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
-                <InfoPanel title="Weakened By" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
-                <div className="md:col-span-2">
-                  {(selected.versionHistory || []).length ? (selected.versionHistory || []).map((version, index) => (
-                    <RevisionEvent key={`${version.date}-${index}`} date={version.date} action={version.eventType?.replace(/_/g, ' ') || 'Revision'} description={version.description} current={index === (selected.versionHistory || []).length - 1} />
-                  )) : <p className="noesis-inline-empty">No revisions recorded yet.</p>}
-                </div>
-              </div>
-            </WorkbenchPanel>
-          </div>
-        )}
-        
-          </div>
-        </section>
-
-        {/* Footer: record details, related records and history, folded away. */}
         <RecordFooter>
           <FooterSection title="Record">
             <EntityMeta items={[
@@ -1560,6 +1197,31 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               { label: 'Created', value: safePositionDate(selected.dateCreated) },
               { label: 'Updated', value: safePositionDate(selected.dateUpdated || selected.dateCreated) },
             ]} />
+            {selected.confidenceReasoning && <p className="mt-2 text-sm"><Eyebrow size="sm">Confidence reasoning</Eyebrow><br />{selected.confidenceReasoning}</p>}
+          </FooterSection>
+          <FooterSection title="Stress test" count={selected.testingCount || 0}>
+            <div className="noesis-fieldrow mb-2">{stressStages.map((stage, index) => <Pill key={stage.title} pressed={stressStageIndex === index} onClick={() => setStressStageIndex(index)}>{stage.title}</Pill>)}</div>
+            <p className="text-[.95rem] font-medium leading-6">{selectedStressStage.prompt}</p>
+            <p className="mt-1 text-sm italic text-muted-foreground">{selectedStressStage.signal}</p>
+            <Textarea value={stressAnswer} onChange={(event) => setStressAnswer(event.target.value)} className="mt-2 min-h-[96px]" placeholder="Record the pressure, the evidence that would matter, and what this should do to confidence or wording." aria-label="Answer this stage" />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" onClick={saveStressAnswer} disabled={!stressAnswer.trim()}>Record stage answer</Button>
+              {stressStageIndex === stressStages.length - 1 && <><Button size="sm" variant="outline" onClick={() => onUpdateEntry({ ...selected, status: 'challenged', dateUpdated: today() })}>Mark challenged</Button><Button size="sm" variant="outline" onClick={() => onUpdateEntry({ ...selected, status: 'revised', versionHistory: [...(selected.versionHistory || []), { date: today(), eventType: 'revised', description: 'Marked revised after stress-test outcome review.' }], dateUpdated: today() })}>Mark revised</Button></>}
+            </div>
+          </FooterSection>
+          {tensionLinks.length > 0 && (
+            <FooterSection title="Tensions" count={tensionLinks.length}>
+              <TensionResolutionPanel selected={selected} tensionLinks={tensionLinks} onUpdateEntry={onUpdateEntry} onUpdateLink={onUpdateLink} />
+            </FooterSection>
+          )}
+          <FooterSection title="Pressure">
+            <div className="grid gap-4 md:grid-cols-2">
+              <InfoPanel title="Counterposition" items={[counterposition]} empty="No counterposition recorded yet." />
+              <InfoPanel title="Hidden assumptions to pressure" items={positionAssumptions} empty="No assumptions have been written yet." />
+              <InfoPanel title="Alternative explanations" items={['Could the same evidence support a weaker, narrower, or opposite claim?', linkedSources.length ? `Review ${linkedSources.length} linked source(s) for disagreement, not just support.` : 'Add a source that disagrees before raising confidence.']} empty="No alternative explanation path yet." />
+              <InfoPanel title="Evidence still needed" items={selected.missingEvidence || []} empty="No missing-evidence review has been saved yet." />
+              <EntityListPanel title="Contradictory or challenging positions" empty="No typed challenge or contradiction links yet." items={relatedPositions.filter((entry) => typedLinks.some((link) => ['challenges', 'contradicts', 'weakens'].includes(link.type) && ((link.fromId === entry.id && link.toId === selected.id) || (link.toId === entry.id && link.fromId === selected.id)))).map((entry) => ({ id: entry.id, title: entry.title, meta: 'challenge pressure', onClick: () => openEntry(entry.id) }))} />
+            </div>
           </FooterSection>
           <FooterSection title={`Through ${(selected.tags || [])[0] || 'its concept'}`}>
           {(() => {
@@ -1569,7 +1231,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             return (
               <ThroughConcept concept={concept} columns={[
                 { label: 'Sources', tone: 'encounter', items: media.filter((item) => has(item.tags)).map((item) => ({ id: item.id, label: item.title, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined })) },
-                { label: 'Annotations', tone: 'encounter', items: media.flatMap((item) => (item.annotations || []).filter((note) => has(note.conceptTags)).map((note) => ({ id: `${item.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined }))) },
+                { label: 'Annotations', tone: 'encounter', items: media.flatMap((item) => (item.annotations || []).filter((note) => has(note.conceptTags)).map((note) => ({ id: `${item.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}…` : note.text, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined }))) },
                 { label: 'Inquiries', tone: 'examine', items: questions.filter((item) => (item.beliefIds || []).includes(selected.id) || has((item as typeof item & { conceptTags?: string[] }).conceptTags)).map((item) => ({ id: item.id, label: item.text, onOpen: onOpenQuestion ? () => onOpenQuestion(item.id) : undefined })) },
                 { label: 'Praxis', tone: 'act', items: practices.filter((item) => (item.positionIds || []).includes(selected.id) || has(item.conceptTags)).map((item) => ({ id: item.id, label: item.title, onOpen: onOpenPractice ? () => onOpenPractice(item.id) : undefined })) },
                 { label: 'Works', tone: 'more', items: drafts.filter((item) => (item.beliefIds || []).includes(selected.id) || has(item.conceptTags)).map((item) => ({ id: item.id, label: item.title || 'Untitled', onOpen: onOpenWork ? () => onOpenWork(item.id) : undefined })) },
@@ -1577,8 +1239,42 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             );
           })()}
           </FooterSection>
-          <FooterSection title="History" count={(selected.versionHistory || []).length}>
-            <RecordHistory entries={(selected.versionHistory || []).map((version) => ({ date: version.date, text: version.description || version.eventType || '' }))} />
+          <FooterSection title="Related" count={linkedSources.length + linkedQuestions.length + linkedDrafts.length + linkedPractices.length + relatedPositions.length}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <EntityListPanel title="Linked sources" empty="No sources linked yet." items={linkedSources.map((item) => ({ id: item.id, title: item.title, meta: `${item.type} ${item.creator ? `• ${item.creator}` : ''}`.trim(), onClick: () => previewSource(item) }))} />
+              <EntityListPanel title="Related positions" empty="No typed relations to other positions yet." items={relatedPositions.map((entry) => ({ id: entry.id, title: entry.title, meta: typedLinks.filter((link) => (link.fromId === entry.id && link.toId === selected.id) || (link.toId === entry.id && link.fromId === selected.id)).map((link) => link.type.replace(/_/g, ' ')).join(', '), onClick: () => openEntry(entry.id) }))} />
+              <EntityListPanel title="Linked inquiries" empty="No inquiries are linked to this position yet." items={linkedQuestions.map((item) => ({ id: item.id, title: item.text, meta: item.status, onClick: () => previewInquiry(item) }))} />
+              <EntityListPanel title="Works expressing it" empty="No works are carrying this position yet." items={linkedDrafts.map((item) => ({ id: item.id, title: item.title, meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`, onClick: () => previewWork(item) }))} />
+              <EntityListPanel title="Practices testing it" empty="No practices are testing this belief yet." items={linkedPractices.map((item) => ({ id: item.id, title: item.title, meta: `${item.type.replace(/_/g, ' ')} • ${item.status}`, onClick: () => previewPractice(item) }))} />
+              <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
+              <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
+              <InfoPanel title="Consequences" items={consequenceItems} empty="No consequences have been written yet." />
+              <InfoPanel title="Linked unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />
+              <InfoPanel title="Typed relationships" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed relationships recorded yet." />
+              <InfoPanel title="Saved position comparisons" items={(selected.comparisonReviews || []).map((review) => `${review.positionTitle} · ${safePositionDate(review.date)}\n${review.content}`)} empty="No reviewed position comparison has been saved yet." />
+            </div>
+          </FooterSection>
+          <FooterSection title="Belief biography" count={revisionCount}>
+            <div className="grid gap-3 md:grid-cols-2">
+              <ConfidenceHistoryChart entry={selected} />
+              <InfoPanel title="Created from" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
+              <InfoPanel title="Strengthened by" items={beliefProfile?.strengthenedBy || []} empty="No supporting developments recorded yet." />
+              <InfoPanel title="Challenged by" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
+              <InfoPanel title="Weakened by" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
+              <div className="md:col-span-2">
+                {(selected.versionHistory || []).length ? (selected.versionHistory || []).map((version, index) => (
+                  <RevisionEvent key={`${version.date}-${index}`} date={version.date} action={version.eventType?.replace(/_/g, ' ') || 'Revision'} description={version.description} current={index === (selected.versionHistory || []).length - 1} />
+                )) : <p className="noesis-inline-empty">No revisions recorded yet.</p>}
+              </div>
+            </div>
+          </FooterSection>
+          {(selected.aiReviewHistory || []).length > 0 && (
+            <FooterSection title="Noesis notes" count={(selected.aiReviewHistory || []).length}>
+              <AiAssistedHistory entries={(selected.aiReviewHistory || []).map((entry) => { const target = positionReviewTarget(selected.id, entry.action, entry.id); return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? { provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target } : undefined }; })} onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })} />
+            </FooterSection>
+          )}
+          <FooterSection title="Danger zone">
+            <Button variant="destructive" onClick={() => setDeleteTarget(selected)}><Trash2 /> Delete this position</Button>
           </FooterSection>
         </RecordFooter>
 
@@ -1595,7 +1291,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         />
 
         <BeliefEditor open={editorOpen} onOpenChange={setEditorOpen} draft={draftEntry} setDraft={setDraftEntry} concepts={concepts} media={media} onAddConcept={onAddConcept} onSave={saveEntry} saving={savingEntry} />
-      </div>
+      </RecordPage>
     );
   }
 
@@ -1605,7 +1301,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         title="Positions"
         description="State what you currently believe, what supports it, and what could change it."
         meta={
-          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+          <span className="noesis-eyebrow text-muted-foreground/60">
             {positionStats.total} positions · {positionStats.underReview} need review · {positionStats.needsPractice} untested · {positionStats.tensions} tensions
           </span>
         }
@@ -1613,7 +1309,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           <>
             {positionStats.tensions > 0 && (
               <Button variant="outline" onClick={() => setTensionDrawerOpen(true)} size="sm" >
-                <AlertTriangle className="size-4 mr-1.5 text-amber-600" /> {positionStats.tensions} {positionStats.tensions === 1 ? 'tension' : 'tensions'}
+                <AlertTriangle className="size-4 mr-1.5 text-caution" /> {positionStats.tensions} {positionStats.tensions === 1 ? 'tension' : 'tensions'}
               </Button>
             )}
             <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
@@ -1642,25 +1338,25 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         className="mb-3"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PositionViewFilter)}>
-          <SelectTrigger aria-label="Position view" className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Position view" className="w-52 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Position View" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-code text-[10px] uppercase">{POSITION_VIEW_LABELS.all}</SelectItem>
+            <SelectItem value="all" className="noesis-eyebrow">{POSITION_VIEW_LABELS.all}</SelectItem>
             {PRIMARY_POSITION_VIEW_FILTERS.filter((value) => value !== 'all').map((value) => (
-              <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{POSITION_VIEW_LABELS[value]}</SelectItem>
+              <SelectItem key={value} value={value} className="noesis-eyebrow">{POSITION_VIEW_LABELS[value]}</SelectItem>
             ))}
           </SelectContent>
         </Select>
 
         <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as VaultType | 'all')}>
-          <SelectTrigger aria-label="Position type" className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Position type" className="w-52 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Position Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-code text-[10px] uppercase">All Types</SelectItem>
+            <SelectItem value="all" className="noesis-eyebrow">All Types</SelectItem>
             {vaultTypes.map((type) => (
-              <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{TYPE_LABELS[type]}</SelectItem>
+              <SelectItem key={type} value={type} className="noesis-eyebrow">{TYPE_LABELS[type]}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -1688,7 +1384,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             type="button"
             onClick={() => setViewFilter(viewFilter === item.filter ? 'all' : item.filter)}
             className={cn(
-              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+              "rounded-full border px-3 py-1.5 noesis-eyebrow noesis-eyebrow--sm transition-colors",
               viewFilter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
@@ -1715,7 +1411,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
                   {/* As in the prototype: one type tag, and the challenge count when there is one. */}
                   <Badge variant="outline" className="rounded-full">{TYPE_LABELS[entry.type] || 'Position'}</Badge>
-                  {diagnostic.challengeCount > 0 && <span className="ml-auto font-code text-[9px] uppercase tracking-[0.14em] text-[hsl(var(--stage-claim))]">{diagnostic.challengeCount} open challenge{diagnostic.challengeCount === 1 ? '' : 's'}</span>}
+                  {diagnostic.challengeCount > 0 && <span className="ml-auto noesis-eyebrow noesis-eyebrow--sm text-[hsl(var(--stage-claim))]">{diagnostic.challengeCount} open challenge{diagnostic.challengeCount === 1 ? '' : 's'}</span>}
                 </div>
                 <h2 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors whitespace-normal break-words text-primary">
                   <button type="button" className="text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openEntry(entry.id)}>{entry.title}</button>
@@ -1731,8 +1427,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             <PositionMiniScale confidence={confidencePercent(entry.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} />
             {(entry.tags || []).length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <button type="button" onClick={() => setConceptPopupName((entry.tags || [])[0])} className="noesis-tag-chip">{(entry.tags || [])[0]}</button>
-                {diagnostic.flags[0] && <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground" title={diagnostic.flags.join(', ')}>{diagnostic.flags[0]}{diagnostic.flags.length > 1 ? ` +${diagnostic.flags.length - 1}` : ''}</span>}
+                <Pill look="mono" tone="concept" onClick={() => setConceptPopupName((entry.tags || [])[0])}>{(entry.tags || [])[0]}</Pill>
+                {diagnostic.flags[0] && <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground" title={diagnostic.flags.join(', ')}>{diagnostic.flags[0]}{diagnostic.flags.length > 1 ? ` +${diagnostic.flags.length - 1}` : ''}</span>}
               </div>
             )}
           </Card>
@@ -1748,7 +1444,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               whyItMatters="Noesis uses positions as the lifecycle for rough thoughts, tested judgments, and fully formed commitments."
               firstAction="Create one provisional position from an annotation, inquiry, source reflection, or direct claim."
               filterCause={positionFiltersActive ? 'Current view, search, or filters may be hiding positions.' : undefined}
-              action={positionFiltersActive ? <Button variant="outline" onClick={clearPositionFilters} className="rounded-full">Clear filters</Button> : undefined}
+              action={positionFiltersActive ? <Button variant="outline" onClick={clearPositionFilters}>Clear filters</Button> : undefined}
             />
           </div>
         )}
@@ -1780,28 +1476,28 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <div key={`${a.id}-${b.id}`} className="rounded-xl border border-border bg-background p-4 shadow-sm">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className={cn(
-                    "rounded-full font-code text-[8px] uppercase tracking-widest",
-                    severity === 'possible contradiction' ? "border-rose-200 bg-rose-50 text-rose-800" :
-                    severity === 'possible qualification' ? "border-blue-200 bg-blue-50 text-blue-800" :
-                    severity === 'possible complement' ? "border-emerald-200 bg-emerald-50 text-emerald-800" :
+                    "rounded-full noesis-eyebrow noesis-eyebrow--sm",
+                    severity === 'possible contradiction' ? "border-problem/40 bg-problem/10 text-problem" :
+                    severity === 'possible qualification' ? "border-info/40 bg-info/10 text-info" :
+                    severity === 'possible complement' ? "border-ok/40 bg-ok/10 text-ok" :
                     "border-border bg-muted/20 text-muted-foreground"
                   )}>
                     {severity}
                   </Badge>
-                  <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Shared: {sharedTags.slice(0, 2).join(', ')}</span>
+                  <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Shared: {sharedTags.slice(0, 2).join(', ')}</span>
                 </div>
                 <button onClick={() => { setTensionDrawerOpen(false); openEntry(a.id); }} className="block text-left font-headline text-base font-bold italic text-foreground hover:text-accent">
                   {a.title}
                 </button>
-                <div className="my-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">and</div>
+                <div className="my-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">and</div>
                 <button onClick={() => { setTensionDrawerOpen(false); openEntry(b.id); }} className="block text-left font-headline text-base font-bold italic text-foreground hover:text-accent">
                   {b.title}
                 </button>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" className="h-8 rounded-full bg-card" onClick={() => { setTensionDrawerOpen(false); openEntry(a.id); }}>
+                  <Button variant="outline" size="sm" onClick={() => { setTensionDrawerOpen(false); openEntry(a.id); }}>
                     Review tension
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 rounded-full" onClick={() => setViewFilter('tensions')}>
+                  <Button variant="ghost" size="sm" onClick={() => setViewFilter('tensions')}>
                     Filter positions
                   </Button>
                 </div>
@@ -1842,7 +1538,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           {ideaStep === 1 && (
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Draft Position</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Draft Position</Label>
                 <Input
                   value={ideaDraft.title}
                   onChange={(e) => setIdeaDraft((p) => ({ ...p, title: e.target.value }))}
@@ -1852,7 +1548,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 />
               </div>
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Reasoning / Context</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Reasoning / Context</Label>
                 <Textarea
                   value={ideaDraft.body}
                   onChange={(e) => setIdeaDraft((p) => ({ ...p, body: e.target.value }))}
@@ -1864,7 +1560,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <Button
                   onClick={handleGenerateQuestions}
                   disabled={!ideaDraft.title.trim() || isGenerating}
-                  className="bg-accent shadow-md shadow-accent/20 rounded-full px-8 w-full"
+                  className="w-full"
                 >
                   {isGenerating ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
                   {isGenerating ? 'Generating questions…' : 'Ask AI'}
@@ -1882,7 +1578,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               {ideaQA.map((qa, i) => (
                 <div key={i} className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-code text-[8px] uppercase tracking-widest text-accent font-bold px-2 py-0.5 bg-accent/10 rounded-full">{qa.focus}</span>
+                    <span className="noesis-eyebrow noesis-eyebrow--sm text-accent font-bold px-2 py-0.5 bg-accent/10 rounded-full">{qa.focus}</span>
                   </div>
                   <p className="text-sm font-body text-foreground/80 leading-snug">{qa.question}</p>
                   <Textarea
@@ -1897,7 +1593,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <Button
                   onClick={handleFormPosition}
                   disabled={isGenerating}
-                  className="bg-accent shadow-md shadow-accent/20 rounded-full px-8 w-full"
+                  className="w-full"
                 >
                   {isGenerating ? <Loader2 className="size-4 mr-2 animate-spin" /> : <ChevronRight className="size-4 mr-2" />}
                   {isGenerating ? 'Forming position…' : 'Form Position'}
@@ -1909,7 +1605,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           {ideaStep === 3 && ideaPosition && (
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Position Title</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Position Title</Label>
                 <Input
                   value={ideaPosition.positionTitle}
                   onChange={(e) => setIdeaPosition((p) => p ? { ...p, positionTitle: e.target.value } : p)}
@@ -1917,7 +1613,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 />
               </div>
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Core Claim</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Core Claim</Label>
                 <Textarea
                   value={ideaPosition.statement}
                   onChange={(e) => setIdeaPosition((p) => p ? { ...p, statement: e.target.value } : p)}
@@ -1925,7 +1621,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 />
               </div>
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Supporting Reasoning</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Supporting Reasoning</Label>
                 <Textarea
                   value={ideaPosition.description}
                   onChange={(e) => setIdeaPosition((p) => p ? { ...p, description: e.target.value } : p)}
@@ -1933,7 +1629,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 />
               </div>
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Confidence percentage</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Confidence percentage</Label>
                 <div className="flex items-center justify-end">
                   <span className="font-code text-sm font-bold text-accent">{confidencePercent(ideaPosition.confidence)}%</span>
                 </div>
@@ -1951,7 +1647,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <DialogFooter className="pt-2">
                 <Button
                   onClick={handleSaveIdeaPosition}
-                  className="bg-accent shadow-md shadow-accent/20 rounded-full px-8 w-full"
+                  className="w-full"
                 >
                   Save Position
                 </Button>
@@ -2020,7 +1716,7 @@ function PositionStat({ label, value, active, onClick }: { label: string; value:
         active && 'border-accent/50 bg-accent/10 text-accent'
       )}
     >
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground/60">{label}</div>
       <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
     </Comp>
   );
@@ -2068,7 +1764,7 @@ function TensionResolutionPanel({
           <h2 className="noesis-status-label">Possible Tension Detected</h2>
           <p className="noesis-status-detail mt-1 italic">Decide whether this relationship is compatible, opposed, or needs refinement.</p>
         </div>
-        <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{tensionLinks.length} open</Badge>
+        <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{tensionLinks.length} open</Badge>
       </div>
       <div className="space-y-3">
         {tensionLinks.map((link) => {
@@ -2076,7 +1772,7 @@ function TensionResolutionPanel({
           return (
             <div key={link.id} className="noesis-status-panel-subtle p-3">
               <div className="mb-3 text-sm italic text-foreground">
-                {otherLabel} is currently marked as <span className="font-code text-[10px] uppercase tracking-widest text-accent">{link.type}</span>.
+                {otherLabel} is currently marked as <span className="noesis-eyebrow text-accent">{link.type}</span>.
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={() => updateLink(link, 'coheres', 'Reviewed and marked as not a contradiction.')} className="rounded-full bg-card">
@@ -2149,29 +1845,29 @@ function PositionsTable({
                   <div className="max-w-xl whitespace-normal text-xs leading-5 text-muted-foreground">{entry.statement || entry.description}</div>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground xl:hidden">{diagnostic.nextAction}</p>
                 </TableCell>
-                <TableCell className="hidden font-code text-[10px] uppercase tracking-widest xl:table-cell">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
-                <TableCell className="hidden lg:table-cell"><div className="flex flex-wrap gap-1"><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge><StageBadge type="position" stage={entry.stage} status={entry.status} /></div></TableCell>
+                <TableCell className="hidden noesis-eyebrow xl:table-cell">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
+                <TableCell className="hidden lg:table-cell"><div className="flex flex-wrap gap-1"><Badge>{entry.status}</Badge><StageBadge type="position" stage={entry.stage} status={entry.status} /></div></TableCell>
                 <TableCell>
                   <div className="min-w-0">
-                    <div className="mb-1 font-code text-[10px] font-bold">{confidencePercent(entry.confidence)}%</div>
+                    <div className="mb-1 noesis-figure font-bold">{confidencePercent(entry.confidence)}%</div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-accent" style={{ width: `${confidencePercent(entry.confidence)}%` }} />
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="hidden font-code text-[10px] uppercase tracking-widest text-muted-foreground 2xl:table-cell">
+                <TableCell className="hidden noesis-eyebrow text-muted-foreground 2xl:table-cell">
                   {diagnostic.supportCount} support / {diagnostic.challengeCount} challenge / {diagnostic.practiceCount} tests
                 </TableCell>
                 <TableCell className="hidden 2xl:table-cell">
                   <div className="flex flex-wrap gap-1.5">
-                    <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{diagnostic.label}</Badge>
+                    <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{diagnostic.label}</Badge>
                     {diagnostic.flags.slice(0, 2).map((flag) => (
-                      <Badge key={flag} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{flag}</Badge>
+                      <Badge key={flag} variant="secondary" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">{flag}</Badge>
                     ))}
                   </div>
                 </TableCell>
                 <TableCell className="hidden text-xs italic leading-5 text-muted-foreground xl:table-cell">{diagnostic.nextAction}</TableCell>
-                <TableCell className="hidden font-code text-[10px] uppercase tracking-widest text-muted-foreground xl:table-cell">{safePositionDate(entry.dateUpdated || entry.dateCreated)}</TableCell>
+                <TableCell className="hidden noesis-eyebrow text-muted-foreground xl:table-cell">{safePositionDate(entry.dateUpdated || entry.dateCreated)}</TableCell>
               </TableRow>
               );
             })}
@@ -2188,7 +1884,7 @@ function EvidencePanel({ title, items, onAdd, onPull }: { title: string; items: 
     <Card className="noesis-workbench-panel noesis-workbench-panel--sub">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="noesis-workbench-panel__eyebrow">{title}</h3>
-        {onPull && <Button type="button" variant="outline" size="sm" className="h-7 rounded-full px-3 text-xs" onClick={onPull}>Pull from your records</Button>}
+        {onPull && <Button type="button" variant="outline" size="sm" className="text-xs" onClick={onPull}>Pull from your records</Button>}
       </div>
       <div className="space-y-2 mb-3">{items.map((item, index) => <div key={`${item}-${index}`} className="rounded-lg bg-muted/30 p-3 text-sm italic shadow-sm border border-border/10 leading-relaxed text-primary/80">{item}</div>)}</div>
       <div className="flex gap-2"><Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Add evidence..." className="h-9 rounded-full" /><Button onClick={() => { if (text.trim()) { onAdd(text.trim()); setText(''); } }} size="sm" className="h-9 px-4 rounded-full">Add</Button></div>
@@ -2230,20 +1926,20 @@ function ConfidenceHistoryChart({ entry }: { entry: VaultEntry }) {
   const linePoints = series.map((point, index) => `${x(index)},${y(point.value)}`).join(' ');
   return (
     <div className="rounded-xl border border-border/50 bg-background/50 p-4 md:col-span-2">
-      <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Confidence over time</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Confidence over time</div>
       <svg className="mt-3 h-auto w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Line graph of confidence history for ${entry.title}`}>
         {[0, 25, 50, 75, 100].map((value) => (
           <g key={value}>
             <line x1={padding.left} x2={width - padding.right} y1={y(value)} y2={y(value)} className="stroke-border" strokeWidth="1" />
-            <text x={padding.left - 8} y={y(value) + 3} textAnchor="end" className="fill-muted-foreground font-code text-[9px]">{value}</text>
+            <text x={padding.left - 8} y={y(value) + 3} textAnchor="end" className="fill-muted-foreground noesis-figure noesis-figure--sm">{value}</text>
           </g>
         ))}
         {series.length > 1 && <polyline points={linePoints} fill="none" className="stroke-accent" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />}
         {series.map((point, index) => (
           <g key={`${point.date}-${index}`}>
             <circle cx={x(index)} cy={y(point.value)} r="6" className="fill-background stroke-accent" strokeWidth="4" />
-            <text x={x(index)} y={Math.max(12, y(point.value) - 12)} textAnchor="middle" className="fill-foreground font-code text-[10px] font-semibold">{point.value}%</text>
-            <text x={x(index)} y={height - 14} textAnchor="middle" className="fill-muted-foreground font-code text-[8px]">{safePositionDate(point.date)}</text>
+            <text x={x(index)} y={Math.max(12, y(point.value) - 12)} textAnchor="middle" className="fill-foreground noesis-figure font-semibold">{point.value}%</text>
+            <text x={x(index)} y={height - 14} textAnchor="middle" className="fill-muted-foreground noesis-figure noesis-figure--sm">{safePositionDate(point.date)}</text>
           </g>
         ))}
       </svg>
@@ -2271,7 +1967,7 @@ function EntityListPanel({
             const content = (
               <>
                 <div className="font-headline text-base font-semibold italic text-primary">{item.title}</div>
-                {item.meta ? <div className="mt-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">{item.meta}</div> : null}
+                {item.meta ? <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{item.meta}</div> : null}
               </>
             );
 
@@ -2333,8 +2029,8 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">TYPE</Label>
               <Select value={draft.type || 'belief'} onValueChange={(value) => setDraft((prev) => ({ ...prev, type: value as VaultType }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                <SelectContent>{vaultTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{type.replace('_', ' ')}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full noesis-eyebrow"><SelectValue /></SelectTrigger>
+                <SelectContent>{vaultTypes.map((type) => <SelectItem key={type} value={type} className="noesis-eyebrow">{type.replace('_', ' ')}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
@@ -2342,22 +2038,22 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">POSITION KIND</Label>
               <Select value={draft.positionKind || 'interpretive'} onValueChange={(value) => setDraft((prev) => ({ ...prev, positionKind: value as PositionKind }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                <SelectContent>{positionKinds.map((kind) => <SelectItem key={kind.id} value={kind.id} className="font-code text-[10px] uppercase">{kind.label}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full noesis-eyebrow"><SelectValue /></SelectTrigger>
+                <SelectContent>{positionKinds.map((kind) => <SelectItem key={kind.id} value={kind.id} className="noesis-eyebrow">{kind.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">STATE</Label>
               <Select value={draft.status || 'tentative'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as VaultEntry['status'] }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                <SelectContent>{positionStatuses.map((status) => <SelectItem key={status.id} value={status.id} className="font-code text-[10px] uppercase">{status.label}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full noesis-eyebrow"><SelectValue /></SelectTrigger>
+                <SelectContent>{positionStatuses.map((status) => <SelectItem key={status.id} value={status.id} className="noesis-eyebrow">{status.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONFIDENCE</Label>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-code text-[10px] font-bold text-accent">{confidencePercent(draft.confidence)}%</span>
-                <span className="font-code text-[9px] uppercase tracking-wider text-muted-foreground">{confidenceLabel(draft.confidence)}</span>
+                <span className="noesis-figure font-bold text-accent">{confidencePercent(draft.confidence)}%</span>
+                <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{confidenceLabel(draft.confidence)}</span>
               </div>
               <input
                 type="range"
@@ -2394,7 +2090,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             </div>
           </div>
           <details className="rounded-2xl border border-border/50 bg-muted/10 p-4">
-            <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Optional structure and links</summary>
+            <summary className="cursor-pointer noesis-eyebrow font-bold text-muted-foreground">Optional structure and links</summary>
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">ASSUMPTIONS</Label>
@@ -2426,7 +2122,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             </div>
           </details>
         </div>
-        <DialogFooter className="pt-4"><Button onClick={onSave} disabled={saving || !draft.title?.trim()} className="bg-accent h-11 px-10 rounded-full font-bold">{saving ? 'Saving…' : 'Save position'}</Button></DialogFooter>
+        <DialogFooter className="pt-4"><Button onClick={onSave} disabled={saving || !draft.title?.trim()}>{saving ? 'Saving…' : 'Save position'}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

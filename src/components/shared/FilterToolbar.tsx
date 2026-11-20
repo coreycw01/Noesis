@@ -146,13 +146,13 @@ export function FilterToolbar({
           {relatedLookups.length > 0 && (
             <Popover>
               <PopoverTrigger asChild>
-                <Button type="button" variant="outline" size="icon" className="size-10 shrink-0 rounded-full border-border/50 bg-card" aria-label={relatedLookupLabel} title={relatedLookupLabel}>
+                <Button type="button" variant="outline" size="icon" className="size-10 shrink-0" aria-label={relatedLookupLabel} title={relatedLookupLabel}>
                   <LibraryBig className="size-4" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent aria-labelledby={lookupHeadingId} align="start" collisionPadding={12} className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(380px,calc(100vw-2rem))] flex-col rounded-xl border-border bg-popover p-3 shadow-xl">
                 <div className="mb-3 shrink-0">
-                  <div id={lookupHeadingId} className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Search related objects</div>
+                  <div id={lookupHeadingId} className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Search related objects</div>
                   <div className="relative mt-2">
                     <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                     <label htmlFor={lookupId} className="sr-only">Search related objects</label>
@@ -170,7 +170,7 @@ export function FilterToolbar({
                     const options = expanded ? matches : matches.slice(0, 12);
                     return (
                       <div key={group.id}>
-                        <div className="mb-1.5 font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{group.label}</div>
+                        <div className="mb-1.5 noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{group.label}</div>
                         <div className="space-y-1">
                           <button type="button" aria-pressed={!group.value || group.value === 'all'} onClick={() => group.onSelect('all')} className="flex min-h-11 w-full items-center justify-between rounded-[var(--button-radius)] px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                             <span>All {group.label.toLowerCase()}</span>
@@ -207,7 +207,7 @@ export function FilterToolbar({
               type="button"
               variant="outline"
               size="icon"
-              className="size-9 shrink-0 justify-center rounded-full border-border/50 bg-card px-0 font-code text-[9px] uppercase tracking-widest sm:w-auto sm:px-3"
+              className="size-9 shrink-0 justify-center sm:w-auto sm:px-3"
               aria-label={resolvedActiveFilterCount ? `Filters, ${resolvedActiveFilterCount} active` : 'Filters'}
             >
               <SlidersHorizontal className="size-3.5 sm:mr-1.5" />
@@ -231,7 +231,7 @@ export function FilterToolbar({
                 }
               }}
             >
-              <div id={filterHeadingId} className="mb-3 font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Filter and sort</div>
+              <div id={filterHeadingId} className="mb-3 noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Filter and sort</div>
               <div className="flex flex-wrap items-center gap-2 [&_[role=combobox]]:min-w-[170px] [&_[role=combobox]]:flex-1">
                 {children}
               </div>
@@ -242,17 +242,17 @@ export function FilterToolbar({
         {viewControlMobileRow ? <div className="basis-full sm:basis-auto">{viewControl}</div> : viewControl}
         <div className="ml-auto hidden shrink-0 flex-wrap items-center justify-end gap-2 sm:flex">
           {typeof resultCount === 'number' && (
-            <span className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            <span className="noesis-eyebrow font-bold text-muted-foreground">
               {resultCount} {resultLabel}
             </span>
           )}
           {sortLabel && (
-            <span className="hidden font-code text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground xl:inline">
+            <span className="hidden noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground xl:inline">
               Sorted by {sortLabel}
             </span>
           )}
           {onClear && (
-            <Button type="button" variant="ghost" size="sm" onClick={clearAll} disabled={clearAllDisabled} className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest">
+            <Button type="button" variant="ghost" size="sm" onClick={clearAll} disabled={clearAllDisabled}>
               <X className="mr-1.5 size-3.5" /> Clear
             </Button>
           )}
@@ -261,7 +261,7 @@ export function FilterToolbar({
       {renderedFilters.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Active filter summary">
           {renderedFilters.map((filter) => (
-            <span key={filter.id} className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-muted/50 px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+            <span key={filter.id} className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-muted/50 px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
               {filter.label}
               {filter.onRemove && (
                 <button type="button" onClick={filter.onRemove} aria-label={`Remove ${filter.label}`} className="rounded-full p-0.5 hover:bg-background hover:text-foreground">

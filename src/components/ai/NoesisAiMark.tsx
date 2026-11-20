@@ -10,7 +10,7 @@ interface NoesisAiMarkProps {
 export function NoesisAiMark({ className }: NoesisAiMarkProps) {
   return (
     <ScanEye
-      className={cn('inline-block shrink-0 text-[#563795] dark:text-[#d1b9ff]', className)}
+      className={cn('inline-block shrink-0 text-brand-mark dark:text-[hsl(var(--brand-mark-dark))]', className)}
       strokeWidth={2}
       aria-hidden="true"
     />

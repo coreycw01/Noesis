@@ -87,7 +87,7 @@ export function ContextualAiDocument({ content }: { content: string }) {
         items.push((lines[index]?.trim() || '').replace(/^\d+[.)]\s+/, ''));
         index += 1;
       }
-      blocks.push(<ol key={`steps-${index}`} className="space-y-3">{items.map((item, itemIndex) => <li key={itemIndex} className="grid grid-cols-[1.75rem_1fr] gap-2 text-sm leading-6 text-foreground/90"><span className="flex size-7 items-center justify-center rounded-full border border-border bg-background font-code text-[10px] font-semibold text-muted-foreground">{itemIndex + 1}</span><span>{formattedInline(item)}</span></li>)}</ol>);
+      blocks.push(<ol key={`steps-${index}`} className="space-y-3">{items.map((item, itemIndex) => <li key={itemIndex} className="grid grid-cols-[1.75rem_1fr] gap-2 text-sm leading-6 text-foreground/90"><span className="flex size-7 items-center justify-center rounded-full border border-border bg-background noesis-figure font-semibold text-muted-foreground">{itemIndex + 1}</span><span>{formattedInline(item)}</span></li>)}</ol>);
       continue;
     }
 
@@ -335,7 +335,7 @@ export function ContextualAiPanel({
       <section key={focusedItem.id} className="flex h-full min-h-0 flex-col max-sm:[@media(max-height:600px)]:block max-sm:[@media(max-height:600px)]:overflow-y-auto max-sm:[@media(max-height:600px)]:overscroll-contain" aria-label={`Focused ${reviewItemLabel} review`}>
         <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6 max-sm:[@media(max-height:600px)]:py-2">
           <div className="min-w-0">
-            <div className="font-code text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="noesis-eyebrow font-bold text-muted-foreground">
               {reviewItemLabel} {itemNumber} of {reviewItems.length}
             </div>
             <h3 ref={focusedReviewHeading} tabIndex={-1} className="mt-2 break-words text-lg font-semibold leading-snug text-foreground">{formattedInline(focusedItem.title)}</h3>
@@ -412,7 +412,7 @@ export function ContextualAiPanel({
   return (
     <span className="noesis-aidock-anchor" data-open={open || undefined}>
       <span className="noesis-aidock">
-        <Button variant="outline" size="sm" className="noesis-ai-trigger rounded-full" aria-haspopup="dialog" aria-expanded={open} onClick={(event) => { dialogOpener.current = event.currentTarget; setOpen(true); }}>
+        <Button variant="outline" size="sm" className="noesis-ai-trigger" aria-haspopup="dialog" aria-expanded={open} onClick={(event) => { dialogOpener.current = event.currentTarget; setOpen(true); }}>
           <NoesisAiMark className="mr-2 size-5" /> {buttonLabel}
         </Button>
         {contextDeskKey && workspaceKey && (
@@ -420,7 +420,7 @@ export function ContextualAiPanel({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-9 rounded-full"
+            className="size-9"
             aria-label="Add this item to Context Desk"
             title="Add to Context Desk"
             onClick={() => {
@@ -626,7 +626,7 @@ export function ContextualAiPanel({
                                 <button type="button" onClick={() => focusReviewItem(item.id, !window.matchMedia('(min-width: 1024px)').matches)} className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-current={active ? 'true' : undefined}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                      <div className="font-code text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{reviewItemLabel} {index + 1}</div>
+                                      <div className="noesis-eyebrow font-bold text-muted-foreground">{reviewItemLabel} {index + 1}</div>
                                       <h3 className="mt-1 text-base font-semibold leading-snug text-foreground">{formattedInline(item.title)}</h3>
                                     </div>
                                     <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-medium capitalize ${item.status === 'kept' ? 'border-accent/50 text-accent' : 'border-border text-muted-foreground'}`}>{item.status}</span>

@@ -474,7 +474,7 @@ export function SettingsPage({
                 </Field>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Button variant="outline" onClick={resetPassword} disabled={!user?.email || saving === 'reset'} className="rounded-full bg-card px-6">
+                <Button variant="outline" onClick={resetPassword} disabled={!user?.email || saving === 'reset'}>
                   Reset Password
                 </Button>
                 <Button variant="outline" onClick={() => void exportWorkspace()} disabled={exporting} className="rounded-full bg-card px-6">
@@ -584,13 +584,13 @@ export function SettingsPage({
                     </div>
                   </div>
                   <div className="min-w-0 flex-1 p-5">
-                    <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Live theme preview</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Live theme preview</div>
                     <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">A workspace for living thought</div>
                     <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">This preview uses the same page, navigation, surface, border, typography, and accent tokens as every Noesis workspace.</p>
                     <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <Button size="sm" className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">Primary action</Button>
+                      <Button size="sm">Primary action</Button>
                       <div className="rounded-xl border border-border bg-card px-4 py-2 text-sm text-card-foreground">Readable card</div>
-                      <div className="rounded-full bg-muted px-3 py-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">
+                      <div className="rounded-full bg-muted px-3 py-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                         {drafts.appearance.highContrastMode ? 'High contrast on' : 'Standard contrast'}
                       </div>
                     </div>
@@ -897,7 +897,7 @@ export function SettingsPage({
                   </Select>
                 </Field>
                 <fieldset className="rounded-[var(--card-radius)] border border-border p-4">
-                  <legend className="px-1 font-code text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Depth by page</legend>
+                  <legend className="px-1 noesis-eyebrow text-muted-foreground">Depth by page</legend>
                   <p className="mb-3 text-sm text-muted-foreground">Start some pages lighter or deeper than the default. You can still change the depth for a single request.</p>
                   <ul className="grid gap-2 sm:grid-cols-2">
                     {AI_DEPTH_PAGES.map(({ page, label }) => (
@@ -938,7 +938,7 @@ export function SettingsPage({
                     {!user || aiConnection === 'sign_in_required' ? 'Sign in to check server configuration.' : aiConnection === 'email_not_verified' ? 'Verify your email before checking server configuration.' : aiConnection === 'configured' ? 'Configured. This check does not run an AI request.' : aiConnection === 'not_configured' ? 'AI is not configured on the server.' : aiConnection === 'unavailable' ? 'Configuration status could not be verified. Try again.' : aiConnection === 'checking' ? 'Checking configuration...' : 'Not checked.'}
                   </div>
                 </div>
-                <Button variant="outline" onClick={checkAiConnection} disabled={!user || aiConnection === 'checking'} className="rounded-full">
+                <Button variant="outline" onClick={checkAiConnection} disabled={!user || aiConnection === 'checking'}>
                   <RefreshCw aria-hidden="true" className={`mr-2 size-4 ${aiConnection === 'checking' ? 'animate-spin' : ''}`} /> Check Configuration
                 </Button>
               </div>
@@ -992,7 +992,7 @@ export function SettingsPage({
                     Export as Mind Map
                   </Button>
                   {reviewMode && onRefreshDemoWorkspace && (
-                    <Button variant="outline" onClick={refreshDemoWorkspace} disabled={refreshingDemoWorkspace || saving === 'refresh-demo'} className="rounded-full bg-card">
+                    <Button variant="outline" onClick={refreshDemoWorkspace} disabled={refreshingDemoWorkspace || saving === 'refresh-demo'}>
                       <RefreshCw className="mr-2 size-4" />
                       {refreshingDemoWorkspace || saving === 'refresh-demo' ? 'Refreshing Demo Workspace' : 'Refresh Demo Workspace'}
                     </Button>
@@ -1115,7 +1115,7 @@ export function SettingsPage({
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   {noesisGuide.workflows.slice(0, 10).map((workflow) => (
                     <div key={workflow.id} className="rounded-xl border border-border/60 bg-card p-3">
-                      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{workflow.label}</div>
+                      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{workflow.label}</div>
                       <ol className="mt-2 space-y-1 text-sm leading-6 text-muted-foreground">
                         {workflow.steps.slice(0, 4).map((step, index) => <li key={step}>{index + 1}. {step}</li>)}
                       </ol>
@@ -1129,13 +1129,13 @@ export function SettingsPage({
                     <div className="font-headline text-lg font-semibold italic text-foreground">{section.label}</div>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{section.definition}</p>
                     <div className="mt-3">
-                      <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">What it does</div>
+                      <div className="noesis-eyebrow text-muted-foreground">What it does</div>
                       <ul className="mt-2 space-y-1 text-sm text-foreground/85">
                         {section.whatYouDo.slice(0, 3).map((item) => <li key={item}>• {item}</li>)}
                       </ul>
                     </div>
                     <div className="mt-3">
-                      <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Connects to</div>
+                      <div className="noesis-eyebrow text-muted-foreground">Connects to</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {section.connectsTo.map((item) => (
                           <span key={item} className="rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground">
@@ -1180,7 +1180,7 @@ export function SettingsPage({
             </div>
 
             <div className="hidden xl:block">
-              <div className="mb-3 px-3 font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Sections</div>
+              <div className="mb-3 px-3 noesis-eyebrow text-muted-foreground">Sections</div>
               <div className="space-y-1">
                 {SETTINGS_PANELS.map((panel) => (
                   <button
@@ -1240,10 +1240,10 @@ function BehaviorPreview({
     <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Behavior preview</div>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Behavior preview</div>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{impact.current}</p>
         </div>
-        <div className={`w-fit rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-[0.18em] ${
+        <div className={`w-fit rounded-full border px-3 py-1 noesis-eyebrow noesis-eyebrow--sm ${
           hasChanges
             ? 'border-accent/40 bg-accent/10 text-accent'
             : 'border-border bg-muted/20 text-muted-foreground'
@@ -1254,7 +1254,7 @@ function BehaviorPreview({
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.55fr)]">
         <div className="rounded-2xl border border-border bg-background/60 p-4">
-          <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">After save this affects</div>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">After save this affects</div>
           <ul className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
             {impact.affects.map((item) => (
               <li key={item} className="flex gap-2">
@@ -1266,7 +1266,7 @@ function BehaviorPreview({
         </div>
 
         <div className="rounded-2xl border border-border bg-background/60 p-4">
-          <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Saved sections</div>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Saved sections</div>
           <div className="mt-3 flex flex-wrap gap-2">
             {impact.sections.length > 0 ? (
               impact.sections.map((section) => {
@@ -1274,7 +1274,7 @@ function BehaviorPreview({
                 return (
                   <span
                     key={section}
-                    className={`rounded-full border px-2.5 py-1 font-code text-[8px] uppercase tracking-widest ${
+                    className={`rounded-full border px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm ${
                       changed
                         ? 'border-accent/40 bg-accent/10 text-accent'
                         : 'border-border bg-card text-muted-foreground'
@@ -1293,7 +1293,7 @@ function BehaviorPreview({
 
       {impact.limitations.length > 0 && (
         <div className="mt-4 rounded-2xl border border-dashed border-border bg-muted/15 p-4">
-          <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Limits and safeguards</div>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Limits and safeguards</div>
           <ul className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
             {impact.limitations.map((item) => (
               <li key={item} className="flex gap-2">
@@ -1325,7 +1325,7 @@ function SaveBar({ onSave, onDiscard, saving, busy, dirty, saved }: { onSave: ()
     <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
       <span role="status" className="sr-only">{!dirty && saved ? 'Changes saved' : ''}</span>
       {dirty && onDiscard && <Button type="button" variant="ghost" disabled={busy} onClick={onDiscard}>Discard preview</Button>}
-      <Button type="button" onClick={onSave} disabled={busy || !dirty} className="rounded-full px-6 font-semibold">
+      <Button type="button" onClick={onSave} disabled={busy || !dirty}>
         {saving ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}
         {saving ? 'Saving' : !dirty && saved ? 'Saved' : 'Save Changes'}
       </Button>
@@ -1336,7 +1336,7 @@ function SaveBar({ onSave, onDiscard, saving, busy, dirty, saved }: { onSave: ()
 function LimitationCard({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-2xl border border-border bg-background/60 p-4">
-      <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{title}</div>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
     </div>
   );
@@ -1347,7 +1347,7 @@ function IntegrationCard({ title, status, body }: { title: string; status: strin
     <div className="rounded-2xl border border-border bg-background/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="font-headline text-lg font-semibold italic text-foreground">{title}</div>
-        <span className="rounded-full border border-border bg-card px-2.5 py-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">{status}</span>
+        <span className="rounded-full border border-border bg-card px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{status}</span>
       </div>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{body}</p>
     </div>
@@ -1357,7 +1357,7 @@ function IntegrationCard({ title, status, body }: { title: string; status: strin
 function TerminologyCard({ term, alt, body }: { term: string; alt: string; body: string }) {
   return (
     <div className="rounded-2xl border border-border bg-background/60 p-4">
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">User-facing term</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">User-facing term</div>
       <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{term}</div>
       <div className="mt-3 rounded-xl bg-muted/25 p-3 text-xs italic text-muted-foreground">Possible language: {alt}</div>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{body}</p>
@@ -1368,7 +1368,7 @@ function TerminologyCard({ term, alt, body }: { term: string; alt: string; body:
 function ClassificationCard({ title, body }: { title: string; body: string }) {
   return (
     <div className="noesis-recommendation">
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">Classification system</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">Classification system</div>
       <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{title}</div>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{body}</p>
     </div>
@@ -1445,6 +1445,9 @@ const STAGE_COLOR_ROWS: Array<{ key: StageColorKey; stage: string; pages: string
   { key: 'more', stage: 'More', pages: 'Profile, Settings, Noesis AI' },
 ];
 
+/* Colours a person picks for their own pages. These are data, not design
+   tokens: they are stored on the workspace and must stay the same colour
+   whatever theme is in use. */
 const PAGE_SWATCHES = [
   ['Brick', '#b85444'], ['Coral', '#dc795d'], ['Amber', '#bc8632'],
   ['Olive', '#828843'], ['Fern', '#4b9567'], ['Teal', '#318e88'],

@@ -50,7 +50,7 @@ export function PositionCalibrationGauge({ confidence, supportCount, challengeCo
   return (
     <div className="noesis-calibration" data-stage-tone="claim">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Calibration</span>
+        <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Calibration</span>
         <span className="font-headline text-lg font-semibold italic">{confidence}% <span className="text-xs not-italic text-muted-foreground">{zoneLabel(confidence).toLowerCase()}</span></span>
       </div>
       <div className="noesis-calibration__track" role="img" aria-label={`Stated confidence ${confidence} percent${earned === null ? '' : `; evidence balance ${earned} percent`}`}>
@@ -64,7 +64,7 @@ export function PositionCalibrationGauge({ confidence, supportCount, challengeCo
       <div className="noesis-calibration__labels" aria-hidden="true">
         {ZONES.map((zone) => <span key={zone.label}>{zone.label}</span>)}
       </div>
-      <div className="mt-2 flex flex-wrap justify-between gap-2 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+      <div className="mt-2 flex flex-wrap justify-between gap-2 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
         <span><span className="noesis-calibration__key noesis-calibration__key--stated" />Stated</span>
         <span><span className="noesis-calibration__key noesis-calibration__key--earned" />Evidence {earned === null ? '—' : `${earned}%`}</span>
         <span>{supportCount} for · {challengeCount} against</span>
@@ -170,7 +170,7 @@ export function PullEvidenceDialog({ open, onOpenChange, side, media, concepts, 
                 onClick={() => { onPick(record.text); onOpenChange(false); setQuery(''); }}
                 className="grid w-full gap-0.5 rounded-lg border border-transparent px-3 py-2 text-left transition-colors hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{KIND_LABELS[record.kind]}{record.detail ? ` · ${record.detail.slice(0, 70)}` : ''}</span>
+                <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{KIND_LABELS[record.kind]}{record.detail ? ` · ${record.detail.slice(0, 70)}` : ''}</span>
                 <span className="line-clamp-2 text-sm">{record.title}</span>
               </button>
             </li>
@@ -194,7 +194,7 @@ export function PositionMiniScale({ confidence, supportCount, challengeCount }: 
         {earned !== null && <span className="noesis-mini-scale__earned" style={{ left: `${earned}%` }} />}
         <span className="noesis-mini-scale__stated" style={{ left: `${confidence}%` }} />
       </div>
-      <div className="font-code text-[9.5px] uppercase tracking-[0.12em] text-muted-foreground">
+      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
         {confidence} stated · {earned === null ? 'no evidence yet' : `${earned} evidence · ${Math.abs(gap!) <= 5 ? 'calibrated' : `${gap! > 0 ? '+' : ''}${gap}`}`}
       </div>
     </div>

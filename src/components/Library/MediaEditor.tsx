@@ -218,7 +218,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                                 <div className="text-[13px] font-headline font-bold italic truncate group-hover:text-accent">{item.title}</div>
                                 <div className="text-[10px] text-muted-foreground truncate uppercase font-code tracking-tighter">{item.creators.join(', ')} {item.year && `(${item.year})`}</div>
                                 <div className="mt-1 line-clamp-2 text-xs leading-4 text-muted-foreground">{item.catalogSummary || buildCatalogSummary(item.description) || 'No provider description available.'}</div>
-                                <div className="mt-1 font-code text-[8px] uppercase tracking-wider text-muted-foreground/70">{item.provider.replace(/_/g, ' ')} · {MEDIA_LABELS[item.type]}</div>
+                                <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/70">{item.provider.replace(/_/g, ' ')} · {MEDIA_LABELS[item.type]}</div>
                               </div>
                               <Check className="size-3.5 opacity-0 group-hover:opacity-100 text-accent" />
                             </button>
@@ -244,7 +244,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                           onChange={(e) => setImportUrl(e.target.value)}
                           className="h-11 rounded-md bg-card text-sm italic sm:rounded-full"
                         />
-                        <Button variant="outline" onClick={handleImportUrl} disabled={isImporting || !importUrl.trim()} className="h-11 w-full rounded-md px-6 font-bold sm:w-auto sm:rounded-full">
+                        <Button variant="outline" onClick={handleImportUrl} disabled={isImporting || !importUrl.trim()} className="w-full sm:w-auto sm:rounded-full">
                           {isImporting ? <Loader2 className="size-4 animate-spin" /> : 'IMPORT'}
                         </Button>
                       </div>
@@ -264,7 +264,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                         key={type}
                         onClick={() => setDraft(prev => ({ ...prev, type }))}
                         className={cn(
-                          "flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 py-2 text-center font-code text-[9px] font-bold uppercase tracking-widest shadow-sm transition-all sm:min-h-0 sm:justify-start sm:rounded-full sm:px-4",
+                          "flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 py-2 text-center noesis-eyebrow noesis-eyebrow--sm font-bold shadow-sm transition-all sm:min-h-0 sm:justify-start sm:rounded-full sm:px-4",
                           isActive
                             ? "bg-accent text-accent-foreground border-accent"
                             : "bg-card text-muted-foreground border-border/60 hover:border-accent hover:text-accent"
@@ -355,7 +355,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                   <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONCEPTS</Label>
                   <div className="flex flex-wrap gap-2">
                     {(draft.tags || []).map(tag => (
-                      <Badge key={tag} variant="secondary" className="px-4 py-1.5 font-code text-[9px] uppercase tracking-widest rounded-full border-border/60 bg-card shadow-sm font-bold">
+                      <Badge key={tag} variant="secondary" className="px-4 py-1.5 noesis-eyebrow noesis-eyebrow--sm rounded-full border-border/60 bg-card shadow-sm font-bold">
                         {tag}
                         <button type="button" aria-label={`Remove concept ${tag}`} title={`Remove ${tag}`} onClick={() => removeTag(tag)} className="ml-2 inline-flex size-8 items-center justify-center hover:text-destructive transition-colors"><X className="size-3" /></button>
                       </Badge>
@@ -369,7 +369,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                       onKeyDown={(e) => e.key === 'Enter' && addTag()}
                       className="h-11 rounded-md text-sm sm:rounded-full"
                     />
-                    <Button variant="outline" onClick={addTag} className="h-11 rounded-md border-border/60 bg-card px-4 font-code text-[10px] font-bold uppercase tracking-widest shadow-sm sm:rounded-full sm:px-6">ADD</Button>
+                    <Button variant="outline" onClick={addTag} className="sm:rounded-full sm:px-6">ADD</Button>
                   </div>
                 </div>
 
@@ -413,8 +413,8 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
         </ScrollArea>
 
         <div className="grid grid-cols-2 gap-2 border-t bg-muted/10 p-4 sm:flex sm:justify-end sm:gap-4 sm:p-8 sm:pt-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 rounded-md px-4 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent sm:rounded-full sm:px-8">Cancel</Button>
-          <Button onClick={onSave} disabled={saving || !draft.title?.trim()} className="h-11 rounded-md bg-accent px-4 font-code text-[11px] font-bold uppercase tracking-widest sm:rounded-full sm:px-10">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 rounded-md px-4 noesis-eyebrow font-bold text-muted-foreground hover:bg-transparent sm:rounded-full sm:px-8">Cancel</Button>
+          <Button onClick={onSave} disabled={saving || !draft.title?.trim()} className="sm:rounded-full sm:px-10">
             {saving ? 'Saving…' : draft.id ? 'Save changes' : 'Add to Library'}
           </Button>
         </div>

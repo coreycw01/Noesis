@@ -51,11 +51,11 @@ export function AtlasConnectionsView({
     <Card className="rounded-3xl border border-border/60 bg-card/85 p-5 shadow-sm">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">Relationship registry</Badge>
+          <Badge variant="outline" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">Relationship registry</Badge>
           <h3 className="mt-2 font-headline text-2xl font-semibold italic text-foreground">Typed connections</h3>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Each row shows its origin and recorded evidence. Map rank affects visibility; it does not measure evidence quality.</p>
         </div>
-        <div role="status" className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{filteredLinks.length} of {links.length} links</div>
+        <div role="status" className="noesis-eyebrow text-muted-foreground">{filteredLinks.length} of {links.length} links</div>
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <Select value={activeScope} onValueChange={(value) => { setScope(value as 'region' | 'all'); setConceptId('all'); setVisibleCount(25); }}>
@@ -87,14 +87,14 @@ export function AtlasConnectionsView({
                 <div className="flex min-w-0 items-start gap-2">
                   <svg width="16" height="40" viewBox="0 0 16 40" className="mt-0.5 shrink-0" aria-hidden="true" data-stage-tone={/contradict|tension|oppos|challeng/.test(link.type || '') ? 'claim' : /support|ground|evidence/.test(link.type || '') ? 'act' : 'examine'}><circle cx="8" cy="5" r="4" fill="hsl(var(--stage))" /><line x1="8" y1="9" x2="8" y2="31" stroke="hsl(var(--stage))" strokeWidth="2" strokeDasharray={/contradict|tension|oppos|challeng/.test(link.type || '') ? '3 3' : undefined} /><circle cx="8" cy="35" r="4" fill="none" stroke="hsl(var(--stage))" strokeWidth="2" /></svg>
                   <div className="min-w-0">
-                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">From</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">From</div>
                     <div className="break-words font-medium leading-5 text-foreground">{from}</div>
                   </div>
                 </div>
                 <div className="flex min-w-0 items-start gap-2 pl-6">
                   <span className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true">→</span>
                   <div className="min-w-0">
-                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">To</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">To</div>
                     <div className="break-words font-medium leading-5 text-foreground">{to}</div>
                   </div>
                 </div>

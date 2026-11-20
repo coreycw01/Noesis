@@ -52,7 +52,7 @@ export function DrawingOverlayToolbar({ tool, color, gradientColor, size, opacit
     <div className="sticky top-0 z-40 shrink-0 border-b border-border/30 bg-background/95 px-2 py-1.5 backdrop-blur sm:px-4">
       <div className="flex min-h-11 w-full flex-nowrap items-center justify-start gap-1 rounded-[var(--card-radius)] border border-border/60 bg-card p-1.5 shadow-sm sm:flex-wrap sm:justify-center sm:gap-1.5">
         <div className="flex shrink-0 items-center gap-1 border-r border-border/40 pr-2">
-          <Button type="button" variant="ghost" size="sm" onClick={onReturnToWriting} className="h-8 rounded-md px-2.5 font-code text-[9px] font-bold uppercase tracking-wider" title="Return to writing tools">
+          <Button type="button" variant="ghost" size="sm" onClick={onReturnToWriting} title="Return to writing tools">
             <Type className="mr-1.5 size-3.5" /> Write
           </Button>
         </div>
@@ -67,7 +67,7 @@ export function DrawingOverlayToolbar({ tool, color, gradientColor, size, opacit
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" size="sm" className="h-8 min-w-0 rounded-md border-border/60 px-2.5" aria-label="Choose drawing utensil">
+            <Button type="button" variant="outline" size="sm" className="min-w-0" aria-label="Choose drawing utensil">
               <ActiveIcon className="mr-2 size-4" /><span className="max-w-24 truncate">{activeTool?.label || 'Tools'}</span>
             </Button>
           </DropdownMenuTrigger>
@@ -90,13 +90,13 @@ export function DrawingOverlayToolbar({ tool, color, gradientColor, size, opacit
         </label>
 
         <div className="flex shrink-0 items-center gap-0.5 border-l border-border/40 pl-1">
-          <Button type="button" variant="ghost" size="icon" onClick={onUndo} disabled={!canUndo} className="size-8 rounded-md" aria-label="Undo drawing stroke"><Undo2 className="size-4" /></Button>
-          <Button type="button" variant="ghost" size="icon" onClick={onRedo} disabled={!canRedo} className="size-8 rounded-md" aria-label="Redo drawing stroke"><Redo2 className="size-4" /></Button>
+          <Button type="button" variant="ghost" size="icon" onClick={onUndo} disabled={!canUndo} className="size-8" aria-label="Undo drawing stroke"><Undo2 className="size-4" /></Button>
+          <Button type="button" variant="ghost" size="icon" onClick={onRedo} disabled={!canRedo} className="size-8" aria-label="Redo drawing stroke"><Redo2 className="size-4" /></Button>
         </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" className="size-8 rounded-md" aria-label="Drawing settings"><Settings2 className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="icon" className="size-8" aria-label="Drawing settings"><Settings2 className="size-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64 p-3">
             <div className="space-y-4">

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ArrowRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 /**
  * The shared anatomy of every item detail (Concept, Inquiry, Position, Praxis):
@@ -26,10 +26,10 @@ export function RecordTools({ tools, trailing, label = 'Tools' }: { tools: Recor
         {tools.map((tool, index) => {
           const Icon = tool.icon;
           return (
-            <button key={tool.label} type="button" disabled={tool.disabled} onClick={tool.onClick} className={cn('noesis-record-tool', index === 0 && 'noesis-record-tool--primary')}>
+            <Button key={tool.label} variant={index === 0 ? 'secondary' : 'outline'} disabled={tool.disabled} onClick={tool.onClick}>
               {Icon && <Icon className="size-3.5" aria-hidden="true" />}
               {tool.label}
-            </button>
+            </Button>
           );
         })}
       </div>

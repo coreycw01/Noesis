@@ -947,16 +947,6 @@
     letter-spacing: var(--label-tracking);
   }
 
-  /* Actions speak in the interface voice, metadata in mono. Older call sites
-     still pass mono/uppercase classes to Button; the primitive wins. */
-  .noesis-app [data-noesis-button]:is(.font-code, .uppercase) {
-    font-family: var(--font-interface);
-    font-size: max(.75rem, 12px);
-    font-weight: 500;
-    letter-spacing: .005em;
-    text-transform: none;
-  }
-
   /* Buttons are flat ink. Coloured glows under actions are removed wherever
      older call sites still ask for them. */
   .noesis-app [data-noesis-button][class*="shadow"] {

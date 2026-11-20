@@ -37,7 +37,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           <img src="/noesis-brand-mark.webp" alt="Noesis" width={40} height={40} className="size-10 rounded-xl object-contain" />
           <div>
             <div className="font-headline text-xl font-semibold italic">Noesis</div>
-            <div className="font-code text-[8px] uppercase tracking-[0.2em] text-muted-foreground">Public philosophy</div>
+            <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Public philosophy</div>
           </div>
         </header>
 
@@ -50,12 +50,12 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
               ) : profile.displayName.slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0 max-w-3xl break-words">
-              <div className="font-code text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Philosophy profile</div>
+              <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Philosophy profile</div>
               <h1 className="mt-2 font-headline text-4xl font-semibold italic sm:text-5xl">{profile.displayName}</h1>
               {profile.bio && <p className="mt-4 max-w-2xl text-base leading-8 text-muted-foreground">{profile.bio}</p>}
               {(profile.philosophyName || profile.philosophyStatement) && (
                 <div className="mt-5 rounded-2xl border border-border bg-card p-4">
-                  <div className="font-code text-[8px] uppercase tracking-[0.2em] text-muted-foreground">
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                     {!profile.philosophyName ? 'Philosophy statement' : profile.philosophyNameStatus === 'established' ? 'Established philosophy' : 'Working philosophy name'}
                   </div>
                   {profile.philosophyName && <div className="mt-1 font-headline text-2xl font-semibold italic">{profile.philosophyName}</div>}

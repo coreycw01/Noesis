@@ -388,10 +388,10 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
   };
 
   const colorClasses = {
-    blank: "[--document-paper-color:#ffffff] bg-[var(--document-paper-color)] text-[#211f1c]",
-    warm: "[--document-paper-color:#fffaf0] bg-[var(--document-paper-color)] text-[#302820]",
-    sepia: "[--document-paper-color:#f4ecd8] bg-[var(--document-paper-color)] text-[#5b4636]",
-    dark: "[--document-paper-color:#0f172a] bg-[var(--document-paper-color)] text-slate-200"
+    blank: "[--document-paper-color:hsl(var(--paper-white))] bg-[var(--document-paper-color)] text-paper-ink-light",
+    warm: "[--document-paper-color:hsl(var(--paper-warm))] bg-[var(--document-paper-color)] text-paper-ink-light",
+    sepia: "[--document-paper-color:hsl(var(--paper-sepia))] bg-[var(--document-paper-color)] text-paper-ink-sepia",
+    dark: "[--document-paper-color:hsl(var(--paper-dark))] bg-[var(--document-paper-color)] text-paper-ink-dark"
   };
 
   const getPatternStyles = () => {
@@ -456,15 +456,15 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       colorClasses[paperColor],
       structureClasses[writingStyle],
       showBoundary && "border border-border/20",
-      paperPattern === 'notebook' && "before:absolute before:bottom-0 before:left-8 before:top-0 before:w-px before:bg-red-200/60 sm:before:left-12 lg:before:left-20"
+      paperPattern === 'notebook' && "before:absolute before:bottom-0 before:left-8 before:top-0 before:w-px before:bg-problem/25 sm:before:left-12 lg:before:left-20"
     )}
     style={getPatternStyles()}
     >
       {backgroundArtwork && <img src={backgroundArtwork} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-85" />}
       <div className="absolute right-6 top-6 opacity-0 transition-opacity group-hover:opacity-100 sm:right-12 sm:top-8">
         <span className={cn(
-          "font-code text-[9px] uppercase tracking-widest font-bold",
-          paperColor === 'dark' ? "text-slate-500" : "text-muted-foreground/40"
+          "noesis-eyebrow noesis-eyebrow--sm font-bold",
+          paperColor === 'dark' ? "text-paper-ink-dark/55" : "text-muted-foreground/40"
         )}>
           PAGE {pageNumber}
         </span>
@@ -513,7 +513,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       />
 
       {structureLabels[writingStyle] && (
-        <div className="pointer-events-none absolute inset-0 p-16 font-code text-[9px] font-bold uppercase tracking-widest text-accent/45">
+        <div className="pointer-events-none absolute inset-0 p-16 noesis-eyebrow noesis-eyebrow--sm font-bold text-accent/45">
           {structureLabels[writingStyle]!.map((label, index) => (
             <span
               key={label}
@@ -550,7 +550,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       <div className="h-16 flex items-center justify-center">
         <div className={cn(
           "w-12 h-px",
-          paperColor === 'dark' ? "bg-slate-800" : "bg-muted/10"
+          paperColor === 'dark' ? "bg-paper-dark/80" : "bg-muted/10"
         )} />
       </div>
     </div>

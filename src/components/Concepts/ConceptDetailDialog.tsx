@@ -64,7 +64,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
             <h4 className="readex-kicker opacity-50 font-bold text-[10px]">INPUTS: ANNOTATIONS</h4>
             {related.annotations.map((a, i) => (
               <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl">
-                <Badge variant="outline" className="mb-3 font-code text-[9px] uppercase tracking-widest border-border/60 shadow-sm bg-card rounded-full font-bold">{a.type}</Badge>
+                <Badge variant="outline" className="mb-3 noesis-eyebrow noesis-eyebrow--sm border-border/60 shadow-sm bg-card rounded-full font-bold">{a.type}</Badge>
                 <p className="font-body italic text-base text-primary/90 leading-relaxed">&quot;{a.text}&quot;</p>
               </Card>
             ))}
@@ -169,7 +169,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "px-5 py-2 rounded-full border transition-all font-code text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 shadow-sm",
+                  "px-5 py-2 rounded-full border transition-all noesis-eyebrow font-bold flex items-center gap-2 shadow-sm",
                   activeTab === tab.id
                     ? "bg-accent text-accent-foreground border-accent shadow-md"
                     : "bg-card text-muted-foreground border-border/60 hover:border-accent/40"
@@ -196,7 +196,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
         </div>
 
         <div className="p-8 pt-4 bg-muted/5 border-t border-border/20 flex justify-end">
-          <Button variant="outline" onClick={onClose} className="h-11 px-10 font-code text-[11px] font-bold uppercase tracking-widest bg-card border-border/60 shadow-sm rounded-full">Close Audit</Button>
+          <Button variant="outline" onClick={onClose}>Close Audit</Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -49,7 +49,7 @@ function SourceIndexCover({ source }: { source: Media }) {
   return (
     <div className="noesis-proto-cover" style={{ '--h': hue } as React.CSSProperties}>
       <span className="line-clamp-4 font-headline text-[.95rem] font-semibold italic leading-tight">{source.title}</span>
-      <span className="font-code text-[8.5px] uppercase tracking-[0.14em] opacity-80">{source.creator || source.type}</span>
+      <span className="noesis-eyebrow noesis-eyebrow--sm opacity-80">{source.creator || source.type}</span>
     </div>
   );
 }
@@ -529,7 +529,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         description="Browse, cite, and manage every source feeding your thinking."
         tabs={headerTabs}
         meta={
-          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+          <span className="noesis-eyebrow text-muted-foreground/60">
             {media.length} sources
           </span>
         }
@@ -564,36 +564,36 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         className="mb-3"
       >
           <Select value={filterType} onValueChange={(v) => setFilterType(v as MediaType | 'all')}>
-            <SelectTrigger className="w-36 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Type" /></SelectTrigger>
+            <SelectTrigger className="w-36 h-9 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Type" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" className="font-code text-[10px] uppercase">Type: All</SelectItem>
-              {PRIMARY_SOURCE_TYPE_FILTERS.map(t => <SelectItem key={t} value={t} className="font-code text-[10px] uppercase">{MEDIA_LABELS[t]}</SelectItem>)}
+              <SelectItem value="all" className="noesis-eyebrow">Type: All</SelectItem>
+              {PRIMARY_SOURCE_TYPE_FILTERS.map(t => <SelectItem key={t} value={t} className="noesis-eyebrow">{MEDIA_LABELS[t]}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as MediaStatus | 'all')}>
-            <SelectTrigger className="w-40 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" className="font-code text-[10px] uppercase">Status: All</SelectItem>
-              {statuses.map(s => <SelectItem key={s} value={s} className="font-code text-[10px] uppercase">{MEDIA_STATUS_LABELS[s]}</SelectItem>)}
+              <SelectItem value="all" className="noesis-eyebrow">Status: All</SelectItem>
+              {statuses.map(s => <SelectItem key={s} value={s} className="noesis-eyebrow">{MEDIA_STATUS_LABELS[s]}</SelectItem>)}
             </SelectContent>
           </Select>
           <ConceptFilterPicker value={filterConcept} options={visibleConceptFilters} onChange={setFilterConcept} label="Filter sources by concept" allLabel="Concept: All" className="w-44" />
           <Select value={catalogFilter} onValueChange={(v) => setCatalogFilter(v as CatalogFilter)}>
-            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Catalog Health" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Catalog Health" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" className="font-code text-[10px] uppercase">Catalog Health: All</SelectItem>
-              <SelectItem value="missing_metadata" className="font-code text-[10px] uppercase">Missing Metadata</SelectItem>
-              <SelectItem value="no_annotations" className="font-code text-[10px] uppercase">No Annotations</SelectItem>
-              <SelectItem value="high_influence" className="font-code text-[10px] uppercase">High Influence</SelectItem>
-              <SelectItem value="unfinished" className="font-code text-[10px] uppercase">Unfinished Sources</SelectItem>
-              <SelectItem value="recent" className="font-code text-[10px] uppercase">Recently Added</SelectItem>
+              <SelectItem value="all" className="noesis-eyebrow">Catalog Health: All</SelectItem>
+              <SelectItem value="missing_metadata" className="noesis-eyebrow">Missing Metadata</SelectItem>
+              <SelectItem value="no_annotations" className="noesis-eyebrow">No Annotations</SelectItem>
+              <SelectItem value="high_influence" className="noesis-eyebrow">High Influence</SelectItem>
+              <SelectItem value="unfinished" className="noesis-eyebrow">Unfinished Sources</SelectItem>
+              <SelectItem value="recent" className="noesis-eyebrow">Recently Added</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
-            <SelectTrigger className="w-44 h-9 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Sort" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Sort" /></SelectTrigger>
             <SelectContent>
               {PRIMARY_SOURCE_SORTS.map((value) => (
-                <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{SOURCE_SORT_LABELS[value]}</SelectItem>
+                <SelectItem key={value} value={value} className="noesis-eyebrow">{SOURCE_SORT_LABELS[value]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -609,7 +609,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           {selectedSourceIds.length ? `${selectedSources.length} selected for export${missingSelectedCount > 0 ? ` · ${missingSelectedCount} unavailable` : ''}` : 'Select sources to export, or export the current filtered view.'}
         </span>
         <div className="ml-auto flex items-center gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={toggleVisibleSelection} disabled={!visibleSourceIds.length} className="rounded-full text-xs">
+          <Button type="button" variant="ghost" size="sm" onClick={toggleVisibleSelection} disabled={!visibleSourceIds.length} className="text-xs">
             {allVisibleSelected ? 'Clear visible' : `Select visible (${visibleSourceIds.length})`}
           </Button>
           {selectedSourceIds.length > 0 && (
@@ -621,7 +621,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
       </div>
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
-        <span className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Quick views:</span>
+        <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Quick views:</span>
         {[
           { label: 'Needs cleanup', value: media.filter((item) => sourceMetadataGaps(item).length > 0).length, filter: 'missing_metadata' as CatalogFilter },
           { label: 'Unfinished', value: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length, filter: 'unfinished' as CatalogFilter },
@@ -634,7 +634,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             type="button"
             onClick={() => setCatalogFilter(catalogFilter === stat.filter ? 'all' : stat.filter)}
             className={cn(
-              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+              "rounded-full border px-3 py-1.5 noesis-eyebrow noesis-eyebrow--sm transition-colors",
               catalogFilter === stat.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
@@ -663,7 +663,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                   <Badge variant="outline" className="rounded-full px-2 py-0 text-[8px]">{MEDIA_LABELS[m.type]}</Badge>
                   <Badge variant="outline" className="rounded-full px-2 py-0 text-[8px]">{connected} links</Badge>
                 </div>
-                <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/30 pt-2 font-code text-[8px] uppercase tracking-wider text-muted-foreground">
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/30 pt-2 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                   <span className="truncate">{catalogState.label}</span>
                   <span className="shrink-0">{influence} influence</span>
                 </div>
@@ -687,7 +687,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             >
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Domain</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Domain</div>
                   <h3 className="mt-1 font-headline text-2xl font-bold italic text-primary">{domain.name}</h3>
                 </div>
                 <Badge variant="outline" className="rounded-full">{domain.sources} sources</Badge>
@@ -703,7 +703,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-lg border border-border/40 bg-background/70 px-3 py-2">
                     <div className="font-headline text-lg font-bold text-accent">{value}</div>
-                    <div className="font-code text-[7px] uppercase tracking-widest text-muted-foreground">{label}</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{label}</div>
                   </div>
                 ))}
               </div>
@@ -730,7 +730,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
             <section key={period.period} className="rounded-xl border border-border/40 bg-card p-5 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Added Period</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Added Period</div>
                   <h3 className="mt-1 font-headline text-2xl font-bold italic text-primary">{period.period}</h3>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -769,7 +769,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               icon={SourceIcon}
               title="No timeline results"
               description="Clear filters or add dated sources to see when material entered your system."
-              action={filtersActive ? <Button variant="outline" onClick={clearFilters} className="rounded-full">Clear filters</Button> : undefined}
+              action={filtersActive ? <Button variant="outline" onClick={clearFilters}>Clear filters</Button> : undefined}
             />
           )}
         </div>
@@ -777,7 +777,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
 
       {!['covers', 'domains', 'timeline'].includes(view) && <div className="bg-card rounded-xl border border-border/40 shadow-md overflow-hidden">
         <Table aria-label="Source Index table" className="table-fixed">
-          <TableHeader className="bg-muted/5 font-code text-[9px] uppercase tracking-[0.2em] font-bold">
+          <TableHeader className="bg-muted/5 noesis-eyebrow noesis-eyebrow--sm font-bold">
             <TableRow>
               <TableHead className="w-10 px-2 sm:w-12">
                 <Checkbox
@@ -816,35 +816,35 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                     <div className="mt-0.5 text-xs text-muted-foreground lg:hidden">{[MEDIA_LABELS[m.type], m.year].filter(Boolean).join(' / ')}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {(m.tags || []).slice(0, 3).map((tag) => (
-                        <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-tighter rounded-full bg-muted/20 text-muted-foreground">{tag}</Badge>
+                        <Badge key={tag} variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm rounded-full bg-muted/20 text-muted-foreground">{tag}</Badge>
                       ))}
                       {metadataGaps.length > 0 && (
-                        <Badge variant="outline" className="noesis-status-badge font-code text-[8px] uppercase tracking-tighter rounded-full">
+                        <Badge variant="outline" className="noesis-status-badge noesis-eyebrow noesis-eyebrow--sm rounded-full">
                           {metadataGaps.length} gaps
                         </Badge>
                       )}
                       {!(m.annotations || []).length && (
-                        <Badge variant="outline" className="noesis-status-badge font-code text-[8px] uppercase tracking-tighter rounded-full">
+                        <Badge variant="outline" className="noesis-status-badge noesis-eyebrow noesis-eyebrow--sm rounded-full">
                           no notes
                         </Badge>
                       )}
                       {influence >= HIGH_INFLUENCE_SCORE && (
-                        <Badge variant="outline" className="noesis-status-badge font-code text-[8px] uppercase tracking-tighter rounded-full">
+                        <Badge variant="outline" className="noesis-status-badge noesis-eyebrow noesis-eyebrow--sm rounded-full">
                           influential
                         </Badge>
                       )}
                     </div>
                   </TableCell>
                   <TableCell className="hidden py-2.5 lg:table-cell">
-                    <Badge variant="outline" className="font-code text-[8px] uppercase tracking-tighter rounded-full bg-card shadow-sm">{m.type}</Badge>
+                    <Badge variant="outline" className="noesis-eyebrow noesis-eyebrow--sm rounded-full bg-card shadow-sm">{m.type}</Badge>
                   </TableCell>
-                  <TableCell className="hidden py-2.5 font-code text-[10px] text-muted-foreground lg:table-cell">{m.year || '-'}</TableCell>
+                  <TableCell className="hidden py-2.5 noesis-figure text-muted-foreground lg:table-cell">{m.year || '-'}</TableCell>
                   <TableCell className="hidden py-2.5 xl:table-cell">
                     <div className="max-w-[150px] truncate text-[11px] text-muted-foreground" title={m.isbn || m.publisher}>
                       {m.isbn || m.doi || m.publisher || m.platform || '-'}
                     </div>
                     {metadataGaps.length > 0 && (
-                      <div className="mt-1 max-w-[170px] truncate font-code text-[8px] uppercase tracking-widest text-muted-foreground" title={`Missing: ${metadataGaps.join(', ')}`}>
+                      <div className="mt-1 max-w-[170px] truncate noesis-eyebrow noesis-eyebrow--sm text-muted-foreground" title={`Missing: ${metadataGaps.join(', ')}`}>
                         missing {metadataGaps.slice(0, 2).join(', ')}{metadataGaps.length > 2 ? '...' : ''}
                       </div>
                     )}
@@ -862,10 +862,10 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                           style={{ width: `${health}%` }} 
                         />
                       </div>
-                      <span className="font-code text-[8px] text-muted-foreground">{influence}</span>
+                      <span className="noesis-figure noesis-figure--sm text-muted-foreground">{influence}</span>
                     </div>
                     <Badge variant="outline" className={cn(
-                      "mt-2 rounded-full font-code text-[8px] uppercase tracking-widest",
+                      "mt-2 rounded-full noesis-eyebrow noesis-eyebrow--sm",
                       "noesis-status-badge"
                     )}>
                       {catalogState.label}
@@ -876,11 +876,11 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                   </TableCell>
                   <TableCell className="px-1 text-right">
                     <div className="flex flex-col items-end justify-end gap-1 sm:flex-row">
-                      <Button variant="ghost" size="icon" className="size-11 rounded-full" onClick={() => copyCitation(m)} aria-label={`Copy citation for ${m.title}`} title="Copy citation">
+                      <Button variant="ghost" size="icon" className="size-11" onClick={() => copyCitation(m)} aria-label={`Copy citation for ${m.title}`} title="Copy citation">
                         <Copy className="size-3.5" />
                       </Button>
                       {m.url && (
-                        <Button variant="ghost" size="icon" className="size-11 rounded-full" asChild title="Open URL" aria-label={`Open website for ${m.title}`}>
+                        <Button variant="ghost" size="icon" className="size-11" asChild title="Open URL" aria-label={`Open website for ${m.title}`}>
                           <a href={m.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="size-3.5" /></a>
                         </Button>
                       )}
@@ -896,7 +896,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                     icon={SourceIcon}
                     title="No sources match this view"
                     description="Clear filters or search for a different title, creator, identifier, or concept tag."
-                    action={filtersActive ? <Button variant="outline" onClick={clearFilters} className="rounded-full">Clear filters</Button> : undefined}
+                    action={filtersActive ? <Button variant="outline" onClick={clearFilters}>Clear filters</Button> : undefined}
                   />
                 </TableCell>
               </TableRow>
@@ -932,7 +932,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           </section>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
             <Button type="button" variant="outline" onClick={() => void copyAllCitations()} disabled={!bibliographySources.length} className="rounded-full">Copy references</Button>
-            <Button type="button" onClick={downloadBibtex} disabled={!bibliographySources.length} className="rounded-full"><Download className="mr-2 size-4" /> Download BibTeX</Button>
+            <Button type="button" onClick={downloadBibtex} disabled={!bibliographySources.length}><Download className="mr-2 size-4" /> Download BibTeX</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

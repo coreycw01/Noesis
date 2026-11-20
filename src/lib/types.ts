@@ -202,7 +202,32 @@ export interface SecurityRuleContext {
   operation: 'create' | 'update' | 'delete' | 'list' | 'get' | 'write';
 }
 
+/**
+ * A part of an annotation's passage marked as one kind of thing. The kind is
+ * the destination: a claim goes to Positions, a question to Inquiries, a
+ * definition to Concepts, an action to Praxis. A reference stays where it is.
+ * Marks can nest, so the whole passage can be a question with one sentence
+ * inside it marked as a reference.
+ */
+export type AnnotationMarkKind = 'claim' | 'question' | 'definition' | 'action' | 'reference';
+
+export interface AnnotationMark {
+  id: string;
+  /** Character offsets into the annotation's text. */
+  start: number;
+  end: number;
+  kind: AnnotationMarkKind;
+  /** The marked words, kept so the mark survives an edit to the passage. */
+  text: string;
+  /** Where it was sent, once it has been. The annotation itself does not move. */
+  movedTo?: 'position' | 'inquiry' | 'concept' | 'practice';
+  movedId?: string;
+  movedText?: string;
+  date: string;
+}
+
 export interface Annotation extends NoesisStageState {
+  marks?: AnnotationMark[];
   textProvenance?: import('./ai-provenance').ProvenanceRef;
   effectProvenance?: import('./ai-provenance').ProvenanceRef;
   id: string;

@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 const TYPE_TONE: Record<PhilosophySurveyItem['type'], string> = { position: 'claim', concept: 'examine', inquiry: 'examine', practice: 'act' };
 
 function TypeTag({ type }: { type: PhilosophySurveyItem['type'] }) {
-  return <span data-stage-tone={TYPE_TONE[type]} className="noesis-stage-badge inline-block border-l-2 pl-1.5 font-code text-[9px] font-bold uppercase tracking-[0.14em]">{type}</span>;
+  return <span data-stage-tone={TYPE_TONE[type]} className="noesis-stage-badge inline-block border-l-2 pl-1.5 noesis-eyebrow noesis-eyebrow--sm font-bold">{type}</span>;
 }
 
 /**
@@ -81,7 +81,7 @@ export function ShapeMyPhilosophy({ positions, concepts, inquiries, practices, l
   return (
     <div className="noesis-philosophy-process space-y-5" data-stage-tone="integrate">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="noesis-stage-badge border-l-2 pl-2 font-code text-[10px] font-bold uppercase tracking-[0.16em]">Shape My Philosophy · a guided process</div>
+        <div className="noesis-stage-badge border-l-2 pl-2 noesis-eyebrow font-bold">Shape My Philosophy · a guided process</div>
         <div className="flex gap-2">
           {step > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => update(() => ({ ...EMPTY_PHILOSOPHY_PROCESS }))}>Start over</Button>}
           <Button type="button" variant="outline" size="sm" onClick={onClose}>Close</Button>
@@ -91,7 +91,7 @@ export function ShapeMyPhilosophy({ positions, concepts, inquiries, practices, l
         {PHILOSOPHY_STEPS.map((label, index) => (
           <li key={label}>
             <button type="button" aria-current={index === step ? 'step' : undefined} disabled={index > 1 && !chosen.length} onClick={() => go(index)}>
-              <span className="font-code text-[10px]">{index + 1}</span>{label}
+              <span className="noesis-figure">{index + 1}</span>{label}
             </button>
           </li>
         ))}
@@ -122,7 +122,7 @@ export function ShapeMyPhilosophy({ positions, concepts, inquiries, practices, l
               <p className="font-headline text-lg italic leading-snug">“{item.words}”</p>
               <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={`Does “${item.title}” belong?`}>
                 {([['yes', 'Belongs'], ['unsure', 'Not sure'], ['no', 'Not part of it']] as const).map(([value, label]) => (
-                  <Button key={value} type="button" size="sm" role="radio" aria-checked={state.picks[item.key] === value} variant={state.picks[item.key] === value ? 'default' : 'outline'} className="rounded-full" onClick={() => update((current) => ({ ...current, picks: { ...current.picks, [item.key]: value } }))}>{label}</Button>
+                  <Button key={value} type="button" size="sm" role="radio" aria-checked={state.picks[item.key] === value} variant={state.picks[item.key] === value ? 'default' : 'outline'} onClick={() => update((current) => ({ ...current, picks: { ...current.picks, [item.key]: value } }))}>{label}</Button>
                 ))}
               </div>
             </div>
@@ -218,7 +218,7 @@ export function ShapeMyPhilosophy({ positions, concepts, inquiries, practices, l
               <p className="font-headline text-lg italic">“{item.words}”</p>
               {SOCRATIC_QUESTIONS.map(([kind, template]) => (
                 <label key={kind} className="grid gap-1.5">
-                  <span className="text-sm"><b className="noesis-stage-badge font-code text-[10px] uppercase tracking-[0.12em]">{kind}</b> · {fillQuestion(template, focusOf(item), item.words)}</span>
+                  <span className="text-sm"><b className="noesis-stage-badge noesis-eyebrow">{kind}</b> · {fillQuestion(template, focusOf(item), item.words)}</span>
                   <Textarea value={state.socratic[item.key]?.[kind] || ''} onChange={(event) => answer('socratic', item.key, kind, event.target.value)} placeholder="Optional" className="min-h-14" />
                 </label>
               ))}
@@ -246,7 +246,7 @@ export function ShapeMyPhilosophy({ positions, concepts, inquiries, practices, l
             })}
           </div>
           <div className="noesis-philosophy-item h-fit space-y-3">
-            <div className="font-code text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Your working statement · written by you</div>
+            <div className="noesis-eyebrow font-bold text-muted-foreground">Your working statement · written by you</div>
             {threads.length > 0 && (
               <p className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
                 <b>A question, not a conclusion:</b> you used {threads.map(([word, count]) => `“${word}” (${count}×)`).join(', ')} in more than one answer. Is that a thread in your philosophy, or a coincidence? Only you can say.

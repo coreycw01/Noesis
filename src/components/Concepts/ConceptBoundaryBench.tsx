@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Concept } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 export type BoundaryZone = 'fits' | 'edge' | 'outside';
 
@@ -129,8 +130,8 @@ export function ConceptBoundaryBench({ concept, onSave, disabled }: {
           <p className="text-sm"><b>“{asking.text}”</b> moved from {zoneLabel(asking.from)} to {zoneLabel(asking.to)}. What does that say about the definition?</p>
           <div className="flex flex-wrap gap-2">
             <input autoFocus value={reason} onChange={(event) => setReason(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') saveReason(); if (event.key === 'Escape') setAsking(null); }} placeholder="Optional: the reason, in a sentence" aria-label="Reason for the move" className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm" />
-            <button type="button" onClick={saveReason} className="noesis-record-tool noesis-record-tool--primary">Save reason</button>
-            <button type="button" onClick={() => setAsking(null)} className="noesis-record-tool">Skip</button>
+            <Button variant="secondary" onClick={saveReason}>Save reason</Button>
+            <Button variant="outline" onClick={() => setAsking(null)}>Skip</Button>
           </div>
         </div>
       )}
@@ -140,7 +141,7 @@ export function ConceptBoundaryBench({ concept, onSave, disabled }: {
         <select value={draftZone} onChange={(event) => setDraftZone(event.target.value as BoundaryZone)} aria-label="Where does it go?" className="noesis-case__move">
           {ZONES.map((zone) => <option key={zone.id} value={zone.id}>{zone.label}</option>)}
         </select>
-        <button type="submit" disabled={disabled || !draft.trim()} className="noesis-record-tool noesis-record-tool--primary">Add</button>
+        <Button type="submit" variant="secondary" disabled={disabled || !draft.trim()}>Add</Button>
       </form>
     </section>
   );

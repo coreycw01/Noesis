@@ -35,7 +35,7 @@ export function ConceptFilterPicker({ value, options, onChange, onCreate, label 
   return (
     <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) setQuery(''); }}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" aria-label={label} className={cn('h-9 justify-between gap-2 rounded-full border-border/60 bg-card px-4 font-code text-[10px] uppercase tracking-widest shadow-sm', className)}>
+        <Button type="button" variant="outline" aria-label={label} className={cn('h-9 justify-between gap-2 rounded-full border-border/60 bg-card px-4 noesis-eyebrow shadow-sm', className)}>
           <span className="truncate">{value === 'all' ? allLabel : value}</span>
           <ChevronDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
         </Button>

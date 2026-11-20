@@ -376,7 +376,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
           <div className="hidden sm:block"><ToolbarButton icon={Link} onClick={() => openUtilityDialog('link')} title="Add link" /></div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
-              <Button type="button" variant="ghost" size="sm" className="size-8 rounded-md p-0 font-code text-[9px] font-bold uppercase tracking-wider sm:h-8 sm:w-auto sm:px-2" aria-label="Format text"><Pilcrow className="size-4 sm:hidden" /><span className="hidden sm:inline">Format</span></Button>
+              <Button type="button" variant="ghost" size="sm" className="size-8 p-0 sm:h-8 sm:w-auto sm:px-2" aria-label="Format text"><Pilcrow className="size-4 sm:hidden" /><span className="hidden sm:inline">Format</span></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56 border-border bg-popover text-popover-foreground">
               <DropdownMenuLabel>Text and spacing</DropdownMenuLabel>
@@ -407,7 +407,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
         <div className="flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
-              <Button type="button" variant="outline" size="sm" className="size-8 rounded-md border-border/60 p-0 font-code text-[9px] font-bold uppercase tracking-wider sm:h-8 sm:w-auto sm:px-2.5" aria-label="Insert visual or media"><ImagePlus className="size-4 sm:hidden" /><span className="hidden sm:inline">Insert</span></Button>
+              <Button type="button" variant="outline" size="sm" className="size-8 p-0 sm:h-8 sm:w-auto sm:px-2.5" aria-label="Insert visual or media"><ImagePlus className="size-4 sm:hidden" /><span className="hidden sm:inline">Insert</span></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 border-border bg-popover text-popover-foreground">
               <DropdownMenuItem className="sm:hidden" onSelect={() => openUtilityDialog('link')}><Link className="mr-2 size-4" /> Add link</DropdownMenuItem>
@@ -433,7 +433,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onPointerDown={rememberSelection}>
-              <Button type="button" variant="ghost" size="sm" className="size-8 rounded-md p-0 font-code text-[9px] font-bold uppercase tracking-wider sm:h-8 sm:w-auto sm:px-2"><MoreHorizontal className="size-4 sm:hidden" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Edit</span></Button>
+              <Button type="button" variant="ghost" size="sm" className="size-8 p-0 sm:h-8 sm:w-auto sm:px-2"><MoreHorizontal className="size-4 sm:hidden" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Edit</span></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 border-border bg-popover text-popover-foreground">
               <DropdownMenuItem className="sm:hidden" onSelect={() => applyFormat('undo')}><RotateCcw className="mr-2 size-4" /> Undo</DropdownMenuItem>

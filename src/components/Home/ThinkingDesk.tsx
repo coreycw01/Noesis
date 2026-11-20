@@ -857,7 +857,7 @@ export function ThinkingDesk({
               </div>
               {discoveryMode && (
                 <div className="mx-auto max-w-xl border-y border-border py-4 text-left">
-                  <div className="font-code text-[10px] uppercase tracking-widest text-accent">Begin with attention</div>
+                  <div className="noesis-eyebrow text-accent">Begin with attention</div>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">What has bothered, surprised, or stayed with you lately? Turn that friction into an inquiry. You do not need a developed philosophy to start.</p>
                   <Button className="mt-3" onClick={() => onNavigate({ view: 'questions' })}>Open a blank inquiry</Button>
                 </div>
@@ -881,7 +881,7 @@ export function ThinkingDesk({
               ? `Your recent thinking is converging around ${currentThemes.join(', ')}.`
               : 'Home chooses the next useful act from your unfinished thinking.'}
           meta={currentThemes.length ? [
-            <span key="focus-label" className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Current focus</span>,
+            <span key="focus-label" className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Current focus</span>,
             ...currentThemes.map((theme) => (
               <span key={theme} className="border-l border-border pl-2 text-sm font-medium text-foreground/75">{theme}</span>
             )),
@@ -894,11 +894,11 @@ export function ThinkingDesk({
               <div className="border-b border-border px-5 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">What to do next</div>
+                    <div className="noesis-eyebrow font-bold text-accent">What to do next</div>
                     <p className="mt-1 text-xs text-muted-foreground">One recommended move, followed by your longest-waiting unanswered question.</p>
                   </div>
                   {rotation.length > 1 && (
-                    <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full text-xs" onClick={() => setEdgeOffset((current) => current + 1)}>
+                    <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => setEdgeOffset((current) => current + 1)}>
                       Show another · {(edgeOffset % rotation.length) + 1}/{rotation.length}
                     </Button>
                   )}
@@ -915,7 +915,7 @@ export function ThinkingDesk({
                       <div className="flex items-start gap-4 px-1 pt-1">
                         <primaryEdge.icon className="mt-1 size-5 shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
                         <div className="min-w-0 flex-1">
-                          <div className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-accent">{primaryEdge.eyebrow}</div>
+                          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">{primaryEdge.eyebrow}</div>
                           <h2 className="mt-1 font-headline text-2xl font-semibold italic leading-tight text-foreground">{primaryEdge.label}</h2>
                           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{primaryEdge.reason}</p>
                           <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-accent">
@@ -962,7 +962,7 @@ export function ThinkingDesk({
             <section className="rounded-lg border border-border bg-card p-5">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Workspace at a glance</div>
+                  <div className="noesis-eyebrow text-muted-foreground">Workspace at a glance</div>
                   <p className="mt-1 text-xs text-muted-foreground">Open any area that needs attention.</p>
                 </div>
                 <Compass className="size-5 stroke-[2.4] text-accent" aria-hidden="true" />
@@ -996,7 +996,7 @@ export function ThinkingDesk({
               <div className="flex items-start gap-4">
                 <Lightbulb className="mt-0.5 size-5 shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Think on this</div>
+                  <div className="noesis-eyebrow text-muted-foreground">Think on this</div>
                   {provocationDismissed ? (
                     <button type="button" onClick={() => setProvocationDismissed(false)} className="mt-2 text-sm text-accent hover:underline">
                       Restore today&apos;s reflection prompt
@@ -1014,7 +1014,7 @@ export function ThinkingDesk({
                           className="mt-3 min-h-[76px] rounded-md"
                         />
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" onClick={turnProvocationIntoInquiry} disabled={creatingInquiry || !onCreateInquiry} className="rounded-md">{creatingInquiry ? 'Saving…' : 'Open as inquiry'}</Button>
+                          <Button size="sm" onClick={turnProvocationIntoInquiry} disabled={creatingInquiry || !onCreateInquiry}>{creatingInquiry ? 'Saving…' : 'Open as inquiry'}</Button>
                           <Button size="sm" variant="outline" onClick={() => previewOrNavigate(provocation.target, { label: 'Explore further', description: 'Reflection prompt', reason: provocation.evidence })} className="rounded-md">Explore</Button>
                           <Button
                             size="sm"
@@ -1046,7 +1046,7 @@ export function ThinkingDesk({
           <section className="border-b border-border p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Since you last visited</div>
+                <div className="noesis-eyebrow text-muted-foreground">Since you last visited</div>
                 <p className="mt-1 text-xs text-muted-foreground">Real changes and saved reflections worth returning to.</p>
               </div>
               <History className="size-5 shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
@@ -1082,7 +1082,7 @@ export function ThinkingDesk({
           {showCommitments && <section className="border-b border-border p-5" aria-label="Active commitments">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Active Commitments</div>
+                <div className="noesis-eyebrow text-muted-foreground">Active Commitments</div>
                 <p className="mt-1 text-xs text-muted-foreground">Positions you are trying to make visible through practice.</p>
               </div>
               <Button
@@ -1108,7 +1108,7 @@ export function ThinkingDesk({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="truncate text-sm font-medium text-foreground">{row.label}</span>
-                      <span className="shrink-0 font-code text-[9px] text-muted-foreground">{row.done}/{row.target}</span>
+                      <span className="shrink-0 noesis-figure noesis-figure--sm text-muted-foreground">{row.done}/{row.target}</span>
                     </div>
                     <Progress value={row.percent} aria-hidden="true" className="mt-2 h-1.5" />
                   </button>
@@ -1127,7 +1127,7 @@ export function ThinkingDesk({
 
           <section className="p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Recent Change</div>
+              <div className="noesis-eyebrow text-muted-foreground">Recent Change</div>
               <Button variant="ghost" size="sm" onClick={() => onNavigate({ view: 'evolution' })} className="rounded-md">View full evolution</Button>
             </div>
             <details className="mb-4 border-y border-border py-3">
@@ -1151,7 +1151,7 @@ export function ThinkingDesk({
                   className="w-full py-4 text-left outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   <div className="text-sm font-medium text-foreground/80">{item.title}</div>
-                  <div className="mt-1 font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">{item.meta}</div>
+                  <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{item.meta}</div>
                 </button>
               )) : (
                 <p className="text-sm leading-6 text-muted-foreground">Meaningful changes will appear here after positions, inquiries, concepts, works, or practices move.</p>

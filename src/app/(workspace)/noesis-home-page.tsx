@@ -3665,15 +3665,15 @@ function SyncIssueBanner({ issue, onDismiss }: { issue: FirestorePermissionError
     <div role="alert" className="border-b border-destructive/25 bg-destructive/10 px-6 py-3">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="font-code text-[10px] uppercase tracking-[0.18em] text-destructive">Sync needs attention</div>
+          <div className="noesis-eyebrow text-destructive">Sync needs attention</div>
           <p className="mt-1 text-sm text-muted-foreground">
             Noesis could not {operationLabel} this change. Your current screen is still usable, but this specific update may not be stored until permissions or connection are fixed.
           </p>
-          <p className="mt-1 font-code text-[10px] text-muted-foreground">
+          <p className="mt-1 noesis-figure text-muted-foreground">
             Affected area: {affectedArea}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={onDismiss} className="rounded-full bg-card">
+        <Button variant="outline" size="sm" onClick={onDismiss}>
           Dismiss
         </Button>
       </div>
@@ -3722,7 +3722,7 @@ function MissingFocusedTargetState({
         onRetry={onRetry}
         retryLabel="Retry"
         alternateAction={(
-          <Button variant="outline" size="sm" onClick={onReturn} className="rounded-full bg-card">
+          <Button variant="outline" size="sm" onClick={onReturn}>
             Return to {targetLabel.owner}
           </Button>
         )}

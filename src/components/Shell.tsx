@@ -685,7 +685,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           <>
             <span className={cn('text-[13px] font-body tracking-wide flex-1 text-left', isActive ? 'font-semibold' : 'font-medium')}>{page.title}</span>
             {typeof item.count === 'number' && (
-              <span className="rounded-full bg-sidebar-foreground/10 px-2 py-0.5 font-code text-[9px] text-sidebar-foreground/65">{item.count}</span>
+              <span className="rounded-full bg-sidebar-foreground/10 px-2 py-0.5 noesis-figure noesis-figure--sm text-sidebar-foreground/65">{item.count}</span>
             )}
           </>
         )}
@@ -709,7 +709,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       <div className={cn("shrink-0 border-b border-sidebar-border", collapsed && !isMobile ? "p-3" : "p-5")}>
         <div className={cn("mb-2 flex", collapsed && !isMobile ? "flex-col items-center gap-3" : "items-start gap-3")}>
           <div className={cn("flex items-center", collapsed && !isMobile ? "justify-center" : "gap-3")}>
-            <div className="relative size-11 shrink-0 overflow-hidden rounded-xl bg-[#f6f0df] shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_6px_18px_rgba(0,0,0,0.22)]">
+            <div className="relative size-11 shrink-0 overflow-hidden rounded-xl bg-brand-paper shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_6px_18px_rgba(0,0,0,0.22)]">
               {logoData && (
                 <Image
                   src={logoData.imageUrl}
@@ -724,7 +724,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             {(!collapsed || isMobile) && (
               <div>
                 <span className="text-[25px] font-headline font-bold text-sidebar-foreground tracking-tight">Noesis<span className="text-accent">.</span></span>
-                <p className="font-code text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/35 font-medium">Turn thought into understanding.</p>
+                <p className="noesis-eyebrow noesis-eyebrow--sm text-sidebar-foreground/35 font-medium">Turn thought into understanding.</p>
               </div>
             )}
           </div>
@@ -761,7 +761,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           {(!collapsed || isMobile) && (
             <div className="min-w-0 text-left">
               <div className="truncate text-[12px] font-medium text-sidebar-foreground">{profile?.displayName || 'Profile'}</div>
-              <div className="truncate font-code text-[8px] uppercase tracking-[0.14em] text-sidebar-foreground/38">
+              <div className="truncate noesis-eyebrow noesis-eyebrow--sm text-sidebar-foreground/38">
                 {workspaceMode || profile?.role || 'Private workspace'}
               </div>
             </div>
@@ -783,13 +783,13 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           >
             <span className="relative" aria-hidden="true">
               <AlertTriangle className="size-4 text-sidebar-primary" />
-              <span className="absolute -right-2 -top-2 grid min-w-4 place-items-center rounded-full bg-accent px-1 font-code text-[8px] font-bold text-accent-foreground">
+              <span className="absolute -right-2 -top-2 grid min-w-4 place-items-center rounded-full bg-accent px-1 noesis-figure noesis-figure--sm font-bold text-accent-foreground">
                 {attentionTotal > 9 ? '9+' : attentionTotal}
               </span>
             </span>
             {(!collapsed || isMobile) ? (
               <span className="min-w-0 flex-1 text-left">
-                <span className="block truncate font-code text-[8px] font-bold uppercase tracking-[0.16em] text-sidebar-primary">Attention</span>
+                <span className="block truncate noesis-eyebrow noesis-eyebrow--sm font-bold text-sidebar-primary">Attention</span>
                 <span className="block truncate text-[11px] text-sidebar-foreground/55">{attentionTotal} item{attentionTotal === 1 ? '' : 's'} to review</span>
               </span>
             ) : <span className="sr-only">Attention {attentionTotal} item{attentionTotal === 1 ? '' : 's'} to review</span>}
@@ -802,7 +802,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           <div key={section} className="noesis-nav-section mb-5" data-stage={NOESIS_NAV_SECTION_TONE[section]}>
             {(!collapsed || isMobile) && section !== 'Today' && (
               <div className="px-5 mb-1">
-                <h4 className="noesis-nav-section__label font-code text-[9px] uppercase tracking-[0.14em] font-bold">{section}</h4>
+                <h4 className="noesis-nav-section__label noesis-eyebrow noesis-eyebrow--sm font-bold">{section}</h4>
               </div>
             )}
             <ul className="space-y-1">
@@ -827,9 +827,9 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           title="Find in Noesis (Ctrl K)"
         >
           <Search className="size-4 shrink-0" />
-          <span className={collapsed && !isMobile ? "sr-only" : "flex-1 text-left font-code text-[8px] uppercase tracking-[0.14em]"}>Find in Noesis</span>
+          <span className={collapsed && !isMobile ? "sr-only" : "flex-1 text-left noesis-eyebrow noesis-eyebrow--sm"}>Find in Noesis</span>
           {(!collapsed || isMobile) && (
-              <span aria-hidden="true" className="font-code text-[8px] uppercase tracking-[0.12em] text-sidebar-foreground/60">Ctrl K</span>
+              <span aria-hidden="true" className="noesis-eyebrow noesis-eyebrow--sm text-sidebar-foreground/60">Ctrl K</span>
           )}
         </button>
         <div className={cn('flex items-center gap-2', collapsed && !isMobile ? 'justify-center' : 'justify-between')}>
@@ -867,14 +867,14 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
               <SheetTrigger asChild><Button
                 variant="outline"
                 size="icon"
-                className="size-9 rounded-full border-border/60 bg-card shadow-sm"
+                className="size-9"
                 aria-label="Open navigation"
               >
                 <Menu className="size-4" />
               </Button></SheetTrigger>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-headline text-lg font-semibold italic leading-none text-foreground/85">{activePage.title}</div>
-                <div className="mt-0.5 truncate font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{activePage.section}</div>
+                <div className="mt-0.5 truncate noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{activePage.section}</div>
               </div>
               <WorkspaceSyncIndicator state={isOnline ? syncState : 'error'} compact offline={!isOnline} />
               <Button
@@ -932,7 +932,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center justify-between gap-2">
                             <span className="min-w-0 break-words text-sm font-semibold">{page.title}</span>
-                            {typeof count === 'number' && <span className="font-code text-[10px] text-muted-foreground">{count}</span>}
+                            {typeof count === 'number' && <span className="noesis-figure text-muted-foreground">{count}</span>}
                           </span>
                           <span className="mt-1 block line-clamp-2 text-xs leading-4 text-muted-foreground">{page.purpose}</span>
                         </span>
@@ -1006,7 +1006,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                       )}
                     >
                       <item.icon className="size-[18px]" aria-hidden="true" />
-                      <span className="mt-0.5 max-w-full whitespace-nowrap font-code text-[9px] uppercase tracking-0">{item.label}</span>
+                      <span className="mt-0.5 max-w-full whitespace-nowrap noesis-eyebrow noesis-eyebrow--sm">{item.label}</span>
                     </button>
                   );
                 })}
@@ -1020,7 +1020,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                     )}
                   >
                     <Menu className="size-[18px]" aria-hidden="true" />
-                    <span className="mt-0.5 font-code text-[9px] uppercase">More</span>
+                    <span className="mt-0.5 noesis-eyebrow noesis-eyebrow--sm">More</span>
                   </button>
                 </SheetTrigger>
               </div>
@@ -1061,7 +1061,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 >
                   <span className="min-w-0">
                     <span className="flex items-center gap-2">
-                      <span className="grid size-7 place-items-center rounded-full bg-accent/15 font-code text-[10px] font-bold text-accent">
+                      <span className="grid size-7 place-items-center rounded-full bg-accent/15 noesis-figure font-bold text-accent">
                         {item.count}
                       </span>
                       <span className="font-medium text-foreground">{item.label}</span>
@@ -1072,7 +1072,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 </button>
               )) : (
                 <div className="rounded-2xl border border-dashed border-border p-6 text-center">
-                  <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Clear</div>
+                  <div className="noesis-eyebrow font-bold text-muted-foreground">Clear</div>
                   <p className="mt-2 text-sm text-muted-foreground">Nothing currently needs attention.</p>
                 </div>
               )}
@@ -1104,7 +1104,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                     key={example}
                     type="button"
                     onClick={() => setCommandQuery(example)}
-                    className="rounded-full border border-border bg-background/60 px-3 py-1 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
+                    className="rounded-full border border-border bg-background/60 px-3 py-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
                   >
                     {example}
                   </button>
@@ -1124,12 +1124,12 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                       {(item.intellectualStage || item.hierarchyLevel) ? (
                         <span className="mt-2 flex flex-wrap gap-1.5">
                           {item.intellectualStage && (
-                            <span className="rounded-full bg-accent/10 px-2 py-0.5 font-code text-[8px] uppercase tracking-[0.16em] text-accent">
+                            <span className="rounded-full bg-accent/10 px-2 py-0.5 noesis-eyebrow noesis-eyebrow--sm text-accent">
                               {item.intellectualStage}
                             </span>
                           )}
                           {item.hierarchyLevel && (
-                            <span className="rounded-full border border-border px-2 py-0.5 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">
+                            <span className="rounded-full border border-border px-2 py-0.5 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                               {item.hierarchyLevel}
                             </span>
                           )}
@@ -1137,7 +1137,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                       ) : null}
                       {(commandQuery.trim() && (item.matchedBecause || item.connectedConcepts?.length || item.relatedObjects?.length)) ? (
                         <span className="mt-2 block rounded-xl bg-accent/5 px-3 py-2 text-[11px] leading-5 text-muted-foreground">
-                          <span className="font-code text-[8px] uppercase tracking-[0.16em] text-accent">Matched Because </span>
+                          <span className="noesis-eyebrow noesis-eyebrow--sm text-accent">Matched Because </span>
                           {item.matchedBecause || (
                             item.connectedConcepts?.length
                               ? `It is connected to ${item.connectedConcepts.slice(0, 3).join(', ')}.`
@@ -1146,7 +1146,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                         </span>
                       ) : null}
                     </span>
-                    <span className="rounded-full border border-border px-2.5 py-1 font-code text-[8px] uppercase tracking-[0.16em] text-muted-foreground">{item.section}</span>
+                    <span className="rounded-full border border-border px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{item.section}</span>
                   </button>
                 ))}
                 {commandPurpose === 'find' && indexedWorkspace && !indexedWorkspace.items && (
@@ -1170,18 +1170,18 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           <SheetContent onCloseAutoFocus={(event) => restoreOverlayFocus(previewOpener, event)} side="right" className="flex w-full flex-col gap-0 overflow-hidden border-l border-border bg-card p-0 sm:max-w-md">
             <SheetHeader className="border-b border-border px-6 py-5 text-left">
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-border px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+                <span className="rounded-full border border-border px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                   {previewType}
                 </span>
-                <span className="rounded-full bg-accent/10 px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-accent">
+                <span className="rounded-full bg-accent/10 px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm text-accent">
                   {previewState}
                 </span>
                 {previewItem?.intellectualStage && (
-                  <span className="rounded-full border border-accent/30 bg-accent/5 px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] text-accent">
+                  <span className="rounded-full border border-accent/30 bg-accent/5 px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm text-accent">
                     {previewItem.intellectualStage}
                   </span>
                 )}
-                <span className={`rounded-full border px-2.5 py-1 font-code text-[9px] uppercase tracking-[0.16em] ${
+                <span className={`rounded-full border px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm ${
                   previewActivityClass === 'meaningful'
                     ? 'border-accent/40 bg-accent/10 text-accent'
                     : previewActivityClass === 'non_meaningful'
@@ -1202,19 +1202,19 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             <div className="flex-1 overflow-y-auto px-6 py-5">
               <div className="space-y-5">
                 <section className="rounded-2xl border border-border bg-background/60 p-4">
-                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Orientation</div>
+                  <div className="noesis-eyebrow text-muted-foreground">Orientation</div>
                   <div className="mt-3 grid gap-3 text-sm leading-6">
                     <div>
-                      <div className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">Current State</div>
+                      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Current State</div>
                       <p className="mt-1 text-muted-foreground">{previewState}</p>
                     </div>
                     <div>
-                      <div className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">Why This Appeared</div>
+                      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Why This Appeared</div>
                       <p className="mt-1 text-muted-foreground">{previewMatchedReason}</p>
                     </div>
                     {(previewItem?.intellectualStage || previewItem?.hierarchyLevel) && (
                       <div>
-                        <div className="font-code text-[9px] uppercase tracking-[0.16em] text-muted-foreground">Noesis Stage</div>
+                        <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Noesis Stage</div>
                         <p className="mt-1 text-muted-foreground">
                           {previewItem?.intellectualStage || 'Navigate'}
                           {previewItem?.hierarchyLevel ? ` - ${previewItem.hierarchyLevel} layer` : ''}
@@ -1226,8 +1226,8 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
                 <section className="rounded-2xl border border-border bg-background/60 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Activity Rule</div>
-                    <span className={`rounded-full px-2.5 py-1 font-code text-[8px] uppercase tracking-[0.16em] ${
+                    <div className="noesis-eyebrow text-muted-foreground">Activity Rule</div>
+                    <span className={`rounded-full px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm ${
                       previewActivityClass === 'meaningful'
                         ? 'bg-accent/10 text-accent'
                         : 'bg-muted/25 text-muted-foreground'
@@ -1244,12 +1244,12 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
                 {previewThoughtPath.length ? (
                   <section className="rounded-2xl border border-border bg-background/60 p-4">
-                    <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Thought Path</div>
+                    <div className="noesis-eyebrow text-muted-foreground">Thought Path</div>
                     <div className="mt-3 space-y-2">
                       {previewThoughtPath.map((step, index) => (
                         <div key={step.stage} className="flex gap-3">
                           <div className="flex flex-col items-center">
-                            <div className={`grid size-6 place-items-center rounded-full border font-code text-[8px] ${
+                            <div className={`grid size-6 place-items-center rounded-full border noesis-figure noesis-figure--sm ${
                               step.active
                                 ? 'border-accent bg-accent text-accent-foreground'
                                 : 'border-border bg-card text-muted-foreground'
@@ -1259,7 +1259,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                             {index < previewThoughtPath.length - 1 && <div className="h-6 w-px bg-border" />}
                           </div>
                           <div className="min-w-0 pb-2">
-                            <div className={`font-code text-[9px] uppercase tracking-[0.16em] ${step.active ? 'text-accent' : 'text-muted-foreground'}`}>
+                            <div className={`noesis-eyebrow noesis-eyebrow--sm ${step.active ? 'text-accent' : 'text-muted-foreground'}`}>
                               {step.stage}
                             </div>
                             <p className="mt-1 text-sm leading-5 text-muted-foreground">{step.description}</p>
@@ -1274,7 +1274,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 ) : null}
 
                 <section className="rounded-2xl border border-border bg-background/60 p-4">
-                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Connected Concepts</div>
+                  <div className="noesis-eyebrow text-muted-foreground">Connected Concepts</div>
                   {previewItem?.connectedConcepts?.length ? (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {previewItem.connectedConcepts.slice(0, 8).map((concept) => (
@@ -1289,7 +1289,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 </section>
 
                 <section className="rounded-2xl border border-border bg-background/60 p-4">
-                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Related Objects</div>
+                  <div className="noesis-eyebrow text-muted-foreground">Related Objects</div>
                   {previewItem?.relatedObjects?.length ? (
                     <div className="mt-3 grid gap-2">
                       {previewItem.relatedObjects.map((related) => (
@@ -1304,7 +1304,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                 </section>
 
                 <section className="rounded-2xl border border-border bg-background/60 p-4">
-                  <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Last Meaningful Change</div>
+                  <div className="noesis-eyebrow text-muted-foreground">Last Meaningful Change</div>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     {previewItem?.lastChangedAt || 'No change date available.'}
                   </p>
@@ -1312,13 +1312,13 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
                 {previewQuickActions.length ? (
                   <section className="rounded-2xl border border-border bg-background/60 p-4">
-                    <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Quick Actions</div>
+                    <div className="noesis-eyebrow text-muted-foreground">Quick Actions</div>
                     <div className="mt-3 grid gap-2">
                       {previewQuickActions.map((action) => (
                         <Button
                           key={`${action.view}-${action.targetId || action.label}`}
                           variant="outline"
-                          className="justify-between rounded-xl"
+                          className="justify-between"
                           onClick={() => {
                             if (!previewItem) return;
                             openPreviewItem({
@@ -1342,7 +1342,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
             <div className="border-t border-border p-4">
               <Button
-                className="w-full rounded-full"
+                className="w-full"
                 onClick={() => previewItem && openPreviewItem(previewItem)}
               >
                 {previewItem?.quickActionLabel || 'Open Full Page'}

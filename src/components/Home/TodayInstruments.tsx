@@ -71,7 +71,7 @@ export function PraxisCheckIn({ practices, onOpen }: { practices: Practice[]; on
             <PraxisMethodShape shape={method.shape} size={16} />
             <span className="min-w-0">
               <span className="block truncate text-[.95rem]">{practice.title}</span>
-              <span className="font-code text-[9.5px] uppercase tracking-[0.12em] text-muted-foreground">{method.intent}{rate !== null ? ` · ${rate}% kept` : ''}</span>
+              <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{method.intent}{rate !== null ? ` · ${rate}% kept` : ''}</span>
             </span>
             <PraxisDayStrip shape={method.shape} logDates={(practice.logDates || []).concat((practice.logs || []).map((log) => log.date))} days={practice.durationDays || 7} startDate={practice.startDate} />
           </button>

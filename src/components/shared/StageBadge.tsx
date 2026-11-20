@@ -19,12 +19,8 @@ const STAGE_TONES: Record<NoesisStage, string> = {
   revise: 'integrate',
 };
 
-export function StageBadge({
-  type,
-  stage,
-  status,
-  className = '',
-}: {
+/** Which stage of the loop a record is in: a Badge with a stage-coloured rule. */
+export function StageBadge({ type, stage, status, className = '' }: {
   type: PhilosophicalObjectType;
   stage?: NoesisStage;
   status?: string;
@@ -32,11 +28,7 @@ export function StageBadge({
 }) {
   const resolved = stage || deriveNoesisStage(type, status);
   return (
-    <Badge
-      variant="outline"
-      data-stage-tone={STAGE_TONES[resolved]}
-      className={`noesis-stage-badge rounded-none border-0 border-l-2 bg-transparent py-0 pl-1.5 pr-0 font-code text-[8px] font-semibold uppercase tracking-widest ${className}`}
-    >
+    <Badge tone="stage" shape="rule" data-stage-tone={STAGE_TONES[resolved]} className={className}>
       {STAGE_LABELS[resolved]}
     </Badge>
   );

@@ -2,11 +2,13 @@
 "use client";
 
 import './atlas-motion.css';
+import { cssColor } from '@/lib/css-color';
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { atlasFocusPan } from './atlas-keyboard-focus';
 import { CalendarRange, FlaskConical, HelpCircle, Link2, Maximize, Minimize, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Pill } from '@/components/ui/pill';
 import { normalizePositionConfidence } from '@/lib/workflow-integrity';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -191,6 +193,7 @@ const ATLAS_ZOOM_STORAGE_KEY = 'noesis.atlas.zoom.v2';
 function atlasConfidencePercent(confidence?: number) {
   return normalizePositionConfidence(confidence);
 }
+/* Colours a person picks for their own map. Stored as data, so literal. */
 const atlasColorSwatches = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2', '#64748b'];
 
 const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'depends_on', 'explains', 'explained_by', 'derived_from', 'references', 'replaces', 'questions', 'expands', 'weakens', 'strengthens', 'relates', 'custom'];
@@ -1642,28 +1645,28 @@ export function ConceptAtlas({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="truncate font-headline text-sm font-semibold italic text-primary">{target}</div>
-              <div className="mt-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+              <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                 {link.sourceLabel} · {link.label}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {isGroupedTyped && (
-                <Badge variant="outline" className="rounded-full bg-accent/10 font-code text-[8px] uppercase tracking-widest text-accent">
+                <Badge variant="outline" className="rounded-full bg-accent/10 noesis-eyebrow noesis-eyebrow--sm text-accent">
                   {link.relationshipTypes?.length} types
                 </Badge>
               )}
-              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{link.kind}</Badge>
+              <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{link.kind}</Badge>
             </div>
           </div>
           {isGroupedTyped && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {link.relationshipTypes?.slice(0, 4).map((type) => (
-                <Badge key={type} variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">
+                <Badge key={type} variant="outline" className="rounded-full bg-muted/20 noesis-eyebrow noesis-eyebrow--sm">
                   {type}
                 </Badge>
               ))}
               {(link.relationshipTypes?.length || 0) > 4 && (
-                <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">
+                <Badge variant="outline" className="rounded-full bg-muted/20 noesis-eyebrow noesis-eyebrow--sm">
                   +{(link.relationshipTypes?.length || 0) - 4} more
                 </Badge>
               )}
@@ -1716,7 +1719,7 @@ export function ConceptAtlas({
         <>
           <div className="flex items-start justify-between border-b border-border/50 p-5">
             <div>
-              <Badge variant="outline" className="mb-2 font-code text-[9px] uppercase tracking-widest text-accent rounded-full">Map Node</Badge>
+              <Badge variant="outline" className="mb-2 noesis-eyebrow noesis-eyebrow--sm text-accent rounded-full">Map Node</Badge>
               <h2 className="font-headline text-2xl font-bold italic">{selectedName}</h2>
               {selectedConcept?.description && <p className="mt-2 text-sm text-muted-foreground font-body">{selectedConcept.description}</p>}
             </div>
@@ -1724,7 +1727,7 @@ export function ConceptAtlas({
               ref={inspectorCloseRef}
               variant="ghost"
               size="icon"
-              className="size-11 shrink-0 rounded-full"
+              className="size-11 shrink-0"
               aria-label="Close Atlas inspector"
               onClick={closeNodeInspector}
             >
@@ -1733,7 +1736,7 @@ export function ConceptAtlas({
           </div>
           <div className="flex-1 overflow-y-auto p-5">
             <div className="mb-4 space-y-2">
-              <Label className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Panel Section</Label>
+              <Label className="noesis-eyebrow text-muted-foreground">Panel Section</Label>
               <Select value={panelSection} onValueChange={(value) => setPanelSection(value as 'links' | 'evidence' | 'events' | 'actions')}>
                 <SelectTrigger aria-label="Inspector section" className="min-h-11 rounded-full bg-card">
                   <SelectValue placeholder="Choose section" />
@@ -1750,12 +1753,12 @@ export function ConceptAtlas({
             {activeMap && (
               <div className="mb-4 rounded-xl border border-border/60 bg-muted/10 p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Node Color</Label>
+                  <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Node Color</Label>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-6 rounded-full px-2 text-[10px]"
+                   
                     onClick={() => updateNodeColor(selectedName!)}
                     disabled={!effectiveNodeColors[conceptKey(selectedName!)]}
                   >
@@ -1790,10 +1793,10 @@ export function ConceptAtlas({
             {panelSection === 'links' && (
               <section>
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Links</h4>
+                  <h4 className="noesis-eyebrow text-muted-foreground">Links</h4>
                   <div className="flex items-center gap-2">
                     <Select value={linkSort} onValueChange={(value) => setLinkSort(value as 'alpha' | 'created' | 'interacted')}>
-                      <SelectTrigger className="h-7 w-[148px] rounded-full bg-card px-3 font-code text-[9px] uppercase tracking-widest">
+                      <SelectTrigger className="h-7 w-[148px] rounded-full bg-card px-3 noesis-eyebrow noesis-eyebrow--sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1802,7 +1805,7 @@ export function ConceptAtlas({
                         <SelectItem value="interacted">Sort: Recently Interacted</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={() => beginQuickLinkMode(selectedName!)}>
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => beginQuickLinkMode(selectedName!)}>
                     <Link2 className="mr-1 size-3.5" /> Link This Idea
                     </Button>
                   </div>
@@ -1817,27 +1820,15 @@ export function ConceptAtlas({
 
             {panelSection === 'evidence' && (
               <section>
-                <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Evidence And Outputs</h4>
+                <h4 className="mb-3 noesis-eyebrow text-muted-foreground">Evidence And Outputs</h4>
                 {related ? (
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => setRelatedDialogType('sources')} disabled={!related.sources.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.sources.length} sources</Badge>
-                    </button>
-                    <button onClick={() => setIsPositionsOpen(true)} disabled={!related.beliefs.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.beliefs.length} positions</Badge>
-                    </button>
-                    <button onClick={() => setRelatedDialogType('works')} disabled={!related.drafts.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.drafts.length} works</Badge>
-                    </button>
-                    <button onClick={() => setRelatedDialogType('practices')} disabled={!related.practices.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.practices.length} practices</Badge>
-                    </button>
-                    <button onClick={() => setRelatedDialogType('inquiries')} disabled={!related.questions.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{related.questions.length} inquiries</Badge>
-                    </button>
-                    <button onClick={() => setRelatedDialogType('unknowns')} disabled={!relatedUnknowns.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
-                      <Badge variant="outline" className="bg-muted/30 rounded-full transition-colors hover:border-accent hover:text-accent">{relatedUnknowns.length} unknowns</Badge>
-                    </button>
+                    <Pill look="mono" onClick={() => setRelatedDialogType('sources')} disabled={!related.sources.length}>{related.sources.length} sources</Pill>
+                    <Pill look="mono" onClick={() => setIsPositionsOpen(true)} disabled={!related.beliefs.length}>{related.beliefs.length} positions</Pill>
+                    <Pill look="mono" onClick={() => setRelatedDialogType('works')} disabled={!related.drafts.length}>{related.drafts.length} works</Pill>
+                    <Pill look="mono" onClick={() => setRelatedDialogType('practices')} disabled={!related.practices.length}>{related.practices.length} practices</Pill>
+                    <Pill look="mono" onClick={() => setRelatedDialogType('inquiries')} disabled={!related.questions.length}>{related.questions.length} inquiries</Pill>
+                    <Pill look="mono" onClick={() => setRelatedDialogType('unknowns')} disabled={!relatedUnknowns.length}>{relatedUnknowns.length} unknowns</Pill>
                   </div>
                 ) : (
                   <p className="text-xs italic text-muted-foreground font-body">Gathering links...</p>
@@ -1847,11 +1838,11 @@ export function ConceptAtlas({
 
             {panelSection === 'events' && (
               <section>
-                <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Recent Thinking Events</h4>
+                <h4 className="mb-3 noesis-eyebrow text-muted-foreground">Recent Thinking Events</h4>
                 <div className="space-y-2">
                   {recentThinkingForNode.length ? recentThinkingForNode.map((event) => (
                     <div key={event.eventId} className="rounded-xl border border-border/60 bg-muted/10 p-3">
-                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{event.eventType.replace(/_/g, ' ')}</div>
+                      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{event.eventType.replace(/_/g, ' ')}</div>
                       <p className="mt-1 text-sm italic text-foreground/80">{event.summary}</p>
                     </div>
                   )) : (
@@ -1863,8 +1854,8 @@ export function ConceptAtlas({
 
                   {panelSection === 'actions' && (
                     <section className="space-y-3">
-                      <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
-                      <Button size="sm" variant="outline" className="min-h-11 w-full justify-center rounded-full text-xs" onClick={() => {
+                      <h4 className="noesis-eyebrow text-muted-foreground">Actions</h4>
+                      <Button size="sm" variant="outline" className="min-h-11 w-full justify-center text-xs" onClick={() => {
                         beginQuickLinkMode(selectedName!);
                         const next = renderedNodes.find((node) => node.name !== selectedName);
                         if (next) nodeButtons.current.get(next.name)?.focus({ preventScroll: true });
@@ -2271,7 +2262,7 @@ export function ConceptAtlas({
     if (mode === 'custom') {
       if (activeMapStyle.lineMode === 'singleColor') return activeMapStyle.customLineColor || '#7c3aed';
       if (activeMapStyle.lineMode === 'strengthColor') {
-        if (edge.strength === 'strong') return '#f59e0b';
+        if (edge.strength === 'strong') return cssColor('--caution');
         if (edge.strength === 'moderate') return '#8b5cf6';
         return '#94a3b8';
       }
@@ -2375,7 +2366,7 @@ export function ConceptAtlas({
     } else if (preset === 'paper') {
       base.background = 'linear-gradient(180deg, rgba(246,239,223,1) 0%, rgba(240,231,212,1) 100%)';
     } else if (preset === 'grid') {
-      base.backgroundColor = '#111111';
+      base.backgroundColor = cssColor('--background', 1, '#111111');
       base.backgroundImage = 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)';
       base.backgroundSize = '28px 28px';
     } else if (preset === 'blank') {
@@ -2589,7 +2580,7 @@ export function ConceptAtlas({
                     <DropdownMenuItem onSelect={() => { setRelationshipFilterMode('custom'); setCustomRelationshipTypes([]); }}>Clear relationships</DropdownMenuItem>
                 {atlasRelationshipGroups.map((group) => (
                   <div key={group.label}>
-                    <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/80">{group.label}</DropdownMenuLabel>
+                    <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/80">{group.label}</DropdownMenuLabel>
                     {group.types.map((type) => (
                       <DropdownMenuCheckboxItem
                         key={type}
@@ -2608,7 +2599,7 @@ export function ConceptAtlas({
                               : prev.filter((item) => item !== type)
                           ));
                         }}
-                        className="font-code text-[10px] uppercase tracking-wider"
+                        className="noesis-eyebrow"
                       >
                         {type.replace(/_/g, ' ')}
                       </DropdownMenuCheckboxItem>
@@ -2788,7 +2779,7 @@ export function ConceptAtlas({
             "absolute right-4 top-4 z-50 flex rounded-full border border-border/50 bg-card/90 p-1 shadow-md backdrop-blur"
           )} onClick={(event) => event.stopPropagation()}>
             <Button variant="ghost" size="icon" aria-label="Zoom out" disabled={zoom <= ATLAS_MIN_ZOOM + 0.001} onClick={() => changeZoom(zoom - ATLAS_ZOOM_STEP)} className="size-10 rounded-full font-bold md:size-8">-</Button>
-            <Button variant="ghost" size="icon" className="size-10 font-code text-[10px] md:size-8" title="Reset map view" aria-label={`Reset map view, current zoom ${Math.round((zoom / ATLAS_BASE_ZOOM) * 100)} percent`} onClick={() => { setPan({ x: 0, y: 0 }); changeZoom(ATLAS_BASE_ZOOM); }}>{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</Button>
+            <Button variant="ghost" size="icon" className="size-10 md:size-8" title="Reset map view" aria-label={`Reset map view, current zoom ${Math.round((zoom / ATLAS_BASE_ZOOM) * 100)} percent`} onClick={() => { setPan({ x: 0, y: 0 }); changeZoom(ATLAS_BASE_ZOOM); }}>{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</Button>
             <Button variant="ghost" size="icon" aria-label="Zoom in" disabled={zoom >= ATLAS_MAX_ZOOM - 0.001} onClick={() => changeZoom(zoom + ATLAS_ZOOM_STEP)} className="size-10 rounded-full font-bold md:size-8">+</Button>
             <div className="mx-1 my-1 w-px bg-border" />
             <Button ref={mapControlsRef} variant={isPanelOpen ? 'secondary' : 'ghost'} size="icon" aria-expanded={isPanelOpen} aria-controls={isPanelOpen ? inspectorId : undefined} aria-label={isPanelOpen ? 'Hide Atlas inspector' : 'Show Atlas inspector'} onClick={(event) => { event.stopPropagation(); setIsPanelOpen((open) => !open); }} className="size-10 rounded-full md:size-8">
@@ -3028,7 +3019,7 @@ export function ConceptAtlas({
               >
                 <span className="sr-only">{quickLinkSource ? 'Link to' : 'Open concept'} </span>
                 <span className={cn('noesis-atlas-node-label block max-w-28 break-words font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-[15px]')}>{node.name}</span>
-                {activeMapStyle.nodeStyle !== 'default' && <span className="block font-code text-[9px] uppercase text-muted-foreground">{node.count} linked</span>}
+                {activeMapStyle.nodeStyle !== 'default' && <span className="block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{node.count} linked</span>}
               </button>
             ))}
 
@@ -3043,7 +3034,7 @@ export function ConceptAtlas({
                 top: Math.min((mapRef.current?.clientHeight || 0) - 48, Math.max(12, quickLinkCursor.y - (mapRef.current?.getBoundingClientRect().top || 0) + 14)),
               }}
             >
-              <div className="font-code text-[9px] uppercase tracking-widest text-accent">
+              <div className="noesis-eyebrow noesis-eyebrow--sm text-accent">
                 Link from {quickLinkSource} - click a target node
               </div>
             </div>
@@ -3064,19 +3055,19 @@ export function ConceptAtlas({
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
-                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">From</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">From</div>
                   <div className="mt-1 font-headline text-lg font-bold italic">{selectedLink.from}</div>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
-                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">To</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">To</div>
                   <div className="mt-1 font-headline text-lg font-bold italic">{selectedLink.to}</div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-widest">{selectedLink.linkType || selectedLink.label}</Badge>
-                <Badge variant="outline" className="rounded-full bg-card font-code text-[9px] uppercase tracking-widest">{selectedLink.sourceLabel}</Badge>
+                <Badge className="rounded-full bg-accent noesis-eyebrow noesis-eyebrow--sm">{selectedLink.linkType || selectedLink.label}</Badge>
+                <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{selectedLink.sourceLabel}</Badge>
                 {selectedLink.relationshipTypes && selectedLink.relationshipTypes.length > 1 && selectedLink.relationshipTypes.map((type) => (
-                  <Badge key={type} variant="outline" className="rounded-full bg-muted/20 font-code text-[9px] uppercase tracking-widest">
+                  <Badge key={type} variant="outline" className="rounded-full bg-muted/20 noesis-eyebrow noesis-eyebrow--sm">
                     {type}
                   </Badge>
                 ))}
@@ -3088,14 +3079,14 @@ export function ConceptAtlas({
                 <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <div>
-                      <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Link Color</Label>
+                      <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Link Color</Label>
                       <p className="mt-1 text-xs italic text-muted-foreground">Changes how this connection appears on the current map.</p>
                     </div>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 rounded-full px-3 text-xs"
+                      className="text-xs"
                       onClick={() => updateLinkColor(selectedLink)}
                       disabled={!effectiveLinkColors[atlasLinkColorKey(selectedLink)]}
                     >
@@ -3127,7 +3118,7 @@ export function ConceptAtlas({
                 </div>
               )}
               {selectedLink.kind === 'shared' && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs italic leading-5 text-amber-800">
+                <div className="rounded-xl border border-caution/40 bg-caution/10 p-4 text-xs italic leading-5 text-foreground">
                   Auto/shared links are calculated from overlap. They cannot be cut directly; remove the shared evidence or disable this auto-link filter on a Custom Map.
                 </div>
               )}
@@ -3246,11 +3237,11 @@ export function ConceptAtlas({
                       <div className="font-headline text-base font-semibold italic">{position.title}</div>
                       <div className="line-clamp-1 text-xs text-muted-foreground">{position.statement || position.description}</div>
                     </TableCell>
-                    <TableCell className="font-code text-[10px] uppercase tracking-widest">{position.type.replace(/_/g, ' ')}</TableCell>
-                    <TableCell><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{position.status}</Badge></TableCell>
+                    <TableCell className="noesis-eyebrow">{position.type.replace(/_/g, ' ')}</TableCell>
+                    <TableCell><Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{position.status}</Badge></TableCell>
                     <TableCell className="font-code text-xs">{atlasConfidencePercent(position.confidence)}%</TableCell>
                     <TableCell className="font-code text-xs">{(position.sourceIds || []).length}</TableCell>
-                    <TableCell className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{new Date(position.dateUpdated || position.dateCreated).toLocaleDateString()}</TableCell>
+                    <TableCell className="noesis-eyebrow text-muted-foreground">{new Date(position.dateUpdated || position.dateCreated).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
                 {!(related?.beliefs || []).length && (
@@ -3273,7 +3264,7 @@ export function ConceptAtlas({
             {relatedDialogData?.items.length ? relatedDialogData.items.map((item) => (
               <div key={item.id} className="rounded-xl border border-border/60 bg-muted/10 p-4">
                 <div className="font-headline text-lg font-semibold italic">{item.title}</div>
-                {item.meta && <div className="mt-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">{item.meta}</div>}
+                {item.meta && <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{item.meta}</div>}
                 {item.body && <p className="mt-2 text-sm italic leading-6 text-muted-foreground">{item.body}</p>}
               </div>
             )) : (
@@ -3301,7 +3292,7 @@ export function ConceptAtlas({
           </p>
           <DialogFooter className="pt-4">
             <Button variant="ghost" onClick={() => setIsDeleteAllLinksOpen(false)} className="rounded-full">Cancel</Button>
-            <Button variant="destructive" onClick={clearSelectedNodeLinks} className="rounded-full px-7">Delete Connected Links</Button>
+            <Button variant="destructive" onClick={clearSelectedNodeLinks}>Delete Connected Links</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3320,7 +3311,7 @@ export function ConceptAtlas({
             </div>
             <SourceLinker media={media} selectedIds={newConcept.sourceIds || []} onToggle={toggleNewConceptSource} label="Root Evidence (Sources)" />
           </div>
-          <DialogFooter className="pt-4"><Button onClick={addConcept} disabled={creatingConcept || !newConcept.name?.trim()} className="rounded-full px-8">{creatingConcept ? 'Saving…' : 'Save concept'}</Button></DialogFooter>
+          <DialogFooter className="pt-4"><Button onClick={addConcept} disabled={creatingConcept || !newConcept.name?.trim()}>{creatingConcept ? 'Saving…' : 'Save concept'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -3505,7 +3496,7 @@ export function ConceptAtlas({
                       <Button
                         type="button"
                         variant="outline"
-                        className="rounded-full"
+                       
                         onClick={() => backgroundInputRef.current?.click()}
                         disabled={!uid || isUploadingBackground}
                       >
@@ -3514,7 +3505,7 @@ export function ConceptAtlas({
                       <Button
                         type="button"
                         variant="ghost"
-                        className="rounded-full text-destructive hover:text-destructive"
+                        className="text-destructive hover:text-destructive"
                         onClick={clearUploadedBackground}
                         disabled={!styleDraft.background.imageUrl && !styleDraft.background.storagePath}
                       >
@@ -3571,7 +3562,7 @@ export function ConceptAtlas({
               <div className="space-y-3 rounded-2xl border border-border/60 bg-card p-4">
                 <div className="flex items-center justify-between gap-3">
                   <Label className="readex-kicker">Background opacity</Label>
-                  <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <span className="noesis-eyebrow text-muted-foreground">
                     {Math.round((styleDraft.background.opacity ?? 0.42) * 100)}%
                   </span>
                 </div>
@@ -3593,7 +3584,7 @@ export function ConceptAtlas({
               <div className="space-y-3 rounded-2xl border border-border/60 bg-card p-4">
                 <div className="flex items-center justify-between gap-3">
                   <Label className="readex-kicker">Background blur</Label>
-                  <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <span className="noesis-eyebrow text-muted-foreground">
                     {styleDraft.background.blur ?? 0}px
                   </span>
                 </div>
@@ -3617,7 +3608,7 @@ export function ConceptAtlas({
           <DialogFooter className="pt-4">
             {styleError && <p role="alert" className="text-sm text-destructive">{styleError}</p>}
             <Button variant="ghost" disabled={savingStyle} onClick={() => setIsStyleOpen(false)} className="rounded-full">Cancel</Button>
-            <Button onClick={saveMapStyle} disabled={savingStyle || isUploadingBackground} className="rounded-full px-8">{savingStyle ? 'Saving...' : 'Save Map Style'}</Button>
+            <Button onClick={saveMapStyle} disabled={savingStyle || isUploadingBackground}>{savingStyle ? 'Saving...' : 'Save Map Style'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3631,7 +3622,7 @@ export function ConceptAtlas({
               {availableNodeTerms
                 .filter((name) => !linkSearch || name.toLowerCase().includes(linkSearch.toLowerCase()))
                 .map((name) => (
-                  <button key={name} onClick={() => addNodeToMap(name)} className="w-full rounded-lg p-3 text-left font-code text-[10px] uppercase tracking-wider hover:bg-muted transition-colors">
+                  <button key={name} onClick={() => addNodeToMap(name)} className="w-full rounded-lg p-3 text-left noesis-eyebrow hover:bg-muted transition-colors">
                     {name}
                   </button>
                 ))}
@@ -3684,7 +3675,7 @@ export function ConceptAtlas({
                       type="button"
                       onClick={() => setLinkDraft((prev) => ({ ...prev, type, label: type.replace(/_/g, ' ') }))}
                       className={cn(
-                        "rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-widest transition-colors",
+                        "rounded-full border px-3 py-1 noesis-eyebrow noesis-eyebrow--sm transition-colors",
                         linkDraft.type === type ? "border-accent bg-accent/10 text-accent" : "border-border bg-card text-muted-foreground hover:text-foreground"
                       )}
                     >
@@ -3695,7 +3686,7 @@ export function ConceptAtlas({
                     type="button"
                     onClick={() => setShowAdvancedLinkTypes((open) => !open)}
                     className={cn(
-                      "rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-widest transition-colors",
+                      "rounded-full border px-3 py-1 noesis-eyebrow noesis-eyebrow--sm transition-colors",
                       showAdvancedLinkTypes ? "border-accent bg-accent/10 text-accent" : "border-border bg-card text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -3726,15 +3717,6 @@ export function ConceptAtlas({
           <DialogFooter className="pt-4"><Button onClick={() => void createLink()} disabled={linkSaving || !linkDraft.to} className="rounded-full px-8">{linkSaving ? 'Saving link...' : 'Save Link'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex items-center gap-3 whitespace-nowrap rounded-full border border-border bg-card px-5 py-2 shadow-sm">
-      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground font-bold">{label}</div>
-      <div className="max-w-[120px] truncate font-headline text-lg font-bold italic text-primary">{value}</div>
     </div>
   );
 }

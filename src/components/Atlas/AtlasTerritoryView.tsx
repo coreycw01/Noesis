@@ -4,6 +4,7 @@ import React from 'react';
 import { ArrowLeft, ArrowRight, BrainCircuit, FlaskConical, HelpCircle, Maximize2, MapPinned, Sparkles, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Pill } from '@/components/ui/pill';
 import { Card } from '@/components/ui/card';
 import type { AtlasRegionLabel, AtlasRegionViewModel, AtlasTerritoryCard } from './atlas-diagnostics';
 import { regionActionDisplay, regionLabelDisplay } from './atlas-diagnostics';
@@ -33,10 +34,10 @@ interface AtlasTerritoryViewProps {
 }
 
 function toneForLabel(label: AtlasRegionLabel) {
-  if (label === 'tension-heavy') return 'border-rose-200 bg-rose-50 text-rose-700';
-  if (label === 'under-tested' || label === 'practice-poor') return 'border-amber-200 bg-amber-50 text-amber-700';
-  if (label === 'rapidly-evolving') return 'border-sky-200 bg-sky-50 text-sky-700';
-  if (label === 'evidence-rich' || label === 'heavily-developed') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (label === 'tension-heavy') return 'border-problem/40 bg-problem/10 text-problem';
+  if (label === 'under-tested' || label === 'practice-poor') return 'border-caution/40 bg-caution/10 text-caution';
+  if (label === 'rapidly-evolving') return 'border-info/40 bg-info/10 text-info';
+  if (label === 'evidence-rich' || label === 'heavily-developed') return 'border-ok/40 bg-ok/10 text-ok';
   return 'border-border/60 bg-muted/20 text-muted-foreground';
 }
 
@@ -210,8 +211,8 @@ export function AtlasTerritoryView({
       <Card className="rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            {detailMode && <Button ref={backButton} variant="ghost" size="sm" onClick={onBackToRegions} className="mb-3 -ml-2 rounded-full text-muted-foreground"><ArrowLeft className="mr-2 size-4" />Back to Regions</Button>}
-            <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">Atlas Regions</Badge>
+            {detailMode && <Button ref={backButton} variant="ghost" size="sm" onClick={onBackToRegions} className="mb-3 -ml-2 text-muted-foreground"><ArrowLeft className="mr-2 size-4" />Back to Regions</Button>}
+            <Badge className="rounded-full bg-accent noesis-eyebrow noesis-eyebrow--sm">Atlas Regions</Badge>
             <h2 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">{detailMode && selectedRegion ? selectedRegion.name : 'What territories define my current thought-world?'}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
               {detailMode && selectedRegion ? 'Explore why this region exists and the real concepts and work that currently shape it.' : 'Regions are auto-organized containers above your real concepts, positions, inquiries, works, and practices. They never become part of your philosophy unless you review their underlying records.'}
@@ -219,7 +220,7 @@ export function AtlasTerritoryView({
           </div>
           {selectedRegion && !detailMode && (
             <div className="flex flex-wrap gap-2">
-              <Button className="rounded-full" onClick={() => onOpenMap(selectedRegion.id)}>
+              <Button onClick={() => onOpenMap(selectedRegion.id)}>
                 <MapPinned className="mr-2 size-4" />
                 Open in Map
               </Button>
@@ -238,15 +239,15 @@ export function AtlasTerritoryView({
               <Card className={`rounded-3xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${selectedRegion?.id === card.id ? 'border-accent/50 bg-accent/5' : 'h-full border-border/60 bg-card/85'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <Badge variant="outline" className="mb-2 rounded-full border-dashed font-code text-[8px] uppercase tracking-widest">
+                    <Badge variant="outline" className="mb-2 rounded-full border-dashed noesis-eyebrow noesis-eyebrow--sm">
                       {card.status === 'provisional' ? 'Possible Atlas Region' : 'Auto-organized Region'}
                     </Badge>
                     {newRegionIds.includes(card.id) && (
-                      <Badge className="mb-2 ml-1 rounded-full bg-accent font-code text-[8px] uppercase tracking-widest">New</Badge>
+                      <Badge className="mb-2 ml-1 rounded-full bg-accent noesis-eyebrow noesis-eyebrow--sm">New</Badge>
                     )}
                     <div className="font-headline text-2xl font-semibold italic text-foreground">{card.name}</div>
                     {selectedRegion?.id === card.id
-                      ? <p className="mt-2 font-code text-[9px] uppercase tracking-widest text-accent">Selected for preview</p>
+                      ? <p className="mt-2 noesis-eyebrow noesis-eyebrow--sm text-accent">Selected for preview</p>
                       : <p className="mt-2 text-sm leading-6 text-muted-foreground">{card.description}</p>}
                   </div>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
@@ -265,40 +266,40 @@ export function AtlasTerritoryView({
                 {/* The selected region is described once, in the detail panel, not twice. */}
                 {selectedRegion?.id !== card.id && <>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="rounded-full font-code text-[9px] uppercase tracking-widest">
+                  <Badge variant="secondary" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">
                     {card.confirmedMemberCount} concept{card.confirmedMemberCount === 1 ? '' : 's'}
                   </Badge>
                   {card.suggestedMemberCount > 0 && (
-                    <Badge variant="outline" className="rounded-full border-dashed font-code text-[9px] uppercase tracking-widest">
+                    <Badge variant="outline" className="rounded-full border-dashed noesis-eyebrow noesis-eyebrow--sm">
                       {card.suggestedMemberCount} suggested
                     </Badge>
                   )}
                   {card.labels.slice(0, 3).map((label) => (
-                    <Badge key={label} variant="outline" className={`rounded-full font-code text-[9px] uppercase tracking-widest ${toneForLabel(label)}`}>
+                    <Badge key={label} variant="outline" className={`rounded-full noesis-eyebrow noesis-eyebrow--sm ${toneForLabel(label)}`}>
                       {regionLabelDisplay(label)}
                     </Badge>
                   ))}
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
-                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Positions</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Positions</div>
                     <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{card.stats.positions}</div>
                   </div>
                   <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
-                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Practices</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Practices</div>
                     <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{card.stats.practices}</div>
                   </div>
                   <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
-                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Inquiries</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Inquiries</div>
                     <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{card.stats.inquiries}</div>
                   </div>
                   <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
-                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Tensions</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Tensions</div>
                     <div className="mt-1 font-headline text-xl font-semibold italic text-foreground">{card.stats.tensions}</div>
                   </div>
                 </div>
                 <div className="mt-4 rounded-2xl border border-border/60 bg-card/70 px-4 py-3">
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Suggested next move</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Suggested next move</div>
                   <div className="mt-2 font-headline text-lg font-semibold italic text-foreground">{card.nextAction ? regionActionDisplay(card.nextAction) : 'Keep exploring'}</div>
                 </div>
                 </>}
@@ -313,19 +314,19 @@ export function AtlasTerritoryView({
               {!detailMode && <Button ref={expandButton} variant="outline" size="sm" onClick={onExpandRegion} aria-label={`Expand region: ${selectedRegion.name}`}><Maximize2 aria-hidden="true" className="mr-2 size-4" />Expand region</Button>}
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">
+                  <Badge className="rounded-full bg-accent noesis-eyebrow noesis-eyebrow--sm">
                     {selectedRegion.status === 'provisional' ? 'Possible Atlas Region' : 'Auto-organized Atlas Region'}
                   </Badge>
-                  <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">
+                  <Badge variant="outline" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">
                     {selectedRegion.maturityStatus}
                   </Badge>
                 </div>
                 <h3 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">{selectedRegion.name}</h3>
                 <p className="mt-2 text-sm leading-7 text-muted-foreground">{selectedRegion.description}</p>
                 <div className="mt-4 rounded-2xl border border-dashed border-accent/35 bg-accent/5 p-4">
-                  <div className="font-code text-[9px] uppercase tracking-widest text-accent">Why this region exists</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-accent">Why this region exists</div>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">{selectedRegion.explanation}</p>
-                  <div className="mt-2 font-code text-[9px] uppercase tracking-widest text-muted-foreground">
+                  <div className="mt-2 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                     {selectedRegion.confirmedMemberCount} existing concepts · {selectedRegion.sourceCount} sources · {selectedRegion.annotationCount} annotations
                   </div>
                 </div>
@@ -345,20 +346,18 @@ export function AtlasTerritoryView({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Dominant concepts</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Dominant concepts</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {selectedRegion.dominantConcepts.length ? selectedRegion.dominantConcepts.map((name) => (
-                      <button key={name} type="button" onClick={() => previewConcept(name)} className="rounded-full border border-border/60 bg-card px-3 py-1 font-code text-[10px] uppercase tracking-widest text-foreground transition-colors hover:border-accent hover:text-accent">
-                        {name}
-                      </button>
+                      <Pill key={name} look="mono" tone="concept" onClick={() => previewConcept(name)}>{name}</Pill>
                     )) : <span className="text-sm italic text-muted-foreground">No dominant concepts yet.</span>}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
-                  <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Signals</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Signals</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {selectedRegion.labels.map((label) => (
-                      <Badge key={label} variant="outline" className={`rounded-full font-code text-[9px] uppercase tracking-widest ${toneForLabel(label)}`}>
+                      <Badge key={label} variant="outline" className={`rounded-full noesis-eyebrow noesis-eyebrow--sm ${toneForLabel(label)}`}>
                         {regionLabelDisplay(label)}
                       </Badge>
                     ))}
@@ -381,7 +380,7 @@ export function AtlasTerritoryView({
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <HelpCircle className="size-4 text-orange-600" />
+                    <HelpCircle className="size-4 text-caution" />
                     <h4 className="font-headline text-lg font-semibold italic text-foreground">Open Inquiries</h4>
                   </div>
                   {regionQuestions.slice(0, 3).map((question) => (
@@ -396,7 +395,7 @@ export function AtlasTerritoryView({
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
                   <div className="mb-2 flex items-center gap-2">
-                    <FlaskConical className="size-4 text-emerald-600" />
+                    <FlaskConical className="size-4 text-ok" />
                     <div className="font-headline text-base font-semibold italic text-foreground">Practices</div>
                   </div>
                   <div className="space-y-2">
@@ -420,7 +419,7 @@ export function AtlasTerritoryView({
                 </div>
                 <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
                   <div className="mb-2 flex items-center gap-2">
-                    <TriangleAlert className="size-4 text-amber-600" />
+                    <TriangleAlert className="size-4 text-caution" />
                     <div className="font-headline text-base font-semibold italic text-foreground">Sources</div>
                   </div>
                   <div className="space-y-2">

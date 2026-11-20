@@ -665,7 +665,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
       {view === 'turning_points' && (
         <section className="mb-8 border-y border-border/60 py-6">
           <div className="mb-5">
-            <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Turning Points</div>
+            <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Turning Points</div>
             <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">The moments that changed the system</h2>
           </div>
           {turningPoints.length > 0 && <TurningSpine events={turningPoints.map((event) => ({ id: event.id, title: event.title, date: event.date, tone: eventStageTone(event.targetType) }))} />}
@@ -675,13 +675,13 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
               return (
                 <article key={event.id} className="border-l-2 border-accent/50 py-1 pl-4">
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">{meaning.turningPoint}</Badge>
-                    <Badge variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{event.targetType.replace(/_/g, ' ')}</Badge>
+                    <Badge variant="outline" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">{meaning.turningPoint}</Badge>
+                    <Badge variant="secondary" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">{event.targetType.replace(/_/g, ' ')}</Badge>
                   </div>
                   <h3 className="mt-3 font-headline text-xl font-bold italic leading-tight text-primary">{event.title}</h3>
                   {meaning.significance && <p className="mt-2 line-clamp-3 text-sm italic leading-6 text-muted-foreground">{meaning.significance}</p>}
                   <div className="mt-4 border-t border-border/50 pt-3">
-                    <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Trigger</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground/60">Trigger</div>
                     <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">{meaning.trigger}</p>
                   </div>
                 </article>
@@ -706,11 +706,11 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
               <div className="noesis-river-sheet" data-stage-tone="claim" role="region" aria-label={`What moved ${position?.title || 'this river'}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-code text-[9px] uppercase tracking-[0.18em] text-[hsl(var(--stage))]">What moved this river</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm text-[hsl(var(--stage))]">What moved this river</div>
                     <h3 className="mt-1 font-headline text-xl font-semibold italic">{position?.title || river?.title || 'Position'}</h3>
                   </div>
                   <div className="flex gap-2">
-                    {position && <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => onOpenPosition?.(position.id)}>Open the position</Button>}
+                    {position && <Button type="button" size="sm" variant="outline" onClick={() => onOpenPosition?.(position.id)}>Open the position</Button>}
                     <Button type="button" size="sm" variant="ghost" aria-label="Close" onClick={() => setExplainedRiver(null)}>×</Button>
                   </div>
                 </div>
@@ -729,7 +729,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                   <ol className="mt-3 grid max-h-[40vh] gap-2 overflow-y-auto">
                     {[...events].reverse().map((event) => (
                       <li key={event.id} className="border-l-2 border-[hsl(var(--stage)/.5)] py-1 pl-3">
-                        <div className="font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{evolutionDisplayDate(event.date).toLocaleDateString()} · {event.chips[0]}</div>
+                        <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{evolutionDisplayDate(event.date).toLocaleDateString()} · {event.chips[0]}</div>
                         <p className="mt-0.5 text-sm">{event.title}</p>
                       </li>
                     ))}
@@ -744,14 +744,14 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
       {view === 'periods' && (
         <section className="mb-8 border-y border-border/60 py-6">
           <div className="mb-5">
-            <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Periods</div>
+            <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Periods</div>
             <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Emerging intellectual chapters</h2>
             <p className="mt-2 text-sm italic text-muted-foreground">These are provisional groupings from recorded events. Noesis should propose periods, not finalize them for you.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {periods.map((period) => (
               <div key={period.label} className="rounded-2xl border border-border/50 bg-background p-4">
-                <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{period.label}</div>
+                <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{period.label}</div>
                 <h3 className="mt-2 font-headline text-xl font-bold italic text-primary">{period.tone}</h3>
                 {(() => {
                   const parts: Array<[string, string, number]> = [['Revision', 'claim', period.revisionCount], ['Inquiry', 'examine', period.uncertaintyCount], ['Structure', 'act', period.structureCount]];
@@ -760,7 +760,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                       <div className="noesis-flowbar__bar" role="img" aria-label={parts.map(([label, , count]) => `${label} ${count}`).join(', ')}>
                         {parts.some((part) => part[2]) ? parts.filter((part) => part[2]).map(([label, tone, count]) => <span key={label} data-stage-tone={tone} style={{ flexGrow: count }} />) : <span style={{ flexGrow: 1, background: 'hsl(var(--muted))' }} />}
                       </div>
-                      <div className="flex flex-wrap gap-x-3 font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{parts.map(([label, tone, count]) => <span key={label} data-stage-tone={tone} className="inline-flex items-center gap-1"><i className="size-2 rounded-sm" style={{ background: 'hsl(var(--stage))' }} />{label} {count}</span>)}</div>
+                      <div className="flex flex-wrap gap-x-3 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{parts.map(([label, tone, count]) => <span key={label} data-stage-tone={tone} className="inline-flex items-center gap-1"><i className="size-2 rounded-sm" style={{ background: 'hsl(var(--stage))' }} />{label} {count}</span>)}</div>
                     </div>
                   );
                 })()}
@@ -779,7 +779,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
       <div className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Time Scrubber</div>
+            <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Time Scrubber</div>
             <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Recorded thought at a selected date</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               Counts show recorded changes through the selected date, not how many items were active at the time.
@@ -790,7 +790,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
             aria-label="Compare history through date"
             value={scrubberDate}
             onChange={(event) => setScrubberDate(event.target.value)}
-            className="h-10 rounded-full border border-border/60 bg-background px-4 font-code text-[10px] uppercase tracking-widest text-foreground shadow-sm"
+            className="h-10 rounded-full border border-border/60 bg-background px-4 noesis-eyebrow text-foreground shadow-sm"
           />
         </div>
 
@@ -824,12 +824,12 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
         </div>
 
         <div className="mt-4 rounded-xl border border-border/50 bg-muted/10 p-4">
-          <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Current Differences Since Then</div>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Current Differences Since Then</div>
           {scrubberSummary.currentDifferences.length ? (
             <div className="mt-3 grid gap-2 md:grid-cols-2">
               {scrubberSummary.currentDifferences.map((event) => (
                 <div key={event.id} className="rounded-xl border border-border/50 bg-background px-3 py-2">
-                  <div className="font-code text-[8px] uppercase tracking-[0.18em] text-muted-foreground">{event.targetType.replace(/_/g, ' ')}</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{event.targetType.replace(/_/g, ' ')}</div>
                   <p className="mt-1 text-sm font-medium text-foreground">{event.title}</p>
                 </div>
               ))}
@@ -845,13 +845,13 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
         <section className="mb-8 rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
           <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Change Map</div>
+              <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Change Map</div>
               <h2 className="mt-1 font-headline text-2xl font-bold italic text-primary">Where the system is moving</h2>
               <p className="mt-2 max-w-3xl text-sm italic leading-6 text-muted-foreground">
                 This groups recorded events by area and movement. It shows evidence-backed direction, not a final diagnosis of your thinking.
               </p>
             </div>
-            <Badge variant="outline" className="w-fit rounded-full font-code text-[8px] uppercase tracking-widest">
+            <Badge variant="outline" className="w-fit rounded-full noesis-eyebrow noesis-eyebrow--sm">
               {changeMap.length} areas with recorded movement
             </Badge>
           </div>
@@ -864,16 +864,16 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                   <div key={area.area} className={cn('rounded-2xl border p-4', statusClass)}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">System Area</div>
+                        <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground/70">System Area</div>
                         <h3 className="mt-1 font-headline text-xl font-bold italic text-primary">{area.area}</h3>
                       </div>
-                      <Badge variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+                      <Badge variant="secondary" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">
                         {area.status}
                       </Badge>
                     </div>
                     <MovementBar movements={area.movements} />
                     <div className="mt-4 rounded-xl border border-white/60 bg-card/50 p-3 dark:border-white/10 dark:bg-black/10">
-                      <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Latest Evidence</div>
+                      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground/70">Latest Evidence</div>
                       {area.latest ? (
                         <>
                           <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{area.latest.title}</p>
@@ -934,7 +934,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
 
       <div className="mb-4 flex flex-col gap-3 border-b border-border/60 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Meaningful Change Feed</div>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Meaningful Change Feed</div>
           <p role="status" className="mt-1 font-headline text-xl font-semibold text-foreground sm:text-2xl">
             {!dateRangeIsValid ? 'Choose a valid date range' : filteredEvents.length
               ? `Showing ${rangeEnd} of ${filteredEvents.length} ${periodHasOlderMatches ? 'loaded ' : ''}${filteredEvents.length === 1 ? 'change' : 'changes'}`
@@ -1046,13 +1046,13 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                 const eventDate = evolutionDisplayDate(event.date);
                 return (
                   <TableRow key={event.id}>
-                    <TableCell className="align-top font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+                    <TableCell className="align-top noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                       <time dateTime={event.date}>{eventDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time>
                     </TableCell>
                     <TableCell className="align-top">
                       <div className="noesis-event-kind flex items-center gap-2" data-stage-tone={eventStageTone(event.targetType)}>
                         <EventTypeIcon targetType={event.targetType} className="size-4 shrink-0 stroke-[2.4]" />
-                        <span className="font-code text-[9px] font-bold uppercase tracking-[0.14em]">
+                        <span className="noesis-eyebrow noesis-eyebrow--sm font-bold">
                           {event.chips[0] || event.targetType.replace(/_/g, ' ')}
                         </span>
                         {event.chips[1] === 'ai-assisted' && <span className="text-xs text-muted-foreground">AI-assisted</span>}
@@ -1094,7 +1094,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
           <section key={group.key} className="relative ml-2 border-l border-border/70 pl-6 sm:pl-8">
             <div className="relative border-b border-border/60 py-3">
               <span className="absolute -left-[1.9rem] top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-muted-foreground/50 sm:-left-[2.15rem]" aria-hidden="true" />
-              <h2 className="font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{group.label}</h2>
+              <h2 className="noesis-eyebrow font-bold text-muted-foreground">{group.label}</h2>
             </div>
             <div>
               {group.events.map((event) => {
@@ -1111,7 +1111,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                       aria-hidden="true"
                     />
                     <summary className="relative grid cursor-pointer list-none gap-3 py-4 pr-7 outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:grid-cols-[7rem_minmax(0,1fr)_1.5rem] sm:items-start sm:px-3 sm:pr-3 lg:grid-cols-[7rem_minmax(0,1fr)_minmax(8rem,13rem)_1.5rem] [&::-webkit-details-marker]:hidden">
-                      <time dateTime={event.date} className="font-code text-[9px] uppercase leading-5 tracking-[0.14em] text-muted-foreground">
+                      <time dateTime={event.date} className="noesis-eyebrow noesis-eyebrow--sm leading-5 tracking-[0.14em] text-muted-foreground">
                         <span className="block font-bold text-foreground/80">
                           {eventDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                         </span>
@@ -1122,7 +1122,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                       <div className="min-w-0">
                         <div className="noesis-event-kind flex min-w-0 items-center gap-2" data-stage-tone={eventStageTone(event.targetType)}>
                           <EventTypeIcon targetType={event.targetType} className="size-[18px] shrink-0 stroke-[2.4]" />
-                          <span className="min-w-0 break-words font-code text-[9px] font-bold uppercase tracking-[0.16em] lg:whitespace-nowrap">
+                          <span className="min-w-0 break-words noesis-eyebrow noesis-eyebrow--sm font-bold lg:whitespace-nowrap">
                             {event.chips[0] || event.targetType.replace(/_/g, ' ')}
                           </span>
                         </div>
@@ -1138,7 +1138,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                       </div>
                       {meaning.significance && (
                         <div className="border-t border-border/40 pt-3 sm:col-start-2 sm:col-end-3 sm:row-start-2 lg:col-auto lg:row-auto lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-                          <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Why it matters</div>
+                          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Why it matters</div>
                           <p className="mt-1 line-clamp-2 text-sm leading-5 text-foreground/75">{meaning.significance}</p>
                         </div>
                       )}
@@ -1159,7 +1159,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
               icon={History}
               title={periodHasOlderMatches ? 'No matches in loaded history' : evolutionFiltersActive ? 'No changes match these filters' : 'No evolution recorded'}
               description={periodHasOlderMatches ? 'Load older history to check for more changes.' : evolutionFiltersActive ? 'Adjust the dates or clear your filters.' : 'Revisions, resolutions, and other meaningful changes will appear here.'}
-              action={evolutionFiltersActive ? <Button variant="outline" onClick={clearEvolutionFilters} className="rounded-full">Clear filters</Button> : undefined}
+              action={evolutionFiltersActive ? <Button variant="outline" onClick={clearEvolutionFilters}>Clear filters</Button> : undefined}
             />
           </div>
         )}
@@ -1169,7 +1169,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
           <Button
             variant="outline"
             onClick={() => setVisibleCount((count) => count + 12)}
-            className="rounded-full px-5 font-code text-[10px] uppercase tracking-widest"
+            className="rounded-full px-5 noesis-eyebrow"
           >
             Show more loaded changes
           </Button>
@@ -1187,26 +1187,26 @@ function EvolutionEventDetails({ event, influencedSources, className }: { event:
   return (
     <div className={cn('grid gap-4 break-words border-t border-border/45 py-4', className)}>
     <div>
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Evidence quality</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Evidence quality</div>
       <p className="mt-1 text-sm leading-5 text-foreground/75"><span className="font-semibold text-foreground">{evidence.label}.</span> {evidence.detail}</p>
     </div>
     <div>
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{event.isTurningPoint ? 'Turning point' : 'Change type'}</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{event.isTurningPoint ? 'Turning point' : 'Change type'}</div>
       <p className="mt-1 text-sm leading-5 text-foreground/75">{meaning.turningPoint}</p>
     </div>
     <div>
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Trigger</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Trigger</div>
       <p className="mt-1 text-sm leading-5 text-foreground/75">{meaning.trigger}</p>
     </div>
 
     {(event.beforeLabel || event.afterLabel) && (
       <div className="grid gap-3 border-t border-border/40 pt-4 sm:col-span-3 sm:grid-cols-2">
         <div>
-          <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Before</div>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Before</div>
           <p className="mt-1 text-sm leading-5 text-foreground/70">{event.beforeLabel || 'Previous state not recorded.'}</p>
         </div>
         <div>
-          <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-accent">After</div>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">After</div>
           <p className="mt-1 text-sm leading-5 text-foreground/80">{event.afterLabel || 'Current state not recorded.'}</p>
         </div>
       </div>
@@ -1218,8 +1218,8 @@ function EvolutionEventDetails({ event, influencedSources, className }: { event:
     {event.kind === 'timeline' && event.targetType === 'evolution' && !event.synthesisProvenance && event.detail.trim() && (
       <div className="border-t border-border/40 pt-4 sm:col-span-3">
         <div className="mb-3 flex items-center gap-2">
-          <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Saved period review</div>
-          <Badge variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-wider">AI-assisted</Badge>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Saved period review</div>
+          <Badge variant="outline" className="rounded-md noesis-eyebrow noesis-eyebrow--sm">AI-assisted</Badge>
         </div>
         <ContextualAiDocument content={event.detail} />
       </div>
@@ -1228,12 +1228,12 @@ function EvolutionEventDetails({ event, influencedSources, className }: { event:
     {((event.changedFields?.length ?? 0) > 0 || influencedSources.length > 0) && (
       <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4 sm:col-span-3">
         {event.changedFields?.slice(0, 10).map((field) => (
-          <Badge key={field} variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-widest">
+          <Badge key={field} variant="outline" className="rounded-md noesis-eyebrow noesis-eyebrow--sm">
             {field.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}
           </Badge>
         ))}
         {influencedSources.map((source) => (
-          <Badge key={source.id} variant="secondary" className="flex items-center gap-1.5 rounded-md font-code text-[8px] uppercase tracking-wider">
+          <Badge key={source.id} variant="secondary" className="flex items-center gap-1.5 rounded-md noesis-eyebrow noesis-eyebrow--sm">
             <NOESIS_ICONS.source className="size-3 opacity-60" aria-hidden="true" />
             {source.title}
           </Badge>
@@ -1248,7 +1248,7 @@ function MiniEvolutionStat({ label, value }: { label: string; value: number | st
   return (
     <div className="rounded-xl border border-border/40 bg-muted/10 p-3 text-center">
       <div className="font-headline text-lg font-bold italic leading-none text-primary">{value}</div>
-      <div className="mt-1 font-code text-[7px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -1257,7 +1257,7 @@ function ScrubberCard({ label, value, items, empty }: { label: string; value: nu
   return (
     <div className="rounded-xl border border-border/50 bg-background p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <div className="font-code text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+        <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{label}</div>
         <div className="font-headline text-2xl font-bold italic text-primary">{value}</div>
       </div>
       {items.length ? (
@@ -1337,12 +1337,12 @@ function BeforeAfterTable({ positions, thinkingEvents, date, onDate, onOpenPosit
   return (
     <div className="mt-5 grid gap-3">
       <label className="flex items-center gap-3">
-        <span className="font-code text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{label(first)}</span>
+        <span className="noesis-eyebrow text-muted-foreground">{label(first)}</span>
         <input type="range" min={first} max={last} value={selected} aria-label="Slide through time" onChange={(event) => onDate(new Date(Number(event.target.value) * day).toISOString().slice(0, 10))} className="flex-1 accent-[hsl(var(--stage-integrate))]" />
-        <span className="font-code text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Now</span>
+        <span className="noesis-eyebrow text-muted-foreground">Now</span>
       </label>
       <div className="noesis-ba" role="table" aria-label={`Positions on ${label(selected)} compared with now`}>
-        <div role="row" className="contents font-code text-[9px] uppercase tracking-[0.14em]">
+        <div role="row" className="contents noesis-eyebrow noesis-eyebrow--sm">
           <span role="columnheader" />
           <span role="columnheader" className="text-[hsl(var(--stage-integrate))]">{label(selected)}</span>
           <span role="columnheader" className="text-[hsl(var(--stage-encounter))]">Now</span>

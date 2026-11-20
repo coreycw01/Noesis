@@ -113,9 +113,9 @@ export function workToolLabel(style: StructuredWorkStyle) {
 
 const paperTone = {
   blank: 'bg-transparent text-inherit',
-  warm: 'bg-amber-50 text-stone-900',
-  sepia: 'bg-[#f4ecd8] text-[#493727]',
-  dark: 'bg-slate-900 text-slate-100',
+  warm: 'bg-paper-warm text-paper-ink-light',
+  sepia: 'bg-paper-sepia text-paper-ink-sepia',
+  dark: 'bg-paper-dark text-paper-ink-dark',
 } as const;
 
 function paperPatternStyle(paperColor: keyof typeof paperTone, pattern: DocumentPaperPattern): CSSProperties {
@@ -201,7 +201,7 @@ export function StructuredWorkSurface({
         <div className="space-y-5 p-5 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Input value={current.fields.table_title || ''} onChange={(event) => updateFields('table_title', event.target.value)} placeholder="Table title" aria-label="Table title" className="h-auto max-w-md border-0 bg-transparent px-0 font-headline text-xl font-bold italic shadow-none focus-visible:ring-0" />
-            <div className="flex items-center gap-3 font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+            <div className="flex items-center gap-3 noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">
               <label className="flex items-center gap-1">Rows <input type="range" min="2" max="8" value={rows} onChange={(event) => updateFields('table_rows', event.target.value)} aria-label="Table rows" className="w-20 accent-[hsl(var(--accent))]" /><span>{rows}</span></label>
               <label className="flex items-center gap-1">Columns <input type="range" min="2" max="6" value={columns} onChange={(event) => updateFields('table_columns', event.target.value)} aria-label="Table columns" className="w-20 accent-[hsl(var(--accent))]" /><span>{columns}</span></label>
             </div>
@@ -232,15 +232,15 @@ export function StructuredWorkSurface({
             <div className="absolute left-[3%] top-[5%] aspect-square w-[58%] rounded-full border-2 border-accent/55 bg-accent/8" aria-hidden="true" />
             <div className="absolute right-[3%] top-[5%] aspect-square w-[58%] rounded-full border-2 border-foreground/30 bg-background/30" aria-hidden="true" />
             <div className="absolute left-[8%] top-[28%] z-10 w-[28%]">
-              <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">Only {current.fields.left_label || 'the first'}</label>
+              <label className="noesis-eyebrow noesis-eyebrow--sm font-bold opacity-60">Only {current.fields.left_label || 'the first'}</label>
               <Textarea aria-label="Only the first idea" value={current.fields.left_only || ''} onChange={(event) => updateFields('left_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-2 min-h-24 resize-none border-0 bg-background/35 text-xs shadow-none focus-visible:ring-1 sm:min-h-32 sm:text-sm" />
             </div>
             <div className="absolute left-1/2 top-[24%] z-20 w-[28%] -translate-x-1/2 text-center">
-              <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-accent">Shared ground</label>
+              <label className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">Shared ground</label>
               <Textarea aria-label="Shared qualities" value={current.fields.shared || ''} onChange={(event) => updateFields('shared', event.target.value)} placeholder="What genuinely overlaps?" className="mt-2 min-h-24 resize-none border border-accent/30 bg-background/80 text-center text-xs shadow-sm sm:min-h-32 sm:text-sm" />
             </div>
             <div className="absolute right-[8%] top-[28%] z-10 w-[28%] text-right">
-              <label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">Only {current.fields.right_label || 'the second'}</label>
+              <label className="noesis-eyebrow noesis-eyebrow--sm font-bold opacity-60">Only {current.fields.right_label || 'the second'}</label>
               <Textarea aria-label="Only the second idea" value={current.fields.right_only || ''} onChange={(event) => updateFields('right_only', event.target.value)} placeholder="Distinct qualities, evidence, or implications" className="mt-2 min-h-24 resize-none border-0 bg-background/35 text-right text-xs shadow-none focus-visible:ring-1 sm:min-h-32 sm:text-sm" />
             </div>
           </div>
@@ -331,7 +331,7 @@ export function StructuredWorkSurface({
                     <Input value={node.label} onChange={(event) => updateNode(node.id, { label: event.target.value })} placeholder="Related idea" className="h-8 min-w-0 border-0 bg-transparent px-1 text-center text-sm font-medium shadow-none focus-visible:ring-1" aria-label="Branch idea" />
                     <Button type="button" variant="ghost" size="icon" onClick={() => removeNode(node.id)} className="size-7 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Remove ${node.label || 'branch'}`}><Trash2 className="size-3" /></Button>
                   </div>
-                  <select aria-label={`Where ${node.label || 'this branch'} branches from`} value={node.parentId || 'central'} onChange={(event) => updateNode(node.id, { parentId: event.target.value === 'central' ? null : event.target.value })} className="mt-1 h-7 w-full border-0 border-t border-current/15 bg-transparent px-1 font-code text-[8px] uppercase text-foreground outline-none focus-visible:ring-1">
+                  <select aria-label={`Where ${node.label || 'this branch'} branches from`} value={node.parentId || 'central'} onChange={(event) => updateNode(node.id, { parentId: event.target.value === 'central' ? null : event.target.value })} className="mt-1 h-7 w-full border-0 border-t border-current/15 bg-transparent px-1 noesis-eyebrow noesis-eyebrow--sm text-foreground outline-none focus-visible:ring-1">
                     <option value="central">From central idea</option>
                     {nodes.filter((candidate) => candidate.id !== node.id && !wouldCreateCycle(node.id, candidate.id)).map((candidate) => <option key={candidate.id} value={candidate.id}>From {candidate.label || 'untitled branch'}</option>)}
                   </select>
@@ -347,7 +347,7 @@ export function StructuredWorkSurface({
                 {nodes.map((node) => <option key={node.id} value={node.id}>{node.label || 'Untitled branch'}</option>)}
               </select>
             </label>
-            <Button type="button" variant="outline" size="sm" onClick={addBranch} className="h-9 rounded-md"><Plus className="mr-2 size-4" /> Add branch</Button>
+            <Button type="button" variant="outline" size="sm" onClick={addBranch}><Plus className="mr-2 size-4" /> Add branch</Button>
           </div>
         </div>
       </TemplateFrame>
@@ -365,7 +365,7 @@ export function StructuredWorkSurface({
               <span className={cn('absolute left-1/2 size-4 -translate-x-1/2 rounded-full border-2 border-accent bg-background', index % 2 === 0 ? 'top-[212px]' : 'bottom-[212px]')} aria-hidden="true" />
               <div className="border border-current/20 bg-background/95 p-3 shadow-sm">
                 <div className="flex items-start gap-2">
-                  <Input aria-label="Timeline date or stage" value={entry.date} onChange={(event) => updateEntry(entry.id, { date: event.target.value })} placeholder="Date or stage" className="h-8 min-w-0 flex-1 border-0 border-b border-current/15 bg-transparent px-1 font-code text-[10px] font-bold uppercase shadow-none focus-visible:ring-1" />
+                  <Input aria-label="Timeline date or stage" value={entry.date} onChange={(event) => updateEntry(entry.id, { date: event.target.value })} placeholder="Date or stage" className="h-8 min-w-0 flex-1 border-0 border-b border-current/15 bg-transparent px-1 noesis-eyebrow font-bold shadow-none focus-visible:ring-1" />
                   {timeline.length > 1 && <Button type="button" variant="ghost" size="icon" onClick={() => onChange({ ...current, timeline: timeline.filter((item) => item.id !== entry.id) })} className="size-7 shrink-0 text-muted-foreground hover:text-destructive" aria-label="Remove timeline event"><Trash2 className="size-3" /></Button>}
                 </div>
                 <Input aria-label="Timeline event" value={entry.title} onChange={(event) => updateEntry(entry.id, { title: event.target.value })} placeholder="What changed?" className="mt-2 h-9 border-0 bg-transparent px-1 font-headline text-base font-semibold italic shadow-none focus-visible:ring-1" />
@@ -392,7 +392,7 @@ export function StructuredWorkSurface({
         <div className="space-y-5 overflow-x-auto p-5 sm:p-8">
           <div className="min-w-[680px] overflow-hidden border border-current/20">
             <div className="grid bg-current/5" style={{ gridTemplateColumns: `180px repeat(${optionCount}, minmax(150px, 1fr))` }}>
-              <div className="border-b border-r border-current/15 p-3 font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-60">Criteria</div>
+              <div className="border-b border-r border-current/15 p-3 noesis-eyebrow noesis-eyebrow--sm font-bold opacity-60">Criteria</div>
               {options.map((option, optionIndex) => (
                 <div key={optionIndex} className="border-b border-r border-current/15 p-2 last:border-r-0">
                   <Input value={option} onChange={(event) => updateFields(`matrix_option_${optionIndex}`, event.target.value)} placeholder={`Option ${optionIndex + 1}`} aria-label={`Comparison option ${optionIndex + 1}`} className="h-9 border-0 bg-transparent text-center font-headline font-semibold italic shadow-none focus-visible:ring-1" />
@@ -430,16 +430,16 @@ export function StructuredWorkSurface({
         <div className="p-5 sm:p-8">
           <div className="grid overflow-hidden border border-current/20 md:grid-cols-2">
             <section className="relative min-h-64 border-b border-current/20 bg-accent/8 p-5 md:border-b-0 md:border-r">
-              <span className="font-code text-[10px] font-bold uppercase tracking-[0.2em] text-accent">Case for</span>
+              <span className="noesis-eyebrow font-bold text-accent">Case for</span>
               <Textarea value={current.fields.for || ''} onChange={(event) => updateFields('for', event.target.value)} placeholder="Build the strongest case in favor." aria-label="Case for" className="mt-4 min-h-48 resize-none border-0 bg-transparent px-0 font-body text-sm leading-7 shadow-none focus-visible:ring-1" />
             </section>
             <section className="relative min-h-64 bg-foreground/5 p-5">
-              <span className="font-code text-[10px] font-bold uppercase tracking-[0.2em] opacity-65">Case against</span>
+              <span className="noesis-eyebrow font-bold opacity-65">Case against</span>
               <Textarea value={current.fields.against || ''} onChange={(event) => updateFields('against', event.target.value)} placeholder="Give the objection equal force." aria-label="Case against" className="mt-4 min-h-48 resize-none border-0 bg-transparent px-0 font-body text-sm leading-7 shadow-none focus-visible:ring-1" />
             </section>
           </div>
           <section className="mx-auto -mt-px max-w-xl border border-accent/35 bg-background/95 p-4 text-center shadow-sm">
-            <span className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">What survives</span>
+            <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">What survives</span>
             <Textarea value={current.fields.judgement || ''} onChange={(event) => updateFields('judgement', event.target.value)} placeholder="State the judgment that remains after both sides are heard." aria-label="Working judgment" className="mt-2 min-h-24 resize-none border-0 bg-transparent text-center text-sm leading-6 shadow-none focus-visible:ring-1" />
           </section>
         </div>
@@ -462,7 +462,7 @@ export function StructuredWorkSurface({
         >
           {stages.map((stage, index) => <Fragment key={stage.key}>
             <section className={cn('min-w-0 border p-4', embedded ? 'min-h-44' : 'min-h-56', index === 1 ? 'border-destructive/35 bg-destructive/5' : index === 2 ? 'border-accent/40 bg-accent/8' : 'border-current/20 bg-current/[0.025]')}>
-              <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">{stage.label}</span>
+              <span className="noesis-eyebrow noesis-eyebrow--sm font-bold opacity-65">{stage.label}</span>
               <Textarea value={current.fields[stage.key] || ''} onChange={(event) => updateFields(stage.key, event.target.value)} placeholder={stage.prompt} aria-label={stage.label} className={cn('mt-3 min-h-32 min-w-0 resize-none border-0 bg-transparent px-0 text-sm leading-6 shadow-none focus-visible:ring-1', !embedded && 'min-h-40')} />
             </section>
             {index < stages.length - 1 && !embedded && <ArrowRight className="hidden size-5 self-center text-accent md:block" aria-hidden="true" />}
@@ -513,9 +513,9 @@ function TemplateFrame({ title, purpose, tone, patternStyle, widthClass, childre
 }
 
 function WorkField({ field, value, onChange }: { field: FieldDefinition; value: string; onChange: (value: string) => void }) {
-  return <section className="border border-current/15 bg-background/35 p-4"><label className="font-code text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">{field.label}</label>{field.multiline ? <Textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.prompt} className="mt-3 min-h-28 border-0 bg-transparent px-0 text-sm leading-6 shadow-none focus-visible:ring-0" /> : <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.prompt} className="mt-3 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" />}</section>;
+  return <section className="border border-current/15 bg-background/35 p-4"><label className="noesis-eyebrow noesis-eyebrow--sm font-bold opacity-65">{field.label}</label>{field.multiline ? <Textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.prompt} className="mt-3 min-h-28 border-0 bg-transparent px-0 text-sm leading-6 shadow-none focus-visible:ring-0" /> : <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.prompt} className="mt-3 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" />}</section>;
 }
 
 function ChainNode({ label, value, onChange, placeholder, tone }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; tone?: 'accent' }) {
-  return <section className={cn('w-44 shrink-0 border border-current/20 bg-background/70 p-3 shadow-sm', tone === 'accent' && 'border-accent/45 bg-accent/8')}><label className="font-code text-[8px] font-bold uppercase tracking-[0.15em] opacity-60">{label}</label><Textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-2 min-h-24 resize-none border-0 bg-transparent px-0 text-sm leading-5 shadow-none focus-visible:ring-1" /></section>;
+  return <section className={cn('w-44 shrink-0 border border-current/20 bg-background/70 p-3 shadow-sm', tone === 'accent' && 'border-accent/45 bg-accent/8')}><label className="noesis-eyebrow noesis-eyebrow--sm font-bold opacity-60">{label}</label><Textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-2 min-h-24 resize-none border-0 bg-transparent px-0 text-sm leading-5 shadow-none focus-visible:ring-1" /></section>;
 }

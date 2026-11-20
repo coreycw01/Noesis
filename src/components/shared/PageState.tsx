@@ -54,7 +54,7 @@ export function PageLoadingState({ title, description = 'Syncing the data this p
       <div className="mx-auto w-full max-w-7xl">
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="flex items-center gap-2 font-code text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            <div className="flex items-center gap-2 noesis-eyebrow text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin text-accent" />
               {title}
             </div>
@@ -62,7 +62,7 @@ export function PageLoadingState({ title, description = 'Syncing the data this p
             {loadingDetails?.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {loadingDetails.map((detail) => (
-                  <span key={detail} className="rounded-full border border-border/60 bg-background/70 px-2.5 py-1 font-code text-[8px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                  <span key={detail} className="rounded-full border border-border/60 bg-background/70 px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">
                     {detail}
                   </span>
                 ))}
@@ -92,13 +92,13 @@ export function PageErrorState({ title, description, onRetry, retryLabel = 'Try 
       {technicalDetails && (
         <details className="mt-4 max-w-lg rounded-[var(--card-radius)] border border-border bg-surface-elevated p-4 text-left text-sm text-muted-foreground">
           <summary className="cursor-pointer font-medium text-foreground">Technical details</summary>
-          <pre className="mt-3 whitespace-pre-wrap break-words font-code text-[11px] leading-5">{technicalDetails}</pre>
+          <pre className="mt-3 whitespace-pre-wrap break-words noesis-figure leading-5">{technicalDetails}</pre>
         </details>
       )}
       {(onRetry || alternateAction) && (
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           {onRetry && (
-            <Button variant="outline" onClick={onRetry} className="rounded-full">
+            <Button variant="outline" onClick={onRetry}>
               {retryLabel}
             </Button>
           )}
@@ -112,7 +112,7 @@ export function PageErrorState({ title, description, onRetry, retryLabel = 'Try 
 function StateDetail({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[var(--card-radius)] border border-border/60 bg-surface-elevated p-4">
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{label}</div>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{value}</p>
     </div>
   );

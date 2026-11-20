@@ -16,13 +16,13 @@ interface AtlasTensionsBoardProps {
 function iconForTension(type: AtlasSystemTensionItem['type']) {
   switch (type) {
     case 'region_conflict':
-      return <ShieldAlert className="size-4 text-rose-600" />;
+      return <ShieldAlert className="size-4 text-problem" />;
     case 'concept_ambiguity':
       return <BrainCircuit className="size-4 text-accent" />;
     case 'practice_gap':
-      return <FlaskConical className="size-4 text-emerald-600" />;
+      return <FlaskConical className="size-4 text-ok" />;
     case 'one_sided_region':
-      return <Unlink2 className="size-4 text-amber-600" />;
+      return <Unlink2 className="size-4 text-caution" />;
     default:
       return <AlertTriangle className="size-4 text-muted-foreground" />;
   }
@@ -64,7 +64,7 @@ export function AtlasTensionsBoard({ tensions, onOpenRegion }: AtlasTensionsBoar
       <Card className="rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">Tension View</Badge>
+            <Badge className="rounded-full bg-accent noesis-eyebrow noesis-eyebrow--sm">Tension View</Badge>
             <h2 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">Where is the worldview unstable?</h2>
             <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
               This view stops looking at single beliefs and starts looking for pressure across the whole map of thought: region conflict, concept ambiguity, practice gaps, and under-challenged territories.
@@ -72,15 +72,15 @@ export function AtlasTensionsBoard({ tensions, onOpenRegion }: AtlasTensionsBoar
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
-              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Active tensions</div>
+              <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Active tensions</div>
               <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">{tensions.length}</div>
             </div>
             <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
-              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">High severity</div>
+              <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">High severity</div>
               <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">{tensions.filter((item) => item.severity === 'high').length}</div>
             </div>
             <div className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
-              <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Cross-region</div>
+              <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Cross-region</div>
               <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">{grouped.region_conflict.length}</div>
             </div>
           </div>
@@ -96,7 +96,7 @@ export function AtlasTensionsBoard({ tensions, onOpenRegion }: AtlasTensionsBoar
                   <Split className="size-4 text-foreground" />
                   <h3 className="font-headline text-xl font-semibold italic text-foreground">{column.title}</h3>
                 </div>
-                <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">
+                <Badge variant="outline" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">
                   {grouped[column.id].length}
                 </Badge>
               </div>
@@ -113,17 +113,17 @@ export function AtlasTensionsBoard({ tensions, onOpenRegion }: AtlasTensionsBoar
                       </div>
                       <p className="text-sm leading-6 text-muted-foreground">{item.detail}</p>
                     </div>
-                    <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{item.severity}</Badge>
+                    <Badge variant="outline" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">{item.severity}</Badge>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {item.regionIds.map((regionId) => (
-                      <Button key={regionId} variant="outline" size="sm" className="rounded-full" onClick={() => onOpenRegion(regionId)}>
+                      <Button key={regionId} variant="outline" size="sm" onClick={() => onOpenRegion(regionId)}>
                         Open region
                       </Button>
                     ))}
                   </div>
                   <div className="mt-3 rounded-2xl border border-border/60 bg-card/70 px-4 py-3">
-                    <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Recommended next move</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Recommended next move</div>
                     <div className="mt-2 font-headline text-base font-semibold italic text-foreground">{regionActionDisplay(item.recommendedAction)}</div>
                   </div>
                 </Card>

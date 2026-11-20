@@ -4,6 +4,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, CircleHelp, Flag, Lightbulb, Puzzle, RotateCcw } from 'lucide-react';
 import { deriveAtlasRegions } from '@/components/Atlas/atlas-diagnostics';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { ExerciseGames } from '@/components/Exercises/ExerciseGames';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -86,7 +87,9 @@ export function ExercisesTable({ concepts, inquiries, positions, media, practice
 
   return (
     <div className="noesis-page noesis-exercises-page" data-noesis-identity="card-table">
-      <PageHeader title={category ? category.label : 'Exercises'} description={category ? category.hint : 'Choose what you want to practice.'} />
+      <PageHeader title={category ? category.label : 'Exercises'} description={category ? category.hint : 'Play with what you have recorded. Every answer is one your workspace already knows.'} />
+      {!category && <ExerciseGames concepts={concepts} inquiries={inquiries} positions={positions} practices={practices} seed={dayKey} />}
+      {!category && <h2 className="mt-8 font-headline text-xl italic">More practice</h2>}
       {category && <Button type="button" variant="ghost" className="mb-4 min-h-11" onClick={() => { if (open) leaveRound(); else setGameType(null); }}>
         <ArrowLeft className="size-4" aria-hidden="true" />{open ? 'Back to setup' : 'All exercises'}
       </Button>}
@@ -152,7 +155,7 @@ function ExerciseCard({ game, completed, onComplete, onFollow, onNext, nextLabel
   return (
     <article className="noesis-gcard noesis-gcard--big" data-family={family}>
       <span className="noesis-gcard__suit" aria-hidden="true">{family === 'records' ? '◆' : '♣'}</span>
-      <div className="font-code text-[10px] uppercase tracking-[0.14em] text-[hsl(var(--deck))]">{game.label}{!maskSource && ` · ${game.sourceLabel}`}</div>
+      <div className="noesis-eyebrow text-[hsl(var(--deck))]">{game.label}{!maskSource && ` · ${game.sourceLabel}`}</div>
       <h2 className="mt-2 font-headline text-2xl font-semibold italic leading-tight">{game.title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{game.instruction}</p>
       <blockquote className="noesis-gcard__prompt">{game.prompt}</blockquote>
@@ -180,7 +183,7 @@ function ExerciseCard({ game, completed, onComplete, onFollow, onNext, nextLabel
 
       {!revealed ? (
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button type="button" onClick={turn} disabled={!canTurn} className="rounded-full">Turn the card</Button>
+          <Button type="button" onClick={turn} disabled={!canTurn}>Turn the card</Button>
           <Button type="button" variant="ghost" onClick={onNext}>Skip</Button>
         </div>
       ) : (
@@ -188,11 +191,11 @@ function ExerciseCard({ game, completed, onComplete, onFollow, onNext, nextLabel
           {game.answer && <p className="font-medium">{choice === game.answer ? 'Right.' : 'Not quite.'} <span className="text-muted-foreground">Answer: {game.answer}</span></p>}
           <p>{game.reveal}</p>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={onFollow} className="rounded-full">What this changes → {followLabel}<ArrowRight className="ml-1 size-4" aria-hidden="true" /></Button>
-            <Button type="button" onClick={onNext} className="rounded-full">{nextLabel}</Button>
+            <Button type="button" variant="outline" onClick={onFollow}>What this changes → {followLabel}<ArrowRight className="ml-1 size-4" aria-hidden="true" /></Button>
+            <Button type="button" onClick={onNext}>{nextLabel}</Button>
             <Button type="button" variant="ghost" size="icon" aria-label="Play this card again" title="Play again" onClick={() => { setRevealed(false); setChoice(''); setText(''); }}><RotateCcw className="size-4" /></Button>
           </div>
-          {completed && <p className="font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Private practice: nothing was saved to your records.</p>}
+          {completed && <p className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Private practice: nothing was saved to your records.</p>}
         </div>
       )}
     </article>
