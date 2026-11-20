@@ -495,9 +495,9 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-caliper-bench__zones { display: grid; gap: 10px; grid-template-columns: 1.15fr 1fr 1fr; }
 @media (max-width: 760px) { .noesis-caliper-bench__zones { grid-template-columns: 1fr; } }
 .noesis-caliper-zone { display: grid; align-content: start; gap: 8px; min-height: 160px; padding: 12px; border-radius: 14px; border: 1.5px solid hsl(var(--zone) / .55); background: hsl(var(--zone) / .06); transition: background .15s ease; }
-.noesis-caliper-zone--fits { --zone: var(--stage-act); border-style: solid; }
-.noesis-caliper-zone--edge { --zone: var(--stage-outline); border-style: dashed; }
-.noesis-caliper-zone--outside { --zone: var(--stage-claim); border-style: dotted; }
+.noesis-caliper-zone--fits { --zone: var(--ok); border-style: solid; }
+.noesis-caliper-zone--edge { --zone: var(--caution); border-style: dashed; }
+.noesis-caliper-zone--outside { --zone: var(--problem); border-style: dotted; }
 .noesis-caliper-zone.is-over { background: hsl(var(--zone) / .18); }
 .noesis-caliper-zone__head { display: grid; gap: 1px; }
 .noesis-caliper-zone__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--zone)); }

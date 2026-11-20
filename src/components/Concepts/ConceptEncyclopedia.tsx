@@ -8,8 +8,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { persistedConceptRecords } from '@/lib/workspace-counts';
 import { LabeledField } from '@/components/shared/LabeledField';
 import { AlertTriangle, ArrowLeft, ArrowRight, BookOpen, ChevronDown, Edit, Plus, Trash2, MoreHorizontal } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Pill } from '@/components/ui/pill';
+import { Button, IconButton } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +31,10 @@ import type { ClarityLevel } from '@/lib/clarity';
 import { ConceptDiagnosisBars } from '@/components/Concepts/ConceptDiagnosisBars';
 import { ConceptCaliper } from '@/components/Concepts/ConceptCaliper';
 import { ThroughConcept } from '@/components/shared/ThroughConcept';
-import { FooterSection, NextMove, RecordFooter, RecordTools } from '@/components/shared/RecordDetail';
+import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection } from '@/components/shared/record/RecordPage';
+import { Eyebrow } from '@/components/ui/eyebrow';
+import { Pill, PillRow } from '@/components/ui/pill';
+import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConceptBoundaryBench } from '@/components/Concepts/ConceptBoundaryBench';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
@@ -40,7 +42,6 @@ import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { DetailLabel } from '@/components/shared/PageHeader';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
@@ -89,8 +90,10 @@ type ConceptListRow = {
 type BoundaryAnswer = 'inside' | 'outside' | 'depends';
 type ConceptTensionDecision = Extract<PhilosophicalLinkType, 'coheres' | 'contradicts' | 'refines'>;
 type ConceptListField = 'aliases' | 'opposedTo' | 'notSameAs' | 'examples' | 'counterexamples';
-const RELATION_FIELDS: ConceptListField[] = ['aliases', 'opposedTo', 'notSameAs'];
-const RELATION_TONES: Partial<Record<ConceptListField, string>> = { aliases: 'act', opposedTo: 'claim', notSameAs: 'encounter' };
+const RELATION_FIELDS: ConceptListField[] = ['aliases', 'notSameAs', 'opposedTo'];
+// Relations are read as a widening distance from the concept, in the semantic
+// status colours: the same as it (ok), near but not it (caution), against it (problem).
+const RELATION_TONES: Partial<Record<ConceptListField, string>> = { aliases: 'ok', notSameAs: 'caution', opposedTo: 'problem' };
 type ConceptRepairFlag = {
   id: 'define' | 'boundaries' | 'examples' | 'evidence' | 'opposition' | 'practice' | 'drift' | 'duplicate' | 'neglected';
   label: string;
@@ -622,8 +625,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
     const conceptLanguageSections: Array<{ field: ConceptListField; title: string; prompt: string; placeholder: string }> = [
       { field: 'aliases', title: 'Same as', prompt: 'Synonyms and close neighbours: other words you use for this concept.', placeholder: 'Add a synonym' },
-      { field: 'opposedTo', title: 'Opposed to', prompt: 'Opposites and rivals: what this concept stands against.', placeholder: 'Add an opposite' },
       { field: 'notSameAs', title: 'Not the same as', prompt: 'Easily confused, but different: neighbours this should not collapse into.', placeholder: 'Add a distinction' },
+      { field: 'opposedTo', title: 'Opposed to', prompt: 'Opposites and rivals: what this concept stands against.', placeholder: 'Add an opposite' },
       { field: 'examples', title: 'Examples', prompt: 'Cases that clearly belong inside the concept.', placeholder: 'Add example' },
       { field: 'counterexamples', title: 'Counterexamples', prompt: 'Cases that test or fall outside the boundary.', placeholder: 'Add counterexample' },
     ];
@@ -754,633 +757,392 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       previewSource(annotation.source, `This ${annotation.type} annotation mentions or is tagged with ${selectedName}.`);
     };
 
+    const caseCount = (concept?.examples || []).length + (concept?.edgeCases || []).length + (concept?.counterexamples || []).length;
+    const relationCount = (concept?.aliases || []).length + (concept?.notSameAs || []).length + (concept?.opposedTo || []).length;
+    let conceptHereId: string; let conceptGuide: string;
+    if (!concept?.description?.trim()) { conceptHereId = 'con-define'; conceptGuide = 'Write a working definition, even a rough one.'; }
+    else if (caseCount < 2) { conceptHereId = 'con-boundary'; conceptGuide = 'Test the boundary with a case or two.'; }
+    else if (!(concept.edgeCases || []).length) { conceptHereId = 'con-boundary'; conceptGuide = 'Find an edge case: something that could go either way.'; }
+    else if (!relationCount) { conceptHereId = 'con-relations'; conceptGuide = 'Relate it to a neighbouring concept.'; }
+    else { conceptHereId = 'con-stands'; conceptGuide = diagnosis.suggestedNextAction; }
+
     return (
-      <div className="noesis-concept-entry flex-1 overflow-y-auto font-body" data-noesis-scroll-region data-noesis-identity="encyclopedia-entry">
-        {/* Sticky nav bar */}
-        <div className="noesis-gutter sticky top-0 z-10 bg-background/95 pt-[var(--page-top)] backdrop-blur-sm">
-          <div className="noesis-detail-toolbar mb-0">
-          <button type="button" onClick={back} className="noesis-back-link">
-            <ArrowLeft aria-hidden="true" /> Concepts
-          </button>
-          <div className="flex gap-2">
-          </div>
-          </div>
-        </div>
+      <RecordPage tone="outline" identity="encyclopedia-entry" className="noesis-concept-entry">
+        <RecordHeader backLabel="Concepts" onBack={back} view="concepts" kind="Concept" status={concept?.philosophyStatus} title={selectedName}
+          trailing={concept ? <>
+            <ContextualAiPanel
+              actions={['refine_concept_definition', 'clarify_concept_boundaries']}
+              enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
+              showContextBeforeSending={aiSettings?.showContextBeforeSending}
+              reasoningDepth={aiDepthFor(aiSettings, 'concepts')}
+              buttonLabel="Ask Noesis"
+              promptLabel="What should Noesis examine about this concept?"
+              promptPlaceholder="For example: Where does my use of this concept conflict with its definition?"
+              buildEnvelope={(action: ContextualAiAction, userPrompt) => ({
+                action,
+                targetType: 'concept',
+                targetId: concept.id,
+                scope: 'linked_items',
+                itemMemory: [
+                  `Concept: ${concept.name}`,
+                  `Working definition: ${concept.description || 'Not defined.'}`,
+                  `Aliases: ${(concept.aliases || []).join('; ') || 'None recorded.'}`,
+                  `Not the same as: ${(concept.notSameAs || []).join('; ') || 'None recorded.'}`,
+                  `Examples: ${(concept.examples || []).join('; ') || 'None recorded.'}`,
+                  `Counterexamples: ${(concept.counterexamples || []).join('; ') || 'None recorded.'}`,
+                ],
+                linkedMemory: [
+                  ...r.annotations.slice(0, 8).map((item) => `Annotation (${item.type}): ${item.text}`),
+                  ...r.beliefs.slice(0, 6).map((item) => `Position (${item.confidence}% confidence): ${item.statement || item.title}`),
+                  ...r.questions.slice(0, 4).map((item) => `Inquiry: ${item.text}`),
+                  ...linkedConceptNames.slice(0, 6).map((name) => `Neighboring concept: ${name}`),
+                ],
+                userPrompt,
+              })}
+              onAccept={(result, text) => persistConcept(concept, { result, text, baseline: concept })}
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><IconButton label="Concept actions" variant="outline"><MoreHorizontal className="size-4" /></IconButton></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => openEditor(concept)}><Edit className="mr-2 size-4" /> Edit concept</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setDeleteTarget(concept)} className="text-problem focus:text-problem"><Trash2 className="mr-2 size-4" /> Delete concept</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </> : undefined} />
 
-        <div className="noesis-gutter pb-10 pt-7">
-          {/* Title + definition */}
-          <div className="mb-8">
-            <DetailLabel view="concepts" kind="Concept" status={concept?.philosophyStatus} />
-            <h1 className="noesis-page-title noesis-detail-title mb-4">{selectedName}</h1>
-            {isDefinitionEditing ? (
-              <div className="max-w-3xl space-y-3 rounded-xl border border-accent/20 bg-card p-4 shadow-sm">
-                <Textarea
-                  value={definitionDraft}
-                  onChange={(event) => setDefinitionDraft(event.target.value)}
-                  className="min-h-[120px] text-base leading-7"
-                  placeholder="Write the current working definition for this concept."
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={saveInlineDefinition} disabled={!concept}>
-                    Save Definition
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setIsDefinitionEditing(false)} className="h-8 rounded-full px-5">
-                    Cancel
-                  </Button>
-                </div>
+        <RecordPath label="Where you are with this concept" hereId={conceptHereId} guide={conceptGuide}
+          stops={[{ id: 'con-define', label: 'Definition' }, { id: 'con-boundary', label: 'Boundary' }, { id: 'con-relations', label: 'Relations' }, { id: 'con-stands', label: 'Where it stands' }]} />
+
+        <RecordSection id="con-define" title="Definition" description="The working meaning, in your own words. It can change." here={conceptHereId === 'con-define'}
+          aside={!isDefinitionEditing && concept ? <Button variant="tertiary" size="sm" onClick={startDefinitionEdit}><Edit className="size-3.5" /> {concept.description ? 'Edit definition' : 'Write a definition'}</Button> : undefined}>
+          {isDefinitionEditing ? (
+            <div className="grid max-w-3xl gap-3">
+              <Textarea value={definitionDraft} onChange={(event) => setDefinitionDraft(event.target.value)} className="min-h-[120px] text-base leading-7" placeholder="Write the current working definition for this concept." aria-label="Working definition" />
+              <div className="flex flex-wrap gap-2">
+                <Button variant="primary" size="sm" onClick={saveInlineDefinition} disabled={!concept}>Save definition</Button>
+                <Button variant="ghost" size="sm" onClick={() => setIsDefinitionEditing(false)}>Cancel</Button>
               </div>
-            ) : concept?.description ? (
-              <div className="max-w-3xl">
-                <p className="text-lg text-muted-foreground font-body leading-relaxed">{concept.description}</p>
-                {concept.definitionProvenance && <AiProvenanceBadge provenance={concept.definitionProvenance} target={conceptReviewTarget(concept.id, 'description', concept.definitionProvenance.provenanceId)} title="Concept definition" />}
-                <Button variant="ghost" size="sm" onClick={startDefinitionEdit} className="mt-2 text-muted-foreground hover:text-foreground">
-                  <Edit className="mr-2 size-3.5" /> Edit Definition
-                </Button>
+            </div>
+          ) : concept?.description ? (
+            <div className="max-w-3xl">
+              <p className="font-body text-lg leading-relaxed">{concept.description}</p>
+              {concept.definitionProvenance && <AiProvenanceBadge provenance={concept.definitionProvenance} target={conceptReviewTarget(concept.id, 'description', concept.definitionProvenance.provenanceId)} title="Concept definition" />}
+            </div>
+          ) : (
+            <SectionEmpty title="No definition yet." hint="Write a provisional one before treating this concept as stable." />
+          )}
+          <details className="noesis-fold">
+            <summary><Button asChild variant="tertiary" size="sm"><span>Put the boundary into words</span></Button></summary>
+            <div className="noesis-fold__body">
+              <p className="noesis-fold__hint">{boundarySuggestion}</p>
+              <Textarea value={boundaryRefinement} onChange={(event) => setBoundaryRefinement(event.target.value)} placeholder={`Example: ${selectedName} includes..., but it does not include...`} className="min-h-24" aria-label="Boundary note" />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="noesis-fold__hint">Saving appends this note to the working definition.</p>
+                <Button variant="secondary" onClick={saveBoundaryRefinement} disabled={!concept || !boundaryRefinement.trim()}>Save boundary note</Button>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground/40 italic font-body">No definition yet — use Edit to anchor this concept.</p>
-            )}
-          </div>
-
-          {concept && (() => {
-            const cases = (concept?.examples || []).length + (concept?.edgeCases || []).length + (concept?.counterexamples || []).length;
-            const next = !concept.description?.trim()
-              ? { text: 'Write a working definition', go: startDefinitionEdit }
-              : cases < 2 ? { text: 'Test the boundary with a case or two', go: () => setConceptWorkflowStep('boundaries') }
-              : !(concept.edgeCases || []).length ? { text: 'Find an edge case: something that could go either way', go: () => setConceptWorkflowStep('boundaries') }
-              : !((concept.aliases || []).length + (concept.opposedTo || []).length + (concept.notSameAs || []).length) ? { text: 'Relate it to a neighbouring concept', go: () => setConceptWorkflowStep('define') }
-              : null;
-            return next ? <div data-stage-tone="outline"><NextMove text={next.text} onClick={next.go} /></div> : null;
-          })()}
-
-          {concept && (
-            <div data-stage-tone="outline" className="mt-5">
-              <RecordTools
-                tools={[
-                  { label: 'Add a case', onClick: () => { setConceptWorkflowStep('boundaries'); window.requestAnimationFrame(() => document.getElementById(`add-case-${concept.id}`)?.focus()); } },
-                  { label: 'Edit definition', onClick: startDefinitionEdit },
-                  { label: 'Relate a concept', onClick: () => setConceptWorkflowStep('define') },
-                ]}
-                trailing={<>
-                <ContextualAiPanel
-                  actions={['refine_concept_definition', 'clarify_concept_boundaries']}
-                  enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
-                  showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                  reasoningDepth={aiDepthFor(aiSettings, 'concepts')}
-                  buttonLabel="Concept Assistance"
-                  promptLabel="What should Noesis examine about this concept?"
-                  promptPlaceholder="For example: Where does my use of this concept conflict with its definition?"
-                  buildEnvelope={(action: ContextualAiAction, userPrompt) => ({
-                    action,
-                    targetType: 'concept',
-                    targetId: concept.id,
-                    scope: 'linked_items',
-                    itemMemory: [
-                      `Concept: ${concept.name}`,
-                      `Working definition: ${concept.description || 'Not defined.'}`,
-                      `Aliases: ${(concept.aliases || []).join('; ') || 'None recorded.'}`,
-                      `Not the same as: ${(concept.notSameAs || []).join('; ') || 'None recorded.'}`,
-                      `Examples: ${(concept.examples || []).join('; ') || 'None recorded.'}`,
-                      `Counterexamples: ${(concept.counterexamples || []).join('; ') || 'None recorded.'}`,
-                    ],
-                    linkedMemory: [
-                      ...r.annotations.slice(0, 8).map((item) => `Annotation (${item.type}): ${item.text}`),
-                      ...r.beliefs.slice(0, 6).map((item) => `Position (${item.confidence}% confidence): ${item.statement || item.title}`),
-                      ...r.questions.slice(0, 4).map((item) => `Inquiry: ${item.text}`),
-                      ...linkedConceptNames.slice(0, 6).map((name) => `Neighboring concept: ${name}`),
-                    ],
-                    userPrompt,
-                  })}
-                  onAccept={(result, text) => persistConcept(concept, { result, text, baseline: concept })}
-                />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Concept actions" className="size-9"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => openEditor(concept)}><Edit className="mr-2 size-4" /> Edit concept</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setDeleteTarget(concept)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete concept</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                </>}
-              />
+            </div>
+          </details>
+          {(concept?.aiReviewHistory || []).length > 0 && (
+            <div className="mt-4">
+              <AiAssistedHistory entries={concept?.aiReviewHistory || []} onChange={async (aiReviewHistory) => { if (concept && !await onUpdateConcept({ ...concept, aiReviewHistory })) throw new Error('Review history was not saved.'); }} />
             </div>
           )}
+        </RecordSection>
 
-          <WorkbenchFlow
-            label="Concept workbench workflow"
-            activeId={conceptWorkflowStep}
-            className="mb-6"
-            onSelect={(id) => {
-              const step = id as typeof conceptWorkflowStep;
-              setConceptWorkflowStep(step);
-              window.requestAnimationFrame(() => {
-                const target = document.getElementById(`concept-${step}`);
-                if (target instanceof HTMLDetailsElement) target.open = true;
-                target?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'start' });
-              });
-            }}
-            steps={[
-              { id: 'boundaries', label: 'Boundary', description: 'Classify edge cases and refine where the concept stops.', progress: Math.min(1, ((concept?.examples || []).length + (concept?.counterexamples || []).length + (concept?.notSameAs || []).length) / 4) },
-              { id: 'define', label: 'Definition & relations', description: 'Write the working meaning and distinguish its use.', progress: concept?.description?.trim() ? 1 : 0 },
-              { id: 'diagnose', label: 'Diagnose', description: 'Review clarity, evidence, tension, expression, and next needs.', progress: concept?.description?.trim() ? 0.5 : 0 },
-              { id: 'connect', label: 'Connect', description: 'Inspect the sources, notes, inquiries, positions, works, and practices using it.', progress: Math.min(1, (concept?.links || []).length / 4), meta: `${(concept?.links || []).length} links` },
-              { id: 'history', label: 'History', description: 'Review only recorded changes to the concept over time.', progress: 0 },
-            ]}
-          />
+        <RecordSection id="con-boundary" title="Boundary" description="Sort cases into what fits, what sits at the edge, and what does not." here={conceptHereId === 'con-boundary'}>
+          {concept
+            ? <ConceptBoundaryBench concept={concept} onSave={(next) => onUpdateConcept(next)} />
+            : <SectionEmpty title="Save the concept first." hint="The boundary bench opens once the concept exists." />}
+        </RecordSection>
 
-          <details id="concept-define" open className={cn('noesis-workbench-panel group mb-5 scroll-mt-6', conceptWorkflowStep !== 'define' && 'hidden')}>
-            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
-              <div className="min-w-0 flex-1">
-                <div className="noesis-workbench-panel__eyebrow">Define</div>
-                <h3 className="noesis-workbench-panel__title">Meaning and language</h3>
-              </div>
-              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
-            </summary>
-            <div className="noesis-workbench-panel__body">
-          <div className="p-2 sm:p-3">
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Working meaning</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Define the concept and record the language that gives it a stable shape.</p>
-              </div>
-              <Badge variant="outline" className="rounded-full">{diagnosis.level}</Badge>
+        <RecordSection id="con-relations" title="Relations" description="How this concept sits beside its neighbours: the same as, near but not it, against it." here={conceptHereId === 'con-relations'}>
+          <div className="noesis-concept-shelf">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Eyebrow size="sm">Your concepts · drag one into a box below</Eyebrow>
+              <Input value={shelfQuery} onChange={(event) => setShelfQuery(event.target.value)} placeholder="Find a concept" aria-label="Find a concept to relate" className="h-8 w-44 text-xs" />
             </div>
-
-            <div>
-              <div className="rounded-xl border border-border/40 bg-background/70 p-4">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Working Definition</div>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  {concept?.description || 'Undefined. Write a provisional definition before treating this concept as stable.'}
-                </p>
-                <Button variant="outline" size="sm" onClick={startDefinitionEdit} disabled={!concept} className="mt-3">
-                  <Edit className="mr-2 size-3.5" /> Edit Definition
-                </Button>
-              </div>
-
+            <div className="noesis-concept-shelf__list" role="list">
+              {shelfConcepts.map((name) => (
+                <span key={name} role="listitem" draggable onDragStart={(event) => { event.dataTransfer.setData('text/plain', name); event.dataTransfer.effectAllowed = 'copy'; }} className="noesis-concept-shelf__chip" title={`Drag “${name}” into Same as, Not the same as, or Opposed to`}>{name}</span>
+              ))}
+              {!shelfConcepts.length && <span className="text-xs italic text-muted-foreground">No other concepts match.</span>}
             </div>
-
-            <div className="mt-4 rounded-xl border border-border/40 bg-background/70 p-4">
-              <div className="mb-4">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 font-bold">Language & Boundaries</div>
-                <p className="mt-1 text-sm text-muted-foreground">Name what it is the same as, opposed to, and easily confused with, then its examples and counterexamples, so this concept keeps its shape across the app.</p>
-              </div>
-              <div className="noesis-concept-shelf">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-code text-[8px] font-bold uppercase tracking-widest text-foreground/60">Your concepts · drag one into a box below</span>
-                  <Input value={shelfQuery} onChange={(event) => setShelfQuery(event.target.value)} placeholder="Find a concept" aria-label="Find a concept to relate" className="h-7 w-44 rounded-full text-xs" />
-                </div>
-                <div className="noesis-concept-shelf__list" role="list">
-                  {shelfConcepts.map((name) => (
-                    <span
-                      key={name}
-                      role="listitem"
-                      draggable
-                      onDragStart={(event) => { event.dataTransfer.setData('text/plain', name); event.dataTransfer.effectAllowed = 'copy'; }}
-                      className="noesis-concept-shelf__chip"
-                      title={`Drag “${name}” into Same as, Opposed to, or Not the same as`}
-                    >{name}</span>
-                  ))}
-                  {!shelfConcepts.length && <span className="text-xs italic text-muted-foreground">No other concepts match.</span>}
-                </div>
-              </div>
-              <datalist id={`concept-names-${concept?.id || 'new'}`}>
-                {otherConceptNames.map((name) => <option key={name} value={name} />)}
-              </datalist>
-              <div className="grid gap-4 lg:grid-cols-2">
-                {conceptLanguageSections.map((section) => {
-                  const values = concept?.[section.field] || [];
-                  const isRelation = RELATION_FIELDS.includes(section.field);
-                  return (
-                    <div
-                      key={section.field}
-                      data-stage-tone={RELATION_TONES[section.field]}
-                      data-drop-active={dropField === section.field || undefined}
-                      onDragOver={isRelation ? (event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDropField(section.field); } : undefined}
-                      onDragLeave={isRelation ? () => setDropField((current) => current === section.field ? null : current) : undefined}
-                      onDrop={isRelation ? (event) => {
-                        event.preventDefault();
-                        setDropField(null);
-                        const name = event.dataTransfer.getData('text/plain').trim();
-                        if (!name || !concept || (concept[section.field] || []).some((item) => item.toLowerCase() === name.toLowerCase())) return;
-                        updateConceptListField(section.field, [...(concept[section.field] || []), name]);
-                        toast({ title: 'Concept boundary updated', description: `${name} was added to ${section.title.toLowerCase()} for ${selectedName}.` });
-                      } : undefined}
-                      className={cn('noesis-concept-zone rounded-xl border border-border/30 bg-card p-3', isRelation && 'noesis-concept-zone--relation', section.field === 'examples' && 'lg:col-start-1')}
-                    >
-                      <div className="mb-2">
-                        <div className={cn('font-code text-[8px] uppercase tracking-widest font-bold', isRelation ? 'noesis-concept-zone__title' : 'text-foreground/60')}>{section.title}</div>
-                        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{section.prompt}</p>
-                      </div>
-                      {values.length ? (
-                        <div className="mb-3 flex flex-wrap gap-1.5">
-                          {values.map((value) => (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() => removeConceptListItem(section.field, value)}
-                              className="rounded-full border border-border/50 bg-background px-2.5 py-1 text-left text-[11px] text-foreground/80 transition-colors hover:border-destructive/40 hover:text-destructive"
-                              title="Remove this item"
-                            >
-                              {value} <span className="ml-1 text-muted-foreground">×</span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mb-3 text-xs italic text-muted-foreground/60">No entries yet.</p>
-                      )}
-                      <div className="flex gap-2">
-                        <Input
-                          value={conceptListDrafts[section.field]}
-                          onChange={(event) => setConceptListDrafts((prev) => ({ ...prev, [section.field]: event.target.value }))}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              addConceptListItem(section.field);
-                            }
-                          }}
-                          placeholder={section.placeholder}
-                          list={isRelation ? `concept-names-${concept?.id || 'new'}` : undefined}
-                          className="h-8 rounded-full text-xs"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addConceptListItem(section.field)}
-                          disabled={!concept || !conceptListDrafts[section.field]?.trim()}
-                          className="h-8 shrink-0 rounded-full px-3"
-                        >
-                          Add
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {concept?.boundaryReview && (
-              <div className="mt-4 noesis-recommendation">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">Saved Boundary Review</div>
-                    <p className="mt-1 text-xs text-muted-foreground">Use this reviewed analysis when editing distinctions, examples, and counterexamples below.</p>
+          </div>
+          <datalist id={`concept-names-${concept?.id || 'new'}`}>
+            {otherConceptNames.map((name) => <option key={name} value={name} />)}
+          </datalist>
+          <div className="mt-3 grid gap-3 lg:grid-cols-3">
+            {conceptLanguageSections.filter((section) => RELATION_FIELDS.includes(section.field)).map((section) => {
+              const values = concept?.[section.field] || [];
+              return (
+                <div
+                  key={section.field}
+                  data-tone={RELATION_TONES[section.field]}
+                  data-drop-active={dropField === section.field || undefined}
+                  onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDropField(section.field); }}
+                  onDragLeave={() => setDropField((current) => current === section.field ? null : current)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setDropField(null);
+                    const name = event.dataTransfer.getData('text/plain').trim();
+                    if (!name || !concept || (concept[section.field] || []).some((item) => item.toLowerCase() === name.toLowerCase())) return;
+                    updateConceptListField(section.field, [...(concept[section.field] || []), name]);
+                    toast({ title: 'Relation added', description: `${name} was added to ${section.title.toLowerCase()} for ${selectedName}.` });
+                  }}
+                  className="noesis-concept-zone noesis-concept-zone--relation noesis-panel noesis-panel--tight"
+                >
+                  <div className="mb-2">
+                    <Eyebrow size="sm" tone={RELATION_TONES[section.field] as 'ok'} className="noesis-concept-zone__title">{section.title}</Eyebrow>
+                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{section.prompt}</p>
                   </div>
-                  <Badge variant="outline" className="rounded-full border-accent/30 text-accent">AI-assisted</Badge>
-                </div>
-                <ContextualAiDocument content={concept.boundaryReview} />
-                {concept.boundaryProvenance && <AiProvenanceBadge provenance={concept.boundaryProvenance} target={conceptReviewTarget(concept.id, 'boundaryReview', concept.boundaryProvenance.provenanceId)} title="Boundary review" />}
-              </div>
-            )}
-
-            {concept && (
-              <div className="mt-4">
-                <AiAssistedHistory
-                  entries={concept.aiReviewHistory || []}
-                  onChange={async (aiReviewHistory) => { if (!await onUpdateConcept({ ...concept, aiReviewHistory })) throw new Error('Review history was not saved.'); }}
-                />
-              </div>
-            )}
-
-          </div>
-
-            </div>
-          </details>
-
-          <details id="concept-boundaries" open className={cn('noesis-workbench-panel group mb-5 scroll-mt-6', conceptWorkflowStep !== 'boundaries' && 'hidden')}>
-            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
-              <div className="min-w-0 flex-1">
-                <div className="noesis-workbench-panel__eyebrow">Boundaries</div>
-                <h3 className="noesis-workbench-panel__title">Boundary test</h3>
-                <p className="noesis-workbench-panel__description">Try edge cases, then save a clearer boundary in your own words.</p>
-              </div>
-              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
-            </summary>
-            <div className="noesis-workbench-panel__body">
-          {concept && <ConceptBoundaryBench concept={concept} onSave={(next) => onUpdateConcept(next)} />}
-          <details className="noesis-footer-section mt-4">
-            <summary>Put the boundary into words</summary>
-            <div className="noesis-footer-section__body">
-            <div className="mt-5 noesis-recommendation">
-              <div className="font-code text-[9px] uppercase tracking-widest text-accent font-bold">Refinement Prompt</div>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{boundarySuggestion}</p>
-              <div className="mt-4 grid gap-3">
-                <Textarea
-                  value={boundaryRefinement}
-                  onChange={(event) => setBoundaryRefinement(event.target.value)}
-                  placeholder={`Example: ${selectedName} includes..., but it does not include...`}
-                  className="min-h-24 rounded-xl"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    Saving appends a user-written boundary note to the working definition and records the concept update through the normal concept flow.
-                  </p>
-                  <Button onClick={saveBoundaryRefinement} disabled={!concept || !boundaryRefinement.trim()}>
-                    Save Boundary Note
-                  </Button>
-                </div>
-              </div>
-            </div>
-            </div>
-          </details>
-            </div>
-          </details>
-
-          <details id="concept-diagnose" open className={cn('noesis-workbench-panel group mb-5 scroll-mt-6', conceptWorkflowStep !== 'diagnose' && 'hidden')}>
-            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
-              <div className="min-w-0 flex-1">
-                <div className="noesis-workbench-panel__eyebrow">Diagnose</div>
-                <h3 className="noesis-workbench-panel__title">Definition health</h3>
-              </div>
-              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
-            </summary>
-            <div className="noesis-workbench-panel__body">
-            <div className="mb-5"><ConceptDiagnosisBars diagnosis={diagnosis} /></div>
-          {/* Growth Diagnosis */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <ConceptIcon className="size-4 text-muted-foreground/40" />
-                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Growth Diagnosis</h2>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 mb-3">
-              <span className={cn('font-code text-[10px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full border', CLARITY_BG[diagnosis.level])}>
-                {diagnosis.level}
-              </span>
-              {diagnosis.evolving && (
-                <span className="font-code text-[10px] uppercase tracking-widest text-accent font-bold">· Recently Changed</span>
-              )}
-            </div>
-
-            <p className="text-sm font-body text-muted-foreground italic mb-5">{diagnosis.why}</p>
-
-
-            {diagnosis.growthAreas.length > 0 && (
-              <div className="mb-4">
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Growth Areas</div>
-                <ul className="space-y-1.5">
-                  {diagnosis.growthAreas.map((area, i) => (
-                    <li key={i} className="text-sm font-body text-foreground/80 flex items-start gap-2">
-                      <span className="text-accent mt-0.5 shrink-0">→</span>{area}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="rounded-lg bg-accent/5 border border-accent/15 p-3.5 mb-4">
-              <div className="font-code text-[9px] uppercase tracking-widest text-accent/70 mb-1 font-bold">Next Action</div>
-              <p className="text-sm font-body text-primary">{diagnosis.suggestedNextAction}</p>
-            </div>
-
-            {diagnosis.areasToReview.length > 0 && (
-              <div>
-                <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/50 mb-2 font-bold">Areas to Review</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {diagnosis.areasToReview.map(area => (
-                    <span key={area} className="font-code text-[9px] uppercase tracking-widest bg-muted/20 text-muted-foreground/70 rounded-full px-2.5 py-1 border border-border/30">{area}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-            </div>
-          </details>
-
-          <details id="concept-connect" open className={cn('noesis-workbench-panel group mb-5 scroll-mt-6', conceptWorkflowStep !== 'connect' && 'hidden')}>
-            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
-              <div className="min-w-0 flex-1">
-                <div className="noesis-workbench-panel__eyebrow">Connect</div>
-                <h3 className="noesis-workbench-panel__title">Where this concept appears</h3>
-              </div>
-              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
-            </summary>
-            <div className="noesis-workbench-panel__body">
-          {/* Sources + Annotations */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-            <ConceptPageSection title="Related Sources" count={r.sources.length} empty="No sources tagged with this concept yet.">
-              <div className="space-y-3">
-                {r.sources.slice(0, 6).map((s) => (
-                  <button key={s.id} type="button" onClick={() => previewSource(s)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
-                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">{s.type}{s.year ? ` · ${s.year}` : ''}</div>
-                    <p className="text-sm font-body font-semibold text-primary leading-snug">{s.title}</p>
-                    {s.creator && <p className="text-xs text-muted-foreground font-body mt-0.5">{s.creator}</p>}
-                  </button>
-                ))}
-              </div>
-            </ConceptPageSection>
-
-            <ConceptPageSection title="Related Annotations" count={r.annotations.length} empty="No annotations tagged with this concept yet.">
-              <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                {r.annotations.slice(0, 8).map((a, i) => (
-                  <button key={`${a.source.id}-${i}`} type="button" onClick={() => previewAnnotationSource(a)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
-                    <span className="font-code text-[8px] uppercase tracking-widest text-accent/70 font-bold">{a.type}</span>
-                    <p className="text-sm font-body italic text-primary/80 line-clamp-3 mt-1">&quot;{a.text}&quot;</p>
-                    <p className="text-[10px] text-muted-foreground/40 font-body mt-1.5">{a.source.title}</p>
-                  </button>
-                ))}
-              </div>
-            </ConceptPageSection>
-          </div>
-
-          {/* Inquiries + Positions */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-            <ConceptPageSection title="Related Inquiries" count={r.questions.length} empty="No inquiries linked to this concept.">
-              <div className="space-y-3">
-                {r.questions.map((q) => (
-                  <button key={q.id} type="button" onClick={() => previewInquiry(q)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
-                    <p className="text-sm font-body text-primary/90 mb-2">{q.text}</p>
-                    {q.answer ? (
-                      <p className="text-xs text-muted-foreground font-body italic line-clamp-2 border-t border-border/20 pt-2">{q.answer}</p>
-                    ) : (
-                      <span className="font-code text-[8px] uppercase tracking-widest text-amber-600 font-bold">Open</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </ConceptPageSection>
-
-            <ConceptPageSection title="Related Positions" count={r.beliefs.length} empty="No positions formed around this concept yet.">
-              <div className="space-y-3">
-                {r.beliefs.map((b) => (
-                  <button key={b.id} type="button" onClick={() => previewPosition(b)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
-                    <p className="text-sm font-headline font-bold italic text-primary mb-1">{b.title}</p>
-                    <p className="text-xs font-body text-muted-foreground line-clamp-2 mb-2">{b.statement}</p>
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <div key={n} className={cn('size-1.5 rounded-full', n <= (b.confidence || 3) ? 'bg-accent' : 'bg-muted')} />
-                        ))}
-                      </div>
-                      <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">{b.status}</span>
-                    </div>
-                  </button>
-                ))}
-
-              </div>
-            </ConceptPageSection>
-          </div>
-
-          {/* Works + Practices */}
-          {(r.drafts.length > 0 || r.practices.length > 0) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-              <ConceptPageSection title="Related Works" count={r.drafts.length} empty="No works express this concept yet.">
-                <div className="space-y-3">
-                  {r.drafts.slice(0, 6).map((draft) => (
-                    <button
-                      key={draft.id}
-                      type="button"
-                      onClick={() => previewWork(draft)}
-                      className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-                    >
-                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">{draft.type || 'work'}{draft.status ? ` · ${draft.status}` : ''}</div>
-                      <p className="text-sm font-headline font-bold italic text-primary mb-1">{draft.title}</p>
-                      {draft.body && <p className="text-xs font-body text-muted-foreground line-clamp-2">{draft.body}</p>}
-                    </button>
-                  ))}
-                </div>
-              </ConceptPageSection>
-
-              <ConceptPageSection title="Related Practices" count={r.practices.length} empty="No practices test this concept yet.">
-                <div className="space-y-3">
-                  {r.practices.slice(0, 6).map((practice) => (
-                    <button
-                      key={practice.id}
-                      type="button"
-                      onClick={() => previewPractice(practice)}
-                      className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-                    >
-                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">{practice.type || 'practice'}{practice.status ? ` · ${practice.status}` : ''}</div>
-                      <p className="text-sm font-body font-semibold text-primary leading-snug">{practice.title}</p>
-                      {(practice.description || practice.notes) && (
-                        <p className="mt-1 text-xs font-body text-muted-foreground line-clamp-2">{practice.description || practice.notes}</p>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </ConceptPageSection>
-            </div>
-          )}
-
-            </div>
-          </details>
-
-          <details open className={cn('noesis-workbench-panel group mb-5', conceptWorkflowStep !== 'connect' && 'hidden')}>
-            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
-              <div className="min-w-0 flex-1">
-                <div className="noesis-workbench-panel__eyebrow">Connect</div>
-                <h3 className="noesis-workbench-panel__title">Compare positions using this concept</h3>
-              </div>
-              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
-            </summary>
-            <div className="noesis-workbench-panel__body">
-          {/* Tensions & Conflicts */}
-          {r.beliefs.length >= 2 && (
-            <section className="mb-10">
-              <div className="flex items-center gap-2 mb-5">
-                <AlertTriangle className="size-4 text-amber-500" />
-                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Tensions & Conflicts</h2>
-              </div>
-              <div className="rounded-xl border border-amber-200/60 bg-amber-50/60 p-5">
-                <p className="text-xs text-amber-700/70 font-body mb-4 italic">
-                  These positions all orbit <span className="font-bold">{selectedName}</span>. Do they cohere, contradict, or refine each other?
-                </p>
-                <div className="space-y-4">
-                  {r.beliefs.slice(0, 4).map((a, ai) =>
-                    r.beliefs.slice(ai + 1, ai + 2).map((b) => (
-                      <div key={`${a.id}-${b.id}`} className="rounded-lg bg-card/80 border border-amber-100 p-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position A</p>
-                            <p className="text-sm font-headline font-bold italic text-primary">{a.title}</p>
-                            <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{a.statement}&quot;</p>
-                          </div>
-                          <div>
-                            <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position B</p>
-                            <p className="text-sm font-headline font-bold italic text-primary">{b.title}</p>
-                            <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{b.statement}&quot;</p>
-                          </div>
-                        </div>
-                        <div className="mt-4 border-t border-amber-100 pt-3">
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <p className="font-code text-[8px] uppercase tracking-widest text-amber-700/70 font-bold">Resolve Relationship</p>
-                            {tensionDecisions[`${a.id}-${b.id}`] && (
-                              <span className="rounded-full border border-amber-200 bg-amber-100/70 px-2 py-0.5 font-code text-[8px] uppercase tracking-widest text-amber-800">
-                                {tensionDecisions[`${a.id}-${b.id}`].replace(/_/g, ' ')}
-                              </span>
-                            )}
-                          </div>
-                          <div className="grid gap-2 sm:grid-cols-3">
-                            {CONCEPT_TENSION_DECISIONS.map((decision) => {
-                              const selected = tensionDecisions[`${a.id}-${b.id}`] === decision.id;
-                              return (
-                                <Button
-                                  key={decision.id}
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => resolveConceptTension(selectedName, a, b, decision.id)}
-                                  className={cn(
-                                    'h-auto justify-start rounded-lg px-3 py-2 text-left whitespace-normal border-amber-100 bg-card text-foreground hover:bg-amber-50',
-                                    selected && 'border-amber-400 bg-amber-100 text-amber-950 shadow-sm'
-                                  )}
-                                >
-                                  <span className="block">
-                                    <span className="block font-code text-[9px] uppercase tracking-widest font-bold">{decision.label}</span>
-                                    <span className="mt-0.5 block text-[11px] normal-case tracking-normal text-muted-foreground">{decision.description}</span>
-                                  </span>
-                                </Button>
-                              );
-                            })}
-                          </div>
-                          <p className="mt-2 text-[11px] text-amber-700/70">
-                            Choosing one creates a typed link, so Atlas and Positions can remember how these claims relate.
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
-
-            </div>
-          </details>
-
-          <details id="concept-history" open className={cn('noesis-workbench-panel group mb-5 scroll-mt-6', conceptWorkflowStep !== 'history' && 'hidden')}>
-            <summary className="noesis-workbench-panel__header cursor-pointer list-none">
-              <div className="min-w-0 flex-1">
-                <div className="noesis-workbench-panel__eyebrow">History</div>
-                <h3 className="noesis-workbench-panel__title">Definition history</h3>
-              </div>
-              <ChevronDown className="noesis-workbench-panel__chevron" aria-hidden="true" />
-            </summary>
-            <div className="noesis-workbench-panel__body">
-          {/* Evolution over time */}
-          {sortedEvents.length > 0 && (
-            <section className="mb-10">
-              <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold mb-6">Evolution Over Time</h2>
-              <div className="relative pl-6 border-l-2 border-border/20 space-y-6">
-                {sortedEvents.map((event) => (
-                  <div key={event.id} className="relative">
-                    <div className="absolute -left-[29px] size-3.5 rounded-full bg-card border-2 border-accent/40 shadow-sm" />
-                    <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">
-                      {event.date} · {event.eventType.replace(/_/g, ' ')}
-                    </div>
-                    <p className="text-sm font-body font-semibold text-primary/90">{event.entityTitle}</p>
-                    {event.reason && <p className="text-xs text-muted-foreground font-body italic mt-0.5">{event.reason}</p>}
+                  {values.length
+                    ? <PillRow className="mb-3">{values.map((value) => <Pill key={value} tone={RELATION_TONES[section.field] as 'ok'} onRemove={() => removeConceptListItem(section.field, value)} removeLabel={`Remove ${value}`}>{value}</Pill>)}</PillRow>
+                    : <p className="mb-3 text-xs italic text-muted-foreground">No entries yet.</p>}
+                  <div className="noesis-add">
+                    <Input
+                      value={conceptListDrafts[section.field]}
+                      onChange={(event) => setConceptListDrafts((prev) => ({ ...prev, [section.field]: event.target.value }))}
+                      onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addConceptListItem(section.field); } }}
+                      placeholder={section.placeholder}
+                      aria-label={section.title}
+                      list={`concept-names-${concept?.id || 'new'}`}
+                      className="h-8 text-xs"
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={() => addConceptListItem(section.field)} disabled={!concept || !conceptListDrafts[section.field].trim()}>Add</Button>
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
+                </div>
+              );
+            })}
+          </div>
+        </RecordSection>
+
+        <RecordSection id="con-stands" title="Where it stands" description="How clear it is, what it rests on, and where it is already at work." here={conceptHereId === 'con-stands'}>
+          <ConceptDiagnosisBars diagnosis={diagnosis} />
+          <p className="mt-3 font-body text-sm italic text-muted-foreground">{diagnosis.why}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Badge tone={diagnosis.level === 'integrated' || diagnosis.level === 'strong' ? 'ok' : diagnosis.level === 'developing' ? 'caution' : 'neutral'}>{diagnosis.level}</Badge>
+            {diagnosis.evolving && <Eyebrow size="sm" tone="stage">Recently changed</Eyebrow>}
+          </div>
+          {diagnosis.growthAreas.length > 0 && (
+            <div className="mt-4">
+              <Eyebrow as="h3">What would raise it</Eyebrow>
+              <ul className="mt-1.5 grid gap-1.5">
+                {diagnosis.growthAreas.map((area) => <li key={area} className="flex items-start gap-2 text-sm"><span className="mt-0.5 shrink-0 text-tone">→</span>{area}</li>)}
+              </ul>
             </div>
-          </details>
+          )}
+          {diagnosis.areasToReview.length > 0 && (
+            <div className="mt-4">
+              <Eyebrow as="h3">Areas to review</Eyebrow>
+              <PillRow className="mt-1.5">{diagnosis.areasToReview.map((area) => <Badge key={area}>{area}</Badge>)}</PillRow>
+            </div>
+          )}
+        </RecordSection>
 
           <RecordFooter>
+            <FooterSection title="Where this concept appears">
+            {/* Sources + Annotations */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+              <ConceptPageSection title="Related Sources" count={r.sources.length} empty="No sources tagged with this concept yet.">
+                <div className="space-y-3">
+                  {r.sources.slice(0, 6).map((s) => (
+                    <button key={s.id} type="button" onClick={() => previewSource(s)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">{s.type}{s.year ? ` · ${s.year}` : ''}</div>
+                      <p className="text-sm font-body font-semibold text-primary leading-snug">{s.title}</p>
+                      {s.creator && <p className="text-xs text-muted-foreground font-body mt-0.5">{s.creator}</p>}
+                    </button>
+                  ))}
+                </div>
+              </ConceptPageSection>
+
+              <ConceptPageSection title="Related Annotations" count={r.annotations.length} empty="No annotations tagged with this concept yet.">
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                  {r.annotations.slice(0, 8).map((a, i) => (
+                    <button key={`${a.source.id}-${i}`} type="button" onClick={() => previewAnnotationSource(a)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+                      <span className="font-code text-[8px] uppercase tracking-widest text-accent/70 font-bold">{a.type}</span>
+                      <p className="text-sm font-body italic text-primary/80 line-clamp-3 mt-1">&quot;{a.text}&quot;</p>
+                      <p className="text-[10px] text-muted-foreground/40 font-body mt-1.5">{a.source.title}</p>
+                    </button>
+                  ))}
+                </div>
+              </ConceptPageSection>
+            </div>
+
+            {/* Inquiries + Positions */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+              <ConceptPageSection title="Related Inquiries" count={r.questions.length} empty="No inquiries linked to this concept.">
+                <div className="space-y-3">
+                  {r.questions.map((q) => (
+                    <button key={q.id} type="button" onClick={() => previewInquiry(q)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+                      <p className="text-sm font-body text-primary/90 mb-2">{q.text}</p>
+                      {q.answer ? (
+                        <p className="text-xs text-muted-foreground font-body italic line-clamp-2 border-t border-border/20 pt-2">{q.answer}</p>
+                      ) : (
+                        <span className="font-code text-[8px] uppercase tracking-widest text-amber-600 font-bold">Open</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </ConceptPageSection>
+
+              <ConceptPageSection title="Related Positions" count={r.beliefs.length} empty="No positions formed around this concept yet.">
+                <div className="space-y-3">
+                  {r.beliefs.map((b) => (
+                    <button key={b.id} type="button" onClick={() => previewPosition(b)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+                      <p className="text-sm font-headline font-bold italic text-primary mb-1">{b.title}</p>
+                      <p className="text-xs font-body text-muted-foreground line-clamp-2 mb-2">{b.statement}</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <div key={n} className={cn('size-1.5 rounded-full', n <= (b.confidence || 3) ? 'bg-accent' : 'bg-muted')} />
+                          ))}
+                        </div>
+                        <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">{b.status}</span>
+                      </div>
+                    </button>
+                  ))}
+
+                </div>
+              </ConceptPageSection>
+            </div>
+
+            {/* Works + Practices */}
+            {(r.drafts.length > 0 || r.practices.length > 0) && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+                <ConceptPageSection title="Related Works" count={r.drafts.length} empty="No works express this concept yet.">
+                  <div className="space-y-3">
+                    {r.drafts.slice(0, 6).map((draft) => (
+                      <button
+                        key={draft.id}
+                        type="button"
+                        onClick={() => previewWork(draft)}
+                        className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                      >
+                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">{draft.type || 'work'}{draft.status ? ` · ${draft.status}` : ''}</div>
+                        <p className="text-sm font-headline font-bold italic text-primary mb-1">{draft.title}</p>
+                        {draft.body && <p className="text-xs font-body text-muted-foreground line-clamp-2">{draft.body}</p>}
+                      </button>
+                    ))}
+                  </div>
+                </ConceptPageSection>
+
+                <ConceptPageSection title="Related Practices" count={r.practices.length} empty="No practices test this concept yet.">
+                  <div className="space-y-3">
+                    {r.practices.slice(0, 6).map((practice) => (
+                      <button
+                        key={practice.id}
+                        type="button"
+                        onClick={() => previewPractice(practice)}
+                        className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                      >
+                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">{practice.type || 'practice'}{practice.status ? ` · ${practice.status}` : ''}</div>
+                        <p className="text-sm font-body font-semibold text-primary leading-snug">{practice.title}</p>
+                        {(practice.description || practice.notes) && (
+                          <p className="mt-1 text-xs font-body text-muted-foreground line-clamp-2">{practice.description || practice.notes}</p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </ConceptPageSection>
+              </div>
+            )}
+
+            </FooterSection>
+
+            <FooterSection title="Compare positions using this concept">
+            {/* Tensions & Conflicts */}
+            {r.beliefs.length >= 2 && (
+              <section className="mb-10">
+                <div className="flex items-center gap-2 mb-5">
+                  <AlertTriangle className="size-4 text-amber-500" />
+                  <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Tensions & Conflicts</h2>
+                </div>
+                <div className="rounded-xl border border-amber-200/60 bg-amber-50/60 p-5">
+                  <p className="text-xs text-amber-700/70 font-body mb-4 italic">
+                    These positions all orbit <span className="font-bold">{selectedName}</span>. Do they cohere, contradict, or refine each other?
+                  </p>
+                  <div className="space-y-4">
+                    {r.beliefs.slice(0, 4).map((a, ai) =>
+                      r.beliefs.slice(ai + 1, ai + 2).map((b) => (
+                        <div key={`${a.id}-${b.id}`} className="rounded-lg bg-card/80 border border-amber-100 p-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position A</p>
+                              <p className="text-sm font-headline font-bold italic text-primary">{a.title}</p>
+                              <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{a.statement}&quot;</p>
+                            </div>
+                            <div>
+                              <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position B</p>
+                              <p className="text-sm font-headline font-bold italic text-primary">{b.title}</p>
+                              <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{b.statement}&quot;</p>
+                            </div>
+                          </div>
+                          <div className="mt-4 border-t border-amber-100 pt-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <p className="font-code text-[8px] uppercase tracking-widest text-amber-700/70 font-bold">Resolve Relationship</p>
+                              {tensionDecisions[`${a.id}-${b.id}`] && (
+                                <span className="rounded-full border border-amber-200 bg-amber-100/70 px-2 py-0.5 font-code text-[8px] uppercase tracking-widest text-amber-800">
+                                  {tensionDecisions[`${a.id}-${b.id}`].replace(/_/g, ' ')}
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              {CONCEPT_TENSION_DECISIONS.map((decision) => {
+                                const selected = tensionDecisions[`${a.id}-${b.id}`] === decision.id;
+                                return (
+                                  <Button
+                                    key={decision.id}
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => resolveConceptTension(selectedName, a, b, decision.id)}
+                                    className={cn(
+                                      'h-auto justify-start rounded-lg px-3 py-2 text-left whitespace-normal border-amber-100 bg-card text-foreground hover:bg-amber-50',
+                                      selected && 'border-amber-400 bg-amber-100 text-amber-950 shadow-sm'
+                                    )}
+                                  >
+                                    <span className="block">
+                                      <span className="block font-code text-[9px] uppercase tracking-widest font-bold">{decision.label}</span>
+                                      <span className="mt-0.5 block text-[11px] normal-case tracking-normal text-muted-foreground">{decision.description}</span>
+                                    </span>
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                            <p className="mt-2 text-[11px] text-amber-700/70">
+                              Choosing one creates a typed link, so Atlas and Positions can remember how these claims relate.
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            </FooterSection>
+
+            <FooterSection title="Definition history">
+            {/* Evolution over time */}
+            {sortedEvents.length > 0 && (
+              <section className="mb-10">
+                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold mb-6">Evolution Over Time</h2>
+                <div className="relative pl-6 border-l-2 border-border/20 space-y-6">
+                  {sortedEvents.map((event) => (
+                    <div key={event.id} className="relative">
+                      <div className="absolute -left-[29px] size-3.5 rounded-full bg-card border-2 border-accent/40 shadow-sm" />
+                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">
+                        {event.date} · {event.eventType.replace(/_/g, ' ')}
+                      </div>
+                      <p className="text-sm font-body font-semibold text-primary/90">{event.entityTitle}</p>
+                      {event.reason && <p className="text-xs text-muted-foreground font-body italic mt-0.5">{event.reason}</p>}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+            </FooterSection>
             <FooterSection title="Record">
               <p className="text-sm text-muted-foreground">{r.sources.length} sources · {r.annotations.length} annotations · {r.questions.length} inquiries · {r.beliefs.length} positions · {r.drafts.length} works{concept?.dateCreated ? ` · created ${new Date(concept.dateCreated).toLocaleDateString()}` : ''}</p>
             </FooterSection>
@@ -1394,12 +1156,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               ]} />
             </FooterSection>
           </RecordFooter>
-        </div>
-
         {conceptEditorDialog}
         {conceptDeleteDialog}
-
-      </div>
+      </RecordPage>
     );
   }
 

@@ -127,3 +127,9 @@
 @media (prefers-reduced-motion: no-preference) {
   .noesis-step { transition: border-color var(--motion-calm) var(--ease-noesis); }
 }
+
+/* Two boxes kept side by side so a pair can be compared at a glance
+   (what you expected / what happened). */
+.noesis-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.noesis-pair > * { border: var(--hair); border-radius: var(--radius-md); padding: var(--space-3); }
+@media (max-width: 640px) { .noesis-pair { grid-template-columns: 1fr; } }

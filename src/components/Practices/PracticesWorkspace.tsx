@@ -36,8 +36,7 @@ import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { resolvedAiHistory, type AiReviewResult } from '@/lib/contextual-ai';
 import { practiceReviewTarget, type PracticeReviewApproval } from '@/lib/practice-ai-review';
-import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
-import { NextMove, RecordTools } from '@/components/shared/RecordDetail';
+import { RecordPath, RecordSection, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
 import { PraxisInstrument } from '@/components/Practices/PraxisInstrument';
 import { hasPracticeIntellectualBasis, isRepeatablePractice, normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
@@ -402,6 +401,7 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
         draft={draft}
         setDraft={setDraft}
         onOpenPosition={(id) => { setEditorOpen(false); onNavigateTarget({ view: 'vault', targetId: id }); }}
+        onOpenWorks={() => { setEditorOpen(false); onNavigateTarget({ view: 'writing' }); }}
         onAddQuestion={onAddQuestion}
         concepts={concepts}
         media={media}
@@ -772,9 +772,10 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   );
 }
 
-function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onRecordLog, onSaveAiOutcome, onSaveAiHistory, onSave, busy, onOpenPosition, onAddQuestion }: {
+function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onRecordLog, onSaveAiOutcome, onSaveAiHistory, onSave, busy, onOpenPosition, onAddQuestion, onOpenWorks }: {
   onOpenPosition?: (id: string) => void;
   onAddQuestion?: (data: Partial<Question>) => unknown;
+  onOpenWorks?: () => void;
   busy: boolean;
   aiSettings: import('@/lib/types').AiSettings;
   open: boolean;
@@ -792,7 +793,6 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
   onSaveAiHistory: (entries: NonNullable<Practice['aiReviewHistory']>) => void | Promise<void>;
   onSave: () => void;
 }) {
-  const [practiceWorkflowStep, setPracticeWorkflowStep] = useState<'design' | 'run' | 'review' | 'integrate'>('design');
   const [observation, setObservation] = useState('');
   const [completed, setCompleted] = useState(true);
   const [logging, setLogging] = useState(false);
@@ -801,7 +801,6 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
   React.useEffect(() => {
     setObservation('');
     setCompleted(true);
-    setPracticeWorkflowStep('design');
   }, [draft.id]);
   const schedule = practiceScheduleState(draft);
   const savedReviews = resolvedAiHistory(draft.aiReviewHistory, {
@@ -887,12 +886,6 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
             </DialogDescription>
           </DialogHeader>
           {draft.id && (() => {
-            const tested = positions.filter((position) => (draft.positionIds || []).includes(position.id));
-            const logs = draft.logs || [];
-            const next = !draft.action?.trim() ? { text: 'Name the action in a sentence', go: () => setPracticeWorkflowStep('design') }
-              : practiceScheduleState(draft) === 'review' ? { text: 'The run is over: compare what you expected with what happened', go: () => setPracticeWorkflowStep('review') }
-              : logs.length >= 3 && tested[0] ? { text: `Carry what it shows back to “${tested[0].title.slice(0, 60)}”`, go: () => onOpenPosition?.(tested[0].id) }
-              : null;
             const checkIn = async (kept: boolean) => {
               try {
                 await onRecordLog({ id: uid(), date: dateKey(), actionCompleted: kept, outcome: kept ? 'Kept' : 'Missed' });
@@ -903,36 +896,29 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
             };
             return (
               <div className="grid gap-3 pb-3">
-                {next && <div data-stage-tone="act"><NextMove text={next.text} onClick={next.go} /></div>}
-                <div data-stage-tone="act">
-                  <RecordTools tools={[
-                    { label: 'Add observation', onClick: () => setPracticeWorkflowStep('run') },
-                    { label: 'Edit design', onClick: () => setPracticeWorkflowStep('design') },
-                    { label: 'Review result', onClick: () => setPracticeWorkflowStep('review') },
-                    ...(onAddQuestion ? [{ label: 'Open an inquiry', onClick: () => { void Promise.resolve(onAddQuestion({ text: `What is "${draft.title || 'this practice'}" showing me?`, status: 'open', practiceIds: [draft.id as string], beliefIds: draft.positionIds || [], sourceIds: draft.sourceIds || [], conceptIds: [], evidenceIds: [] })).then(() => toast({ title: 'Inquiry created' })); } }] : []),
-                  ]} />
-                </div>
                 <PraxisInstrument practice={draft} positions={positions} questions={questions} onCheckIn={schedule === 'running' ? (kept) => void checkIn(kept) : undefined} onOpenPosition={onOpenPosition} />
               </div>
             );
           })()}
-          <div className="pb-4 [@media(max-height:600px)]:pb-2">
-            <WorkbenchFlow
-              label="Practice workbench workflow"
-              activeId={practiceWorkflowStep}
-              onSelect={(id) => setPracticeWorkflowStep(id as typeof practiceWorkflowStep)}
-              steps={[
-                { id: 'design', label: 'Design', description: 'Define the action, reason, schedule, hypothesis, and success signal.' },
-                { id: 'run', label: 'Run and log', description: 'Perform the practice and record observations as they happen.' },
-                { id: 'review', label: 'Review', description: 'Compare the expected result with what actually happened.' },
-                { id: 'integrate', label: 'Integrate', description: 'Connect the result to the position, inquiry, concept, or work it should change.' },
-              ]}
-            />
-          </div>
+          {draft.id && (() => {
+            const logs = draft.logs || [];
+            const reviewed = Boolean(draft.observedOutcome?.trim());
+            const here = !draft.action?.trim() ? 'prx-action'
+              : practiceScheduleState(draft) === 'review' || reviewed ? 'prx-review'
+                : logs.length ? 'prx-run'
+                  : 'prx-run';
+            const guide = !draft.action?.trim() ? 'Name the action in a sentence.'
+              : practiceScheduleState(draft) === 'review' && !reviewed ? 'The run is over: say what you expected and what happened.'
+                : reviewed ? 'Reviewed. Carry what it shows back to a position, or write about it in Works.'
+                  : logs.length ? `${logs.length} log${logs.length === 1 ? '' : 's'} recorded. Keep going, then review.`
+                    : 'Do the action, then log what happened.';
+            return <div className="px-4 pb-2 sm:px-8"><RecordPath label="Where you are with this practice" hereId={here} guide={guide}
+              stops={[{ id: 'prx-action', label: 'Action' }, { id: 'prx-run', label: 'Run' }, { id: 'prx-review', label: 'Review' }, { id: 'prx-carry', label: 'Carry forward' }]} /></div>;
+          })()}
         </div>
         <fieldset disabled={busy} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain p-4 sm:px-8 sm:py-5">
           <div className="space-y-6">
-            {practiceWorkflowStep === 'design' && <>
+            <RecordSection id="prx-action" title="Action" description="What you will actually do, and why it is worth doing." headingLevel="h3">
             <Field label="PRACTICE TITLE"><Input value={draft.title || ''} onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))} className="italic text-base rounded-full" /></Field>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <Field label="WHAT YOU WILL DO"><Textarea value={draft.action || ''} onChange={(event) => setDraft((prev) => ({ ...prev, action: event.target.value }))} className="min-h-[100px] italic text-base" placeholder={isRepeatablePractice(draft.type) ? "For example: Take a ten-minute walk after work without my phone." : "What will you do or observe?"} /></Field>
@@ -971,9 +957,9 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                 <Field label="CONCEPTS TESTED"><ConceptTagPicker concepts={concepts} value={draft.conceptTags || []} onChange={(conceptTags) => setDraft((prev) => ({ ...prev, conceptTags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></Field>
               </div>
             </details>
-            </>}
-            {practiceWorkflowStep === 'run' && (
-              <section className="rounded-xl border border-border/60 bg-muted/10 p-4">
+            </RecordSection>
+            <RecordSection id="prx-run" title="Run and log" description="Do it, then record what happened while it is fresh." headingLevel="h3">
+              <section>
                 <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Current action</div>
                 <p className="mt-2 text-base leading-7 text-foreground">{draft.action || 'Define the action in Design before beginning this practice.'}</p>
                 <dl className="mt-4 grid grid-cols-3 gap-3 border-y border-border/50 py-3">
@@ -986,15 +972,16 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={completed} onChange={(event) => setCompleted(event.target.checked)} className="size-5 accent-accent" />I completed the action</label>
                   <Button type="button" onClick={recordObservation} disabled={logging || !observation.trim()} className="min-h-11">{logging ? 'Saving…' : 'Save observation'}</Button>
                   {(draft.logs || []).slice(-3).reverse().map((log) => <div key={log.id} className="border-t border-border/40 pt-3"><div className="text-xs text-muted-foreground">{new Date(`${log.date.slice(0, 10)}T12:00:00`).toLocaleDateString()} · {log.actionCompleted ? 'Completed' : 'Not completed'}</div><p className="mt-1 text-sm leading-6">{log.outcome || log.observations}</p></div>)}
-                </div> : <div className="mt-4"><p className="text-sm text-muted-foreground">{schedule === 'review' ? 'The scheduled period has ended. Review the result or adjust the schedule.' : schedule === 'scheduled' ? `This practice starts on ${draft.startDate}.` : draft.id && draft.status !== 'active' ? 'Complete setup and save this practice as active before logging.' : isRepeatablePractice(draft.type) ? 'Save the action as active before logging.' : 'Save the action, hypothesis, observation method, and success signal before logging.'}</p><Button type="button" variant="outline" className="mt-3" onClick={() => setPracticeWorkflowStep(schedule === 'review' ? 'review' : 'design')}>{schedule === 'review' ? 'Review result' : 'Review setup'}</Button></div>}
+                </div> : <div className="mt-4"><p className="text-sm text-muted-foreground">{schedule === 'review' ? 'The scheduled period has ended. Review the result or adjust the schedule.' : schedule === 'scheduled' ? `This practice starts on ${draft.startDate}.` : draft.id && draft.status !== 'active' ? 'Complete setup and save this practice as active before logging.' : isRepeatablePractice(draft.type) ? 'Save the action as active before logging.' : 'Save the action, hypothesis, observation method, and success signal before logging.'}</p></div>}
               </section>
-            )}
-            {practiceWorkflowStep === 'review' && <details open className="rounded-xl border border-border/50 bg-muted/10 p-4">
-              <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Outcome review</summary>
-              <div className="mt-4 rounded-2xl border border-border/50 bg-card p-4">
-                <h3 className="mb-4 font-headline text-xl italic font-bold text-primary">Theory vs. reality review</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Field label="OBSERVED OUTCOME"><Textarea value={draft.observedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observedOutcome: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What has actually happened so far?" /></Field>
+            </RecordSection>
+            <RecordSection id="prx-review" title="Review" description="What you expected, beside what happened. Kept apart so the two can be compared." headingLevel="h3">
+              <div>
+                <div className="noesis-pair">
+                  <Field label="WHAT YOU EXPECTED"><Textarea value={draft.expectedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, expectedOutcome: event.target.value }))} className="min-h-[110px] italic text-base" placeholder="Before you began: what did you think would happen?" /></Field>
+                  <Field label="WHAT HAPPENED"><Textarea value={draft.observedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, observedOutcome: event.target.value }))} className="min-h-[110px] italic text-base" placeholder="What actually happened?" /></Field>
+                </div>
+                <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
                   <Field label="INTERPRETATION"><Textarea value={draft.interpretation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, interpretation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What do you think the result means?" /></Field>
                   <Field label="ALTERNATIVE EXPLANATION"><Textarea value={draft.alternativeExplanation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What else could explain the result?" /></Field>
                   <Field label="EFFECT ON POSITION"><Textarea value={draft.effectOnPosition || ''} onChange={(event) => setDraft((prev) => ({ ...prev, effectOnPosition: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What position, inquiry, or concept should change because of this?" /></Field>
@@ -1015,17 +1002,16 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
                   </div>
                 )}
               </div>
-            </details>}
-            {practiceWorkflowStep === 'integrate' && <details open className="rounded-xl border border-border/50 bg-muted/10 p-4">
-              <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Connections</summary>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the sources, inquiries, positions, and works this practice tests or informs.</p>
+            </RecordSection>
+            <RecordSection id="prx-carry" title="Carry forward" description="Where this result should land: the sources, inquiries, positions, and works it bears on." headingLevel="h3">
+              {draft.id && <PraxisCarryCards draft={draft} positions={positions} onOpenPosition={onOpenPosition} onAddQuestion={onAddQuestion} onOpenWorks={onOpenWorks} />}
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
                 <LinkGrid title="Linked Sources" items={media.map((item) => ({ id: item.id, label: item.title }))} selected={draft.sourceIds || []} onChange={(sourceIds) => setDraft((prev) => ({ ...prev, sourceIds }))} />
                 <LinkGrid title="Linked Inquiries" items={questions.map((item) => ({ id: item.id, label: item.text }))} selected={draft.questionIds || []} onChange={(questionIds) => setDraft((prev) => ({ ...prev, questionIds }))} />
                 <LinkGrid title="Linked Positions" items={positions.map((item) => ({ id: item.id, label: item.title }))} selected={draft.positionIds || []} onChange={(positionIds) => setDraft((prev) => ({ ...prev, positionIds }))} />
                 <LinkGrid title="Linked Works" items={drafts.map((item) => ({ id: item.id, label: item.title }))} selected={draft.draftIds || []} onChange={(draftIds) => setDraft((prev) => ({ ...prev, draftIds }))} />
               </div>
-            </details>}
+            </RecordSection>
           </div>
         </fieldset>
         <div className="flex shrink-0 justify-end gap-3 border-t bg-muted/10 p-4 sm:px-8 [@media(max-height:600px)]:py-2">
@@ -1035,6 +1021,52 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * What this practice should feed next, offered only when the record says
+ * something specific: a position it bears on, a question its surprise raises,
+ * and, once there is a result, writing about the experience in Works.
+ */
+function PraxisCarryCards({ draft, positions, onOpenPosition, onAddQuestion, onOpenWorks }: {
+  draft: Partial<Practice>;
+  positions: VaultEntry[];
+  onOpenPosition?: (id: string) => void;
+  onAddQuestion?: (data: Partial<Question>) => unknown;
+  onOpenWorks?: () => void;
+}) {
+  const { toast } = useToast();
+  const tested = positions.filter((position) => (draft.positionIds || []).includes(position.id));
+  const result = draft.observedOutcome?.trim();
+  const expected = draft.expectedOutcome?.trim();
+  const logs = draft.logs || [];
+  const suggestions: Suggestion[] = [];
+  if (result && onOpenWorks) {
+    suggestions.push({
+      id: 'write-works', tone: 'work', title: 'Write about your experience',
+      quote: `What ${draft.title?.trim() || 'this practice'} showed me, and what I now think because of it.`,
+      because: 'You have a result. Works is where it becomes something you can read back.',
+      actionLabel: 'Open Works', onAction: onOpenWorks,
+    });
+  }
+  if (result && expected && onAddQuestion && draft.id) {
+    suggestions.push({
+      id: 'surprise', tone: 'inquiry', title: 'A question worth asking',
+      quote: `Why did “${result.slice(0, 70)}” happen when I expected “${expected.slice(0, 70)}”?`,
+      because: 'From the gap between what you expected and what happened.',
+      actionLabel: 'Open as an inquiry',
+      onAction: () => { void Promise.resolve(onAddQuestion({ text: `Why did "${result.slice(0, 90)}" happen when I expected "${expected.slice(0, 90)}"?`, status: 'open', practiceIds: [draft.id as string], beliefIds: draft.positionIds || [], sourceIds: draft.sourceIds || [], conceptIds: [], evidenceIds: [] })).then(() => toast({ title: 'Inquiry opened' })); },
+    });
+  }
+  if (tested[0] && logs.length >= 3 && onOpenPosition) {
+    suggestions.push({
+      id: 'revisit', tone: 'position', title: 'Revisit a position',
+      quote: tested[0].title,
+      because: `You have ${logs.length} logs on a practice that tests it. Its confidence may need to move.`,
+      actionLabel: 'Open the position', onAction: () => onOpenPosition(tested[0].id),
+    });
+  }
+  return <SuggestionCards suggestions={suggestions} />;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

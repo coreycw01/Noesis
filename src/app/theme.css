@@ -745,9 +745,9 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-concept-shelf__list { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .25rem; scrollbar-width: thin; }
 .noesis-concept-shelf__chip { flex-shrink: 0; cursor: grab; user-select: none; padding: .25rem .65rem; border-radius: 999px; border: 1px solid hsl(var(--stage-examine) / .55); color: hsl(var(--foreground) / .9); font-size: .75rem; background: hsl(var(--stage-examine) / .08); }
 .noesis-concept-shelf__chip:active { cursor: grabbing; }
-.noesis-concept-zone--relation { border-left: 3px solid hsl(var(--stage) / .7); transition: background var(--motion-quick) var(--ease-noesis), border-color var(--motion-quick) var(--ease-noesis); }
-.noesis-concept-zone__title { color: hsl(var(--stage)); }
-.noesis-concept-zone[data-drop-active] { background: hsl(var(--stage) / .1); border-color: hsl(var(--stage)); }
+.noesis-concept-zone--relation { border-left: 3px solid hsl(var(--tone, var(--stage)) / .7); transition: background var(--motion-quick) var(--ease-noesis), border-color var(--motion-quick) var(--ease-noesis); }
+.noesis-concept-zone__title { color: hsl(var(--tone, var(--stage))); }
+.noesis-concept-zone[data-drop-active] { background: hsl(var(--tone, var(--stage)) / .1); border-color: hsl(var(--tone, var(--stage))); }
 
 /* "Last opened" quick links under index page headers. */
 .noesis-recent-strip { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .9rem; }
