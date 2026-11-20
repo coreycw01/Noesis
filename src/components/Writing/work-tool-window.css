@@ -115,3 +115,29 @@
     transition: none;
   }
 }
+
+/* A tool on the page is a piece of the document, not an application window:
+   its chrome stays out of the way until you are working on it. On a desktop
+   the header fades in on hover, on focus, and while it is being dragged; on
+   touch it is always there, because there is nothing to hover with. */
+@media (min-width: 768px) and (pointer: fine) {
+  .works-tool-window > header {
+    opacity: 0;
+    transition: opacity .15s ease;
+  }
+  .works-tool-window:hover > header,
+  .works-tool-window:focus-within > header,
+  .works-tool-window[data-dragging='true'] > header {
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .works-tool-window > header { transition: none; }
+  }
+}
+
+/* The page a dragged tool would land on. */
+[data-work-page-id][data-tool-drop='true'] {
+  outline: 2px dashed hsl(var(--accent));
+  outline-offset: 4px;
+  border-radius: var(--card-radius);
+}
