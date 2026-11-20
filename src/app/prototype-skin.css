@@ -227,7 +227,21 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 
 /* Atlas territory canvas (prototype map): full-height canvas with floating
    zoom levels, zoom buttons, and a selection panel. */
-.noesis-territory { position: relative; height: max(32rem, calc(100dvh - 300px)); border: 1px solid hsl(var(--border)); border-radius: 14px; overflow: hidden; background: hsl(var(--card)); }
+.noesis-territory { position: relative; flex: 1; min-height: 0; border: 1px solid hsl(var(--border)); border-radius: var(--card-radius); overflow: hidden; background: hsl(var(--card)); }
+@media (max-width: 767px) {
+  .noesis-territory:not(.noesis-territory--fullscreen) { min-height: max(24rem, calc(100dvh - 12rem)); }
+}
+.noesis-territory--fullscreen { border: 0; border-radius: 0; }
+.noesis-atlas-custom-map {
+  --atlas-star-ink: #ffedbc;
+  background-color: #111d2b;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='173' height='147'%3E%3Cg fill='%23d2e4f6' opacity='.42'%3E%3Ccircle cx='14' cy='31' r='.7'/%3E%3Ccircle cx='56' cy='77' r='1'/%3E%3Ccircle cx='112' cy='16' r='.6'/%3E%3Ccircle cx='152' cy='112' r='.8'/%3E%3Ccircle cx='80' cy='130' r='.6'/%3E%3C/g%3E%3C/svg%3E");
+}
+.noesis-atlas-custom-map[data-custom-backdrop="true"] { background-color: hsl(var(--background)); background-image: none; }
+.noesis-atlas-custom-map .noesis-atlas-star-node { width: 44px; height: 44px; padding: 0; border-color: transparent; border-radius: 50%; box-shadow: none; background: transparent; }
+.noesis-atlas-star-node::before { content: ""; position: absolute; inset: 50% auto auto 50%; width: 17px; height: 17px; transform: translate(-50%, -50%); clip-path: polygon(50% 0%, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0% 50%, 38% 38%); background: var(--atlas-node-ink, var(--atlas-star-ink)); }
+.noesis-atlas-star-node .noesis-atlas-node-label { position: absolute; left: 50%; top: 76%; width: max-content; max-width: 9rem; transform: translateX(-50%); padding: 1px 4px; border-radius: 3px; background: #111d2b; color: #f3eee5; font-size: 13px; }
+.noesis-atlas-custom-map--overview .noesis-atlas-star-node:not([aria-expanded="true"]):not(:focus-visible):not(:hover) .noesis-atlas-node-label { opacity: 0; }
 .noesis-territory__canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
 .noesis-territory__levels { position: absolute; top: 12px; left: 12px; display: grid; gap: 2px; padding: 6px; border-radius: 12px; border: 1px solid hsl(var(--border)); background: hsl(var(--card) / .9); backdrop-filter: blur(8px); }
 .noesis-territory__levels button { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 8px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); background: none; border: 0; text-align: left; }
@@ -235,7 +249,7 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-territory__levels button[aria-current="true"] { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
 .noesis-territory__levels button[aria-current="true"] i { background: hsl(var(--stage-integrate)); }
 .noesis-territory__zoom { position: absolute; bottom: 12px; left: 12px; display: flex; gap: 6px; }
-.noesis-territory__zoom button { width: 34px; height: 34px; border-radius: 999px; border: 1px solid hsl(var(--border)); background: hsl(var(--card) / .9); color: hsl(var(--foreground)); font-size: 1.1rem; }
+.noesis-territory__zoom button { width: 44px; height: 44px; border-radius: 999px; border: 1px solid hsl(var(--border)); background: hsl(var(--card) / .9); color: hsl(var(--foreground)); font-size: 1.1rem; }
 .noesis-territory__panel { position: absolute; top: 12px; right: 12px; bottom: 12px; width: min(300px, 40%); display: flex; flex-direction: column; gap: 10px; overflow-y: auto; pointer-events: none; }
 .noesis-territory__panel > * { pointer-events: auto; }
 .noesis-territory__card { display: grid; gap: 8px; padding: 14px 16px; border-radius: 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--card) / .94); backdrop-filter: blur(8px); font-size: .9rem; color: hsl(var(--muted-foreground)); }
@@ -247,7 +261,13 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-territory__stats b { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 1.3rem; color: hsl(var(--foreground)); }
 .noesis-territory__stats span { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; }
 .noesis-territory__clear { align-self: flex-start; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); background: none; border: 0; }
-@media (max-width: 760px) { .noesis-territory__panel { top: auto; left: 12px; width: auto; max-height: 45%; } }
+@media (max-width: 760px) {
+  .noesis-territory__panel { top: auto; left: 12px; width: auto; max-height: 45%; }
+  .noesis-territory__zoom { top: 12px; right: 12px; left: auto; bottom: auto; }
+}
+@media (max-width: 380px) {
+  .noesis-territory__zoom { flex-direction: column; }
+}
 
 /* Works Studio Reel: each section a colored stripe, as in the prototype. */
 .noesis-reel-section { display: grid; gap: .45rem; padding: .2rem 0 .2rem .8rem; margin-top: .9rem; border-left: 2px solid hsl(var(--stage)); }

@@ -5,12 +5,13 @@ import type { Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry 
 import type { AtlasRegionViewModel } from './atlas-diagnostics';
 import { conceptKey } from '@/lib/readex';
 import { cssColor } from '@/lib/css-color';
-
-/** The Atlas night sky, read from the theme so it follows light and dark. */
-const CANVAS_SKY = () => cssColor('--canvas-sky', 1, '#111d2b');
+import { Maximize, Minimize } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Pill } from '@/components/ui/pill';
 import { cn } from '@/lib/utils';
+
+/** The Atlas night sky, read from the theme so it follows light and dark. */
+const CANVAS_SKY = () => cssColor('--canvas-sky', 1, '#111d2b');
 
 /**
  * The Atlas as an archipelago of constellations: regions are landmasses with coastlines,
@@ -121,9 +122,12 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
   return { regions: allRegions, regionCenters, concepts: worldConcepts, records, notes };
 }
 
-export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, sources, practices, links, asOf, from, onOpen, onOpenRegion }: {
+export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, sources, practices, links, asOf, from, onOpen, onOpenRegion, focus, fullScreen, onToggleFullScreen }: {
   regions: AtlasRegionViewModel[]; concepts: Concept[]; positions: VaultEntry[]; inquiries: Question[]; sources: Media[]; practices: Practice[];
   links: PhilosophicalLink[]; asOf?: number | null; from?: number | null;
+  focus?: { id: string } | null;
+  fullScreen?: boolean;
+  onToggleFullScreen?: () => void;
   onOpenRegion?: (id: string) => void;
   onOpen: (target: { type: 'concept' | RecordType; id: string }) => void;
 }) {
@@ -412,6 +416,14 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
     };
   }, [world, links]);
 
+  useEffect(() => {
+    if (!focus) return;
+    const concept = world.concepts.find(item => item.id === focus.id);
+    if (!concept || (asOf && concept.born && concept.born > asOf + 86_399_999)) return;
+    const v = view.current; v.tx = concept.wx; v.ty = concept.wy; v.tk = 0.85;
+    setSelection({ kind: 'concept', concept });
+  }, [focus, world, asOf]);
+
   const goLevel = (index: number) => {
     const v = view.current; v.tk = LEVELS[index][1];
     if (index <= 1) { v.tx = 0; v.ty = 0; }
@@ -422,7 +434,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
   const regionConcepts = selection?.kind === 'region' ? world.concepts.filter((concept) => concept.region === selection.index && (!asOf || !concept.born || concept.born <= asOf + 86_399_999)) : [];
 
   return (
-    <div className="noesis-territory">
+    <div className={cn("noesis-territory", fullScreen && "noesis-territory--fullscreen")}>
       <canvas ref={canvasRef} className="noesis-territory__canvas" aria-label="Atlas territory map. Scroll or pinch to zoom, drag to pan, select a region, concept, or record." />
       <div className="noesis-territory__levels" role="group" aria-label="Zoom level">
         {LEVELS.map(([name], index) => (
@@ -432,6 +444,9 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
       <div className="noesis-territory__zoom">
         <button type="button" aria-label="Zoom out" onClick={() => zoom(0.7)}>−</button>
         <button type="button" aria-label="Zoom in" onClick={() => zoom(1.4)}>+</button>
+        {onToggleFullScreen && <button type="button" className="grid place-items-center" aria-label={fullScreen ? 'Exit full screen map' : 'Open full screen map'} aria-pressed={!!fullScreen} onClick={onToggleFullScreen}>
+          {fullScreen ? <Minimize size={16} aria-hidden="true" /> : <Maximize size={16} aria-hidden="true" />}
+        </button>}
       </div>
       <aside className="noesis-territory__panel" aria-label="Selection">
         {selection?.kind === 'region' && (

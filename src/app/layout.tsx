@@ -19,8 +19,11 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: { url: '/icon.png', sizes: '48x48', type: 'image/png' },
-    apple: { url: '/noesis-install-icon.png', sizes: '512x512', type: 'image/png' },
+    icon: [
+      { url: '/icon.png', sizes: '48x48', type: 'image/png' },
+      { url: '/noesis-favicon.svg', sizes: 'any', type: 'image/svg+xml' },
+    ],
+    apple: { url: '/noesis-apple-icon.png', sizes: '180x180', type: 'image/png' },
   },
 };
 

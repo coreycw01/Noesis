@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   DropdownMenu,
+  DropdownMenuItem,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
@@ -61,7 +62,7 @@ import type {
 import { conceptKey, conceptRelated, today, uid as makeId } from '@/lib/readex';
 import { countAtlasConceptTags } from './atlas-tag-counts';
 import { cn } from '@/lib/utils';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { iconForNoesisView } from '@/lib/noesis-icons';
 import { uploadPrivateAsset } from '@/lib/storage-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -183,6 +184,7 @@ const defaultAtlasMapStyle: AtlasMapStyle = {
   nodeStyle: 'default',
   showWeakLinks: false,
 };
+const AtlasIcon = iconForNoesisView('atlas');
 const ATLAS_BASE_ZOOM = 0.8;
 const ATLAS_MIN_ZOOM = ATLAS_BASE_ZOOM / 2;
 const ATLAS_MAX_ZOOM = 1.7;
@@ -546,24 +548,6 @@ export function ConceptAtlas({
       return { ...current, [mapScope]: next };
     });
   }, [activeMap?.nodePositions, draftPositions, draggingName, mapScope, mode]);
-  const atlasSectionMeta: Record<AtlasSection, { label: string; description: string }> = {
-    territory: {
-      label: 'Regions',
-      description: 'Inspect auto-organized regions without confusing them with concepts or positions you created.',
-    },
-    connections: {
-      label: 'Connections',
-      description: 'Inspect typed relationships, cross-region tensions, and structural pressure across the Atlas.',
-    },
-    review: {
-      label: 'Review',
-      description: 'Review provisional, underdeveloped, stale, or under-tested organization before treating it as settled.',
-    },
-    map: {
-      label: 'Map View',
-      description: 'Explore Atlas visually as a secondary map, filtered by the territory you want to inspect.',
-    },
-  };
 
   useEffect(() => {
     if (atlasSection !== 'map' && isFullScreen) {
@@ -575,12 +559,6 @@ export function ConceptAtlas({
     if (relationshipFilterMode === 'recommended') return recommendedRelationshipTypes;
     return customRelationshipTypes;
   }, [customRelationshipTypes, recommendedRelationshipTypes, relationshipFilterMode]);
-  const relationshipFilterLabel = useMemo(() => {
-    if (relationshipFilterMode === 'all') return 'Relationship Types: All';
-    if (relationshipFilterMode === 'recommended') return 'Relationship Types: Recommended';
-    if (!customRelationshipTypes.length) return 'Relationship Types: None';
-    return `Relationship Types: ${customRelationshipTypes.length} selected`;
-  }, [customRelationshipTypes.length, relationshipFilterMode]);
 
 
   useEffect(() => {
@@ -1211,14 +1189,6 @@ export function ConceptAtlas({
     [renderedNodeKeys, visibleEdges],
   );
 
-  const visibleFamilies = useMemo(() => {
-    const families = new Set();
-    visibleEdges.forEach((edge) => {
-      const pair = [conceptKey(edge.from), conceptKey(edge.to)].sort().join('::');
-      families.add(pair);
-    });
-    return families.size;
-  }, [visibleEdges]);
 
   const activeEdgeNodes = useMemo(() => {
     if (!activeEdgeId) return new Set<string>();
@@ -2265,6 +2235,10 @@ export function ConceptAtlas({
     const radius = (node: MapNode) => {
       const size = nodeSizes[node.name];
       if (!node.name) return 0;
+      if (!activeMapStyle.nodeStyle || activeMapStyle.nodeStyle === 'default') {
+        const dimension = Math.hypot(dx * mapSize.width, dy * mapSize.height);
+        return dimension ? 850 * mapZoomPlane.scale * len / dimension : 0;
+      }
       if (!size || !mapSize.width || !mapSize.height) return 0;
       return Math.min(
         ux ? size.width * mapZoomPlane.scale * 50 / (mapSize.width * Math.abs(ux)) : Infinity,
@@ -2398,7 +2372,7 @@ export function ConceptAtlas({
     } else if (preset === 'blank') {
       base.backgroundColor = '#ffffff';
     } else {
-      base.background = 'radial-gradient(circle at top, rgba(58,41,24,0.24), transparent 36%), linear-gradient(180deg, rgba(17,14,11,1) 0%, rgba(12,11,10,1) 100%)';
+      base.backgroundColor = '#111d2b';
     }
 
     return base;
@@ -2417,7 +2391,7 @@ export function ConceptAtlas({
     nodeStyle === 'compact' && 'min-w-[112px] rounded-lg px-3 py-2',
     nodeStyle === 'pill' && 'min-w-[124px] rounded-full px-5 py-2.5',
     nodeStyle === 'card' && 'min-w-[152px] rounded-2xl px-4 py-4 shadow-lg',
-    (!nodeStyle || nodeStyle === 'default') && 'rounded-xl p-3',
+    (!nodeStyle || nodeStyle === 'default') && 'noesis-atlas-star-node',
     isSelected && (isFullScreen
       ? 'border-accent shadow-2xl ring-2 ring-accent'
       : 'border-accent shadow-lg ring-1 ring-accent/85')
@@ -2426,7 +2400,7 @@ export function ConceptAtlas({
   const nodeColorStyle = (nodeName: string): React.CSSProperties => {
     const color = effectiveNodeColors[conceptKey(nodeName)];
     const fontFamily = mode === 'custom' ? mapFontFamily(activeMapStyle.fontFamily) : undefined;
-    if (!color) return { fontFamily };
+    if (!color || (!activeMapStyle.nodeStyle || activeMapStyle.nodeStyle === 'default')) return { fontFamily, '--atlas-node-ink': color } as React.CSSProperties;
     return {
       fontFamily,
       borderColor: color,
@@ -2528,6 +2502,14 @@ export function ConceptAtlas({
   };
 
 
+  const [atlasFocus, setAtlasFocus] = useState<{ id: string } | null>(null);
+  const mapSearchResults = mode === 'auto' && search.trim()
+    ? concepts.filter(concept => atlasNodeTimelineState(concept.dateCreated, timelineWindow) !== 'unborn' &&
+      `${concept.name} ${(concept.aliases || []).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase())).slice(0, 8) : [];
+  const pickMapSearchResult = (concept: Concept) => {
+    setAtlasFocus({ id: concept.id }); setSearch('');
+  };
+
   return (
     <div data-noesis-identity="network" data-atlas-section={atlasSection} data-noesis-scroll-region onKeyDown={(event) => {
       if (event.key !== 'Escape' || event.defaultPrevented || !event.currentTarget.contains(event.target as Node)) return;
@@ -2544,92 +2526,58 @@ export function ConceptAtlas({
       isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "flex-1 overflow-y-auto md:h-full md:overflow-hidden"
     )}>
       {!isFullScreen && (
-      <div className="noesis-gutter pt-[var(--page-top)]">
-        <PageHeader
-          title="Atlas"
-          description={atlasSectionMeta[atlasSection].description}
-          actions={atlasSection === 'map' ? (
-            <>
-              <div className="relative min-w-0 flex-1 sm:flex-none">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input aria-label="Search map" placeholder="Search map..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 w-full rounded-full pl-9 sm:w-56" />
-              </div>
-              <Button onClick={() => setIsAddOpen(true)} className="shrink-0">
-                <Plus className="size-4" /> New Concept
-              </Button>
-            </>
-          ) : undefined}
-          tabs={(
-            <WorkspaceTabs
-              value={atlasSection}
-              onChange={setAtlasSection}
-              label="Atlas views"
-              items={[
-                { id: 'map', label: 'Map' },
-                { id: 'territory', label: 'Regions', count: newRegionIds.length || undefined },
-                { id: 'connections', label: 'Connections' },
-                { id: 'review', label: 'Review' },
-              ]}
-            />
-          )}
-        />
-      </div>
-      )}
-
-      {!isFullScreen && (
-      <div className="noesis-gutter z-10 space-y-2 pb-1">
-        {atlasSection === 'map' && (
-        <>
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div className="hidden w-max items-center gap-2 rounded-full border border-border bg-card p-1 shadow-sm md:flex">
-            <Button variant={mode === 'auto' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('auto')} className="h-8 rounded-full">Auto Map</Button>
-            <Button variant={mode === 'custom' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('custom')} className="h-8 rounded-full">Custom Maps</Button>
+        <header className="noesis-gutter shrink-0 space-y-2 pb-2 pt-2 sm:pt-3" data-stage-tone="integrate">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <AtlasIcon className="size-5 text-accent" aria-hidden="true" />
+            <h1 className="font-headline text-2xl font-semibold">Atlas</h1>
+            <span className="border-l border-border pl-2 text-xs text-muted-foreground">Survey · Map</span>
           </div>
-
-          <div className={cn("hidden gap-2 overflow-x-auto pb-1 md:flex md:flex-wrap md:justify-end md:overflow-visible md:pb-0", mode === 'auto' && "md:hidden")}>
-            <Select value={viewMode} onValueChange={(value) => setViewMode(value as AtlasViewMode)}>
-              <SelectTrigger aria-label="Map view" className="h-8 w-36 rounded-full border-input bg-background px-3 noesis-eyebrow shadow-sm">
-                <SelectValue placeholder="View Mode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="core" className="noesis-eyebrow">Core Map</SelectItem>
-                <SelectItem value="conflict" className="noesis-eyebrow">Conflict Map</SelectItem>
-                <SelectItem value="evidence" className="noesis-eyebrow">Evidence Map</SelectItem>
-                <SelectItem value="practice" className="noesis-eyebrow">Practice/Test</SelectItem>
-                <SelectItem value="evolution" className="noesis-eyebrow">Evolution Map</SelectItem>
-                <SelectItem value="full" className="noesis-eyebrow">Full Map</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={autoConnectionFocus} onValueChange={(value) => setAutoConnectionFocus(value as 'strong' | 'moderate' | 'all')}>
-              <SelectTrigger aria-label="Connection focus" className="h-8 w-40 rounded-full border-input bg-background px-3 noesis-eyebrow shadow-sm">
-                <SelectValue placeholder="Connection Focus" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="strong" className="noesis-eyebrow">Strong Connections</SelectItem>
-                <SelectItem value="moderate" className="noesis-eyebrow">Strong + Moderate</SelectItem>
-                <SelectItem value="all" className="noesis-eyebrow">All Connections</SelectItem>
-              </SelectContent>
-            </Select>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  {relationshipFilterLabel}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" scrollable className="w-72 rounded-2xl [--noesis-menu-max-height:420px]">
-                <DropdownMenuLabel className="noesis-eyebrow text-muted-foreground">Relationship Types</DropdownMenuLabel>
-                <div className="flex gap-2 px-2 pb-2 pt-1">
-                  <Button size="sm" variant={relationshipFilterMode === 'recommended' ? 'default' : 'outline'} onClick={() => setRelationshipFilterMode('recommended')}>
-                    Select Recommended
-                  </Button>
-                  <Button size="sm" variant={relationshipFilterMode === 'all' ? 'default' : 'outline'} onClick={() => setRelationshipFilterMode('all')}>
-                    Show All
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setRelationshipFilterMode('custom'); setCustomRelationshipTypes([]); }}>
-                    Clear All
-                  </Button>
-                </div>
-                <DropdownMenuSeparator />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <WorkspaceTabs value={atlasSection} onChange={setAtlasSection} label="Atlas views" items={[
+              { id: 'map', label: 'Map' },
+              { id: 'territory', label: 'Regions', count: newRegionIds.length || undefined },
+              { id: 'connections', label: 'Connections' },
+              { id: 'review', label: 'Review' },
+            ]} />
+            {atlasSection === 'map' && <>
+              <div className="relative min-w-28 flex-1 sm:max-w-64">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input aria-label="Search map" placeholder="Search map…" value={search} onChange={event => setSearch(event.target.value)}
+                  onKeyDown={event => { if (event.key === 'Enter' && mapSearchResults[0]) { event.preventDefault(); pickMapSearchResult(mapSearchResults[0]); } }}
+                  className="min-h-10 w-full pl-9" />
+                {mode === 'auto' && search.trim() && <div className="absolute inset-x-0 top-full z-[55] mt-1 grid max-h-64 overflow-y-auto rounded-[var(--card-radius)] border border-border bg-card p-1 shadow-md">
+                  {mapSearchResults.length ? mapSearchResults.map(concept => <button type="button" key={concept.id} className="min-h-10 break-words px-2 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" onClick={() => pickMapSearchResult(concept)}>{concept.name}</button>) : <p className="p-2 text-sm text-muted-foreground">No concepts found.</p>}
+                </div>}
+              </div>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild><Button variant="outline" className="min-h-10 shrink-0"><SlidersHorizontal className="size-4" />Map tools</Button></DropdownMenuTrigger>
+                <DropdownMenuContent align="end" collisionPadding={12} scrollable className="w-64">
+                  <DropdownMenuLabel>Map source</DropdownMenuLabel>
+                  <DropdownMenuCheckboxItem checked={mode === 'auto'} onSelect={() => setMode('auto')}>Auto Map</DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem checked={mode === 'custom'} onSelect={() => setMode('custom')}>Custom Maps</DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setIsAddOpen(true)}><Plus className="size-4" /> New concept</DropdownMenuItem>
+                  <DropdownMenuCheckboxItem checked={!!timelineWindow} onCheckedChange={() => setTimelineWindow(current => current ? null : { from: Math.max(timelineBounds.start, timelineBounds.end - 30 * 86400000), asOf: timelineBounds.end })}><CalendarRange className="size-4" /> Timeline replay</DropdownMenuCheckboxItem>
+                  {mode === 'custom' && <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Custom maps</DropdownMenuLabel>
+                    {atlasMaps.map(map => <DropdownMenuCheckboxItem key={map.id} checked={map.id === activeMap?.id} onSelect={() => setActiveMapId(map.id)}>{map.title}</DropdownMenuCheckboxItem>)}
+                    <DropdownMenuItem onSelect={() => setIsMapOpen(true)}>New map</DropdownMenuItem>
+                    <DropdownMenuItem disabled={!activeMap} onSelect={() => setIsNodeOpen(true)}>Add node</DropdownMenuItem>
+                    <DropdownMenuItem disabled={!activeMap} onSelect={openMapStyle}>Map style</DropdownMenuItem>
+                    {activeMap && <DropdownMenuItem className="text-destructive" onSelect={() => setMapToDelete(activeMap)}>Delete map</DropdownMenuItem>}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>View</DropdownMenuLabel>
+                    {(['core', 'conflict', 'evidence', 'practice', 'evolution', 'full'] as const).map(value =>
+                      <DropdownMenuCheckboxItem className="capitalize" key={value} checked={viewMode === value} onCheckedChange={() => setViewMode(value)}>{value}</DropdownMenuCheckboxItem>)}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Connection strength</DropdownMenuLabel>
+                    {(['strong', 'moderate', 'all'] as const).map(value => <DropdownMenuCheckboxItem key={value} checked={autoConnectionFocus === value} onCheckedChange={() => setAutoConnectionFocus(value)}>{value === 'all' ? 'All connections' : value === 'strong' ? 'Strong only' : 'Strong and moderate'}</DropdownMenuCheckboxItem>)}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Relationship types</DropdownMenuLabel>
+                    <DropdownMenuCheckboxItem checked={relationshipFilterMode === 'recommended'} onCheckedChange={() => setRelationshipFilterMode('recommended')}>Recommended</DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem checked={relationshipFilterMode === 'all'} onCheckedChange={() => setRelationshipFilterMode('all')}>All relationships</DropdownMenuCheckboxItem>
+                    <DropdownMenuItem onSelect={() => { setRelationshipFilterMode('custom'); setCustomRelationshipTypes([]); }}>Clear relationships</DropdownMenuItem>
                 {atlasRelationshipGroups.map((group) => (
                   <div key={group.label}>
                     <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/80">{group.label}</DropdownMenuLabel>
@@ -2659,114 +2607,13 @@ export function ConceptAtlas({
                     <DropdownMenuSeparator />
                   </div>
                 ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  </>}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {mode === 'custom' && activeMap && <span className="max-w-52 truncate text-xs text-muted-foreground" title={activeMap.title}>{activeMap.title}</span>}
+            </>}
           </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="md:hidden">
-                <SlidersHorizontal className="mr-1.5 size-3.5" /> Map options
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              collisionPadding={12}
-              scrollable
-              className="w-64 rounded-xl"
-            >
-              <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Map source</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem checked={mode === 'auto'} onCheckedChange={() => setMode('auto')}>Auto map</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={mode === 'custom'} onCheckedChange={() => setMode('custom')}>Custom map</DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">View</DropdownMenuLabel>
-              {([
-                ['core', 'Core'],
-                ['conflict', 'Conflict'],
-                ['evidence', 'Evidence'],
-                ['practice', 'Practice / Test'],
-                ['evolution', 'Evolution'],
-                ['full', 'Full'],
-              ] as Array<[AtlasViewMode, string]>).map(([value, label]) => (
-                <DropdownMenuCheckboxItem key={value} checked={viewMode === value} onCheckedChange={() => setViewMode(value)}>
-                  {label}
-                </DropdownMenuCheckboxItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Connection strength</DropdownMenuLabel>
-              {([
-                ['strong', 'Strong only'],
-                ['moderate', 'Strong + moderate'],
-                ['all', 'All connections'],
-              ] as const).map(([value, label]) => (
-                <DropdownMenuCheckboxItem key={value} checked={autoConnectionFocus === value} onCheckedChange={() => setAutoConnectionFocus(value)}>
-                  {label}
-                </DropdownMenuCheckboxItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Relationship types</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem checked={relationshipFilterMode === 'recommended'} onCheckedChange={() => setRelationshipFilterMode('recommended')}>Recommended</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={relationshipFilterMode === 'all'} onCheckedChange={() => setRelationshipFilterMode('all')}>All relationships</DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {mode === 'custom' && (
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <select
-                aria-label="Custom map"
-                value={activeMap?.id || ''}
-                onChange={(event) => setActiveMapId(event.target.value)}
-                className="h-11 w-full min-w-0 max-w-full rounded-[var(--button-radius)] border border-input bg-background px-3 text-sm md:h-8 md:w-auto md:max-w-64"
-              >
-                {!atlasMaps.length && <option value="">No custom maps</option>}
-                {atlasMaps.map((map) => <option key={map.id} value={map.id}>{map.title}</option>)}
-              </select>
-              <Button variant="outline" size="sm" className="md:h-8" onClick={openMapStyle} disabled={!activeMap}>
-                <SlidersHorizontal className="mr-1.5 size-4" /> Map Style
-              </Button>
-              <Button variant="outline" size="sm" className="md:h-8" onClick={() => setIsMapOpen(true)}><Plus className="mr-1.5 size-4" /> New Map</Button>
-              <Button variant="outline" size="sm" className="md:h-8" onClick={() => setIsNodeOpen(true)} disabled={!activeMap}><Plus className="mr-1.5 size-4" /> Add Node</Button>
-              {activeMap && (
-                <Button variant="ghost" size="sm" onClick={() => setMapToDelete(activeMap)} className="h-11 text-destructive hover:text-destructive md:h-8">Delete Map</Button>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="noesis-atlas-stats hidden flex-col gap-2 pb-1 md:flex lg:flex-row lg:items-center lg:justify-between lg:gap-3">
-          <div className="flex flex-wrap gap-2">
-            <Stat value={renderedNodes.length} label="Nodes" />
-            <Stat value={renderedEdges.length} label="Visible Links" />
-            <Stat value={visibleFamilies} label="Visible Families" />
-            <Stat value={selectedName || 'None'} label="Active" />
-          </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:justify-end md:overflow-visible md:pb-0">
-            {mode === 'auto' && selectedRegion && (
-              <Button variant="outline" size="sm" onClick={() => setAtlasSection('territory')}>
-                {selectedRegion.name}
-              </Button>
-            )}
-            <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">
-              {viewMode === 'core' ? 'Core' : viewMode.replace(/_/g, ' ')}
-            </Badge>
-            <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">
-              {autoConnectionFocus === 'strong' ? 'Strong' : autoConnectionFocus === 'moderate' ? 'Moderate' : 'All'}
-            </Badge>
-          </div>
-        </div>
-        <div className="noesis-atlas-timeline" data-open={timelineWindow ? 'true' : undefined}>
-          <Button
-            type="button"
-            variant={timelineWindow ? 'default' : 'outline'}
-            size="sm"
-            className="shrink-0"
-            aria-pressed={Boolean(timelineWindow)}
-            onClick={() => setTimelineWindow((current) => current ? null : { from: Math.max(timelineBounds.start, timelineBounds.end - 30 * 86400000), asOf: timelineBounds.end })}
-          >
-            <CalendarRange className="mr-1.5 size-4" aria-hidden="true" /> Timeline
-          </Button>
-          {timelineWindow ? (
-            <>
+          {atlasSection === 'map' && timelineWindow && <div className="noesis-atlas-timeline" data-open="true">
               <label className="noesis-atlas-timeline__date">
                 <span>New since</span>
                 <input
@@ -2797,15 +2644,9 @@ export function ConceptAtlas({
               <span className="noesis-atlas-timeline__readout">
                 As of <b>{formatAtlasTimelineDate(timelineWindow.asOf)}</b> · {timelineNewCount} new
               </span>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setTimelineWindow(null)}>Now</Button>
-            </>
-          ) : (
-            <span className="text-xs text-muted-foreground">Replay the map on any date and see which concepts are new.</span>
-          )}
-        </div>
-        </>
-        )}
-      </div>
+              <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full" onClick={() => setTimelineWindow(null)}>Now</Button>
+          </div>}
+        </header>
       )}
 
       {atlasSection !== 'map' && !isFullScreen && (
@@ -2870,8 +2711,11 @@ export function ConceptAtlas({
       )}
 
       {atlasSection === 'map' && mode === 'auto' && (
-        <div className="noesis-gutter pb-4">
+        <div className={cn("flex min-h-0 flex-1 flex-col", !isFullScreen && "noesis-gutter pb-3")}>
           <AtlasTerritoryCanvas
+            focus={atlasFocus}
+            fullScreen={isFullScreen}
+            onToggleFullScreen={() => setIsFullScreen(value => !value)}
             regions={atlasRegions}
             concepts={concepts}
             positions={vault}
@@ -2895,19 +2739,21 @@ export function ConceptAtlas({
           />
         </div>
       )}
-      {atlasSection === 'map' && (
+      {atlasSection === 'map' && mode === 'custom' && (
       <div className={cn(
-        mode === 'auto' && "hidden",
+
         "relative flex min-h-0 flex-1 gap-4",
         // Keep room for the map to breathe when the controls wrap onto extra rows.
-        !isFullScreen && "md:min-h-[30rem]",
-        !isFullScreen && "max-md:h-[max(24rem,calc(100dvh-13rem))] max-md:flex-none",
+        !isFullScreen && "md:min-h-0",
+        !isFullScreen && "max-md:h-[max(24rem,calc(100dvh-10rem))] max-md:flex-none",
         isFullScreen ? "overflow-hidden px-0 pb-0" : "noesis-gutter overflow-hidden pb-4"
       )}>
         <div
           ref={mapRef}
+          data-custom-backdrop={activeMapStyle.background.type !== 'preset' || activeMapStyle.background.preset !== 'dark'}
           className={cn(
-            "relative h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-[var(--card-radius)] border border-border bg-background",
+            "noesis-atlas-custom-map relative h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-[var(--card-radius)] border border-border",
+            zoom < ATLAS_BASE_ZOOM * 0.75 && "noesis-atlas-custom-map--overview",
             quickLinkSource ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing",
             isFullScreen ? "touch-none rounded-none" : "touch-pan-y"
           )}
@@ -2923,7 +2769,7 @@ export function ConceptAtlas({
           data-map-width={mapSize.width || undefined}
           data-map-height={mapSize.height || undefined}
         >
-          {mode === 'custom' && (
+          {mode === 'custom' && (activeMapStyle.background.type !== 'preset' || activeMapStyle.background.preset !== 'dark' || activeMapStyle.background.blur !== 0 || activeMapStyle.background.opacity !== 0.42) && (
             <div
               className="pointer-events-none absolute inset-0"
               style={{ ...customMapBackgroundStyle, ...customMapBackgroundOverlayStyle }}
@@ -3172,8 +3018,8 @@ export function ConceptAtlas({
                 onLostPointerCapture={(event) => endNodeGesture(event.pointerId, false)}
               >
                 <span className="sr-only">{quickLinkSource ? 'Link to' : 'Open concept'} </span>
-                <span className={cn('block max-w-28 break-words font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-[15px]')}>{node.name}</span>
-                <span className="block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{node.count} linked</span>
+                <span className={cn('noesis-atlas-node-label block max-w-28 break-words font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-[15px]')}>{node.name}</span>
+                {activeMapStyle.nodeStyle !== 'default' && <span className="block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{node.count} linked</span>}
               </button>
             ))}
 
@@ -3871,15 +3717,6 @@ export function ConceptAtlas({
           <DialogFooter className="pt-4"><Button onClick={() => void createLink()} disabled={linkSaving || !linkDraft.to} className="rounded-full px-8">{linkSaving ? 'Saving link...' : 'Save Link'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex items-center gap-3 whitespace-nowrap rounded-full border border-border bg-card px-5 py-2 shadow-sm">
-      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">{label}</div>
-      <div className="max-w-[120px] truncate font-headline text-lg font-bold italic text-primary">{value}</div>
     </div>
   );
 }
