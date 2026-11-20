@@ -196,7 +196,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
         </div>
 
         <div className="p-8 pt-4 bg-muted/5 border-t border-border/20 flex justify-end">
-          <Button variant="outline" onClick={onClose} className="h-11 px-10 font-code text-[11px] font-bold uppercase tracking-widest bg-card border-border/60 shadow-sm rounded-full">Close Audit</Button>
+          <Button variant="outline" onClick={onClose}>Close Audit</Button>
         </div>
       </DialogContent>
     </Dialog>

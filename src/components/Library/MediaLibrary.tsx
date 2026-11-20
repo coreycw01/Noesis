@@ -563,7 +563,7 @@ export function MediaLibrary({
               <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{MEDIA_STATUS_LABELS[status]}</SelectItem>)}</SelectContent>
             </Select>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Source actions" className="size-10 rounded-md bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Source actions" className="size-10"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => openEditor(selected)}><Edit className="mr-2 size-4" /> Edit source</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setDeleteTarget({ type: 'source', item: selected })} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete source</DropdownMenuItem>
@@ -785,7 +785,7 @@ export function MediaLibrary({
                       onChange={(event) => setSessionTargetMinutes(event.target.value)}
                       className="h-10 w-full rounded-md text-right font-code text-[10px] sm:h-8 sm:w-28 sm:rounded-full"
                     />
-                    <Button variant="outline" size="sm" onClick={startSession} className="h-10 rounded-md border-border/60 bg-card px-4 font-code text-[9px] font-bold uppercase tracking-widest shadow-sm sm:h-8 sm:rounded-full sm:px-5 sm:text-[10px]">
+                    <Button variant="outline" size="sm" onClick={startSession} className="sm:h-8 sm:rounded-full sm:px-5 sm:text-[10px]">
                       <Play className="mr-2 size-3.5" /> Start Session
                     </Button>
                   </div>
@@ -813,11 +813,11 @@ export function MediaLibrary({
                       </div>
                       <div className="grid grid-cols-2 gap-2 sm:flex">
                         {activeSession.status === 'paused' ? (
-                          <Button onClick={resumeSession} className="rounded-full"><Play className="mr-2 size-4" /> Resume</Button>
+                          <Button onClick={resumeSession}><Play className="mr-2 size-4" /> Resume</Button>
                         ) : (
-                          <Button variant="outline" onClick={pauseSession} className="rounded-full bg-card"><Pause className="mr-2 size-4" /> Pause</Button>
+                          <Button variant="outline" onClick={pauseSession}><Pause className="mr-2 size-4" /> Pause</Button>
                         )}
-                        <Button variant="destructive" onClick={openEndSession} className="rounded-full"><Square className="mr-2 size-4" /> End</Button>
+                        <Button variant="destructive" onClick={openEndSession}><Square className="mr-2 size-4" /> End</Button>
                       </div>
                     </div>
                   </Card>
@@ -1049,7 +1049,7 @@ export function MediaLibrary({
                 <ConceptTagPicker concepts={concepts} value={insightDraft.tags} onChange={(tags) => setInsightDraft(prev => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
               </div>
             </div>
-            <DialogFooter className="pt-6"><Button onClick={saveClaim} disabled={claimSaving || !insightDraft.title.trim()} className="rounded-full px-10 h-11 font-bold">{claimSaving ? 'Saving…' : 'Save developing claim'}</Button></DialogFooter>
+            <DialogFooter className="pt-6"><Button onClick={saveClaim} disabled={claimSaving || !insightDraft.title.trim()}>{claimSaving ? 'Saving…' : 'Save developing claim'}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -1225,7 +1225,7 @@ export function MediaLibrary({
               return <TableRow key={item.id} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) openSelectedSource(item.id); }}>
                 <TableCell className="max-w-xl py-2 [overflow-wrap:anywhere]"><button type="button" className="min-h-11 w-full rounded-sm text-left font-headline text-base font-semibold text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openSelectedSource(item.id)} onKeyDown={(event) => activateEntityOnKey(event, () => openSelectedSource(item.id))}>{item.title}</button><div className="pb-2 text-xs text-muted-foreground">{item.creator || 'Creator not added'}<span className="block lg:hidden">{MEDIA_LABELS[item.type]}</span></div></TableCell>
                 <TableCell className="hidden font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground lg:table-cell">{MEDIA_LABELS[item.type]}</TableCell>
-                <TableCell><div className="flex flex-wrap gap-1.5"><Badge variant="outline" className="rounded-full">{MEDIA_STATUS_LABELS[item.status]}</Badge><StageBadge type="source" stage={item.stage} status={item.status} /></div></TableCell>
+                <TableCell><div className="flex flex-wrap gap-1.5"><Badge>{MEDIA_STATUS_LABELS[item.status]}</Badge><StageBadge type="source" stage={item.stage} status={item.status} /></div></TableCell>
                 <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">{item.tags?.length ? item.tags.slice(0, 3).join(' · ') : 'No concept linked'}</TableCell>
                 <TableCell className="hidden font-code text-[10px] tabular-nums text-muted-foreground xl:table-cell">{item.annotations?.length || 0}</TableCell>
                 <TableCell className="hidden font-code text-[10px] tabular-nums text-muted-foreground xl:table-cell">{influence}</TableCell>
@@ -1256,7 +1256,7 @@ export function MediaLibrary({
                 <div className="line-clamp-1 text-sm font-semibold text-accent">{item.tags[0]}</div>
               )}
               <div className="flex items-center justify-between pt-1">
-                <div className="flex flex-wrap gap-1"><Badge variant="outline" className="rounded-full border-border/60 bg-card px-2 py-0.5 font-code text-[8px] font-bold uppercase tracking-widest">{MEDIA_STATUS_LABELS[item.status]}</Badge><StageBadge type="source" stage={item.stage} status={item.status} /></div>
+                <div className="flex flex-wrap gap-1"><Badge>{MEDIA_STATUS_LABELS[item.status]}</Badge><StageBadge type="source" stage={item.stage} status={item.status} /></div>
                 <div className="flex items-center gap-3 text-muted-foreground/70">
                   {item.annotations?.length > 0 && <span className="flex items-center gap-1" title={`${item.annotations.length} annotations`} aria-label={`${item.annotations.length} annotations`}><MessageSquare className="size-3.5" /><span className="font-code text-[9px] font-bold">{item.annotations.length}</span></span>}
                   {influence > 0 && <span className="flex items-center gap-1" title={`${influence} connected objects`} aria-label={`${influence} connected objects`}><Link2 className="size-3.5" /><span className="font-code text-[9px] font-bold">{influence}</span></span>}
@@ -1285,7 +1285,7 @@ export function MediaLibrary({
               description="Library is for sources you are actively capturing or reflecting on. Clear filters or add a new source to begin."
               action={
                 <div className="flex flex-wrap items-center justify-center gap-3">
-                  {libraryFiltersActive && <Button variant="outline" onClick={clearLibraryFilters} className="rounded-full">Clear filters</Button>}
+                  {libraryFiltersActive && <Button variant="outline" onClick={clearLibraryFilters}>Clear filters</Button>}
                   <Button onClick={() => openEditor()} className="rounded-full"><Plus className="mr-1.5 size-4" /> Add source</Button>
                 </div>
               }

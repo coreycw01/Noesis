@@ -710,7 +710,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                     <h3 className="mt-1 font-headline text-xl font-semibold italic">{position?.title || river?.title || 'Position'}</h3>
                   </div>
                   <div className="flex gap-2">
-                    {position && <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => onOpenPosition?.(position.id)}>Open the position</Button>}
+                    {position && <Button type="button" size="sm" variant="outline" onClick={() => onOpenPosition?.(position.id)}>Open the position</Button>}
                     <Button type="button" size="sm" variant="ghost" aria-label="Close" onClick={() => setExplainedRiver(null)}>×</Button>
                   </div>
                 </div>
@@ -1159,7 +1159,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
               icon={History}
               title={periodHasOlderMatches ? 'No matches in loaded history' : evolutionFiltersActive ? 'No changes match these filters' : 'No evolution recorded'}
               description={periodHasOlderMatches ? 'Load older history to check for more changes.' : evolutionFiltersActive ? 'Adjust the dates or clear your filters.' : 'Revisions, resolutions, and other meaningful changes will appear here.'}
-              action={evolutionFiltersActive ? <Button variant="outline" onClick={clearEvolutionFilters} className="rounded-full">Clear filters</Button> : undefined}
+              action={evolutionFiltersActive ? <Button variant="outline" onClick={clearEvolutionFilters}>Clear filters</Button> : undefined}
             />
           </div>
         )}

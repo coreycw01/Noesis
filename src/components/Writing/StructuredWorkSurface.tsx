@@ -347,7 +347,7 @@ export function StructuredWorkSurface({
                 {nodes.map((node) => <option key={node.id} value={node.id}>{node.label || 'Untitled branch'}</option>)}
               </select>
             </label>
-            <Button type="button" variant="outline" size="sm" onClick={addBranch} className="h-9 rounded-md"><Plus className="mr-2 size-4" /> Add branch</Button>
+            <Button type="button" variant="outline" size="sm" onClick={addBranch}><Plus className="mr-2 size-4" /> Add branch</Button>
           </div>
         </div>
       </TemplateFrame>

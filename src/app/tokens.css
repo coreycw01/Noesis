@@ -1,0 +1,195 @@
+/*
+ * Design tokens. One place for every value a component may use: semantic
+ * colour, record kinds, type scale, space, radius, control sizing, motion.
+ * Loaded after prototype-skin.css so it sits on top of the skin's palette.
+ *
+ * Colours are HSL triplets, consumed as hsl(var(--x) / alpha).
+ *
+ * Two colour axes, kept apart on purpose:
+ *   --stage-*   where in the thinking loop you are (page tone, nav, path bar)
+ *   --ok/--caution/--problem/--info/--neutral   what a thing's state means
+ * A position page is claim-toned; a "contested" status on it is --caution.
+ */
+:root, :root[data-theme] {
+  /* Semantic status. */
+  --ok: 122 36% 44%;
+  --caution: 44 80% 38%;
+  --problem: 4 66% 50%;
+  --info: 220 45% 48%;
+  --neutral: 30 5% 48%;
+  --destructive: var(--problem);
+
+  /* Record kinds: what something IS. Aliased to stage colours so "Evidence is
+     the sources colour" is defined once. */
+  --kind-source: var(--stage-encounter);
+  --kind-annotation: var(--stage-encounter);
+  --kind-concept: var(--stage-outline);
+  --kind-inquiry: var(--stage-examine);
+  --kind-position: var(--stage-claim);
+  --kind-practice: var(--stage-act);
+  --kind-work: var(--stage-more);
+  --kind-exercise: var(--stage-act);
+
+  /* Type scale. */
+  --text-label-sm: 9px;
+  --text-label: 10px;
+  --text-xs: .75rem;
+  --text-sm: .875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.35rem;
+  --text-title: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
+  --label-tracking: .12em;
+
+  /* Space. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Radius. --card-radius and --button-radius stay as the themeable pair. */
+  --radius-sm: 6px;
+  --radius-md: var(--card-radius);
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* Controls. */
+  --control-h: 36px;
+  --control-h-sm: 28px;
+  --control-h-lg: 44px;
+  --touch-min: 44px;
+  --hair: 1px solid hsl(var(--border));
+  --hair-dashed: 1.5px dashed hsl(var(--border));
+}
+
+.dark, :root.dark[data-theme], .dark[data-theme] {
+  --ok: 122 38% 60%;
+  --caution: 48 80% 62%;
+  --problem: 4 70% 64%;
+  --info: 222 55% 72%;
+  --neutral: 40 8% 62%;
+}
+
+.high-contrast {
+  --ok: 122 60% 28%;
+  --caution: 40 100% 26%;
+  --problem: 0 85% 38%;
+  --info: 220 80% 36%;
+  --neutral: 0 0% 25%;
+}
+.dark.high-contrast {
+  --ok: 122 70% 72%;
+  --caution: 48 100% 72%;
+  --problem: 4 90% 74%;
+  --info: 220 90% 80%;
+  --neutral: 0 0% 80%;
+}
+
+/* A status tone, on any element: sets --tone for children to use. */
+[data-tone="ok"] { --tone: var(--ok); }
+[data-tone="caution"] { --tone: var(--caution); }
+[data-tone="problem"] { --tone: var(--problem); }
+[data-tone="info"] { --tone: var(--info); }
+[data-tone="neutral"] { --tone: var(--neutral); }
+[data-tone="stage"] { --tone: var(--stage, var(--accent)); }
+[data-tone="accent"] { --tone: var(--accent); }
+[data-tone="source"] { --tone: var(--kind-source); }
+[data-tone="annotation"] { --tone: var(--kind-annotation); }
+[data-tone="concept"] { --tone: var(--kind-concept); }
+[data-tone="inquiry"] { --tone: var(--kind-inquiry); }
+[data-tone="position"] { --tone: var(--kind-position); }
+[data-tone="practice"] { --tone: var(--kind-practice); }
+[data-tone="work"] { --tone: var(--kind-work); }
+[data-tone="exercise"] { --tone: var(--kind-exercise); }
+
+/* ---------- Primitive styles (used by src/components/ui) ---------- */
+
+/* Eyebrow: the one small-caps label. */
+.noesis-eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: var(--text-label); letter-spacing: var(--label-tracking); text-transform: uppercase;
+  line-height: 1.2; color: hsl(var(--muted-foreground));
+}
+.noesis-eyebrow--sm { font-size: var(--text-label-sm); }
+.noesis-eyebrow--tone { color: hsl(var(--tone, var(--accent))); }
+.noesis-eyebrow--strong { font-weight: 700; color: hsl(var(--foreground)); }
+
+/* Badge: read-only. Tells you a status or a kind. Never pressable. */
+.noesis-badge {
+  --tone: var(--neutral);
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  padding: 2px 9px; border-radius: var(--radius-pill);
+  border: 1px solid hsl(var(--tone) / .45); background: hsl(var(--tone) / .1); color: hsl(var(--tone));
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .1em; text-transform: uppercase; line-height: 1.5;
+  white-space: nowrap;
+}
+.noesis-badge--dot { border-color: transparent; background: transparent; padding-left: 0; }
+.noesis-badge--dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: hsl(var(--tone)); flex: none; }
+.noesis-badge--rule { border: 0; border-left: 2px solid hsl(var(--tone)); border-radius: 0; background: transparent; padding: 0 0 0 6px; }
+.noesis-badge--count { font-family: inherit; letter-spacing: 0; text-transform: none; padding: 0 7px; min-width: 20px; justify-content: center; }
+.noesis-badge__icon { width: 11px; height: 11px; flex: none; }
+
+/* Pill: pressable. Filters, toggles, choices. */
+.noesis-pill {
+  --tone: var(--accent);
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  min-height: var(--control-h-sm); padding: 2px 12px; border-radius: var(--radius-pill);
+  border: 1px solid hsl(var(--border)); background: transparent; color: hsl(var(--foreground));
+  font-family: inherit; font-size: var(--text-sm); line-height: 1.3; text-align: left;
+  transition: background-color var(--motion-quick) var(--ease-noesis), border-color var(--motion-quick) var(--ease-noesis), color var(--motion-quick) var(--ease-noesis);
+  cursor: pointer;
+}
+.noesis-pill:hover:not(:disabled) { background: hsl(var(--muted) / .7); }
+.noesis-pill:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-pill:disabled { opacity: .5; cursor: default; }
+.noesis-pill[aria-pressed="true"], .noesis-pill[aria-selected="true"], .noesis-pill[aria-current] {
+  border-color: hsl(var(--tone) / .7); background: hsl(var(--tone) / .12); color: hsl(var(--tone));
+}
+.noesis-pill--tone { border-color: hsl(var(--tone) / .5); color: hsl(var(--tone)); }
+.noesis-pill--mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); letter-spacing: .1em; text-transform: uppercase; }
+.noesis-pill--italic { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: var(--text-base); padding: 4px 16px; }
+.noesis-pill--lg { min-height: var(--control-h); padding: 4px 16px; font-size: var(--text-base); }
+.noesis-pill__remove { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: -6px; border-radius: 999px; color: hsl(var(--muted-foreground)); }
+.noesis-pill__remove:hover { background: hsl(var(--problem) / .14); color: hsl(var(--problem)); }
+@media (max-width: 639px) { .noesis-pill { min-height: var(--touch-min); } }
+
+/* Panel: a sheet on the desk. Every card, instrument frame and section. */
+.noesis-panel {
+  position: relative; border: var(--hair); border-radius: var(--radius-md); background: hsl(var(--card)); color: hsl(var(--card-foreground));
+  padding: var(--space-4);
+}
+.noesis-panel--dashed { border: var(--hair-dashed); background: transparent; }
+.noesis-panel--tinted { background: hsl(var(--tone, var(--accent)) / .06); border-color: hsl(var(--tone, var(--accent)) / .3); }
+.noesis-panel--plain { background: transparent; }
+.noesis-panel--inset { background: hsl(var(--muted) / .5); border-color: transparent; }
+.noesis-panel--lg { border-radius: var(--radius-lg); padding: var(--space-5); }
+.noesis-panel--tight { padding: var(--space-3); }
+.noesis-panel--interactive { cursor: pointer; transition: border-color var(--motion-quick) var(--ease-noesis), background-color var(--motion-quick) var(--ease-noesis); }
+.noesis-panel--interactive:hover { border-color: hsl(var(--tone, var(--accent)) / .55); }
+.noesis-panel--interactive:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.noesis-panel__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-3); }
+.noesis-panel__title { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: var(--text-lg); line-height: 1.25; margin: 0; }
+.noesis-panel__desc { margin: 2px 0 0; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+
+/* Section empty: for a part of a page with nothing in it yet. */
+.noesis-section-empty { display: grid; gap: 4px; padding: var(--space-4); border: var(--hair-dashed); border-radius: var(--radius-md); color: hsl(var(--muted-foreground)); font-size: var(--text-sm); }
+.noesis-section-empty b { font-weight: 500; color: hsl(var(--foreground)); }
+
+/* Search field: an Input with the glass and a clear button. */
+.noesis-search { position: relative; display: flex; align-items: center; }
+.noesis-search > svg { position: absolute; left: 12px; width: 14px; height: 14px; color: hsl(var(--muted-foreground)); pointer-events: none; }
+.noesis-search > input { padding-left: 34px; padding-right: 34px; }
+.noesis-search__clear { position: absolute; right: 6px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px; color: hsl(var(--muted-foreground)); }
+.noesis-search__clear:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+
+/* Status text: one voice for inline feedback. */
+.noesis-status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: hsl(var(--tone, var(--muted-foreground))); }
+
+@media (prefers-reduced-motion: reduce) {
+  .noesis-pill, .noesis-panel--interactive { transition: none; }
+}

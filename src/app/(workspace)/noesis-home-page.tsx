@@ -3673,7 +3673,7 @@ function SyncIssueBanner({ issue, onDismiss }: { issue: FirestorePermissionError
             Affected area: {affectedArea}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={onDismiss} className="rounded-full bg-card">
+        <Button variant="outline" size="sm" onClick={onDismiss}>
           Dismiss
         </Button>
       </div>
@@ -3722,7 +3722,7 @@ function MissingFocusedTargetState({
         onRetry={onRetry}
         retryLabel="Retry"
         alternateAction={(
-          <Button variant="outline" size="sm" onClick={onReturn} className="rounded-full bg-card">
+          <Button variant="outline" size="sm" onClick={onReturn}>
             Return to {targetLabel.owner}
           </Button>
         )}

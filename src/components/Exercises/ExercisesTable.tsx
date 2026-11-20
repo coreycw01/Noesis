@@ -180,7 +180,7 @@ function ExerciseCard({ game, completed, onComplete, onFollow, onNext, nextLabel
 
       {!revealed ? (
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button type="button" onClick={turn} disabled={!canTurn} className="rounded-full">Turn the card</Button>
+          <Button type="button" onClick={turn} disabled={!canTurn}>Turn the card</Button>
           <Button type="button" variant="ghost" onClick={onNext}>Skip</Button>
         </div>
       ) : (
@@ -188,8 +188,8 @@ function ExerciseCard({ game, completed, onComplete, onFollow, onNext, nextLabel
           {game.answer && <p className="font-medium">{choice === game.answer ? 'Right.' : 'Not quite.'} <span className="text-muted-foreground">Answer: {game.answer}</span></p>}
           <p>{game.reveal}</p>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={onFollow} className="rounded-full">What this changes → {followLabel}<ArrowRight className="ml-1 size-4" aria-hidden="true" /></Button>
-            <Button type="button" onClick={onNext} className="rounded-full">{nextLabel}</Button>
+            <Button type="button" variant="outline" onClick={onFollow}>What this changes → {followLabel}<ArrowRight className="ml-1 size-4" aria-hidden="true" /></Button>
+            <Button type="button" onClick={onNext}>{nextLabel}</Button>
             <Button type="button" variant="ghost" size="icon" aria-label="Play this card again" title="Play again" onClick={() => { setRevealed(false); setChoice(''); setText(''); }}><RotateCcw className="size-4" /></Button>
           </div>
           {completed && <p className="font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Private practice: nothing was saved to your records.</p>}

@@ -141,7 +141,7 @@ export function NoesisShell({
                 <FlaskConical className="mr-1.5 size-3.5" />
                 {isSeedingReview ? 'Refreshing Demo Data' : 'Refresh Demo Workspace'}
               </Button>
-              <Button onClick={exportReviewArchitecture} className="h-8 rounded-full px-3 text-xs">
+              <Button onClick={exportReviewArchitecture} className="text-xs">
                 <Download className="mr-1.5 size-3.5" /> Export Architecture
               </Button>
             </div>

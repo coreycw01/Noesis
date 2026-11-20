@@ -6,6 +6,7 @@ import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, ArrowLeft, ArrowRight, BookOpen, CheckCircle2, CircleHelp, Flag, Footprints, Lightbulb, MinusCircle, PlusCircle, ExternalLink, GitBranch, Highlighter, Layers3, MoreHorizontal, Pencil, Plus, Quote, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Pill } from '@/components/ui/pill';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { writeBrowserPreference } from '@/lib/browser-preferences';
@@ -927,10 +928,10 @@ export function AnnotationsIndex({
                 <p className="noesis-tray__src">{annotation.source.title}{annotation.date && Number.isFinite(Date.parse(annotation.date)) ? ` · ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(annotation.date))}` : ''}</p>
                 <div className="flex flex-wrap gap-1.5" role="group" aria-label={`What does “${annotation.text.slice(0, 40)}” do?`}>
                   {kinds.map(([kind, label, tone]) => (
-                    <button key={kind} type="button" data-stage-tone={tone} className="noesis-tray__chip" onClick={() => {
+                    <Pill key={kind} look="mono" tone="stage" data-stage-tone={tone} onClick={() => {
                       const { source, ...annotationData } = annotation;
                       void persistAnnotation(source.id, { ...annotationData, consequenceKind: kind });
-                    }}>{label}</button>
+                    }}>{label}</Pill>
                   ))}
                 </div>
               </div>
@@ -954,10 +955,10 @@ export function AnnotationsIndex({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={createInquiryFromSelection} className="rounded-full">
+            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={createInquiryFromSelection}>
               <GitBranch className="mr-1.5 size-3.5" /> Create inquiry
             </Button>
-            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length || Boolean(pendingAction)} onClick={createPositionFromSelection} className="rounded-full">
+            <Button variant="outline" size="sm" disabled={!selectedAnnotations.length || Boolean(pendingAction)} onClick={createPositionFromSelection}>
               <Layers3 className="mr-1.5 size-3.5" /> Form position
             </Button>
             <Button variant="outline" size="sm" disabled={!selectedAnnotations.length} onClick={() => updateSelectedStatus('reference_only')} className="rounded-full">
@@ -1035,7 +1036,7 @@ export function AnnotationsIndex({
                   <TableCell className="px-1 py-3">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button type="button" variant="ghost" size="icon" className="size-11 rounded-full" aria-label={`Actions for annotation from ${annotation.source.title}`}>
+                        <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={`Actions for annotation from ${annotation.source.title}`}>
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -1097,7 +1098,7 @@ export function AnnotationsIndex({
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" className="-mr-2 size-10 shrink-0 rounded-full" aria-label={`Actions for annotation from ${annotation.source.title}`}>
+                  <Button type="button" variant="ghost" size="icon" className="-mr-2 size-10 shrink-0" aria-label={`Actions for annotation from ${annotation.source.title}`}>
                     <MoreHorizontal className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1165,7 +1166,7 @@ export function AnnotationsIndex({
               icon={Highlighter}
               title="No excerpts found"
               description="As you extract text and anchor thoughts in your library, they will aggregate here for synthesis."
-              action={filtersActive ? <Button variant="outline" onClick={clearFilters} className="rounded-full">Clear filters</Button> : undefined}
+              action={filtersActive ? <Button variant="outline" onClick={clearFilters}>Clear filters</Button> : undefined}
             />
           </div>
         )}
@@ -1305,7 +1306,7 @@ export function AnnotationsIndex({
                   <div className="flex items-center gap-1">
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
-                        <Button ref={annotationMenuTrigger} variant="ghost" size="icon" className="size-10 rounded-full" aria-label="Annotation actions">
+                        <Button ref={annotationMenuTrigger} variant="ghost" size="icon" className="size-10" aria-label="Annotation actions">
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -1628,7 +1629,7 @@ export function AnnotationsIndex({
           )}
           <DialogFooter className="shrink-0 border-t border-border pt-3">
             <Button variant="ghost" onClick={() => setPreflight(null)} className="rounded-full">Cancel</Button>
-            <Button onClick={submitPreflight} disabled={Boolean(pendingAction)} className="rounded-full px-8">
+            <Button onClick={submitPreflight} disabled={Boolean(pendingAction)}>
               {preflight?.mode === 'position' ? 'Open in Positions' : 'Open in Inquiries'}
             </Button>
           </DialogFooter>

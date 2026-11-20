@@ -345,7 +345,7 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
                 <TableCell className="hidden lg:table-cell"><StageBadge type="practice" stage={practice.stage} status={practice.status} /></TableCell>
                 <TableCell className="hidden text-xs leading-5 text-muted-foreground xl:table-cell">{practice.action || practice.hypothesis || 'Action not defined'}</TableCell>
                 <TableCell className="hidden font-code text-[9px] uppercase tracking-wider text-muted-foreground xl:table-cell">{progress}</TableCell>
-                <TableCell className="px-1 sm:px-4"><Button size="sm" variant="outline" className="min-h-11 rounded-full" onClick={open} onKeyDown={(event) => activateEntityOnKey(event, open)}>Open</Button></TableCell>
+                <TableCell className="px-1 sm:px-4"><Button size="sm" variant="outline" className="min-h-11" onClick={open} onKeyDown={(event) => activateEntityOnKey(event, open)}>Open</Button></TableCell>
               </TableRow>;
             })}
             {!filtered.length && <TableRow><TableCell colSpan={6}>No {labTool} match this view.</TableCell></TableRow>}
@@ -645,7 +645,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
             {nextAction.tone === 'log' ? <CheckCircle2 className="size-4" /> : nextAction.tone === 'start' ? <Play className="size-4" /> : nextAction.tone === 'review' ? <ClipboardList className="size-4" /> : nextAction.tone === 'open' ? <Eye className="size-4" /> : <Edit className="size-4" />} {nextAction.label}
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Actions for ${practice.title}`} className="size-10 rounded-full"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Actions for ${practice.title}`} className="size-10"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onSelect={onEdit}><Edit className="mr-2 size-4" /> Edit practice</DropdownMenuItem>
               {visibleStatus === 'active' && <DropdownMenuItem onSelect={() => setStatus('paused')}><PauseCircle className="mr-2 size-4" /> Pause</DropdownMenuItem>}
@@ -1030,7 +1030,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
         </fieldset>
         <div className="flex shrink-0 justify-end gap-3 border-t bg-muted/10 p-4 sm:px-8 [@media(max-height:600px)]:py-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 px-8 rounded-full font-bold text-muted-foreground hover:bg-transparent">Cancel</Button>
-          <Button onClick={onSave} disabled={busy || !draft.title?.trim()} className="h-11 px-6">{busy ? 'Saving…' : draft.id ? 'Save practice' : 'Create practice'}</Button>
+          <Button onClick={onSave} disabled={busy || !draft.title?.trim()}>{busy ? 'Saving…' : draft.id ? 'Save practice' : 'Create practice'}</Button>
         </div>
       </DialogContent>
     </Dialog>

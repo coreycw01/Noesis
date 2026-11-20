@@ -474,7 +474,7 @@ export function SettingsPage({
                 </Field>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Button variant="outline" onClick={resetPassword} disabled={!user?.email || saving === 'reset'} className="rounded-full bg-card px-6">
+                <Button variant="outline" onClick={resetPassword} disabled={!user?.email || saving === 'reset'}>
                   Reset Password
                 </Button>
                 <Button variant="outline" onClick={() => void exportWorkspace()} disabled={exporting} className="rounded-full bg-card px-6">
@@ -588,7 +588,7 @@ export function SettingsPage({
                     <div className="mt-2 font-headline text-2xl font-semibold italic text-foreground">A workspace for living thought</div>
                     <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">This preview uses the same page, navigation, surface, border, typography, and accent tokens as every Noesis workspace.</p>
                     <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <Button size="sm" className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">Primary action</Button>
+                      <Button size="sm">Primary action</Button>
                       <div className="rounded-xl border border-border bg-card px-4 py-2 text-sm text-card-foreground">Readable card</div>
                       <div className="rounded-full bg-muted px-3 py-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">
                         {drafts.appearance.highContrastMode ? 'High contrast on' : 'Standard contrast'}
@@ -938,7 +938,7 @@ export function SettingsPage({
                     {!user || aiConnection === 'sign_in_required' ? 'Sign in to check server configuration.' : aiConnection === 'email_not_verified' ? 'Verify your email before checking server configuration.' : aiConnection === 'configured' ? 'Configured. This check does not run an AI request.' : aiConnection === 'not_configured' ? 'AI is not configured on the server.' : aiConnection === 'unavailable' ? 'Configuration status could not be verified. Try again.' : aiConnection === 'checking' ? 'Checking configuration...' : 'Not checked.'}
                   </div>
                 </div>
-                <Button variant="outline" onClick={checkAiConnection} disabled={!user || aiConnection === 'checking'} className="rounded-full">
+                <Button variant="outline" onClick={checkAiConnection} disabled={!user || aiConnection === 'checking'}>
                   <RefreshCw aria-hidden="true" className={`mr-2 size-4 ${aiConnection === 'checking' ? 'animate-spin' : ''}`} /> Check Configuration
                 </Button>
               </div>
@@ -992,7 +992,7 @@ export function SettingsPage({
                     Export as Mind Map
                   </Button>
                   {reviewMode && onRefreshDemoWorkspace && (
-                    <Button variant="outline" onClick={refreshDemoWorkspace} disabled={refreshingDemoWorkspace || saving === 'refresh-demo'} className="rounded-full bg-card">
+                    <Button variant="outline" onClick={refreshDemoWorkspace} disabled={refreshingDemoWorkspace || saving === 'refresh-demo'}>
                       <RefreshCw className="mr-2 size-4" />
                       {refreshingDemoWorkspace || saving === 'refresh-demo' ? 'Refreshing Demo Workspace' : 'Refresh Demo Workspace'}
                     </Button>
@@ -1325,7 +1325,7 @@ function SaveBar({ onSave, onDiscard, saving, busy, dirty, saved }: { onSave: ()
     <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
       <span role="status" className="sr-only">{!dirty && saved ? 'Changes saved' : ''}</span>
       {dirty && onDiscard && <Button type="button" variant="ghost" disabled={busy} onClick={onDiscard}>Discard preview</Button>}
-      <Button type="button" onClick={onSave} disabled={busy || !dirty} className="rounded-full px-6 font-semibold">
+      <Button type="button" onClick={onSave} disabled={busy || !dirty}>
         {saving ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}
         {saving ? 'Saving' : !dirty && saved ? 'Saved' : 'Save Changes'}
       </Button>

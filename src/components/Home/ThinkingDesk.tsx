@@ -898,7 +898,7 @@ export function ThinkingDesk({
                     <p className="mt-1 text-xs text-muted-foreground">One recommended move, followed by your longest-waiting unanswered question.</p>
                   </div>
                   {rotation.length > 1 && (
-                    <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full text-xs" onClick={() => setEdgeOffset((current) => current + 1)}>
+                    <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => setEdgeOffset((current) => current + 1)}>
                       Show another · {(edgeOffset % rotation.length) + 1}/{rotation.length}
                     </Button>
                   )}
@@ -1014,7 +1014,7 @@ export function ThinkingDesk({
                           className="mt-3 min-h-[76px] rounded-md"
                         />
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" onClick={turnProvocationIntoInquiry} disabled={creatingInquiry || !onCreateInquiry} className="rounded-md">{creatingInquiry ? 'Saving…' : 'Open as inquiry'}</Button>
+                          <Button size="sm" onClick={turnProvocationIntoInquiry} disabled={creatingInquiry || !onCreateInquiry}>{creatingInquiry ? 'Saving…' : 'Open as inquiry'}</Button>
                           <Button size="sm" variant="outline" onClick={() => previewOrNavigate(provocation.target, { label: 'Explore further', description: 'Reflection prompt', reason: provocation.evidence })} className="rounded-md">Explore</Button>
                           <Button
                             size="sm"

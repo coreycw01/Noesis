@@ -210,7 +210,7 @@ export function AtlasTerritoryView({
       <Card className="rounded-3xl border border-border/60 bg-card/85 p-6 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            {detailMode && <Button ref={backButton} variant="ghost" size="sm" onClick={onBackToRegions} className="mb-3 -ml-2 rounded-full text-muted-foreground"><ArrowLeft className="mr-2 size-4" />Back to Regions</Button>}
+            {detailMode && <Button ref={backButton} variant="ghost" size="sm" onClick={onBackToRegions} className="mb-3 -ml-2 text-muted-foreground"><ArrowLeft className="mr-2 size-4" />Back to Regions</Button>}
             <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-[0.18em]">Atlas Regions</Badge>
             <h2 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">{detailMode && selectedRegion ? selectedRegion.name : 'What territories define my current thought-world?'}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
@@ -219,7 +219,7 @@ export function AtlasTerritoryView({
           </div>
           {selectedRegion && !detailMode && (
             <div className="flex flex-wrap gap-2">
-              <Button className="rounded-full" onClick={() => onOpenMap(selectedRegion.id)}>
+              <Button onClick={() => onOpenMap(selectedRegion.id)}>
                 <MapPinned className="mr-2 size-4" />
                 Open in Map
               </Button>

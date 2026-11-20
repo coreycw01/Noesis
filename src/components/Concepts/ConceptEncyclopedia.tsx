@@ -9,6 +9,7 @@ import { persistedConceptRecords } from '@/lib/workspace-counts';
 import { LabeledField } from '@/components/shared/LabeledField';
 import { AlertTriangle, ArrowLeft, ArrowRight, BookOpen, ChevronDown, Edit, Plus, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Pill } from '@/components/ui/pill';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -780,7 +781,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   placeholder="Write the current working definition for this concept."
                 />
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={saveInlineDefinition} disabled={!concept} className="h-8 rounded-full px-5">
+                  <Button size="sm" onClick={saveInlineDefinition} disabled={!concept}>
                     Save Definition
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setIsDefinitionEditing(false)} className="h-8 rounded-full px-5">
@@ -792,7 +793,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <div className="max-w-3xl">
                 <p className="text-lg text-muted-foreground font-body leading-relaxed">{concept.description}</p>
                 {concept.definitionProvenance && <AiProvenanceBadge provenance={concept.definitionProvenance} target={conceptReviewTarget(concept.id, 'description', concept.definitionProvenance.provenanceId)} title="Concept definition" />}
-                <Button variant="ghost" size="sm" onClick={startDefinitionEdit} className="mt-2 h-8 rounded-full px-3 text-muted-foreground hover:text-foreground">
+                <Button variant="ghost" size="sm" onClick={startDefinitionEdit} className="mt-2 text-muted-foreground hover:text-foreground">
                   <Edit className="mr-2 size-3.5" /> Edit Definition
                 </Button>
               </div>
@@ -853,7 +854,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   onAccept={(result, text) => persistConcept(concept, { result, text, baseline: concept })}
                 />
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Concept actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+                  <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Concept actions" className="size-9"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onSelect={() => openEditor(concept)}><Edit className="mr-2 size-4" /> Edit concept</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setDeleteTarget(concept)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete concept</DropdownMenuItem>
@@ -910,7 +911,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <p className="text-sm leading-6 text-muted-foreground">
                   {concept?.description || 'Undefined. Write a provisional definition before treating this concept as stable.'}
                 </p>
-                <Button variant="outline" size="sm" onClick={startDefinitionEdit} disabled={!concept} className="mt-3 h-8 rounded-full">
+                <Button variant="outline" size="sm" onClick={startDefinitionEdit} disabled={!concept} className="mt-3">
                   <Edit className="mr-2 size-3.5" /> Edit Definition
                 </Button>
               </div>
@@ -1073,7 +1074,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   <p className="text-xs leading-5 text-muted-foreground">
                     Saving appends a user-written boundary note to the working definition and records the concept update through the normal concept flow.
                   </p>
-                  <Button onClick={saveBoundaryRefinement} disabled={!concept || !boundaryRefinement.trim()} className="rounded-full">
+                  <Button onClick={saveBoundaryRefinement} disabled={!concept || !boundaryRefinement.trim()}>
                     Save Boundary Note
                   </Button>
                 </div>
@@ -1511,7 +1512,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   <TableCell><div className="space-y-1.5"><StageBadge type="concept" stage={concept?.stage} status={concept?.philosophyStatus} /><span className={cn('block w-fit font-code text-[8px] font-bold uppercase tracking-widest', CLARITY_BG[diag.level])}>{diag.level}</span></div></TableCell>
                   <TableCell className="hidden font-code text-[10px] uppercase tracking-wider text-muted-foreground xl:table-cell">{connectionCount}</TableCell>
                   <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">{repairFlags.length ? repairFlags.slice(0, 3).map((flag) => flag.label).join(' · ') : 'Ready for use'}</TableCell>
-                  <TableCell className="hidden sm:table-cell">{concept && <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-11 rounded-full" onClick={() => openEditor(concept)}><Edit className="size-4" /></Button>}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{concept && <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-11" onClick={() => openEditor(concept)}><Edit className="size-4" /></Button>}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -1569,7 +1570,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                           <span className="noesis-relations__hint">{zone.hint}</span>
                           <span className="flex flex-wrap gap-1.5">
                             {(target[zone.field] || []).map((value) => (
-                              <span key={value} className="noesis-relations__chip">{value}<button type="button" aria-label={`Remove ${value} from ${zone.title}`} onClick={() => save(zone.field, (target[zone.field] || []).filter((item) => item !== value))}>×</button></span>
+                              <Pill key={value} tone="concept" removeLabel={`Remove ${value} from ${zone.title}`} onRemove={() => save(zone.field, (target[zone.field] || []).filter((item) => item !== value))}>{value}</Pill>
                             ))}
                           </span>
                         </div>
@@ -1608,7 +1609,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   <div className="flex gap-2 items-start">
                     <h2 className="font-headline text-xl font-bold flex-1 group-hover:text-accent transition-colors leading-tight">{name}</h2>
                     {concept && (
-                      <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-10 opacity-100 transition-opacity rounded-full md:size-9 md:opacity-0 md:group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); openEditor(concept); }}>
+                      <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-10 opacity-100 transition-opacity md:size-9 md:opacity-0 md:group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); openEditor(concept); }}>
                         <Edit className="size-3" />
                       </Button>
                     )}

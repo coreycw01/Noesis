@@ -22,7 +22,7 @@ export function ThoughtGamePreview({ onOpen, concepts, inquiries, positions, med
         <h2 className="mt-2 font-headline text-lg font-semibold italic leading-tight text-foreground">{game.title}</h2>
         <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{game.instruction}</p>
       </div>
-      <Button type="button" size="sm" onClick={onOpen} className="shrink-0 rounded-md">
+      <Button type="button" size="sm" onClick={onOpen} className="shrink-0">
         Open exercises
         <ArrowRight className="ml-1 size-4" aria-hidden="true" />
       </Button>

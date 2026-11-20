@@ -477,7 +477,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                         <TableCell className="px-1">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="size-11 rounded-md text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`}>
+                              <Button type="button" variant="ghost" size="icon" className="size-11 text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`}>
                                 <MoreVertical className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -559,7 +559,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="relative z-10 size-10 shrink-0 rounded-md text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`}>
+                          <Button type="button" variant="ghost" size="icon" className="relative z-10 size-10 shrink-0 text-muted-foreground" aria-label={`More actions for ${draft.title || 'work'}`}>
                             <MoreVertical className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>

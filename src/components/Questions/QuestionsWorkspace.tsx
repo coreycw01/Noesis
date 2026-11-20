@@ -427,7 +427,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
               icon={HelpCircle}
               title="No inquiries found"
               description="Refine your search, clear the current view, or open a new investigation."
-              action={inquiryFiltersActive ? <Button variant="outline" onClick={clearInquiryFilters} className="rounded-full">Clear filters</Button> : undefined}
+              action={inquiryFiltersActive ? <Button variant="outline" onClick={clearInquiryFilters}>Clear filters</Button> : undefined}
             />
           </div>
         )}
@@ -456,7 +456,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
               label="INFLUENCED BY SOURCE(S)"
             />
           </div>
-          <DialogFooter className="pt-8"><Button onClick={createQuestion} disabled={creatingQuestion || !newQuestion.text.trim()} className="w-full h-12 rounded-full font-bold">{creatingQuestion ? 'Saving…' : 'Open Investigation'}</Button></DialogFooter>
+          <DialogFooter className="pt-8"><Button onClick={createQuestion} disabled={creatingQuestion || !newQuestion.text.trim()} className="w-full">{creatingQuestion ? 'Saving…' : 'Open Investigation'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -960,7 +960,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             <div className="flex gap-2">
               <Button
                 size="sm"
-                className="rounded-full"
+               
                 disabled={saving || !questionDraft.trim()}
                 onClick={async () => {
                   if (!await onUpdateQuestion({ ...question, text: questionDraft.trim(), dateUpdated: today() })) return;
@@ -970,7 +970,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
               >
                 <Check className="mr-2 size-4" /> Save question
               </Button>
-              <Button size="sm" variant="ghost" className="rounded-full" onClick={() => { setQuestionDraft(question.text); setEditingQuestion(false); }}>
+              <Button size="sm" variant="ghost" onClick={() => { setQuestionDraft(question.text); setEditingQuestion(false); }}>
                 <X className="mr-2 size-4" /> Cancel
               </Button>
             </div>
@@ -1019,7 +1019,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
             {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="size-9 rounded-full" aria-label="Inquiry actions">
+                  <Button variant="outline" size="icon" className="size-9" aria-label="Inquiry actions">
                     <MoreHorizontal className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1204,7 +1204,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-xs text-muted-foreground">{(question.assumptions || []).length} clarification{(question.assumptions || []).length === 1 ? '' : 's'} saved.</p>
-                      <Button onClick={addClarification} disabled={!clarificationDraft.trim()} className="rounded-full px-4">Save clarification</Button>
+                      <Button onClick={addClarification} disabled={!clarificationDraft.trim()}>Save clarification</Button>
                     </div>
                     {(question.assumptions || []).length > 0 && (
                       <div className="flex flex-wrap gap-2">{question.assumptions?.map((assumption) => <Badge key={assumption} variant="outline" className="max-w-full whitespace-normal text-left">{assumption}</Badge>)}</div>
@@ -1277,7 +1277,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                       <div className="space-y-2"><Label htmlFor={`candidate-objection-${question.id}`}>What could be wrong with it? <span className="font-normal text-muted-foreground">Optional</span></Label><Input id={`candidate-objection-${question.id}`} value={candidateDraft.objection} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, objection: event.target.value }))} placeholder="A limitation or counterexample" /></div>
                       <div className="space-y-2 md:col-span-2"><div className="flex items-center justify-between"><Label htmlFor={`candidate-confidence-${question.id}`}>How likely does this currently seem?</Label><span className="text-sm font-semibold text-foreground">{candidateDraft.confidence * 20}%</span></div><input id={`candidate-confidence-${question.id}`} type="range" min="1" max="5" step="1" value={candidateDraft.confidence} onChange={(event) => setCandidateDraft((prev) => ({ ...prev, confidence: Number(event.target.value) }))} className="w-full accent-[hsl(var(--accent))]" aria-label="Candidate answer confidence" /></div>
                     </div>
-                    <div className="flex justify-end"><Button onClick={addCandidateAnswer} disabled={!candidateDraft.statement.trim()} className="rounded-full px-4">Save possible answer</Button></div>
+                    <div className="flex justify-end"><Button onClick={addCandidateAnswer} disabled={!candidateDraft.statement.trim()}>Save possible answer</Button></div>
                   </div>
                 )}
 
@@ -1306,7 +1306,7 @@ function QuestionDetail({ aiSettings, question, sources, concepts, beliefs, draf
                         </div>
                       </div>
                     </details>
-                    <div className="flex flex-wrap justify-end gap-2 md:col-span-2"><Button onClick={createTestRecord} disabled={!testDraft.tested.trim() || !testDraft.method.trim()} className="rounded-full px-4">Create practice</Button></div>
+                    <div className="flex flex-wrap justify-end gap-2 md:col-span-2"><Button onClick={createTestRecord} disabled={!testDraft.tested.trim() || !testDraft.method.trim()}>Create practice</Button></div>
                     <div className="rounded-lg border border-border/70 p-3 md:col-span-2">
                       <Label className="mb-2 block" htmlFor="inquiry-existing-practice">Already have a practice?</Label>
                       <div className="flex flex-col gap-2 sm:flex-row">

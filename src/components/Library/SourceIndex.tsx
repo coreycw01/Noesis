@@ -609,7 +609,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           {selectedSourceIds.length ? `${selectedSources.length} selected for export${missingSelectedCount > 0 ? ` · ${missingSelectedCount} unavailable` : ''}` : 'Select sources to export, or export the current filtered view.'}
         </span>
         <div className="ml-auto flex items-center gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={toggleVisibleSelection} disabled={!visibleSourceIds.length} className="rounded-full text-xs">
+          <Button type="button" variant="ghost" size="sm" onClick={toggleVisibleSelection} disabled={!visibleSourceIds.length} className="text-xs">
             {allVisibleSelected ? 'Clear visible' : `Select visible (${visibleSourceIds.length})`}
           </Button>
           {selectedSourceIds.length > 0 && (
@@ -769,7 +769,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               icon={SourceIcon}
               title="No timeline results"
               description="Clear filters or add dated sources to see when material entered your system."
-              action={filtersActive ? <Button variant="outline" onClick={clearFilters} className="rounded-full">Clear filters</Button> : undefined}
+              action={filtersActive ? <Button variant="outline" onClick={clearFilters}>Clear filters</Button> : undefined}
             />
           )}
         </div>
@@ -876,11 +876,11 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                   </TableCell>
                   <TableCell className="px-1 text-right">
                     <div className="flex flex-col items-end justify-end gap-1 sm:flex-row">
-                      <Button variant="ghost" size="icon" className="size-11 rounded-full" onClick={() => copyCitation(m)} aria-label={`Copy citation for ${m.title}`} title="Copy citation">
+                      <Button variant="ghost" size="icon" className="size-11" onClick={() => copyCitation(m)} aria-label={`Copy citation for ${m.title}`} title="Copy citation">
                         <Copy className="size-3.5" />
                       </Button>
                       {m.url && (
-                        <Button variant="ghost" size="icon" className="size-11 rounded-full" asChild title="Open URL" aria-label={`Open website for ${m.title}`}>
+                        <Button variant="ghost" size="icon" className="size-11" asChild title="Open URL" aria-label={`Open website for ${m.title}`}>
                           <a href={m.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="size-3.5" /></a>
                         </Button>
                       )}
@@ -896,7 +896,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                     icon={SourceIcon}
                     title="No sources match this view"
                     description="Clear filters or search for a different title, creator, identifier, or concept tag."
-                    action={filtersActive ? <Button variant="outline" onClick={clearFilters} className="rounded-full">Clear filters</Button> : undefined}
+                    action={filtersActive ? <Button variant="outline" onClick={clearFilters}>Clear filters</Button> : undefined}
                   />
                 </TableCell>
               </TableRow>
@@ -932,7 +932,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           </section>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
             <Button type="button" variant="outline" onClick={() => void copyAllCitations()} disabled={!bibliographySources.length} className="rounded-full">Copy references</Button>
-            <Button type="button" onClick={downloadBibtex} disabled={!bibliographySources.length} className="rounded-full"><Download className="mr-2 size-4" /> Download BibTeX</Button>
+            <Button type="button" onClick={downloadBibtex} disabled={!bibliographySources.length}><Download className="mr-2 size-4" /> Download BibTeX</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

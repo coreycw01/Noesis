@@ -1388,7 +1388,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               />
               <div className="flex shrink-0 items-center justify-end gap-1 border-l border-border/30 pl-2 sm:gap-2">
                 {isDocumentSurface && <Button type="button" variant="ghost" size="icon" className="size-9" aria-label={writingFocus ? 'Leave writing focus' : 'Enter writing focus'} aria-pressed={writingFocus} title={writingFocus ? 'Leave writing focus' : 'Writing focus'} onClick={() => setWritingFocus((value) => !value)}><Focus className="size-4" /></Button>}
-                {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Open' : 'Connect'}</Button>}
+                {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Open' : 'Connect'}</Button>}
                 <div role="status" className="sr-only items-center gap-2 rounded-[var(--button-radius)] border border-border/30 bg-muted/10 px-3 py-1.5 sm:not-sr-only sm:flex">
                   <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
                   <span className="font-code text-[8px] uppercase tracking-widest font-bold text-muted-foreground">
@@ -1405,7 +1405,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" className="size-9 rounded-md border-border/60 bg-card" aria-label="More work actions">
+                    <Button variant="outline" size="icon" className="size-9" aria-label="More work actions">
                       <MoreHorizontal className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -1448,7 +1448,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
               <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-9 shrink-0 px-2" aria-label="Open linked context" title="Linked context">
+                  <Button variant="ghost" size="sm" className="shrink-0" aria-label="Open linked context" title="Linked context">
                     <NotebookPen className="mr-2 size-4" /> <span>Context</span>
                   </Button>
                 </SheetTrigger>
@@ -1491,10 +1491,10 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                     <Button variant="outline" size="sm" onClick={() => syncExternalDoc(active)} disabled={syncingId === active.id} className="rounded-full bg-card">
                       <RefreshCw className={cn('mr-2 size-4', syncingId === active.id && 'animate-spin')} /> Sync Now
                     </Button>
-                    <Button variant="outline" size="sm" asChild className="rounded-full bg-card">
+                    <Button variant="outline" size="sm" asChild>
                       <a href={active.externalDoc.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 size-4" /> Open</a>
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={detachExternalDoc} className="rounded-full text-destructive hover:text-destructive">
+                    <Button variant="ghost" size="sm" onClick={detachExternalDoc} className="text-destructive hover:text-destructive">
                       <Unlink className="mr-2 size-4" /> Detach
                     </Button>
                   </div>
@@ -1517,7 +1517,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-9 min-w-0 flex-1 justify-start rounded-md border-border/60 bg-card px-3 shadow-sm sm:w-auto sm:max-w-[260px]" aria-label={`Document pages. Current page: ${currentPageLabel}`}>
+                        <Button variant="outline" size="sm" className="min-w-0 flex-1 justify-start sm:w-auto sm:max-w-[260px]" aria-label={`Document pages. Current page: ${currentPageLabel}`}>
                           <ListTree className="size-4 shrink-0 text-accent" />
                           <span className="truncate">{currentPageLabel}</span>
                         </Button>
@@ -1779,7 +1779,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   <Button
                     variant="outline"
                     size="sm"
-                    className="shrink-0 rounded-full bg-card"
+                    className="shrink-0"
                     onClick={() => {
                       updateActive({
                         title: revision.title,
@@ -2103,7 +2103,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 type="button"
                 size="sm"
                 variant={isPlaying ? 'default' : 'outline'}
-                className="h-10 shrink-0 rounded-full px-3 font-code text-[9px] uppercase tracking-widest"
+                className="shrink-0"
                 aria-label={isPlaying ? `Pause ${presentation.ariaLabel}` : presentation.action}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -2149,7 +2149,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               filterCause={workFiltersActive ? 'Current filters may be hiding existing works.' : undefined}
               action={
                 <div className="flex flex-wrap items-center justify-center gap-3">
-                  {workFiltersActive && <Button variant="outline" onClick={clearWorkFilters} className="rounded-full">Clear filters</Button>}
+                  {workFiltersActive && <Button variant="outline" onClick={clearWorkFilters}>Clear filters</Button>}
                   <Button onClick={() => setIsWorkTypeOpen(true)} className="rounded-full"><Plus className="mr-1.5 size-4" /> Add work</Button>
                 </div>
               }
@@ -2311,10 +2311,10 @@ function QuickNoteStudio({
               {dictationError && <p className="mt-1 text-sm text-destructive">{dictationError}</p>}
             </div>
             <div className="flex gap-2">
-              <Button onClick={startDictation} disabled={dictationState === 'listening'} className="rounded-full">
+              <Button onClick={startDictation} disabled={dictationState === 'listening'}>
                 <Mic className="mr-2 size-4" /> Start Dictation
               </Button>
-              <Button onClick={stopDictation} disabled={dictationState !== 'listening'} variant="outline" className="rounded-full bg-background">
+              <Button onClick={stopDictation} disabled={dictationState !== 'listening'} variant="outline">
                 Stop
               </Button>
             </div>
@@ -2683,18 +2683,18 @@ function RecordingStudio({
             <Button onClick={() => void requestMedia()} disabled={state === 'requesting' || state === 'recording' || state === 'paused' || state === 'saving'} variant="outline" className="rounded-full bg-background">
               <Camera className="mr-2 size-4" /> {audioOnly ? 'Enable Microphone' : 'Enable Camera'}
             </Button>
-            <Button onClick={startRecording} disabled={state !== 'ready'} className="rounded-full">
+            <Button onClick={startRecording} disabled={state !== 'ready'}>
               <Video className="mr-2 size-4" /> Start Recording
             </Button>
-            <Button onClick={togglePause} disabled={state !== 'recording' && state !== 'paused'} variant="outline" className="rounded-full bg-background">
+            <Button onClick={togglePause} disabled={state !== 'recording' && state !== 'paused'} variant="outline">
               {state === 'paused' ? <CirclePlay className="mr-2 size-4" /> : <CirclePause className="mr-2 size-4" />}
               {state === 'paused' ? 'Resume' : 'Pause'}
             </Button>
-            <Button onClick={stopRecording} disabled={state !== 'recording' && state !== 'paused'} variant="outline" className="rounded-full bg-background">
+            <Button onClick={stopRecording} disabled={state !== 'recording' && state !== 'paused'} variant="outline">
               Stop Recording
             </Button>
             {(state === 'stopped' || state === 'saved') && (
-              <Button onClick={rerecord} variant="ghost" className="rounded-full text-muted-foreground">
+              <Button onClick={rerecord} variant="ghost" className="text-muted-foreground">
                 <RefreshCw className="mr-2 size-4" /> Re-record
               </Button>
             )}
@@ -3121,10 +3121,10 @@ function DrawingStudio({
             <Button variant="outline" size="icon" onClick={() => restoreHistory(Math.min(history.length - 1, historyIndex + 1))} disabled={historyIndex >= history.length - 1} className="size-9 rounded-lg bg-background" title="Redo" aria-label="Redo drawing action">
               <Redo2 className="size-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={exportDrawing} className="size-9 rounded-lg bg-background" title="Export PNG" aria-label="Export drawing as PNG">
+            <Button variant="outline" size="icon" onClick={exportDrawing} className="size-9" title="Export PNG" aria-label="Export drawing as PNG">
               <Download className="size-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={clearCanvas} className="size-9 rounded-lg bg-background" title="Clear canvas" aria-label="Clear drawing canvas">
+            <Button variant="outline" size="icon" onClick={clearCanvas} className="size-9" title="Clear canvas" aria-label="Clear drawing canvas">
               <Trash2 className="size-4" />
             </Button>
           </div>
@@ -3266,7 +3266,7 @@ function WorkIntellectualRail({
               </div>
             ))}
             {!(active.versionHistory || []).length && <p className="text-sm text-muted-foreground">No saved versions yet. Each explicit save keeps one.</p>}
-            {onOpenVersions && <Button type="button" variant="outline" size="sm" className="mt-1 justify-self-start rounded-full" onClick={onOpenVersions}>Open version history</Button>}
+            {onOpenVersions && <Button type="button" variant="outline" size="sm" className="mt-1 justify-self-start" onClick={onOpenVersions}>Open version history</Button>}
           </div>
         ) : railTab === 'mark'
           ? <WorkMarkPanel key={active.id} marks={active.marks || []} onChange={onMarksChange} />
@@ -3517,7 +3517,7 @@ function ExternalDocDialog({
         </div>
         <DialogFooter className="pt-6 gap-3">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full">Cancel</Button>
-          <Button onClick={onConnect} disabled={!docDraft.url.trim()} className="rounded-full bg-accent px-8">Connect Document</Button>
+          <Button onClick={onConnect} disabled={!docDraft.url.trim()}>Connect Document</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

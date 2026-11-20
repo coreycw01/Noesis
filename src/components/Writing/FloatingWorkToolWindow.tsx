@@ -256,7 +256,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         </select>
         <Popover>
           <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 rounded-md md:size-7" aria-label={`${label} appearance`} title="Tool appearance">
+            <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 md:size-7" aria-label={`${label} appearance`} title="Tool appearance">
               <Pencil className="size-3.5" />
             </Button>
           </PopoverTrigger>

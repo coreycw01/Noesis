@@ -9,6 +9,7 @@ import { AlertTriangle, ArrowLeft, Pencil, Plus, ShieldCheck, Trash2, Triangle, 
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { Button } from '@/components/ui/button';
+import { Pill } from '@/components/ui/pill';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -1114,7 +1115,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               onAccept={acceptPositionAiResult}
             />
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Position actions" className="size-9 rounded-full bg-card"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Position actions" className="size-9"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => openEditor(selected)}><Pencil className="mr-2 size-4" /> Edit position</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setDeleteTarget(selected)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 size-4" /> Delete position</DropdownMenuItem>
@@ -1240,7 +1241,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-full"
+                       
                         onClick={() => onUpdateEntry({ ...selected, status: 'challenged', dateUpdated: today() })}
                       >
                         Mark Challenged
@@ -1248,7 +1249,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-full"
+                       
                         onClick={() => onUpdateEntry({
                           ...selected,
                           status: 'revised',
@@ -1278,7 +1279,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                     <p className="text-xs italic text-muted-foreground">
                       Saved answers are added to the belief biography as a challenge event.
                     </p>
-                    <Button size="sm" className="rounded-full" onClick={saveStressAnswer}>Record Stage Answer</Button>
+                    <Button size="sm" onClick={saveStressAnswer}>Record Stage Answer</Button>
                   </div>
                 </div>
               </div>
@@ -1731,7 +1732,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             <PositionMiniScale confidence={confidencePercent(entry.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} />
             {(entry.tags || []).length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <button type="button" onClick={() => setConceptPopupName((entry.tags || [])[0])} className="noesis-tag-chip">{(entry.tags || [])[0]}</button>
+                <Pill look="mono" tone="concept" onClick={() => setConceptPopupName((entry.tags || [])[0])}>{(entry.tags || [])[0]}</Pill>
                 {diagnostic.flags[0] && <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground" title={diagnostic.flags.join(', ')}>{diagnostic.flags[0]}{diagnostic.flags.length > 1 ? ` +${diagnostic.flags.length - 1}` : ''}</span>}
               </div>
             )}
@@ -1748,7 +1749,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               whyItMatters="Noesis uses positions as the lifecycle for rough thoughts, tested judgments, and fully formed commitments."
               firstAction="Create one provisional position from an annotation, inquiry, source reflection, or direct claim."
               filterCause={positionFiltersActive ? 'Current view, search, or filters may be hiding positions.' : undefined}
-              action={positionFiltersActive ? <Button variant="outline" onClick={clearPositionFilters} className="rounded-full">Clear filters</Button> : undefined}
+              action={positionFiltersActive ? <Button variant="outline" onClick={clearPositionFilters}>Clear filters</Button> : undefined}
             />
           </div>
         )}
@@ -1798,10 +1799,10 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   {b.title}
                 </button>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" className="h-8 rounded-full bg-card" onClick={() => { setTensionDrawerOpen(false); openEntry(a.id); }}>
+                  <Button variant="outline" size="sm" onClick={() => { setTensionDrawerOpen(false); openEntry(a.id); }}>
                     Review tension
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 rounded-full" onClick={() => setViewFilter('tensions')}>
+                  <Button variant="ghost" size="sm" onClick={() => setViewFilter('tensions')}>
                     Filter positions
                   </Button>
                 </div>
@@ -1864,7 +1865,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <Button
                   onClick={handleGenerateQuestions}
                   disabled={!ideaDraft.title.trim() || isGenerating}
-                  className="bg-accent shadow-md shadow-accent/20 rounded-full px-8 w-full"
+                  className="w-full"
                 >
                   {isGenerating ? <Loader2 className="size-5 mr-2 animate-spin" /> : <GenerativeAiIcon className="mr-2 size-7" />}
                   {isGenerating ? 'Generating questions…' : 'Ask AI'}
@@ -1897,7 +1898,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <Button
                   onClick={handleFormPosition}
                   disabled={isGenerating}
-                  className="bg-accent shadow-md shadow-accent/20 rounded-full px-8 w-full"
+                  className="w-full"
                 >
                   {isGenerating ? <Loader2 className="size-4 mr-2 animate-spin" /> : <ChevronRight className="size-4 mr-2" />}
                   {isGenerating ? 'Forming position…' : 'Form Position'}
@@ -1951,7 +1952,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <DialogFooter className="pt-2">
                 <Button
                   onClick={handleSaveIdeaPosition}
-                  className="bg-accent shadow-md shadow-accent/20 rounded-full px-8 w-full"
+                  className="w-full"
                 >
                   Save Position
                 </Button>
@@ -2150,7 +2151,7 @@ function PositionsTable({
                   <p className="mt-2 text-xs leading-5 text-muted-foreground xl:hidden">{diagnostic.nextAction}</p>
                 </TableCell>
                 <TableCell className="hidden font-code text-[10px] uppercase tracking-widest xl:table-cell">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
-                <TableCell className="hidden lg:table-cell"><div className="flex flex-wrap gap-1"><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{entry.status}</Badge><StageBadge type="position" stage={entry.stage} status={entry.status} /></div></TableCell>
+                <TableCell className="hidden lg:table-cell"><div className="flex flex-wrap gap-1"><Badge>{entry.status}</Badge><StageBadge type="position" stage={entry.stage} status={entry.status} /></div></TableCell>
                 <TableCell>
                   <div className="min-w-0">
                     <div className="mb-1 font-code text-[10px] font-bold">{confidencePercent(entry.confidence)}%</div>
@@ -2188,7 +2189,7 @@ function EvidencePanel({ title, items, onAdd, onPull }: { title: string; items: 
     <Card className="noesis-workbench-panel noesis-workbench-panel--sub">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="noesis-workbench-panel__eyebrow">{title}</h3>
-        {onPull && <Button type="button" variant="outline" size="sm" className="h-7 rounded-full px-3 text-xs" onClick={onPull}>Pull from your records</Button>}
+        {onPull && <Button type="button" variant="outline" size="sm" className="text-xs" onClick={onPull}>Pull from your records</Button>}
       </div>
       <div className="space-y-2 mb-3">{items.map((item, index) => <div key={`${item}-${index}`} className="rounded-lg bg-muted/30 p-3 text-sm italic shadow-sm border border-border/10 leading-relaxed text-primary/80">{item}</div>)}</div>
       <div className="flex gap-2"><Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Add evidence..." className="h-9 rounded-full" /><Button onClick={() => { if (text.trim()) { onAdd(text.trim()); setText(''); } }} size="sm" className="h-9 px-4 rounded-full">Add</Button></div>
@@ -2426,7 +2427,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             </div>
           </details>
         </div>
-        <DialogFooter className="pt-4"><Button onClick={onSave} disabled={saving || !draft.title?.trim()} className="bg-accent h-11 px-10 rounded-full font-bold">{saving ? 'Saving…' : 'Save position'}</Button></DialogFooter>
+        <DialogFooter className="pt-4"><Button onClick={onSave} disabled={saving || !draft.title?.trim()}>{saving ? 'Saving…' : 'Save position'}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

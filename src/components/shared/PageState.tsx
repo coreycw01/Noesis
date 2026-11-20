@@ -98,7 +98,7 @@ export function PageErrorState({ title, description, onRetry, retryLabel = 'Try 
       {(onRetry || alternateAction) && (
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           {onRetry && (
-            <Button variant="outline" onClick={onRetry} className="rounded-full">
+            <Button variant="outline" onClick={onRetry}>
               {retryLabel}
             </Button>
           )}

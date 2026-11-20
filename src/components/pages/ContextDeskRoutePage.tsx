@@ -516,7 +516,7 @@ export function ContextDeskRoutePage({
             </Select>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" className="h-10 min-w-0 justify-between rounded-md bg-card px-3 text-xs font-normal">
+                <Button type="button" variant="outline" className="min-w-0 justify-between text-xs font-normal">
                   <span className="flex min-w-0 items-center gap-2"><SlidersHorizontal className="size-4 shrink-0" aria-hidden="true" /><span className="truncate">Exclusions{exclusionCount ? ` (${exclusionCount})` : ''}</span></span>
                 </Button>
               </DropdownMenuTrigger>

@@ -117,7 +117,7 @@ export function AtlasTensionsBoard({ tensions, onOpenRegion }: AtlasTensionsBoar
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {item.regionIds.map((regionId) => (
-                      <Button key={regionId} variant="outline" size="sm" className="rounded-full" onClick={() => onOpenRegion(regionId)}>
+                      <Button key={regionId} variant="outline" size="sm" onClick={() => onOpenRegion(regionId)}>
                         Open region
                       </Button>
                     ))}

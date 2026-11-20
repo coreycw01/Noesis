@@ -412,7 +412,7 @@ export function ContextualAiPanel({
   return (
     <span className="noesis-aidock-anchor" data-open={open || undefined}>
       <span className="noesis-aidock">
-        <Button variant="outline" size="sm" className="noesis-ai-trigger rounded-full" aria-haspopup="dialog" aria-expanded={open} onClick={(event) => { dialogOpener.current = event.currentTarget; setOpen(true); }}>
+        <Button variant="outline" size="sm" className="noesis-ai-trigger" aria-haspopup="dialog" aria-expanded={open} onClick={(event) => { dialogOpener.current = event.currentTarget; setOpen(true); }}>
           <NoesisAiMark className="mr-2 size-5" /> {buttonLabel}
         </Button>
         {contextDeskKey && workspaceKey && (
@@ -420,7 +420,7 @@ export function ContextualAiPanel({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-9 rounded-full"
+            className="size-9"
             aria-label="Add this item to Context Desk"
             title="Add to Context Desk"
             onClick={() => {

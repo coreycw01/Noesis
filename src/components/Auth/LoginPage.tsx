@@ -332,7 +332,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
                 </div>
               </div>
 
-              <Button type="submit" className="h-11 w-full rounded-full font-bold shadow-lg shadow-accent/20" disabled={busy !== null}>
+              <Button type="submit" className="w-full" disabled={busy !== null}>
                 {busy === 'email' && <Loader2 className="mr-2 size-4 animate-spin" />}
                 {mode === 'signup' ? 'Create Account' : 'Sign In'}
               </Button>
@@ -350,7 +350,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
                   <div className="h-px flex-1 bg-border" />
                 </div>
 
-                <Button type="button" variant="outline" onClick={signInGoogle} disabled={busy !== null} className="h-11 w-full rounded-full bg-card font-bold border-border/60 shadow-sm">
+                <Button type="button" variant="outline" onClick={signInGoogle} disabled={busy !== null} className="w-full">
                   {busy === 'google' && <Loader2 className="mr-2 size-4 animate-spin" />}
                   Continue with Google
                 </Button>

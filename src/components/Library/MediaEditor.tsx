@@ -244,7 +244,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                           onChange={(e) => setImportUrl(e.target.value)}
                           className="h-11 rounded-md bg-card text-sm italic sm:rounded-full"
                         />
-                        <Button variant="outline" onClick={handleImportUrl} disabled={isImporting || !importUrl.trim()} className="h-11 w-full rounded-md px-6 font-bold sm:w-auto sm:rounded-full">
+                        <Button variant="outline" onClick={handleImportUrl} disabled={isImporting || !importUrl.trim()} className="w-full sm:w-auto sm:rounded-full">
                           {isImporting ? <Loader2 className="size-4 animate-spin" /> : 'IMPORT'}
                         </Button>
                       </div>
@@ -369,7 +369,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                       onKeyDown={(e) => e.key === 'Enter' && addTag()}
                       className="h-11 rounded-md text-sm sm:rounded-full"
                     />
-                    <Button variant="outline" onClick={addTag} className="h-11 rounded-md border-border/60 bg-card px-4 font-code text-[10px] font-bold uppercase tracking-widest shadow-sm sm:rounded-full sm:px-6">ADD</Button>
+                    <Button variant="outline" onClick={addTag} className="sm:rounded-full sm:px-6">ADD</Button>
                   </div>
                 </div>
 
@@ -414,7 +414,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
 
         <div className="grid grid-cols-2 gap-2 border-t bg-muted/10 p-4 sm:flex sm:justify-end sm:gap-4 sm:p-8 sm:pt-4">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 rounded-md px-4 font-code text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-transparent sm:rounded-full sm:px-8">Cancel</Button>
-          <Button onClick={onSave} disabled={saving || !draft.title?.trim()} className="h-11 rounded-md bg-accent px-4 font-code text-[11px] font-bold uppercase tracking-widest sm:rounded-full sm:px-10">
+          <Button onClick={onSave} disabled={saving || !draft.title?.trim()} className="sm:rounded-full sm:px-10">
             {saving ? 'Saving…' : draft.id ? 'Save changes' : 'Add to Library'}
           </Button>
         </div>

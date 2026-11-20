@@ -469,10 +469,10 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             {!focusedGoalId && <PraxisMethodPicker method="commitments" onChange={method => {
               if (method !== 'commitments' && !saving && (draft === savedDraftRef.current || window.confirm('Leave without saving the commitment changes?'))) onOpenPraxis(method);
             }} />}
-            {focusedGoalId ? <Button variant="outline" onClick={() => onOpenCommitment(null)}>All commitments</Button> : <Button variant="outline" onClick={addGoal} className="rounded-full bg-card">
+            {focusedGoalId ? <Button variant="outline" onClick={() => onOpenCommitment(null)}>All commitments</Button> : <Button variant="outline" onClick={addGoal}>
               <Plus className="mr-2 size-4" /> New commitment
             </Button>}
-            {(!focusedGoalId || focusedGoal) && <Button onClick={saveGoals} disabled={saving || draft === savedDraftRef.current} className="rounded-full px-7 font-bold shadow-md shadow-accent/20">
+            {(!focusedGoalId || focusedGoal) && <Button onClick={saveGoals} disabled={saving || draft === savedDraftRef.current}>
               <Save className="mr-2 size-4" /> {saving ? 'Saving' : 'Save changes'}
             </Button>}
             </div>
@@ -646,7 +646,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                   <h2 id="goals-heading" className="mt-1 font-headline text-2xl font-bold italic">Make belief visible in practice</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Name the commitment, link the Position it expresses, and choose the practice evidence that counts.</p>
                 </div>
-                <Button onClick={addGoal} className="min-h-10 rounded-full"><Plus className="mr-2 size-4" /> Add commitment</Button>
+                <Button onClick={addGoal} className="min-h-10"><Plus className="mr-2 size-4" /> Add commitment</Button>
               </div>
               <ol className="mt-5 grid gap-3 sm:grid-cols-3">
                 {[

@@ -146,7 +146,7 @@ export function FilterToolbar({
           {relatedLookups.length > 0 && (
             <Popover>
               <PopoverTrigger asChild>
-                <Button type="button" variant="outline" size="icon" className="size-10 shrink-0 rounded-full border-border/50 bg-card" aria-label={relatedLookupLabel} title={relatedLookupLabel}>
+                <Button type="button" variant="outline" size="icon" className="size-10 shrink-0" aria-label={relatedLookupLabel} title={relatedLookupLabel}>
                   <LibraryBig className="size-4" />
                 </Button>
               </PopoverTrigger>
@@ -207,7 +207,7 @@ export function FilterToolbar({
               type="button"
               variant="outline"
               size="icon"
-              className="size-9 shrink-0 justify-center rounded-full border-border/50 bg-card px-0 font-code text-[9px] uppercase tracking-widest sm:w-auto sm:px-3"
+              className="size-9 shrink-0 justify-center sm:w-auto sm:px-3"
               aria-label={resolvedActiveFilterCount ? `Filters, ${resolvedActiveFilterCount} active` : 'Filters'}
             >
               <SlidersHorizontal className="size-3.5 sm:mr-1.5" />
@@ -252,7 +252,7 @@ export function FilterToolbar({
             </span>
           )}
           {onClear && (
-            <Button type="button" variant="ghost" size="sm" onClick={clearAll} disabled={clearAllDisabled} className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-widest">
+            <Button type="button" variant="ghost" size="sm" onClick={clearAll} disabled={clearAllDisabled}>
               <X className="mr-1.5 size-3.5" /> Clear
             </Button>
           )}

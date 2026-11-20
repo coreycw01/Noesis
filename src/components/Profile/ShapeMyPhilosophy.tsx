@@ -122,7 +122,7 @@ export function ShapeMyPhilosophy({ positions, concepts, inquiries, practices, l
               <p className="font-headline text-lg italic leading-snug">“{item.words}”</p>
               <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={`Does “${item.title}” belong?`}>
                 {([['yes', 'Belongs'], ['unsure', 'Not sure'], ['no', 'Not part of it']] as const).map(([value, label]) => (
-                  <Button key={value} type="button" size="sm" role="radio" aria-checked={state.picks[item.key] === value} variant={state.picks[item.key] === value ? 'default' : 'outline'} className="rounded-full" onClick={() => update((current) => ({ ...current, picks: { ...current.picks, [item.key]: value } }))}>{label}</Button>
+                  <Button key={value} type="button" size="sm" role="radio" aria-checked={state.picks[item.key] === value} variant={state.picks[item.key] === value ? 'default' : 'outline'} onClick={() => update((current) => ({ ...current, picks: { ...current.picks, [item.key]: value } }))}>{label}</Button>
                 ))}
               </div>
             </div>

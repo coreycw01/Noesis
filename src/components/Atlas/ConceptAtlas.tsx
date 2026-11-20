@@ -1754,7 +1754,7 @@ export function ConceptAtlas({
               ref={inspectorCloseRef}
               variant="ghost"
               size="icon"
-              className="size-11 shrink-0 rounded-full"
+              className="size-11 shrink-0"
               aria-label="Close Atlas inspector"
               onClick={closeNodeInspector}
             >
@@ -1785,7 +1785,7 @@ export function ConceptAtlas({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-6 rounded-full px-2 text-[10px]"
+                   
                     onClick={() => updateNodeColor(selectedName!)}
                     disabled={!effectiveNodeColors[conceptKey(selectedName!)]}
                   >
@@ -1832,7 +1832,7 @@ export function ConceptAtlas({
                         <SelectItem value="interacted">Sort: Recently Interacted</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={() => beginQuickLinkMode(selectedName!)}>
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => beginQuickLinkMode(selectedName!)}>
                     <Link2 className="mr-1 size-3.5" /> Link This Idea
                     </Button>
                   </div>
@@ -1894,7 +1894,7 @@ export function ConceptAtlas({
                   {panelSection === 'actions' && (
                     <section className="space-y-3">
                       <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
-                      <Button size="sm" variant="outline" className="min-h-11 w-full justify-center rounded-full text-xs" onClick={() => {
+                      <Button size="sm" variant="outline" className="min-h-11 w-full justify-center text-xs" onClick={() => {
                         beginQuickLinkMode(selectedName!);
                         const next = renderedNodes.find((node) => node.name !== selectedName);
                         if (next) nodeButtons.current.get(next.name)?.focus({ preventScroll: true });
@@ -2621,20 +2621,20 @@ export function ConceptAtlas({
             </Select>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-8 rounded-full px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
+                <Button variant="outline">
                   {relationshipFilterLabel}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" scrollable className="w-72 rounded-2xl [--noesis-menu-max-height:420px]">
                 <DropdownMenuLabel className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Relationship Types</DropdownMenuLabel>
                 <div className="flex gap-2 px-2 pb-2 pt-1">
-                  <Button size="sm" variant={relationshipFilterMode === 'recommended' ? 'default' : 'outline'} className="h-7 rounded-full px-3 text-[10px]" onClick={() => setRelationshipFilterMode('recommended')}>
+                  <Button size="sm" variant={relationshipFilterMode === 'recommended' ? 'default' : 'outline'} onClick={() => setRelationshipFilterMode('recommended')}>
                     Select Recommended
                   </Button>
-                  <Button size="sm" variant={relationshipFilterMode === 'all' ? 'default' : 'outline'} className="h-7 rounded-full px-3 text-[10px]" onClick={() => setRelationshipFilterMode('all')}>
+                  <Button size="sm" variant={relationshipFilterMode === 'all' ? 'default' : 'outline'} onClick={() => setRelationshipFilterMode('all')}>
                     Show All
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 rounded-full px-3 text-[10px]" onClick={() => { setRelationshipFilterMode('custom'); setCustomRelationshipTypes([]); }}>
+                  <Button size="sm" variant="ghost" onClick={() => { setRelationshipFilterMode('custom'); setCustomRelationshipTypes([]); }}>
                     Clear All
                   </Button>
                 </div>
@@ -2674,7 +2674,7 @@ export function ConceptAtlas({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 rounded-full px-3 font-code text-[9px] uppercase tracking-wider md:hidden">
+              <Button variant="outline" size="sm" className="md:hidden">
                 <SlidersHorizontal className="mr-1.5 size-3.5" /> Map options
               </Button>
             </DropdownMenuTrigger>
@@ -2730,11 +2730,11 @@ export function ConceptAtlas({
                 {!atlasMaps.length && <option value="">No custom maps</option>}
                 {atlasMaps.map((map) => <option key={map.id} value={map.id}>{map.title}</option>)}
               </select>
-              <Button variant="outline" size="sm" className="h-11 md:h-8" onClick={openMapStyle} disabled={!activeMap}>
+              <Button variant="outline" size="sm" className="md:h-8" onClick={openMapStyle} disabled={!activeMap}>
                 <SlidersHorizontal className="mr-1.5 size-4" /> Map Style
               </Button>
-              <Button variant="outline" size="sm" className="h-11 md:h-8" onClick={() => setIsMapOpen(true)}><Plus className="mr-1.5 size-4" /> New Map</Button>
-              <Button variant="outline" size="sm" className="h-11 md:h-8" onClick={() => setIsNodeOpen(true)} disabled={!activeMap}><Plus className="mr-1.5 size-4" /> Add Node</Button>
+              <Button variant="outline" size="sm" className="md:h-8" onClick={() => setIsMapOpen(true)}><Plus className="mr-1.5 size-4" /> New Map</Button>
+              <Button variant="outline" size="sm" className="md:h-8" onClick={() => setIsNodeOpen(true)} disabled={!activeMap}><Plus className="mr-1.5 size-4" /> Add Node</Button>
               {activeMap && (
                 <Button variant="ghost" size="sm" onClick={() => setMapToDelete(activeMap)} className="h-11 text-destructive hover:text-destructive md:h-8">Delete Map</Button>
               )}
@@ -2751,7 +2751,7 @@ export function ConceptAtlas({
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 md:justify-end md:overflow-visible md:pb-0">
             {mode === 'auto' && selectedRegion && (
-              <Button variant="outline" size="sm" className="h-8 rounded-full" onClick={() => setAtlasSection('territory')}>
+              <Button variant="outline" size="sm" onClick={() => setAtlasSection('territory')}>
                 {selectedRegion.name}
               </Button>
             )}
@@ -2768,7 +2768,7 @@ export function ConceptAtlas({
             type="button"
             variant={timelineWindow ? 'default' : 'outline'}
             size="sm"
-            className="h-9 shrink-0 rounded-full"
+            className="shrink-0"
             aria-pressed={Boolean(timelineWindow)}
             onClick={() => setTimelineWindow((current) => current ? null : { from: Math.max(timelineBounds.start, timelineBounds.end - 30 * 86400000), asOf: timelineBounds.end })}
           >
@@ -2806,7 +2806,7 @@ export function ConceptAtlas({
               <span className="noesis-atlas-timeline__readout">
                 As of <b>{formatAtlasTimelineDate(timelineWindow.asOf)}</b> · {timelineNewCount} new
               </span>
-              <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full" onClick={() => setTimelineWindow(null)}>Now</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setTimelineWindow(null)}>Now</Button>
             </>
           ) : (
             <span className="text-xs text-muted-foreground">Replay the map on any date and see which concepts are new.</span>
@@ -2942,7 +2942,7 @@ export function ConceptAtlas({
             "absolute right-4 top-4 z-50 flex rounded-full border border-border/50 bg-card/90 p-1 shadow-md backdrop-blur"
           )} onClick={(event) => event.stopPropagation()}>
             <Button variant="ghost" size="icon" aria-label="Zoom out" disabled={zoom <= ATLAS_MIN_ZOOM + 0.001} onClick={() => changeZoom(zoom - ATLAS_ZOOM_STEP)} className="size-10 rounded-full font-bold md:size-8">-</Button>
-            <Button variant="ghost" size="icon" className="size-10 font-code text-[10px] md:size-8" title="Reset map view" aria-label={`Reset map view, current zoom ${Math.round((zoom / ATLAS_BASE_ZOOM) * 100)} percent`} onClick={() => { setPan({ x: 0, y: 0 }); changeZoom(ATLAS_BASE_ZOOM); }}>{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</Button>
+            <Button variant="ghost" size="icon" className="size-10 md:size-8" title="Reset map view" aria-label={`Reset map view, current zoom ${Math.round((zoom / ATLAS_BASE_ZOOM) * 100)} percent`} onClick={() => { setPan({ x: 0, y: 0 }); changeZoom(ATLAS_BASE_ZOOM); }}>{Math.round((zoom / ATLAS_BASE_ZOOM) * 100)}%</Button>
             <Button variant="ghost" size="icon" aria-label="Zoom in" disabled={zoom >= ATLAS_MAX_ZOOM - 0.001} onClick={() => changeZoom(zoom + ATLAS_ZOOM_STEP)} className="size-10 rounded-full font-bold md:size-8">+</Button>
             <div className="mx-1 my-1 w-px bg-border" />
             <Button ref={mapControlsRef} variant={isPanelOpen ? 'secondary' : 'ghost'} size="icon" aria-expanded={isPanelOpen} aria-controls={isPanelOpen ? inspectorId : undefined} aria-label={isPanelOpen ? 'Hide Atlas inspector' : 'Show Atlas inspector'} onClick={(event) => { event.stopPropagation(); setIsPanelOpen((open) => !open); }} className="size-10 rounded-full md:size-8">
@@ -3249,7 +3249,7 @@ export function ConceptAtlas({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 rounded-full px-3 text-xs"
+                      className="text-xs"
                       onClick={() => updateLinkColor(selectedLink)}
                       disabled={!effectiveLinkColors[atlasLinkColorKey(selectedLink)]}
                     >
@@ -3455,7 +3455,7 @@ export function ConceptAtlas({
           </p>
           <DialogFooter className="pt-4">
             <Button variant="ghost" onClick={() => setIsDeleteAllLinksOpen(false)} className="rounded-full">Cancel</Button>
-            <Button variant="destructive" onClick={clearSelectedNodeLinks} className="rounded-full px-7">Delete Connected Links</Button>
+            <Button variant="destructive" onClick={clearSelectedNodeLinks}>Delete Connected Links</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3474,7 +3474,7 @@ export function ConceptAtlas({
             </div>
             <SourceLinker media={media} selectedIds={newConcept.sourceIds || []} onToggle={toggleNewConceptSource} label="Root Evidence (Sources)" />
           </div>
-          <DialogFooter className="pt-4"><Button onClick={addConcept} disabled={creatingConcept || !newConcept.name?.trim()} className="rounded-full px-8">{creatingConcept ? 'Saving…' : 'Save concept'}</Button></DialogFooter>
+          <DialogFooter className="pt-4"><Button onClick={addConcept} disabled={creatingConcept || !newConcept.name?.trim()}>{creatingConcept ? 'Saving…' : 'Save concept'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -3659,7 +3659,7 @@ export function ConceptAtlas({
                       <Button
                         type="button"
                         variant="outline"
-                        className="rounded-full"
+                       
                         onClick={() => backgroundInputRef.current?.click()}
                         disabled={!uid || isUploadingBackground}
                       >
@@ -3668,7 +3668,7 @@ export function ConceptAtlas({
                       <Button
                         type="button"
                         variant="ghost"
-                        className="rounded-full text-destructive hover:text-destructive"
+                        className="text-destructive hover:text-destructive"
                         onClick={clearUploadedBackground}
                         disabled={!styleDraft.background.imageUrl && !styleDraft.background.storagePath}
                       >
@@ -3771,7 +3771,7 @@ export function ConceptAtlas({
           <DialogFooter className="pt-4">
             {styleError && <p role="alert" className="text-sm text-destructive">{styleError}</p>}
             <Button variant="ghost" disabled={savingStyle} onClick={() => setIsStyleOpen(false)} className="rounded-full">Cancel</Button>
-            <Button onClick={saveMapStyle} disabled={savingStyle || isUploadingBackground} className="rounded-full px-8">{savingStyle ? 'Saving...' : 'Save Map Style'}</Button>
+            <Button onClick={saveMapStyle} disabled={savingStyle || isUploadingBackground}>{savingStyle ? 'Saving...' : 'Save Map Style'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

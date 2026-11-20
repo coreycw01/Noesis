@@ -867,7 +867,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
               <SheetTrigger asChild><Button
                 variant="outline"
                 size="icon"
-                className="size-9 rounded-full border-border/60 bg-card shadow-sm"
+                className="size-9"
                 aria-label="Open navigation"
               >
                 <Menu className="size-4" />
@@ -1318,7 +1318,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                         <Button
                           key={`${action.view}-${action.targetId || action.label}`}
                           variant="outline"
-                          className="justify-between rounded-xl"
+                          className="justify-between"
                           onClick={() => {
                             if (!previewItem) return;
                             openPreviewItem({
@@ -1342,7 +1342,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
 
             <div className="border-t border-border p-4">
               <Button
-                className="w-full rounded-full"
+                className="w-full"
                 onClick={() => previewItem && openPreviewItem(previewItem)}
               >
                 {previewItem?.quickActionLabel || 'Open Full Page'}

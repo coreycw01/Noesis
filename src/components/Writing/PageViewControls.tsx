@@ -71,7 +71,7 @@ export function PageViewControls({
     <div className={cn('flex items-center gap-2', className)}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9 w-9 justify-center rounded-md border-border/60 bg-card px-0 font-bold shadow-sm sm:w-auto sm:justify-start sm:px-4" aria-label="Document defaults">
+          <Button variant="outline" size="sm" className="w-9 justify-center sm:w-auto sm:justify-start sm:px-4" aria-label="Document defaults">
             <Settings2 className="size-4 text-accent" />
             <span className="hidden sm:inline">Document defaults</span>
           </Button>
@@ -181,7 +181,7 @@ export function PageSettingsControl({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 w-9 justify-center rounded-md border-border/60 bg-card px-0 font-bold shadow-sm sm:w-auto sm:justify-start sm:px-3" aria-label={`Page settings for ${pageLabel}`}>
+        <Button variant="outline" size="sm" className="w-9 justify-center sm:w-auto sm:justify-start sm:px-3" aria-label={`Page settings for ${pageLabel}`}>
           <FileCog className="size-4 text-accent" />
           <span className="hidden sm:inline">This page</span>
           {overridden && <span className="size-1.5 rounded-full bg-accent" aria-label="Custom page settings" />}

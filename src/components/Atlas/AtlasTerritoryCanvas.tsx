@@ -5,6 +5,7 @@ import type { Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry 
 import type { AtlasRegionViewModel } from './atlas-diagnostics';
 import { conceptKey } from '@/lib/readex';
 import { Button } from '@/components/ui/button';
+import { Pill } from '@/components/ui/pill';
 import { cn } from '@/lib/utils';
 
 /**
@@ -451,7 +452,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
               }}>Zoom to region</Button>
               {regionDetail && <Button size="sm" variant="ghost" onClick={() => onOpenRegion?.(regionDetail.id)}>Region details</Button>}
             </div>
-            <div className="flex flex-wrap gap-1.5">{regionConcepts.map((concept) => <button key={concept.id} type="button" className="noesis-territory__chip" onClick={() => { setSelection({ kind: 'concept', concept }); const v = view.current; v.tx = concept.wx; v.ty = concept.wy; v.tk = 3.8; }}>{concept.name}</button>)}</div>
+            <div className="flex flex-wrap gap-1.5">{regionConcepts.map((concept) => <Pill key={concept.id} tone="concept" onClick={() => { setSelection({ kind: 'concept', concept }); const v = view.current; v.tx = concept.wx; v.ty = concept.wy; v.tk = 3.8; }}>{concept.name}</Pill>)}</div>
           </div>
         )}
         {selection?.kind === 'concept' && (
