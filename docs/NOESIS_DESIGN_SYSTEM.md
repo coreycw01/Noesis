@@ -127,17 +127,31 @@ Updated at the end of each phase. ✓ = on the system, ◐ = partly, ✗ = not y
 
 | Screen | P1 tokens | P2–3 anatomy | P4 chrome | P5 sweep |
 | --- | --- | --- | --- | --- |
-| Home / desk | ✗ | – | ✗ | ✗ |
-| Library index / Source detail | ✗ | ✗ | ✗ | ✗ |
-| Annotations index / detail | ✗ | ✗ | ✗ | ✗ |
-| Works index / editor | ✗ | ✗ | ✗ | ✗ |
-| Concepts index / detail | ✗ | ✗ | ✗ | ✗ |
-| Inquiries index / detail | ✗ | ✗ | ✗ | ✗ |
-| Positions index / detail | ✗ | ✗ | ✗ | ✗ |
-| Praxis index / detail (+goals) | ✗ | ✗ | ✗ | ✗ |
-| Exercises | ✗ | – | ✗ | ✗ |
-| Atlas | ✗ | – | ✗ | ✗ |
-| Evolution | ✗ | – | ✗ | ✗ |
-| Context desk | ✗ | – | ✗ | ✗ |
-| Profile / Settings | ✗ | – | ✗ | ✗ |
-| Shell / nav / Loop dock | ✗ | – | ✗ | ✗ |
+| Home / desk | ✓ | – | ✗ | ✗ |
+| Library index / Source detail | ✓ | ✗ | ✗ | ✗ |
+| Annotations index / detail | ✓ | ✓ | ✗ | ✗ |
+| Works index / editor | ✓ | ✗ | ✗ | ✗ |
+| Concepts index / detail | ✓ | ✓ | ✗ | ✗ |
+| Inquiries index / detail | ✓ | ✓ | ✗ | ✗ |
+| Positions index / detail | ✓ | ✓ | ✗ | ✗ |
+| Praxis index / detail (+goals) | ✓ | ◐ (detail done; Commitments not folded) | ✗ | ✗ |
+| Exercises | ✓ | – | ✗ | ✗ |
+| Atlas | ✓ | – | ✗ | ✗ |
+| Evolution | ✓ | – | ✗ | ✗ |
+| Context desk | ✓ | – | ✗ | ✗ |
+| Profile / Settings | ✓ | – | ✗ | ✗ |
+| Shell / nav / Loop dock | ✓ | – | ✗ | ✗ |
+
+### Counts, rechecked after phase 3
+
+| Measure | At audit | Now | Target |
+| --- | --- | --- | --- |
+| raw `<button>` | 200 | 189 | only inside primitives |
+| hex literals in TSX | 80 | 80 | 0 (phase 5; mostly Atlas canvas) |
+| Tailwind palette classes | 66 | 66 | 0 (phase 5) |
+| distinct eyebrow recipes | 12 recipes / 350+ uses | 32 distinct strings remain | one `Eyebrow` |
+| tab implementations | 4 | 2 (`WorkspaceTabs`, `ui/tabs`) | 2, by purpose |
+| `WorkbenchFlow` (numbered rings) | 4 pages | 0 pages (component retired from use) | removed in phase 4 |
+
+The phase-5 sweep is what drives the hex, palette and eyebrow counts to zero;
+phases 1–3 deliberately changed only the primitives and the record pages.

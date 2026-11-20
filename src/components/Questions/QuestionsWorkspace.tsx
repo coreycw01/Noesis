@@ -30,7 +30,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { WorkbenchFlow } from '@/components/shared/WorkbenchFlow';
 import { ContextRail, EntityMeta, IntellectualRoleLabel } from '@/components/shared/IntellectualStructures';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
