@@ -978,7 +978,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                       {q.answer ? (
                         <p className="text-xs text-muted-foreground font-body italic line-clamp-2 border-t border-border/20 pt-2">{q.answer}</p>
                       ) : (
-                        <span className="font-code text-[8px] uppercase tracking-widest text-amber-600 font-bold">Open</span>
+                        <span className="font-code text-[8px] uppercase tracking-widest text-caution font-bold">Open</span>
                       )}
                     </button>
                   ))}
@@ -1054,17 +1054,17 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             {r.beliefs.length >= 2 && (
               <section className="mb-10">
                 <div className="flex items-center gap-2 mb-5">
-                  <AlertTriangle className="size-4 text-amber-500" />
+                  <AlertTriangle className="size-4 text-caution" />
                   <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Tensions & Conflicts</h2>
                 </div>
-                <div className="rounded-xl border border-amber-200/60 bg-amber-50/60 p-5">
-                  <p className="text-xs text-amber-700/70 font-body mb-4 italic">
+                <div className="rounded-xl border border-caution/35 bg-caution/10 p-5">
+                  <p className="text-xs text-caution font-body mb-4 italic">
                     These positions all orbit <span className="font-bold">{selectedName}</span>. Do they cohere, contradict, or refine each other?
                   </p>
                   <div className="space-y-4">
                     {r.beliefs.slice(0, 4).map((a, ai) =>
                       r.beliefs.slice(ai + 1, ai + 2).map((b) => (
-                        <div key={`${a.id}-${b.id}`} className="rounded-lg bg-card/80 border border-amber-100 p-4">
+                        <div key={`${a.id}-${b.id}`} className="rounded-lg bg-card/80 border border-caution/25 p-4">
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position A</p>
@@ -1077,11 +1077,11 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                               <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{b.statement}&quot;</p>
                             </div>
                           </div>
-                          <div className="mt-4 border-t border-amber-100 pt-3">
+                          <div className="mt-4 border-t border-caution/25 pt-3">
                             <div className="mb-2 flex items-center justify-between gap-2">
-                              <p className="font-code text-[8px] uppercase tracking-widest text-amber-700/70 font-bold">Resolve Relationship</p>
+                              <p className="font-code text-[8px] uppercase tracking-widest text-caution font-bold">Resolve Relationship</p>
                               {tensionDecisions[`${a.id}-${b.id}`] && (
-                                <span className="rounded-full border border-amber-200 bg-amber-100/70 px-2 py-0.5 font-code text-[8px] uppercase tracking-widest text-amber-800">
+                                <span className="rounded-full border border-caution/40 bg-caution/15 px-2 py-0.5 font-code text-[8px] uppercase tracking-widest text-foreground">
                                   {tensionDecisions[`${a.id}-${b.id}`].replace(/_/g, ' ')}
                                 </span>
                               )}
@@ -1097,8 +1097,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                                     size="sm"
                                     onClick={() => resolveConceptTension(selectedName, a, b, decision.id)}
                                     className={cn(
-                                      'h-auto justify-start rounded-lg px-3 py-2 text-left whitespace-normal border-amber-100 bg-card text-foreground hover:bg-amber-50',
-                                      selected && 'border-amber-400 bg-amber-100 text-amber-950 shadow-sm'
+                                      'h-auto justify-start rounded-lg px-3 py-2 text-left whitespace-normal border-caution/25 bg-card text-foreground hover:bg-caution/10',
+                                      selected && 'border-caution bg-caution/20 text-foreground'
                                     )}
                                   >
                                     <span className="block">
@@ -1109,7 +1109,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                                 );
                               })}
                             </div>
-                            <p className="mt-2 text-[11px] text-amber-700/70">
+                            <p className="mt-2 text-[11px] text-caution">
                               Choosing one creates a typed link, so Atlas and Positions can remember how these claims relate.
                             </p>
                           </div>
@@ -1393,9 +1393,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               </p>
 
               {possibleDuplicates.length > 0 && (
-                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-                  <div className="font-code text-[8px] uppercase tracking-widest text-amber-700 font-bold">Duplicate Review</div>
-                  <p className="mt-1 text-xs leading-5 text-amber-800">
+                <div className="mb-4 rounded-xl border border-caution/40 bg-caution/10 px-3 py-2">
+                  <div className="font-code text-[8px] uppercase tracking-widest text-caution font-bold">Duplicate Review</div>
+                  <p className="mt-1 text-xs leading-5 text-foreground">
                     Compare with {possibleDuplicates.join(', ')} before merging or treating these as separate concepts.
                   </p>
                 </div>

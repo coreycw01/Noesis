@@ -113,9 +113,9 @@ export function workToolLabel(style: StructuredWorkStyle) {
 
 const paperTone = {
   blank: 'bg-transparent text-inherit',
-  warm: 'bg-amber-50 text-stone-900',
-  sepia: 'bg-[#f4ecd8] text-[#493727]',
-  dark: 'bg-slate-900 text-slate-100',
+  warm: 'bg-paper-warm text-paper-ink-light',
+  sepia: 'bg-paper-sepia text-paper-ink-sepia',
+  dark: 'bg-paper-dark text-paper-ink-dark',
 } as const;
 
 function paperPatternStyle(paperColor: keyof typeof paperTone, pattern: DocumentPaperPattern): CSSProperties {

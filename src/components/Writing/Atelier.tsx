@@ -1390,7 +1390,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 {isDocumentSurface && <Button type="button" variant="ghost" size="icon" className="size-9" aria-label={writingFocus ? 'Leave writing focus' : 'Enter writing focus'} aria-pressed={writingFocus} title={writingFocus ? 'Leave writing focus' : 'Writing focus'} onClick={() => setWritingFocus((value) => !value)}><Focus className="size-4" /></Button>}
                 {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Open' : 'Connect'}</Button>}
                 <div role="status" className="sr-only items-center gap-2 rounded-[var(--button-radius)] border border-border/30 bg-muted/10 px-3 py-1.5 sm:not-sr-only sm:flex">
-                  <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
+                  <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-ok' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
                   <span className="font-code text-[8px] uppercase tracking-widest font-bold text-muted-foreground">
                     {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : saveStatus === 'waiting' ? 'Waiting for server' : 'Unsaved'}
                   </span>

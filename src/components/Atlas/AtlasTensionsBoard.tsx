@@ -16,13 +16,13 @@ interface AtlasTensionsBoardProps {
 function iconForTension(type: AtlasSystemTensionItem['type']) {
   switch (type) {
     case 'region_conflict':
-      return <ShieldAlert className="size-4 text-rose-600" />;
+      return <ShieldAlert className="size-4 text-problem" />;
     case 'concept_ambiguity':
       return <BrainCircuit className="size-4 text-accent" />;
     case 'practice_gap':
-      return <FlaskConical className="size-4 text-emerald-600" />;
+      return <FlaskConical className="size-4 text-ok" />;
     case 'one_sided_region':
-      return <Unlink2 className="size-4 text-amber-600" />;
+      return <Unlink2 className="size-4 text-caution" />;
     default:
       return <AlertTriangle className="size-4 text-muted-foreground" />;
   }

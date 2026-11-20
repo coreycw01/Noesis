@@ -4,6 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import type { AtlasRegionViewModel } from './atlas-diagnostics';
 import { conceptKey } from '@/lib/readex';
+import { cssColor } from '@/lib/css-color';
+
+/** The Atlas night sky, read from the theme so it follows light and dark. */
+const CANVAS_SKY = () => cssColor('--canvas-sky', 1, '#111d2b');
 import { Button } from '@/components/ui/button';
 import { Pill } from '@/components/ui/pill';
 import { cn } from '@/lib/utils';
@@ -148,7 +152,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
     stars.width = 317; stars.height = 277;
     const starlight = stars.getContext('2d');
     if (starlight) {
-      starlight.fillStyle = '#111d2b'; starlight.fillRect(0, 0, stars.width, stars.height);
+      starlight.fillStyle = CANVAS_SKY(); starlight.fillRect(0, 0, stars.width, stars.height);
       let seed = 11;
       const random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
       for (let i = 0; i < 43; i++) {
@@ -211,7 +215,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
       const accent = css('--stage-integrate'); const fg = css('--foreground'); const dim = css('--muted-foreground');
       const sA = band(k, 0.02, 0.14, 0.5); const rA = band(k, 0.19, 0.5, 0.4); const cA = band(k, 0.55, 1.3, 0.4); const recA = band(k, 1.45, 2.9, 0.3); const iA = band(k, 3.3, 20, 0.3);
       const land = Math.max(0, Math.min(1, (k - 0.13) / 0.12));
-      ctx.fillStyle = sky || '#111d2b';
+      ctx.fillStyle = sky || CANVAS_SKY();
       ctx.fillRect(0, 0, width, height);
       ctx.save();
       ctx.globalAlpha = land;

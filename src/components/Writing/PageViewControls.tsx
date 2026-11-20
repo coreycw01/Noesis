@@ -54,9 +54,9 @@ export function PageViewControls({
 
   const colors: { id: PaperColor; label: string; bg: string }[] = [
     { id: 'blank', label: 'White', bg: 'bg-card' },
-    { id: 'warm', label: 'Warm', bg: 'bg-amber-50/50' },
-    { id: 'sepia', label: 'Sepia', bg: 'bg-[#f4ecd8]' },
-    { id: 'dark', label: 'Dark', bg: 'bg-slate-900' },
+    { id: 'warm', label: 'Warm', bg: 'bg-paper-warm/60' },
+    { id: 'sepia', label: 'Sepia', bg: 'bg-paper-sepia' },
+    { id: 'dark', label: 'Dark', bg: 'bg-paper-dark' },
   ];
 
   const patterns: { id: PaperPattern; label: string; icon: any }[] = [
@@ -166,9 +166,9 @@ export function PageSettingsControl({
 }) {
   const colors: { id: PaperColor; label: string; bg: string }[] = [
     { id: 'blank', label: 'White', bg: 'bg-white' },
-    { id: 'warm', label: 'Warm', bg: 'bg-amber-50' },
-    { id: 'sepia', label: 'Sepia', bg: 'bg-[#f4ecd8]' },
-    { id: 'dark', label: 'Dark', bg: 'bg-slate-900' },
+    { id: 'warm', label: 'Warm', bg: 'bg-paper-warm' },
+    { id: 'sepia', label: 'Sepia', bg: 'bg-paper-sepia' },
+    { id: 'dark', label: 'Dark', bg: 'bg-paper-dark' },
   ];
   const patterns: { id: PaperPattern; label: string }[] = [
     { id: 'none', label: 'Plain' },

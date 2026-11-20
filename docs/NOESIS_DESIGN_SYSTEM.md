@@ -147,11 +147,26 @@ Updated at the end of each phase. ✓ = on the system, ◐ = partly, ✗ = not y
 | Measure | At audit | Now | Target |
 | --- | --- | --- | --- |
 | raw `<button>` | 200 | 189 | only inside primitives |
-| hex literals in TSX | 80 | 80 | 0 (phase 5; mostly Atlas canvas) |
-| Tailwind palette classes | 66 | 66 | 0 (phase 5) |
+| hex literals in TSX | 80 | 62 | the 62 are colour-picker values and export backgrounds (see below) |
+| Tailwind palette classes | 66 | 0 | 0 ✓ |
 | distinct eyebrow recipes | 12 recipes / 350+ uses | 32 distinct strings remain | one `Eyebrow` |
 | tab implementations | 4 | 2 (`WorkspaceTabs`, `ui/tabs`) | 2, by purpose |
 | `WorkbenchFlow` (numbered rings) | 4 pages | 0 pages (component retired from use) | removed in phase 4 |
 
-The phase-5 sweep is what drives the hex, palette and eyebrow counts to zero;
-phases 1–3 deliberately changed only the primitives and the record pages.
+**The hex that stays, and why.** Three kinds of literal colour are not design
+tokens and should not become them:
+
+1. **Colours a person picks** — the Atlas node and line swatches, the page
+   swatches in Appearance, the pen, text and highlight defaults in Works.
+   These are stored on the workspace as data and must stay the same colour in
+   every theme, so a token would be wrong.
+2. **Export backgrounds** — an exported image or PDF is white whatever theme
+   the app is in.
+3. **Paper** — the sheet a Work is written on (white, warm, sepia, dark) is a
+   writer's choice, so it now has its own `--paper-*` tokens rather than
+   borrowing the status or stage palettes.
+
+Everything else that was a literal is now a token: brand (`--brand-paper`,
+`--brand-mark`), the Atlas sky (`--canvas-sky`), and the semantic statuses.
+`cssColor()` in `src/lib/css-color.ts` reads a token for canvas and SVG, so
+those surfaces follow the theme too.

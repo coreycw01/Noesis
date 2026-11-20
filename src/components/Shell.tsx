@@ -709,7 +709,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
       <div className={cn("shrink-0 border-b border-sidebar-border", collapsed && !isMobile ? "p-3" : "p-5")}>
         <div className={cn("mb-2 flex", collapsed && !isMobile ? "flex-col items-center gap-3" : "items-start gap-3")}>
           <div className={cn("flex items-center", collapsed && !isMobile ? "justify-center" : "gap-3")}>
-            <div className="relative size-11 shrink-0 overflow-hidden rounded-xl bg-[#f6f0df] shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_6px_18px_rgba(0,0,0,0.22)]">
+            <div className="relative size-11 shrink-0 overflow-hidden rounded-xl bg-brand-paper shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_6px_18px_rgba(0,0,0,0.22)]">
               {logoData && (
                 <Image
                   src={logoData.imageUrl}

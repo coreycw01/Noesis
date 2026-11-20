@@ -211,7 +211,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
       <section className="relative hidden lg:flex flex-col justify-between border-r border-border bg-sidebar p-12 text-sidebar-foreground">
         <div>
           <div className="flex items-center gap-4">
-            <div className="relative size-14 overflow-hidden rounded-2xl bg-[#f6f0df] shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)]">
+            <div className="relative size-14 overflow-hidden rounded-2xl bg-brand-paper shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_8px_24px_rgba(0,0,0,0.22)]">
               {logoData && (
                 <Image
                   src={logoData.imageUrl}
@@ -250,7 +250,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
         <div className="w-full max-w-md">
           <div className="mb-10 lg:hidden">
             <div className="flex items-center gap-4 mb-6">
-              <div className="relative size-12 overflow-hidden rounded-xl bg-[#f6f0df] shadow-sm">
+              <div className="relative size-12 overflow-hidden rounded-xl bg-brand-paper shadow-sm">
                 {logoData && (
                   <Image
                     src={logoData.imageUrl}

@@ -2,6 +2,7 @@
 "use client";
 
 import './atlas-motion.css';
+import { cssColor } from '@/lib/css-color';
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { atlasFocusPan } from './atlas-keyboard-focus';
@@ -189,6 +190,7 @@ const ATLAS_ZOOM_STORAGE_KEY = 'noesis.atlas.zoom.v2';
 function atlasConfidencePercent(confidence?: number) {
   return normalizePositionConfidence(confidence);
 }
+/* Colours a person picks for their own map. Stored as data, so literal. */
 const atlasColorSwatches = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2', '#64748b'];
 
 const linkTypes: AtlasMapLinkType[] = ['supports', 'challenges', 'coheres', 'defines', 'refines', 'contradicts', 'exemplifies', 'inspired_by', 'tested_by', 'expressed_in', 'changed_by', 'depends_on', 'explains', 'explained_by', 'derived_from', 'references', 'replaces', 'questions', 'expands', 'weakens', 'strengthens', 'relates', 'custom'];
@@ -2297,7 +2299,7 @@ export function ConceptAtlas({
     if (mode === 'custom') {
       if (activeMapStyle.lineMode === 'singleColor') return activeMapStyle.customLineColor || '#7c3aed';
       if (activeMapStyle.lineMode === 'strengthColor') {
-        if (edge.strength === 'strong') return '#f59e0b';
+        if (edge.strength === 'strong') return cssColor('--caution');
         if (edge.strength === 'moderate') return '#8b5cf6';
         return '#94a3b8';
       }
@@ -2401,7 +2403,7 @@ export function ConceptAtlas({
     } else if (preset === 'paper') {
       base.background = 'linear-gradient(180deg, rgba(246,239,223,1) 0%, rgba(240,231,212,1) 100%)';
     } else if (preset === 'grid') {
-      base.backgroundColor = '#111111';
+      base.backgroundColor = cssColor('--background', 1, '#111111');
       base.backgroundImage = 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)';
       base.backgroundSize = '28px 28px';
     } else if (preset === 'blank') {
@@ -3281,7 +3283,7 @@ export function ConceptAtlas({
                 </div>
               )}
               {selectedLink.kind === 'shared' && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs italic leading-5 text-amber-800">
+                <div className="rounded-xl border border-caution/40 bg-caution/10 p-4 text-xs italic leading-5 text-foreground">
                   Auto/shared links are calculated from overlap. They cannot be cut directly; remove the shared evidence or disable this auto-link filter on a Custom Map.
                 </div>
               )}

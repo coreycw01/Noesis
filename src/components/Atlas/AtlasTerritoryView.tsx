@@ -33,10 +33,10 @@ interface AtlasTerritoryViewProps {
 }
 
 function toneForLabel(label: AtlasRegionLabel) {
-  if (label === 'tension-heavy') return 'border-rose-200 bg-rose-50 text-rose-700';
-  if (label === 'under-tested' || label === 'practice-poor') return 'border-amber-200 bg-amber-50 text-amber-700';
-  if (label === 'rapidly-evolving') return 'border-sky-200 bg-sky-50 text-sky-700';
-  if (label === 'evidence-rich' || label === 'heavily-developed') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (label === 'tension-heavy') return 'border-problem/40 bg-problem/10 text-problem';
+  if (label === 'under-tested' || label === 'practice-poor') return 'border-caution/40 bg-caution/10 text-caution';
+  if (label === 'rapidly-evolving') return 'border-info/40 bg-info/10 text-info';
+  if (label === 'evidence-rich' || label === 'heavily-developed') return 'border-ok/40 bg-ok/10 text-ok';
   return 'border-border/60 bg-muted/20 text-muted-foreground';
 }
 
@@ -381,7 +381,7 @@ export function AtlasTerritoryView({
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <HelpCircle className="size-4 text-orange-600" />
+                    <HelpCircle className="size-4 text-caution" />
                     <h4 className="font-headline text-lg font-semibold italic text-foreground">Open Inquiries</h4>
                   </div>
                   {regionQuestions.slice(0, 3).map((question) => (
@@ -396,7 +396,7 @@ export function AtlasTerritoryView({
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
                   <div className="mb-2 flex items-center gap-2">
-                    <FlaskConical className="size-4 text-emerald-600" />
+                    <FlaskConical className="size-4 text-ok" />
                     <div className="font-headline text-base font-semibold italic text-foreground">Practices</div>
                   </div>
                   <div className="space-y-2">
@@ -420,7 +420,7 @@ export function AtlasTerritoryView({
                 </div>
                 <div className="rounded-2xl border border-border/60 bg-muted/15 p-4">
                   <div className="mb-2 flex items-center gap-2">
-                    <TriangleAlert className="size-4 text-amber-600" />
+                    <TriangleAlert className="size-4 text-caution" />
                     <div className="font-headline text-base font-semibold italic text-foreground">Sources</div>
                   </div>
                   <div className="space-y-2">

@@ -1445,6 +1445,9 @@ const STAGE_COLOR_ROWS: Array<{ key: StageColorKey; stage: string; pages: string
   { key: 'more', stage: 'More', pages: 'Profile, Settings, Noesis AI' },
 ];
 
+/* Colours a person picks for their own pages. These are data, not design
+   tokens: they are stored on the workspace and must stay the same colour
+   whatever theme is in use. */
 const PAGE_SWATCHES = [
   ['Brick', '#b85444'], ['Coral', '#dc795d'], ['Amber', '#bc8632'],
   ['Olive', '#828843'], ['Fern', '#4b9567'], ['Teal', '#318e88'],

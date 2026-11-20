@@ -1309,7 +1309,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           <>
             {positionStats.tensions > 0 && (
               <Button variant="outline" onClick={() => setTensionDrawerOpen(true)} size="sm" >
-                <AlertTriangle className="size-4 mr-1.5 text-amber-600" /> {positionStats.tensions} {positionStats.tensions === 1 ? 'tension' : 'tensions'}
+                <AlertTriangle className="size-4 mr-1.5 text-caution" /> {positionStats.tensions} {positionStats.tensions === 1 ? 'tension' : 'tensions'}
               </Button>
             )}
             <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 px-6 shadow-md shadow-accent/20 rounded-full h-9 font-bold">
@@ -1477,9 +1477,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className={cn(
                     "rounded-full font-code text-[8px] uppercase tracking-widest",
-                    severity === 'possible contradiction' ? "border-rose-200 bg-rose-50 text-rose-800" :
-                    severity === 'possible qualification' ? "border-blue-200 bg-blue-50 text-blue-800" :
-                    severity === 'possible complement' ? "border-emerald-200 bg-emerald-50 text-emerald-800" :
+                    severity === 'possible contradiction' ? "border-problem/40 bg-problem/10 text-problem" :
+                    severity === 'possible qualification' ? "border-info/40 bg-info/10 text-info" :
+                    severity === 'possible complement' ? "border-ok/40 bg-ok/10 text-ok" :
                     "border-border bg-muted/20 text-muted-foreground"
                   )}>
                     {severity}

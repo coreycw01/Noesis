@@ -62,6 +62,21 @@
   --control-h-sm: 28px;
   --control-h-lg: 44px;
   --touch-min: 44px;
+  /* Paper: the sheet a Work is written on. Chosen by the writer, never by
+     state, so these are deliberately separate from the status colours. */
+  --paper-white: 0 0% 100%;
+  --paper-sepia: 40 48% 90%;
+  --paper-ink-sepia: 28 15% 25%;
+  --paper-warm: 42 70% 96%;
+  --paper-dark: 222 47% 11%;
+  --paper-ink-dark: 214 32% 91%;
+  --paper-ink-light: 30 6% 10%;
+  /* The wordmark tile and the Noesis mark. Brand, not state. */
+  --brand-paper: 47 56% 92%;
+  --brand-mark: 262 45% 40%;
+  --brand-mark-dark: 262 100% 86%;
+  /* The Atlas night sky its canvas paints. */
+  --canvas-sky: 213 42% 12%;
   --hair: 1px solid hsl(var(--border));
   --hair-dashed: 1.5px dashed hsl(var(--border));
 }

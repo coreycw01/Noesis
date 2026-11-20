@@ -76,5 +76,5 @@ function ReviewLane({ title, count, children }: { title: string; count: number; 
 }
 
 function ReviewItem({ title, detail, children }: { title: string; detail: string; children: React.ReactNode }) {
-  return <div className="rounded-xl border border-border/50 bg-card p-3"><div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" /><div><div className="font-medium text-foreground">{title}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p></div></div><div className="mt-3 flex flex-wrap gap-2">{children}</div></div>;
+  return <div className="rounded-xl border border-border/50 bg-card p-3"><div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-caution" /><div><div className="font-medium text-foreground">{title}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p></div></div><div className="mt-3 flex flex-wrap gap-2">{children}</div></div>;
 }

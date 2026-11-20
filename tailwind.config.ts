@@ -75,6 +75,19 @@ export default {
           integrate: 'hsl(var(--stage-integrate))',
           more: 'hsl(var(--stage-more))',
         },
+        paper: {
+          DEFAULT: 'hsl(var(--paper-white))',
+          warm: 'hsl(var(--paper-warm))',
+          sepia: 'hsl(var(--paper-sepia))',
+          'ink-sepia': 'hsl(var(--paper-ink-sepia))',
+          dark: 'hsl(var(--paper-dark))',
+          'ink-dark': 'hsl(var(--paper-ink-dark))',
+          'ink-light': 'hsl(var(--paper-ink-light))',
+        },
+        brand: {
+          paper: 'hsl(var(--brand-paper))',
+          mark: 'hsl(var(--brand-mark))',
+        },
         kind: {
           source: 'hsl(var(--kind-source))',
           annotation: 'hsl(var(--kind-annotation))',
