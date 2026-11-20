@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
+import { Shuffle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Panel } from '@/components/ui/panel';
@@ -245,30 +246,72 @@ const GAMES = [
  * worksheets: everything here is tapped, dragged or reordered, and every
  * answer is one the workspace already knows.
  */
-export function ExerciseGames({ concepts, inquiries, positions, practices, seed }: {
+export function ExerciseGames({ concepts, inquiries, positions, practices, seed, rotation, onRotationChange }: {
   concepts: Concept[];
   inquiries: Question[];
   positions: VaultEntry[];
   practices: Practice[];
   seed: string;
+  /** The ids in the random rotation. An empty list means all of them. */
+  rotation?: string[];
+  onRotationChange?: (ids: string[]) => void;
 }) {
-  const [open, setOpen] = useState<(typeof GAMES)[number]['id']>('match');
+  const inRotation = GAMES.filter((game) => !rotation?.length || rotation.includes(game.id));
+  const [open, setOpen] = useState<(typeof GAMES)[number]['id']>(inRotation[0]?.id || 'match');
+  const current = inRotation.find((game) => game.id === open) || inRotation[0];
+  // Deal: a game you are not already on, from the ones you chose. With one
+  // game chosen it re-deals the same one rather than pretending to shuffle.
+  const deal = () => {
+    const pool = inRotation.filter((game) => game.id !== current?.id);
+    const pick = (pool.length ? pool : inRotation)[Math.floor(Math.random() * (pool.length || inRotation.length))];
+    if (pick) setOpen(pick.id);
+  };
+  const toggle = (id: string) => {
+    const now = rotation?.length ? rotation : GAMES.map((game) => game.id);
+    const next = now.includes(id) ? now.filter((value) => value !== id) : [...now, id];
+    onRotationChange?.(next.length ? next : GAMES.map((game) => game.id));
+  };
   return (
     <section aria-label="Exercises">
       <div className="noesis-game__tabs" role="tablist" aria-label="Choose an exercise">
-        {GAMES.map((game) => (
+        {inRotation.map((game) => (
           <button key={game.id} role="tab" type="button" aria-selected={open === game.id} className="noesis-pill" onClick={() => setOpen(game.id)}>{game.title}</button>
         ))}
+        <span className="flex-1" />
+        <Button variant="secondary" size="sm" onClick={deal}><Shuffle className="size-3.5" aria-hidden="true" /> Deal me one</Button>
       </div>
-      {GAMES.filter((game) => game.id === open).map((game) => (
-        <Panel key={game.id} size="lg" className="mt-3" title={game.title} description={game.hint} headingLevel="h2">
-          {game.id === 'match' && <MatchGame concepts={concepts} seed={seed} />}
-          {game.id === 'blanks' && <BlanksGame concepts={concepts} seed={seed} />}
-          {game.id === 'sort' && <SortGame concepts={concepts} inquiries={inquiries} positions={positions} practices={practices} seed={seed} />}
-          {game.id === 'chain' && <ChainGame positions={positions} seed={seed} />}
-          {game.id === 'odd' && <OddGame positions={positions} seed={seed} />}
+
+      {onRotationChange && (
+        <details className="noesis-fold mt-2">
+          <summary><Button asChild variant="tertiary" size="sm"><span>Which games are in the rotation · {inRotation.length} of {GAMES.length}</span></Button></summary>
+          <div className="noesis-fold__body">
+            <p className="noesis-fold__hint">Deal me one picks from the games you tick here. Untick the ones you are tired of; they come back whenever you want them.</p>
+            <ul className="grid gap-1.5 sm:grid-cols-2">
+              {GAMES.map((game) => {
+                const on = !rotation?.length || rotation.includes(game.id);
+                return (
+                  <li key={game.id}>
+                    <label className="noesis-check">
+                      <input type="checkbox" checked={on} disabled={on && inRotation.length === 1} onChange={() => toggle(game.id)} />
+                      <span><b>{game.title}</b><small className="block text-muted-foreground">{game.hint}</small></span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </details>
+      )}
+
+      {current && (
+        <Panel key={current.id} size="lg" className="mt-3" title={current.title} description={current.hint} headingLevel="h2">
+          {current.id === 'match' && <MatchGame concepts={concepts} seed={seed} />}
+          {current.id === 'blanks' && <BlanksGame concepts={concepts} seed={seed} />}
+          {current.id === 'sort' && <SortGame concepts={concepts} inquiries={inquiries} positions={positions} practices={practices} seed={seed} />}
+          {current.id === 'chain' && <ChainGame positions={positions} seed={seed} />}
+          {current.id === 'odd' && <OddGame positions={positions} seed={seed} />}
         </Panel>
-      ))}
+      )}
     </section>
   );
 }

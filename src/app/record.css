@@ -277,3 +277,19 @@
 .noesis-history-list time { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); color: hsl(var(--muted-foreground)); }
 .noesis-history-list b { display: block; font-weight: 600; }
 @media (max-width: 640px) { .noesis-history-list li { grid-template-columns: 1fr; gap: 2px; } }
+
+/* Setting up a round: the choices on the left, the deck you are about to
+   play fanned out beside them, so the page shows what it is dealing. */
+.noesis-setup { display: grid; gap: var(--space-4); align-items: start; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); }
+@media (max-width: 860px) { .noesis-setup { grid-template-columns: 1fr; } }
+.noesis-setup__grid { display: grid; gap: var(--space-3); }
+.noesis-setup__go { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-4); padding-top: var(--space-3); border-top: var(--hair); }
+.noesis-setup__count { margin: 0; flex: 1 1 200px; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+.noesis-setup__count b { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-base); color: hsl(var(--foreground)); }
+.noesis-setup__deck > ul { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.noesis-setup__card { padding: var(--space-3); border: var(--hair); border-radius: var(--radius-lg); background: hsl(var(--card)); transform: rotate(calc((var(--i) - 2) * .25deg)); }
+.noesis-setup__card .noesis-eyebrow { color: hsl(var(--tone, var(--accent))); }
+.noesis-setup__card p { margin: 4px 0 0; font-family: var(--font-headline, inherit); font-style: italic; line-height: 1.4; }
+.noesis-setup__card small { display: block; margin-top: 4px; font-size: var(--text-xs); color: hsl(var(--muted-foreground)); }
+.noesis-setup__more { margin: var(--space-2) 0 0; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+@media (prefers-reduced-motion: reduce) { .noesis-setup__card { transform: none; } }
