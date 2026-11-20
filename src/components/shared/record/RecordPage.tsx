@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
@@ -70,13 +70,41 @@ export interface PathStop { id: string; label: string }
  */
 export function RecordPath({ stops, hereId, guide, label }: { stops: PathStop[]; hereId: string; guide: React.ReactNode; label: string }) {
   const hereIndex = Math.max(0, stops.findIndex((stop) => stop.id === hereId));
+  const list = useRef<HTMLOListElement>(null);
+  // Two different things are true at once: where the work stands (the dots,
+  // from the record itself) and which part you are reading (the underline,
+  // from the page). The underline slides to the section in view.
+  const [reading, setReading] = useState(hereId);
+  useEffect(() => {
+    const sections = stops.map((stop) => document.getElementById(stop.id)).filter((node): node is HTMLElement => Boolean(node));
+    if (!sections.length) return;
+    const seen = new Map<string, number>();
+    const watcher = new IntersectionObserver((entries) => {
+      for (const entry of entries) seen.set(entry.target.id, entry.isIntersecting ? entry.intersectionRatio : 0);
+      const best = stops.map((stop) => [stop.id, seen.get(stop.id) || 0] as const).reduce((a, b) => (b[1] > a[1] ? b : a));
+      if (best[1] > 0) setReading(best[0]);
+    }, { rootMargin: '-45% 0px -45% 0px', threshold: [0, 0.01, 0.5, 1] });
+    for (const section of sections) watcher.observe(section);
+    return () => watcher.disconnect();
+  }, [stops]);
+  useEffect(() => {
+    const move = () => {
+      const stop = list.current?.querySelector<HTMLElement>(`[data-stop="${reading}"]`);
+      if (!stop || !list.current) return;
+      list.current.style.setProperty('--path-x', `${stop.offsetLeft}px`);
+      list.current.style.setProperty('--path-w', `${stop.offsetWidth}px`);
+    };
+    move();
+    window.addEventListener('resize', move);
+    return () => window.removeEventListener('resize', move);
+  }, [reading, stops]);
   return (
     <nav className="noesis-path" aria-label={label}>
-      <ol>
+      <ol ref={list}>
         {stops.map((stop, index) => {
           const state = index < hereIndex ? 'seen' : index === hereIndex ? 'here' : 'ahead';
           return (
-            <li key={stop.id} data-state={state}>
+            <li key={stop.id} data-state={state} data-stop={stop.id}>
               <button type="button" className="noesis-path__stop" aria-current={state === 'here' ? 'step' : undefined} onClick={() => document.getElementById(stop.id)?.scrollIntoView({ block: 'start', behavior: 'smooth' })}>
                 <span className="noesis-path__dot" aria-hidden="true" />
                 <span className="noesis-path__name">{stop.label}</span>
@@ -85,6 +113,7 @@ export function RecordPath({ stops, hereId, guide, label }: { stops: PathStop[];
             </li>
           );
         })}
+        <span className="noesis-path__slide" aria-hidden="true" />
       </ol>
       <p className="noesis-path__guide"><Eyebrow>You are here</Eyebrow><span>{guide}</span></p>
     </nav>

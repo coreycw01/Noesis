@@ -16,7 +16,11 @@
 
 /* Path: named stops, no numbers. Sticky under the app's top bar. */
 .noesis-path { position: sticky; top: calc(-1 * var(--page-top)); z-index: 10; margin: 0 0 var(--space-5); padding: calc(var(--page-top) + var(--space-2)) 0 var(--space-2); background: hsl(var(--background)); border-bottom: var(--hair); }
-.noesis-path ol { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; list-style: none; margin: 0; padding: 0; }
+.noesis-path ol { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; list-style: none; margin: 0; padding: 0 0 6px; }
+/* The underline follows the section you are reading; the dots say where
+   the work stands. It slides, so the move itself shows you where you went. */
+.noesis-path__slide { position: absolute; left: 0; bottom: 0; height: 2px; width: var(--path-w, 0); border-radius: 2px; background: hsl(var(--tone)); transform: translateX(var(--path-x, 0)); transition: transform .3s cubic-bezier(.4,0,.2,1), width .3s cubic-bezier(.4,0,.2,1); }
+@media (prefers-reduced-motion: reduce) { .noesis-path__slide { transition: none; } }
 .noesis-path li { position: relative; }
 .noesis-path li::before { content: ""; position: absolute; top: 11px; left: -50%; width: 100%; border-top: 2px solid hsl(var(--border)); }
 .noesis-path li:first-child::before { display: none; }
@@ -232,3 +236,25 @@
    rather than a ragged stack. */
 .noesis-rowlist > * { min-height: 92px; }
 .noesis-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+
+/* Deciding is tied to the scale: the balance is restated where you write the
+   answer, so the conclusion is read against the evidence, not apart from it. */
+.noesis-decide { display: grid; gap: var(--space-2); justify-items: start; margin-bottom: var(--space-3); padding: var(--space-3); border: 1px solid hsl(var(--tone, var(--neutral)) / .45); border-radius: var(--radius-lg); background: hsl(var(--tone, var(--neutral)) / .08); }
+.noesis-decide .noesis-eyebrow { color: hsl(var(--tone, var(--neutral))); }
+.noesis-decide__line { margin: 0; font-size: var(--text-sm); line-height: 1.55; }
+
+/* Two different places on a record page. The tools are yours alone; the
+   workbench is where the writing happens and where Noesis may be asked in. */
+.noesis-tools { margin-bottom: var(--space-4); padding: var(--space-4); border: var(--hair); border-left: 3px solid hsl(var(--tone)); border-radius: var(--radius-lg); background: hsl(var(--muted) / .25); }
+.noesis-tools__head { display: grid; gap: 4px; margin-bottom: var(--space-3); }
+.noesis-tools__head .noesis-eyebrow { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: hsl(var(--tone)); }
+.noesis-tools__head p { margin: 0; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+.noesis-tools__row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.noesis-tool { flex: 0 1 auto; min-width: 0; }
+.noesis-tool > summary { list-style: none; cursor: pointer; }
+.noesis-tool > summary::-webkit-details-marker { display: none; }
+.noesis-tool[open] { flex-basis: 100%; }
+.noesis-bench { display: grid; gap: 4px; margin: var(--space-5) 0 var(--space-3); }
+.noesis-bench .noesis-eyebrow { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: hsl(var(--tone)); }
+.noesis-bench p { margin: 0; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+.noesis-tool .noesis-fold__body > button { justify-self: start; }

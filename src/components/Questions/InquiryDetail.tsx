@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { Check, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react';
+import { Check, Compass, Hammer, MoreHorizontal, Pencil, Scale, Swords, Trash2, X } from 'lucide-react';
 import { aiDepthFor } from '@/lib/ai-depth';
 import { Button, IconButton } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -123,6 +123,11 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
   const [saveAsNote, setSaveAsNote] = useState(false);
   const [writeOpen, setWriteOpen] = useState(false);
   const [pullOpen, setPullOpen] = useState(false);
+  // Thinking tools: written by you, for you. They write into the record the
+  // same way the workbench does — a note, or support on an answer.
+  const [changeMind, setChangeMind] = useState('');
+  const [steelman, setSteelman] = useState('');
+  const [steelmanId, setSteelmanId] = useState('');
   const [pullQuery, setPullQuery] = useState('');
   const [pullSource, setPullSource] = useState<PullSource | 'all'>('all');
   const [pullScope, setPullScope] = useState<PullScope | 'all'>('all');
@@ -241,6 +246,21 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     if (draft.candidateId && !answers.some((item) => item.id === draft.candidateId)) { onAiFeedback('Answer no longer available', 'Choose another answer or leave the evidence unplaced.', 'destructive'); return false; }
     const next = assignInquiryEvidence(question, { ...draft, id: previous?.id || uid(), date: previous?.date || today(), claim: draft.claim.trim(), origin: draft.origin.trim(), notes: draft.notes.trim() }, draft.candidateId);
     return onUpdateQuestion({ ...question, evidenceRecords: previous ? evidence.map((item) => item.id === previous.id ? next : item) : [next, ...evidence], status: !closed && inquiryNeedsEvidence(question) ? 'gathering_evidence' : question.status, dateUpdated: today() });
+  };
+  const saveChangeMind = async () => {
+    if (!changeMind.trim() || saving) return;
+    const note = { id: uid(), title: 'What would change my mind', text: changeMind.trim(), origin: 'user' as const, date: today() };
+    if (await onUpdateQuestion({ ...question, investigationNotes: [note, ...(question.investigationNotes || [])], dateUpdated: today() })) {
+      setChangeMind('');
+      onAiFeedback('Saved to this inquiry', 'It is in the record, under Noesis notes.');
+    }
+  };
+  const saveSteelman = async () => {
+    if (!steelman.trim() || !steelmanId || saving) return;
+    if (await addEvidence({ ...EMPTY_EVIDENCE, claim: steelman.trim(), direction: 'supports', strength: 'moderate', type: 'personal observation', origin: 'Steelman', candidateId: steelmanId })) {
+      setSteelman(''); setSteelmanId('');
+      onAiFeedback('Added as support', 'The scale has taken it into account.');
+    }
   };
   const saveWritten = async () => {
     if (!await addEvidence(evidenceDraft, editingEvidenceId)) return;
@@ -368,6 +388,47 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
 
       <RecordPath label="Where you are in this inquiry" stops={STOPS} hereId={hereId} guide={guide} />
 
+      {/* ---------- Thinking tools: you, alone, with the record ---------- */}
+      <section className="noesis-tools" aria-labelledby="inq-tools-title">
+        <div className="noesis-tools__head">
+          <Eyebrow as="h2" id="inq-tools-title"><Compass className="size-3.5" aria-hidden="true" /> Thinking tools</Eyebrow>
+          <p>For you, not for Noesis. Nothing here is sent anywhere; what you write is saved to this inquiry.</p>
+        </div>
+        <div className="noesis-tools__row">
+          <details className="noesis-tool">
+            <summary><Button asChild variant="secondary" size="sm"><span><Scale className="size-3.5" aria-hidden="true" /> What would change my mind</span></Button></summary>
+            <div className="noesis-fold__body">
+              <p className="noesis-fold__hint">{lead && lead.margin > 0 ? `You lean to ${letter(lead.index)}. What would you have to see to stop leaning that way?` : 'The scale is level. What would have to be true for one answer to win?'}</p>
+              <Dictation label="Dictate what would change your mind">
+                <Textarea value={changeMind} onChange={(event) => setChangeMind(event.target.value)} placeholder="One observation, result, or argument that would move you" className="min-h-[72px]" aria-label="What would change your mind" maxLength={600} />
+              </Dictation>
+              <Button variant="primary" size="sm" disabled={saving || !changeMind.trim()} onClick={() => void saveChangeMind()}>Save to this inquiry</Button>
+            </div>
+          </details>
+          <details className="noesis-tool">
+            <summary><Button asChild variant="secondary" size="sm" disabled={answers.length < 2}><span><Swords className="size-3.5" aria-hidden="true" /> Steelman another answer</span></Button></summary>
+            <div className="noesis-fold__body">
+              <p className="noesis-fold__hint">Write the strongest case for an answer you do not hold. It is saved as support on that answer, so the scale feels it.</p>
+              <div className="noesis-fieldrow">
+                <label><span>Answer</span><select value={steelmanId} onChange={(event) => setSteelmanId(event.target.value)} aria-label="Answer to steelman">
+                  <option value="">Choose an answer</option>
+                  {answers.map((answer, index) => <option key={answer.id} value={answer.id}>{letter(index)} · {answer.statement.slice(0, 48)}</option>)}
+                </select></label>
+              </div>
+              <Dictation label="Dictate the strongest case">
+                <Textarea value={steelman} onChange={(event) => setSteelman(event.target.value)} placeholder="The best case for that answer, stated fairly" className="min-h-[72px]" aria-label="The strongest case for that answer" maxLength={600} />
+              </Dictation>
+              <Button variant="primary" size="sm" disabled={saving || !steelman.trim() || !steelmanId} onClick={() => void saveSteelman()}>Add as support</Button>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <div className="noesis-bench">
+        <Eyebrow as="h2"><Hammer className="size-3.5" aria-hidden="true" /> Workbench</Eyebrow>
+        <p>Where you write the inquiry out, and where Noesis can read over your shoulder if you ask it to.</p>
+      </div>
+
       {/* ---------- Frame ---------- */}
       <RecordSection id="inq-frame" title="Frame" description="Why the question matters, before any answer." here={hereId === 'inq-frame'}
         aside={!editingFrame && <Button variant="tertiary" size="sm" onClick={() => { setEditingFrame(true); setFrameBase(question.dateUpdated); setFrameDraft({ whyItMatters: question.whyItMatters || '', currentIntuition: question.currentIntuition || '', uncertainty: question.uncertainty || '' }); }}>{frameFilled ? 'Edit starting thinking' : 'Write starting thinking'}</Button>}>
@@ -490,6 +551,21 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
 
       {/* ---------- Conclude ---------- */}
       <RecordSection id="inq-conclude" title="Conclude" description="Your best answer for now. You can reopen it any time." here={hereId === 'inq-conclude'}>
+        {answers.length >= 2 && (
+          <div className="noesis-decide" data-tone={lead && lead.margin >= 2 ? 'ok' : 'caution'}>
+            <Eyebrow>What the scale says</Eyebrow>
+            {lead && lead.margin > 0 ? (
+              <p className="noesis-decide__line">
+                The evidence leans to <b>{letter(lead.index)}</b> — “{lead.answer.statement}” — {lead.margin >= 2 ? 'by a clear margin' : 'only slightly'}.
+              </p>
+            ) : (
+              <p className="noesis-decide__line">The scale is level: no answer carries more weight than another yet. Weigh more evidence, or say why you are deciding without it.</p>
+            )}
+            {lead && lead.margin > 0 && !working.trim() && !closed && (
+              <Button variant="secondary" size="sm" onClick={() => setWorkingDraft({ value: lead.answer.statement, base: savedAnswer })}>Start from {letter(lead.index)}</Button>
+            )}
+          </div>
+        )}
         <Dictation label="Dictate your answer">
         <Textarea aria-label="Working answer" value={working} disabled={saving || closed} onChange={(event) => { const value = event.target.value; setWorkingDraft((draft) => ({ value, base: draft?.base ?? savedAnswer })); }} className="min-h-[120px] text-base leading-7" placeholder="Write your working answer in your own words" />
         {workingConflict && <p role="status" className="mt-2 text-sm text-muted-foreground">The saved answer changed while you were writing. <Button variant="link" size="sm" onClick={() => setWorkingDraft(null)}>Load the saved answer</Button></p>}
