@@ -140,7 +140,7 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
                 <button key={item.id} type="button" role="menuitem" className="noesis-loop__pop-item" aria-current={activeView === item.id ? 'page' : undefined} onClick={() => go(item.id)}>
                   <Icon className="size-4 shrink-0" aria-hidden="true" />
                   <span className="flex-1 text-left">{page.title}</span>
-                  {typeof item.count === 'number' && <span className="font-code text-[10px] opacity-60">{item.count}</span>}
+                  {typeof item.count === 'number' && <span className="noesis-figure opacity-60">{item.count}</span>}
                 </button>
               );
             })}
@@ -151,7 +151,7 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
                 </button>
                 <button type="button" role="menuitem" className="noesis-loop__pop-item" onClick={(event) => { setOpen(null); onFind(event.currentTarget); }}>
                   <Search className="size-4 shrink-0" aria-hidden="true" /><span className="flex-1 text-left">Find in Noesis</span>
-                  <span className="font-code text-[9px] opacity-60">Ctrl K</span>
+                  <span className="noesis-figure noesis-figure--sm opacity-60">Ctrl K</span>
                 </button>
               </>
             )}

@@ -77,7 +77,7 @@ export function PageViewControls({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64 border-border bg-popover font-body text-popover-foreground">
-          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Document view</DropdownMenuLabel>
+          <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-40">Document view</DropdownMenuLabel>
           {modes.map((mode) => (
             <DropdownMenuItem 
               key={mode.id} 
@@ -91,7 +91,7 @@ export function PageViewControls({
           ))}
           
           <DropdownMenuSeparator />
-          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Standard page size</DropdownMenuLabel>
+          <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-40">Standard page size</DropdownMenuLabel>
           <DropdownMenuItem onClick={() => onPageSizeChange('letter')} className={cn("text-xs italic cursor-pointer flex items-center justify-between", pageSize === 'letter' && "text-accent")}>
             US Letter (8.5&quot; x 11&quot;)
             {pageSize === 'letter' && <Check className="size-3" />}
@@ -102,7 +102,7 @@ export function PageViewControls({
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
-          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Document paper</DropdownMenuLabel>
+          <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-40">Document paper</DropdownMenuLabel>
           <div className="grid grid-cols-4 gap-2 p-2">
             {colors.map((color) => (
               <button
@@ -121,7 +121,7 @@ export function PageViewControls({
           </div>
 
           <DropdownMenuSeparator />
-          <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-40">Writing guide</DropdownMenuLabel>
+          <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-40">Writing guide</DropdownMenuLabel>
           <div className="grid grid-cols-3 gap-1 p-2">
             {patterns.map((pattern) => (
               <button
@@ -189,11 +189,11 @@ export function PageSettingsControl({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64 border-border bg-popover font-body text-popover-foreground">
         <DropdownMenuLabel>
-          <span className="block font-code text-[9px] uppercase tracking-widest text-muted-foreground">This page only</span>
+          <span className="block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">This page only</span>
           <span className="mt-1 block truncate text-xs font-normal text-foreground">{pageLabel}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-50">Page size</DropdownMenuLabel>
+        <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-50">Page size</DropdownMenuLabel>
         {(['letter', 'a4'] as PageSize[]).map((size) => (
           <DropdownMenuItem key={size} onClick={() => onPageSizeChange(size)} className="flex cursor-pointer items-center justify-between text-xs">
             {size === 'letter' ? 'US Letter (8.5 x 11)' : 'A4'}
@@ -201,7 +201,7 @@ export function PageSettingsControl({
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-50">Paper color</DropdownMenuLabel>
+        <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-50">Paper color</DropdownMenuLabel>
         <div className="grid grid-cols-4 gap-2 p-2">
           {colors.map((color) => (
             <button key={color.id} type="button" onClick={() => onPaperColorChange(color.id)} aria-label={`${color.label} paper`} className={cn('flex h-8 items-center justify-center rounded-md border', color.bg, paperColor === color.id ? 'border-accent ring-2 ring-accent/20' : 'border-border/50')}>
@@ -210,7 +210,7 @@ export function PageSettingsControl({
           ))}
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest opacity-50">Writing guide</DropdownMenuLabel>
+        <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-50">Writing guide</DropdownMenuLabel>
         <div className="grid grid-cols-2 gap-1 p-2">
           {patterns.map((pattern) => (
             <button key={pattern.id} type="button" onClick={() => onPaperPatternChange(pattern.id)} className={cn('rounded-md border px-2 py-2 text-xs', paperPattern === pattern.id ? 'border-accent bg-accent/5 text-accent' : 'border-border/50 text-muted-foreground')}>

@@ -19,7 +19,7 @@ export default function AccountDeletionPage() {
           <li>Select <strong>Delete account and workspace</strong>.</li>
           <li>Review the warning and confirm deletion.</li>
         </ol>
-        <Link href="/settings/" className="mt-5 inline-flex min-h-11 items-center rounded-full border border-accent bg-accent px-5 font-code text-[10px] uppercase tracking-[0.08em] text-accent-foreground no-underline">
+        <Link href="/settings/" className="mt-5 inline-flex min-h-11 items-center rounded-full border border-accent bg-accent px-5 noesis-eyebrow text-accent-foreground no-underline">
           Open account settings
         </Link>
       </section>

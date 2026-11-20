@@ -152,7 +152,7 @@ function ExerciseCard({ game, completed, onComplete, onFollow, onNext, nextLabel
   return (
     <article className="noesis-gcard noesis-gcard--big" data-family={family}>
       <span className="noesis-gcard__suit" aria-hidden="true">{family === 'records' ? '◆' : '♣'}</span>
-      <div className="font-code text-[10px] uppercase tracking-[0.14em] text-[hsl(var(--deck))]">{game.label}{!maskSource && ` · ${game.sourceLabel}`}</div>
+      <div className="noesis-eyebrow text-[hsl(var(--deck))]">{game.label}{!maskSource && ` · ${game.sourceLabel}`}</div>
       <h2 className="mt-2 font-headline text-2xl font-semibold italic leading-tight">{game.title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{game.instruction}</p>
       <blockquote className="noesis-gcard__prompt">{game.prompt}</blockquote>
@@ -192,7 +192,7 @@ function ExerciseCard({ game, completed, onComplete, onFollow, onNext, nextLabel
             <Button type="button" onClick={onNext}>{nextLabel}</Button>
             <Button type="button" variant="ghost" size="icon" aria-label="Play this card again" title="Play again" onClick={() => { setRevealed(false); setChoice(''); setText(''); }}><RotateCcw className="size-4" /></Button>
           </div>
-          {completed && <p className="font-code text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Private practice: nothing was saved to your records.</p>}
+          {completed && <p className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Private practice: nothing was saved to your records.</p>}
         </div>
       )}
     </article>

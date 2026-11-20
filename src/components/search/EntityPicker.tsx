@@ -114,7 +114,7 @@ export function EntityPicker({
               type="button"
               variant="outline"
               size="sm"
-              className={cn('h-8 rounded-full border-dashed px-3 font-code text-[9px] uppercase tracking-widest', compact && 'h-7 px-2', inline && 'order-2')}
+              className={cn('h-8 rounded-full border-dashed px-3 noesis-eyebrow noesis-eyebrow--sm', compact && 'h-7 px-2', inline && 'order-2')}
               onPointerDown={(event) => event.stopPropagation()}
             >
               <Plus className="mr-1.5 size-3" /> {triggerLabel}
@@ -187,7 +187,7 @@ export function EntityPicker({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-xs font-headline font-semibold italic">{item.label}</span>
-                        {item.secondary && <span className="block truncate font-code text-[9px] uppercase tracking-wider text-muted-foreground">{item.secondary}</span>}
+                        {item.secondary && <span className="block truncate noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{item.secondary}</span>}
                       </span>
                     </button>
                   );
@@ -207,7 +207,7 @@ export function EntityPicker({
                     className="flex w-full items-center gap-2 rounded-lg border-t border-border/50 p-2 text-left text-accent hover:bg-accent/10"
                   >
                     <Plus className="size-3" />
-                    <span className="font-code text-[10px] uppercase tracking-wider">{creating ? 'Saving…' : createLabel(normalizedQuery)}</span>
+                    <span className="noesis-eyebrow">{creating ? 'Saving…' : createLabel(normalizedQuery)}</span>
                   </button>
                 )}
                 {creationError && <p role="alert" className="p-3 text-sm text-destructive">{creationError}</p>}

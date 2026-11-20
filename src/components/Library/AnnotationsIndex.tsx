@@ -874,7 +874,7 @@ export function AnnotationsIndex({
                   }}
                 >
                   <span className="text-sm font-medium">{source.title}</span>
-                  <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{[source.creator, source.type, `${(source.annotations || []).length} notes`].filter(Boolean).join(' · ')}</span>
+                  <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{[source.creator, source.type, `${(source.annotations || []).length} notes`].filter(Boolean).join(' · ')}</span>
                 </button>
               </li>
             ))}
@@ -926,25 +926,25 @@ export function AnnotationsIndex({
         className="mb-5"
       >
         <Select value={sortBy} onValueChange={(value) => setSortBy(value as AnnotationSort)}>
-          <SelectTrigger aria-label="Sort annotations" className="w-44 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Sort annotations" className="w-44 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Sort" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="newest" className="font-code text-[10px] uppercase">Recently added</SelectItem>
-            <SelectItem value="status" className="font-code text-[10px] uppercase">Recently updated</SelectItem>
-            <SelectItem value="source" className="font-code text-[10px] uppercase">Source order</SelectItem>
-            <SelectItem value="oldest" className="font-code text-[10px] uppercase">Oldest</SelectItem>
-            <SelectItem value="type" className="font-code text-[10px] uppercase">A-Z by type</SelectItem>
+            <SelectItem value="newest" className="noesis-eyebrow">Recently added</SelectItem>
+            <SelectItem value="status" className="noesis-eyebrow">Recently updated</SelectItem>
+            <SelectItem value="source" className="noesis-eyebrow">Source order</SelectItem>
+            <SelectItem value="oldest" className="noesis-eyebrow">Oldest</SelectItem>
+            <SelectItem value="type" className="noesis-eyebrow">A-Z by type</SelectItem>
           </SelectContent>
         </Select>
 
         <Select value={ANNOTATION_TYPES.some((option) => option.id === filterType) ? filterType : 'all'} onValueChange={(value) => setFilterType(value as AnnotationFilter)}>
-          <SelectTrigger aria-label="Filter by annotation type" className="w-44 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Filter by annotation type" className="w-44 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-code text-[10px] uppercase">All types</SelectItem>
-            {ANNOTATION_TYPES.map((type) => <SelectItem key={type.id} value={type.id} className="font-code text-[10px] uppercase">{type.label}</SelectItem>)}
+            <SelectItem value="all" className="noesis-eyebrow">All types</SelectItem>
+            {ANNOTATION_TYPES.map((type) => <SelectItem key={type.id} value={type.id} className="noesis-eyebrow">{type.label}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -1026,7 +1026,7 @@ export function AnnotationsIndex({
               aria-label={filtered.length > 0 && filtered.every((annotation) => selectedKeys.includes(annotationKey(annotation))) ? 'Clear visible annotation selection' : 'Select all visible annotations'}
             />
             <div>
-              <p className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Processing Inbox</p>
+              <p className="noesis-eyebrow font-bold text-primary">Processing Inbox</p>
               <p className="text-xs text-muted-foreground">
                 {selectedAnnotations.length ? `${selectedAnnotations.length} selected` : 'Select notes to tag, open as inquiries, or form a position together.'}
               </p>
@@ -1088,14 +1088,14 @@ export function AnnotationsIndex({
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground lg:hidden">{annotation.source.title}</p>
                     {annotationTags(annotation).length > 0 && (
-                      <p className="mt-1.5 truncate font-code text-[9px] uppercase tracking-[0.13em] text-muted-foreground">
+                      <p className="mt-1.5 truncate noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                         {annotationTags(annotation).slice(0, 3).join(' · ')}
                       </p>
                     )}
                   </TableCell>
                   <TableCell className="hidden py-4 xl:table-cell">
                     <div className="space-y-1.5">
-                      <span className="block font-code text-[9px] font-bold uppercase tracking-[0.14em] text-foreground">{annotationLabel(annotationType(annotation))}</span>
+                      <span className="block noesis-eyebrow noesis-eyebrow--sm font-bold text-foreground">{annotationLabel(annotationType(annotation))}</span>
                       <StageBadge type="annotation" stage={annotation.stage} status={annotation.philosophyStatus} />
                     </div>
                   </TableCell>
@@ -1108,7 +1108,7 @@ export function AnnotationsIndex({
                   <TableCell className="hidden py-4 text-xs leading-5 text-muted-foreground xl:table-cell">
                     <span className="line-clamp-2">{annotation.context?.trim() || 'Context not added'}</span>
                   </TableCell>
-                  <TableCell className="hidden py-4 font-code text-[9px] uppercase tracking-wider text-muted-foreground xl:table-cell">
+                  <TableCell className="hidden py-4 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground xl:table-cell">
                     {annotation.date ? new Date(annotation.date).toLocaleDateString() : 'Unknown'}
                   </TableCell>
                   <TableCell className="px-1 py-3">
@@ -1161,14 +1161,14 @@ export function AnnotationsIndex({
                 />
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <StageBadge type="annotation" stage={annotation.stage} status={annotation.philosophyStatus} />
-                  <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-foreground">
+                  <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-foreground">
                     {annotationLabel(annotationType(annotation))}
                   </span>
-                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest font-bold">
+                  <Badge variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm font-bold">
                     {annotationLabel(annotationStatus(annotation))}
                   </Badge>
                   {missingSourceContext(annotation) && (
-                    <Badge variant="outline" className="font-code text-[8px] uppercase tracking-widest rounded-full border-accent/25 bg-accent/5 text-foreground font-bold">
+                    <Badge variant="outline" className="noesis-eyebrow noesis-eyebrow--sm rounded-full border-accent/25 bg-accent/5 text-foreground font-bold">
                       add context
                     </Badge>
                   )}
@@ -1195,14 +1195,14 @@ export function AnnotationsIndex({
 
             <div className="flex flex-wrap gap-1.5 px-4 pb-3">
               {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).map((tag) => (
-                <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-wider rounded-full bg-muted/20 text-muted-foreground font-bold">{tag}</Badge>
+                <Badge key={tag} variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm rounded-full bg-muted/20 text-muted-foreground font-bold">{tag}</Badge>
               ))}
             </div>
 
             {relationLabels.length > 0 && (
               <div className="flex flex-wrap gap-1.5 border-t border-border/30 px-4 py-3">
                 {relationLabels.map((label) => (
-                  <Badge key={label} variant="outline" className="rounded-full border-accent/20 bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">
+                  <Badge key={label} variant="outline" className="rounded-full border-accent/20 bg-accent/5 noesis-eyebrow noesis-eyebrow--sm text-accent">
                     {label}
                   </Badge>
                 ))}
@@ -1219,7 +1219,7 @@ export function AnnotationsIndex({
                   else if (annotation.createdPositionId) onNavigate?.('vault', annotation.createdPositionId);
                   else openAnnotationDetail(annotation);
                 }}
-                className="min-h-10 rounded-full px-3 font-code text-[8px] uppercase tracking-widest"
+                className="min-h-10 rounded-full px-3 noesis-eyebrow noesis-eyebrow--sm"
               >
                 {relatedInquiry ? 'Open inquiry' : annotation.createdPositionId ? 'Open position' : 'Review impact'}
               </Button>
@@ -1231,7 +1231,7 @@ export function AnnotationsIndex({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-[11px] font-medium leading-tight text-muted-foreground">{annotation.source.title}</p>
-                  <p className="mt-0.5 truncate font-code text-[8px] uppercase tracking-wider text-muted-foreground">{annotation.source.creator || MEDIA_LABELS[annotation.source.type]}</p>
+                  <p className="mt-0.5 truncate noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{annotation.source.creator || MEDIA_LABELS[annotation.source.type]}</p>
                 </div>
             </div>
           </Card>
@@ -1380,8 +1380,8 @@ export function AnnotationsIndex({
               <section aria-label="Annotation passage" className="border-y border-border py-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase tracking-widest">{annotationLabel(annotationType(editing))}</Badge>
-                    <Badge variant="secondary" className="rounded-full bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">{annotationLabel(annotationStatus(editing))}</Badge>
+                    <Badge variant="outline" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">{annotationLabel(annotationType(editing))}</Badge>
+                    <Badge variant="secondary" className="rounded-full bg-accent/5 noesis-eyebrow noesis-eyebrow--sm text-accent">{annotationLabel(annotationStatus(editing))}</Badge>
                   </div>
                   <div className="flex items-center gap-1">
                     <DropdownMenu modal={false}>
@@ -1542,7 +1542,7 @@ export function AnnotationsIndex({
                 <div className="space-y-2">
                   {connectionsForAnnotation(editing).map((group) => (
                     <div key={group.label} className="grid gap-2 rounded-xl border border-border/40 bg-background/70 p-3 sm:grid-cols-[120px_1fr]">
-                      <div className="font-code text-[8px] font-bold uppercase tracking-widest text-muted-foreground">{group.label}</div>
+                      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{group.label}</div>
                       <div className="flex flex-wrap gap-2">
                         {group.items.map((item) => item.open ? (
                           <Button key={item.id} type="button" variant="outline" onClick={item.open} className="h-auto min-h-11 max-w-full whitespace-normal break-words text-left">{item.label}</Button>
@@ -1554,7 +1554,7 @@ export function AnnotationsIndex({
                   ))}
                 </div>
                 <div className="mt-3">
-                  <Label className="mb-2 block font-code text-[8px] uppercase tracking-widest text-muted-foreground">Concept tags</Label>
+                  <Label className="mb-2 block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Concept tags</Label>
                   <ConceptTagPicker
                     concepts={concepts}
                     value={editing.conceptTags || editing.source.tags || []}

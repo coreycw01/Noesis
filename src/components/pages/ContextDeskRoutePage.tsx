@@ -593,7 +593,7 @@ export function ContextDeskRoutePage({
                         <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{record.label}</span><Badge variant="outline" className="text-[9px] uppercase">{record.type}</Badge></span>
                         <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{record.summary}</span>
                         {formatRecordDate(sortBy === 'created' ? record.createdAt : record.updatedAt) && (
-                          <span className="mt-1 block font-code text-[10px] uppercase text-muted-foreground">
+                          <span className="mt-1 block noesis-eyebrow text-muted-foreground">
                             {sortBy === 'created' ? 'Created' : 'Edited'} {formatRecordDate(sortBy === 'created' ? record.createdAt : record.updatedAt)}
                           </span>
                         )}

@@ -559,8 +559,8 @@ export function MediaLibrary({
               />
             </div>
             <Select value={selected.status} onValueChange={(value) => updateSelected({ status: value as MediaStatus })}>
-              <SelectTrigger aria-label="Source status" className="h-10 w-full min-w-0 rounded-md border-border/60 bg-card font-code text-[9px] uppercase shadow-sm sm:w-44"><SelectValue /></SelectTrigger>
-              <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{MEDIA_STATUS_LABELS[status]}</SelectItem>)}</SelectContent>
+              <SelectTrigger aria-label="Source status" className="h-10 w-full min-w-0 rounded-md border-border/60 bg-card noesis-eyebrow noesis-eyebrow--sm shadow-sm sm:w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="noesis-eyebrow">{MEDIA_STATUS_LABELS[status]}</SelectItem>)}</SelectContent>
             </Select>
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Source actions" className="size-10"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
@@ -581,7 +581,7 @@ export function MediaLibrary({
             <h1 className="noesis-page-title noesis-detail-title mb-2 break-words sm:mb-3">{selected.title}</h1>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 sm:mb-5">
               <span className="font-body text-base italic text-muted-foreground sm:text-xl">{selected.creator || 'Unknown creator'}</span>
-              {selected.year && <span className="font-code text-[10px] font-bold tracking-widest text-muted-foreground sm:text-xs">{selected.year}</span>}
+              {selected.year && <span className="noesis-figure font-bold tracking-widest text-muted-foreground sm:text-xs">{selected.year}</span>}
             </div>
             <p className="mt-2 hidden max-w-3xl font-body text-base italic leading-relaxed text-primary/80 sm:block sm:text-lg">
               {catalogSummary || 'No provider summary recorded yet.'}
@@ -591,12 +591,12 @@ export function MediaLibrary({
                 <button
                   key={tag}
                   onClick={() => setConceptPopupName(tag)}
-                  className="inline-flex items-center rounded-full border px-4 py-1.5 font-code text-[9px] uppercase tracking-[0.18em] font-bold bg-card text-muted-foreground border-border/60 shadow-sm hover:bg-accent/10 hover:text-accent hover:border-accent/20 transition-all"
+                  className="inline-flex items-center rounded-full border px-4 py-1.5 noesis-eyebrow noesis-eyebrow--sm font-bold bg-card text-muted-foreground border-border/60 shadow-sm hover:bg-accent/10 hover:text-accent hover:border-accent/20 transition-all"
                 >
                   {tag}
                 </button>
               ))}
-              <Badge variant="outline" className="font-code text-[9px] uppercase tracking-[0.18em] px-4 py-1.5 bg-card border-border/60 shadow-sm rounded-full font-bold">
+              <Badge variant="outline" className="noesis-eyebrow noesis-eyebrow--sm px-4 py-1.5 bg-card border-border/60 shadow-sm rounded-full font-bold">
                 {selected.annotations?.length || 0} NOTES
               </Badge>
             </div>
@@ -606,11 +606,11 @@ export function MediaLibrary({
           </p>
           <div className="col-span-2 flex flex-wrap gap-2 sm:hidden">
             {(selected.tags || []).map(tag => (
-              <button key={tag} onClick={() => setConceptPopupName(tag)} className="min-h-9 rounded-md border border-border/60 bg-card px-3 font-code text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              <button key={tag} onClick={() => setConceptPopupName(tag)} className="min-h-9 rounded-md border border-border/60 bg-card px-3 noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">
                 {tag}
               </button>
             ))}
-            <Badge variant="outline" className="min-h-9 rounded-md border-border/60 bg-card px-3 font-code text-[9px] font-bold uppercase tracking-[0.12em]">
+            <Badge variant="outline" className="min-h-9 rounded-md border-border/60 bg-card px-3 noesis-eyebrow noesis-eyebrow--sm font-bold">
               {selected.annotations?.length || 0} notes
             </Badge>
           </div>
@@ -664,7 +664,7 @@ export function MediaLibrary({
                     <dl className="grid gap-3">
                       {filled.map(([label, value, emphasis]) => (
                         <div key={label}>
-                          <dt className="font-code text-[8.5px] uppercase tracking-[0.14em] text-muted-foreground">{label}</dt>
+                          <dt className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{label}</dt>
                           <dd className={cn('mt-0.5 text-foreground/90', emphasis && 'font-headline text-lg italic')}>{value}</dd>
                         </div>
                       ))}
@@ -688,7 +688,7 @@ export function MediaLibrary({
                     { label: 'Status', value: MEDIA_STATUS_LABELS[selected.status] },
                   ].map((item) => (
                     <div key={item.label} className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-3 py-0.5">
-                      <span className="font-code text-[8.5px] uppercase tracking-[0.14em] text-muted-foreground">{item.label}</span>
+                      <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{item.label}</span>
                       <span className="min-w-0 break-words text-foreground/85">{item.value}</span>
                     </div>
                   ))}
@@ -783,7 +783,7 @@ export function MediaLibrary({
                       placeholder="Target min"
                       value={sessionTargetMinutes}
                       onChange={(event) => setSessionTargetMinutes(event.target.value)}
-                      className="h-10 w-full rounded-md text-right font-code text-[10px] sm:h-8 sm:w-28 sm:rounded-full"
+                      className="h-10 w-full rounded-md text-right noesis-figure sm:h-8 sm:w-28 sm:rounded-full"
                     />
                     <Button variant="outline" size="sm" onClick={startSession} className="sm:h-8 sm:rounded-full sm:px-5 sm:text-[10px]">
                       <Play className="mr-2 size-3.5" /> Start Session
@@ -800,7 +800,7 @@ export function MediaLibrary({
                           <Clock className="size-5" />
                         </div>
                         <div>
-                          <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">
                             {activeSession.status === 'paused' ? 'Paused' : 'Session Active'}
                           </div>
                           <div className="font-headline text-3xl font-bold italic">{formatDuration(elapsed)}</div>
@@ -831,12 +831,12 @@ export function MediaLibrary({
                         <Card key={session.id} className="rounded-xl border-border/40 bg-card p-4 shadow-sm">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                              <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                              <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">
                                 {new Date(session.endedAt || session.date || session.startedAt || today()).toLocaleDateString()}
                               </div>
                               <div className="mt-1 font-headline text-xl font-bold italic">{formatDuration(session.durationSeconds || 0)}</div>
                             </div>
-                            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{session.status || 'completed'}</Badge>
+                            <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{session.status || 'completed'}</Badge>
                           </div>
                           {session.notes && <p className="mt-3 text-sm italic leading-6 text-muted-foreground">{session.notes}</p>}
                         </Card>
@@ -922,7 +922,7 @@ export function MediaLibrary({
             </section>
 
             <div className="flex gap-4 border-t border-border/30 pt-6 sm:pt-10">
-              <Button onClick={async () => { if (await updateSelected({ capture })) toast({ title: 'Engagement notes saved' }); }} className="h-11 w-full rounded-md bg-accent px-10 font-code text-[11px] font-bold uppercase tracking-widest sm:w-auto sm:rounded-full">Save notes</Button>
+              <Button onClick={async () => { if (await updateSelected({ capture })) toast({ title: 'Engagement notes saved' }); }} className="h-11 w-full rounded-md bg-accent px-10 noesis-eyebrow font-bold sm:w-auto sm:rounded-full">Save notes</Button>
             </div>
           </TabsContent>
 
@@ -1099,7 +1099,7 @@ export function MediaLibrary({
         description="Engage actively, capture what matters, and trace what each source changes."
         tabs={headerTabs}
         meta={
-          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+          <span className="noesis-eyebrow text-muted-foreground/60">
             {media.length} sources · {libraryStats.consuming} in progress · {libraryStats.annotations} annotations
           </span>
         }
@@ -1122,35 +1122,35 @@ export function MediaLibrary({
         className="mb-6"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as LibraryViewFilter)}>
-          <SelectTrigger aria-label="Library attention filter" className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Library attention filter" className="w-56 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Attention" />
           </SelectTrigger>
           <SelectContent>
             {(Object.keys(LIBRARY_VIEW_LABELS) as LibraryViewFilter[]).map((value) => (
-              <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{LIBRARY_VIEW_LABELS[value]}</SelectItem>
+              <SelectItem key={value} value={value} className="noesis-eyebrow">{LIBRARY_VIEW_LABELS[value]}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as MediaStatus | 'active' | 'all')}>
-          <SelectTrigger aria-label="Filter by source status" className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Filter by source status" className="w-48 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-code text-[10px] uppercase">Status: All</SelectItem>
-            <SelectItem value="active" className="font-code text-[10px] uppercase">In Progress</SelectItem>
+            <SelectItem value="all" className="noesis-eyebrow">Status: All</SelectItem>
+            <SelectItem value="active" className="noesis-eyebrow">In Progress</SelectItem>
             {statuses.map((status) => (
-              <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{MEDIA_STATUS_LABELS[status]}</SelectItem>
+              <SelectItem key={status} value={status} className="noesis-eyebrow">{MEDIA_STATUS_LABELS[status]}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={filter} onValueChange={(value) => setFilter(value as MediaType | 'all')}>
-          <SelectTrigger aria-label="Filter by source type" className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Filter by source type" className="w-48 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-code text-[10px] uppercase">Type: All</SelectItem>
+            <SelectItem value="all" className="noesis-eyebrow">Type: All</SelectItem>
             {MEDIA_TYPES.map((type) => (
-              <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{MEDIA_LABELS[type]}</SelectItem>
+              <SelectItem key={type} value={type} className="noesis-eyebrow">{MEDIA_LABELS[type]}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -1164,7 +1164,7 @@ export function MediaLibrary({
           aria-expanded={readingRoomOpen}
         >
           <div>
-            <div className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Source activity</div>
+            <div className="noesis-eyebrow text-muted-foreground">Source activity</div>
             <p className="mt-1 text-xs text-muted-foreground">Continue, reflect, or develop active source threads.</p>
           </div>
           <span className="flex items-center gap-2">
@@ -1181,11 +1181,11 @@ export function MediaLibrary({
           ].map((column) => (
             <div key={column.label} className="rounded-xl border border-border/40 bg-background/70 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/60 font-bold">
+                <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/60 font-bold">
                   {column.label} - {column.items.length}
                 </div>
                 {column.items.length > 2 && (
-                  <button type="button" onClick={() => setViewFilter(column.label === 'Reflect' ? 'awaiting_reflection' : column.label === 'Develop' ? 'inquiry_driven' : column.label === 'Recent' ? 'recently_added' : 'continue')} className="font-code text-[8px] uppercase tracking-widest text-accent">
+                  <button type="button" onClick={() => setViewFilter(column.label === 'Reflect' ? 'awaiting_reflection' : column.label === 'Develop' ? 'inquiry_driven' : column.label === 'Recent' ? 'recently_added' : 'continue')} className="noesis-eyebrow noesis-eyebrow--sm text-accent">
                     View all {column.items.length}
                   </button>
                 )}
@@ -1202,7 +1202,7 @@ export function MediaLibrary({
                       <div className="line-clamp-1 text-sm font-medium leading-5 text-foreground/85">{item.title}</div>
                       <div className="mt-1 flex items-center justify-between gap-2">
                         <span className="truncate text-xs text-muted-foreground">{item.creator || MEDIA_LABELS[item.type]}</span>
-                        <span className="font-code text-[8px] uppercase tracking-widest text-accent">{column.action}</span>
+                        <span className="noesis-eyebrow noesis-eyebrow--sm text-accent">{column.action}</span>
                       </div>
                     </button>
                   ))}
@@ -1224,11 +1224,11 @@ export function MediaLibrary({
               const influence = sourceInfluenceCount(item, vault, drafts, practices, questions);
               return <TableRow key={item.id} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) openSelectedSource(item.id); }}>
                 <TableCell className="max-w-xl py-2 [overflow-wrap:anywhere]"><button type="button" className="min-h-11 w-full rounded-sm text-left font-headline text-base font-semibold text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openSelectedSource(item.id)} onKeyDown={(event) => activateEntityOnKey(event, () => openSelectedSource(item.id))}>{item.title}</button><div className="pb-2 text-xs text-muted-foreground">{item.creator || 'Creator not added'}<span className="block lg:hidden">{MEDIA_LABELS[item.type]}</span></div></TableCell>
-                <TableCell className="hidden font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground lg:table-cell">{MEDIA_LABELS[item.type]}</TableCell>
+                <TableCell className="hidden noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground lg:table-cell">{MEDIA_LABELS[item.type]}</TableCell>
                 <TableCell><div className="flex flex-wrap gap-1.5"><Badge>{MEDIA_STATUS_LABELS[item.status]}</Badge><StageBadge type="source" stage={item.stage} status={item.status} /></div></TableCell>
                 <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">{item.tags?.length ? item.tags.slice(0, 3).join(' · ') : 'No concept linked'}</TableCell>
-                <TableCell className="hidden font-code text-[10px] tabular-nums text-muted-foreground xl:table-cell">{item.annotations?.length || 0}</TableCell>
-                <TableCell className="hidden font-code text-[10px] tabular-nums text-muted-foreground xl:table-cell">{influence}</TableCell>
+                <TableCell className="hidden noesis-figure tabular-nums text-muted-foreground xl:table-cell">{item.annotations?.length || 0}</TableCell>
+                <TableCell className="hidden noesis-figure tabular-nums text-muted-foreground xl:table-cell">{influence}</TableCell>
               </TableRow>;
             })}</TableBody>
           </Table>
@@ -1258,8 +1258,8 @@ export function MediaLibrary({
               <div className="flex items-center justify-between pt-1">
                 <div className="flex flex-wrap gap-1"><Badge>{MEDIA_STATUS_LABELS[item.status]}</Badge><StageBadge type="source" stage={item.stage} status={item.status} /></div>
                 <div className="flex items-center gap-3 text-muted-foreground/70">
-                  {item.annotations?.length > 0 && <span className="flex items-center gap-1" title={`${item.annotations.length} annotations`} aria-label={`${item.annotations.length} annotations`}><MessageSquare className="size-3.5" /><span className="font-code text-[9px] font-bold">{item.annotations.length}</span></span>}
-                  {influence > 0 && <span className="flex items-center gap-1" title={`${influence} connected objects`} aria-label={`${influence} connected objects`}><Link2 className="size-3.5" /><span className="font-code text-[9px] font-bold">{influence}</span></span>}
+                  {item.annotations?.length > 0 && <span className="flex items-center gap-1" title={`${item.annotations.length} annotations`} aria-label={`${item.annotations.length} annotations`}><MessageSquare className="size-3.5" /><span className="noesis-figure noesis-figure--sm font-bold">{item.annotations.length}</span></span>}
+                  {influence > 0 && <span className="flex items-center gap-1" title={`${influence} connected objects`} aria-label={`${influence} connected objects`}><Link2 className="size-3.5" /><span className="noesis-figure noesis-figure--sm font-bold">{influence}</span></span>}
                 </div>
               </div>
             </div>
@@ -1311,7 +1311,7 @@ function SourceCover({ item, eager = false }: { item: Media; eager?: boolean }) 
   return (
     <div className="noesis-proto-cover" style={{ '--h': hue } as React.CSSProperties}>
       <div className="line-clamp-4 font-headline text-[1.05rem] font-semibold italic leading-tight">{item.title}</div>
-      <div className="font-code text-[9px] uppercase tracking-[0.14em] opacity-80">{item.creator || MEDIA_LABELS[item.type]}</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm opacity-80">{item.creator || MEDIA_LABELS[item.type]}</div>
     </div>
   );
 }
@@ -1319,7 +1319,7 @@ function SourceCover({ item, eager = false }: { item: Media; eager?: boolean }) 
 function SourceStat({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-xl border border-border/50 bg-card px-4 py-2 text-right shadow-sm">
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground/60">{label}</div>
       <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
     </div>
   );
@@ -1337,7 +1337,7 @@ function SourceLane({ label, value, description, active, onClick }: { label: str
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="font-code text-[8px] font-bold uppercase tracking-[0.22em] text-muted-foreground/60">{label}</div>
+          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground/60">{label}</div>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
         </div>
         <div className="font-headline text-3xl font-bold italic leading-none text-primary">{value}</div>

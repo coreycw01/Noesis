@@ -32,7 +32,7 @@ export function ConceptDiagnosisBars({ diagnosis, compact = false }: { diagnosis
         <div key={bar.key} className="noesis-diag__row" data-stage-tone={bar.tone}>
           <span className="text-sm">{bar.label}</span>
           <span className="noesis-diag__track"><i style={{ width: `${Math.round(bar.value * 100)}%` }} /></span>
-          <span className="font-code text-[9.5px] uppercase tracking-[0.12em] text-muted-foreground">{bar.word}</span>
+          <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{bar.word}</span>
           <span className={cn('col-start-2 col-span-2 text-xs', bar.value >= 0.99 || (bar.key === 'tension' && bar.value < 0.2) ? 'text-muted-foreground' : 'text-foreground/80')}>→ {bar.move}</span>
         </div>
       ))}

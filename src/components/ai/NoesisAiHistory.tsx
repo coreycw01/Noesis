@@ -148,12 +148,12 @@ export function NoesisAiHistory({ items, onNavigate }: {
                 onClick={() => setOpen(expanded ? null : item.key)}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
-                <Badge variant="outline" className="noesis-stage-badge shrink-0 rounded-full font-code text-[9px] uppercase tracking-[0.12em]" style={{ borderColor: 'hsl(var(--stage) / .5)' }}>{TYPE_LABELS[item.type]}</Badge>
+                <Badge variant="outline" className="noesis-stage-badge shrink-0 rounded-full noesis-eyebrow noesis-eyebrow--sm" style={{ borderColor: 'hsl(var(--stage) / .5)' }}>{TYPE_LABELS[item.type]}</Badge>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{item.entry.action}</span>
                   <span className="block truncate text-xs text-muted-foreground">{item.recordLabel}</span>
                 </span>
-                <span className="shrink-0 font-code text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{formatDate(item.entry.date)}</span>
+                <span className="shrink-0 noesis-eyebrow text-muted-foreground">{formatDate(item.entry.date)}</span>
                 <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} aria-hidden="true" />
               </button>
               {expanded && (

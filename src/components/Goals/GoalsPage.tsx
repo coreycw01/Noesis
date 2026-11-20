@@ -496,7 +496,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             <section className="border-y border-border bg-card/35 py-5 md:py-7">
               <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+                  <div className="flex items-center gap-2 noesis-eyebrow font-bold text-accent">
                     <Compass className="size-4" aria-hidden="true" /> Today&apos;s focus
                   </div>
                   {todayFocusGoal ? (
@@ -514,7 +514,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                 {todayFocusGoal ? (
                   <div className="flex items-end gap-3 md:text-right">
                     <div>
-                      <div className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Progress</div>
+                      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Progress</div>
                       <div className="font-headline text-3xl font-bold italic">{Math.round(todayFocusGoal.percent)}%</div>
                     </div>
                     <Button variant="outline" onClick={() => { setPlanningGoalId(todayFocusGoal.id); setActiveView('active'); }} className="min-h-10 rounded-full">
@@ -535,7 +535,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                   <h2 id="active-goals-heading" className="font-headline text-xl font-bold italic">Due today</h2>
                   <p className="mt-1 text-sm text-muted-foreground">Record the promised action. Practice logs also count automatically when they are linked.</p>
                 </div>
-                <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{todayCommitments.length} due · {completedToday.length} done</span>
+                <span className="noesis-eyebrow text-muted-foreground">{todayCommitments.length} due · {completedToday.length} done</span>
               </div>
               {todayCommitments.length ? (
                 <div className="divide-y divide-border border-y border-border">
@@ -547,7 +547,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                           <ItemIcon className="mt-0.5 size-5 shrink-0 text-accent" strokeWidth={2.25} aria-hidden="true" />
                           <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-code text-[9px] font-bold uppercase tracking-widest text-accent">{questTypeForGoal(item, item.type)}</span>
+                            <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">{questTypeForGoal(item, item.type)}</span>
                             {commitmentReviewDue(item) && <Badge variant="outline" className="rounded-full text-[9px] uppercase">Review due</Badge>}
                           </div>
                           <h3 className="mt-1 text-base font-semibold leading-6 text-foreground">{item.title}</h3>
@@ -555,7 +555,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                           </div>
                         </div>
                         <div className="min-w-0">
-                          <div className="mb-1 flex justify-between font-code text-[9px] uppercase tracking-widest text-muted-foreground"><span>Progress</span><span>{item.currentProgress}/{item.targetProgress}</span></div>
+                          <div className="mb-1 flex justify-between noesis-eyebrow noesis-eyebrow--sm text-muted-foreground"><span>Progress</span><span>{item.currentProgress}/{item.targetProgress}</span></div>
                           <Progress value={item.percent} aria-label={`Progress for ${item.title}`} aria-valuetext={`${item.currentProgress} of ${item.targetProgress}`} className="h-2" />
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -586,7 +586,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
           <div className="space-y-6" role="tabpanel" aria-label="Commitment review">
             <section className="border-y border-border py-5" aria-labelledby="review-due-heading">
               <div className="mb-4">
-                <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Review</div>
+                <div className="noesis-eyebrow font-bold text-accent">Review</div>
                 <h2 id="review-due-heading" className="mt-1 font-headline text-xl font-bold italic">What needs a decision</h2>
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">Continue, revise, pause, complete, or abandon commitments based on what actually happened.</p>
               </div>
@@ -614,7 +614,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             {sayDoRows.length > 0 && (
               <section aria-labelledby="say-do-heading" className="border-y border-border py-5">
                 <div className="mb-4">
-                  <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Mirror</div>
+                  <div className="noesis-eyebrow font-bold text-accent">Mirror</div>
                   <h2 id="say-do-heading" className="mt-1 font-headline text-xl font-bold italic">Say / Do gap</h2>
                   <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">Confidence is compared with the practice expected by today, not the commitment&apos;s full lifetime target.</p>
                 </div>
@@ -625,7 +625,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                         <h3 className="text-sm font-semibold text-foreground">{row.title}</h3>
                         <p className="mt-1 text-sm leading-5 text-muted-foreground">{row.positionLabel}</p>
                       </div>
-                      <div className="grid grid-cols-2 gap-4 font-code text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <div className="grid grid-cols-2 gap-4 noesis-eyebrow text-muted-foreground">
                         <div><span className="block">Say</span><strong className="mt-1 block text-base text-foreground">{row.confidence}% confidence</strong></div>
                         <div><span className="block">Do</span><strong className="mt-1 block text-base text-foreground">{row.loggedDays} of {row.expectedSoFar} expected</strong></div>
                       </div>
@@ -642,7 +642,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
             {!focusedGoalId && <section className="mb-6 border-y border-border py-5 md:py-6" aria-labelledby="goals-heading">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Commitment setup</div>
+                  <div className="noesis-eyebrow font-bold text-accent">Commitment setup</div>
                   <h2 id="goals-heading" className="mt-1 font-headline text-2xl font-bold italic">Make belief visible in practice</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Name the commitment, link the Position it expresses, and choose the practice evidence that counts.</p>
                 </div>
@@ -655,7 +655,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                   ['3', 'Measure it', 'Choose the practice evidence that shows you lived it.'],
                 ].map(([number, title, detail]) => (
                   <li key={number} className="flex gap-3 border-l border-border pl-3">
-                    <span className="font-code text-[10px] font-bold text-accent">{number}</span>
+                    <span className="noesis-figure font-bold text-accent">{number}</span>
                     <div><div className="text-sm font-medium">{title}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p></div>
                   </li>
                 ))}
@@ -719,7 +719,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               <section className="border-y border-border py-5" aria-label={`Plan ${planningGoal.title}`}>
                 <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Goal details</div>
+                    <div className="noesis-eyebrow font-bold text-accent">Goal details</div>
                     <h2 className="mt-1 font-headline text-2xl font-bold italic">{planningGoal.title}</h2>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Choose exactly what Noesis should count. You can still add progress manually from the goal list.</p>
                   </div>
@@ -744,11 +744,11 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               <section className="border border-border bg-card p-4 md:p-5" aria-labelledby={`goal-intention-${row.id}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-accent">Commitment setup</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">Commitment setup</div>
                     <h3 id={`goal-intention-${row.id}`} className="mt-1 font-headline text-xl font-bold italic">Define this commitment</h3>
                     <p className="mt-1 max-w-xl text-sm leading-5 text-muted-foreground">Choose the action, cadence, and evidence that will show whether you lived it.</p>
                   </div>
-                  <Badge variant="outline" className="rounded-full font-code text-[9px] uppercase">{questTypeForGoal(row, row.type)}</Badge>
+                  <Badge variant="outline" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">{questTypeForGoal(row, row.type)}</Badge>
                 </div>
                 <div className="mt-4 grid gap-4 border-y border-border py-4 md:grid-cols-2">
                   <div>
@@ -825,7 +825,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               </section>
 
               <aside className="border border-border bg-card p-4 md:p-5">
-                <div className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Progress</div>
+                <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Progress</div>
                 <div className="mt-2 flex items-end justify-between gap-3">
                   <div className="font-headline text-4xl font-bold italic leading-none">{Math.round(row.percent)}%</div>
                   <span className="text-sm text-muted-foreground">{row.currentProgress} of {row.targetProgress}</span>
@@ -854,7 +854,7 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
                       <div className="mt-3 space-y-2">
                         {((row.milestones || []).length ? row.milestones || [] : defaultQuestMilestones(row, row.type)).map((milestone, index) => (
                           <div key={`${row.id}:simple-milestone:${index}`} className="flex items-center gap-2 text-sm">
-                            <span className="flex size-6 shrink-0 items-center justify-center rounded-full border font-code text-[9px]">{index + 1}</span>
+                            <span className="flex size-6 shrink-0 items-center justify-center rounded-full border noesis-figure noesis-figure--sm">{index + 1}</span>
                             {(row.milestones || []).length ? <Input value={milestone} onChange={(event) => updateMilestone(row.id, index, event.target.value)} className="h-9" /> : <span className="leading-5 text-muted-foreground">{milestone}</span>}
                             {(row.milestones || []).length ? <Button variant="ghost" size="icon" onClick={() => removeMilestone(row.id, index)} className="size-9 shrink-0" aria-label={`Remove milestone ${index + 1}`}><Trash2 className="size-3.5" /></Button> : null}
                           </div>

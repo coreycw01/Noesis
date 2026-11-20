@@ -91,7 +91,7 @@ export function WorkspaceTabs<T extends string>({
             {Icon && <Icon className="size-4" aria-hidden="true" />}
             <span>{itemLabel}</span>
             {typeof count === 'number' && (
-              <span className="min-w-5 rounded-full bg-muted px-1.5 py-0.5 font-code text-[9px] font-bold tabular-nums text-muted-foreground">
+              <span className="min-w-5 rounded-full bg-muted px-1.5 py-0.5 noesis-figure noesis-figure--sm font-bold tabular-nums text-muted-foreground">
                 {count}
               </span>
             )}

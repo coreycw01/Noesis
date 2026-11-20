@@ -98,7 +98,7 @@ export function AiAssistedHistory({
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            <Badge variant="outline" className="rounded-full text-[9px] uppercase tracking-wider">{entries.length}</Badge>
+            <Badge variant="outline" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">{entries.length}</Badge>
           </div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
         </div>
@@ -117,7 +117,7 @@ export function AiAssistedHistory({
                 <div className="truncate text-sm font-medium text-foreground">{entry.title}</div>
                 <div className="mt-0.5 text-[11px] text-muted-foreground">{formatHistoryDate(entry.date)}</div>
               </div>
-              <Badge variant="outline" className="shrink-0 rounded-full text-[9px] uppercase tracking-wider">AI-assisted</Badge>
+              <Badge variant="outline" className="shrink-0 rounded-full noesis-eyebrow noesis-eyebrow--sm">AI-assisted</Badge>
               <Button
                 type="button"
                 variant="ghost"

@@ -947,7 +947,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <div className="space-y-3">
                   {r.sources.slice(0, 6).map((s) => (
                     <button key={s.id} type="button" onClick={() => previewSource(s)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
-                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">{s.type}{s.year ? ` · ${s.year}` : ''}</div>
+                      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">{s.type}{s.year ? ` · ${s.year}` : ''}</div>
                       <p className="text-sm font-body font-semibold text-primary leading-snug">{s.title}</p>
                       {s.creator && <p className="text-xs text-muted-foreground font-body mt-0.5">{s.creator}</p>}
                     </button>
@@ -959,7 +959,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                   {r.annotations.slice(0, 8).map((a, i) => (
                     <button key={`${a.source.id}-${i}`} type="button" onClick={() => previewAnnotationSource(a)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
-                      <span className="font-code text-[8px] uppercase tracking-widest text-accent/70 font-bold">{a.type}</span>
+                      <span className="noesis-eyebrow noesis-eyebrow--sm text-accent/70 font-bold">{a.type}</span>
                       <p className="text-sm font-body italic text-primary/80 line-clamp-3 mt-1">&quot;{a.text}&quot;</p>
                       <p className="text-[10px] text-muted-foreground/40 font-body mt-1.5">{a.source.title}</p>
                     </button>
@@ -978,7 +978,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                       {q.answer ? (
                         <p className="text-xs text-muted-foreground font-body italic line-clamp-2 border-t border-border/20 pt-2">{q.answer}</p>
                       ) : (
-                        <span className="font-code text-[8px] uppercase tracking-widest text-caution font-bold">Open</span>
+                        <span className="noesis-eyebrow noesis-eyebrow--sm text-caution font-bold">Open</span>
                       )}
                     </button>
                   ))}
@@ -997,7 +997,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                             <div key={n} className={cn('size-1.5 rounded-full', n <= (b.confidence || 3) ? 'bg-accent' : 'bg-muted')} />
                           ))}
                         </div>
-                        <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">{b.status}</span>
+                        <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/50">{b.status}</span>
                       </div>
                     </button>
                   ))}
@@ -1018,7 +1018,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                         onClick={() => previewWork(draft)}
                         className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                       >
-                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">{draft.type || 'work'}{draft.status ? ` · ${draft.status}` : ''}</div>
+                        <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">{draft.type || 'work'}{draft.status ? ` · ${draft.status}` : ''}</div>
                         <p className="text-sm font-headline font-bold italic text-primary mb-1">{draft.title}</p>
                         {draft.body && <p className="text-xs font-body text-muted-foreground line-clamp-2">{draft.body}</p>}
                       </button>
@@ -1035,7 +1035,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                         onClick={() => previewPractice(practice)}
                         className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                       >
-                        <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">{practice.type || 'practice'}{practice.status ? ` · ${practice.status}` : ''}</div>
+                        <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">{practice.type || 'practice'}{practice.status ? ` · ${practice.status}` : ''}</div>
                         <p className="text-sm font-body font-semibold text-primary leading-snug">{practice.title}</p>
                         {(practice.description || practice.notes) && (
                           <p className="mt-1 text-xs font-body text-muted-foreground line-clamp-2">{practice.description || practice.notes}</p>
@@ -1055,7 +1055,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <section className="mb-10">
                 <div className="flex items-center gap-2 mb-5">
                   <AlertTriangle className="size-4 text-caution" />
-                  <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold">Tensions & Conflicts</h2>
+                  <h2 className="noesis-eyebrow text-foreground/60 font-bold">Tensions & Conflicts</h2>
                 </div>
                 <div className="rounded-xl border border-caution/35 bg-caution/10 p-5">
                   <p className="text-xs text-caution font-body mb-4 italic">
@@ -1067,21 +1067,21 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                         <div key={`${a.id}-${b.id}`} className="rounded-lg bg-card/80 border border-caution/25 p-4">
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position A</p>
+                              <p className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">Position A</p>
                               <p className="text-sm font-headline font-bold italic text-primary">{a.title}</p>
                               <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{a.statement}&quot;</p>
                             </div>
                             <div>
-                              <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">Position B</p>
+                              <p className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">Position B</p>
                               <p className="text-sm font-headline font-bold italic text-primary">{b.title}</p>
                               <p className="text-xs text-muted-foreground italic font-body mt-1 line-clamp-2">&quot;{b.statement}&quot;</p>
                             </div>
                           </div>
                           <div className="mt-4 border-t border-caution/25 pt-3">
                             <div className="mb-2 flex items-center justify-between gap-2">
-                              <p className="font-code text-[8px] uppercase tracking-widest text-caution font-bold">Resolve Relationship</p>
+                              <p className="noesis-eyebrow noesis-eyebrow--sm text-caution font-bold">Resolve Relationship</p>
                               {tensionDecisions[`${a.id}-${b.id}`] && (
-                                <span className="rounded-full border border-caution/40 bg-caution/15 px-2 py-0.5 font-code text-[8px] uppercase tracking-widest text-foreground">
+                                <span className="rounded-full border border-caution/40 bg-caution/15 px-2 py-0.5 noesis-eyebrow noesis-eyebrow--sm text-foreground">
                                   {tensionDecisions[`${a.id}-${b.id}`].replace(/_/g, ' ')}
                                 </span>
                               )}
@@ -1102,7 +1102,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                                     )}
                                   >
                                     <span className="block">
-                                      <span className="block font-code text-[9px] uppercase tracking-widest font-bold">{decision.label}</span>
+                                      <span className="block noesis-eyebrow noesis-eyebrow--sm font-bold">{decision.label}</span>
                                       <span className="mt-0.5 block text-[11px] normal-case tracking-normal text-muted-foreground">{decision.description}</span>
                                     </span>
                                   </Button>
@@ -1127,12 +1127,12 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             {/* Evolution over time */}
             {sortedEvents.length > 0 && (
               <section className="mb-10">
-                <h2 className="font-code text-[11px] uppercase tracking-[0.2em] text-foreground/60 font-bold mb-6">Evolution Over Time</h2>
+                <h2 className="noesis-eyebrow text-foreground/60 font-bold mb-6">Evolution Over Time</h2>
                 <div className="relative pl-6 border-l-2 border-border/20 space-y-6">
                   {sortedEvents.map((event) => (
                     <div key={event.id} className="relative">
                       <div className="absolute -left-[29px] size-3.5 rounded-full bg-card border-2 border-accent/40 shadow-sm" />
-                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/40 mb-1 font-bold">
+                      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">
                         {event.date} · {event.eventType.replace(/_/g, ' ')}
                       </div>
                       <p className="text-sm font-body font-semibold text-primary/90">{event.entityTitle}</p>
@@ -1167,7 +1167,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       <PageHeader
         title="Concepts"
         description="Build the vocabulary lab for definitions, boundaries, consistency, and conceptual drift."
-        meta={<p className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">{maturitySummary}</p>}
+        meta={<p className="noesis-eyebrow text-muted-foreground/60">{maturitySummary}</p>}
         actions={
           <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 rounded-full h-9">
             <Plus className="size-4 mr-1.5" /> New Concept
@@ -1230,7 +1230,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 onClick={() => setListView(view.id)}
                 title={view.description}
                 className={cn(
-                  'rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-[0.14em] transition-colors',
+                  'rounded-full border px-3 py-1.5 noesis-eyebrow noesis-eyebrow--sm transition-colors',
                   active
                     ? 'border-accent bg-accent text-accent-foreground'
                     : 'border-border bg-background/70 text-muted-foreground hover:border-accent/40 hover:text-foreground'
@@ -1242,15 +1242,15 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           })}
           <Select value={moreConceptViewActive ? listView : 'more'} onValueChange={(value) => setListView(value as ConceptListView)}>
             <SelectTrigger aria-label="More concept filters" className={cn(
-              'h-8 w-[150px] rounded-full border bg-background/70 px-3 font-code text-[9px] uppercase tracking-[0.14em]',
+              'h-8 w-[150px] rounded-full border bg-background/70 px-3 noesis-eyebrow noesis-eyebrow--sm',
               moreConceptViewActive ? 'border-accent text-accent' : 'border-border text-muted-foreground'
             )}>
               <SelectValue placeholder="More Filters" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="more" disabled className="font-code text-[10px] uppercase">More Filters</SelectItem>
+              <SelectItem value="more" disabled className="noesis-eyebrow">More Filters</SelectItem>
               {moreConceptViews.map((view) => (
-                <SelectItem key={view.id} value={view.id} className="font-code text-[10px] uppercase">
+                <SelectItem key={view.id} value={view.id} className="noesis-eyebrow">
                   {view.label}
                 </SelectItem>
               ))}
@@ -1268,8 +1268,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               {conceptRows.map(({ name, concept, diagnosis: diag, connectionCount, repairFlags }) => (
                 <TableRow key={name} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) openConceptDetail(name, concept); }}>
                   <TableCell className="max-w-xl py-2 [overflow-wrap:anywhere]"><button type="button" className="min-h-11 w-full rounded-sm text-left font-headline text-base font-semibold text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openConceptDetail(name, concept)} onKeyDown={(event) => activateEntityOnKey(event, () => openConceptDetail(name, concept))}>{name}</button><p className="line-clamp-2 pb-1 text-xs leading-5 text-muted-foreground">{concept?.description || 'Definition not added'}</p></TableCell>
-                  <TableCell><div className="space-y-1.5"><StageBadge type="concept" stage={concept?.stage} status={concept?.philosophyStatus} /><span className={cn('block w-fit font-code text-[8px] font-bold uppercase tracking-widest', CLARITY_BG[diag.level])}>{diag.level}</span></div></TableCell>
-                  <TableCell className="hidden font-code text-[10px] uppercase tracking-wider text-muted-foreground xl:table-cell">{connectionCount}</TableCell>
+                  <TableCell><div className="space-y-1.5"><StageBadge type="concept" stage={concept?.stage} status={concept?.philosophyStatus} /><span className={cn('block w-fit noesis-eyebrow noesis-eyebrow--sm font-bold', CLARITY_BG[diag.level])}>{diag.level}</span></div></TableCell>
+                  <TableCell className="hidden noesis-eyebrow text-muted-foreground xl:table-cell">{connectionCount}</TableCell>
                   <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">{repairFlags.length ? repairFlags.slice(0, 3).map((flag) => flag.label).join(' · ') : 'Ready for use'}</TableCell>
                   <TableCell className="hidden sm:table-cell">{concept && <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-11" onClick={() => openEditor(concept)}><Edit className="size-4" /></Button>}</TableCell>
                 </TableRow>
@@ -1375,10 +1375,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   </div>
                   <div className="mt-1.5 flex items-center gap-2">
                     <StageBadge type="concept" stage={concept?.stage} status={concept?.philosophyStatus} />
-                    <span className={cn('font-code text-[8px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full border', CLARITY_BG[diag.level])}>
+                    <span className={cn('noesis-eyebrow noesis-eyebrow--sm font-bold px-2 py-0.5 rounded-full border', CLARITY_BG[diag.level])}>
                       {diag.level}
                     </span>
-                    <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">
+                    <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">
                       {connectionCount} {connectionCount === 1 ? 'link' : 'links'}
                     </span>
                   </div>
@@ -1394,7 +1394,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
               {possibleDuplicates.length > 0 && (
                 <div className="mb-4 rounded-xl border border-caution/40 bg-caution/10 px-3 py-2">
-                  <div className="font-code text-[8px] uppercase tracking-widest text-caution font-bold">Duplicate Review</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-caution font-bold">Duplicate Review</div>
                   <p className="mt-1 text-xs leading-5 text-foreground">
                     Compare with {possibleDuplicates.join(', ')} before merging or treating these as separate concepts.
                   </p>
@@ -1403,7 +1403,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
               <div className="border-t border-border/30 pt-3">
                 <ConceptDiagnosisBars diagnosis={diag} compact />
-                <div className="mt-2 font-code text-[8px] uppercase tracking-wider text-muted-foreground">
+                <div className="mt-2 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                   {related.sources.length} sources · {related.beliefs.length} positions · {related.drafts.length} works
                 </div>
               </div>
@@ -1430,8 +1430,8 @@ function ConceptPageSection({ title, count, empty, children }: { title: string; 
   return (
     <section>
       <div className="flex items-center gap-2 mb-4">
-        <h2 className="font-code text-[10px] uppercase tracking-[0.18em] text-foreground/50 font-bold">{title}</h2>
-        <span className="font-code text-[9px] bg-muted/30 text-muted-foreground/50 rounded-full px-2 py-0.5 font-bold">{count}</span>
+        <h2 className="noesis-eyebrow text-foreground/50 font-bold">{title}</h2>
+        <span className="noesis-figure noesis-figure--sm bg-muted/30 text-muted-foreground/50 rounded-full px-2 py-0.5 font-bold">{count}</span>
       </div>
       {count === 0 ? (
         <p className="text-sm text-muted-foreground/30 italic font-body">{empty}</p>

@@ -22,7 +22,7 @@ export function ThroughConcept({ concept, columns, limit = 4 }: { concept: strin
             {column.items.length ? column.items.slice(0, limit).map((item) => (
               <button key={item.id} type="button" disabled={!item.onOpen} onClick={item.onOpen} className="noesis-through__item">{item.label}</button>
             )) : <span className="text-sm text-muted-foreground">None yet</span>}
-            {column.items.length > limit && <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">+{column.items.length - limit} more</span>}
+            {column.items.length > limit && <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">+{column.items.length - limit} more</span>}
           </div>
         ))}
       </div>

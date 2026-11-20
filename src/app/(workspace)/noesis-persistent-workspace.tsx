@@ -88,7 +88,7 @@ function WorkspaceFrameLoading() {
     <div className="flex min-h-screen bg-background text-foreground" aria-busy="true" aria-live="polite">
       <aside className="hidden w-72 shrink-0 border-r border-sidebar-border bg-sidebar px-6 py-8 text-sidebar-foreground md:flex md:flex-col">
         <div className="font-headline text-3xl font-semibold italic">Noesis.</div>
-        <p className="mt-2 font-code text-[9px] uppercase tracking-[0.18em] text-sidebar-foreground/60">Turn thought into understanding.</p>
+        <p className="mt-2 noesis-eyebrow noesis-eyebrow--sm text-sidebar-foreground/60">Turn thought into understanding.</p>
         <div className="mt-10 space-y-3" aria-hidden="true">
           {[80, 64, 72, 58, 68, 52, 76, 60].map((width, index) => (
             <div key={index} className="h-8 rounded-md bg-sidebar-foreground/10" style={{ width: `${width}%` }} />

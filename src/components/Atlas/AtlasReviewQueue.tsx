@@ -35,7 +35,7 @@ export function AtlasReviewQueue({
     <Card className="rounded-3xl border border-border/60 bg-card/85 p-5 shadow-sm">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-widest">Review queue</Badge>
+          <Badge className="rounded-full bg-accent noesis-eyebrow noesis-eyebrow--sm">Review queue</Badge>
           <h2 className="mt-3 font-headline text-3xl font-semibold italic text-foreground">Structures awaiting your judgment</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Automatic organization stays provisional. Confirm, defer, reject, or clean up each item here.</p>
         </div>

@@ -19,7 +19,7 @@ export function Eyebrow({ as: Tag = "span", size = "md", tone, strong, className
   return (
     <Tag
       data-tone={tone}
-      className={cn("noesis-eyebrow", size === "sm" && "noesis-eyebrow--sm", tone && "noesis-eyebrow--tone", strong && "noesis-eyebrow--strong", className)}
+      className={cn("noesis-eyebrow noesis-eyebrow--row", size === "sm" && "noesis-eyebrow--sm", tone ? "noesis-eyebrow--tone" : "noesis-eyebrow--muted", strong && "noesis-eyebrow--strong", className)}
       {...(props as React.HTMLAttributes<HTMLElement>)}
     />
   )

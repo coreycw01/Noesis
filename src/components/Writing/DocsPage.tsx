@@ -463,7 +463,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       {backgroundArtwork && <img src={backgroundArtwork} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-85" />}
       <div className="absolute right-6 top-6 opacity-0 transition-opacity group-hover:opacity-100 sm:right-12 sm:top-8">
         <span className={cn(
-          "font-code text-[9px] uppercase tracking-widest font-bold",
+          "noesis-eyebrow noesis-eyebrow--sm font-bold",
           paperColor === 'dark' ? "text-paper-ink-dark/55" : "text-muted-foreground/40"
         )}>
           PAGE {pageNumber}
@@ -513,7 +513,7 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       />
 
       {structureLabels[writingStyle] && (
-        <div className="pointer-events-none absolute inset-0 p-16 font-code text-[9px] font-bold uppercase tracking-widest text-accent/45">
+        <div className="pointer-events-none absolute inset-0 p-16 noesis-eyebrow noesis-eyebrow--sm font-bold text-accent/45">
           {structureLabels[writingStyle]!.map((label, index) => (
             <span
               key={label}

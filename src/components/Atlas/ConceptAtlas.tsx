@@ -1674,28 +1674,28 @@ export function ConceptAtlas({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="truncate font-headline text-sm font-semibold italic text-primary">{target}</div>
-              <div className="mt-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">
+              <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                 {link.sourceLabel} · {link.label}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {isGroupedTyped && (
-                <Badge variant="outline" className="rounded-full bg-accent/10 font-code text-[8px] uppercase tracking-widest text-accent">
+                <Badge variant="outline" className="rounded-full bg-accent/10 noesis-eyebrow noesis-eyebrow--sm text-accent">
                   {link.relationshipTypes?.length} types
                 </Badge>
               )}
-              <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{link.kind}</Badge>
+              <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{link.kind}</Badge>
             </div>
           </div>
           {isGroupedTyped && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {link.relationshipTypes?.slice(0, 4).map((type) => (
-                <Badge key={type} variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">
+                <Badge key={type} variant="outline" className="rounded-full bg-muted/20 noesis-eyebrow noesis-eyebrow--sm">
                   {type}
                 </Badge>
               ))}
               {(link.relationshipTypes?.length || 0) > 4 && (
-                <Badge variant="outline" className="rounded-full bg-muted/20 font-code text-[8px] uppercase tracking-widest">
+                <Badge variant="outline" className="rounded-full bg-muted/20 noesis-eyebrow noesis-eyebrow--sm">
                   +{(link.relationshipTypes?.length || 0) - 4} more
                 </Badge>
               )}
@@ -1748,7 +1748,7 @@ export function ConceptAtlas({
         <>
           <div className="flex items-start justify-between border-b border-border/50 p-5">
             <div>
-              <Badge variant="outline" className="mb-2 font-code text-[9px] uppercase tracking-widest text-accent rounded-full">Map Node</Badge>
+              <Badge variant="outline" className="mb-2 noesis-eyebrow noesis-eyebrow--sm text-accent rounded-full">Map Node</Badge>
               <h2 className="font-headline text-2xl font-bold italic">{selectedName}</h2>
               {selectedConcept?.description && <p className="mt-2 text-sm text-muted-foreground font-body">{selectedConcept.description}</p>}
             </div>
@@ -1765,7 +1765,7 @@ export function ConceptAtlas({
           </div>
           <div className="flex-1 overflow-y-auto p-5">
             <div className="mb-4 space-y-2">
-              <Label className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Panel Section</Label>
+              <Label className="noesis-eyebrow text-muted-foreground">Panel Section</Label>
               <Select value={panelSection} onValueChange={(value) => setPanelSection(value as 'links' | 'evidence' | 'events' | 'actions')}>
                 <SelectTrigger aria-label="Inspector section" className="min-h-11 rounded-full bg-card">
                   <SelectValue placeholder="Choose section" />
@@ -1782,7 +1782,7 @@ export function ConceptAtlas({
             {activeMap && (
               <div className="mb-4 rounded-xl border border-border/60 bg-muted/10 p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Node Color</Label>
+                  <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Node Color</Label>
                   <Button
                     type="button"
                     variant="ghost"
@@ -1822,10 +1822,10 @@ export function ConceptAtlas({
             {panelSection === 'links' && (
               <section>
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Links</h4>
+                  <h4 className="noesis-eyebrow text-muted-foreground">Links</h4>
                   <div className="flex items-center gap-2">
                     <Select value={linkSort} onValueChange={(value) => setLinkSort(value as 'alpha' | 'created' | 'interacted')}>
-                      <SelectTrigger className="h-7 w-[148px] rounded-full bg-card px-3 font-code text-[9px] uppercase tracking-widest">
+                      <SelectTrigger className="h-7 w-[148px] rounded-full bg-card px-3 noesis-eyebrow noesis-eyebrow--sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1849,7 +1849,7 @@ export function ConceptAtlas({
 
             {panelSection === 'evidence' && (
               <section>
-                <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Evidence And Outputs</h4>
+                <h4 className="mb-3 noesis-eyebrow text-muted-foreground">Evidence And Outputs</h4>
                 {related ? (
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => setRelatedDialogType('sources')} disabled={!related.sources.length} className="rounded-full disabled:cursor-not-allowed disabled:opacity-60">
@@ -1879,11 +1879,11 @@ export function ConceptAtlas({
 
             {panelSection === 'events' && (
               <section>
-                <h4 className="mb-3 font-code text-[10px] uppercase tracking-widest text-muted-foreground">Recent Thinking Events</h4>
+                <h4 className="mb-3 noesis-eyebrow text-muted-foreground">Recent Thinking Events</h4>
                 <div className="space-y-2">
                   {recentThinkingForNode.length ? recentThinkingForNode.map((event) => (
                     <div key={event.eventId} className="rounded-xl border border-border/60 bg-muted/10 p-3">
-                      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">{event.eventType.replace(/_/g, ' ')}</div>
+                      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{event.eventType.replace(/_/g, ' ')}</div>
                       <p className="mt-1 text-sm italic text-foreground/80">{event.summary}</p>
                     </div>
                   )) : (
@@ -1895,7 +1895,7 @@ export function ConceptAtlas({
 
                   {panelSection === 'actions' && (
                     <section className="space-y-3">
-                      <h4 className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Actions</h4>
+                      <h4 className="noesis-eyebrow text-muted-foreground">Actions</h4>
                       <Button size="sm" variant="outline" className="min-h-11 w-full justify-center text-xs" onClick={() => {
                         beginQuickLinkMode(selectedName!);
                         const next = renderedNodes.find((node) => node.name !== selectedName);
@@ -2599,26 +2599,26 @@ export function ConceptAtlas({
 
           <div className={cn("hidden gap-2 overflow-x-auto pb-1 md:flex md:flex-wrap md:justify-end md:overflow-visible md:pb-0", mode === 'auto' && "md:hidden")}>
             <Select value={viewMode} onValueChange={(value) => setViewMode(value as AtlasViewMode)}>
-              <SelectTrigger aria-label="Map view" className="h-8 w-36 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
+              <SelectTrigger aria-label="Map view" className="h-8 w-36 rounded-full border-input bg-background px-3 noesis-eyebrow shadow-sm">
                 <SelectValue placeholder="View Mode" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="core" className="font-code text-[10px] uppercase tracking-wider">Core Map</SelectItem>
-                <SelectItem value="conflict" className="font-code text-[10px] uppercase tracking-wider">Conflict Map</SelectItem>
-                <SelectItem value="evidence" className="font-code text-[10px] uppercase tracking-wider">Evidence Map</SelectItem>
-                <SelectItem value="practice" className="font-code text-[10px] uppercase tracking-wider">Practice/Test</SelectItem>
-                <SelectItem value="evolution" className="font-code text-[10px] uppercase tracking-wider">Evolution Map</SelectItem>
-                <SelectItem value="full" className="font-code text-[10px] uppercase tracking-wider">Full Map</SelectItem>
+                <SelectItem value="core" className="noesis-eyebrow">Core Map</SelectItem>
+                <SelectItem value="conflict" className="noesis-eyebrow">Conflict Map</SelectItem>
+                <SelectItem value="evidence" className="noesis-eyebrow">Evidence Map</SelectItem>
+                <SelectItem value="practice" className="noesis-eyebrow">Practice/Test</SelectItem>
+                <SelectItem value="evolution" className="noesis-eyebrow">Evolution Map</SelectItem>
+                <SelectItem value="full" className="noesis-eyebrow">Full Map</SelectItem>
               </SelectContent>
             </Select>
             <Select value={autoConnectionFocus} onValueChange={(value) => setAutoConnectionFocus(value as 'strong' | 'moderate' | 'all')}>
-              <SelectTrigger aria-label="Connection focus" className="h-8 w-40 rounded-full border-input bg-background px-3 font-code text-[10px] uppercase tracking-wider shadow-sm">
+              <SelectTrigger aria-label="Connection focus" className="h-8 w-40 rounded-full border-input bg-background px-3 noesis-eyebrow shadow-sm">
                 <SelectValue placeholder="Connection Focus" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="strong" className="font-code text-[10px] uppercase tracking-wider">Strong Connections</SelectItem>
-                <SelectItem value="moderate" className="font-code text-[10px] uppercase tracking-wider">Strong + Moderate</SelectItem>
-                <SelectItem value="all" className="font-code text-[10px] uppercase tracking-wider">All Connections</SelectItem>
+                <SelectItem value="strong" className="noesis-eyebrow">Strong Connections</SelectItem>
+                <SelectItem value="moderate" className="noesis-eyebrow">Strong + Moderate</SelectItem>
+                <SelectItem value="all" className="noesis-eyebrow">All Connections</SelectItem>
               </SelectContent>
             </Select>
             <DropdownMenu>
@@ -2628,7 +2628,7 @@ export function ConceptAtlas({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" scrollable className="w-72 rounded-2xl [--noesis-menu-max-height:420px]">
-                <DropdownMenuLabel className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">Relationship Types</DropdownMenuLabel>
+                <DropdownMenuLabel className="noesis-eyebrow text-muted-foreground">Relationship Types</DropdownMenuLabel>
                 <div className="flex gap-2 px-2 pb-2 pt-1">
                   <Button size="sm" variant={relationshipFilterMode === 'recommended' ? 'default' : 'outline'} onClick={() => setRelationshipFilterMode('recommended')}>
                     Select Recommended
@@ -2643,7 +2643,7 @@ export function ConceptAtlas({
                 <DropdownMenuSeparator />
                 {atlasRelationshipGroups.map((group) => (
                   <div key={group.label}>
-                    <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/80">{group.label}</DropdownMenuLabel>
+                    <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/80">{group.label}</DropdownMenuLabel>
                     {group.types.map((type) => (
                       <DropdownMenuCheckboxItem
                         key={type}
@@ -2662,7 +2662,7 @@ export function ConceptAtlas({
                               : prev.filter((item) => item !== type)
                           ));
                         }}
-                        className="font-code text-[10px] uppercase tracking-wider"
+                        className="noesis-eyebrow"
                       >
                         {type.replace(/_/g, ' ')}
                       </DropdownMenuCheckboxItem>
@@ -2686,11 +2686,11 @@ export function ConceptAtlas({
               scrollable
               className="w-64 rounded-xl"
             >
-              <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Map source</DropdownMenuLabel>
+              <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Map source</DropdownMenuLabel>
               <DropdownMenuCheckboxItem checked={mode === 'auto'} onCheckedChange={() => setMode('auto')}>Auto map</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem checked={mode === 'custom'} onCheckedChange={() => setMode('custom')}>Custom map</DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">View</DropdownMenuLabel>
+              <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">View</DropdownMenuLabel>
               {([
                 ['core', 'Core'],
                 ['conflict', 'Conflict'],
@@ -2704,7 +2704,7 @@ export function ConceptAtlas({
                 </DropdownMenuCheckboxItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Connection strength</DropdownMenuLabel>
+              <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Connection strength</DropdownMenuLabel>
               {([
                 ['strong', 'Strong only'],
                 ['moderate', 'Strong + moderate'],
@@ -2715,7 +2715,7 @@ export function ConceptAtlas({
                 </DropdownMenuCheckboxItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Relationship types</DropdownMenuLabel>
+              <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Relationship types</DropdownMenuLabel>
               <DropdownMenuCheckboxItem checked={relationshipFilterMode === 'recommended'} onCheckedChange={() => setRelationshipFilterMode('recommended')}>Recommended</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem checked={relationshipFilterMode === 'all'} onCheckedChange={() => setRelationshipFilterMode('all')}>All relationships</DropdownMenuCheckboxItem>
             </DropdownMenuContent>
@@ -2757,10 +2757,10 @@ export function ConceptAtlas({
                 {selectedRegion.name}
               </Button>
             )}
-            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+            <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">
               {viewMode === 'core' ? 'Core' : viewMode.replace(/_/g, ' ')}
             </Badge>
-            <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">
+            <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">
               {autoConnectionFocus === 'strong' ? 'Strong' : autoConnectionFocus === 'moderate' ? 'Moderate' : 'All'}
             </Badge>
           </div>
@@ -3184,7 +3184,7 @@ export function ConceptAtlas({
               >
                 <span className="sr-only">{quickLinkSource ? 'Link to' : 'Open concept'} </span>
                 <span className={cn('block max-w-28 break-words font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-[15px]')}>{node.name}</span>
-                <span className="block font-code text-[9px] uppercase text-muted-foreground">{node.count} linked</span>
+                <span className="block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{node.count} linked</span>
               </button>
             ))}
 
@@ -3199,7 +3199,7 @@ export function ConceptAtlas({
                 top: Math.min((mapRef.current?.clientHeight || 0) - 48, Math.max(12, quickLinkCursor.y - (mapRef.current?.getBoundingClientRect().top || 0) + 14)),
               }}
             >
-              <div className="font-code text-[9px] uppercase tracking-widest text-accent">
+              <div className="noesis-eyebrow noesis-eyebrow--sm text-accent">
                 Link from {quickLinkSource} - click a target node
               </div>
             </div>
@@ -3220,19 +3220,19 @@ export function ConceptAtlas({
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
-                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">From</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">From</div>
                   <div className="mt-1 font-headline text-lg font-bold italic">{selectedLink.from}</div>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
-                  <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">To</div>
+                  <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">To</div>
                   <div className="mt-1 font-headline text-lg font-bold italic">{selectedLink.to}</div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Badge className="rounded-full bg-accent font-code text-[9px] uppercase tracking-widest">{selectedLink.linkType || selectedLink.label}</Badge>
-                <Badge variant="outline" className="rounded-full bg-card font-code text-[9px] uppercase tracking-widest">{selectedLink.sourceLabel}</Badge>
+                <Badge className="rounded-full bg-accent noesis-eyebrow noesis-eyebrow--sm">{selectedLink.linkType || selectedLink.label}</Badge>
+                <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{selectedLink.sourceLabel}</Badge>
                 {selectedLink.relationshipTypes && selectedLink.relationshipTypes.length > 1 && selectedLink.relationshipTypes.map((type) => (
-                  <Badge key={type} variant="outline" className="rounded-full bg-muted/20 font-code text-[9px] uppercase tracking-widest">
+                  <Badge key={type} variant="outline" className="rounded-full bg-muted/20 noesis-eyebrow noesis-eyebrow--sm">
                     {type}
                   </Badge>
                 ))}
@@ -3244,7 +3244,7 @@ export function ConceptAtlas({
                 <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <div>
-                      <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Link Color</Label>
+                      <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Link Color</Label>
                       <p className="mt-1 text-xs italic text-muted-foreground">Changes how this connection appears on the current map.</p>
                     </div>
                     <Button
@@ -3402,11 +3402,11 @@ export function ConceptAtlas({
                       <div className="font-headline text-base font-semibold italic">{position.title}</div>
                       <div className="line-clamp-1 text-xs text-muted-foreground">{position.statement || position.description}</div>
                     </TableCell>
-                    <TableCell className="font-code text-[10px] uppercase tracking-widest">{position.type.replace(/_/g, ' ')}</TableCell>
-                    <TableCell><Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{position.status}</Badge></TableCell>
+                    <TableCell className="noesis-eyebrow">{position.type.replace(/_/g, ' ')}</TableCell>
+                    <TableCell><Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{position.status}</Badge></TableCell>
                     <TableCell className="font-code text-xs">{atlasConfidencePercent(position.confidence)}%</TableCell>
                     <TableCell className="font-code text-xs">{(position.sourceIds || []).length}</TableCell>
-                    <TableCell className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">{new Date(position.dateUpdated || position.dateCreated).toLocaleDateString()}</TableCell>
+                    <TableCell className="noesis-eyebrow text-muted-foreground">{new Date(position.dateUpdated || position.dateCreated).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
                 {!(related?.beliefs || []).length && (
@@ -3429,7 +3429,7 @@ export function ConceptAtlas({
             {relatedDialogData?.items.length ? relatedDialogData.items.map((item) => (
               <div key={item.id} className="rounded-xl border border-border/60 bg-muted/10 p-4">
                 <div className="font-headline text-lg font-semibold italic">{item.title}</div>
-                {item.meta && <div className="mt-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">{item.meta}</div>}
+                {item.meta && <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{item.meta}</div>}
                 {item.body && <p className="mt-2 text-sm italic leading-6 text-muted-foreground">{item.body}</p>}
               </div>
             )) : (
@@ -3727,7 +3727,7 @@ export function ConceptAtlas({
               <div className="space-y-3 rounded-2xl border border-border/60 bg-card p-4">
                 <div className="flex items-center justify-between gap-3">
                   <Label className="readex-kicker">Background opacity</Label>
-                  <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <span className="noesis-eyebrow text-muted-foreground">
                     {Math.round((styleDraft.background.opacity ?? 0.42) * 100)}%
                   </span>
                 </div>
@@ -3749,7 +3749,7 @@ export function ConceptAtlas({
               <div className="space-y-3 rounded-2xl border border-border/60 bg-card p-4">
                 <div className="flex items-center justify-between gap-3">
                   <Label className="readex-kicker">Background blur</Label>
-                  <span className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <span className="noesis-eyebrow text-muted-foreground">
                     {styleDraft.background.blur ?? 0}px
                   </span>
                 </div>
@@ -3787,7 +3787,7 @@ export function ConceptAtlas({
               {availableNodeTerms
                 .filter((name) => !linkSearch || name.toLowerCase().includes(linkSearch.toLowerCase()))
                 .map((name) => (
-                  <button key={name} onClick={() => addNodeToMap(name)} className="w-full rounded-lg p-3 text-left font-code text-[10px] uppercase tracking-wider hover:bg-muted transition-colors">
+                  <button key={name} onClick={() => addNodeToMap(name)} className="w-full rounded-lg p-3 text-left noesis-eyebrow hover:bg-muted transition-colors">
                     {name}
                   </button>
                 ))}
@@ -3840,7 +3840,7 @@ export function ConceptAtlas({
                       type="button"
                       onClick={() => setLinkDraft((prev) => ({ ...prev, type, label: type.replace(/_/g, ' ') }))}
                       className={cn(
-                        "rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-widest transition-colors",
+                        "rounded-full border px-3 py-1 noesis-eyebrow noesis-eyebrow--sm transition-colors",
                         linkDraft.type === type ? "border-accent bg-accent/10 text-accent" : "border-border bg-card text-muted-foreground hover:text-foreground"
                       )}
                     >
@@ -3851,7 +3851,7 @@ export function ConceptAtlas({
                     type="button"
                     onClick={() => setShowAdvancedLinkTypes((open) => !open)}
                     className={cn(
-                      "rounded-full border px-3 py-1 font-code text-[9px] uppercase tracking-widest transition-colors",
+                      "rounded-full border px-3 py-1 noesis-eyebrow noesis-eyebrow--sm transition-colors",
                       showAdvancedLinkTypes ? "border-accent bg-accent/10 text-accent" : "border-border bg-card text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -3889,7 +3889,7 @@ export function ConceptAtlas({
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex items-center gap-3 whitespace-nowrap rounded-full border border-border bg-card px-5 py-2 shadow-sm">
-      <div className="font-code text-[8px] uppercase tracking-widest text-muted-foreground font-bold">{label}</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">{label}</div>
       <div className="max-w-[120px] truncate font-headline text-lg font-bold italic text-primary">{value}</div>
     </div>
   );

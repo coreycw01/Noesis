@@ -225,7 +225,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
             </div>
             <div>
               <h1 className="font-headline text-3xl font-bold text-white">Noesis<span className="text-accent">.</span></h1>
-              <p className="font-code text-[10px] uppercase tracking-[0.18em] text-white/35">Turn thought into understanding.</p>
+              <p className="noesis-eyebrow text-white/35">Turn thought into understanding.</p>
             </div>
           </div>
         </div>
@@ -239,7 +239,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 font-code text-[9px] uppercase tracking-widest text-white/35">
+        <div className="grid grid-cols-3 gap-3 noesis-eyebrow noesis-eyebrow--sm text-white/35">
           <span>Atlas</span>
           <span>Positions</span>
           <span>Works</span>
@@ -276,7 +276,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
 
             {isDomainError && (
               <div className="mb-8 rounded-xl border border-border bg-muted/60 p-5 text-sm text-foreground font-body shadow-sm">
-                <div className="mb-3 flex items-center gap-2 font-code text-[11px] font-bold uppercase tracking-wider text-accent">
+                <div className="mb-3 flex items-center gap-2 noesis-eyebrow font-bold text-accent">
                   <ShieldAlert className="size-4" /> Action Required
                 </div>
                 <p className="italic leading-relaxed">
@@ -286,7 +286,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
                   <li>Go to your <strong>Firebase Console</strong>.</li>
                   <li>Navigate to <strong>Authentication &gt; Settings</strong>.</li>
                   <li>Click <strong>Authorized Domains</strong>.</li>
-                  <li>Add this domain: <code className="bg-white/50 px-1.5 py-0.5 rounded font-code text-[11px] select-all">{unauthorizedHostname}</code></li>
+                  <li>Add this domain: <code className="bg-white/50 px-1.5 py-0.5 rounded noesis-figure select-all">{unauthorizedHostname}</code></li>
                 </ol>
               </div>
             )}
@@ -346,7 +346,7 @@ export function LoginPage({ allowDemo, onDemo }: LoginPageProps) {
               <>
                 <div className="my-6 flex items-center gap-3">
                   <div className="h-px flex-1 bg-border" />
-                  <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">or</span>
+                  <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">or</span>
                   <div className="h-px flex-1 bg-border" />
                 </div>
 

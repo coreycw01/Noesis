@@ -1375,7 +1375,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 aria-label="Back to Works"
                 title="Back to Works"
                 onClick={closeDraft}
-                className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-[var(--button-radius)] px-2 font-code text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-[var(--button-radius)] px-2 noesis-eyebrow text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ChevronLeft className="size-4" /> <span className="hidden sm:inline">Works</span>
               </button>
@@ -1391,7 +1391,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Open' : 'Connect'}</Button>}
                 <div role="status" className="sr-only items-center gap-2 rounded-[var(--button-radius)] border border-border/30 bg-muted/10 px-3 py-1.5 sm:not-sr-only sm:flex">
                   <div className={cn('size-2 rounded-full', saveStatus === 'saved' ? 'bg-ok' : saveStatus === 'saving' ? 'bg-accent animate-pulse' : 'bg-destructive')} />
-                  <span className="font-code text-[8px] uppercase tracking-widest font-bold text-muted-foreground">
+                  <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">
                     {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : saveStatus === 'waiting' ? 'Waiting for server' : 'Unsaved'}
                   </span>
                 </div>
@@ -1428,11 +1428,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
             <div className={cn('flex min-w-0 flex-wrap items-center gap-2 border-t border-border/20 pt-2', writingFocus && 'hidden')}>
               <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
-                <SelectTrigger className="h-8 w-28 shrink-0 rounded-md border-border/40 bg-background px-2 font-code text-[9px] font-bold uppercase tracking-wider shadow-sm">
+                <SelectTrigger className="h-8 w-28 shrink-0 rounded-md border-border/40 bg-background px-2 noesis-eyebrow noesis-eyebrow--sm font-bold shadow-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {WORK_STATUS_OPTIONS.map((status) => <SelectItem key={status.value} value={status.value} className="font-code text-[9px] uppercase">{status.label}</SelectItem>)}
+                  {WORK_STATUS_OPTIONS.map((status) => <SelectItem key={status.value} value={status.value} className="noesis-eyebrow noesis-eyebrow--sm">{status.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <div className="min-w-0 flex-[1_1_13rem]">
@@ -1478,11 +1478,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               {showExternalDocControls && active.externalDoc && (
                 <div className="noesis-recommendation flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="font-code text-[9px] uppercase tracking-widest text-accent font-bold">External Writing Source</div>
+                    <div className="noesis-eyebrow noesis-eyebrow--sm text-accent font-bold">External Writing Source</div>
                     <p className="font-body text-sm italic text-foreground/80">
                       {providerLabels[active.externalDoc.provider]} - {active.externalDoc.title || active.title}
                     </p>
-                    <p className="font-code text-[8px] uppercase tracking-widest text-muted-foreground mt-1">
+                    <p className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground mt-1">
                       {active.externalDoc.lastSyncedAt ? `Last synced ${new Date(active.externalDoc.lastSyncedAt).toLocaleString()}` : 'Not synced yet'}
                       {active.externalDoc.syncError ? ` - ${active.externalDoc.syncError}` : ''}
                     </p>
@@ -1523,7 +1523,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-72">
-                        <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Document pages</DropdownMenuLabel>
+                        <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Document pages</DropdownMenuLabel>
                         <DropdownMenuItem onSelect={() => jumpToDocumentPage('main')} className={cn('cursor-pointer', resolvedCurrentPageId === 'main' && 'text-accent')}>
                           <FileText className="mr-2 size-4" /> Main page
                         </DropdownMenuItem>
@@ -1536,7 +1536,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                         {!!activeToolSections.length && (
                           <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuLabel className="font-code text-[9px] uppercase tracking-widest text-muted-foreground">Tool windows</DropdownMenuLabel>
+                            <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Tool windows</DropdownMenuLabel>
                             {activeToolSections.map((section) => (
                               <DropdownMenuItem key={section.id} onSelect={() => jumpToDocumentTool(section)} className={cn('cursor-pointer', focusedToolId === section.id && 'text-accent')}>
                                 <ListTree className="mr-2 size-4" />
@@ -1772,7 +1772,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 <div key={revision.id} className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-background p-4">
                   <div className="min-w-0">
                     <p className="truncate font-headline text-lg font-bold italic">{revision.title || 'Untitled version'}</p>
-                    <p className="mt-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">
+                    <p className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                       {new Date(revision.createdAt).toLocaleString()} · {revision.body.replace(/<[^>]+>/g, ' ').trim().split(/\s+/).filter(Boolean).length} words
                     </p>
                   </div>
@@ -1839,12 +1839,12 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         title="Works"
         description="Create writing, notes, drawings, and recordings that express the ideas gathered across Noesis."
         meta={
-          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+          <span className="noesis-eyebrow text-muted-foreground/60">
             {workStats.total} works · {workStats.writing} writings · {workStats.notes} note{workStats.notes === 1 ? '' : 's'} · {workStats.awaitingRevision} need revision
           </span>
         }
         actions={
-          <Button onClick={() => setIsWorkTypeOpen(true)} size="sm" className="h-9 px-6 font-code text-[10px] tracking-widest rounded-full uppercase font-bold shadow-sm shadow-accent/20">
+          <Button onClick={() => setIsWorkTypeOpen(true)} size="sm" className="h-9 px-6 noesis-figure tracking-widest rounded-full uppercase font-bold shadow-sm shadow-accent/20">
             <Plus className="mr-2 size-4" /> Add Work
           </Button>
         }
@@ -1863,24 +1863,24 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         className="mb-3"
       >
         <Select value={workTab} onValueChange={(value) => { setWorkTab(value as WorkTab); setFilter('all'); }}>
-          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger className="w-48 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Work Category" />
           </SelectTrigger>
           <SelectContent>
             {workTabs.map((tab) => (
-              <SelectItem key={tab} value={tab} className="font-code text-[10px] uppercase">
+              <SelectItem key={tab} value={tab} className="noesis-eyebrow">
                 {tab === 'all' ? 'All Categories' : WORK_CATEGORY_LABELS[tab]}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={filter} onValueChange={(value) => setFilter(value as WorkFilter)}>
-          <SelectTrigger className="w-48 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger className="w-48 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Work View" />
           </SelectTrigger>
           <SelectContent>
             {workViewFilters.map((item) => (
-              <SelectItem key={item.id} value={item.id} className="font-code text-[10px] uppercase">{item.label}</SelectItem>
+              <SelectItem key={item.id} value={item.id} className="noesis-eyebrow">{item.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -1899,7 +1899,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             type="button"
             onClick={() => setFilter(filter === item.value ? 'all' : item.value)}
             className={cn(
-              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+              "rounded-full border px-3 py-1.5 noesis-eyebrow noesis-eyebrow--sm transition-colors",
               filter === item.value ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
@@ -1915,7 +1915,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             type="button"
             onClick={() => setFilter(filter === item.filter ? 'all' : item.filter)}
             className={cn(
-              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+              "rounded-full border px-3 py-1.5 noesis-eyebrow noesis-eyebrow--sm transition-colors",
               filter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
@@ -1927,8 +1927,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       {visibleDrafts.length > 0 && (
         <div className="mb-5 rounded-xl border border-border/50 bg-card/80 p-3 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Continue</div>
-            <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground/50">Recently edited</span>
+            <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Continue</div>
+            <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/50">Recently edited</span>
           </div>
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
             {visibleDrafts.slice(0, 4).map((draft) => {
@@ -1944,7 +1944,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   <WorkTypeMark draft={draft} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-headline text-base font-bold italic text-foreground">{draft.title || 'Untitled Draft'}</span>
-                    <span className="mt-1 block truncate font-code text-[8px] uppercase tracking-widest text-muted-foreground">{presentation.action} - {formatEdited(draft.dateUpdated)}</span>
+                    <span className="mt-1 block truncate noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{presentation.action} - {formatEdited(draft.dateUpdated)}</span>
                   </span>
                   <ActionIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 </button>
@@ -1989,10 +1989,10 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 <WorkTypeMark draft={draft} />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-code text-[9px] uppercase tracking-widest text-muted-foreground/70 font-bold">
+                    <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/70 font-bold">
                       {presentation.label}
                     </span>
-                    <Badge variant="outline" className="rounded-full border border-accent/20 bg-accent/5 font-code text-[8px] uppercase tracking-widest text-accent">
+                    <Badge variant="outline" className="rounded-full border border-accent/20 bg-accent/5 noesis-eyebrow noesis-eyebrow--sm text-accent">
                       {draft.status}
                     </Badge>
                   </div>
@@ -2001,12 +2001,12 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               <div className="flex shrink-0 items-center gap-2">
                 {draft.externalDoc && <Cloud className="size-3.5 text-accent" aria-label="External document linked" />}
                 {hasActiveInquiry && (
-                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-accent/10 text-accent border-transparent rounded-full font-bold px-2 py-0.5">
+                  <Badge variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm bg-accent/10 text-accent border-transparent rounded-full font-bold px-2 py-0.5">
                     Inquiry
                   </Badge>
                 )}
                 {needsRevision && (
-                  <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-tighter bg-muted text-muted-foreground border-transparent rounded-full font-bold px-2 py-0.5">
+                  <Badge variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm bg-muted text-muted-foreground border-transparent rounded-full font-bold px-2 py-0.5">
                     Revise
                   </Badge>
                 )}
@@ -2074,17 +2074,17 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
             <div className="mb-4 flex flex-wrap gap-1.5">
               {(draft.workCategory || workCategoryForDraft(draft.type)) === 'writing' && (
-                <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
+                <Badge variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
                   {WRITING_STYLE_LABELS[draft.writingStyle || writingDefaults.writingStyle]}
                 </Badge>
               )}
               {(draft.conceptTags || []).slice(0, 3).map((tag) => (
-                <Badge key={tag} variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
+                <Badge key={tag} variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
                   {tag}
                 </Badge>
               ))}
               {linkCount > 0 && (
-                <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
+                <Badge variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
                   {linkCount} links
                 </Badge>
               )}
@@ -2092,11 +2092,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
             <div className="flex items-center justify-between gap-3 border-t border-border/20 pt-4">
               <div className="min-w-0">
-                <div className="truncate font-code text-[8px] uppercase tracking-widest text-muted-foreground/50 font-bold">
+                <div className="truncate noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/50 font-bold">
                   {metadata}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1.5">
-                  <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{workStatusLabel(draft)}</Badge>
+                  <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{workStatusLabel(draft)}</Badge>
                 </div>
               </div>
               <Button
@@ -2300,7 +2300,7 @@ function QuickNoteStudio({
         {isTalkToText && (
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 noesis-recommendation">
             <div>
-              <p className="font-code text-[10px] font-bold uppercase tracking-widest text-accent">Dictation</p>
+              <p className="noesis-eyebrow font-bold text-accent">Dictation</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {dictationState === 'listening'
                   ? 'Listening now. Your transcript will update in the note body.'
@@ -2600,7 +2600,7 @@ function RecordingStudio({
               </p>
             </div>
           </div>
-          <Badge variant="outline" className="rounded-full font-code text-[8px] uppercase tracking-widest">
+          <Badge variant="outline" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">
             {state}
           </Badge>
         </div>
@@ -2636,7 +2636,7 @@ function RecordingStudio({
         </Card>
 
         <Card className="rounded-2xl border-border bg-card p-5 shadow-sm">
-          <div className="font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Recorder Status</div>
+          <div className="noesis-eyebrow font-bold text-muted-foreground">Recorder Status</div>
           <div className="mt-4 space-y-3 text-sm leading-6 text-muted-foreground">
             <p>{audioOnly ? 'Use this for fast audio capture inside Notes.' : 'Use this for camera + microphone recordings inside Works.'}</p>
             <p>Duration: <span className="font-code text-foreground">{duration}s</span></p>
@@ -3146,7 +3146,7 @@ function DrawingStudio({
           </div>
         </div>
         <Card className="min-h-0 overflow-y-auto rounded-2xl border-border bg-card p-4 shadow-sm">
-          <div className="font-code text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Drawing Notes</div>
+          <div className="noesis-eyebrow font-bold text-muted-foreground">Drawing Notes</div>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {compact ? 'Keep this quick. Use text for labels, context, or one sharp takeaway.' : 'Use text for labels, context, explanation, or the argument behind the sketch.'}
           </p>
@@ -3210,10 +3210,10 @@ function WorkIntellectualRail({
             <ChevronLeft className="size-4 rotate-180" />
           </Button>
           <div className="h-px w-8 bg-border/60" />
-          <div className="[writing-mode:vertical-rl] rotate-180 font-code text-[9px] font-bold uppercase tracking-[0.24em] text-muted-foreground">
+          <div className="[writing-mode:vertical-rl] rotate-180 noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">
             Studio Reel
           </div>
-          <Badge variant="outline" className="mt-auto rounded-full font-code text-[8px] uppercase tracking-widest">
+          <Badge variant="outline" className="mt-auto rounded-full noesis-eyebrow noesis-eyebrow--sm">
             {sources.length + positions.length + inquiries.length + concepts.length}
           </Badge>
         </div>
@@ -3222,11 +3222,11 @@ function WorkIntellectualRail({
         <div className="border-b border-border/60 pb-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Studio Reel</div>
+              <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Studio Reel</div>
               <h3 className="mt-1 font-headline text-xl font-bold italic">Reference rail</h3>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="rounded-md font-code text-[8px] uppercase tracking-widest">
+              <Badge variant="outline" className="rounded-md noesis-eyebrow noesis-eyebrow--sm">
                 {WORK_CATEGORY_LABELS[category]}
               </Badge>
               <Button
@@ -3252,7 +3252,7 @@ function WorkIntellectualRail({
           <div className="mt-3 grid gap-3">
             {([['Sources', 'encounter', sources.map((item) => item.title)], ['Concepts', 'outline', concepts], ['Inquiries', 'examine', inquiries.map((item) => item.text)], ['Positions', 'claim', positions.map((item) => item.title)]] as Array<[string, string, string[]]>).map(([label, tone, items]) => (
               <div key={label} data-stage-tone={tone} className="grid gap-1">
-                <div className="font-code text-[9px] uppercase tracking-[0.14em] text-[hsl(var(--stage))]">{label} · {items.length}</div>
+                <div className="noesis-eyebrow noesis-eyebrow--sm text-[hsl(var(--stage))]">{label} · {items.length}</div>
                 {items.length ? items.map((item) => <p key={item} className="border-l-2 border-[hsl(var(--stage)/.6)] pl-2 text-sm leading-snug">{item}</p>) : <p className="text-sm text-muted-foreground">None linked.</p>}
               </div>
             ))}
@@ -3261,7 +3261,7 @@ function WorkIntellectualRail({
           <div className="mt-3 grid gap-2">
             {[...(active.versionHistory || [])].reverse().slice(0, 12).map((version) => (
               <div key={version.id} className="grid gap-0.5 border-l-2 border-border pl-2">
-                <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{Number.isFinite(Date.parse(version.createdAt)) ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(version.createdAt)) : version.createdAt}</span>
+                <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{Number.isFinite(Date.parse(version.createdAt)) ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(version.createdAt)) : version.createdAt}</span>
                 <span className="text-sm">{version.title || 'Untitled'}</span>
               </div>
             ))}
@@ -3333,7 +3333,7 @@ function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (mark
         if (!group.length) return null;
         return (
           <div key={kind.id} data-stage-tone={markupTone(kind.id)} className="space-y-1.5">
-            <div className="noesis-stage-badge border-l-2 pl-2 font-code text-[9px] font-bold uppercase tracking-[0.16em]">{kind.label} · {group.length}</div>
+            <div className="noesis-stage-badge border-l-2 pl-2 noesis-eyebrow noesis-eyebrow--sm font-bold">{kind.label} · {group.length}</div>
             {group.map((item) => (
               <div key={item.id} className="noesis-markup-entry group/mark flex items-start gap-2 px-2 py-1.5 hover:bg-muted/40">
                 <button type="button" onClick={() => find(item.text)} className="min-w-0 flex-1 text-left text-xs leading-5" title="Find in the document">“{item.text}”{item.note && <span className="block not-italic text-muted-foreground">{item.note}</span>}</button>
@@ -3383,11 +3383,11 @@ function WorkRailContent({
       <RailSection stage="examine" title="Open Inquiries" empty="No inquiries are linked to this work." items={unresolvedInquiries} />
       <RailSection stage="encounter" title="Nearby Annotations" empty="No nearby annotations found." items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)} />
       <section className="border-t border-border/60 pt-4">
-        <div className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Coherence Review</div>
+        <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Coherence Review</div>
         <div className="mt-3 space-y-3">
           {coherenceSignals.length ? coherenceSignals.map((signal) => (
             <div key={`${signal.label}:${signal.detail}`} className={cn('rounded-xl border p-3', signal.tone === 'warning' && 'border-destructive/30 bg-destructive/10 text-destructive', signal.tone === 'support' && 'border-accent/30 bg-accent/10 text-accent', signal.tone === 'neutral' && 'border-border/60 bg-muted/10 text-foreground')}>
-              <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] opacity-70">{signal.label}</div>
+              <div className="noesis-eyebrow noesis-eyebrow--sm font-bold opacity-70">{signal.label}</div>
               <p className="mt-1 text-sm leading-5">{signal.detail}</p>
             </div>
           )) : <p className="text-sm italic leading-6 text-muted-foreground">No coherence warnings yet.</p>}
@@ -3418,7 +3418,7 @@ function RailSection({
       {items.length ? (
         <div className={cn('mt-3', compact ? 'flex flex-wrap gap-2' : 'space-y-2')}>
           {items.map((item, index) => compact ? (
-            <Badge key={`${item}:${index}`} variant="secondary" className="rounded-md font-code text-[8px] uppercase tracking-widest">
+            <Badge key={`${item}:${index}`} variant="secondary" className="rounded-md noesis-eyebrow noesis-eyebrow--sm">
               {item}
             </Badge>
           ) : (

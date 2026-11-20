@@ -34,7 +34,7 @@ export function NoesisProviders({ children, unavailableFallback }: { children: R
     return (
       <div className="grid min-h-screen place-items-center bg-background px-6 text-foreground">
         <div className="max-w-xl rounded-2xl border border-border/60 bg-card p-8 shadow-sm">
-          <div className="font-code text-[10px] uppercase tracking-[0.22em] text-accent">Firebase setup required</div>
+          <div className="noesis-eyebrow text-accent">Firebase setup required</div>
           <h1 className="mt-3 font-headline text-3xl font-semibold">Noesis needs your Firebase config.</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
             Add these missing variables to `.env.local`, then restart the dev server.
@@ -54,7 +54,7 @@ export function NoesisProviders({ children, unavailableFallback }: { children: R
     return (
       <div className="grid min-h-screen place-items-center bg-background px-6 text-foreground">
         <div className="max-w-xl rounded-2xl border border-destructive/30 bg-card p-8 shadow-sm">
-          <div className="font-code text-[10px] uppercase tracking-[0.22em] text-destructive">Firebase failed to start</div>
+          <div className="noesis-eyebrow text-destructive">Firebase failed to start</div>
           <h1 className="mt-3 font-headline text-3xl font-semibold">Check your Firebase settings.</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">{initError}</p>
           <Button variant="outline" onClick={() => window.location.reload()} size="sm" className="mt-6 rounded-full">
@@ -69,7 +69,7 @@ export function NoesisProviders({ children, unavailableFallback }: { children: R
     return (
       <div className="grid min-h-screen place-items-center bg-background text-foreground">
         <div className="flex flex-col items-center gap-6">
-          <div className="font-code text-[10px] uppercase tracking-[0.2em] text-muted-foreground animate-pulse">Initializing Noesis...</div>
+          <div className="noesis-eyebrow text-muted-foreground animate-pulse">Initializing Noesis...</div>
           <Button variant="outline" onClick={() => window.location.reload()} size="sm" className="rounded-full">
             <RefreshCw className="size-3.5 mr-2" /> Reload Page
           </Button>

@@ -1301,7 +1301,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         title="Positions"
         description="State what you currently believe, what supports it, and what could change it."
         meta={
-          <span className="font-code text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+          <span className="noesis-eyebrow text-muted-foreground/60">
             {positionStats.total} positions · {positionStats.underReview} need review · {positionStats.needsPractice} untested · {positionStats.tensions} tensions
           </span>
         }
@@ -1338,25 +1338,25 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         className="mb-3"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as PositionViewFilter)}>
-          <SelectTrigger aria-label="Position view" className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Position view" className="w-52 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Position View" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-code text-[10px] uppercase">{POSITION_VIEW_LABELS.all}</SelectItem>
+            <SelectItem value="all" className="noesis-eyebrow">{POSITION_VIEW_LABELS.all}</SelectItem>
             {PRIMARY_POSITION_VIEW_FILTERS.filter((value) => value !== 'all').map((value) => (
-              <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{POSITION_VIEW_LABELS[value]}</SelectItem>
+              <SelectItem key={value} value={value} className="noesis-eyebrow">{POSITION_VIEW_LABELS[value]}</SelectItem>
             ))}
           </SelectContent>
         </Select>
 
         <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as VaultType | 'all')}>
-          <SelectTrigger aria-label="Position type" className="w-52 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Position type" className="w-52 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Position Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-code text-[10px] uppercase">All Types</SelectItem>
+            <SelectItem value="all" className="noesis-eyebrow">All Types</SelectItem>
             {vaultTypes.map((type) => (
-              <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{TYPE_LABELS[type]}</SelectItem>
+              <SelectItem key={type} value={type} className="noesis-eyebrow">{TYPE_LABELS[type]}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -1384,7 +1384,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             type="button"
             onClick={() => setViewFilter(viewFilter === item.filter ? 'all' : item.filter)}
             className={cn(
-              "rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors",
+              "rounded-full border px-3 py-1.5 noesis-eyebrow noesis-eyebrow--sm transition-colors",
               viewFilter === item.filter ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
           >
@@ -1411,7 +1411,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
                   {/* As in the prototype: one type tag, and the challenge count when there is one. */}
                   <Badge variant="outline" className="rounded-full">{TYPE_LABELS[entry.type] || 'Position'}</Badge>
-                  {diagnostic.challengeCount > 0 && <span className="ml-auto font-code text-[9px] uppercase tracking-[0.14em] text-[hsl(var(--stage-claim))]">{diagnostic.challengeCount} open challenge{diagnostic.challengeCount === 1 ? '' : 's'}</span>}
+                  {diagnostic.challengeCount > 0 && <span className="ml-auto noesis-eyebrow noesis-eyebrow--sm text-[hsl(var(--stage-claim))]">{diagnostic.challengeCount} open challenge{diagnostic.challengeCount === 1 ? '' : 's'}</span>}
                 </div>
                 <h2 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors whitespace-normal break-words text-primary">
                   <button type="button" className="text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openEntry(entry.id)}>{entry.title}</button>
@@ -1428,7 +1428,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             {(entry.tags || []).length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 <Pill look="mono" tone="concept" onClick={() => setConceptPopupName((entry.tags || [])[0])}>{(entry.tags || [])[0]}</Pill>
-                {diagnostic.flags[0] && <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground" title={diagnostic.flags.join(', ')}>{diagnostic.flags[0]}{diagnostic.flags.length > 1 ? ` +${diagnostic.flags.length - 1}` : ''}</span>}
+                {diagnostic.flags[0] && <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground" title={diagnostic.flags.join(', ')}>{diagnostic.flags[0]}{diagnostic.flags.length > 1 ? ` +${diagnostic.flags.length - 1}` : ''}</span>}
               </div>
             )}
           </Card>
@@ -1476,7 +1476,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <div key={`${a.id}-${b.id}`} className="rounded-xl border border-border bg-background p-4 shadow-sm">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className={cn(
-                    "rounded-full font-code text-[8px] uppercase tracking-widest",
+                    "rounded-full noesis-eyebrow noesis-eyebrow--sm",
                     severity === 'possible contradiction' ? "border-problem/40 bg-problem/10 text-problem" :
                     severity === 'possible qualification' ? "border-info/40 bg-info/10 text-info" :
                     severity === 'possible complement' ? "border-ok/40 bg-ok/10 text-ok" :
@@ -1484,12 +1484,12 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   )}>
                     {severity}
                   </Badge>
-                  <span className="font-code text-[8px] uppercase tracking-widest text-muted-foreground">Shared: {sharedTags.slice(0, 2).join(', ')}</span>
+                  <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Shared: {sharedTags.slice(0, 2).join(', ')}</span>
                 </div>
                 <button onClick={() => { setTensionDrawerOpen(false); openEntry(a.id); }} className="block text-left font-headline text-base font-bold italic text-foreground hover:text-accent">
                   {a.title}
                 </button>
-                <div className="my-1 font-code text-[8px] uppercase tracking-widest text-muted-foreground">and</div>
+                <div className="my-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">and</div>
                 <button onClick={() => { setTensionDrawerOpen(false); openEntry(b.id); }} className="block text-left font-headline text-base font-bold italic text-foreground hover:text-accent">
                   {b.title}
                 </button>
@@ -1538,7 +1538,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           {ideaStep === 1 && (
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Draft Position</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Draft Position</Label>
                 <Input
                   value={ideaDraft.title}
                   onChange={(e) => setIdeaDraft((p) => ({ ...p, title: e.target.value }))}
@@ -1548,7 +1548,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 />
               </div>
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Reasoning / Context</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Reasoning / Context</Label>
                 <Textarea
                   value={ideaDraft.body}
                   onChange={(e) => setIdeaDraft((p) => ({ ...p, body: e.target.value }))}
@@ -1578,7 +1578,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               {ideaQA.map((qa, i) => (
                 <div key={i} className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-code text-[8px] uppercase tracking-widest text-accent font-bold px-2 py-0.5 bg-accent/10 rounded-full">{qa.focus}</span>
+                    <span className="noesis-eyebrow noesis-eyebrow--sm text-accent font-bold px-2 py-0.5 bg-accent/10 rounded-full">{qa.focus}</span>
                   </div>
                   <p className="text-sm font-body text-foreground/80 leading-snug">{qa.question}</p>
                   <Textarea
@@ -1605,7 +1605,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           {ideaStep === 3 && ideaPosition && (
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Position Title</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Position Title</Label>
                 <Input
                   value={ideaPosition.positionTitle}
                   onChange={(e) => setIdeaPosition((p) => p ? { ...p, positionTitle: e.target.value } : p)}
@@ -1613,7 +1613,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 />
               </div>
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Core Claim</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Core Claim</Label>
                 <Textarea
                   value={ideaPosition.statement}
                   onChange={(e) => setIdeaPosition((p) => p ? { ...p, statement: e.target.value } : p)}
@@ -1621,7 +1621,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 />
               </div>
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Supporting Reasoning</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Supporting Reasoning</Label>
                 <Textarea
                   value={ideaPosition.description}
                   onChange={(e) => setIdeaPosition((p) => p ? { ...p, description: e.target.value } : p)}
@@ -1629,7 +1629,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 />
               </div>
               <div className="space-y-2">
-                <Label className="font-code text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Confidence percentage</Label>
+                <Label className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">Confidence percentage</Label>
                 <div className="flex items-center justify-end">
                   <span className="font-code text-sm font-bold text-accent">{confidencePercent(ideaPosition.confidence)}%</span>
                 </div>
@@ -1716,7 +1716,7 @@ function PositionStat({ label, value, active, onClick }: { label: string; value:
         active && 'border-accent/50 bg-accent/10 text-accent'
       )}
     >
-      <div className="font-code text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">{label}</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground/60">{label}</div>
       <div className="font-headline text-xl font-bold italic leading-none text-primary">{value}</div>
     </Comp>
   );
@@ -1764,7 +1764,7 @@ function TensionResolutionPanel({
           <h2 className="noesis-status-label">Possible Tension Detected</h2>
           <p className="noesis-status-detail mt-1 italic">Decide whether this relationship is compatible, opposed, or needs refinement.</p>
         </div>
-        <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{tensionLinks.length} open</Badge>
+        <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{tensionLinks.length} open</Badge>
       </div>
       <div className="space-y-3">
         {tensionLinks.map((link) => {
@@ -1772,7 +1772,7 @@ function TensionResolutionPanel({
           return (
             <div key={link.id} className="noesis-status-panel-subtle p-3">
               <div className="mb-3 text-sm italic text-foreground">
-                {otherLabel} is currently marked as <span className="font-code text-[10px] uppercase tracking-widest text-accent">{link.type}</span>.
+                {otherLabel} is currently marked as <span className="noesis-eyebrow text-accent">{link.type}</span>.
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={() => updateLink(link, 'coheres', 'Reviewed and marked as not a contradiction.')} className="rounded-full bg-card">
@@ -1845,29 +1845,29 @@ function PositionsTable({
                   <div className="max-w-xl whitespace-normal text-xs leading-5 text-muted-foreground">{entry.statement || entry.description}</div>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground xl:hidden">{diagnostic.nextAction}</p>
                 </TableCell>
-                <TableCell className="hidden font-code text-[10px] uppercase tracking-widest xl:table-cell">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
+                <TableCell className="hidden noesis-eyebrow xl:table-cell">{TYPE_LABELS[entry.type] || 'Position'}</TableCell>
                 <TableCell className="hidden lg:table-cell"><div className="flex flex-wrap gap-1"><Badge>{entry.status}</Badge><StageBadge type="position" stage={entry.stage} status={entry.status} /></div></TableCell>
                 <TableCell>
                   <div className="min-w-0">
-                    <div className="mb-1 font-code text-[10px] font-bold">{confidencePercent(entry.confidence)}%</div>
+                    <div className="mb-1 noesis-figure font-bold">{confidencePercent(entry.confidence)}%</div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-accent" style={{ width: `${confidencePercent(entry.confidence)}%` }} />
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="hidden font-code text-[10px] uppercase tracking-widest text-muted-foreground 2xl:table-cell">
+                <TableCell className="hidden noesis-eyebrow text-muted-foreground 2xl:table-cell">
                   {diagnostic.supportCount} support / {diagnostic.challengeCount} challenge / {diagnostic.practiceCount} tests
                 </TableCell>
                 <TableCell className="hidden 2xl:table-cell">
                   <div className="flex flex-wrap gap-1.5">
-                    <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{diagnostic.label}</Badge>
+                    <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{diagnostic.label}</Badge>
                     {diagnostic.flags.slice(0, 2).map((flag) => (
-                      <Badge key={flag} variant="secondary" className="rounded-full font-code text-[8px] uppercase tracking-widest">{flag}</Badge>
+                      <Badge key={flag} variant="secondary" className="rounded-full noesis-eyebrow noesis-eyebrow--sm">{flag}</Badge>
                     ))}
                   </div>
                 </TableCell>
                 <TableCell className="hidden text-xs italic leading-5 text-muted-foreground xl:table-cell">{diagnostic.nextAction}</TableCell>
-                <TableCell className="hidden font-code text-[10px] uppercase tracking-widest text-muted-foreground xl:table-cell">{safePositionDate(entry.dateUpdated || entry.dateCreated)}</TableCell>
+                <TableCell className="hidden noesis-eyebrow text-muted-foreground xl:table-cell">{safePositionDate(entry.dateUpdated || entry.dateCreated)}</TableCell>
               </TableRow>
               );
             })}
@@ -1926,20 +1926,20 @@ function ConfidenceHistoryChart({ entry }: { entry: VaultEntry }) {
   const linePoints = series.map((point, index) => `${x(index)},${y(point.value)}`).join(' ');
   return (
     <div className="rounded-xl border border-border/50 bg-background/50 p-4 md:col-span-2">
-      <div className="font-code text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Confidence over time</div>
+      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Confidence over time</div>
       <svg className="mt-3 h-auto w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Line graph of confidence history for ${entry.title}`}>
         {[0, 25, 50, 75, 100].map((value) => (
           <g key={value}>
             <line x1={padding.left} x2={width - padding.right} y1={y(value)} y2={y(value)} className="stroke-border" strokeWidth="1" />
-            <text x={padding.left - 8} y={y(value) + 3} textAnchor="end" className="fill-muted-foreground font-code text-[9px]">{value}</text>
+            <text x={padding.left - 8} y={y(value) + 3} textAnchor="end" className="fill-muted-foreground noesis-figure noesis-figure--sm">{value}</text>
           </g>
         ))}
         {series.length > 1 && <polyline points={linePoints} fill="none" className="stroke-accent" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />}
         {series.map((point, index) => (
           <g key={`${point.date}-${index}`}>
             <circle cx={x(index)} cy={y(point.value)} r="6" className="fill-background stroke-accent" strokeWidth="4" />
-            <text x={x(index)} y={Math.max(12, y(point.value) - 12)} textAnchor="middle" className="fill-foreground font-code text-[10px] font-semibold">{point.value}%</text>
-            <text x={x(index)} y={height - 14} textAnchor="middle" className="fill-muted-foreground font-code text-[8px]">{safePositionDate(point.date)}</text>
+            <text x={x(index)} y={Math.max(12, y(point.value) - 12)} textAnchor="middle" className="fill-foreground noesis-figure font-semibold">{point.value}%</text>
+            <text x={x(index)} y={height - 14} textAnchor="middle" className="fill-muted-foreground noesis-figure noesis-figure--sm">{safePositionDate(point.date)}</text>
           </g>
         ))}
       </svg>
@@ -1967,7 +1967,7 @@ function EntityListPanel({
             const content = (
               <>
                 <div className="font-headline text-base font-semibold italic text-primary">{item.title}</div>
-                {item.meta ? <div className="mt-1 font-code text-[9px] uppercase tracking-widest text-muted-foreground">{item.meta}</div> : null}
+                {item.meta ? <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{item.meta}</div> : null}
               </>
             );
 
@@ -2029,8 +2029,8 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">TYPE</Label>
               <Select value={draft.type || 'belief'} onValueChange={(value) => setDraft((prev) => ({ ...prev, type: value as VaultType }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                <SelectContent>{vaultTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{type.replace('_', ' ')}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full noesis-eyebrow"><SelectValue /></SelectTrigger>
+                <SelectContent>{vaultTypes.map((type) => <SelectItem key={type} value={type} className="noesis-eyebrow">{type.replace('_', ' ')}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
@@ -2038,22 +2038,22 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">POSITION KIND</Label>
               <Select value={draft.positionKind || 'interpretive'} onValueChange={(value) => setDraft((prev) => ({ ...prev, positionKind: value as PositionKind }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                <SelectContent>{positionKinds.map((kind) => <SelectItem key={kind.id} value={kind.id} className="font-code text-[10px] uppercase">{kind.label}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full noesis-eyebrow"><SelectValue /></SelectTrigger>
+                <SelectContent>{positionKinds.map((kind) => <SelectItem key={kind.id} value={kind.id} className="noesis-eyebrow">{kind.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">STATE</Label>
               <Select value={draft.status || 'tentative'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as VaultEntry['status'] }))}>
-                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full font-code text-[10px] uppercase"><SelectValue /></SelectTrigger>
-                <SelectContent>{positionStatuses.map((status) => <SelectItem key={status.id} value={status.id} className="font-code text-[10px] uppercase">{status.label}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full noesis-eyebrow"><SelectValue /></SelectTrigger>
+                <SelectContent>{positionStatuses.map((status) => <SelectItem key={status.id} value={status.id} className="noesis-eyebrow">{status.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONFIDENCE</Label>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-code text-[10px] font-bold text-accent">{confidencePercent(draft.confidence)}%</span>
-                <span className="font-code text-[9px] uppercase tracking-wider text-muted-foreground">{confidenceLabel(draft.confidence)}</span>
+                <span className="noesis-figure font-bold text-accent">{confidencePercent(draft.confidence)}%</span>
+                <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{confidenceLabel(draft.confidence)}</span>
               </div>
               <input
                 type="range"
@@ -2090,7 +2090,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             </div>
           </div>
           <details className="rounded-2xl border border-border/50 bg-muted/10 p-4">
-            <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Optional structure and links</summary>
+            <summary className="cursor-pointer noesis-eyebrow font-bold text-muted-foreground">Optional structure and links</summary>
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">ASSUMPTIONS</Label>

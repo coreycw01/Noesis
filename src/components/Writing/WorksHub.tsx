@@ -300,12 +300,12 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
         title="Works"
         description="Develop ideas through documents, notes, recordings, and visual thinking on the page."
         meta={(
-          <span className="font-code text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="noesis-eyebrow font-bold text-muted-foreground">
             {counts.total} {counts.total === 1 ? 'work' : 'works'} · {counts.writing} {counts.writing === 1 ? 'writing' : 'writings'} · {counts.notes} {counts.notes === 1 ? 'note' : 'notes'} · {counts.revision} {counts.revision === 1 ? 'needs' : 'need'} revision
           </span>
         )}
         actions={(
-          <Button type="button" onClick={() => setAddOpen(true)} className="h-9 rounded-md bg-accent px-5 font-code text-[10px] font-bold uppercase tracking-[0.14em] text-accent-foreground hover:bg-accent/90">
+          <Button type="button" onClick={() => setAddOpen(true)} className="h-9 rounded-md bg-accent px-5 noesis-eyebrow font-bold text-accent-foreground hover:bg-accent/90">
             <Plus className="mr-1.5 size-4" /> Add work
           </Button>
         )}
@@ -324,29 +324,29 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
         className="mb-5"
       >
         <Select value={category} onValueChange={(value) => setCategory(value as HubCategory)}>
-          <SelectTrigger className="h-9 w-36 rounded-full border-border/50 bg-card font-code text-[9px] uppercase tracking-widest shadow-none">
+          <SelectTrigger className="h-9 w-36 rounded-full border-border/50 bg-card noesis-eyebrow noesis-eyebrow--sm shadow-none">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {CATEGORIES.map((item) => <SelectItem key={item.value} value={item.value} className="font-code text-[10px] uppercase">{item.label}</SelectItem>)}
+            {CATEGORIES.map((item) => <SelectItem key={item.value} value={item.value} className="noesis-eyebrow">{item.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={status} onValueChange={(value) => setStatus(value as HubStatus)}>
-          <SelectTrigger className="h-9 w-40 rounded-full border-border/50 bg-card font-code text-[9px] uppercase tracking-widest shadow-none">
+          <SelectTrigger className="h-9 w-40 rounded-full border-border/50 bg-card noesis-eyebrow noesis-eyebrow--sm shadow-none">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {STATUS_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value} className="font-code text-[10px] uppercase">{item.label}</SelectItem>)}
+            {STATUS_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value} className="noesis-eyebrow">{item.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={sort} onValueChange={(value) => setSort(value as HubSort)}>
-          <SelectTrigger className="h-9 w-32 rounded-full border-border/50 bg-card font-code text-[9px] uppercase tracking-widest shadow-none">
+          <SelectTrigger className="h-9 w-32 rounded-full border-border/50 bg-card noesis-eyebrow noesis-eyebrow--sm shadow-none">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="activity" className="font-code text-[10px] uppercase">Current activity</SelectItem>
-            <SelectItem value="created" className="font-code text-[10px] uppercase">Date created</SelectItem>
-            <SelectItem value="title" className="font-code text-[10px] uppercase">Title</SelectItem>
+            <SelectItem value="activity" className="noesis-eyebrow">Current activity</SelectItem>
+            <SelectItem value="created" className="noesis-eyebrow">Date created</SelectItem>
+            <SelectItem value="title" className="noesis-eyebrow">Title</SelectItem>
           </SelectContent>
         </Select>
       </FilterToolbar>
@@ -354,7 +354,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
       <section className="mb-7 border-y border-border/60" aria-label="Continue working">
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div className="flex items-center gap-3">
-            <span className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Continue</span>
+            <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Continue</span>
             <div className="inline-flex overflow-hidden rounded-[var(--button-radius)] border border-border/60 bg-card p-0.5" aria-label="Work recency view">
               {([
                 { id: 'edited', label: 'Recently Edited' },
@@ -369,7 +369,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                     setSort('activity');
                   }}
                   className={cn(
-                    'rounded-[var(--button-radius)] px-3 py-1.5 font-code text-[9px] font-bold uppercase tracking-[0.12em] transition-colors',
+                    'rounded-[var(--button-radius)] px-3 py-1.5 noesis-eyebrow noesis-eyebrow--sm font-bold transition-colors',
                     activityMode === item.id && sort === 'activity'
                       ? 'bg-accent text-accent-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -380,7 +380,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
               ))}
             </div>
           </div>
-          <span className="font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{recentDrafts.length} recent</span>
+          <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{recentDrafts.length} recent</span>
         </div>
         {recentDrafts.length > 0 ? (
           <div className="grid border-t border-border/50 md:grid-cols-3">
@@ -396,7 +396,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                   <Icon className="size-4 shrink-0 text-muted-foreground group-hover:text-accent" aria-hidden="true" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-foreground">{draft.title || 'Untitled work'}</span>
-                    <span className="mt-0.5 block font-code text-[8px] uppercase tracking-widest text-muted-foreground">{activityMode === 'opened' && draft.lastOpenedAt ? `Opened ${new Date(draft.lastOpenedAt).toLocaleDateString()}` : updatedLabel(draft.dateUpdated)}</span>
+                    <span className="mt-0.5 block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{activityMode === 'opened' && draft.lastOpenedAt ? `Opened ${new Date(draft.lastOpenedAt).toLocaleDateString()}` : updatedLabel(draft.dateUpdated)}</span>
                   </span>
                   <ArrowUpRight className="size-4 shrink-0 text-muted-foreground group-hover:text-accent" aria-hidden="true" />
                 </button>
@@ -409,10 +409,10 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
 
       <div className="mb-4 flex items-end justify-between gap-4 border-b border-border/60 pb-3">
         <div>
-          <p className="font-code text-[9px] font-bold uppercase tracking-[0.18em] text-accent">Works library</p>
+          <p className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">Works library</p>
           <h2 className="mt-1 font-headline text-2xl font-bold italic text-foreground">All works</h2>
         </div>
-        <span className="shrink-0 font-code text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+        <span className="shrink-0 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
           {visibleDrafts.length} shown
         </span>
       </div>
@@ -465,15 +465,15 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="hidden font-code text-[9px] uppercase tracking-wider text-muted-foreground lg:table-cell">{categoryLabel}</TableCell>
+                        <TableCell className="hidden noesis-eyebrow noesis-eyebrow--sm text-muted-foreground lg:table-cell">{categoryLabel}</TableCell>
                         <TableCell className="hidden lg:table-cell">
                           <div className="flex flex-wrap gap-1.5">
                             <StageBadge type="work" stage={draft.stage} status={draft.status} />
-                            <Badge variant="outline" className="rounded-full border-border/70 font-code text-[8px] uppercase tracking-wider">{draft.status}</Badge>
+                            <Badge variant="outline" className="rounded-full border-border/70 noesis-eyebrow noesis-eyebrow--sm">{draft.status}</Badge>
                           </div>
                         </TableCell>
                         <TableCell className="hidden text-sm text-muted-foreground xl:table-cell">{linkCount}</TableCell>
-                        <TableCell className="hidden font-code text-[9px] uppercase tracking-wider text-muted-foreground xl:table-cell">{updatedLabel(draft.dateUpdated)}</TableCell>
+                        <TableCell className="hidden noesis-eyebrow noesis-eyebrow--sm text-muted-foreground xl:table-cell">{updatedLabel(draft.dateUpdated)}</TableCell>
                         <TableCell className="px-1">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -514,7 +514,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                   {view === 'cards' && hasVisualPreview && (
                     <div className="relative flex h-20 items-center justify-center overflow-hidden border-b border-border/50 bg-muted/15 sm:h-24">
                       <DraftThumbnail draft={draft} Icon={Icon} />
-                      {isRecording && <span className="absolute bottom-3 left-3 rounded-full border border-border/60 bg-background/90 px-2.5 py-1 font-code text-[9px] font-bold uppercase tracking-widest text-foreground">{durationLabel(draft.durationSeconds)}</span>}
+                      {isRecording && <span className="absolute bottom-3 left-3 rounded-full border border-border/60 bg-background/90 px-2.5 py-1 noesis-eyebrow noesis-eyebrow--sm font-bold text-foreground">{durationLabel(draft.durationSeconds)}</span>}
                     </div>
                   )}
                   {view === 'cards' && !hasVisualPreview && (
@@ -533,9 +533,9 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                       {!hasVisualPreview && <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--card-radius)] border border-border/60 text-accent"><Icon className="size-4" aria-hidden="true" /></div>}
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-code text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{categoryLabel}</span>
+                          <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{categoryLabel}</span>
                           <StageBadge type="work" stage={draft.stage} status={draft.status} />
-                          <Badge variant="outline" className="rounded-full border-border/70 font-code text-[8px] uppercase tracking-wider">{draft.status}</Badge>
+                          <Badge variant="outline" className="rounded-full border-border/70 noesis-eyebrow noesis-eyebrow--sm">{draft.status}</Badge>
                           {draft.externalDoc && <Cloud className="size-3.5 text-accent" aria-label="External document linked" />}
                         </div>
                         <h2 className="mt-2 break-words font-headline text-xl font-bold italic text-foreground transition-colors group-hover:text-accent">
@@ -546,7 +546,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                       </div>
                     </div>
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">{text || 'A blank creative surface waiting for its first mark.'}</p>
-                    <div className="mt-4 flex flex-wrap items-center gap-2 font-code text-[9px] uppercase tracking-wider text-muted-foreground">
+                    <div className="mt-4 flex flex-wrap items-center gap-2 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                       {categoryLabel === 'Writing' || draft.workCategory === 'writing' ? <span>{wordCount(draft)} words</span> : null}
                       {isRecording ? <span>{durationLabel(draft.durationSeconds)}</span> : null}
                       {linkCount > 0 && <span>{linkCount} linked</span>}
@@ -554,8 +554,8 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                     </div>
                     <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/40 pt-3">
                       <div className="flex min-w-0 flex-wrap gap-1.5">
-                        {(draft.conceptTags || []).slice(0, 3).map((tag) => <Badge key={tag} variant="secondary" className="rounded-full bg-muted/45 font-code text-[8px] uppercase tracking-wider text-muted-foreground">{tag}</Badge>)}
-                        {documentToolCount(draft) > 0 && <Badge variant="secondary" className="rounded-full bg-accent/8 font-code text-[8px] uppercase tracking-wider text-accent">{documentToolCount(draft)} {documentToolCount(draft) === 1 ? 'tool' : 'tools'}</Badge>}
+                        {(draft.conceptTags || []).slice(0, 3).map((tag) => <Badge key={tag} variant="secondary" className="rounded-full bg-muted/45 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{tag}</Badge>)}
+                        {documentToolCount(draft) > 0 && <Badge variant="secondary" className="rounded-full bg-accent/8 noesis-eyebrow noesis-eyebrow--sm text-accent">{documentToolCount(draft)} {documentToolCount(draft) === 1 ? 'tool' : 'tools'}</Badge>}
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

@@ -312,10 +312,10 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
         className="mb-3"
       >
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as PracticeStatus | 'all')}>
-          <SelectTrigger className="w-48 h-9 font-code text-[9px] uppercase tracking-widest rounded-full bg-card shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+          <SelectTrigger className="w-48 h-9 noesis-eyebrow noesis-eyebrow--sm rounded-full bg-card shadow-sm border-border/60 px-4 font-bold"><SelectValue placeholder="All Statuses" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-code text-[9px] uppercase">All Statuses</SelectItem>
-            {statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[9px] uppercase">{status}</SelectItem>)}
+            <SelectItem value="all" className="noesis-eyebrow noesis-eyebrow--sm">All Statuses</SelectItem>
+            {statuses.map((status) => <SelectItem key={status} value={status} className="noesis-eyebrow noesis-eyebrow--sm">{status}</SelectItem>)}
           </SelectContent>
         </Select>
       </FilterToolbar>
@@ -341,10 +341,10 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
               const open = () => openEditor(practice);
               return <TableRow key={practice.id} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) open(); }}>
                 <TableCell className="max-w-lg py-2 [overflow-wrap:anywhere]"><button type="button" className="min-h-11 w-full rounded-sm text-left font-headline text-base font-semibold text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={open} onKeyDown={(event) => activateEntityOnKey(event, open)}>{practice.title}</button><p className="text-xs text-muted-foreground xl:hidden">{progress}</p><p className="line-clamp-2 pb-2 text-xs text-muted-foreground">{practice.action || practice.hypothesis || practice.description || 'Action not defined'}</p></TableCell>
-                <TableCell className="hidden font-code text-[9px] font-bold uppercase tracking-wider text-muted-foreground xl:table-cell">{simplifiedTypeLabels[normalizePracticeType(practice.type)]}</TableCell>
+                <TableCell className="hidden noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground xl:table-cell">{simplifiedTypeLabels[normalizePracticeType(practice.type)]}</TableCell>
                 <TableCell className="hidden lg:table-cell"><StageBadge type="practice" stage={practice.stage} status={practice.status} /></TableCell>
                 <TableCell className="hidden text-xs leading-5 text-muted-foreground xl:table-cell">{practice.action || practice.hypothesis || 'Action not defined'}</TableCell>
-                <TableCell className="hidden font-code text-[9px] uppercase tracking-wider text-muted-foreground xl:table-cell">{progress}</TableCell>
+                <TableCell className="hidden noesis-eyebrow noesis-eyebrow--sm text-muted-foreground xl:table-cell">{progress}</TableCell>
                 <TableCell className="px-1 sm:px-4"><Button size="sm" variant="outline" className="min-h-11" onClick={open} onKeyDown={(event) => activateEntityOnKey(event, open)}>Open</Button></TableCell>
               </TableRow>;
             })}
@@ -470,9 +470,9 @@ function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDel
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
-        <span className="font-code text-[9px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{title}</span>
+        <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{title}</span>
         <span className="h-px flex-1 bg-border/60" />
-        <Badge variant="outline" className="rounded-full bg-card font-code text-[8px] uppercase tracking-widest">{practices.length}</Badge>
+        <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{practices.length}</Badge>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {practices.map((practice) => (
@@ -618,11 +618,11 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       <div className={cn("flex flex-col gap-3", compact && "lg:flex-row lg:items-center lg:justify-between")}>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap gap-1.5 mb-1.5">
-            <Badge variant="secondary" className="font-code text-[8px] uppercase tracking-widest bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5 shadow-sm">{simplifiedTypeLabels[visibleType]}</Badge>
+            <Badge variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm bg-muted/20 border-transparent text-muted-foreground/80 rounded-full font-bold px-2.5 py-0.5 shadow-sm">{simplifiedTypeLabels[visibleType]}</Badge>
             <Badge
               variant="outline"
               className={cn(
-                'rounded-full px-2.5 py-0.5 font-code text-[8px] font-bold uppercase tracking-widest',
+                'rounded-full px-2.5 py-0.5 noesis-eyebrow noesis-eyebrow--sm font-bold',
                 setupNeed ? 'border-border bg-muted text-foreground' :
                   recentlyConcluded ? 'border-accent/30 bg-accent/5 text-accent' :
                     needsLog ? 'border-accent/40 bg-accent/10 text-accent' :
@@ -673,8 +673,8 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
       )}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
         <span className="min-w-0 max-w-xl truncate italic text-primary/80">{practice.intellectualBasis || firstLinkedPosition?.title || linkedQuestions[0]?.text}</span>
-        <span className="font-code text-[8px] uppercase tracking-widest">{durationText}</span>
-        <span className="font-code text-[8px] uppercase tracking-widest">{experimentShape.logCount} {experimentShape.logCount === 1 ? 'log' : 'logs'}</span>
+        <span className="noesis-eyebrow noesis-eyebrow--sm">{durationText}</span>
+        <span className="noesis-eyebrow noesis-eyebrow--sm">{experimentShape.logCount} {experimentShape.logCount === 1 ? 'log' : 'logs'}</span>
         {setupNeed && (
           <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[10px] leading-4 text-foreground">{setupNeed}</span>
         )}
@@ -684,12 +684,12 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
         <div className="mt-5 rounded-xl border border-border/70 bg-background/80 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Observation Log</div>
+              <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">Observation Log</div>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 {visibleType === 'habit' ? 'Mark whether you did it today. Add a note only when something matters.' : visibleType === 'reflection' ? 'Write what you noticed or understood during this reflection.' : visibleType === 'observation' ? 'Record what you observed, even if the expected pattern did not appear.' : 'Record what happened and how it compares with your hypothesis.'}
               </p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setLogOpen(false)} className="h-7 rounded-full px-2.5 font-code text-[8px] uppercase">Hide</Button>
+            <Button variant="ghost" size="sm" onClick={() => setLogOpen(false)} className="h-7 rounded-full px-2.5 noesis-eyebrow noesis-eyebrow--sm">Hide</Button>
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="DATE">
@@ -728,12 +728,12 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
         <div className="mt-5 noesis-recommendation">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="font-code text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Conclusion Review</div>
+              <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">Conclusion Review</div>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 Compare theory versus reality before this practice changes what you believe.
               </p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setReviewOpen(false)} className="h-7 rounded-full px-2.5 font-code text-[8px] uppercase">Hide</Button>
+            <Button variant="ghost" size="sm" onClick={() => setReviewOpen(false)} className="h-7 rounded-full px-2.5 noesis-eyebrow noesis-eyebrow--sm">Hide</Button>
           </div>
           <div className="mt-3 grid gap-2 text-[11px] leading-5 text-muted-foreground sm:grid-cols-2">
             <div className="rounded-lg border border-border/30 bg-card p-3">Was the practice performed as intended?</div>
@@ -927,23 +927,23 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
             </div>
             <Field label="WHY THIS EXISTS (OPTIONAL)"><Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-[72px] italic text-base" placeholder="Add context only if the action and linked idea do not explain the purpose." /></Field>
             <details className="rounded-2xl border border-border/50 bg-muted/10 p-4">
-              <summary className="cursor-pointer font-code text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Schedule and setup</summary>
+              <summary className="cursor-pointer noesis-eyebrow font-bold text-muted-foreground">Schedule and setup</summary>
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Field label="PRACTICE TYPE">
                   <Select value={draft.type || 'experiment'} onValueChange={(value) => setDraft((prev) => ({ ...prev, type: value as PracticeType }))}>
-                    <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm font-code text-[10px] uppercase h-11"><SelectValue /></SelectTrigger>
-                    <SelectContent>{practiceTypes.map((type) => <SelectItem key={type} value={type} className="font-code text-[10px] uppercase">{PRACTICE_LABELS[type]}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm noesis-eyebrow h-11"><SelectValue /></SelectTrigger>
+                    <SelectContent>{practiceTypes.map((type) => <SelectItem key={type} value={type} className="noesis-eyebrow">{PRACTICE_LABELS[type]}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
                 <Field label="STATUS">
                   <Select value={draft.status || 'planned'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as PracticeStatus }))}>
-                    <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm font-code text-[10px] uppercase h-11"><SelectValue /></SelectTrigger>
-                    <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="font-code text-[10px] uppercase">{status}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm noesis-eyebrow h-11"><SelectValue /></SelectTrigger>
+                    <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="noesis-eyebrow">{status}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
                 <Field label="DURATION MODE">
                   <Select value={draft.durationMode || 'repeated'} onValueChange={(value) => setDraft((prev) => ({ ...prev, durationMode: value as Practice['durationMode'] }))}>
-                    <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm font-code text-[10px] uppercase h-11"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm noesis-eyebrow h-11"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="one_time">One time</SelectItem><SelectItem value="repeated">Repeated</SelectItem><SelectItem value="open_ended">Open ended</SelectItem></SelectContent>
                   </Select>
                 </Field>
@@ -961,7 +961,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
             </RecordSection>
             <RecordSection id="prx-run" title="Run and log" description="Do it, then record what happened while it is fresh." headingLevel="h3">
               <section>
-                <div className="font-code text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Current action</div>
+                <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Current action</div>
                 <p className="mt-2 text-base leading-7 text-foreground">{draft.action || 'Define the action in Design before beginning this practice.'}</p>
                 <dl className="mt-4 grid grid-cols-3 gap-3 border-y border-border/50 py-3">
                   <div><dt className="text-xs text-muted-foreground">Status</dt><dd className="mt-1 text-sm font-semibold capitalize">{draft.status || 'planned'}</dd></div>

@@ -237,7 +237,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         }}
       >
         <GripHorizontal className="hidden size-4 shrink-0 text-muted-foreground/60 md:block" />
-        <span className="min-w-0 flex-1 truncate font-code text-[10px] font-semibold uppercase tracking-[0.14em] opacity-75">{label}</span>
+        <span className="min-w-0 flex-1 truncate noesis-eyebrow font-bold opacity-75">{label}</span>
         <select
           value={frame.placement || 'overlay'}
           onChange={(event) => {
@@ -246,7 +246,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
             onPlacementChange(placement);
           }}
           onPointerDown={(event) => event.stopPropagation()}
-          className="h-7 max-w-24 rounded-md border border-border/40 bg-background/70 px-1.5 font-code text-[9px] uppercase tracking-wide text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-7 max-w-24 rounded-md border border-border/40 bg-background/70 px-1.5 noesis-eyebrow noesis-eyebrow--sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={`${label} placement`}
           title="Choose how text flows around this tool"
         >

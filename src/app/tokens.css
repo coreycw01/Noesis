@@ -123,14 +123,21 @@
 
 /* ---------- Primitive styles (used by src/components/ui) ---------- */
 
-/* Eyebrow: the one small-caps label. */
+/* Eyebrow: the one small-caps label. The base is type only, so it can be
+   dropped on any element without changing its layout or colour; the
+   modifiers add the row, the colour and the weight. */
 .noesis-eyebrow {
-  display: inline-flex; align-items: center; gap: 6px;
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: var(--text-label); letter-spacing: var(--label-tracking); text-transform: uppercase;
-  line-height: 1.2; color: hsl(var(--muted-foreground));
+  line-height: 1.2;
 }
 .noesis-eyebrow--sm { font-size: var(--text-label-sm); }
+/* Figures: counts, dates and other data in the mono face. Same family as the
+   eyebrow, but not a label, so it keeps its own case and alignment. */
+.noesis-figure { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.noesis-figure--sm { font-size: var(--text-label-sm); }
+.noesis-eyebrow--row { display: inline-flex; align-items: center; gap: 6px; }
+.noesis-eyebrow--muted { color: hsl(var(--muted-foreground)); }
 .noesis-eyebrow--tone { color: hsl(var(--tone, var(--accent))); }
 .noesis-eyebrow--strong { font-weight: 700; color: hsl(var(--foreground)); }
 

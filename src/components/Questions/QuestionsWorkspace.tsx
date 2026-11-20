@@ -311,16 +311,16 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
         className="mb-3"
       >
         <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
-          <SelectTrigger aria-label="Inquiry view filter" className="w-56 h-10 font-code text-[10px] uppercase rounded-full bg-card shadow-sm border-border/60">
+          <SelectTrigger aria-label="Inquiry view filter" className="w-56 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Inquiry View" />
           </SelectTrigger>
           <SelectContent>
             {PRIMARY_INQUIRY_FILTERS.map((value) => (
-              <SelectItem key={value} value={value} className="font-code text-[10px] uppercase">{INQUIRY_FILTER_LABELS[value]}</SelectItem>
+              <SelectItem key={value} value={value} className="noesis-eyebrow">{INQUIRY_FILTER_LABELS[value]}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <div className="font-code text-[10px] uppercase tracking-widest text-muted-foreground">
+        <div className="noesis-eyebrow text-muted-foreground">
           {linkedDraftCount} linked works
         </div>
       </FilterToolbar>
@@ -339,7 +339,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
             onClick={() => setFilter(filter === item.filter ? 'all' : item.filter)}
             aria-pressed={filter === item.filter}
             className={cn(
-              'shrink-0 rounded-full border px-3 py-1.5 font-code text-[9px] uppercase tracking-widest transition-colors',
+              'shrink-0 rounded-full border px-3 py-1.5 noesis-eyebrow noesis-eyebrow--sm transition-colors',
               filter === item.filter
                 ? 'border-accent bg-accent text-accent-foreground'
                 : 'border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground'
@@ -363,7 +363,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
                 <TableCell><StageBadge type="inquiry" stage={question.stage} status={question.status} /></TableCell>
                 <TableCell className="hidden text-xs leading-5 text-muted-foreground xl:table-cell">{sources.length ? sources.map((source) => source.title).join(', ') : 'No source linked'}</TableCell>
                 <TableCell className="hidden text-xs leading-5 text-muted-foreground xl:table-cell">{inquiryCardNextStep(question)}</TableCell>
-                <TableCell className="hidden xl:table-cell"><Button size="sm" variant={closed ? 'outline' : 'default'} onClick={() => openQuestion(question.id, closed ? 'answer' : 'investigation')} className="min-h-9 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">{closed ? 'Review' : 'Investigate'}</Button></TableCell>
+                <TableCell className="hidden xl:table-cell"><Button size="sm" variant={closed ? 'outline' : 'default'} onClick={() => openQuestion(question.id, closed ? 'answer' : 'investigation')} className="min-h-9 rounded-full px-4 noesis-eyebrow noesis-eyebrow--sm">{closed ? 'Review' : 'Investigate'}</Button></TableCell>
               </TableRow>;
             })}</TableBody>
           </Table>
@@ -398,12 +398,12 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/50 pt-3">
                 <div className="flex flex-wrap gap-2">
                   {closed ? (
-                    <Button size="sm" variant="outline" onClick={() => openQuestion(question.id, 'answer')} className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">
+                    <Button size="sm" variant="outline" onClick={() => openQuestion(question.id, 'answer')} className="h-8 rounded-full px-4 noesis-eyebrow noesis-eyebrow--sm">
                       Review inquiry
                     </Button>
                   ) : (
                     <>
-                      <Button size="sm" onClick={() => openQuestion(question.id, 'investigation')} className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest">
+                      <Button size="sm" onClick={() => openQuestion(question.id, 'investigation')} className="h-8 rounded-full px-4 noesis-eyebrow noesis-eyebrow--sm">
                         Investigate
                       </Button>
                       <Button
@@ -411,7 +411,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
                         variant="outline"
                         disabled={question.id.startsWith('open:') || question.id.startsWith('annotation:')}
                         onClick={() => openQuestion(question.id, 'answer')}
-                        className="h-8 rounded-full px-4 font-code text-[8px] uppercase tracking-widest"
+                        className="h-8 rounded-full px-4 noesis-eyebrow noesis-eyebrow--sm"
                       >
                         Write answer
                       </Button>
