@@ -416,6 +416,14 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-work-paper__title { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: .95rem; }
 .noesis-work-paper__text { font-family: Spectral, Georgia, serif; font-size: .78rem; line-height: 1.5; }
 /* Annotations: each note carries its kind as a colour edge, as in the prototype. */
+/* A note's edge is where it sits in the flow, in the same colours the
+   "where your notes are" legend uses: captured, reviewed, developed,
+   reference, set aside. The legend and the cards can never disagree. */
+[data-note-stage] { --note: var(--stage-encounter); border-left: 4px solid hsl(var(--note)) !important; }
+[data-note-stage="reviewed"] { --note: var(--stage-examine); }
+[data-note-stage="used_in_position"] { --note: var(--stage-claim); }
+[data-note-stage="reference_only"] { --note: var(--stage-more); }
+[data-note-stage="archived"] { --note: var(--stage-integrate); }
 [data-note-type] { --note: var(--stage-encounter); border-left: 4px solid hsl(var(--note)) !important; }
 [data-note-type="question"], [data-note-type="connection"] { --note: var(--stage-examine); }
 [data-note-type="claim"], [data-note-type="objection"] { --note: var(--stage-claim); }

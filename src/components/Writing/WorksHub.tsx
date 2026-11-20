@@ -554,7 +554,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
                     </div>
                     <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/40 pt-3">
                       <div className="flex min-w-0 flex-wrap gap-1.5">
-                        {(draft.conceptTags || []).slice(0, 3).map((tag) => <Badge key={tag} variant="secondary" className="rounded-full bg-muted/45 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{tag}</Badge>)}
+                        {(draft.conceptTags || []).slice(0, 3).map((tag) => <Badge key={tag} tone="concept">{tag}</Badge>)}
                         {documentToolCount(draft) > 0 && <Badge variant="secondary" className="rounded-full bg-accent/8 noesis-eyebrow noesis-eyebrow--sm text-accent">{documentToolCount(draft)} {documentToolCount(draft) === 1 ? 'tool' : 'tools'}</Badge>}
                       </div>
                       <DropdownMenu>

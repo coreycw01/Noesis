@@ -32,6 +32,7 @@ import { RecordHeader, RecordSection } from '@/components/shared/record/RecordPa
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import type { AnnotationMark, AnnotationMarkKind } from '@/lib/types';
+import type { BadgeTone } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
 import { StageBadge } from '@/components/shared/StageBadge';
@@ -1136,14 +1137,14 @@ export function AnnotationsIndex({
         {viewMode !== 'table' && filtered.map((annotation) => {
           const selectedEffect = selectedEffectForAnnotation(annotation);
           const relatedInquiry = linkedInquiriesFor(annotation)[0];
-          const relationLabels = [
-            ...(annotation.createdPositionId ? ['Formed position'] : []),
-            ...(relatedInquiry ? ['Linked inquiry'] : []),
-            ...((annotation.linkedPositionIds || []).length ? [`${(annotation.linkedPositionIds || []).length} linked position${(annotation.linkedPositionIds || []).length === 1 ? '' : 's'}`] : []),
-            ...(annotationType(annotation) === 'definition' && annotationTags(annotation).length ? [`Clarifies ${annotationTags(annotation)[0]}`] : []),
+          const relationLabels: Array<{ label: string; tone: BadgeTone }> = [
+            ...(annotation.createdPositionId ? [{ label: 'Formed position', tone: 'position' as const }] : []),
+            ...(relatedInquiry ? [{ label: 'Linked inquiry', tone: 'inquiry' as const }] : []),
+            ...((annotation.linkedPositionIds || []).length ? [{ label: `${(annotation.linkedPositionIds || []).length} linked position${(annotation.linkedPositionIds || []).length === 1 ? '' : 's'}`, tone: 'position' as const }] : []),
+            ...(annotationType(annotation) === 'definition' && annotationTags(annotation).length ? [{ label: `Clarifies ${annotationTags(annotation)[0]}`, tone: 'concept' as const }] : []),
           ];
           return (
-          <Card key={`${annotation.source.id}:${annotation.id}`} data-note-type={annotation.type} role="group" aria-label={`Annotation: ${annotation.text.slice(0, 80)}`} tabIndex={0} onClick={(event) => {
+          <Card key={`${annotation.source.id}:${annotation.id}`} data-note-stage={annotationStatus(annotation)} role="group" aria-label={`Annotation: ${annotation.text.slice(0, 80)}`} tabIndex={0} onClick={(event) => {
             if (!isEntitySurfaceClick(event)) return;
             openAnnotationDetail(annotation);
           }} onKeyDown={(event) => {
@@ -1195,16 +1196,14 @@ export function AnnotationsIndex({
 
             <div className="flex flex-wrap gap-1.5 px-4 pb-3">
               {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).map((tag) => (
-                <Badge key={tag} variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm rounded-full bg-muted/20 text-muted-foreground font-bold">{tag}</Badge>
+                <Badge key={tag} tone="concept">{tag}</Badge>
               ))}
             </div>
 
             {relationLabels.length > 0 && (
               <div className="flex flex-wrap gap-1.5 border-t border-border/30 px-4 py-3">
-                {relationLabels.map((label) => (
-                  <Badge key={label} variant="outline" className="rounded-full border-accent/20 bg-accent/5 noesis-eyebrow noesis-eyebrow--sm text-accent">
-                    {label}
-                  </Badge>
+                {relationLabels.map((relation) => (
+                  <Badge key={relation.label} tone={relation.tone}>{relation.label}</Badge>
                 ))}
               </div>
             )}
@@ -1212,14 +1211,14 @@ export function AnnotationsIndex({
             <div className="flex items-center gap-2 px-4 pb-3">
               <Button
                 type="button"
-                variant={selectedEffect ? 'secondary' : 'outline'}
+                variant={relatedInquiry || annotation.createdPositionId ? 'secondary' : 'outline'}
+                tone={relatedInquiry ? 'inquiry' : annotation.createdPositionId ? 'position' : undefined}
                 size="sm"
                 onClick={() => {
                   if (relatedInquiry) onNavigate?.('questions', relatedInquiry.id);
                   else if (annotation.createdPositionId) onNavigate?.('vault', annotation.createdPositionId);
                   else openAnnotationDetail(annotation);
                 }}
-                className="min-h-10 rounded-full px-3 noesis-eyebrow noesis-eyebrow--sm"
               >
                 {relatedInquiry ? 'Open inquiry' : annotation.createdPositionId ? 'Open position' : 'Review impact'}
               </Button>

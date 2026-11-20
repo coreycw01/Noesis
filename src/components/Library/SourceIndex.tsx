@@ -816,7 +816,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                     <div className="mt-0.5 text-xs text-muted-foreground lg:hidden">{[MEDIA_LABELS[m.type], m.year].filter(Boolean).join(' / ')}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {(m.tags || []).slice(0, 3).map((tag) => (
-                        <Badge key={tag} variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm rounded-full bg-muted/20 text-muted-foreground">{tag}</Badge>
+                        <Badge key={tag} tone="concept">{tag}</Badge>
                       ))}
                       {metadataGaps.length > 0 && (
                         <Badge variant="outline" className="noesis-status-badge noesis-eyebrow noesis-eyebrow--sm rounded-full">
