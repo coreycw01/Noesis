@@ -2722,6 +2722,7 @@ export function ConceptAtlas({
             inquiries={questions}
             sources={media}
             practices={practices}
+            works={drafts}
             links={links}
             asOf={timelineWindow?.asOf ?? null}
             from={timelineWindow?.from ?? null}

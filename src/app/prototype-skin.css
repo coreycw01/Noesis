@@ -245,7 +245,9 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-territory__levels button i { width: 6px; height: 6px; border-radius: 999px; background: hsl(var(--border)); }
 .noesis-territory__levels button[aria-current="true"] { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
 .noesis-territory__levels button[aria-current="true"] i { background: hsl(var(--stage-integrate)); }
-.noesis-territory__zoom { position: absolute; bottom: 12px; left: 12px; display: flex; gap: 6px; }
+/* Lifted clear of the app's insight pill and the Loop dock, which float over
+   the bottom of the canvas: the map's own controls must stay reachable. */
+.noesis-territory__zoom { position: absolute; bottom: 58px; left: 12px; display: flex; gap: 6px; }
 .noesis-territory__zoom button { width: 44px; height: 44px; border-radius: 999px; border: 1px solid hsl(var(--border)); background: hsl(var(--card) / .9); color: hsl(var(--foreground)); font-size: 1.1rem; }
 .noesis-territory__panel { position: absolute; top: 12px; right: 12px; bottom: 12px; width: min(300px, 40%); display: flex; flex-direction: column; gap: 10px; overflow-y: auto; pointer-events: none; }
 .noesis-territory__panel > * { pointer-events: auto; }
@@ -253,14 +255,28 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-territory__card h2, .noesis-territory__card h3 { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; color: hsl(var(--foreground)); font-size: 1.4rem; line-height: 1.15; }
 .noesis-territory__card h3 { font-size: 1.1rem; }
 .noesis-territory__eyebrow { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: hsl(var(--stage-integrate)); }
-.noesis-territory__stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.noesis-territory__stats div { display: grid; }
+.noesis-territory__stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 6px; }
+.noesis-territory__stats div, .noesis-territory__stats button { display: grid; justify-items: start; text-align: left; border: 0; background: none; padding: 0; border-radius: 6px; }
+.noesis-territory__stats button:not(:disabled) { cursor: pointer; }
+.noesis-territory__stats button:disabled { opacity: .55; }
+.noesis-territory__stats button[aria-pressed="true"] b { color: hsl(var(--stage-integrate)); }
+.noesis-territory__stats button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .noesis-territory__stats b { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 1.3rem; color: hsl(var(--foreground)); }
 .noesis-territory__stats span { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; }
 .noesis-territory__clear { align-self: flex-start; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); background: none; border: 0; }
+.noesis-territory__handle { display: none; }
 @media (max-width: 760px) {
-  .noesis-territory__panel { top: auto; left: 12px; width: auto; max-height: 45%; }
+  /* The whole map, and its sheet, stay on one screen rather than running
+     under the bottom navigation and asking for a page scroll. */
+  .noesis-territory:not(.noesis-territory--fullscreen) { min-height: 0; height: calc(100dvh - 19rem); }
+  .noesis-territory__panel { top: auto; left: 12px; width: auto; max-height: 55%; }
+  /* Clear of the app's bottom navigation, which floats over the canvas. */
+  .noesis-territory:not(.noesis-territory--fullscreen) .noesis-territory__panel { bottom: 12px; }
   .noesis-territory__zoom { top: 12px; right: 12px; left: auto; bottom: auto; }
+  /* The sheet keeps the map clear until it is asked for. */
+  .noesis-territory__handle { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 0 14px; border-radius: 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--card) / .94); backdrop-filter: blur(8px); color: hsl(var(--foreground)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+  .noesis-territory__handle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .noesis-territory__panel[data-open="false"] > *:not(.noesis-territory__handle) { display: none; }
 }
 @media (max-width: 380px) {
   .noesis-territory__zoom { flex-direction: column; }
