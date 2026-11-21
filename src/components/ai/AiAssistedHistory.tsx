@@ -115,7 +115,7 @@ export function AiAssistedHistory({
             <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-foreground">{entry.title}</div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground">{formatHistoryDate(entry.date)}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{formatHistoryDate(entry.date)}</div>
               </div>
               <Badge variant="outline" className="shrink-0 rounded-full noesis-eyebrow noesis-eyebrow--sm">AI-assisted</Badge>
               <Button

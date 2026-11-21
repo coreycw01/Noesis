@@ -30,14 +30,18 @@
   --kind-work: var(--stage-more);
   --kind-exercise: var(--stage-act);
 
-  /* Type scale. */
-  --text-label-sm: 9px;
-  --text-label: 10px;
-  --text-xs: .75rem;
-  --text-sm: .875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.35rem;
+  /* Type scale. Nine steps, and nothing between them: an app with a dozen
+     sizes a few tenths of a pixel apart does not read as deliberate, it reads
+     as unfinished. Every font-size in the app resolves to one of these. */
+  --text-label-sm: 9px;   /* the smallest eyebrow, mono, uppercase */
+  --text-label: 10px;     /* the standard eyebrow */
+  --text-xs: .75rem;      /* 12px — meta, captions, counts */
+  --text-sm: .875rem;     /* 14px — secondary prose, controls */
+  --text-base: 1rem;      /* 16px — body */
+  --text-lg: 1.125rem;    /* 18px — card headings */
+  --text-xl: 1.25rem;     /* 20px — section headings; matches Tailwind's text-xl */
+  --text-2xl: 1.5rem;     /* 24px — figures on an instrument */
+  --text-display: 1.875rem; /* 30px — figures and instrument readouts */
   --text-title: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
   --label-tracking: .12em;
 
@@ -52,9 +56,13 @@
   --space-8: 64px;
 
   /* Radius. --card-radius and --button-radius stay as the themeable pair. */
-  --radius-sm: 6px;
+  /* Corners. Six steps, and --card-radius among them so that the Square and
+     Pills interface shapes keep reaching every surface that should follow. */
+  --radius-xs: 4px;       /* ticks, chips, progress marks */
+  --radius-sm: 6px;       /* inputs and small controls */
+  --radius-panel: 10px;   /* small panels and rows */
   --radius-md: var(--card-radius);
-  --radius-lg: 18px;
+  --radius-lg: 18px;      /* sheets and large cards */
   --radius-pill: 999px;
 
   /* Controls. */
@@ -180,7 +188,7 @@
   white-space: nowrap;
 }
 .noesis-badge--dot { border-color: transparent; background: transparent; padding-left: 0; }
-.noesis-badge--dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: hsl(var(--tone, var(--neutral))); flex: none; }
+.noesis-badge--dot::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-pill); background: hsl(var(--tone, var(--neutral))); flex: none; }
 .noesis-badge--rule { border: 0; border-left: 2px solid hsl(var(--tone, var(--neutral))); border-radius: 0; background: transparent; padding: 0 0 0 6px; }
 .noesis-badge--count { font-family: inherit; letter-spacing: 0; text-transform: none; padding: 0 7px; min-width: 20px; justify-content: center; }
 .noesis-badge__icon { width: 11px; height: 11px; flex: none; }
@@ -204,7 +212,7 @@
 .noesis-pill--mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); letter-spacing: .1em; text-transform: uppercase; }
 .noesis-pill--italic { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: var(--text-base); padding: 4px 16px; }
 .noesis-pill--lg { min-height: var(--control-h); padding: 4px 16px; font-size: var(--text-base); }
-.noesis-pill__remove { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: -6px; border-radius: 999px; color: hsl(var(--muted-foreground)); }
+.noesis-pill__remove { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: -6px; border-radius: var(--radius-pill); color: hsl(var(--muted-foreground)); }
 .noesis-pill__remove:hover { background: hsl(var(--problem) / .14); color: hsl(var(--problem)); }
 @media (max-width: 639px) { .noesis-pill { min-height: var(--touch-min); } }
 
@@ -234,7 +242,7 @@
 .noesis-search { position: relative; display: flex; align-items: center; }
 .noesis-search > svg { position: absolute; left: 12px; width: 14px; height: 14px; color: hsl(var(--muted-foreground)); pointer-events: none; }
 .noesis-search > input { padding-left: 34px; padding-right: 34px; }
-.noesis-search__clear { position: absolute; right: 6px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px; color: hsl(var(--muted-foreground)); }
+.noesis-search__clear { position: absolute; right: 6px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-pill); color: hsl(var(--muted-foreground)); }
 .noesis-search__clear:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
 
 /* Status text: one voice for inline feedback. */

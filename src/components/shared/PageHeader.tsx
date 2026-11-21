@@ -43,7 +43,7 @@ export function PageHeader({ title, description, actions, meta, className, child
           rather than above it, so the header costs one row instead of two. */}
       <div className="noesis-page-header__title-row">
         <span className="noesis-margin-marker"><PageIcon className="size-3.5" strokeWidth={2.2} aria-hidden="true" /></span>
-        <h1 className="noesis-page-title min-w-0 text-[30px] md:text-[38px] lg:text-[42px]">{title}</h1>
+        <h1 className="noesis-page-title min-w-0">{title}</h1>
         <span className="noesis-route-label">
           {stage && <><span className="noesis-route-label__section">{stage}</span><span className="noesis-route-label__divider" aria-hidden="true" /></>}
           {section}

@@ -316,7 +316,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
 
         <div className="hidden items-center gap-2 border-r border-border/40 pr-2 sm:flex">
           <Type className="size-3.5 text-muted-foreground" />
-          <select aria-label="Paragraph style" defaultValue="P" onPointerDown={rememberSelection} onChange={(event) => applyFormat('formatBlock', event.target.value)} className="bg-card text-[11px] font-body italic text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Paragraph style">
+          <select aria-label="Paragraph style" defaultValue="P" onPointerDown={rememberSelection} onChange={(event) => applyFormat('formatBlock', event.target.value)} className="bg-card text-xs font-body italic text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Paragraph style">
             <option value="P">Paragraph</option>
             <option value="H1">Heading 1</option>
             <option value="H2">Heading 2</option>
@@ -326,7 +326,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
         </div>
 
         <div className="hidden items-center gap-2 border-r border-border/40 pr-2 sm:flex">
-          <select aria-label="Font family" defaultValue="Georgia" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontName', event.target.value)} className="max-w-32 bg-card text-[11px] text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Font family">
+          <select aria-label="Font family" defaultValue="Georgia" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontName', event.target.value)} className="max-w-32 bg-card text-xs text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Font family">
             <optgroup label="Serif">
               <option value="Georgia">Georgia</option>
               <option value="Garamond">Garamond</option>
@@ -350,7 +350,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
               <option value="Lucida Console">Lucida Console</option>
             </optgroup>
           </select>
-          <select aria-label="Font size" defaultValue="3" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontSize', event.target.value)} className="bg-card text-[11px] text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Font size">
+          <select aria-label="Font size" defaultValue="3" onPointerDown={rememberSelection} onChange={(event) => applyFormat('fontSize', event.target.value)} className="bg-card text-xs text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground" title="Font size">
             <option value="2">Small</option>
             <option value="3">Body</option>
             <option value="4">Large</option>

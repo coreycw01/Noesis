@@ -43,7 +43,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
       case 'sources':
         return (
           <div className="space-y-4">
-            <h4 className="readex-kicker opacity-50 font-bold text-[10px]">INPUTS: SOURCES</h4>
+            <h4 className="readex-kicker opacity-50 font-bold text-label">INPUTS: SOURCES</h4>
             {related.sources.map(s => (
               <Card key={s.id} className="p-5 bg-card border-border/40 flex gap-5 shadow-sm rounded-xl hover:shadow-md transition-shadow">
                 <div className="size-12 rounded-lg bg-muted/20 flex items-center justify-center shrink-0 shadow-inner">
@@ -61,7 +61,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
       case 'notes':
         return (
           <div className="space-y-5">
-            <h4 className="readex-kicker opacity-50 font-bold text-[10px]">INPUTS: ANNOTATIONS</h4>
+            <h4 className="readex-kicker opacity-50 font-bold text-label">INPUTS: ANNOTATIONS</h4>
             {related.annotations.map((a, i) => (
               <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl">
                 <Badge variant="outline" className="mb-3 noesis-eyebrow noesis-eyebrow--sm border-border/60 shadow-sm bg-card rounded-full font-bold">{a.type}</Badge>
@@ -75,7 +75,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
         const items = related.beliefs;
         return (
           <div className="space-y-5">
-            <h4 className="readex-kicker opacity-50 font-bold text-[10px]">{activeTab.toUpperCase()}</h4>
+            <h4 className="readex-kicker opacity-50 font-bold text-label">{activeTab.toUpperCase()}</h4>
             {items.map((item, i) => (
               <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
                 <h5 className="font-headline font-bold text-xl italic mb-3 text-primary leading-tight">{item.title}</h5>
@@ -88,7 +88,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
       case 'questions':
         return (
           <div className="space-y-5">
-            <h4 className="readex-kicker opacity-50 font-bold text-[10px]">INQUIRIES</h4>
+            <h4 className="readex-kicker opacity-50 font-bold text-label">INQUIRIES</h4>
             {related.questions.map((q, i) => (
               <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl">
                 <p className="font-headline font-bold italic text-lg leading-relaxed text-primary">&quot;{q.text}&quot;</p>
@@ -101,14 +101,14 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
       case 'writing':
         return (
           <div className="space-y-5">
-            <h4 className="readex-kicker opacity-50 font-bold text-[10px]">WORKS</h4>
+            <h4 className="readex-kicker opacity-50 font-bold text-label">WORKS</h4>
             {related.drafts.map((d, i) => (
               <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start mb-2">
                   <h5 className="font-headline font-bold text-xl italic text-primary leading-tight">{d.title}</h5>
-                  <Badge variant="outline" className="text-[9px] border-border/60 bg-card shadow-sm rounded-full font-bold uppercase tracking-widest">{d.status}</Badge>
+                  <Badge variant="outline" className="text-label-sm border-border/60 bg-card shadow-sm rounded-full font-bold uppercase tracking-widest">{d.status}</Badge>
                 </div>
-                <p className="text-[10px] font-code opacity-50 uppercase font-bold tracking-widest">{d.type}</p>
+                <p className="text-label font-code opacity-50 uppercase font-bold tracking-widest">{d.type}</p>
               </Card>
             ))}
             {related.drafts.length === 0 && <p className="text-sm italic text-muted-foreground text-center py-12 font-body">No linked works discovered.</p>}
@@ -117,12 +117,12 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
       case 'practices':
         return (
           <div className="space-y-5">
-            <h4 className="readex-kicker opacity-50 font-bold text-[10px]">PRACTICES</h4>
+            <h4 className="readex-kicker opacity-50 font-bold text-label">PRACTICES</h4>
             {related.practices.map((practice, i) => (
               <Card key={i} className="p-6 bg-card border-border/40 shadow-sm rounded-xl hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start mb-2">
                   <h5 className="font-headline font-bold text-xl italic text-primary leading-tight">{practice.title}</h5>
-                  <Badge variant="outline" className="text-[9px] border-border/60 bg-card shadow-sm rounded-full font-bold uppercase tracking-widest">{practice.status}</Badge>
+                  <Badge variant="outline" className="text-label-sm border-border/60 bg-card shadow-sm rounded-full font-bold uppercase tracking-widest">{practice.status}</Badge>
                 </div>
                 <p className="font-body text-sm text-muted-foreground italic leading-relaxed">{practice.description || practice.type}</p>
               </Card>
@@ -133,7 +133,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
       case 'evolution':
         return (
           <div className="space-y-6">
-            <h4 className="readex-kicker opacity-50 font-bold text-[10px]">EVOLUTION</h4>
+            <h4 className="readex-kicker opacity-50 font-bold text-label">EVOLUTION</h4>
             {related.events.map((e, i) => (
               <div key={i} className="flex gap-5 items-start border-l-2 border-accent/20 pl-6 py-2 transition-colors hover:border-accent">
                 <div className="pt-2">
@@ -142,7 +142,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
                 <div className="space-y-1">
                   <h5 className="font-headline font-bold text-lg italic text-primary">{e.entityTitle}</h5>
                   <p className="text-sm text-muted-foreground font-body leading-relaxed">{e.eventType}: {e.reason}</p>
-                  <time className="text-[10px] font-code opacity-40 font-bold uppercase tracking-widest">{new Date(e.date).toLocaleDateString()}</time>
+                  <time className="text-label font-code opacity-40 font-bold uppercase tracking-widest">{new Date(e.date).toLocaleDateString()}</time>
                 </div>
               </div>
             ))}
@@ -178,7 +178,7 @@ export function ConceptDetailDialog({ name, onClose, concepts, media, vault, dra
                 {tab.label}
                 {tab.count !== null && (
                   <span className={cn(
-                    "rounded-full px-2 py-0.5 text-[9px] font-bold",
+                    "rounded-full px-2 py-0.5 text-label-sm font-bold",
                     activeTab === tab.id ? "bg-card/20 text-white" : "bg-muted/50 text-muted-foreground/60"
                   )}>
                     {tab.count}

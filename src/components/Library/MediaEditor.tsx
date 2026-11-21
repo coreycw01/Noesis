@@ -186,7 +186,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                 <>
                   {showSearch && (
                     <section className="rounded-lg border border-dashed border-border/60 bg-muted/5 p-4 sm:rounded-xl sm:p-5">
-                      <Label className="readex-kicker block mb-4 font-bold text-[10px] text-accent flex items-center gap-2">
+                      <Label className="readex-kicker block mb-4 font-bold text-label text-accent flex items-center gap-2">
                         <Globe className="size-3" /> INTELLECTUAL LOCATOR
                       </Label>
                       <div className="relative">
@@ -215,8 +215,8 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="text-[13px] font-headline font-bold italic truncate group-hover:text-accent">{item.title}</div>
-                                <div className="text-[10px] text-muted-foreground truncate uppercase font-code tracking-tighter">{item.creators.join(', ')} {item.year && `(${item.year})`}</div>
+                                <div className="text-xs font-headline font-bold italic truncate group-hover:text-accent">{item.title}</div>
+                                <div className="text-label text-muted-foreground truncate uppercase font-code tracking-tighter">{item.creators.join(', ')} {item.year && `(${item.year})`}</div>
                                 <div className="mt-1 line-clamp-2 text-xs leading-4 text-muted-foreground">{item.catalogSummary || buildCatalogSummary(item.description) || 'No provider description available.'}</div>
                                 <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/70">{item.provider.replace(/_/g, ' ')} · {MEDIA_LABELS[item.type]}</div>
                               </div>
@@ -234,7 +234,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
 
                   {showImport && (
                     <section className="rounded-lg border border-dashed border-border/60 bg-muted/5 p-4 sm:rounded-xl sm:p-5">
-                      <Label className="readex-kicker block mb-4 font-bold text-[10px] text-accent flex items-center gap-2">
+                      <Label className="readex-kicker block mb-4 font-bold text-label text-accent flex items-center gap-2">
                         <Link2 className="size-3" /> PASTE URL
                       </Label>
                       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -254,7 +254,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
               )}
 
               <section>
-                <Label className="readex-kicker block mb-4 font-bold text-[10px]">MEDIA TYPE</Label>
+                <Label className="readex-kicker block mb-4 font-bold text-label">MEDIA TYPE</Label>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                   {MEDIA_TYPES.map((type) => {
                     const Icon = MEDIA_ICONS_COMP[type];
@@ -280,7 +280,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">SOURCE TITLE</Label>
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">SOURCE TITLE</Label>
                   <Input
                     aria-label="Source title"
                     value={draft.title || ''}
@@ -290,7 +290,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">{terms.creator.toUpperCase()}</Label>
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">{terms.creator.toUpperCase()}</Label>
                   <Input
                     aria-label={terms.creator}
                     value={draft.creator || ''}
@@ -301,7 +301,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
 
                 <div className="grid gap-6 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">YEAR</Label>
+                    <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">YEAR</Label>
                     <Input
                       aria-label="Year"
                       value={draft.year || ''}
@@ -310,7 +310,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">{terms.genre.toUpperCase()}</Label>
+                    <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">{terms.genre.toUpperCase()}</Label>
                     <Input
                       aria-label={terms.genre}
                       value={draft.genre || ''}
@@ -321,7 +321,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">{terms.publisher.toUpperCase()}</Label>
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">{terms.publisher.toUpperCase()}</Label>
                   <Input
                     aria-label={terms.publisher}
                     value={draft.publisher || ''}
@@ -332,7 +332,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
 
                 <div className="grid gap-6 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">{terms.identifier.toUpperCase()}</Label>
+                    <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">{terms.identifier.toUpperCase()}</Label>
                     <Input
                       aria-label={terms.identifier}
                       value={draft.isbn || draft.doi || ''}
@@ -341,7 +341,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">URL</Label>
+                    <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">URL</Label>
                     <Input
                       aria-label="Source URL"
                       value={draft.url || ''}
@@ -352,7 +352,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                 </div>
 
                 <div className="space-y-4">
-                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONCEPTS</Label>
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">CONCEPTS</Label>
                   <div className="flex flex-wrap gap-2">
                     {(draft.tags || []).map(tag => (
                       <Badge key={tag} variant="secondary" className="px-4 py-1.5 noesis-eyebrow noesis-eyebrow--sm rounded-full border-border/60 bg-card shadow-sm font-bold">
@@ -374,7 +374,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">SOURCE DESCRIPTION</Label>
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">SOURCE DESCRIPTION</Label>
                   <Textarea
                     aria-label="Source description"
                     placeholder="A factual description of the source. Provider metadata appears here when available."
@@ -386,7 +386,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">YOUR NOTES</Label>
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">YOUR NOTES</Label>
                   <Textarea
                     aria-label="Your source notes"
                     placeholder="Why you added this source, what you expect from it, or anything private you want to remember."
@@ -397,7 +397,7 @@ export function MediaEditor({ open, onOpenChange, draft, setDraft, onSave, savin
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONSUMPTION STATUS</Label>
+                  <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">CONSUMPTION STATUS</Label>
                   <select
                     aria-label="Consumption status"
                     value={draft.status || 'Want to Read'}

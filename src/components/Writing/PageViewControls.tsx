@@ -133,7 +133,7 @@ export function PageViewControls({
                 )}
               >
                 <pattern.icon className="size-3.5 opacity-40" />
-                <span className="text-[10px] italic leading-none text-center">{pattern.label}</span>
+                <span className="text-label italic leading-none text-center">{pattern.label}</span>
               </button>
             ))}
           </div>

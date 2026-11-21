@@ -245,7 +245,7 @@ export function InteractiveCalibration({ confidence, evidenceFor, evidenceAgains
         {earned !== null && <span className="noesis-gauge__mark noesis-gauge__mark--earned" style={{ left: `${earned}%` }}><em>Evidence {earned}</em></span>}
         <span className="noesis-gauge__mark noesis-gauge__mark--stated" style={{ left: `${stated}%` }}><em>Stated {stated}</em></span>
       </div>
-      <p className="text-[.95rem]"><b data-stage-tone={verdict.tone} style={{ color: verdict.tone === 'muted' ? undefined : 'hsl(var(--stage))' }}>{verdict.head}</b> {verdict.body}</p>
+      <p className="text-base"><b data-stage-tone={verdict.tone} style={{ color: verdict.tone === 'muted' ? undefined : 'hsl(var(--stage))' }}>{verdict.head}</b> {verdict.body}</p>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" onClick={onChallenge}>Challenge it</Button>
         <Button type="button" onClick={onRevise} className="bg-[hsl(var(--stage-integrate))] border-[hsl(var(--stage-integrate))]">Record revision</Button>

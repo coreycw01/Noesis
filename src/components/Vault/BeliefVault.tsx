@@ -1079,7 +1079,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             </div>
             <div>
               <Eyebrow>Why you hold it</Eyebrow>
-              <p className="mt-1 whitespace-pre-wrap text-[.95rem] leading-6">{selected.rationale || selected.confidenceReasoning || <span className="text-muted-foreground">No reasoning recorded yet. Edit the position to say what presently supports it.</span>}</p>
+              <p className="mt-1 whitespace-pre-wrap text-base leading-6">{selected.rationale || selected.confidenceReasoning || <span className="text-muted-foreground">No reasoning recorded yet. Edit the position to say what presently supports it.</span>}</p>
             </div>
           </div>
           {selected.createdFrom === 'annotation' && selected.sourceAnnotationId && selected.description.trim()
@@ -1376,7 +1376,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <span className="noesis-ember" data-stage-tone="claim" aria-hidden="true" style={{ '--ember': `${0.45 + confidencePercent(entry.confidence) / 180}` } as React.CSSProperties} />
             </div>
 
-            {statement && <p className="mb-4 break-words text-[13px] italic leading-relaxed text-muted-foreground">{statement}</p>}
+            {statement && <p className="mb-4 break-words text-xs italic leading-relaxed text-muted-foreground">{statement}</p>}
 
             <PositionMiniScale confidence={confidencePercent(entry.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} showCue={derivePositionLifecycleStage(entry.status) !== 'retired'} />
             {(entry.tags || []).length > 0 && (
@@ -1977,11 +1977,11 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
         <div className="space-y-6 pt-2">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">TITLE</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">TITLE</Label>
               <Input value={draft.title || ''} onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))} className="italic rounded-full" />
             </div>
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">TYPE</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">TYPE</Label>
               <Select value={draft.type || 'belief'} onValueChange={(value) => setDraft((prev) => ({ ...prev, type: value as VaultType }))}>
                 <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full noesis-eyebrow"><SelectValue /></SelectTrigger>
                 <SelectContent>{vaultTypes.map((type) => <SelectItem key={type} value={type} className="noesis-eyebrow">{type.replace('_', ' ')}</SelectItem>)}</SelectContent>
@@ -1990,21 +1990,21 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">POSITION KIND</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">POSITION KIND</Label>
               <Select value={draft.positionKind || 'interpretive'} onValueChange={(value) => setDraft((prev) => ({ ...prev, positionKind: value as PositionKind }))}>
                 <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full noesis-eyebrow"><SelectValue /></SelectTrigger>
                 <SelectContent>{positionKinds.map((kind) => <SelectItem key={kind.id} value={kind.id} className="noesis-eyebrow">{kind.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">STATE</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">STATE</Label>
               <Select value={draft.status || 'tentative'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as VaultEntry['status'] }))}>
                 <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full noesis-eyebrow"><SelectValue /></SelectTrigger>
                 <SelectContent>{positionStatuses.map((status) => <SelectItem key={status.id} value={status.id} className="noesis-eyebrow">{status.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONFIDENCE</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">CONFIDENCE</Label>
               <div className="flex items-center justify-between gap-2">
                 <span className="noesis-figure font-bold text-accent">{confidencePercent(draft.confidence)}%</span>
                 <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{confidenceLabel(draft.confidence)}</span>
@@ -2022,24 +2022,24 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             </div>
           </div>
           <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">POSITION STATEMENT</Label>
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">POSITION STATEMENT</Label>
             <Textarea value={draft.statement || ''} onChange={(event) => setDraft((prev) => ({ ...prev, statement: event.target.value, description: prev.description || event.target.value }))} placeholder="The core position in one clear sentence..." className="min-h-[60px] italic text-base" />
           </div>
           <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">WHAT DO YOU MEAN?</Label>
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">WHAT DO YOU MEAN?</Label>
             <Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} placeholder="Clarify scope, boundaries, and what this claim does not mean..." className="min-h-[90px] italic text-base" />
           </div>
           <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">WHY DO YOU HOLD IT?</Label>
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">WHY DO YOU HOLD IT?</Label>
             <Textarea value={draft.rationale || ''} onChange={(event) => setDraft((prev) => ({ ...prev, rationale: event.target.value }))} placeholder="In your own words, explain the reasons you currently find persuasive." className="min-h-[90px] italic text-base" />
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">WHAT COULD CHALLENGE IT?</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">WHAT COULD CHALLENGE IT?</Label>
               <Textarea value={joinLines(draft.evidenceAgainst)} onChange={(event) => setDraft((prev) => ({ ...prev, evidenceAgainst: splitLines(event.target.value) }))} placeholder="One objection, uncertainty, or counterexample..." className="min-h-[100px] italic text-base" />
             </div>
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">WHAT WOULD CHANGE YOUR MIND?</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">WHAT WOULD CHANGE YOUR MIND?</Label>
               <Textarea value={draft.falsification || ''} onChange={(event) => setDraft((prev) => ({ ...prev, falsification: event.target.value }))} placeholder="What would weaken, overturn, or force revision?" className="min-h-[110px] italic text-base" />
             </div>
           </div>
@@ -2047,23 +2047,23 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
             <summary className="cursor-pointer noesis-eyebrow font-bold text-muted-foreground">Optional structure and links</summary>
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">ASSUMPTIONS</Label>
+                <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">ASSUMPTIONS</Label>
                 <Textarea value={joinLines(draft.assumptions)} onChange={(event) => setDraft((prev) => ({ ...prev, assumptions: splitLines(event.target.value) }))} placeholder="One load-bearing assumption per line..." className="min-h-[110px] italic text-base" />
               </div>
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONFIDENCE REASONING</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">CONFIDENCE REASONING</Label>
               <Textarea value={draft.confidenceReasoning || ''} onChange={(event) => setDraft((prev) => ({ ...prev, confidenceReasoning: event.target.value }))} placeholder="Why does this confidence level fit right now?" className="min-h-[110px] italic text-base" />
             </div>
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONSEQUENCES</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">CONSEQUENCES</Label>
               <Textarea value={joinLines(draft.consequences)} onChange={(event) => setDraft((prev) => ({ ...prev, consequences: splitLines(event.target.value) }))} placeholder="What follows if this is true? One consequence per line..." className="min-h-[110px] italic text-base" />
             </div>
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">APPLICATIONS</Label>
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">APPLICATIONS</Label>
               <Textarea value={joinLines(draft.applications)} onChange={(event) => setDraft((prev) => ({ ...prev, applications: splitLines(event.target.value) }))} placeholder="Where should this affect behavior, writing, practice, or decisions?" className="min-h-[110px] italic text-base" />
             </div>
           <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">CONCEPT TAGS</Label>
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">CONCEPT TAGS</Label>
             <ConceptTagPicker concepts={concepts} value={draft.tags || []} onChange={(tags) => setDraft((prev) => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
           </div>
           

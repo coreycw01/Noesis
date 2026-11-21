@@ -37,7 +37,7 @@ const buttonVariants = cva(
         "icon-sm": "h-7 w-7 p-0",
       },
       voice: {
-        mono: "font-code text-[10.5px] font-medium uppercase tracking-[0.08em]",
+        mono: "font-code text-label font-medium uppercase tracking-[0.08em]",
         text: "",
       },
     },

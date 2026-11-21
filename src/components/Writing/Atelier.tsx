@@ -1544,7 +1544,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                               <DropdownMenuItem key={section.id} onSelect={() => jumpToDocumentTool(section)} className={cn('cursor-pointer', focusedToolId === section.id && 'text-accent')}>
                                 <ListTree className="mr-2 size-4" />
                                 <span className="min-w-0 flex-1 truncate">{workToolLabel(section.tool)}</span>
-                                <span className="ml-2 text-[9px] uppercase text-muted-foreground">{section.window?.minimized ? 'Minimized' : section.pageId && section.pageId !== 'main' ? 'Subpage' : 'Main'}</span>
+                                <span className="ml-2 text-label-sm uppercase text-muted-foreground">{section.window?.minimized ? 'Minimized' : section.pageId && section.pageId !== 'main' ? 'Subpage' : 'Main'}</span>
                               </DropdownMenuItem>
                             ))}
                           </>
@@ -2137,7 +2137,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
           <div className="size-12 rounded-full bg-card flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-md border border-border/30">
             <Plus className="size-6 text-muted-foreground" />
           </div>
-          <div className="readex-kicker text-muted-foreground font-bold text-[10px]">CREATE WORK</div>
+          <div className="readex-kicker text-muted-foreground font-bold text-label">CREATE WORK</div>
         </Card>
 
         {visibleDrafts.length === 0 && (
@@ -2324,7 +2324,7 @@ function QuickNoteStudio({
           </div>
         )}
         <div className="space-y-3">
-          <Label className="readex-kicker text-[9px] font-bold uppercase">Note Body</Label>
+          <Label className="readex-kicker text-label-sm font-bold uppercase">Note Body</Label>
           <textarea
             value={draft.body || ''}
             onChange={(event) => updateActive({ body: event.target.value, draftContent: event.target.value })}
@@ -2654,7 +2654,7 @@ function RecordingStudio({
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {!audioOnly && (
               <div className="space-y-2">
-                <Label htmlFor={`camera-${draft.id}`} className="readex-kicker text-[9px] font-bold uppercase">Camera</Label>
+                <Label htmlFor={`camera-${draft.id}`} className="readex-kicker text-label-sm font-bold uppercase">Camera</Label>
                 <Select value={cameraId} onValueChange={(value) => void changeCamera(value)} disabled={state === 'recording' || state === 'paused' || state === 'saving'}>
                   <SelectTrigger id={`camera-${draft.id}`} className="bg-background"><SelectValue placeholder="Default camera" /></SelectTrigger>
                   <SelectContent>
@@ -2664,7 +2664,7 @@ function RecordingStudio({
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor={`microphone-${draft.id}`} className="readex-kicker text-[9px] font-bold uppercase">Microphone</Label>
+              <Label htmlFor={`microphone-${draft.id}`} className="readex-kicker text-label-sm font-bold uppercase">Microphone</Label>
               <Select value={microphoneId} onValueChange={(value) => void changeMicrophone(value)} disabled={state === 'recording' || state === 'paused' || state === 'saving'}>
                 <SelectTrigger id={`microphone-${draft.id}`} className="bg-background"><SelectValue placeholder="Default microphone" /></SelectTrigger>
                 <SelectContent>
@@ -2674,7 +2674,7 @@ function RecordingStudio({
             </div>
           </div>
           <div className="mt-6 space-y-2">
-            <Label className="readex-kicker text-[9px] font-bold uppercase">Recording Notes</Label>
+            <Label className="readex-kicker text-label-sm font-bold uppercase">Recording Notes</Label>
             <textarea
               value={draft.body || ''}
               onChange={(event) => updateActive({ body: event.target.value, draftContent: event.target.value })}
@@ -3099,16 +3099,16 @@ function DrawingStudio({
                 <Icon className="size-4" /><span className="ml-1.5 hidden 2xl:inline">{label}</span>
               </Button>
             ))}
-            <label className="flex h-9 items-center gap-1 rounded-lg border border-border bg-background px-2 text-[10px] font-bold uppercase text-muted-foreground" title="Stroke color">
+            <label className="flex h-9 items-center gap-1 rounded-lg border border-border bg-background px-2 text-label font-bold uppercase text-muted-foreground" title="Stroke color">
               Ink <input type="color" value={color} onChange={(event) => setColor(event.target.value)} className="h-6 w-7 cursor-pointer border-0 bg-transparent p-0" aria-label="Drawing color" />
             </label>
-            <label className="flex h-9 items-center gap-1 rounded-lg border border-border bg-background px-2 text-[10px] font-bold uppercase text-muted-foreground" title="Canvas color">
+            <label className="flex h-9 items-center gap-1 rounded-lg border border-border bg-background px-2 text-label font-bold uppercase text-muted-foreground" title="Canvas color">
               Paper <input type="color" value={backgroundColor} onChange={(event) => setBackgroundColor(event.target.value)} className="h-6 w-7 cursor-pointer border-0 bg-transparent p-0" aria-label="Canvas background color" />
             </label>
-            <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-2 text-[10px] font-bold uppercase text-muted-foreground">
+            <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-2 text-label font-bold uppercase text-muted-foreground">
               Size <input type="range" min={1} max={36} value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} className="w-16" aria-label="Brush size" />
             </label>
-            <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-2 text-[10px] font-bold uppercase text-muted-foreground">
+            <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-2 text-label font-bold uppercase text-muted-foreground">
               Flow <input type="range" min={0.1} max={1} step={0.1} value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} className="w-14" aria-label="Brush opacity" />
             </label>
             <Button variant={showGrid ? 'default' : 'outline'} size="icon" onClick={() => setShowGrid((value) => !value)} className="size-9 rounded-lg" title="Toggle grid" aria-label="Toggle drawing grid">
@@ -3488,7 +3488,7 @@ function ExternalDocDialog({
         </DialogHeader>
         <div className="space-y-5 pt-4">
           <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">Platform</Label>
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">Platform</Label>
             <Select value={docDraft.provider} onValueChange={(value) => setDocDraft((prev) => ({ ...prev, provider: value as ExternalDocProvider }))}>
               <SelectTrigger className="h-11 rounded-full"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -3497,11 +3497,11 @@ function ExternalDocDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">Document Name</Label>
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">Document Name</Label>
             <Input value={docDraft.title} onChange={(event) => setDocDraft((prev) => ({ ...prev, title: event.target.value }))} className="h-11" />
           </div>
           <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-[9px]">Document URL</Label>
+            <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">Document URL</Label>
             <Input
               value={docDraft.url}
               onChange={(event) => {

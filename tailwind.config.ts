@@ -10,6 +10,13 @@ export default {
   ],
   theme: {
     extend: {
+      // The two label steps the app's eyebrows use. Everything else matches
+      // Tailwind's own scale, which the CSS tokens now mirror exactly, so a
+      // size means the same thing whether it is set in CSS or in a class.
+      fontSize: {
+        'label-sm': ['var(--text-label-sm)', { lineHeight: '1.2' }],
+        label: ['var(--text-label)', { lineHeight: '1.2' }],
+      },
       fontFamily: {
         body: ['var(--font-body)', 'Georgia', 'serif'],
         headline: ['var(--font-heading)', 'serif'],

@@ -854,7 +854,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
                 {selectedBoundaries.map((boundary) => (
                   <button key={boundary.id} type="button" className="text-left text-xs leading-5 underline-offset-2 hover:underline"
                     onClick={() => setSelection({ kind: 'boundary', boundary, conceptName: selection.concept.name })}>
-                    <b className="font-mono text-[10px] uppercase tracking-wider">{boundary.kind}</b> · {boundary.text}
+                    <b className="font-mono text-label uppercase tracking-wider">{boundary.kind}</b> · {boundary.text}
                   </button>
                 ))}
               </div>
@@ -909,7 +909,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
               ['Pin', 'an annotation left on the ground'],
               ['Boat', 'a boundary: what this concept is not'],
             ].map(([name, text]) => (
-              <span key={name} className="flex gap-2"><b className="w-20 shrink-0 font-mono text-[10px] uppercase tracking-wider">{name}</b><span>{text}</span></span>
+              <span key={name} className="flex gap-2"><b className="w-20 shrink-0 font-mono text-label uppercase tracking-wider">{name}</b><span>{text}</span></span>
             ))}
           </div>
         </details>

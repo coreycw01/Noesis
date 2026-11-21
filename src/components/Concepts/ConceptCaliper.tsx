@@ -23,15 +23,15 @@ export function ConceptCaliper({ concept }: { concept: Concept }) {
     <figure className="noesis-caliper">
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={`Boundary of ${concept.name}: ${inside.length} inside, ${outside.length} outside, ${edge.length} on the edge`}>
         <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="hsl(var(--stage-examine) / .12)" stroke="hsl(var(--stage-examine))" strokeWidth="1.6" strokeDasharray={concept.philosophyStatus === 'contested' ? '7 5' : undefined} />
-        <text x={cx} y={cy + 6} textAnchor="middle" className="fill-foreground font-headline text-[22px] italic">{concept.name}</text>
+        <text x={cx} y={cy + 6} textAnchor="middle" className="fill-foreground font-headline text-2xl italic">{concept.name}</text>
         {place(inside, rx * 0.55, ry * 0.55, -Math.PI / 2).map((item) => (
-          <g key={`in-${item.text}`}><circle cx={item.x} cy={item.y - 14} r="4" fill="hsl(var(--stage-act))" /><text x={item.x} y={item.y + 4} textAnchor="middle" className="fill-foreground text-[12px]">{label(item.text)}</text></g>
+          <g key={`in-${item.text}`}><circle cx={item.x} cy={item.y - 14} r="4" fill="hsl(var(--stage-act))" /><text x={item.x} y={item.y + 4} textAnchor="middle" className="fill-foreground text-xs">{label(item.text)}</text></g>
         ))}
         {place(edge, rx, ry, -Math.PI / 3).map((item) => (
-          <g key={`edge-${item.text}`}><rect x={item.x - 4} y={item.y - 4} width="8" height="8" transform={`rotate(45 ${item.x} ${item.y})`} fill="hsl(var(--stage-encounter))" /><text x={item.x} y={item.y - 10} textAnchor="middle" className="fill-[hsl(var(--stage-encounter))] text-[12px]">≠ {label(item.text)}</text></g>
+          <g key={`edge-${item.text}`}><rect x={item.x - 4} y={item.y - 4} width="8" height="8" transform={`rotate(45 ${item.x} ${item.y})`} fill="hsl(var(--stage-encounter))" /><text x={item.x} y={item.y - 10} textAnchor="middle" className="fill-[hsl(var(--stage-encounter))] text-xs">≠ {label(item.text)}</text></g>
         ))}
         {place(outside, rx + 120, ry + 50, Math.PI / 5).map((item) => (
-          <g key={`out-${item.text}`}><circle cx={item.x} cy={item.y - 14} r="4" fill="none" stroke="hsl(var(--stage-claim))" strokeWidth="1.5" /><text x={item.x} y={item.y + 4} textAnchor="middle" className="fill-muted-foreground text-[12px]">{label(item.text)}</text></g>
+          <g key={`out-${item.text}`}><circle cx={item.x} cy={item.y - 14} r="4" fill="none" stroke="hsl(var(--stage-claim))" strokeWidth="1.5" /><text x={item.x} y={item.y + 4} textAnchor="middle" className="fill-muted-foreground text-xs">{label(item.text)}</text></g>
         ))}
       </svg>
       <figcaption className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">

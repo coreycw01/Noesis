@@ -457,7 +457,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
           </div>
         ) : frameFilled ? (
           <dl className="grid gap-3 md:grid-cols-3">
-            {([['Why it matters', question.whyItMatters], ['Current view', question.currentIntuition], ['Still uncertain', question.uncertainty]] as const).map(([label, value]) => value?.trim() ? <div key={label}><dt><Eyebrow>{label}</Eyebrow></dt><dd className="mt-1 text-[.95rem] leading-6">{value}</dd></div> : null)}
+            {([['Why it matters', question.whyItMatters], ['Current view', question.currentIntuition], ['Still uncertain', question.uncertainty]] as const).map(([label, value]) => value?.trim() ? <div key={label}><dt><Eyebrow>{label}</Eyebrow></dt><dd className="mt-1 text-base leading-6">{value}</dd></div> : null)}
           </dl>
         ) : (
           <SectionEmpty title="No starting thinking yet." hint="Optional. Ask Noesis can start from the question alone." />
