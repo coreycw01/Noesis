@@ -26,7 +26,7 @@ import type { AiContextEnvelope } from '@/lib/contextual-ai';
 import type { InquiryAiReview } from '@/lib/inquiry-ai-review';
 import type { AiSettings, Concept, Draft, InquiryEvidence, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { conceptKey, today, uid } from '@/lib/readex';
-import { assignInquiryEvidence, inquiryAiItemMemory, inquiryHasRecordedObjection, inquiryNeedsEvidence, isInquiryClosed, MAX_INQUIRY_EVIDENCE } from '@/lib/inquiry-state';
+import { assignInquiryEvidence, INQUIRY_REVIEW_CRITERION_TITLE, inquiryAiItemMemory, inquiryHasRecordedObjection, inquiryNeedsEvidence, isInquiryClosed, latestInquiryReviewCriterion, MAX_INQUIRY_EVIDENCE, replacedInquiryAnswer } from '@/lib/inquiry-state';
 
 const EMPTY_EVIDENCE: Omit<InquiryEvidence, 'id' | 'date'> = { claim: '', type: 'personal observation', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' };
 
@@ -161,16 +161,20 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
   const working = workingDraft?.value ?? savedAnswer;
   const workingConflict = workingDraft !== null && workingDraft.base !== savedAnswer;
   const lead = inquiryLead(answers, evidence);
+  const reviewCriterion = latestInquiryReviewCriterion(question);
+  const weighedCount = evidence.filter(item => item.direction !== 'contextualizes' && answers.some(answer => answer.id === item.candidateId)).length;
   const unplaced = evidence.some((item) => !item.candidateId && item.direction !== 'contextualizes');
   const closed = isInquiryClosed(question);
   const answered = Boolean(savedAnswer.trim()) && question.status !== 'open' && question.status !== 'comparing_answers' && question.status !== 'gathering_evidence';
   const frameFilled = [question.whyItMatters, question.currentIntuition, question.uncertainty].some((value) => value?.trim());
 
   let hereId: string; let guide: string;
-  if (answers.length < 2) { hereId = 'inq-answers'; guide = answers.length ? 'Add a second possible answer.' : 'Add two possible answers to compare.'; }
+  if (closed) { hereId = 'inq-conclude'; guide = 'Decided. Reopen it any time, or take an optional next step.'; }
+  else if (answers.length < 2) { hereId = 'inq-answers'; guide = answers.length ? 'Add a second possible answer.' : 'Add two possible answers to compare.'; }
   else if (!evidence.length || unplaced) { hereId = 'inq-weigh'; guide = !evidence.length ? 'Add evidence, then place it on an answer.' : 'Place your remaining evidence on an answer.'; }
+  else if (!working.trim() && weighedCount < 2) { hereId = 'inq-weigh'; guide = 'Look for one piece of evidence that helps tell two answers apart.'; }
   else if (!working.trim()) { hereId = 'inq-conclude'; guide = `The scale leans ${lead && lead.margin >= 2 ? `toward ${letter(lead.index)}. ` : 'nowhere clear yet. '}Write your working answer.`; }
-  else { hereId = 'inq-conclude'; guide = closed ? 'Decided. Reopen it any time, or take an optional next step.' : answered ? 'Answered. Decide the outcome when you are ready, or keep investigating.' : 'Mark it answered, or keep investigating.'; }
+  else { hereId = 'inq-conclude'; guide = answered ? 'Answered. Decide the outcome when you are ready, or keep investigating.' : 'Mark it answered, or keep investigating.'; }
 
   const conceptNames = useMemo(() => {
     const ids = new Set(question.conceptIds || []);
@@ -250,10 +254,10 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
   };
   const saveChangeMind = async () => {
     if (!changeMind.trim() || saving) return;
-    const note = { id: uid(), title: 'What would change my mind', text: changeMind.trim(), origin: 'user' as const, date: today() };
+    const note = { id: uid(), title: INQUIRY_REVIEW_CRITERION_TITLE, text: changeMind.trim(), origin: 'user' as const, date: today() };
     if (await onUpdateQuestion({ ...question, investigationNotes: [note, ...(question.investigationNotes || [])], dateUpdated: today() })) {
       setChangeMind('');
-      onAiFeedback('Saved to this inquiry', 'It is in the record, under Noesis notes.');
+      onAiFeedback('Saved to this inquiry', 'You will see it again when you reach Conclude.');
     }
   };
   const saveSteelman = async () => {
@@ -283,7 +287,11 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     const hasSteelman = inquiryHasRecordedObjection(question);
     if (requiresSummary && !hasSteelman && !checkpointSkipReason.trim()) { onAiFeedback('Steelman checkpoint', 'Record the strongest objection on an answer, or say why you are skipping this.', 'destructive'); return; }
     const checkpointSkips = requiresSummary && !hasSteelman && checkpointSkipReason.trim() ? [...(question.checkpointSkips || []), { id: uid(), transition: 'question_to_resolution', reason: checkpointSkipReason.trim(), date: today() }] : question.checkpointSkips;
-    const next: Question = { ...question, answer: working.trim(), status, resolutionSummary: requiresSummary ? resolutionSummary.trim() : question.resolutionSummary || '', checkpointSkips, dateUpdated: today() };
+    const previous = replacedInquiryAnswer(question, working);
+    const investigationNotes = previous
+      ? [{ id: uid(), title: 'Previous working answer', text: previous, origin: 'user' as const, date: today() }, ...(question.investigationNotes || [])]
+      : question.investigationNotes;
+    const next: Question = { ...question, answer: working.trim(), status, resolutionSummary: requiresSummary ? resolutionSummary.trim() : previous ? '' : question.resolutionSummary || '', checkpointSkips, ...(investigationNotes ? { investigationNotes } : {}), dateUpdated: today() };
     if (status === 'converted') {
       if (saveLock.current) return;
       saveLock.current = true; setSaving(true);
@@ -299,6 +307,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     }
     if (!await onUpdateQuestion(next)) return;
     setWorkingDraft(null);
+    setResolutionSummary(next.resolutionSummary || '');
     onAiFeedback(status === 'provisionally_answered' ? 'Marked as answered' : status === 'resolved' ? 'Inquiry resolved' : 'Outcome saved', '');
   };
   const keepInvestigating = () => onUpdateQuestion({ ...question, status: answers.length >= 2 ? 'comparing_answers' : 'open', dateUpdated: today() });
@@ -537,6 +546,10 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
 
       {/* ---------- Conclude ---------- */}
       <RecordSection id="inq-conclude" title="Conclude" description="Your best answer for now. You can reopen it any time." here={hereId === 'inq-conclude'}>
+        {reviewCriterion && <div className="mb-3 border-l border-border pl-3">
+          <Eyebrow>What would change your mind</Eyebrow>
+          <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{reviewCriterion}</p>
+        </div>}
         {answers.length >= 2 && (
           <div className="noesis-decide" data-tone={lead && lead.margin >= 2 ? 'ok' : 'caution'}>
             <Eyebrow>What the scale says</Eyebrow>

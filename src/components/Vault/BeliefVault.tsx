@@ -47,7 +47,8 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { PositionMiniScale, PullEvidenceDialog, evidenceBalance, zoneLabel } from '@/components/Vault/PositionCalibration';
+import { PositionMiniScale, PullEvidenceDialog, zoneLabel } from '@/components/Vault/PositionCalibration';
+import { distinctPositionStatement, evidenceBalance, resolvePositionGrounds } from '@/lib/position-grounds';
 import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
 import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
 import { positionReviewTarget, type PositionReviewApproval } from '@/lib/position-ai-review';
@@ -300,14 +301,7 @@ function daysSince(value?: string) {
 }
 
 function diagnosePosition(entry: VaultEntry, links: PhilosophicalLink[], practices: Practice[]): PositionDiagnostic {
-  const typedLinks = links.filter((link) =>
-    (link.fromType === 'position' && link.fromId === entry.id) ||
-    (link.toType === 'position' && link.toId === entry.id)
-  );
-  const supportLinks = typedLinks.filter((link) => ['supports', 'coheres', 'strengthens', 'expressed_in', 'tested_by'].includes(link.type)).length;
-  const challengeLinks = typedLinks.filter((link) => ['challenges', 'contradicts', 'weakens', 'questions'].includes(link.type)).length;
-  const supportCount = (entry.evidenceFor || []).length + (entry.sourceIds || []).length + supportLinks;
-  const challengeCount = (entry.evidenceAgainst || []).length + challengeLinks;
+  const { supportCount, challengeCount } = resolvePositionGrounds(entry, links);
   const practiceCount = practices.filter((practice) => (practice.positionIds || []).includes(entry.id)).length;
   const assumptionCount = (entry.assumptions || []).length;
   const formation = positionFormation(entry);
@@ -503,7 +497,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       ((link.fromType === 'position' && link.fromId === e.id) || (link.toType === 'position' && link.toId === e.id)) &&
       ['challenges', 'contradicts'].includes(link.type)
     );
-    const hasSupport = (e.evidenceFor || []).length > 0 || (e.sourceIds || []).length > 0;
+    const hasSupport = diagnostic.supportCount > 0;
     const changedAt = new Date(e.dateUpdated || e.dateCreated).getTime();
     const recentCutoff = Date.now() - 1000 * 60 * 60 * 24 * 30;
     const viewOk =
@@ -516,7 +510,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       (viewFilter === 'needs_attention' && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.assessmentScore < 45)) ||
       (viewFilter === 'emerging' && (['draft', 'tentative', 'developing'].includes(e.status) || e.confidence <= 40)) ||
       (viewFilter === 'needs_evidence' && !hasSupport) ||
-      (viewFilter === 'needs_opposition' && !hasTension && !(e.evidenceAgainst || []).length) ||
+      (viewFilter === 'needs_opposition' && diagnostic.challengeCount === 0) ||
       (viewFilter === 'needs_practice' && diagnostic.practiceCount === 0 && !['abandoned', 'rejected', 'replaced'].includes(e.status)) ||
       (viewFilter === 'revised' && e.status === 'revised') ||
       (viewFilter === 'abandoned' && ['abandoned', 'rejected', 'replaced'].includes(e.status)) ||
@@ -564,7 +558,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         const diagnostic = positionDiagnostics.get(entry.id);
         return Boolean(diagnostic && (diagnostic.flags.length > 0 || diagnostic.completeness < 70 || diagnostic.assessmentScore < 45));
       }).length,
-      unsupported: safeEntries.filter((entry) => !(entry.evidenceFor || []).length && !(entry.sourceIds || []).length).length,
+      unsupported: safeEntries.filter((entry) => positionDiagnostics.get(entry.id)?.supportCount === 0).length,
       needsPractice: safeEntries.filter((entry) => positionDiagnostics.get(entry.id)?.flags.includes('untested')).length,
       overconfident: safeEntries.filter((entry) => positionDiagnostics.get(entry.id)?.flags.includes('overconfident')).length,
       stale: safeEntries.filter((entry) => positionDiagnostics.get(entry.id)?.flags.includes('stale')).length,
@@ -725,8 +719,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       linkedPractices,
     });
     const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
-    const supportCount = (selected.evidenceFor || []).length + (selected.sourceIds || []).length;
-    const challengeCount = (selected.evidenceAgainst || []).length;
+    const { supportCount, challengeCount, linked: linkedGrounds } = resolvePositionGrounds(selected, links);
     const revisionCount = (selected.versionHistory || []).length;
 
     const previewSource = (source: Media) => {
@@ -1050,7 +1043,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     const supportItems = selected.evidenceFor || [];
     const challengeItems = selected.evidenceAgainst || [];
     let hereId: string; let guide: string;
-    if (!supportItems.length || !challengeItems.length) { hereId = 'pos-grounds'; guide = !supportItems.length ? 'Add what supports it.' : 'Add at least one challenge: what would count against it?'; }
+    if (!supportCount || !challengeCount) { hereId = 'pos-grounds'; guide = !supportCount ? 'Add what supports it.' : 'Add at least one challenge: what would count against it?'; }
     else if (gap !== null && Math.abs(gap) > 10) { hereId = 'pos-calibrate'; guide = 'Your confidence and the grounds disagree. Move the slider if you mean to, or add grounds.'; }
     else if (revisionCount > 1) { hereId = 'pos-revise'; guide = 'Revision recorded. Test it in practice or open an inquiry when a suggestion fits.'; }
     else { hereId = 'pos-revise'; guide = 'Calibrated. If your thinking changed, record a revision. Otherwise you are done.'; }
@@ -1169,14 +1162,18 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           <div className="noesis-step__cols noesis-step__cols--even">
             <div data-tone="practice">
               <Eyebrow tone="practice">Support</Eyebrow>
-              <div className="mt-1.5">{supportItems.length ? supportItems.map((text, index) => groundRow(text, 'for', index)) : <SectionEmpty title="None yet." />}</div>
-              {linkedSources.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Also grounded in {linkedSources.length} linked source{linkedSources.length === 1 ? '' : 's'}: {linkedSources.map((source) => source.title).join(', ')}.</p>}
+              <div className="mt-1.5">{supportItems.map((text, index) => groundRow(text, 'for', index))}</div>
+              {linkedGrounds.for.map((link) => <p key={link.id} className="my-2 break-words text-sm"><strong>{link.fromLabel || 'Linked record'}:</strong> {link.note}</p>)}
+              {!supportCount && <SectionEmpty title="None yet." />}
+              {linkedSources.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Related sources are listed in Connections. A link counts here only when it records how the source bears on this claim.</p>}
               <form className="noesis-add" onSubmit={addGround('for')}><Input placeholder="Add support" aria-label="Add support" className="h-9" /><Button type="submit" variant="secondary" tone="practice">Add</Button></form>
               <Button variant="link" size="sm" onClick={() => setPullSide('for')}>⇣ Pull from your workspace</Button>
             </div>
             <div data-tone="position">
               <Eyebrow tone="position">Challenges</Eyebrow>
-              <div className="mt-1.5">{challengeItems.length ? challengeItems.map((text, index) => groundRow(text, 'against', index)) : <SectionEmpty title="None yet." hint="Name what would count against it." />}</div>
+              <div className="mt-1.5">{challengeItems.map((text, index) => groundRow(text, 'against', index))}</div>
+              {linkedGrounds.against.map((link) => <p key={link.id} className="my-2 break-words text-sm"><strong>{link.fromLabel || 'Linked record'}:</strong> {link.note}</p>)}
+              {!challengeCount && <SectionEmpty title="None yet." hint="Name what would count against it." />}
               <form className="noesis-add" onSubmit={addGround('against')}><Input placeholder="Add a challenge" aria-label="Add a challenge" className="h-9" /><Button type="submit" variant="secondary" tone="position">Add</Button></form>
               <Button variant="link" size="sm" onClick={() => setPullSide('against')}>⇣ Pull from your workspace</Button>
             </div>
@@ -1416,6 +1413,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
         {filteredEntries.map((entry) => {
           const diagnostic = positionDiagnostics.get(entry.id) || diagnosePosition(entry, links, practices);
+          const statement = distinctPositionStatement(entry.title, entry.statement || entry.description || '');
           const formation = positionFormation(entry);
           return (
             <Card 
@@ -1428,7 +1426,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
                   {/* As in the prototype: one type tag, and the challenge count when there is one. */}
                   <Badge variant="outline" className="rounded-full">{TYPE_LABELS[entry.type] || 'Position'}</Badge>
-                  {diagnostic.challengeCount > 0 && <span className="ml-auto noesis-eyebrow noesis-eyebrow--sm text-[hsl(var(--stage-claim))]">{diagnostic.challengeCount} open challenge{diagnostic.challengeCount === 1 ? '' : 's'}</span>}
                 </div>
                 <h2 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors whitespace-normal break-words text-primary">
                   <button type="button" className="text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openEntry(entry.id)}>{entry.title}</button>
@@ -1437,11 +1434,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <span className="noesis-ember" data-stage-tone="claim" aria-hidden="true" style={{ '--ember': `${0.45 + confidencePercent(entry.confidence) / 180}` } as React.CSSProperties} />
             </div>
 
-            <p className="text-[13px] leading-relaxed text-muted-foreground font-body whitespace-normal break-words italic mb-4">
-              {entry.statement || entry.description}
-            </p>
+            {statement && <p className="mb-4 break-words text-[13px] italic leading-relaxed text-muted-foreground">{statement}</p>}
 
-            <PositionMiniScale confidence={confidencePercent(entry.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} />
+            <PositionMiniScale confidence={confidencePercent(entry.confidence)} supportCount={diagnostic.supportCount} challengeCount={diagnostic.challengeCount} showCue={derivePositionLifecycleStage(entry.status) !== 'retired'} />
             {(entry.tags || []).length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 <Pill look="mono" tone="concept" onClick={() => setConceptPopupName((entry.tags || [])[0])}>{(entry.tags || [])[0]}</Pill>

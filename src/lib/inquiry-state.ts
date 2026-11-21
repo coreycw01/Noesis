@@ -2,6 +2,21 @@ import type { InquiryEvidence, Question } from '@/lib/types';
 
 export const MAX_INQUIRY_EVIDENCE = 200;
 
+export const INQUIRY_REVIEW_CRITERION_TITLE = 'What would change my mind';
+
+export function latestInquiryReviewCriterion(question: Pick<Question, 'investigationNotes'>) {
+  return question.investigationNotes?.find(note =>
+    note.origin === 'user' && note.title === INQUIRY_REVIEW_CRITERION_TITLE && note.text.trim(),
+  )?.text.trim() || '';
+}
+
+export function replacedInquiryAnswer(question: Pick<Question, 'answer' | 'resolutionSummary'>, nextAnswer: string) {
+  const previous = question.answer?.trim();
+  if (!previous || previous === nextAnswer.trim()) return '';
+  const summary = question.resolutionSummary?.trim();
+  return summary ? `${previous}\n\nWhat led to this answer: ${summary}` : previous;
+}
+
 export function indexAnnotationInquiries(inquiries: readonly Question[]) {
   const byAnnotation = new Map<string, Question[]>();
   const byId = new Map(inquiries.map((inquiry) => [inquiry.id, inquiry]));
