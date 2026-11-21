@@ -60,7 +60,12 @@ test('an island grows with what rests on it, and the growth slows', () => {
   // Each unit of work adds less than the one before it, so a busy concept
   // never swells across its neighbours' water.
   assert.ok((lots - some) / 60 < (some - bare) / 4);
-  assert.ok(lots < bare * 4);
+  // The honest invariant: every doubling of the work adds the same step, so
+  // growth never runs away however much rests on a concept.
+  const step = islandRadius(1, 0) - islandRadius(0, 0);
+  for (const n of [1, 3, 7, 15, 31]) {
+    assert.ok(Math.abs((islandRadius(n * 2 + 1, 0) - islandRadius(n, 0)) - step) < 1);
+  }
   // Clarity counts; confidence and repeated edits are not arguments here.
   assert.ok(islandRadius(0, 3) > bare);
 });

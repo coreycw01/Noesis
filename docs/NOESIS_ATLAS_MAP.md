@@ -27,10 +27,10 @@ only difference.
 | Concept | a star far out; its own island up close | — |
 | Position | a **flag** planted in the ground; the banner's length is the **stated confidence** | `confidence` |
 | Inquiry | **fog** over the ground with a small `?` to aim at | `status` |
-| Source | a **dock** at the shoreline | — |
+| Source | an open **book** resting on the shore | — |
 | Work | a **workshop**: a roof over a bench | — |
 | Praxis | **footprints** — a practice is walked, not claimed | — |
-| Annotation | a quiet **pin** | — |
+| Annotation | a **map pin** pushed into the ground, point down | — |
 | Boundary | a **boat** holding station just offshore | `notSameAs`, `counterexamples`, `edgeCases` |
 
 The flag is the app's own position icon, so the map and the rest of Noesis
@@ -54,6 +54,13 @@ third silhouette at sixteen pixels.
   with no `notSameAs`, no counterexamples and no edge cases gets no boats, and
   selecting a boat says which kind of boundary it is and quotes the reason if
   one was written.
+- **The island's size is how much rests on the concept**, and so is the number
+  of contour rings. Both read from the same count — its records, notes and
+  links — so a worked concept is a visibly bigger island carrying more lines
+  than an untouched one: across the demo workspace the spread runs 36px to
+  137px, near enough four to one. The rings step at a fixed height rather than
+  being spread to fit, so they crowd toward the summit the way they do on a
+  real topographic map, and the concepts carrying the most get a summit mark.
 - **Contour rings are how much rests on the concept**, counted from its
   records, notes and links. The island grows with that count and the growth
   diminishes — doubling the work adds the same small step each time — so a busy
